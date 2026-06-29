@@ -1,0 +1,18 @@
+# Next.js
+certrace-portal/node_modules/
+certrace-portal/.next/
+certrace-portal/out/
+certrace-portal/.env*.local
+
+# Python virtualenv & cache
+certrace-backend/.venv/
+certrace-backend/__pycache__/
+certrace-backend/*.pyc
+certrace-backend/.env
+
+# Backups and archives
+*.zip
+
+# OS files
+.DS_Store
+Thumbs.db
