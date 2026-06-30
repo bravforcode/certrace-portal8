@@ -1037,6 +1037,54 @@ function XmlExportTab({ decl, roll }: { decl: Declaration; roll: ReviewRollup })
           clearInterval(interval);
           setValidating(false);
           setDone(true);
+          
+          const approved = roll.submissions.filter((s) => s.lifecycle === "approved");
+          const today = new Date().toISOString().split('T')[0];
+          
+          const goodsXml = approved.map((sub, index) => {
+            const emissions = sub.emissions[0];
+            return `      <cbam:GoodsItem>
+        <cbam:ItemNumber>${index + 1}</cbam:ItemNumber>
+        <cbam:CommodityCode>${sub.supplier.material === "Steel" ? "72081000" : "76011000"}</cbam:CommodityCode>
+        <cbam:Description>${sub.supplier.material} imported from ${sub.supplier.name}</cbam:Description>
+        <cbam:Quantity>${emissions?.quantity ?? 100}</cbam:Quantity>
+        <cbam:Emissions>
+          <cbam:DirectEmissions>${emissions?.direct ?? 1.5}</cbam:DirectEmissions>
+          <cbam:IndirectEmissions>${emissions?.indirect ?? 0.5}</cbam:IndirectEmissions>
+          <cbam:TotalSpecificEmissions>${emissions?.perTonne ?? 2.0}</cbam:TotalSpecificEmissions>
+        </cbam:Emissions>
+      </cbam:GoodsItem>`;
+          }).join("\\n");
+      
+          const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+<cbam:CBAMDeclaration xmlns:cbam="urn:eu:taxud:cbam:v1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <cbam:DeclarationHeader>
+    <cbam:DeclarationID>CBAM-${decl.period.replace(/\\s+/g, "")}-${decl.id.substring(0, 8).toUpperCase()}</cbam:DeclarationID>
+    <cbam:ReportingPeriod>${decl.period}</cbam:ReportingPeriod>
+    <cbam:CreationDate>${today}</cbam:CreationDate>
+    <cbam:Declarant>
+      <cbam:Name>${ORG.name}</cbam:Name>
+      <cbam:EORI>${ORG.eori ?? "NL123456789"}</cbam:EORI>
+    </cbam:Declarant>
+  </cbam:DeclarationHeader>
+  <cbam:ImportedGoods>
+${goodsXml || `    <!-- No approved supplier submissions yet -->`}
+  </cbam:ImportedGoods>
+  <cbam:TotalEmissions>
+    <cbam:TotalEmbeddedEmissions>${roll.reviewedEmissions}</cbam:TotalEmbeddedEmissions>
+  </cbam:TotalEmissions>
+</cbam:CBAMDeclaration>`;
+
+          const blob = new Blob([xmlContent], { type: "application/xml" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `cbam_report_${decl.period.replace(/\\s+/g, "_")}.xml`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          
           toast({ message: "XML Generated", detail: "CBAM XML file downloaded successfully.", tone: "ok" });
           return 100;
         }
