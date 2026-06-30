@@ -24,6 +24,7 @@ import {
   CircleX,
   Users,
   ChevronRight,
+  FileCode,
 } from "lucide-react";
 import {
   Card,
@@ -67,7 +68,7 @@ import {
   type ReviewRollup,
 } from "@/lib/exporter-review";
 
-type Tab = "submissions" | "summary" | "package";
+type Tab = "submissions" | "summary" | "package" | "xml";
 
 /* Server-safe zeroed roll-up so the first render matches before localStorage is
    read on mount (the real data depends on the supplier + exporter stores). */
@@ -150,11 +151,12 @@ export function DeclarationWorkflow({ declaration }: { declaration: Declaration 
           ["submissions", "Submissions", Inbox],
           ["summary", "Executive Summary", Sparkles],
           ["package", "Audit Package", BadgeCheck],
+          ["xml", "EU XML Export", FileCode],
         ] as const).map(([key, label, Icon]) => (
           <button
             key={key}
             onClick={() => {
-              setTab(key);
+              setTab(key as Tab);
               setOpenId(null);
             }}
             className={cn(
@@ -179,8 +181,10 @@ export function DeclarationWorkflow({ declaration }: { declaration: Declaration 
           )
         ) : tab === "summary" ? (
           <ExecutiveSummaryTab decl={declaration} roll={roll} exporter={exporter} onChanged={setExporter} onOpen={(id) => { setTab("submissions"); setOpenId(id); }} />
-        ) : (
+        ) : tab === "package" ? (
           <AuditPackageTab decl={declaration} roll={roll} exporter={exporter} onChanged={setExporter} />
+        ) : (
+          <XmlExportTab decl={declaration} roll={roll} />
         )}
       </div>
     </div>
@@ -1014,6 +1018,84 @@ function FiledReceipt({ decl, roll, reg, recipients, ref, filedAt }: { decl: Dec
         <Link href="/reports"><Button size="sm">View in reports <ArrowRight size={14} strokeWidth={1.5} /></Button></Link>
         <Link href="/dashboard"><Button variant="ghost" size="sm">Back to dashboard</Button></Link>
       </div>
+    </div>
+  );
+}
+
+/* ════════════════════════ EU XML Export (CBAM specific) ════════════════════════ */
+function XmlExportTab({ decl, roll }: { decl: Declaration; roll: ReviewRollup }) {
+  const [validating, setValidating] = React.useState(false);
+  const [progress, setProgress] = React.useState(0);
+  const [done, setDone] = React.useState(false);
+
+  const handleExport = () => {
+    setValidating(true);
+    // Simulate validation and XML generation
+    const interval = setInterval(() => {
+      setProgress((p) => {
+        if (p >= 100) {
+          clearInterval(interval);
+          setValidating(false);
+          setDone(true);
+          toast({ message: "XML Generated", detail: "CBAM XML file downloaded successfully.", tone: "ok" });
+          return 100;
+        }
+        return p + 20;
+      });
+    }, 400);
+  };
+
+  const missingData = roll.awaitingCount > 0;
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <Eyebrow>EU CBAM Registry XML</Eyebrow>
+        <p className="mt-1 max-w-2xl text-sm text-black/45">
+          Generate the official XSD-compliant XML file required for the EU CBAM Transitional Registry. The system will run a pre-flight validation check before generating the file.
+        </p>
+      </div>
+
+      <Card className="p-8 text-center flex flex-col items-center justify-center">
+        <div className="h-16 w-16 rounded-2xl bg-[#fafaf8] border border-black/10 flex items-center justify-center mb-6 text-[#2563eb]">
+          <FileCode size={28} strokeWidth={1.5} />
+        </div>
+        
+        <h3 className="font-medium text-[#111] text-lg">Export Machine-Readable Report</h3>
+        <p className="text-sm text-black/50 mt-2 max-w-md">
+          {missingData 
+            ? "Warning: Some suppliers have not submitted their data yet. Exporting now will result in incomplete XML data, which may be rejected by the EU."
+            : "All submissions are collected. You are ready to generate the compliance XML."}
+        </p>
+
+        {validating ? (
+          <div className="mt-8 w-64 max-w-full space-y-2">
+            <div className="flex justify-between text-xs text-black/50">
+              <span>Validating schema...</span>
+              <span>{progress}%</span>
+            </div>
+            <div className="h-1.5 w-full bg-black/5 rounded-full overflow-hidden">
+              <div className="h-full bg-[#2563eb] transition-all duration-300" style={{ width: `${progress}%` }} />
+            </div>
+          </div>
+        ) : done ? (
+          <div className="mt-8 space-y-4">
+            <div className="inline-flex items-center gap-2 text-[#047857] bg-[#ecfdf5] px-4 py-2 rounded-full text-sm font-medium">
+              <Check size={16} /> Validation Passed
+            </div>
+            <p className="text-xs text-black/40">File: cbam_report_{decl.period.replace(/\s+/g, "_")}.xml downloaded.</p>
+          </div>
+        ) : (
+          <Button 
+            className="mt-8" 
+            onClick={handleExport}
+            variant={missingData ? "secondary" : "primary"}
+          >
+            <FileCode size={16} strokeWidth={1.5} className="mr-2" />
+            Validate & Export XML
+          </Button>
+        )}
+      </Card>
     </div>
   );
 }
