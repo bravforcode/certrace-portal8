@@ -1,0 +1,353 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" width="100%" height="100%" style="background-color: #F5F4F0; font-family: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;">
+  <style>
+    .title { font-weight: 300; font-size: 24px; fill: #111111; letter-spacing: -0.02em; }
+    .subtitle { font-family: 'Courier Prime', monospace; font-size: 10px; fill: #10B981; letter-spacing: 0.15em; font-weight: bold; }
+    .meta-text { font-family: 'Courier Prime', monospace; font-size: 10px; fill: rgba(17,17,17,0.4); letter-spacing: 0.1em; }
+    .section-header { font-weight: 500; font-size: 14px; fill: #111111; letter-spacing: 0.05em; text-transform: uppercase; }
+    
+    /* Journey Card Styles */
+    .card-bg { fill: #FFFFFF; stroke: rgba(0,0,0,0.06); stroke-width: 1px; rx: 8px; }
+    .card-title { font-weight: 600; font-size: 13px; fill: #111111; }
+    .card-label { font-family: 'Courier Prime', monospace; font-size: 8px; fill: rgba(17,17,17,0.4); letter-spacing: 0.08em; }
+    .card-body { font-size: 11px; fill: rgba(17,17,17,0.7); }
+    .badge-text { font-family: 'Courier Prime', monospace; font-size: 8px; font-weight: bold; }
+    
+    /* Flow Connector Styles */
+    .flow-arrow { stroke: rgba(17,17,17,0.2); stroke-width: 1.5; fill: none; stroke-dasharray: 4 3; }
+    .flow-arrow-head { fill: rgba(17,17,17,0.4); }
+    
+    /* Mockup Styles */
+    .mock-header { fill: #FAF9F7; stroke: rgba(0,0,0,0.06); stroke-width: 1px; }
+    .mock-title { font-family: 'Courier Prime', monospace; font-size: 8px; fill: rgba(17,17,17,0.4); }
+    .mock-element { fill: #F5F4F0; stroke: rgba(0,0,0,0.05); stroke-width: 1px; rx: 3px; }
+    .mock-accent { fill: #3B82F6; rx: 2px; }
+    .mock-success { fill: #10B981; }
+    .mock-error { fill: #EF4444; }
+    .mock-warning { fill: #F59E0B; }
+    .mock-text-bold { font-size: 9px; font-weight: 600; fill: #111111; }
+    .mock-text-mute { font-size: 8px; fill: rgba(17,17,17,0.5); }
+  </style>
+
+  <!-- ============================================================
+       TOP HEADER & GRID LINES
+       ============================================================ -->
+  <!-- Subtle Background Grid Motif -->
+  <line x1="40" y1="80" x2="1160" y2="80" stroke="rgba(0,0,0,0.04)" stroke-width="1" />
+  <line x1="40" y1="410" x2="1160" y2="410" stroke="rgba(0,0,0,0.04)" stroke-width="1" />
+  <line x1="40" y1="80" x2="40" y2="760" stroke="rgba(0,0,0,0.04)" stroke-width="1" />
+  <line x1="1160" y1="80" x2="1160" y2="760" stroke="rgba(0,0,0,0.04)" stroke-width="1" />
+
+  <!-- Title block -->
+  <text x="60" y="45" class="subtitle">CERTRACE — B2B PRE-LAUNCH DESIGN</text>
+  <text x="60" y="70" class="title">Next-Gen CBAM User Journey &amp; Flow Map</text>
+  <text x="960" y="45" class="meta-text" text-anchor="end">VERSION: 2.1 (INSANE UX)</text>
+  <text x="960" y="65" class="meta-text" text-anchor="end">STATUS: CONCEPT VALIDATED</text>
+  <circle cx="975" cy="50" r="4" fill="#10B981" />
+
+  <!-- ============================================================
+       SECTION 1: USER JOURNEY MAP
+       ============================================================ -->
+  <text x="60" y="115" class="section-header">1. User Journey Map (ประสบการณ์และความรู้สึก)</text>
+  
+  <!-- Step 1 Card -->
+  <g transform="translate(60, 135)">
+    <rect width="250" height="220" class="card-bg" />
+    <text x="20" y="30" class="card-label" fill="#EF4444">STAGE 01 — PREPARATION</text>
+    <text x="20" y="50" class="card-title">เตรียมข้อมูล &amp; รับแรงกดดัน</text>
+    
+    <text x="20" y="85" class="card-label">USER ACTION</text>
+    <text x="20" y="102" class="card-body">รวบรวมไฟล์ดิบ/บิลค่าไฟโรงงาน</text>
+    <text x="20" y="117" class="card-body">ข้อมูลจากซัพพลายเออร์สับสนสะเปะสะปะ</text>
+
+    <text x="20" y="145" class="card-label">PAIN POINTS</text>
+    <text x="20" y="162" class="card-body" fill="#EF4444">😰 กลัวสูตรคำนวณคาร์บอนผิดพลาด</text>
+    <text x="20" y="177" class="card-body" fill="#EF4444">😰 วิตกกังวลเพราะใกล้กำหนดส่งสินค้า</text>
+    
+    <rect x="20" y="195" width="210" height="15" fill="rgba(239,68,68,0.05)" rx="3" />
+    <text x="25" y="206" class="badge-text" fill="#EF4444">TOUCHPOINT: DEADLINE METERS</text>
+  </g>
+
+  <!-- Connection Line 1-2 -->
+  <path d="M310,245 L360,245" class="flow-arrow" />
+  <polygon points="360,242 366,245 360,248" class="flow-arrow-head" />
+
+  <!-- Step 2 Card -->
+  <g transform="translate(340, 135)">
+    <rect width="250" height="220" class="card-bg" />
+    <text x="20" y="30" class="card-label" fill="#3B82F6">STAGE 02 — INGESTION</text>
+    <text x="20" y="50" class="card-title">นำเข้าข้อมูลอัจฉริยะ</text>
+    
+    <text x="20" y="85" class="card-label">USER ACTION</text>
+    <text x="20" y="102" class="card-body">ลากไฟล์ใดๆ วางเข้าสู่ระบบ หรือ</text>
+    <text x="20" y="117" class="card-body">ดึงข้อมูลอัตโนมัติจากโรงงานผ่าน ERP</text>
+
+    <text x="20" y="145" class="card-label">EMOTIONAL VALUE</text>
+    <text x="20" y="162" class="card-body" fill="#3B82F6">😌 สบายใจขึ้นทันทีเมื่อ AI ช่วยแกะไฟล์</text>
+    <text x="20" y="177" class="card-body" fill="#3B82F6">😌 ไม่ต้องมานั่งกรอกข้อมูลทีละช่อง</text>
+    
+    <rect x="20" y="195" width="210" height="15" fill="rgba(59,130,246,0.05)" rx="3" />
+    <text x="25" y="206" class="badge-text" fill="#3B82F6">TOUCHPOINT: AI PARSING PREVIEW</text>
+  </g>
+
+  <!-- Connection Line 2-3 -->
+  <path d="M590,245 L640,245" class="flow-arrow" />
+  <polygon points="640,242 646,245 640,248" class="flow-arrow-head" />
+
+  <!-- Step 3 Card -->
+  <g transform="translate(620, 135)">
+    <rect width="250" height="220" class="card-bg" />
+    <text x="20" y="30" class="card-label" fill="#F59E0B">STAGE 03 — VALIDATION</text>
+    <text x="20" y="50" class="card-title">ซ่อมแซมจุดบกพร่อง</text>
+    
+    <text x="20" y="85" class="card-label">USER ACTION</text>
+    <text x="20" y="102" class="card-body">ระบบชี้ข้อมูลโหว่พร้อมป้อนคำแนะนำ</text>
+    <text x="20" y="117" class="card-body">กดอนุมัติข้อมูลทำนายตามประวัติการผลิต</text>
+
+    <text x="20" y="145" class="card-label">EMOTIONAL VALUE</text>
+    <text x="20" y="162" class="card-body" fill="#F59E0B">😎 รู้สึกควบคุมและจัดการความเสี่ยงได้</text>
+    <text x="20" y="177" class="card-body" fill="#F59E0B">😎 ไม่ต้องโทรตามหาเอกสารใหม่ให้เสียเวลา</text>
+    
+    <rect x="20" y="195" width="210" height="15" fill="rgba(245,158,11,0.05)" rx="3" />
+    <text x="25" y="206" class="badge-text" fill="#F59E0B">TOUCHPOINT: SMART SUGGEST CARD</text>
+  </g>
+
+  <!-- Connection Line 3-4 -->
+  <path d="M870,245 L920,245" class="flow-arrow" />
+  <polygon points="920,242 926,245 920,248" class="flow-arrow-head" />
+
+  <!-- Step 4 Card -->
+  <g transform="translate(900, 135)">
+    <rect width="250" height="220" class="card-bg" />
+    <text x="20" y="30" class="card-label" fill="#10B981">STAGE 04 — SUBMISSION</text>
+    <text x="20" y="50" class="card-title">ออกเอกสาร &amp; ส่งมอบ</text>
+    
+    <text x="20" y="85" class="card-label">USER ACTION</text>
+    <text x="20" y="102" class="card-body">ดาวน์โหลดไฟล์ XML ยื่นเข้าระบบ EU</text>
+    <text x="20" y="117" class="card-body">หรือแชร์ลิงก์ให้คู่ค้าต่างประเทศเข้าดูตรง</text>
+
+    <text x="20" y="145" class="card-label">EMOTIONAL VALUE</text>
+    <text x="20" y="162" class="card-body" fill="#10B981">🥳 โล่งใจที่งานเสร็จได้ทันกำหนดเวลา</text>
+    <text x="20" y="177" class="card-body" fill="#10B981">🥳 มั่นใจ เอกสารมีที่มาโปร่งใสไม่โดนกัก</text>
+    
+    <rect x="20" y="195" width="210" height="15" fill="rgba(16,185,129,0.05)" rx="3" />
+    <text x="25" y="206" class="badge-text" fill="#10B981">TOUCHPOINT: AUDIT SHIELD EXPORT</text>
+  </g>
+
+
+  <!-- ============================================================
+       SECTION 2: USER FLOW (SCREEN SEQUENCE WIREFRAMES)
+       ============================================================ -->
+  <text x="60" y="445" class="section-header">2. User Flow Step-by-Step (หน้าจอโปรแกรมที่ผู้ใช้มองเห็น)</text>
+
+  <!-- SCREEN 1: DASHBOARD -->
+  <g transform="translate(60, 470)">
+    <!-- Base mockup window -->
+    <rect width="180" height="250" class="card-bg" />
+    <rect width="180" height="20" class="mock-header" rx="8" />
+    <circle cx="10" cy="10" r="3" fill="#EF4444" />
+    <circle cx="20" cy="10" r="3" fill="#F59E0B" />
+    <circle cx="30" cy="10" r="3" fill="#10B981" />
+    <text x="50" y="13" class="mock-title">certrace.co/dashboard</text>
+    
+    <!-- Screen content -->
+    <text x="12" y="38" class="mock-text-bold">CBAM EXPOSURE</text>
+    
+    <!-- Large Tax exposure widget -->
+    <rect x="12" y="48" width="156" height="42" class="mock-element" style="fill: #FAF9F7;" />
+    <text x="20" y="65" class="mock-text-mute">Predictive Tax Risk</text>
+    <text x="20" y="82" class="mock-text-bold" fill="#EF4444" style="font-size: 14px;">€48,250</text>
+
+    <!-- Shipment alert -->
+    <rect x="12" y="98" width="156" height="32" class="mock-element" style="stroke: #EF4444;" />
+    <circle cx="22" cy="114" r="4" fill="#EF4444" />
+    <text x="32" y="112" class="mock-text-bold" style="font-size: 8px;">1 ล็อตมีข้อมูลโหว่</text>
+    <text x="32" y="122" class="mock-text-mute" style="font-size: 7px;">EXP-9903 / Steel Beams</text>
+
+    <!-- List table -->
+    <text x="12" y="148" class="mock-text-mute">Shipment Reports</text>
+    <rect x="12" y="156" width="156" height="18" class="mock-element" />
+    <text x="18" y="168" class="mock-text-bold" style="font-size: 7px;">EXP-9902 Steel</text>
+    <text x="130" y="168" class="mock-text-bold" style="font-size: 7px;" fill="#10B981">Calculated</text>
+
+    <!-- CTA Button -->
+    <rect x="12" y="215" width="156" height="22" class="mock-element" fill="#111111" />
+    <text x="90" y="228" class="mock-text-bold" fill="#FFFFFF" text-anchor="middle" style="font-size: 8px;">⚡ วิเคราะห์เอกสารทันที</text>
+    
+    <text x="90" y="243" class="card-label" text-anchor="middle">SCREEN 1 — DASHBOARD</text>
+  </g>
+
+  <!-- Flow Arrow 1-2 -->
+  <path d="M255,595 L285,595" class="flow-arrow" style="stroke-dasharray: none;" />
+  <polygon points="285,592 291,595 285,598" class="flow-arrow-head" fill="#111111" />
+
+  <!-- SCREEN 2: AI INTELLIGENT INGEST -->
+  <g transform="translate(290, 470)">
+    <rect width="180" height="250" class="card-bg" />
+    <rect width="180" height="20" class="mock-header" rx="8" />
+    <circle cx="10" cy="10" r="3" fill="#EF4444" />
+    <circle cx="20" cy="10" r="3" fill="#F59E0B" />
+    <circle cx="30" cy="10" r="3" fill="#10B981" />
+    <text x="50" y="13" class="mock-title">certrace.co/ingest</text>
+    
+    <text x="12" y="38" class="mock-text-bold">INTELLIGENT INGEST</text>
+
+    <!-- Split preview -->
+    <text x="12" y="52" class="mock-text-mute" style="font-size: 7px;">Source PDF (ครึ่งซ้าย)</text>
+    <rect x="12" y="58" width="73" height="110" class="mock-element" style="fill: #FDFDFD;" />
+    <!-- PDF Text Mock -->
+    <rect x="18" y="66" width="50" height="5" fill="rgba(17,17,17,0.1)" />
+    <rect x="18" y="76" width="30" height="5" fill="#3B82F6" opacity="0.3" /> <!-- HS Code highlight -->
+    <text x="18" y="81" style="font-size: 5px; font-weight: bold; fill: #3B82F6;">7301.10</text>
+    <rect x="18" y="88" width="40" height="5" fill="#EF4444" opacity="0.2" /> <!-- Missing data highlight -->
+    <text x="18" y="93" style="font-size: 4px; font-weight: bold; fill: #EF4444;">EAF Energy: [Missing]</text>
+    <rect x="18" y="100" width="45" height="5" fill="rgba(17,17,17,0.1)" />
+
+    <text x="95" y="52" class="mock-text-mute" style="font-size: 7px;">AI Parsed (ครึ่งขวา)</text>
+    <g transform="translate(95, 58)">
+      <rect width="73" height="110" class="mock-element" style="fill: #FAF9F7;" />
+      <text x="6" y="15" class="mock-text-mute" style="font-size: 6px;">HS CODE DETECTED</text>
+      <text x="6" y="24" class="mock-text-bold" style="font-size: 7px;" fill="#3B82F6">7301.10 (Steel)</text>
+      
+      <text x="6" y="42" class="mock-text-mute" style="font-size: 6px;">WEIGHT DETECTED</text>
+      <text x="6" y="51" class="mock-text-bold" style="font-size: 7px;">140.0 Tonnes</text>
+
+      <rect x="5" y="68" width="63" height="35" class="mock-element" style="fill: rgba(239,68,68,0.05); stroke: #EF4444;" />
+      <text x="9" y="80" class="mock-text-bold" style="font-size: 6px;" fill="#EF4444">Electricity Data</text>
+      <text x="9" y="89" class="mock-text-bold" style="font-size: 7px;" fill="#EF4444">MISSING</text>
+    </g>
+
+    <!-- Auto loading info -->
+    <rect x="12" y="178" width="156" height="24" class="mock-element" style="fill: rgba(59,130,246,0.05); stroke: rgba(59,130,246,0.2);" />
+    <circle cx="22" cy="190" r="4" fill="#3B82F6" />
+    <text x="32" y="189" class="mock-text-bold" style="font-size: 7px;" fill="#3B82F6">สแกนแกะข้อมูล PDF อัตโนมัติแล้ว</text>
+    <text x="32" y="197" class="mock-text-mute" style="font-size: 6px;">ตรวจพบจุดบกพร่อง กำลังสลับไปตัวช่วยแก้ไข</text>
+
+    <text x="90" y="243" class="card-label" text-anchor="middle">SCREEN 2 — AI PARSER</text>
+  </g>
+
+  <!-- Flow Arrow 2-3 -->
+  <path d="M485,595 L515,595" class="flow-arrow" style="stroke-dasharray: none;" />
+  <polygon points="515,592 521,595 515,598" class="flow-arrow-head" fill="#111111" />
+
+  <!-- SCREEN 3: AUTO-VALIDATION & SUGGESTION -->
+  <g transform="translate(520, 470)">
+    <rect width="180" height="250" class="card-bg" />
+    <rect width="180" height="20" class="mock-header" rx="8" />
+    <circle cx="10" cy="10" r="3" fill="#EF4444" />
+    <circle cx="20" cy="10" r="3" fill="#F59E0B" />
+    <circle cx="30" cy="10" r="3" fill="#10B981" />
+    <text x="50" y="13" class="mock-title">certrace.co/validation</text>
+    
+    <text x="12" y="38" class="mock-text-bold">CONFLICT &amp; GAP RESOLVER</text>
+    
+    <!-- Error warning banner -->
+    <rect x="12" y="46" width="156" height="25" class="mock-element" style="fill: rgba(245,158,11,0.05); stroke: #F59E0B;" />
+    <text x="20" y="57" class="mock-text-bold" style="font-size: 7px;" fill="#F59E0B">⚠️ พบค่าพลังงานไฟฟ้าว่างเปล่า</text>
+    <text x="20" y="65" class="mock-text-mute" style="font-size: 6px;">หากไม่แก้ไข จะต้องจ่ายภาษีเรทลงโทษสูงสุด</text>
+
+    <!-- Suggestion Box (AI) -->
+    <rect x="12" y="80" width="156" height="52" class="mock-element" style="fill: rgba(59,130,246,0.05); stroke: #3B82F6; stroke-width: 1.5px;" />
+    <text x="20" y="93" class="mock-text-bold" fill="#3B82F6" style="font-size: 7px;">★ คำแนะนำระบบ (AI Predictor)</text>
+    <text x="20" y="106" class="mock-text-bold" style="font-size: 11px;">480 kWh / ตัน</text>
+    <text x="20" y="117" class="mock-text-mute" style="font-size: 6px;">คำนวณจากสถิติประวัติการส่งออกก่อนหน้าของซัพพลายเออร์</text>
+    <rect x="20" y="121" width="140" height="0.5" fill="rgba(59,130,246,0.2)" />
+
+    <!-- Penalty Box -->
+    <rect x="12" y="140" width="156" height="34" class="mock-element" style="opacity: 0.6;" />
+    <text x="20" y="152" class="mock-text-mute" style="font-size: 6px;">กรณีปล่อยว่าง (EU Default Penalty)</text>
+    <text x="20" y="164" class="mock-text-bold" style="font-size: 8px;" fill="#EF4444">820 kWh / ตัน (+40% Tax)</text>
+
+    <!-- Large Apply CTA -->
+    <rect x="12" y="188" width="156" height="24" class="mock-element" fill="#3B82F6" />
+    <text x="90" y="202" class="mock-text-bold" fill="#FFFFFF" text-anchor="middle" style="font-size: 8px;">✓ เลือกใช้ค่าแนะนำ AI (1-Click)</text>
+
+    <text x="90" y="243" class="card-label" text-anchor="middle">SCREEN 3 — SMART AUTO-FILL</text>
+  </g>
+
+  <!-- Flow Arrow 3-4 -->
+  <path d="M715,595 L745,595" class="flow-arrow" style="stroke-dasharray: none;" />
+  <polygon points="745,592 751,595 745,598" class="flow-arrow-head" fill="#111111" />
+
+  <!-- SCREEN 4: LIVE MITIGATION SIMULATOR -->
+  <g transform="translate(750, 470)">
+    <rect width="180" height="250" class="card-bg" />
+    <rect width="180" height="20" class="mock-header" rx="8" />
+    <circle cx="10" cy="10" r="3" fill="#EF4444" />
+    <circle cx="20" cy="10" r="3" fill="#F59E0B" />
+    <circle cx="30" cy="10" r="3" fill="#10B981" />
+    <text x="50" y="13" class="mock-title">certrace.co/mitigate</text>
+    
+    <text x="12" y="38" class="mock-text-bold">LIVE MITIGATION PLAYGROUND</text>
+
+    <!-- Sliders Widget -->
+    <rect x="12" y="48" width="156" height="68" class="mock-element" />
+    <!-- Slider 1 -->
+    <text x="18" y="60" class="mock-text-bold" style="font-size: 6px;">Green Electricity Ratio</text>
+    <line x1="18" y1="68" x2="162" y2="68" stroke="rgba(0,0,0,0.1)" stroke-width="3" stroke-linecap="round" />
+    <line x1="18" y1="68" x2="110" y2="68" stroke="#111" stroke-width="3" stroke-linecap="round" />
+    <circle cx="110" cy="68" r="4" fill="#111" />
+    <text x="145" y="60" class="mock-text-bold" style="font-size: 6px;">65%</text>
+
+    <!-- Slider 2 -->
+    <text x="18" y="85" class="mock-text-bold" style="font-size: 6px;">Domestic Carbon Rebate (THB)</text>
+    <line x1="18" y1="93" x2="162" y2="93" stroke="rgba(0,0,0,0.1)" stroke-width="3" stroke-linecap="round" />
+    <line x1="18" y1="93" x2="70" y2="93" stroke="#111" stroke-width="3" stroke-linecap="round" />
+    <circle cx="70" cy="93" r="4" fill="#111" />
+    <text x="135" y="85" class="mock-text-bold" style="font-size: 6px;">฿500 / t</text>
+
+    <!-- Real-time Tax Outcome gauge -->
+    <rect x="12" y="124" width="156" height="52" class="mock-element" style="fill: #FAF9F7;" />
+    <text x="20" y="137" class="mock-text-mute" style="font-size: 7px;">Simulated Carbon Tax</text>
+    <text x="20" y="152" class="mock-text-bold" fill="#10B981" style="font-size: 13px;">€34,500</text>
+    <text x="20" y="164" class="mock-text-mute" style="font-size: 6px;">Emissions: 1.80 tCO₂e (ต่ำกว่า EU Standard 10%)</text>
+    
+    <!-- Meter -->
+    <rect x="20" y="168" width="140" height="4" fill="rgba(17,17,17,0.1)" rx="2" />
+    <rect x="20" y="168" width="90" height="4" fill="#10B981" rx="2" />
+
+    <!-- Action Button -->
+    <rect x="12" y="188" width="156" height="24" class="mock-element" fill="#111111" />
+    <text x="90" y="202" class="mock-text-bold" fill="#FFFFFF" text-anchor="middle" style="font-size: 8px;">💾 บันทึกและสร้างรายงานเอกสาร</text>
+
+    <text x="90" y="243" class="card-label" text-anchor="middle">SCREEN 4 — MITIGATION SLIDER</text>
+  </g>
+
+  <!-- Flow Arrow 4-5 -->
+  <path d="M945,595 L975,595" class="flow-arrow" style="stroke-dasharray: none;" />
+  <polygon points="975,592 981,595 975,598" class="flow-arrow-head" fill="#111111" />
+
+  <!-- SCREEN 5: AUDIT SHIELD & DOWNLOAD -->
+  <g transform="translate(980, 470)">
+    <rect width="180" height="250" class="card-bg" />
+    <rect width="180" height="20" class="mock-header" rx="8" />
+    <circle cx="10" cy="10" r="3" fill="#EF4444" />
+    <circle cx="20" cy="10" r="3" fill="#F59E0B" />
+    <circle cx="30" cy="10" r="3" fill="#10B981" />
+    <text x="50" y="13" class="mock-title">certrace.co/export</text>
+    
+    <text x="12" y="38" class="mock-text-bold">AUDIT SHIELD SECURED</text>
+
+    <!-- Shield widget -->
+    <rect x="12" y="48" width="156" height="40" class="mock-element" style="fill: rgba(16,185,129,0.05); stroke: #10B981;" />
+    <circle cx="26" cy="68" r="8" fill="#10B981" />
+    <text x="26" y="71" fill="#FFFFFF" font-size="8" font-weight="bold" text-anchor="middle">✓</text>
+    <text x="40" y="63" class="mock-text-bold" fill="#10B981" style="font-size: 7px;">Audit Trail Verified</text>
+    <text x="40" y="73" class="mock-text-mute" style="font-size: 6px;">หลักฐานการคำนวณถูกมัดรวม XML แล้ว</text>
+
+    <!-- Document Info -->
+    <rect x="12" y="96" width="156" height="50" class="mock-element" />
+    <text x="20" y="110" class="mock-text-bold" style="font-size: 7px;">CBAM_Report_EXP-9903.xml</text>
+    <text x="20" y="122" class="mock-text-mute" style="font-size: 6px;">• Format: XML Transitional Registry</text>
+    <text x="20" y="132" class="mock-text-mute" style="font-size: 6px;">• Embedded CO2: 1.80 tCO₂e / t</text>
+    
+    <!-- CTA Group -->
+    <rect x="12" y="156" width="156" height="22" class="mock-element" fill="#10B981" />
+    <text x="90" y="169" class="mock-text-bold" fill="#FFFFFF" text-anchor="middle" style="font-size: 8px;">📥 ดาวน์โหลดไฟล์ XML</text>
+
+    <rect x="12" y="184" width="156" height="22" class="mock-element" fill="none" style="stroke: rgba(0,0,0,0.2);" />
+    <text x="90" y="197" class="mock-text-bold" fill="#111111" text-anchor="middle" style="font-size: 8px;">🔗 คัดลอกลิงก์ส่งมอบให้ B2B EU</text>
+
+    <text x="90" y="243" class="card-label" text-anchor="middle">SCREEN 5 — SECURE EXPORT</text>
+  </g>
+
+</svg>

@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Certrace — User Journey & User Flow</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ============================================================
+       CERTRACE DESIGN SYSTEM TOKENS
+       ============================================================ */
+    :root {
+      --bone:            #F5F4F0;
+      --surface:         #FFFFFF;
+      --surface-warm:    #FAF9F7;
+      --surface-high:    #F0EEE8;
+
+      --ink:             #111111;
+      --ink-strong:      rgba(17,17,17,0.78);
+      --ink-ui:          rgba(17,17,17,0.60);
+      --ink-body:        rgba(17,17,17,0.50);
+      --ink-muted:       rgba(17,17,17,0.40);
+      --ink-caption:     rgba(17,17,17,0.35);
+      --ink-faint:       rgba(17,17,17,0.15);
+      --ink-ghost:       rgba(17,17,17,0.06);
+
+      --line-hairline:   rgba(0,0,0,0.07);
+      --line-card:       rgba(0,0,0,0.08);
+      --line-control:    rgba(0,0,0,0.12);
+      --line-hover:      rgba(0,0,0,0.25);
+
+      --success:         #10B981;
+      --success-bg:      rgba(16, 185, 129, 0.08);
+      --warning:         #F59E0B;
+      --warning-bg:      rgba(245, 158, 11, 0.08);
+      --error:           #EF4444;
+      --error-bg:        rgba(239, 68, 68, 0.08);
+
+      --ease:            cubic-bezier(0.16, 1, 0.3, 1);
+      --maxw:            1280px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bone);
+      color: var(--ink);
+      font-family: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .mono {
+      font-family: "Courier Prime", monospace;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      font-size: 11px;
+    }
+
+    /* Header & Navigation */
+    header {
+      border-bottom: 1px solid var(--line-hairline);
+      background: var(--surface);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    
+    .header-wrap {
+      max-width: var(--maxw);
+      margin: 0 auto;
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .logo-area {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--ink);
+    }
+    
+    .logo-area svg {
+      height: 20px;
+      width: auto;
+    }
+
+    .logo-badge {
+      font-family: "Courier Prime", monospace;
+      font-size: 10px;
+      border: 1px solid var(--line-control);
+      padding: 2px 8px;
+      border-radius: 4px;
+      color: var(--ink-ui);
+    }
+
+    .mode-selector {
+      display: flex;
+      background: var(--bone);
+      padding: 3px;
+      border-radius: 8px;
+      border: 1px solid var(--line-hairline);
+    }
+
+    .mode-btn {
+      border: none;
+      background: transparent;
+      padding: 6px 16px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--ink-ui);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s var(--ease);
+    }
+
+    .mode-btn.active {
+      background: var(--surface);
+      color: var(--ink);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+
+    /* Container */
+    .container {
+      max-width: var(--maxw);
+      margin: 40px auto;
+      padding: 0 24px;
+    }
+
+    .section-title {
+      font-weight: 300;
+      font-size: 32px;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+    }
+
+    .section-desc {
+      color: var(--ink-body);
+      max-width: 600px;
+      margin-bottom: 40px;
+    }
+
+    /* ============================================================
+       VIEW 1: USER JOURNEY MAP (SWIMLANES)
+       ============================================================ */
+    .journey-view {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+    }
+
+    @media (max-width: 1024px) {
+      .journey-view {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .journey-card {
+      background: var(--surface);
+      border: 1px solid var(--line-card);
+      border-radius: 12px;
+      padding: 24px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: transform 0.3s var(--ease), box-shadow 0.3s var(--ease);
+    }
+
+    .journey-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 12px 30px rgba(0,0,0,0.04);
+      border-color: var(--line-hover);
+    }
+
+    .journey-step {
+      font-family: "Courier Prime", monospace;
+      color: var(--ink-caption);
+      font-size: 12px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .journey-step-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--ink-muted);
+    }
+
+    .journey-title {
+      font-size: 18px;
+      font-weight: 500;
+      margin: 0 0 12px 0;
+      letter-spacing: -0.01em;
+    }
+
+    .journey-block {
+      margin-bottom: 20px;
+    }
+
+    .journey-block-label {
+      font-family: "Courier Prime", monospace;
+      font-size: 9px;
+      color: var(--ink-caption);
+      text-transform: uppercase;
+      margin-bottom: 4px;
+      letter-spacing: 0.1em;
+    }
+
+    .journey-block-content {
+      font-size: 13px;
+      color: var(--ink-strong);
+    }
+
+    .journey-emoji-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      background: var(--bone);
+      font-size: 12px;
+      color: var(--ink-ui);
+      margin-top: auto;
+    }
+
+    /* ============================================================
+       VIEW 2: INTERACTIVE USER FLOW PIPELINE
+       ============================================================ */
+    .flow-view {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 32px;
+      align-items: start;
+    }
+
+    @media (max-width: 900px) {
+      .flow-view {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Left panel: List of steps */
+    .flow-steps-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .flow-step-item {
+      background: var(--surface);
+      border: 1px solid var(--line-card);
+      border-radius: 8px;
+      padding: 16px;
+      cursor: pointer;
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      transition: all 0.3s var(--ease);
+      text-align: left;
+    }
+
+    .flow-step-item.active {
+      border-color: var(--ink);
+      background: var(--surface-warm);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+    }
+
+    .flow-step-num {
+      font-family: "Courier Prime", monospace;
+      font-weight: 700;
+      color: var(--ink-caption);
+      background: var(--bone);
+      width: 24px;
+      height: 24px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 11px;
+    }
+
+    .flow-step-item.active .flow-step-num {
+      background: var(--ink);
+      color: var(--bone);
+    }
+
+    .flow-step-text-title {
+      font-weight: 500;
+      font-size: 14px;
+      margin-bottom: 2px;
+    }
+
+    .flow-step-text-desc {
+      font-size: 12px;
+      color: var(--ink-body);
+      line-height: 1.4;
+    }
+
+    /* Right panel: High-fidelity Simulator */
+    .simulator-container {
+      background: var(--surface);
+      border: 1px solid var(--line-card);
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.03);
+      display: flex;
+      flex-direction: column;
+      min-height: 520px;
+    }
+
+    /* Mockup window header */
+    .simulator-header {
+      background: var(--surface-warm);
+      border-bottom: 1px solid var(--line-hairline);
+      padding: 12px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .mockup-controls {
+      display: flex;
+      gap: 6px;
+    }
+
+    .mockup-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--ink-faint);
+    }
+
+    .mockup-title {
+      font-family: "Courier Prime", monospace;
+      font-size: 11px;
+      color: var(--ink-muted);
+    }
+
+    .mockup-user-info {
+      font-size: 11px;
+      color: var(--ink-caption);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .user-avatar-dot {
+      width: 14px;
+      height: 14px;
+      background: var(--ink);
+      border-radius: 50%;
+    }
+
+    /* Simulator Content screen */
+    .simulator-body {
+      padding: 24px;
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      background: #fafafa;
+      position: relative;
+    }
+
+    /* App screen states (hidden by default) */
+    .app-screen {
+      display: none;
+      animation: fadeIn 0.4s var(--ease) forwards;
+      height: 100%;
+    }
+
+    .app-screen.active {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Component styles inside simulation */
+    .grid-dashboard {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 600px) {
+      .grid-dashboard {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .widget {
+      background: var(--surface);
+      border: 1px solid var(--line-card);
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .widget-title {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--ink-ui);
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .status-badge {
+      font-size: 9px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: "Courier Prime", monospace;
+      font-weight: bold;
+    }
+
+    .status-badge.error { background: var(--error-bg); color: var(--error); }
+    .status-badge.warning { background: var(--warning-bg); color: var(--warning); }
+    .status-badge.success { background: var(--success-bg); color: var(--success); }
+
+    .btn-action {
+      background: var(--ink);
+      color: var(--surface);
+      border: none;
+      border-radius: 6px;
+      padding: 10px 16px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: background 0.2s;
+    }
+
+    .btn-action:hover {
+      background: #333;
+    }
+
+    .list-item-mock {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--line-hairline);
+      font-size: 12px;
+    }
+    .list-item-mock:last-child {
+      border-bottom: none;
+    }
+
+    /* Option tiles */
+    .option-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .option-tile {
+      background: var(--surface);
+      border: 1px solid var(--line-card);
+      border-radius: 8px;
+      padding: 20px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s;
+    }
+
+    .option-tile:hover {
+      border-color: var(--ink);
+      background: var(--surface-warm);
+    }
+
+    .option-tile.selected {
+      border-color: var(--ink);
+      background: var(--surface-warm);
+      box-shadow: inset 0 0 0 1px var(--ink);
+    }
+
+    .option-tile-title {
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+
+    .option-tile-desc {
+      font-size: 11px;
+      color: var(--ink-body);
+    }
+
+    /* Drag & drop mock */
+    .dropzone-mock {
+      border: 2px dashed var(--line-control);
+      border-radius: 8px;
+      background: var(--surface);
+      padding: 40px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+
+    .dropzone-mock:hover {
+      border-color: var(--ink);
+    }
+
+    /* Error checklist */
+    .alert-box {
+      background: var(--error-bg);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      border-radius: 6px;
+      padding: 12px 16px;
+      margin-top: 16px;
+      font-size: 12px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .alert-indicator {
+      color: var(--error);
+      font-weight: bold;
+    }
+
+    /* Calc loader */
+    .calc-loader {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 0;
+    }
+
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid var(--ink-faint);
+      border-top-color: var(--ink);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 16px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Metres / Charts */
+    .comparison-meter {
+      height: 8px;
+      background: var(--bone);
+      border-radius: 4px;
+      overflow: hidden;
+      position: relative;
+      margin-top: 8px;
+    }
+
+    .meter-fill {
+      height: 100%;
+      background: var(--success);
+      width: 72%;
+    }
+
+    .meter-fill.limit-exceeded {
+      background: var(--error);
+    }
+
+    .meter-marker {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: var(--ink);
+      left: 80%;
+    }
+
+    /* Modal dialog */
+    .modal-backdrop-mock {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      backdrop-filter: blur(2px);
+    }
+
+    .modal-box-mock {
+      background: var(--surface);
+      border: 1px solid var(--line-card);
+      border-radius: 12px;
+      padding: 24px;
+      max-width: 440px;
+      width: 100%;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+      animation: modalPop 0.3s var(--ease) forwards;
+    }
+
+    @keyframes modalPop {
+      from { transform: scale(0.95); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    /* Navigation footer in simulator */
+    .simulator-footer {
+      background: var(--surface-warm);
+      border-top: 1px solid var(--line-hairline);
+      padding: 16px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="header-wrap">
+      <a href="index.html" class="logo-area">
+        <svg viewBox="0 0 148 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="12" cy="12" r="8" fill="#111111"/>
+          <path d="M30 6H40V8H33V14H39V16H33V22H30V6Z" fill="#111111"/>
+          <path d="M46 14H54V16H46V14Z" fill="#111111"/>
+          <text x="60" y="17" fill="#111111" font-family="IBM Plex Sans" font-weight="600" font-size="14" letter-spacing="0.1em">CERTRACE</text>
+        </svg>
+        <span class="logo-badge">CBAM UX Flow</span>
+      </a>
+
+      <div class="mode-selector">
+        <button class="mode-btn active" onclick="switchView('journey')">User Journey</button>
+        <button class="mode-btn" onclick="switchView('flow')">Interactive User Flow</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- Title Area -->
+    <div class="title-section">
+      <div class="mono" style="margin-bottom: 8px; color: var(--success);">Speed & Accuracy</div>
+      <h1 class="section-title" id="view-title">User Journey Map</h1>
+      <p class="section-desc" id="view-desc">เส้นทางประสบการณ์ของผู้ใช้ (Compliance Officer) ในการเปลี่ยนผ่านจากการทำงานแบบ Manual สู่ระบบประมวลผลความเร็วสูง</p>
+    </div>
+
+    <!-- ============================================================
+         JOURNEY MAP VIEW
+         ============================================================ -->
+    <div id="journey-view" class="journey-view">
+      
+      <!-- Card 1 -->
+      <div class="journey-card">
+        <div>
+          <div class="journey-step">
+            <span class="journey-step-dot" style="background-color: var(--error);"></span>
+            <span>ระยะที่ 1</span>
+          </div>
+          <h3 class="journey-title">เตรียมข้อมูล & รับแรงกดดัน</h3>
+          
+          <div class="journey-block">
+            <div class="journey-block-label">การกระทำ (Action)</div>
+            <div class="journey-block-content">รวบรวมข้อมูลพลังงาน วัตถุดิบ และข้อมูลจากซัพพลายเออร์ที่กระจัดกระจายหลายส่วน</div>
+          </div>
+          
+          <div class="journey-block">
+            <div class="journey-block-label">จุดเจ็บปวด (Pain Point)</div>
+            <div class="journey-block-content">กังวลเรื่องสูตร Excel ผิดพลาดและกลัวยื่นรายงานไม่ทันกำหนดส่งมอบสินค้า</div>
+          </div>
+        </div>
+        
+        <div class="journey-emoji-bar">
+          <span>😰</span>
+          <span>สับสน & เครียดเนื่องจากเวลาจำกัด</span>
+        </div>
+      </div>
+
+      <!-- Card 2 -->
+      <div class="journey-card">
+        <div>
+          <div class="journey-step">
+            <span class="journey-step-dot" style="background-color: var(--warning);"></span>
+            <span>ระยะที่ 2</span>
+          </div>
+          <h3 class="journey-title">นำเข้าข้อมูลอัจฉริยะ</h3>
+          
+          <div class="journey-block">
+            <div class="journey-block-label">การกระทำ (Action)</div>
+            <div class="journey-block-content">อัปโหลดไฟล์ดิบจากโรงงาน (Excel/CSV) หรือกดเชื่อมต่อ API ดึงข้อมูลผ่านระบบ ERP</div>
+          </div>
+          
+          <div class="journey-block">
+            <div class="journey-block-label">จุดสัมผัส (Touchpoint)</div>
+            <div class="journey-block-content">Data Importer ที่ทำการ Pre-validation ตรวจเช็คโครงสร้างและความสมบูรณ์ของไฟล์ทันที</div>
+          </div>
+        </div>
+        
+        <div class="journey-emoji-bar">
+          <span>😌</span>
+          <span>โล่งใจเมื่อเห็นข้อมูลนำเข้าสำเร็จในคลิกเดียว</span>
+        </div>
+      </div>
+
+      <!-- Card 3 -->
+      <div class="journey-card">
+        <div>
+          <div class="journey-step">
+            <span class="journey-step-dot" style="background-color: var(--success);"></span>
+            <span>ระยะที่ 3</span>
+          </div>
+          <h3 class="journey-title">ตรวจสอบแบบลดขั้นตอน</h3>
+          
+          <div class="journey-block">
+            <div class="journey-block-label">การกระทำ (Action)</div>
+            <div class="journey-block-content">ระบบประมวลผลคำนวณคาร์บอนตามสูตร EU และไฮไลท์จุดที่ข้อมูลไม่สมบูรณ์เพื่อแก้ไข</div>
+          </div>
+          
+          <div class="journey-block">
+            <div class="journey-block-label">ประสิทธิภาพ</div>
+            <div class="journey-block-content">ผู้ใช้ตรวจสอบเฉพาะจุดที่ระบบแจ้งเตือน แทนการตรวจทานตาราง Excel เองทั้งหมด</div>
+          </div>
+        </div>
+        
+        <div class="journey-emoji-bar">
+          <span>😎</span>
+          <span>มั่นใจ มีการควบคุมข้อผิดพลาดที่ดี</span>
+        </div>
+      </div>
+
+      <!-- Card 4 -->
+      <div class="journey-card">
+        <div>
+          <div class="journey-step">
+            <span class="journey-step-dot" style="background-color: var(--success);"></span>
+            <span>ระยะที่ 4</span>
+          </div>
+          <h3 class="journey-title">ออกเอกสารส่งออก</h3>
+          
+          <div class="journey-block">
+            <div class="journey-block-label">การกระทำ (Action)</div>
+            <div class="journey-block-content">กดออกเอกสาร (Export) ฟอร์แมต XML / PDF หรือแชร์ลิงก์ให้ผู้เกี่ยวข้องได้ทันที</div>
+          </div>
+          
+          <div class="journey-block">
+            <div class="journey-block-label">ผลลัพธ์</div>
+            <div class="journey-block-content">งานเอกสารที่ปกติทำหลายวันเสร็จสิ้นในไม่กี่นาที สามารถส่งมอบสินค้าขึ้นเรือได้ตามเวลา</div>
+          </div>
+        </div>
+        
+        <div class="journey-emoji-bar">
+          <span>🥳</span>
+          <span>สำเร็จลุล่วงด้วยความรวดเร็ว</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ============================================================
+         INTERACTIVE USER FLOW VIEW
+         ============================================================ -->
+    <div id="flow-view" class="flow-view" style="display: none;">
+      
+      <!-- Left side: steps navigation -->
+      <div class="flow-steps-list">
+        
+        <div class="flow-step-item active" onclick="gotoStep(1)">
+          <div class="flow-step-num">1</div>
+          <div>
+            <div class="flow-step-text-title">หน้าแดชบอร์ดหลัก</div>
+            <div class="flow-step-text-desc">เห็นภาพรวมของกำหนดเวลา (Deadline) และเอกสารทั้งหมดในระบบ</div>
+          </div>
+        </div>
+
+        <div class="flow-step-item" onclick="gotoStep(2)">
+          <div class="flow-step-num">2</div>
+          <div>
+            <div class="flow-step-text-title">เลือกประเภทสินค้า</div>
+            <div class="flow-step-text-desc">กำหนดรหัสพิกัดศุลกากร (HS Code) เพื่อดึงเกณฑ์ของ EU มาคำนวณ</div>
+          </div>
+        </div>
+
+        <div class="flow-step-item" onclick="gotoStep(3)">
+          <div class="flow-step-num">3</div>
+          <div>
+            <div class="flow-step-text-title">นำเข้าข้อมูล & Validation</div>
+            <div class="flow-step-text-desc">อัปโหลดไฟล์ Excel/CSV หรือผูก ERP พร้อมระบบตรวจเช็คคำนวณข้อผิดพลาดทันที</div>
+          </div>
+        </div>
+
+        <div class="flow-step-item" onclick="gotoStep(4)">
+          <div class="flow-step-num">4</div>
+          <div>
+            <div class="flow-step-text-title">คำนวณค่าคาร์บอน (CBAM)</div>
+            <div class="flow-step-text-desc">ระบบแปลงพลังงาน/วัตถุดิบเป็น Direct และ Indirect Emissions แบบเรียลไทม์</div>
+          </div>
+        </div>
+
+        <div class="flow-step-item" onclick="gotoStep(5)">
+          <div class="flow-step-num">5</div>
+          <div>
+            <div class="flow-step-text-title">Preview & เปรียบเทียบ</div>
+            <div class="flow-step-text-desc">แสดงสรุปผลเปรียบเทียบกับเกณฑ์ความเสี่ยงทางภาษีของสหภาพยุโรป</div>
+          </div>
+        </div>
+
+        <div class="flow-step-item" onclick="gotoStep(6)">
+          <div class="flow-step-num">6</div>
+          <div>
+            <div class="flow-step-text-title">อนุมัติและออกเอกสาร</div>
+            <div class="flow-step-text-desc">กดสร้างไฟล์ XML / PDF หรือส่งต่อลิงก์เอกสารให้คู่ค้าปลายทางทันที</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right side: High Fidelity simulator mockup -->
+      <div class="simulator-container">
+        
+        <div class="simulator-header">
+          <div class="mockup-controls">
+            <div class="mockup-dot"></div>
+            <div class="mockup-dot"></div>
+            <div class="mockup-dot"></div>
+          </div>
+          <div class="mockup-title" id="mockup-url">certrace.co/dashboard</div>
+          <div class="mockup-user-info">
+            <div class="user-avatar-dot"></div>
+            <span>Somchai S.</span>
+          </div>
+        </div>
+
+        <div class="simulator-body">
+
+          <!-- STEP 1: DASHBOARD -->
+          <div id="screen-1" class="app-screen active">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+              <h2 style="font-size: 20px; font-weight: 500;">สรุปสถานะการรายงานคาร์บอน</h2>
+              <button class="btn-action" onclick="gotoStep(2)">
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 1V11M1 6H11"/></svg>
+                สร้างรายงาน CBAM ใหม่
+              </button>
+            </div>
+            
+            <div class="grid-dashboard">
+              <div class="widget">
+                <div class="widget-title">ความคืบหน้ารายไตรมาส (Q2/2026)</div>
+                <div style="font-size: 24px; font-weight: 300; margin-bottom: 8px;">ยื่นแล้ว 3 จาก 4 ล็อตส่งออก</div>
+                <div style="height: 6px; background: var(--bone); border-radius: 3px; overflow: hidden;">
+                  <div style="width: 75%; height: 100%; background: var(--success);"></div>
+                </div>
+              </div>
+              
+              <div class="widget" style="border-color: var(--error);">
+                <div class="widget-title" style="color: var(--error);">
+                  แจ้งเตือนเส้นตาย
+                  <span class="status-badge error">ด่วน</span>
+                </div>
+                <div style="font-size: 16px; font-weight: 500; color: #111;">เหลืออีก 4 วัน</div>
+                <div style="font-size: 11px; color: var(--ink-body);">ล็อตส่งออกเหล็กโครงสร้างไปเยอรมนี</div>
+              </div>
+            </div>
+
+            <div class="widget" style="margin-top: 20px;">
+              <div class="widget-title">ประวัติเอกสาร & สถานะการส่งมอบ</div>
+              <div class="list-item-mock">
+                <div><strong>CBAM-2026-042</strong> (เหล็กเส้นแบน / 50 ตัน)</div>
+                <span class="status-badge success">ส่งออกเอกสารสำเร็จ</span>
+              </div>
+              <div class="list-item-mock">
+                <div><strong>CBAM-2026-041</strong> (อลูมิเนียมแผ่น / 22 ตัน)</div>
+                <span class="status-badge success">ส่งออกเอกสารสำเร็จ</span>
+              </div>
+              <div class="list-item-mock">
+                <div><strong>CBAM-2026-043</strong> (เหล็กกล้าโครงสร้าง / 120 ตัน)</div>
+                <span class="status-badge error">รอนำเข้าข้อมูลพลังงาน</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- STEP 2: SELECT PRODUCT -->
+          <div id="screen-2" class="app-screen">
+            <h2 style="font-size: 20px; font-weight: 500; margin-bottom: 8px;">ประเภทสินค้าและพิกัดศุลกากร</h2>
+            <p style="font-size: 12px; color: var(--ink-body); margin-bottom: 24px;">ระบบจำจำแนกเกณฑ์และสูตรคำนวณตามมาตรฐาน CBAM ของกลุ่มสินค้าเฉพาะ</p>
+
+            <div class="option-grid">
+              <div class="option-tile selected" onclick="selectTile(this)">
+                <div class="option-tile-title">กลุ่มเหล็กและเหล็กกล้า</div>
+                <div class="option-tile-desc">HS Codes หมวด 72, 73</div>
+              </div>
+              <div class="option-tile" onclick="selectTile(this)">
+                <div class="option-tile-title">กลุ่มอลูมิเนียม</div>
+                <div class="option-tile-desc">HS Codes หมวด 76</div>
+              </div>
+            </div>
+
+            <div class="widget">
+              <label style="display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--ink-ui); margin-bottom: 8px;">ระบุรหัส HS Code หรือชนิดสินค้า</label>
+              <input type="text" value="7301.10.00 — เหล็กแผ่นรีดร้อนเสริมกำลัง" style="width: 100%; padding: 10px; border: 1px solid var(--line-control); border-radius: 6px; font-size: 13px; font-family: inherit;" />
+              <div style="font-size: 11px; color: var(--success); margin-top: 6px; display: flex; align-items: center; gap: 4px;">
+                <span style="display: inline-block; width: 6px; height: 6px; background: var(--success); border-radius: 50%;"></span>
+                ดึงข้อมูลกฎระเบียบ CBAM ล่าสุด (เวอร์ชันปรับปรุงปี 2026) สำเร็จ
+              </div>
+            </div>
+          </div>
+
+          <!-- STEP 3: DATA INPUT & VALIDATION -->
+          <div id="screen-3" class="app-screen">
+            <h2 style="font-size: 20px; font-weight: 500; margin-bottom: 8px;">นำเข้าข้อมูลการผลิตและพลังงาน</h2>
+            <p style="font-size: 12px; color: var(--ink-body); margin-bottom: 20px;">รองรับการอัปโหลดไฟล์ดิบเพื่อหลีกเลี่ยงการกรอกข้อมูลซ้ำซ้อนด้วยมนุษย์</p>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
+              <div class="dropzone-mock" style="border-color: var(--ink);">
+                <div style="font-weight: 500; font-size: 13px;">อัปโหลดไฟล์ Excel / CSV</div>
+                <div style="font-size: 11px; color: var(--ink-body); margin-top: 4px;">ลากไฟล์วางที่นี่ หรือคลิกเพื่อเลือกไฟล์</div>
+              </div>
+              <div class="dropzone-mock" style="opacity: 0.6; cursor: not-allowed; background: var(--surface-warm);">
+                <div style="font-weight: 500; font-size: 13px;">เชื่อมต่อผ่านระบบ ERP (API)</div>
+                <div style="font-size: 11px; color: var(--ink-body); margin-top: 4px;">ดึงตรงจาก SAP, Microsoft Dynamics</div>
+              </div>
+            </div>
+
+            <div class="widget">
+              <div class="widget-title">
+                ผลการตรวจสอบความถูกต้องอัตโนมัติ (Validation Log)
+                <span class="status-badge warning">ตรวจพบจุดบกพร่อง</span>
+              </div>
+              <div class="alert-box">
+                <span class="alert-indicator">⚠️</span>
+                <div>
+                  <strong>ไฟล์ที่อัปโหลด: Q2_Production_Log.xlsx</strong>
+                  <div style="color: var(--ink-strong); margin-top: 2px;">แถวที่ 14: ไม่พบการกรอกปริมาณไฟฟ้าที่ใช้ในขั้นตอนการหลอมโลหะแบบอาร์กไฟฟ้า (EAF)</div>
+                  <div style="color: var(--error); font-weight: 500; margin-top: 4px; cursor: pointer; text-decoration: underline;">คลิกเพื่อป้อนข้อมูลชดเชยที่ขาดหาย</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- STEP 4: AUTOMATED CALCULATION -->
+          <div id="screen-4" class="app-screen">
+            <div class="calc-loader" id="calc-spinner">
+              <div class="spinner"></div>
+              <div style="font-size: 15px; font-weight: 500;">ระบบกำลังประมวลผลคำนวณคาร์บอน...</div>
+              <div style="font-size: 12px; color: var(--ink-body); margin-top: 4px;">แปลงหน่วยพลังงานและวัตถุดิบตามสูตรมาตรฐานของสหภาพยุโรป</div>
+            </div>
+
+            <div id="calc-results" style="display: none; height: 100%;">
+              <h2 style="font-size: 20px; font-weight: 500; margin-bottom: 8px;">ผลการคำนวณความคืบหน้า</h2>
+              <p style="font-size: 12px; color: var(--ink-body); margin-bottom: 16px;">สัดส่วนการปล่อยคาร์บอนในเนื้อผลิตภัณฑ์เหล็กส่งออก</p>
+              
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                <div class="widget">
+                  <div class="widget-title">Direct Emissions (การปล่อยทางตรง)</div>
+                  <div style="font-size: 24px; font-weight: 300;">1.42 <span style="font-size: 14px; color: var(--ink-body);">tCO₂e/t</span></div>
+                  <div style="font-size: 11px; color: var(--ink-body); margin-top: 4px;">คำนวณจากกระบวนการผลิตและการใช้วัตถุดิบตรงในเตาหลอม</div>
+                </div>
+                <div class="widget">
+                  <div class="widget-title">Indirect Emissions (การปล่อยทางอ้อม)</div>
+                  <div style="font-size: 24px; font-weight: 300;">0.38 <span style="font-size: 14px; color: var(--ink-body);">tCO₂e/t</span></div>
+                  <div style="font-size: 11px; color: var(--ink-body); margin-top: 4px;">คำนวณจากการใช้กระแสไฟฟ้าในกระบวนการขึ้นรูปชิ้นงาน</div>
+                </div>
+              </div>
+
+              <div class="widget" style="margin-top: 16px;">
+                <div class="widget-title">รวม Embedded Emissions ทั้งสิ้น</div>
+                <div style="font-size: 28px; font-weight: 600; color: var(--ink);">1.80 <span style="font-size: 14px; font-weight: normal; color: var(--ink-body);">tCO₂e / ตันสินค้าโลหะ</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- STEP 5: PREVIEW & COMPARE -->
+          <div id="screen-5" class="app-screen">
+            <h2 style="font-size: 20px; font-weight: 500; margin-bottom: 8px;">Emissions Preview & เปรียบเทียบเกณฑ์เสี่ยงภาษี</h2>
+            <p style="font-size: 12px; color: var(--ink-body); margin-bottom: 20px;">ประเมินภาษีคาร์บอนที่อาจต้องเสียในขั้นตอนการนำเข้าปลายทางสหภาพยุโรป</p>
+
+            <div class="widget">
+              <div class="widget-title">เปรียบเทียบระดับการปล่อยคาร์บอนแฝงกับเกณฑ์มาตรฐาน (EU Average Benchmark)</div>
+              
+              <div style="margin-top: 20px;">
+                <div style="display: flex; justify-content: space-between; font-size: 12px;">
+                  <span>การปล่อยของผลิตภัณฑ์คุณ (1.80 tCO₂e/t)</span>
+                  <span style="font-weight: 600; color: var(--success);">ต่ำกว่าเกณฑ์เฉลี่ย 10%</span>
+                </div>
+                <div class="comparison-meter">
+                  <div class="meter-fill" style="width: 72%;"></div>
+                  <div class="meter-marker" title="EU Average Standard"></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--ink-muted); margin-top: 4px;">
+                  <span>0.0</span>
+                  <span style="position: absolute; left: 76%; transform: translateX(-50%);">EU Standard (2.0)</span>
+                  <span>3.0 tCO₂e/t</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="widget" style="margin-top: 16px; background: var(--success-bg); border-color: rgba(16,185,129,0.2);">
+              <div style="display: flex; gap: 12px; align-items: flex-start;">
+                <span style="font-size: 18px;">✅</span>
+                <div>
+                  <strong>โอกาสลดความเสี่ยงภาษีส่งออกสำเร็จ</strong>
+                  <div style="font-size: 12px; color: var(--ink-strong); margin-top: 2px;">ค่าการปล่อยคาร์บอนของผลิตภัณฑ์อยู่ในเกณฑ์ที่สามารถขอยกเว้นส่วนลดหย่อนภาษีบางประเภทในการยื่นเอกสารได้</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- STEP 6: APPROVE & EXPORT -->
+          <div id="screen-6" class="app-screen">
+            <h2 style="font-size: 20px; font-weight: 500; margin-bottom: 8px;">ตรวจสอบครั้งสุดท้ายและอนุมัติ</h2>
+            <p style="font-size: 12px; color: var(--ink-body); margin-bottom: 24px;">ระบบพร้อมสำหรับการแพ็กไฟล์ส่งออกเอกสารที่ถูกต้องตามกฎระเบียบ CBAM</p>
+
+            <div class="widget" style="margin-bottom: 20px;">
+              <div class="widget-title">ข้อมูลรายงานที่จะนำส่งออก</div>
+              <div style="font-size: 13px;">
+                <div>• <strong>สินค้า:</strong> เหล็กแผ่นรีดร้อน (HS 7301.10.00)</div>
+                <div>• <strong>น้ำหนักส่งออก:</strong> 120 ตัน</div>
+                <div>• <strong>สถิติการปล่อย:</strong> 1.80 tCO₂e / ตัน (Direct 1.42 / Indirect 0.38)</div>
+              </div>
+            </div>
+
+            <button class="btn-action" style="width: 100%; justify-content: center; padding: 14px;" onclick="openExportModal()">
+              💾 อนุมัติและสร้างเอกสารรายงาน CBAM
+            </button>
+
+            <!-- Mock Modal inside Screen -->
+            <div id="export-modal" class="modal-backdrop-mock" style="display: none;">
+              <div class="modal-box-mock">
+                <div style="font-size: 20px; margin-bottom: 8px;">🎉 ส่งออกเอกสารรายงานสำเร็จ!</div>
+                <p style="font-size: 12px; color: var(--ink-body); margin-bottom: 20px;">ระบบแปลงไฟล์ XML สำหรับ CBAM Registry ปลายทางและ PDF ใบรับรองเสร็จสมบูรณ์</p>
+                
+                <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px;">
+                  <button class="btn-action" style="justify-content: center; background: #222;" onclick="alert('ดาวน์โหลดไฟล์ XML สำเร็จ')">
+                    ⬇️ ดาวน์โหลดไฟล์ XML (EU Registry Format)
+                  </button>
+                  <button class="btn-action" style="justify-content: center; background: transparent; color: var(--ink); border: 1px solid var(--line-control);" onclick="alert('คัดลอกลิงก์ส่งมอบสำเร็จ')">
+                    🔗 คัดลอกลิงก์แชร์ให้คู่ค้า B2B ฝั่ง EU
+                  </button>
+                </div>
+
+                <div style="text-align: right;">
+                  <button class="btn-action" style="background: transparent; color: var(--ink-ui);" onclick="closeExportModal()">ปิดหน้าต่าง</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="simulator-footer">
+          <button class="btn btn-ghost btn-nav" id="prev-btn" onclick="prevStep()">ย้อนกลับ</button>
+          <span class="mono" id="flow-indicator" style="font-size: 10px;">ขั้นตอนที่ 1 / 6</span>
+          <button class="btn btn-primary btn-nav" id="next-btn" onclick="nextStep()">ถัดไป</button>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    let currentView = 'journey';
+    let currentStep = 1;
+
+    function switchView(view) {
+      currentView = view;
+      
+      const journeyBtn = document.querySelectorAll('.mode-btn')[0];
+      const flowBtn = document.querySelectorAll('.mode-btn')[1];
+      const journeyDiv = document.getElementById('journey-view');
+      const flowDiv = document.getElementById('flow-view');
+      const title = document.getElementById('view-title');
+      const desc = document.getElementById('view-desc');
+
+      if (view === 'journey') {
+        journeyBtn.classList.add('active');
+        flowBtn.classList.remove('active');
+        journeyDiv.style.display = 'grid';
+        flowDiv.style.display = 'none';
+        title.innerText = 'User Journey Map';
+        desc.innerText = 'เส้นทางประสบการณ์ของผู้ใช้ (Compliance Officer) ในการเปลี่ยนผ่านจากการทำงานแบบ Manual สู่ระบบประมวลผลความเร็วสูง';
+      } else {
+        journeyBtn.classList.remove('active');
+        flowBtn.classList.add('active');
+        journeyDiv.style.display = 'none';
+        flowDiv.style.display = 'grid';
+        title.innerText = 'Interactive User Flow Simulator';
+        desc.innerText = 'คลิกปุ่มหรือขั้นตอนต่างๆ ในลิสต์เพื่อดูการจำลองหน้าจอและปฏิสัมพันธ์ของแต่ละขั้นตอนการรายงานเอกสาร CBAM';
+        gotoStep(1);
+      }
+    }
+
+    function gotoStep(stepNum) {
+      currentStep = stepNum;
+      
+      // Update steps sidebar highlight
+      const steps = document.querySelectorAll('.flow-step-item');
+      steps.forEach((step, idx) => {
+        if (idx + 1 === stepNum) {
+          step.classList.add('active');
+        } else {
+          step.classList.remove('active');
+        }
+      });
+
+      // Update screen content
+      const screens = document.querySelectorAll('.app-screen');
+      screens.forEach((screen, idx) => {
+        if (idx + 1 === stepNum) {
+          screen.classList.add('active');
+        } else {
+          screen.classList.remove('active');
+        }
+      });
+
+      // Update URL mockup text
+      const urlText = document.getElementById('mockup-url');
+      const urls = [
+        'certrace.co/dashboard',
+        'certrace.co/create/product-info',
+        'certrace.co/create/data-importer',
+        'certrace.co/create/calculation',
+        'certrace.co/create/preview',
+        'certrace.co/create/summary'
+      ];
+      urlText.innerText = urls[stepNum - 1];
+
+      // Update indicators
+      document.getElementById('flow-indicator').innerText = `ขั้นตอนที่ ${stepNum} / 6`;
+
+      // Enable/Disable navigation buttons
+      document.getElementById('prev-btn').disabled = (stepNum === 1);
+      document.getElementById('next-btn').disabled = (stepNum === 6);
+
+      // Handle loading states / calculations triggers
+      if (stepNum === 4) {
+        document.getElementById('calc-spinner').style.display = 'flex';
+        document.getElementById('calc-results').style.display = 'none';
+        setTimeout(() => {
+          document.getElementById('calc-spinner').style.display = 'none';
+          document.getElementById('calc-results').style.display = 'block';
+        }, 1200);
+      }
+
+      // Close modal just in case
+      closeExportModal();
+    }
+
+    function nextStep() {
+      if (currentStep < 6) {
+        gotoStep(currentStep + 1);
+      }
+    }
+
+    function prevStep() {
+      if (currentStep > 1) {
+        gotoStep(currentStep - 1);
+      }
+    }
+
+    function selectTile(element) {
+      const tiles = document.querySelectorAll('.option-tile');
+      tiles.forEach(tile => tile.classList.remove('selected'));
+      element.classList.add('selected');
+    }
+
+    function openExportModal() {
+      document.getElementById('export-modal').style.display = 'flex';
+    }
+
+    function closeExportModal() {
+      document.getElementById('export-modal').style.display = 'none';
+    }
+  </script>
+</body>
+</html>
