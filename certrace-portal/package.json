@@ -5,7 +5,8 @@
   "description": "CertTrace — Exporter compliance portal (MVP, frontend + UX/UI). Built on the CertTrace design system.",
   "scripts": {
     "dev": "next dev",
-    "build": "next-on-pages",
+    "build": "next build",
+    "build-pages": "next-on-pages",
     "start": "next start",
     "lint": "next lint"
   },
