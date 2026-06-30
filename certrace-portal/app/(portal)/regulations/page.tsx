@@ -1,13 +1,8 @@
 "use client";
 
-import { Bell, Lock } from "lucide-react";
-import { Card, PageHeader, Chip, Eyebrow, StatusDot, Button, Tone } from "@/components/ui";
-import { toast } from "@/components/toast";
+import { Lock } from "lucide-react";
+import { Card, PageHeader, Chip, Eyebrow, StatusDot, Tone } from "@/components/ui";
 import { REGULATIONS, JURISDICTIONS, PRODUCT_SECTORS, STATUS_META } from "@/lib/config";
-
-function notify(name: string) {
-  toast({ message: `Added to the ${name} waitlist.`, tone: "info", detail: "We'll email you the moment it opens." });
-}
 
 export default function CoveragePage() {
   return (
@@ -40,19 +35,13 @@ export default function CoveragePage() {
                 <p className="mt-4 flex-1 text-sm text-black/45">
                   {live ? `${r.cadence} · filed to ${r.authority}.` : r.soonNote}
                 </p>
-                {live ? (
+                {live && (
                   <div className="mt-4 flex flex-wrap gap-1.5 border-t border-black/[0.06] pt-4">
                     {r.dataPoints.slice(0, 4).map((d) => (
                       <span key={d} className="rounded-full border border-black/[0.08] px-2.5 py-1 text-[10px] text-black/40">
                         {d}
                       </span>
                     ))}
-                  </div>
-                ) : (
-                  <div className="mt-4 border-t border-black/[0.06] pt-4">
-                    <Button variant="secondary" size="sm" onClick={() => notify(r.short)}>
-                      <Bell size={13} strokeWidth={1.5} /> Notify me when live
-                    </Button>
                   </div>
                 )}
               </Card>
@@ -77,19 +66,9 @@ export default function CoveragePage() {
                 {p.name}
               </span>
               <span className="font-mono text-[12px] text-black/45">{p.cnHint}</span>
-              <span className="flex items-center justify-between gap-2">
-                <span className="inline-flex items-center gap-2">
-                  <StatusDot tone={p.available ? "ok" : "muted"} pulse={p.available} glow={p.available} />
-                  <span className="text-[11px] uppercase tracking-[0.08em] text-black/45">{p.available ? "live" : "coming soon"}</span>
-                </span>
-                {!p.available && (
-                  <button
-                    onClick={() => notify(p.name)}
-                    className="inline-flex items-center gap-1 rounded-full border border-black/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.08em] text-black/50 hover:border-black/25 hover:text-black"
-                  >
-                    <Bell size={11} strokeWidth={1.5} /> notify
-                  </button>
-                )}
+              <span className="inline-flex items-center gap-2">
+                <StatusDot tone={p.available ? "ok" : "muted"} pulse={p.available} glow={p.available} />
+                <span className="text-[11px] uppercase tracking-[0.08em] text-black/45">{p.available ? "live" : "coming soon"}</span>
               </span>
             </div>
           ))}

@@ -204,7 +204,7 @@ export default function DeclarationsPage() {
         (pageItems.length === 0 && !showDrafts ? (
           <Empty />
         ) : (
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {showDrafts && draftItems.map((d) => <DraftCard key={d.id} draft={d} onDiscard={() => discardDraft(d.id)} />)}
             {pageItems.map((d) => {
               const jur = getJurisdiction(d.origin);

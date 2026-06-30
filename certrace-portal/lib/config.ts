@@ -459,7 +459,8 @@ export const CBAM_FIELDS: CbamField[] = [
   // Installation — identifies who produced the goods
   { id: "inst-name", label: "Installation name", group: "Installation", scope: "all", mandatory: true, buyerRecommended: true, hint: "Legal name of the producing installation" },
   { id: "inst-country", label: "Installation country", group: "Installation", scope: "all", mandatory: true, buyerRecommended: true, hint: "Country of production" },
-  { id: "inst-address", label: "Address & UN/LOCODE", group: "Installation", scope: "all", mandatory: true, hint: "Full address and UN location code" },
+  { id: "inst-address", label: "Site address", group: "Installation", scope: "all", mandatory: true, hint: "Full street address of the production site" },
+  { id: "inst-unlocode", label: "UN/LOCODE", group: "Installation", scope: "all", mandatory: false, hint: "UN location code of the site, e.g. THRYG" },
   { id: "inst-coords", label: "Geographic coordinates", group: "Installation", scope: "all", mandatory: true, hint: "Latitude / longitude of the main emission source" },
   // Goods — what was produced
   { id: "goods-category", label: "Aggregated goods category", group: "Goods", scope: "all", mandatory: true, buyerRecommended: true, hint: "CBAM aggregated category for the CN code" },
