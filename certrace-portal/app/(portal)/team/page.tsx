@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { Plus, ShieldCheck, BadgeCheck, User, Crown } from "lucide-react";
 import { Card, PageHeader, Button, Chip, StatusLabel, Eyebrow, Field, inputClass, Stat, cn, Tone } from "@/components/ui";
+import { Select } from "@/components/controls";
 import { SEATS, ORG, Seat, SeatRole } from "@/lib/data";
 
 const roleMeta: Record<SeatRole, { label: string; tone: Tone; icon: React.ElementType; desc: string }> = {
@@ -108,11 +109,16 @@ export default function TeamPage() {
                 <input className={inputClass} placeholder="name@firm.com" value={email} onChange={(e) => setEmail(e.target.value)} />
               </Field>
               <Field label="Role">
-                <select className={inputClass} value={role} onChange={(e) => setRole(e.target.value as SeatRole)}>
-                  <option value="member">Member</option>
-                  <option value="legal">Legal / compliance</option>
-                  <option value="auditor">Verifier / auditor</option>
-                </select>
+                <Select
+                  value={role}
+                  onChange={(v) => setRole(v as SeatRole)}
+                  options={[
+                    { value: "member", label: "Member" },
+                    { value: "legal", label: "Legal / compliance" },
+                    { value: "auditor", label: "Verifier / auditor" },
+                  ]}
+                  ariaLabel="Role"
+                />
               </Field>
               <Button className="w-full" onClick={invite}>
                 <Plus size={15} strokeWidth={1.5} /> Send invite
