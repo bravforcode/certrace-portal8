@@ -64,7 +64,7 @@ export default function DashboardPage() {
           </span>
           <div>
             <p className="text-sm text-[#111]">
-              {overdue} CBAM-critical suppliers are overdue on {active.name}.
+              {overdue} CBAM-critical supplier{overdue === 1 ? " is" : "s are"} overdue on {active.name}.
             </p>
             <p className="mt-1 text-sm text-black/45">
               Late = rejected. Send a reminder, or escalate, before the package locks.

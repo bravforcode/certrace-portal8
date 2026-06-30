@@ -1,0 +1,341 @@
+"use client";
+
+/* The regulation-specific questionnaire (flow step 1). Generated entirely from
+   the request's resolved CBAM fields — installation-level sections are filled
+   once, goods/emissions sections repeat per product. Exporter-supplied context
+   (CN code, category, quantity) is locked and shown read-only; the supplier
+   fills the rest. Saves automatically. During a revision only unlocked fields
+   are editable. */
+
+import * as React from "react";
+import { ArrowRight, ArrowDown, Lock, Info, Building2, FlaskConical, Zap, Boxes, Coins, BadgeCheck, Users, TriangleAlert, PenLine } from "lucide-react";
+import { Card, Button, Eyebrow, inputClass, cn } from "@/components/ui";
+import { Select } from "@/components/controls";
+import { useSupplier, type FieldFlag } from "./context";
+import { valueKey, type SupplierSection } from "@/lib/supplier";
+import type { ResolvedCbamField } from "@/lib/config";
+
+/* How a flagged field's stroke + inline note look. `ring` is the resting stroke;
+   `ringStrong` is the brief pulse when the supplier is led to the field. */
+const FLAG_STYLE: Record<FieldFlag["severity"], { ring: string; ringStrong: string; text: string; tag: string; icon: React.ElementType }> = {
+  critical: { ring: "ring-2 ring-[#dc2626]/40", ringStrong: "ring-4 ring-[#dc2626]/60", text: "text-[#dc2626]", tag: "AI check", icon: TriangleAlert },
+  warning: { ring: "ring-2 ring-[#d97706]/40", ringStrong: "ring-4 ring-[#d97706]/60", text: "text-[#b45309]", tag: "AI check", icon: TriangleAlert },
+  revision: { ring: "ring-2 ring-[#2563eb]/40", ringStrong: "ring-4 ring-[#2563eb]/55", text: "text-[#2563eb]", tag: "Exporter", icon: PenLine },
+};
+
+function FlagNote({ severity, message }: { severity: FieldFlag["severity"]; message: string }) {
+  const fs = FLAG_STYLE[severity];
+  const Icon = fs.icon;
+  return (
+    <p className={cn("mt-1.5 flex items-start gap-1.5 text-[11.5px] leading-relaxed", fs.text)}>
+      <Icon size={12} strokeWidth={1.8} className="mt-[2px] flex-none" />
+      <span>
+        <span className="font-pixel text-[9px] uppercase tracking-[0.14em] opacity-70">{fs.tag} · </span>
+        {message}
+      </span>
+    </p>
+  );
+}
+
+const NUMERIC = new Set(["direct-emissions", "indirect-emissions", "elec-consumed", "carbon-price"]);
+const UNIT: Record<string, string> = {
+  "direct-emissions": "tCO₂e/t",
+  "indirect-emissions": "tCO₂e/t",
+  "elec-consumed": "MWh/t",
+  "carbon-price": "/ tCO₂e",
+};
+const SELECTS: Record<string, { value: string; label: string }[]> = {
+  method: [
+    { value: "actual", label: "Actual installation data" },
+    { value: "default", label: "Default values" },
+  ],
+  "carbon-price-form": [
+    { value: "ets", label: "Emissions Trading System (ETS)" },
+    { value: "tax", label: "Carbon tax" },
+    { value: "levy", label: "Levy" },
+    { value: "none", label: "None / not applicable" },
+  ],
+  "al-process": [
+    { value: "prebake", label: "Prebake" },
+    { value: "soderberg", label: "Søderberg" },
+  ],
+};
+const SECTION_ICON: Record<string, React.ElementType> = {
+  installation: Building2,
+  goods: Boxes,
+  emissions: FlaskConical,
+  electricity: Zap,
+  precursors: Boxes,
+  carbon: Coins,
+  verification: BadgeCheck,
+};
+
+function FieldControl({ field, productId }: { field: ResolvedCbamField; productId?: string }) {
+  const { getValue, setValue, isEditable, autoValue, flagged, focusKey, clearFocus } = useSupplier();
+  const auto = autoValue(field.id, productId);
+  const key = valueKey(field.id, productId);
+  const editable = isEditable(key);
+  const value = getValue(field.id, productId);
+
+  // Flag (AI check or revision request). A "missing" flag clears the moment the
+  // field has a value — fixing it gives feedback without re-running the check.
+  const rawFlag = flagged.get(key);
+  const flag = rawFlag && !(rawFlag.kind === "missing" && value.trim()) ? rawFlag : null;
+  const fs = flag ? FLAG_STYLE[flag.severity] : null;
+
+  // When this field becomes the focus target, scroll it to the centre, pulse the
+  // stroke and move the caret into it — the "lead me to the field" behaviour.
+  const ref = React.useRef<HTMLDivElement>(null);
+  const [pulse, setPulse] = React.useState(false);
+  const isTarget = focusKey === key;
+  React.useEffect(() => {
+    if (!isTarget || !ref.current) return;
+    ref.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    setPulse(true);
+    const el = ref.current.querySelector("input,textarea,button") as HTMLElement | null;
+    const t1 = setTimeout(() => el?.focus({ preventScroll: true }), 420);
+    const t2 = setTimeout(() => {
+      setPulse(false);
+      clearFocus();
+    }, 1900);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [isTarget, key, clearFocus]);
+
+  // Stroke wraps the control only (not the label/hint), so the *box* is what
+  // lights up — exactly what "highlight the stroke of that box" asks for.
+  const ringCls = fs ? cn("rounded-xl transition-shadow duration-700", pulse ? fs.ringStrong : fs.ring) : "rounded-xl";
+
+  // Auto-derived (locked) — CN code, category, quantity, total emissions
+  if (auto !== null) {
+    return (
+      <div ref={ref} className="scroll-mt-28">
+        <span className="mb-1.5 flex items-center gap-1.5 text-[11px] uppercase tracking-[0.08em] text-black/45">
+          {field.label} <Lock size={10} strokeWidth={1.5} className="text-black/30" />
+        </span>
+        <div className={ringCls}>
+          <div className="flex items-center justify-between rounded-xl border border-black/[0.06] bg-[#faf9f7] px-4 py-3 text-sm text-black/60">
+            <span className="font-mono">{auto || "—"}</span>
+            <span className="text-[10px] uppercase tracking-[0.1em] text-black/30">auto</span>
+          </div>
+        </div>
+        {flag && <FlagNote severity={flag.severity} message={flag.message} />}
+      </div>
+    );
+  }
+
+  const label = (
+    <span className="mb-1.5 flex items-center gap-1.5 text-[11px] uppercase tracking-[0.08em] text-black/55">
+      {field.label}
+      {!field.required && <span className="text-[9px] tracking-[0.1em] text-black/30">optional</span>}
+      {!editable && <Lock size={10} strokeWidth={1.5} className="text-black/30" />}
+    </span>
+  );
+
+  let control: React.ReactNode;
+  if (SELECTS[field.id]) {
+    control = (
+      <Select
+        value={value}
+        onChange={(v) => setValue(field.id, productId, v)}
+        options={SELECTS[field.id]}
+        placeholder="Select…"
+        className="w-full"
+        ariaLabel={field.label}
+      />
+    );
+  } else if (field.id === "precursors" || field.id === "precursor-route" || field.id === "inst-address") {
+    control = (
+      <textarea
+        disabled={!editable}
+        value={value}
+        onChange={(e) => setValue(field.id, productId, e.target.value)}
+        placeholder={field.hint}
+        className={cn(inputClass, "min-h-[72px] resize-y", !editable && "cursor-not-allowed opacity-60")}
+      />
+    );
+  } else if (NUMERIC.has(field.id)) {
+    control = (
+      <div className="relative">
+        <input
+          type="number"
+          min={0}
+          step="any"
+          disabled={!editable}
+          value={value}
+          onChange={(e) => setValue(field.id, productId, e.target.value)}
+          placeholder="0.00"
+          className={cn(inputClass, "pr-20", !editable && "cursor-not-allowed opacity-60")}
+        />
+        {UNIT[field.id] && (
+          <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 font-mono text-[11px] text-black/35">{UNIT[field.id]}</span>
+        )}
+      </div>
+    );
+  } else {
+    control = (
+      <input
+        disabled={!editable}
+        value={value}
+        onChange={(e) => setValue(field.id, productId, e.target.value)}
+        placeholder={field.hint}
+        className={cn(inputClass, !editable && "cursor-not-allowed opacity-60")}
+      />
+    );
+  }
+
+  return (
+    <div ref={ref} className="scroll-mt-28">
+      <label className="block">
+        {label}
+        <div className={ringCls}>{control}</div>
+        {!flag && <span className="mt-1 block text-[11px] text-black/35">{field.hint}</span>}
+      </label>
+      {flag && <FlagNote severity={flag.severity} message={flag.message} />}
+    </div>
+  );
+}
+
+function AssignChip({ section }: { section: SupplierSection }) {
+  const { state, setView } = useSupplier();
+  const seat = state.seats.find((s) => s.sections.includes(section.key));
+  return (
+    <button
+      onClick={() => setView("team")}
+      className="inline-flex items-center gap-1.5 rounded-full border border-black/10 px-2.5 py-1 text-[10px] uppercase tracking-[0.08em] text-black/45 hover:border-black/25 hover:text-black"
+    >
+      <Users size={11} strokeWidth={1.5} />
+      {seat ? `${seat.name.split(" ")[0]} · ${seat.department}` : section.department}
+    </button>
+  );
+}
+
+function SectionCard({ section, productId }: { section: SupplierSection; productId?: string }) {
+  const { req, sectionProgress } = useSupplier();
+  // Show every field in the section's groups — auto-derived ones (CN, category,
+  // quantity, total) render locked for context; the rest are editable inputs.
+  const shown = req.fields.filter((f) => section.groups.includes(f.group));
+  const Icon = SECTION_ICON[section.key] ?? Info;
+  const prog = section.scope === "once" ? sectionProgress(section) : null;
+
+  return (
+    <Card className="p-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2.5">
+          <span className="grid h-8 w-8 flex-none place-items-center rounded-lg border border-black/[0.08] bg-white text-black/55">
+            <Icon size={15} strokeWidth={1.5} />
+          </span>
+          <div>
+            <div className="text-[15px] text-black/80">{section.label}</div>
+            <div className="text-[11px] text-black/40">{section.blurb}</div>
+          </div>
+        </div>
+        <AssignChip section={section} />
+      </div>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
+        {shown.map((f) => (
+          <div key={f.id} className={f.id === "inst-address" || f.id === "precursors" ? "sm:col-span-2" : ""}>
+            <FieldControl field={f} productId={productId} />
+          </div>
+        ))}
+      </div>
+      {prog && prog.total > 0 && (
+        <div className="mt-3 text-right font-mono text-[11px] text-black/35">
+          {prog.done}/{prog.total} filled
+        </div>
+      )}
+    </Card>
+  );
+}
+
+export function FormView() {
+  const { req, sections, state, setView, flagged, firstFlagKey, focusField, focusRevision } = useSupplier();
+  const productSections = sections.filter((s) => s.scope === "product");
+  const installation = sections.find((s) => s.key === "installation");
+  const tailOnce = sections.filter((s) => s.key === "carbon" || s.key === "verification");
+
+  // Open AI issues still needing attention (a filled-in "missing" no longer counts).
+  const issueCount = React.useMemo(
+    () => [...flagged].filter(([k, f]) => !(f.kind === "missing" && state.values[k]?.trim())).length,
+    [flagged, state.values],
+  );
+  const isRevision = state.status === "revision_requested";
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <Eyebrow>{req.regulationShort} questionnaire</Eyebrow>
+        <h1 className="mt-2 font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111]">Your carbon data</h1>
+        <p className="mt-2 max-w-2xl text-sm text-black/50">
+          Generated from exactly what {req.exporterName} needs for {req.regulationShort}. The greyed fields are locked context they provided — you fill the rest. Everything saves as you type.
+        </p>
+      </div>
+
+      {isRevision && (
+        <Card className="border-[#2563eb]/30 bg-[#eff6ff] p-4">
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 grid h-8 w-8 flex-none place-items-center rounded-lg bg-[#dbeafe] text-[#2563eb]">
+              <PenLine size={15} strokeWidth={1.5} />
+            </span>
+            <div className="min-w-0 flex-1 text-[13px] leading-relaxed text-black/65">
+              <span className="text-black/80">Revision requested.</span> Only the {state.unlocked.length} field{state.unlocked.length === 1 ? "" : "s"} {req.exporterName} flagged are editable — they’re outlined in blue below. Everything else stays locked from your last submission.
+              <p className="mt-1.5 text-black/55">“{state.revisionNote}”</p>
+              {firstFlagKey && (
+                <Button size="sm" className="mt-3" onClick={focusRevision}>
+                  Take me to the field <ArrowDown size={13} strokeWidth={1.5} />
+                </Button>
+              )}
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {!isRevision && issueCount > 0 && firstFlagKey && (
+        <Card className="border-[#d97706]/30 bg-[#fffbeb] p-4">
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 grid h-8 w-8 flex-none place-items-center rounded-lg bg-[#fef3c7] text-[#b45309]">
+              <TriangleAlert size={15} strokeWidth={1.5} />
+            </span>
+            <div className="min-w-0 flex-1 text-[13px] leading-relaxed text-black/65">
+              <span className="text-black/80">The quality check flagged {issueCount} field{issueCount === 1 ? "" : "s"}.</span> They’re outlined below with a note on what to check. Fix them and re-run the check before you sign.
+              <Button size="sm" className="mt-3" onClick={() => focusField(firstFlagKey)}>
+                Jump to first flagged field <ArrowDown size={13} strokeWidth={1.5} />
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {installation && <SectionCard section={installation} />}
+
+      {productSections.length > 0 &&
+        req.products.map((rp) => (
+          <div key={rp.product.id} className="space-y-3">
+            <div className="flex items-center gap-2 pt-1">
+              <span className="font-[family-name:var(--font-plex)] text-lg font-light text-[#111]">{rp.product.name}</span>
+              <span className="font-mono text-[11px] text-black/35">CN {rp.product.cnCode}</span>
+              <span className="ml-auto font-mono text-[11px] text-black/35">{rp.totalTonnes.toLocaleString("en-US")} t · {rp.lots.length} lot{rp.lots.length === 1 ? "" : "s"}</span>
+            </div>
+            {productSections.map((s) => (
+              <SectionCard key={s.key} section={s} productId={rp.product.id} />
+            ))}
+          </div>
+        ))}
+
+      {tailOnce.map((s) => (
+        <SectionCard key={s.key} section={s} />
+      ))}
+
+      <div className="sticky bottom-0 -mx-1 flex items-center justify-between gap-3 border-t border-black/[0.06] bg-[#f5f4f0]/90 px-1 py-4 backdrop-blur">
+        <Button variant="ghost" size="sm" onClick={() => setView("overview")}>
+          Back to overview
+        </Button>
+        <Button size="sm" onClick={() => setView("documents")}>
+          Continue to documents <ArrowRight size={14} strokeWidth={1.5} />
+        </Button>
+      </div>
+    </div>
+  );
+}
