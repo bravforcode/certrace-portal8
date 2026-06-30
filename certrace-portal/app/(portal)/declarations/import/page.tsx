@@ -64,7 +64,7 @@ export default function ImportPage() {
       </div>
 
       {step === "upload" && (
-        <Card className="border-dashed border-2 border-black/10 bg-[#fafafa] flex flex-col items-center justify-center p-16 text-center hover:bg-[#f5f5f5] transition-colors cursor-pointer" onClick={handleSimulateUpload}>
+        <div className="rounded-2xl border-dashed border-2 border-black/10 bg-[#fafafa] flex flex-col items-center justify-center p-16 text-center hover:bg-[#f5f5f5] transition-colors cursor-pointer" onClick={handleSimulateUpload}>
           <div className="h-16 w-16 rounded-full bg-black/5 flex items-center justify-center mb-4 text-black/40">
             <UploadCloud size={24} strokeWidth={1.5} />
           </div>
@@ -74,7 +74,7 @@ export default function ImportPage() {
           <Button className="mt-6" onClick={(e) => { e.stopPropagation(); handleSimulateUpload(); }}>
             Simulate Upload
           </Button>
-        </Card>
+        </div>
       )}
 
       {step === "analyzing" && (
@@ -85,7 +85,7 @@ export default function ImportPage() {
             Matching CN Codes against EU CBAM Annex I and calculating default emission values.
           </p>
           <div className="w-64">
-            <Progress value={undefined} />
+            <Progress value={0} />
           </div>
         </Card>
       )}
