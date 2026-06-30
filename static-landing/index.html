@@ -1098,7 +1098,7 @@ l0 14 -4 4 -3 4 -113 0 -112 0 -3 3 c-2 1 -3 4 -4 7 -1 2 -1 28 -1 80 0 82 0
     // Real contact inbox + company LinkedIn (provided by the founders).
     CONTACT_EMAIL: 'certrace.co@gmail.com',
     LINKEDIN_URL:  'https://www.linkedin.com/company/certrace-co', // set to '' to hide the link
-    SCRIPT_URL:    'https://script.google.com/macros/s/AKfycbzLGSfQOQ-0Eb74wYBxMeHmfZaatWvPnYOR1nrnn1O_sudrUHqd9Sr8ho0M6cdty-sB/exec' // <-- TODO: paste your Google Apps Script Web App URL here
+    SCRIPT_URL:    'https://script.google.com/macros/s/AKfycbwR4uqNpQbeKsaYEo2EsHSJywdEZwSbBNEYEDyPCMam0J0o8BytugkB1oPl5N8QdoXe/exec'
   };
 
   /* ---- apply config to the page ---- */
@@ -1146,6 +1146,12 @@ l0 14 -4 4 -3 4 -113 0 -112 0 -3 3 c-2 1 -3 4 -4 7 -1 2 -1 28 -1 80 0 82 0
     var EMAIL_RE  = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     var lastFocus = null;
 
+    if (localStorage.getItem('certrace_waitlist_joined')) {
+      pageForm.style.display = 'none';
+      success.classList.add('show');
+      return;
+    }
+
     /* ---------- STEP 1: email on the page → open the popup ---------- */
     pageForm.addEventListener('submit', function (e) {
       e.preventDefault();
@@ -1159,11 +1165,15 @@ l0 14 -4 4 -3 4 -113 0 -112 0 -3 3 c-2 1 -3 4 -4 7 -1 2 -1 28 -1 80 0 82 0
       // ----------------------------------------------------------------
       // BACKEND HOOK #1 — capture the email lead immediately.
       if (CONFIG.SCRIPT_URL) {
+        var fd1 = new FormData();
+        fd1.append('email', email);
+        fd1.append('source', 'landing');
+        fd1.append('step', 'email');
+        fd1.append('timestamp', new Date().toISOString());
         fetch(CONFIG.SCRIPT_URL, {
           method: 'POST',
           mode: 'no-cors',
-          headers: { 'Content-Type': 'text/plain' },
-          body: JSON.stringify({ email: email, source: 'landing', step: 'email' })
+          body: fd1
         });
       }
       // ----------------------------------------------------------------
@@ -1268,12 +1278,22 @@ l0 14 -4 4 -3 4 -113 0 -112 0 -3 3 c-2 1 -3 4 -4 7 -1 2 -1 28 -1 80 0 82 0
       // ----------------------------------------------------------------
       // BACKEND HOOK #2 — capture the full qualifying profile.
       if (CONFIG.SCRIPT_URL) {
+        var fd2 = new FormData();
+        for (var k in payload) { fd2.append(k, payload[k]); }
+        fd2.append('timestamp', new Date().toISOString());
+        
         fetch(CONFIG.SCRIPT_URL, {
           method: 'POST',
           mode: 'no-cors',
-          headers: { 'Content-Type': 'text/plain' },
-          body: JSON.stringify(payload)
+          body: fd2
+        }).then(function() {
+          localStorage.setItem('certrace_waitlist_joined', 'true');
+        }).catch(function() {
+          // Still mark as joined to prevent spam, even if fetch fails locally
+          localStorage.setItem('certrace_waitlist_joined', 'true');
         });
+      } else {
+        localStorage.setItem('certrace_waitlist_joined', 'true');
       }
       // ----------------------------------------------------------------
       console.log('[certrace] step 2 — details:', payload);
