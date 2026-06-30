@@ -62,8 +62,10 @@ export const SUPPLIER_DIRECTORY: DirectorySupplier[] = [
   { id: "d2", company: "Thai Metal Pro", contact: "Ploy S.", email: "carbon@thaimetalpro.com", country: "TH", material: "Steel billet" },
   { id: "d3", company: "G J Steel", contact: "Anan W.", email: "esg@gjsteel.co.th", country: "TH", material: "Hot-rolled coil" },
   { id: "d4", company: "Rayong Steel Co", contact: "Suda P.", email: "quality@rayongsteel.co.th", country: "TH", material: "Rebar" },
-  { id: "d5", company: "EEC Galvanizing Ltd", contact: "Korn M.", email: "ops@eecgalv.co.th", country: "TH", material: "Galvanised sheet" },
+  { id: "d5", company: "EEC Galvanizing Ltd", contact: "Korn M.", email: "ops@eecgalv.co.th", country: "TH", material: "Zinc coating" },
   { id: "d6", company: "Chonburi Foundry", contact: "Wichai R.", email: "sales@chonburifoundry.co.th", country: "TH", material: "Pig iron" },
+  { id: "d7", company: "Map Ta Phut Power", contact: "Somchai K.", email: "grid@maptaphut.example.com", country: "TH", material: "Grid electricity" },
+  { id: "d8", company: "Eastern Scrap Trading", contact: "Nongnuch V.", email: "sales@easternscrap.example.com", country: "TH", material: "Steel scrap" },
 ];
 
 export type SeatRole = "owner" | "member" | "legal" | "auditor";
