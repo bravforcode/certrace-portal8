@@ -1,10 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Search, X, Copy, Check } from "lucide-react";
-import { Card, PageHeader, Button, Chip, StatusLabel, Stat, Eyebrow, Field, inputClass } from "@/components/ui";
+import Link from "next/link";
+import { Plus, Search, X, Copy, Check, ChevronLeft, ChevronRight, ArrowRight } from "lucide-react";
+import { Card, PageHeader, Button, Chip, StatusLabel, Stat, Eyebrow, Field, inputClass, cn } from "@/components/ui";
 import { toast } from "@/components/toast";
-import { DECLARATIONS, SupplierRow, supplierStatusMeta } from "@/lib/data";
+import { DECLARATIONS, SupplierRow, supplierStatusMeta, supplierSlug } from "@/lib/data";
+
+const PAGE_SIZE = 6;
 
 export default function SuppliersPage() {
   // de-dupe across declarations into a directory
@@ -17,11 +20,17 @@ export default function SuppliersPage() {
   const [suppliers, setSuppliers] = React.useState<SupplierRow[]>(seed);
   const [query, setQuery] = React.useState("");
   const [adding, setAdding] = React.useState(false);
+  const [page, setPage] = React.useState(1);
 
   const filtered = suppliers.filter(
     (s) => s.name.toLowerCase().includes(query.toLowerCase()) || s.material.toLowerCase().includes(query.toLowerCase()),
   );
   const onPlatform = suppliers.filter((s) => s.status === "submitted").length;
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  React.useEffect(() => setPage(1), [query]);
+  const safePage = Math.min(page, pageCount);
+  const pageRows = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   const addSupplier = (name: string, material: string) => {
     setSuppliers((list) => [
@@ -75,18 +84,20 @@ export default function SuppliersPage() {
       </div>
 
       <Card className="overflow-hidden p-0">
-        <div className="grid grid-cols-[1.6fr_1fr_1fr_0.9fr] gap-3 border-b border-black/[0.06] bg-black/[0.02] px-5 py-2.5 font-mono text-[8px] uppercase tracking-[0.16em] text-black/30">
+        <div className="grid grid-cols-[1.6fr_1fr_1fr_0.9fr_auto] gap-3 border-b border-black/[0.06] bg-black/[0.02] px-5 py-2.5 font-mono text-[8px] uppercase tracking-[0.16em] text-black/30">
           <span>Supplier</span>
           <span>Material</span>
           <span>Last data</span>
           <span>Status</span>
+          <span />
         </div>
-        {filtered.map((s) => {
+        {pageRows.map((s) => {
           const meta = supplierStatusMeta[s.status];
           return (
-            <div
+            <Link
               key={s.id}
-              className="grid grid-cols-[1.6fr_1fr_1fr_0.9fr] items-center gap-3 border-b border-black/[0.04] px-5 py-4 last:border-0 hover:bg-[#fafaf8]"
+              href={`/suppliers/${supplierSlug(s.name)}`}
+              className="grid grid-cols-[1.6fr_1fr_1fr_0.9fr_auto] items-center gap-3 border-b border-black/[0.04] px-5 py-4 transition-colors last:border-0 hover:bg-[#fafaf8]"
             >
               <span className="flex items-center gap-2.5">
                 <span className="grid h-8 w-8 flex-none place-items-center rounded-lg bg-black/[0.04] font-mono text-[10px] text-black/45">
@@ -99,17 +110,51 @@ export default function SuppliersPage() {
               </span>
               <span className="text-[13px] text-black/55">{s.material}</span>
               <span className="font-mono text-[11px] text-black/40">{s.updated}</span>
-              <span className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2">
                 <StatusLabel tone={meta.tone} label={meta.label} glow={s.status === "submitted"} pulse={s.status === "in_progress"} />
                 {s.critical && <Chip tone="warn">critical</Chip>}
               </span>
-            </div>
+              <ArrowRight size={15} strokeWidth={1.5} className="text-black/25" />
+            </Link>
           );
         })}
         {filtered.length === 0 && (
           <div className="px-5 py-10 text-center text-sm text-black/35">No suppliers match “{query}”.</div>
         )}
       </Card>
+
+      {pageCount > 1 && (
+        <div className="flex items-center justify-between">
+          <span className="font-mono text-[11px] text-black/40">Page {safePage} of {pageCount}</span>
+          <div className="flex items-center gap-1.5">
+            <button
+              disabled={safePage === 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              aria-label="Previous page"
+              className="grid h-8 w-8 place-items-center rounded-lg border border-black/10 text-black/50 hover:border-black/25 hover:text-black disabled:pointer-events-none disabled:opacity-30"
+            >
+              <ChevronLeft size={15} strokeWidth={1.5} />
+            </button>
+            {Array.from({ length: pageCount }, (_, i) => i + 1).map((n) => (
+              <button
+                key={n}
+                onClick={() => setPage(n)}
+                className={cn("grid h-8 min-w-8 place-items-center rounded-lg px-2 font-mono text-[12px] transition-colors", n === safePage ? "bg-[#111] text-white" : "text-black/55 hover:bg-black/[0.05]")}
+              >
+                {n}
+              </button>
+            ))}
+            <button
+              disabled={safePage === pageCount}
+              onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+              aria-label="Next page"
+              className="grid h-8 w-8 place-items-center rounded-lg border border-black/10 text-black/50 hover:border-black/25 hover:text-black disabled:pointer-events-none disabled:opacity-30"
+            >
+              <ChevronRight size={15} strokeWidth={1.5} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {adding && <AddSupplierModal onClose={() => setAdding(false)} onAdd={addSupplier} />}
     </div>

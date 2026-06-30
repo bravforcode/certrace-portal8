@@ -39,21 +39,10 @@ export function SupplierTable({
               showEmissions ? "grid-cols-[1.6fr_1fr_0.8fr_0.8fr]" : "grid-cols-[1.6fr_1fr_0.9fr]",
             )}
           >
-            <span className="flex min-w-0 flex-col gap-0.5">
-              <span className="flex items-center gap-2">
-                {row.critical && <span className="h-1 w-1 flex-none rounded-full bg-black/40" title="CBAM-critical" />}
-                <span className="truncate font-mono text-[12px] text-[#111]">{row.name}</span>
-                <span className="font-mono text-[11px] text-black/25">{row.ref}</span>
-              </span>
-              <span className="flex items-center gap-2 text-[10px] text-black/35 font-mono">
-                <span>{row.material}</span>
-                {row.productionRoute && row.productionRoute !== "N/A" && (
-                  <>
-                    <span>·</span>
-                    <span className="rounded bg-black/[0.04] px-1 text-black/45">{row.productionRoute}</span>
-                  </>
-                )}
-              </span>
+            <span className="flex min-w-0 items-center gap-2">
+              {row.critical && <span className="h-1 w-1 flex-none rounded-full bg-black/40" title="CBAM-critical" />}
+              <span className="truncate font-mono text-[12px] text-black/60">{row.name}</span>
+              <span className="font-mono text-[11px] text-black/25">{row.ref}</span>
             </span>
             <span>
               <Progress value={row.progress} tone={meta.tone === "muted" ? "muted" : meta.tone} />

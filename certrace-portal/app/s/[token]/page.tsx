@@ -4,8 +4,6 @@ import * as React from "react";
 import { Check, ArrowRight, ArrowLeft } from "lucide-react";
 import { Card, Button, Eyebrow, Chip, StatusDot, Field, inputClass, cn } from "@/components/ui";
 
-export const runtime = "edge";
-
 const SECTIONS = [
   {
     title: "Your facility",

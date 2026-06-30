@@ -33,6 +33,7 @@ import {
   Tone,
 } from "./ui";
 import { SupplierTable } from "./supplier-table";
+import { Select } from "./controls";
 import { toast } from "./toast";
 import { Declaration, SEATS, Seat, ORG } from "@/lib/data";
 import { getRegulation, getJurisdiction } from "@/lib/config";
@@ -370,27 +371,16 @@ function CalculateStep({
           </div>
         </Card>
         {calcRun && (
-          <div className="space-y-3">
-            <Card warm className="flex items-center justify-between p-5">
-              <div>
-                <div className="font-[family-name:var(--font-plex)] text-3xl font-light text-[#111]">
-                  {totalEmbedded.toLocaleString()}{" "}
-                  <span className="text-base text-black/40">tCO₂e</span>
-                </div>
-                <div className="mt-1 text-[11px] uppercase tracking-[0.1em] text-black/40">Total embedded · this cycle</div>
+          <Card warm className="flex items-center justify-between p-5">
+            <div>
+              <div className="font-[family-name:var(--font-plex)] text-3xl font-light text-[#111]">
+                {totalEmbedded.toLocaleString()}{" "}
+                <span className="text-base text-black/40">tCO₂e</span>
               </div>
-              <StatusLabel tone="ok" label="computed" glow />
-            </Card>
-            <Card className="border-[rgba(220,38,38,0.25)] bg-[rgba(220,38,38,0.02)] p-4 flex gap-3 items-start">
-              <StatusDot tone="err" pulse />
-              <div className="space-y-1">
-                <div className="text-xs uppercase tracking-[0.08em] font-mono text-[#dc2626] font-semibold">Definitive Phase Alert (2026)</div>
-                <p className="text-[12px] leading-relaxed text-black/60">
-                  2 suppliers are using default factors (Steel billet &amp; Steel scrap). Under CBAM 2026 definitive rules, default values attract higher carbon costs and may trigger audits. Obtain actual data before filing.
-                </p>
-              </div>
-            </Card>
-          </div>
+              <div className="mt-1 text-[11px] uppercase tracking-[0.1em] text-black/40">Total embedded · this cycle</div>
+            </div>
+            <StatusLabel tone="ok" label="computed" glow />
+          </Card>
         )}
       </div>
 
@@ -474,7 +464,7 @@ function ComplyStep({ reg, completion }: { reg: ReturnType<typeof getRegulation>
         <Card warm className="flex items-center gap-3 p-4">
           <StatusDot tone="warn" />
           <p className="text-sm text-black/55">
-            One gap: Accredited verifier report missing. The verifier seat must review and sign off before final submission.
+            One gap: carbon-price evidence missing for 2 suppliers. The platform flagged them — request before submitting.
           </p>
         </Card>
       </div>
@@ -568,14 +558,16 @@ function ReviewStep({
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
-            <select
-              className={cn(inputClass, "sm:w-44")}
+            <Select
+              className="sm:w-44"
               value={role}
-              onChange={(e) => setRole(e.target.value as "legal" | "auditor")}
-            >
-              <option value="legal">Legal / compliance</option>
-              <option value="auditor">Verifier / auditor</option>
-            </select>
+              onChange={(v) => setRole(v as "legal" | "auditor")}
+              options={[
+                { value: "legal", label: "Legal / compliance" },
+                { value: "auditor", label: "Verifier / auditor" },
+              ]}
+              ariaLabel="Reviewer role"
+            />
             <Button variant="secondary" size="sm" onClick={invite} className="sm:flex-none">
               <Plus size={14} strokeWidth={1.5} /> Add seat
             </Button>
@@ -749,7 +741,7 @@ function ReportStep({
                     supplierCount: declaration.suppliers.length,
                     carbonPricePaid: declaration.carbonPricePaid ?? 0,
                     factorSet: jur.factorSet,
-                    suppliers: declaration.suppliers.map((s) => ({ name: s.name, material: s.material, emissions: s.emissions, productionRoute: s.productionRoute })),
+                    suppliers: declaration.suppliers.map((s) => ({ name: s.name, material: s.material, emissions: s.emissions })),
                   });
                   toast({ message: "Package downloaded.", detail: "Open it and Print → Save as PDF." });
                 }}
@@ -906,7 +898,7 @@ function ReceiptStep({
       supplierCount: declaration.suppliers.length,
       carbonPricePaid: declaration.carbonPricePaid ?? 0,
       factorSet: jur.factorSet,
-      suppliers: declaration.suppliers.map((s) => ({ name: s.name, material: s.material, emissions: s.emissions, productionRoute: s.productionRoute })),
+      suppliers: declaration.suppliers.map((s) => ({ name: s.name, material: s.material, emissions: s.emissions })),
     });
     toast({ message: "Package downloaded.", detail: "Open it and Print → Save as PDF." });
   };

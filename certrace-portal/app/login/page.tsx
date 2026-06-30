@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { Button, Field, inputClass, Chip, StatusDot } from "@/components/ui";
+import { CertraceLogo } from "@/components/logo";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -39,7 +40,7 @@ export default function LoginPage() {
           </g>
         </svg>
 
-        <div className="relative font-pixel text-[13px] uppercase tracking-[0.32em] text-black/70">Certrace</div>
+        <div className="relative"><CertraceLogo className="h-6 w-auto" /></div>
 
         <div className="relative">
           <h1 className="max-w-md font-[family-name:var(--font-plex)] text-4xl font-light leading-[1.05] tracking-tight text-[#111]">
@@ -66,7 +67,7 @@ export default function LoginPage() {
       {/* Right: form */}
       <div className="flex items-center justify-center px-6 py-16">
         <div className="w-full max-w-sm">
-          <div className="font-pixel text-[12px] uppercase tracking-[0.25em] text-black/70 lg:hidden">Certrace</div>
+          <div className="lg:hidden"><CertraceLogo className="h-5 w-auto" /></div>
           <p className="mt-2 text-[11px] uppercase tracking-[0.1em] text-black/40">Exporter portal</p>
           <h2 className="mt-3 font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111]">
             Sign in to continue.

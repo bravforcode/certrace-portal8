@@ -1,12 +1,20 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { Card, PageHeader, Eyebrow, Field, inputClass, Chip, Button } from "@/components/ui";
+import { Select } from "@/components/controls";
 import { toast } from "@/components/toast";
 import { ORG } from "@/lib/data";
 import { JURISDICTIONS } from "@/lib/config";
 
 export default function SettingsPage() {
+  const [jurisdiction, setJurisdiction] = React.useState("TH");
+  const [currency, setCurrency] = React.useState("THB");
+  const [unit, setUnit] = React.useState("tCO₂e");
+  const [language, setLanguage] = React.useState("English");
+  const currencies = [...new Set(JURISDICTIONS.map((j) => j.currency)), "EUR"];
+
   return (
     <div className="space-y-8">
       <PageHeader
@@ -40,35 +48,26 @@ export default function SettingsPage() {
           <Eyebrow>Locale & units</Eyebrow>
           <div className="mt-4 space-y-4">
             <Field label="Operating jurisdiction" hint="Sets the localised emission-factor library and number formats.">
-              <select className={inputClass} defaultValue="TH">
-                {JURISDICTIONS.map((j) => (
-                  <option key={j.code} value={j.code} disabled={!j.available}>
-                    {j.name} {j.available ? `— ${j.factorSet}` : "— coming soon"}
-                  </option>
-                ))}
-              </select>
+              <Select
+                value={jurisdiction}
+                onChange={setJurisdiction}
+                options={JURISDICTIONS.map((j) => ({ value: j.code, label: j.name, hint: j.available ? j.factorSet : "coming soon" }))}
+                ariaLabel="Operating jurisdiction"
+              />
             </Field>
             <Field label="Display currency">
-              <select className={inputClass} defaultValue="THB">
-                {[...new Set(JURISDICTIONS.map((j) => j.currency))].map((c) => (
-                  <option key={c}>{c}</option>
-                ))}
-                <option>EUR</option>
-              </select>
+              <Select value={currency} onChange={setCurrency} options={currencies.map((c) => ({ value: c, label: c }))} ariaLabel="Display currency" />
             </Field>
             <Field label="Emission unit">
-              <select className={inputClass} defaultValue="tCO₂e">
-                <option>tCO₂e</option>
-                <option>kgCO₂e</option>
-              </select>
+              <Select value={unit} onChange={setUnit} options={[{ value: "tCO₂e", label: "tCO₂e" }, { value: "kgCO₂e", label: "kgCO₂e" }]} ariaLabel="Emission unit" />
             </Field>
             <Field label="Interface language">
-              <select className={inputClass} defaultValue="English">
-                <option>English</option>
-                <option>ไทย (Thai)</option>
-                <option>Tiếng Việt</option>
-                <option>Bahasa Indonesia</option>
-              </select>
+              <Select
+                value={language}
+                onChange={setLanguage}
+                options={["English", "ไทย (Thai)", "Tiếng Việt", "Bahasa Indonesia"].map((l) => ({ value: l, label: l }))}
+                ariaLabel="Interface language"
+              />
             </Field>
           </div>
         </Card>

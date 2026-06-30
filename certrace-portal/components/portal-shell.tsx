@@ -21,6 +21,7 @@ import {
   BadgeCheck,
 } from "lucide-react";
 import { cn, StatusDot } from "./ui";
+import { CertraceLogo } from "./logo";
 import { Toaster } from "./toast";
 import { ORG, USER } from "@/lib/data";
 import { JURISDICTIONS } from "@/lib/config";
@@ -36,23 +37,10 @@ const NAV = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-// Pixel glyph that reads as "C" on a 5×5 grid (DS: generative pixel-grid logo).
-//  · ■ ■ ■ ·
-//  ■ · · · ·
-//  ■ · · · ·
-//  ■ · · · ·
-//  · ■ ■ ■ ·
-const C_ON = new Set([1, 2, 3, 5, 10, 15, 21, 22, 23]);
-
 function Wordmark() {
   return (
-    <Link href="/dashboard" className="flex items-center gap-2.5">
-      <span className="grid h-7 w-7 flex-none grid-cols-5 grid-rows-5 gap-[2px] rounded-md bg-[#111] p-[4px]" aria-hidden>
-        {Array.from({ length: 25 }, (_, i) => (
-          <span key={i} className="rounded-[1px] bg-white" style={{ opacity: C_ON.has(i) ? 1 : 0 }} />
-        ))}
-      </span>
-      <span className="font-pixel text-[12px] uppercase tracking-[0.25em] text-black/70">Certrace</span>
+    <Link href="/dashboard" aria-label="Certrace — dashboard" className="inline-flex items-center">
+      <CertraceLogo className="h-[19px] w-auto" />
     </Link>
   );
 }
@@ -219,7 +207,11 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
         {/* Sidebar */}
         <aside
           className={cn(
-            "fixed inset-y-0 left-0 top-16 z-40 w-[228px] flex-none border-r border-black/[0.06] bg-white px-3 py-5 transition-transform md:sticky md:translate-x-0",
+            // Fixed-height + self-start keeps `sticky` working: without an explicit
+            // height the flex row stretches the sidebar to the full content height,
+            // which is taller than the viewport and silently breaks sticky so it
+            // scrolls with the page. Pinned here, only the content area scrolls.
+            "fixed inset-y-0 left-0 top-16 z-40 w-[228px] flex-none overflow-y-auto border-r border-black/[0.06] bg-white px-3 py-5 transition-transform md:sticky md:top-16 md:h-[calc(100vh-4rem)] md:translate-x-0 md:self-start",
             mobileOpen ? "translate-x-0" : "-translate-x-full",
           )}
         >

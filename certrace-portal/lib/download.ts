@@ -17,7 +17,7 @@ export type PackageInput = {
   supplierCount: number;
   carbonPricePaid: number;
   factorSet: string;
-  suppliers?: { name: string; material: string; emissions: number | null; productionRoute?: string }[];
+  suppliers?: { name: string; material: string; emissions: number | null }[];
 };
 
 function esc(s: string | number) {
@@ -31,7 +31,6 @@ export function buildPackageHtml(p: PackageInput): string {
       (s) => `<tr>
         <td>${esc(s.name)}</td>
         <td>${esc(s.material)}</td>
-        <td>${esc(s.productionRoute ?? "N/A")}</td>
         <td class="num">${s.emissions != null ? s.emissions.toFixed(2) : "default"}</td>
       </tr>`,
     )
@@ -88,7 +87,7 @@ export function buildPackageHtml(p: PackageInput): string {
   <div class="kv"><span class="k">Carbon price paid in origin</span><span>${p.carbonPricePaid === 0 ? "None (Thailand — no carbon price)" : esc(p.carbonPricePaid)}</span></div>
 
   ${rows ? `<div class="eyebrow">Per-supplier embedded emissions (tCO₂e/t)</div>
-  <table><thead><tr><th>Supplier</th><th>Material</th><th>Route</th><th class="num">tCO₂e/t</th></tr></thead><tbody>${rows}</tbody></table>` : ""}
+  <table><thead><tr><th>Supplier</th><th>Material</th><th class="num">tCO₂e/t</th></tr></thead><tbody>${rows}</tbody></table>` : ""}
 
   <div class="seal"><span class="dot"></span>Generated ${esc(now.toUTCString())} · sealed by Certrace · sha-256 evidence trail · reviewer sign-off attached</div>
 </div>
@@ -112,123 +111,3 @@ export function downloadPackage(p: PackageInput) {
   const slug = `${p.regulationShort}-${p.period}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   downloadFile(`certrace-${slug}.html`, buildPackageHtml(p), "text/html");
 }
-
-export function buildPackageCsv(p: PackageInput): string {
-  const header = [
-    "Reference",
-    "Regulation Short",
-    "Regulation Full",
-    "Period",
-    "Sector",
-    "Country of Origin",
-    "Market Destination",
-    "Organization",
-    "Facility ID",
-    "Methodology",
-    "Carbon Price Paid",
-    "Supplier Name",
-    "Material",
-    "Production Route",
-    "Emissions Intensity (tCO2e/t)"
-  ];
-  
-  const csvRows = [header.map(c => `"${c.replace(/"/g, '""')}"`).join(",")];
-
-  const baseInfo = [
-    p.ref,
-    p.regulationShort,
-    p.regulationFull,
-    p.period,
-    p.sector,
-    p.origin,
-    p.market,
-    p.org,
-    p.installationId,
-    `IPCC/GHG Protocol (${p.factorSet})`,
-    p.carbonPricePaid === 0 ? "None" : String(p.carbonPricePaid)
-  ];
-
-  if (p.suppliers && p.suppliers.length > 0) {
-    p.suppliers.forEach((s) => {
-      const row = [
-        ...baseInfo,
-        s.name,
-        s.material,
-        s.productionRoute ?? "N/A",
-        s.emissions != null ? s.emissions.toFixed(4) : "default"
-      ];
-      csvRows.push(row.map(c => `"${c.replace(/"/g, '""')}"`).join(","));
-    });
-  } else {
-    const row = [...baseInfo, "", "", "", ""];
-    csvRows.push(row.map(c => `"${c.replace(/"/g, '""')}"`).join(","));
-  }
-
-  return csvRows.join("\n");
-}
-
-export function downloadCsvPackage(p: PackageInput) {
-  const slug = `${p.regulationShort}-${p.period}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-  downloadFile(`certrace-${slug}.csv`, buildPackageCsv(p), "text/csv");
-}
-
-export function buildPackageXml(p: PackageInput): string {
-  const escXml = (val: string | number) => {
-    return String(val)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&apos;");
-  };
-
-  const suppliersXml = (p.suppliers ?? [])
-    .map(
-      (s) => `      <Supplier>
-        <Name>${escXml(s.name)}</Name>
-        <Material>${escXml(s.material)}</Material>
-        <ProductionRoute>${escXml(s.productionRoute ?? "N/A")}</ProductionRoute>
-        <EmissionsIntensity unit="tCO2e/t">${s.emissions != null ? s.emissions.toFixed(4) : "default"}</EmissionsIntensity>
-      </Supplier>`,
-    )
-    .join("\n");
-
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<CbamDeclaration 
-  xmlns="urn:eu:taxud:cbam:declaration:v1" 
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="urn:eu:taxud:cbam:declaration:v1 cbam_declaration.xsd"
->
-  <DeclarationHeader>
-    <DeclarationReferenceId>${escXml(p.ref)}</DeclarationReferenceId>
-    <ReportingPeriod>${escXml(p.period)}</ReportingPeriod>
-    <RegulationShort>${escXml(p.regulationShort)}</RegulationShort>
-    <RegulationFull>${escXml(p.regulationFull)}</RegulationFull>
-    <GenerationTimestamp>${escXml(new Date().toISOString())}</GenerationTimestamp>
-  </DeclarationHeader>
-  
-  <Declarant>
-    <Name>${escXml(p.org)}</Name>
-    <InstallationId>${escXml(p.installationId)}</InstallationId>
-    <OriginCountry>${escXml(p.origin)}</OriginCountry>
-    <DestinationMarket>${escXml(p.market)}</DestinationMarket>
-    <Methodology>IPCC/GHG Protocol (${escXml(p.factorSet)})</Methodology>
-    <CarbonPricePaid currency="THB">${escXml(p.carbonPricePaid)}</CarbonPricePaid>
-  </Declarant>
-  
-  <GoodsEmissions>
-    <Sector>${escXml(p.sector)}</Sector>
-    <TotalEmbeddedEmissions unit="tCO2e">${escXml(p.totalEmbedded)}</TotalEmbeddedEmissions>
-    <SupplierCount>${escXml(p.supplierCount)}</SupplierCount>
-    <Suppliers>
-${suppliersXml}
-    </Suppliers>
-  </GoodsEmissions>
-</CbamDeclaration>`;
-}
-
-export function downloadXmlPackage(p: PackageInput) {
-  const slug = `${p.regulationShort}-${p.period}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-  downloadFile(`certrace-${slug}.xml`, buildPackageXml(p), "application/xml");
-}
-

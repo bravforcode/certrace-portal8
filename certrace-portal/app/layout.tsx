@@ -26,6 +26,12 @@ export const metadata: Metadata = {
   title: "Certrace — Exporter Portal",
   description:
     "Collect verified carbon data from suppliers, calculate embedded emissions, and submit audit-ready CBAM declarations to buyers and authorities — without the email chaos.",
+  icons: {
+    icon: [
+      { url: "/brand/favicon-32.png", type: "image/png", sizes: "32x32" },
+      { url: "/brand/certrace-icon-ink.svg", type: "image/svg+xml" },
+    ],
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
