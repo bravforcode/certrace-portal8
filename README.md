@@ -1,88 +1,88 @@
-# Certrace — Pre-launch Landing Page
+# Certrace — Exporter Portal (MVP)
 
-A single, self-contained landing page for the Certrace pre-launch / discovery
-phase. Its only job: make a cold-outreach recipient decide, in 30–60 seconds,
-that we're real founders working on a serious problem — and worth 15 minutes.
+Frontend + UX/UI MVP for the **Certrace** exporter portal. Built strictly on the
+**Certrace design system** (ink-on-bone, light-mode only, status-color-only).
 
-Scope is **CBAM only** (EU Carbon Border Adjustment Mechanism), starting with
-Thai steel and aluminum exporters. The page deliberately does not mention any
-other regulation.
+> Certrace is carbon-compliance workflow infrastructure for exporters. This
+> portal is the **exporter** surface: collect verified supplier data → calculate
+> embedded emissions → check compliance → get legal / verifier sign-off (seats) →
+> generate an audit-ready package → submit it to the buyer and the authority. It
+> replaces the manual "email the report to the buyer and the CBAM registry"
+> handoff entirely.
 
-Built to the Certrace Design System (bone `#F5F4F0` ground, `#111` ink ramp,
-IBM Plex Sans Light headlines, Courier Prime micro-labels, hairline borders,
-status-dot motif as texture). The brand logo is the real vector mark, inlined
-as SVG.
+## Launch posture (this MVP)
 
-## Files
+Certrace launches on the obligation that bites first: **CBAM**, for **steel & iron**
+exporters from **Thailand** into the **EU**.
 
-- `index.html` — the entire page. HTML + CSS + JS inline. No build step.
+- **CBAM is the only live regulation.** EUDR, CSRD, Scope 3 and UK CBAM render as
+  **coming soon** with a working "notify me" waitlist — never a dead end.
+- **Steel & iron is the only open CBAM sector.** Aluminium, cement, fertilisers,
+  hydrogen and electricity are disabled (locked) with a "notify" path.
+- **Pricing is real.** Three plans (Starter / Growth / Scale), monthly ↔ annual
+  toggle, and a full upgrade → checkout → receipt flow. Suppliers are always free.
 
-## Run it
+All gating lives in [`lib/config.ts`](lib/config.ts) via `available` flags — flip
+one boolean to open a regime, sector or country. No new UI required.
 
-Just open `index.html` in a browser, or serve the folder statically:
+## Run locally
 
 ```bash
-python3 -m http.server 8000   # then visit http://localhost:8000
+cd ~/certrace-portal
+npm install
+npm run dev
 ```
 
-The only external dependency is Google Fonts (IBM Plex Sans + Courier Prime).
+Open http://localhost:3000 → redirects to `/login` (credentials pre-filled — just sign in).
 
-## Before going live
+## The golden path (every button clicks through to the last screen)
 
-### 1. Waitlist form (currently console.log only)
+1. `/login` → sign in
+2. `/dashboard` → overview, priority alert, live supplier feed, working notifications bell
+3. `/declarations/new` → 5-step wizard (regulation → route → scope → suppliers → review).
+   Only CBAM + Steel are selectable; everything else is coming-soon with a notify path.
+4. `/declarations/cbam-2026-q2-steel` → the **workflow**, step by step:
+   - **Collect** → chase suppliers (remind / remind-all)
+   - **Calculate** → embedded emissions (run calculation)
+   - **Compliance** → real-time gap detection
+   - **Sign-off** → invite legal/verifier **seats**, request & receive sign-off
+   - **Report** → generate the audit-ready package (**downloadable** HTML → Print to PDF)
+   - **Submit** → route to EU buyer + CBAM authority + verifier
+   - **Receipt** → final confirmation (submission reference, delivery receipts, **download**)
+5. `/billing` → plans, billing-cycle toggle, upgrade → checkout → success + invoices (downloadable)
+6. `/suppliers` → directory + **Add supplier** invite modal (copy guided-form link)
+7. `/s/demo-token` → the supplier's free, no-account guided form (the other side of collection)
 
-Open `index.html`, find the **WAITLIST FORM** block in the `<script>`. Right now a
-valid email is validated, logged to the console, and the success state is shown —
-**nothing is stored anywhere.** There's a `TODO` comment with two options:
+Plus: `/reports` (re-downloadable packages), `/team` (seats), `/regulations` (coverage), `/settings`.
 
-- **A — Tally / Google Forms:** point the `<form>` at the form endpoint and let
-  it POST natively, or
-- **B — Your own endpoint:** uncomment the `fetch(...)` POST and set the URL.
+## What's new vs the previous version
 
-### 2. Config block (top of `<script>`) — one placeholder left
+- **Certrace** naming throughout; **logo pixel-glyph reads "C"** (5×5 grid).
+- **CBAM-only / steel-only gating** with coming-soon + waitlist everywhere a user could pick.
+- **Real pricing & checkout** ([`app/(portal)/billing`](app/(portal)/billing/page.tsx)).
+- **Real file downloads** — packages and invoices generate actual files
+  ([`lib/download.ts`](lib/download.ts)).
+- **Toast system** ([`components/toast.tsx`](components/toast.tsx)) and a working
+  **notifications panel** so no action is a dead end.
+- Realistic mid-2026 CBAM data: steel-only supply chain, consistent deadlines.
 
-```js
-const CONFIG = {
-  CALENDLY_URL:  'CALENDLY_URL_PLACEHOLDER',                       // <-- TODO: real scheduler link
-  CONTACT_EMAIL: 'certrace.co@gmail.com',                         // live
-  LINKEDIN_URL:  'https://www.linkedin.com/company/certrace-co'   // live
-};
-```
+## Architecture
 
-- **`CALENDLY_URL` is the only thing still to wire up.** It powers the
-  "Give us 15 minutes" secondary link under the waitlist form. Drop in the real
-  Calendly / Cal.com / SavvyCal link.
-- `CONTACT_EMAIL` and `LINKEDIN_URL` are already set to the real values and power
-  the footer (email renders as a `mailto:`). Setting `LINKEDIN_URL` to `''` would
-  hide the LinkedIn link automatically.
+| Path | Purpose |
+|---|---|
+| `app/globals.css` | Design-system tokens, motion, base styles |
+| `app/layout.tsx` | Brand fonts (IBM Plex Sans / Geist / Geist Mono / Courier Prime) |
+| `lib/config.ts` | Regulations, jurisdictions, markets, sectors, **plans** — the scalability backbone |
+| `lib/data.ts` | Mock fixtures (the seam where a real API slots in) |
+| `lib/download.ts` | Client-side audit-ready package / invoice generation |
+| `components/ui.tsx` | Design-system primitives (Card, Button, Chip, StatusDot, …) |
+| `components/toast.tsx` | Lightweight toast feedback |
+| `components/portal-shell.tsx` | Sidebar + topbar + country switcher + notifications |
+| `components/declaration-workflow.tsx` | The end-to-end compliance flow |
+| `app/(portal)/*` | Authenticated exporter screens |
+| `app/s/[token]` | Public supplier guided form |
 
-### 3. Nothing else
+## Stack
 
-No analytics, no SEO meta, no tracking — intentional for this stage. Add later
-if needed.
-
-## Page structure (and what's intentionally absent)
-
-Hero → **01 What is Certrace** (the clearest, most concrete paragraph) →
-**02 The problem** → **03 What we're building** → CTA (waitlist + a soft
-"give us 15 minutes" line that doubles as the "why we're reaching out" cue) →
-footer.
-
-Deliberately excluded: pricing, feature lists, screenshots, logos/customers,
-metrics, testimonials, comparison tables, and any regulation other than CBAM.
-
-## Notes for whoever edits the copy
-
-- Total visible body copy (hero + three sections) is kept under ~150 words on
-  purpose. If you add a sentence, cut one — the restraint is the point.
-- Calm, plain, founder-to-founder. No hype words.
-
-## Accessibility / behavior
-
-- Respects `prefers-reduced-motion` (disables the blur-in reveals, the dot pulse,
-  and the hero canvas animation).
-- Visible focus ring on the email input.
-- The animated hero dot-field, and the small emerald/amber/red dot trio in the
-  CTA, are decorative (`aria-hidden`) — the brand's status-dot motif used as
-  texture, not functional status indicators.
-- Responsive, mobile-first. Verified at 390px and 1280px.
+Next.js 15 · React 19 · TypeScript · Tailwind CSS v4 · lucide-react.
+Frontend only — all data is mocked. No backend, no auth provider, no database.

@@ -1,25 +1,27 @@
-# Next.js
-certrace-portal/node_modules/
-certrace-portal/.next/
-certrace-portal/out/
-certrace-portal/.env*.local
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
 
-# Python virtualenv & cache
-certrace-backend/.venv/
-certrace-backend/__pycache__/
-certrace-backend/*.pyc
-certrace-backend/.env
+# next.js
+/.next/
+/out/
 
-# Backups and archives
-*.zip
+# production
+/build
 
-# OS files
+# misc
 .DS_Store
-Thumbs.db
+*.pem
 
-# wrangler files
-.wrangler
-.dev.vars*
-!.dev.vars.example
-.env*
-!.env.example
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# env
+.env*.local
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
