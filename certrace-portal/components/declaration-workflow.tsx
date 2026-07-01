@@ -1049,8 +1049,8 @@ function XmlExportTab({ decl, roll }: { decl: Declaration; roll: ReviewRollup })
         <cbam:Description>${sub.supplier.material} imported from ${sub.supplier.name}</cbam:Description>
         <cbam:Quantity>100</cbam:Quantity>
         <cbam:Emissions>
-          <cbam:DirectEmissions>${emissions?.direct ?? 1.5}</cbam:DirectEmissions>
-          <cbam:IndirectEmissions>${emissions?.indirect ?? 0.5}</cbam:IndirectEmissions>
+          <cbam:DirectEmissions>${emissions?.productId ? sub.values[valueKey("direct-emissions", emissions.productId)] : 1.5}</cbam:DirectEmissions>
+          <cbam:IndirectEmissions>${emissions?.productId ? sub.values[valueKey("indirect-emissions", emissions.productId)] : 0.5}</cbam:IndirectEmissions>
           <cbam:TotalSpecificEmissions>${emissions?.perTonne ?? 2.0}</cbam:TotalSpecificEmissions>
         </cbam:Emissions>
       </cbam:GoodsItem>`;
