@@ -36,9 +36,11 @@ import {
 import {
   loadState,
   saveState,
+  pushEvent,
   type DocState,
   type Version,
   type SubmissionStatus,
+  type AuditEvent,
 } from "./supplier-store";
 import { runQualityCheck, type CheckResult } from "./ai-check";
 
@@ -143,6 +145,7 @@ export type ReviewSubmission = {
   docs: Record<string, DocState>;
   check: CheckResult | null;
   versions: Version[];
+  events: AuditEvent[];
   emissions: EmissionLine[];
   totalTCO2e: number; // absolute embedded emissions for this supplier (tCO₂e)
   review: SupplierReview;
@@ -220,12 +223,14 @@ function emissionsFor(request: SupplierRequest, values: Record<string, string>):
 function deriveLifecycle(submitted: boolean, review: SupplierReview, version: number): Lifecycle {
   if (review.decision === "approved" && review.decidedVersion === version) return "approved";
   if (review.decision === "changes_requested") {
-    // a resubmission carries a higher version than the one we sent back → re-review
+    // a resubmission carries a higher version than the one we sent back → it's
+    // come back for re-approval ("in review"); otherwise we're still waiting on them.
     if (version > review.decidedVersion) return "in_review";
     return "changes_requested";
   }
   if (!submitted) return "awaiting";
-  if (review.reviewers.length > 0) return "in_review";
+  // First submission, not yet sent back — "submitted". Assigning reviewers is a
+  // separate "shared with…" signal and does not change the status.
   return "submitted";
 }
 
@@ -240,6 +245,7 @@ export function resolveSubmission(decl: Declaration, row: SupplierRow, exporter:
   let docs: Record<string, DocState>;
   let check: CheckResult | null;
   let versions: Version[];
+  let events: AuditEvent[];
   let supplierStatus: SubmissionStatus;
   let source: "live" | "demo";
 
@@ -249,6 +255,7 @@ export function resolveSubmission(decl: Declaration, row: SupplierRow, exporter:
     docs = ss.docs;
     check = ss.lastCheck ?? runQualityCheck(request, values, docs);
     versions = ss.versions;
+    events = ss.events;
     supplierStatus = ss.status;
     source = "live";
   } else if (row.status === "submitted") {
@@ -260,6 +267,11 @@ export function resolveSubmission(decl: Declaration, row: SupplierRow, exporter:
     const signer = SIGNERS[(parseInt(row.ref.replace(/\D/g, "") || "0", 10)) % SIGNERS.length];
     const submittedAt = agoToTs(row.updated);
     versions = [{ n: 1, submittedAt, score: check.score, warnings: check.warnings, signedBy: signer.name, signedRole: signer.role }];
+    events = [
+      ...Object.values(s.docs).map((d, i) => ({ id: `${row.id}-doc${i}`, at: submittedAt - (Object.keys(s.docs).length - i) * 60_000, kind: "doc_upload" as const, text: `${d.files[0]?.name ?? "file"} attached` })),
+      { id: `${row.id}-check`, at: submittedAt - 5 * 60_000, kind: "check_run" as const, text: `AI quality check run — score ${check.score}, ${check.critical} critical, ${check.warnings} warning${check.warnings === 1 ? "" : "s"}` },
+      { id: `${row.id}-submit`, at: submittedAt, kind: "submit" as const, text: `Version 1 signed by ${signer.name} (${signer.role}) and submitted — score ${check.score}, ${check.warnings} warning${check.warnings === 1 ? "" : "s"}` },
+    ];
     supplierStatus = "submitted";
     source = "demo";
   } else {
@@ -268,6 +280,7 @@ export function resolveSubmission(decl: Declaration, row: SupplierRow, exporter:
     docs = {};
     check = null;
     versions = [];
+    events = [];
     supplierStatus = ss.status === "revision_requested" ? "revision_requested" : "new";
     source = "demo";
   }
@@ -293,6 +306,7 @@ export function resolveSubmission(decl: Declaration, row: SupplierRow, exporter:
     docs,
     check,
     versions,
+    events,
     emissions: lines,
     totalTCO2e: total,
     review,
@@ -415,13 +429,12 @@ export function requestRevision(
 ): ExporterDeclState {
   const token = makeToken(declId, supplierId);
   const ss = loadState(token);
-  saveState({
-    ...ss,
-    status: "revision_requested",
-    unlocked: payload.fields,
-    unlockedDocs: payload.docs,
-    revisionNote: payload.comment,
-  });
+  const next = pushEvent(
+    { ...ss, status: "revision_requested" as const, unlocked: payload.fields, unlockedDocs: payload.docs, revisionNote: payload.comment },
+    "revision_requested",
+    `${EXPORTER.contact} requested a revision on ${payload.fields.length} field${payload.fields.length === 1 ? "" : "s"}${payload.docs.length ? ` and ${payload.docs.length} document${payload.docs.length === 1 ? "" : "s"}` : ""} — "${payload.comment}"`,
+  );
+  saveState(next);
   return mutateReview(declId, supplierId, (r) => ({
     ...r,
     decision: "changes_requested",

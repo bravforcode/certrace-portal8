@@ -340,6 +340,18 @@ export const BUYER_PERIODS: PeriodOption[] = [
   { id: "custom", label: "Custom range", hint: "Choose your own start and end dates.", picker: "range" },
 ];
 
+/* ── Reference type ────────────────────────────────────────────
+   Every reporting period — CBAM or Buyer Request — needs a reference type so
+   the exporter (and the supplier) know which lot the request is tied to. */
+export type ReferenceType = "po" | "shipment" | "batch" | "invoice" | "other";
+export const REFERENCE_TYPES: { id: ReferenceType; label: string; hint: string }[] = [
+  { id: "po", label: "Purchase Order", hint: "Tie the request to a specific PO number." },
+  { id: "shipment", label: "Shipment", hint: "Tie the request to a shipment / container." },
+  { id: "batch", label: "Batch / Lot", hint: "Tie the request to a production batch or lot." },
+  { id: "invoice", label: "Invoice", hint: "Tie the request to a commercial invoice." },
+  { id: "other", label: "Other", hint: "Any other reference your suppliers will recognise." },
+];
+
 /* ── Product catalogue (real CBAM master data) ────────────────
    CN codes are real Combined-Nomenclature codes that fall inside the CBAM
    scope of Annex I to Regulation (EU) 2023/956 (iron & steel — ch. 72/73 +

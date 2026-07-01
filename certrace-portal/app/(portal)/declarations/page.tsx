@@ -3,11 +3,13 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, ArrowRight, LayoutGrid, Table2, Search, ChevronLeft, ChevronRight, PenLine, Trash2 } from "lucide-react";
+import { Plus, ArrowRight, LayoutGrid, Table2, Search, ChevronLeft, ChevronRight, PenLine, Trash2, Copy } from "lucide-react";
 import { Card, Button, Chip, Progress, Eyebrow, cn } from "@/components/ui";
-import { DECLARATIONS, ORG, type Declaration } from "@/lib/data";
+import { toast } from "@/components/toast";
+import { DECLARATIONS, SUPPLIER_DIRECTORY, ORG, type Declaration, type DirectorySupplier } from "@/lib/data";
 import { getRegulation, getJurisdiction } from "@/lib/config";
-import { loadDrafts, deleteDraft, type Draft } from "@/lib/drafts";
+import { loadDrafts, deleteDraft, saveDraft, newDraftId, type Draft, type Mapping, type WizardSnapshot } from "@/lib/drafts";
+import { productForMaterial } from "@/lib/supplier";
 
 const STEP_LABEL: Record<string, string> = {
   collect: "Collecting",
@@ -34,6 +36,70 @@ function heading(d: Declaration) {
 }
 function sub(d: Declaration) {
   return d.kind === "buyer" ? "Buyer request" : getRegulation(d.regulation)?.full ?? "";
+}
+
+/* "Duplicate Previous Request" — many exporters repeat similar requests every
+   quarter or year; re-seed the wizard from a past declaration's scope
+   (purpose, products, suppliers) as a fresh draft instead of starting blank.
+   Quantities and dates are left for the exporter to re-enter — they change
+   every period even when the scope doesn't. */
+function duplicateToDraft(d: Declaration): string {
+  const materials = Array.from(new Set(d.suppliers.map((s) => s.material)));
+  const products = Array.from(new Set(materials.map((m) => productForMaterial(m).id)));
+
+  const mapping: Mapping = {};
+  d.suppliers.forEach((s) => {
+    const pid = productForMaterial(s.material).id;
+    const entries = mapping[pid] ?? [];
+    if (!entries.some((e) => e.supplierId === s.id)) {
+      mapping[pid] = [...entries, { supplierId: s.id, lots: [{ id: `${s.id}-l1`, qty: "", unit: "", from: "", to: "", notes: "" }] }];
+    }
+  });
+
+  // Keep the declaration's own supplier ids (they're what `mapping` above keys
+  // on) even when a directory match is found — otherwise the two disagree and
+  // the wizard can't resolve a supplier's name back from the mapping.
+  const directory: DirectorySupplier[] = d.suppliers.map((s) => {
+    const match = SUPPLIER_DIRECTORY.find((x) => x.company === s.name);
+    return match ? { ...match, id: s.id } : { id: s.id, company: s.name, contact: "", email: "", country: s.country };
+  });
+
+  const name = `${heading(d)} (copy)`;
+  const snapshot: WizardSnapshot = {
+    regulation: d.regulation,
+    origin: d.origin,
+    destination: d.market,
+    purpose: d.kind ?? "cbam",
+    name,
+    description: "",
+    periodId: "annual",
+    year: String(new Date().getFullYear()),
+    quarter: "Q1",
+    half: "H1",
+    month: "January",
+    rangeStart: "",
+    rangeEnd: "",
+    referenceType: "po",
+    products,
+    reportFields: {},
+    extras: [],
+    customRequest: "",
+    directory,
+    mapping,
+    deadline: "",
+    reminders: { d7: true, d3: true, due: true },
+    notes: "",
+    step: 0,
+  };
+
+  const id = newDraftId();
+  saveDraft({
+    id,
+    updatedAt: Date.now(),
+    snapshot,
+    display: { name, purpose: snapshot.purpose, productCount: products.length, supplierCount: directory.length, period: "", deadline: "" },
+  });
+  return id;
 }
 
 const KINDS = [
@@ -210,31 +276,45 @@ export default function DeclarationsPage() {
               const jur = getJurisdiction(d.origin);
               const done = d.suppliers.filter((s) => s.status === "submitted").length;
               return (
-                <Link key={d.id} href={`/declarations/${d.id}`} className="block">
-                  <Card className="flex h-full flex-col p-6 transition-colors hover:border-black/15 hover:bg-[#fafaf8]">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <span className="block truncate font-[family-name:var(--font-plex)] text-2xl font-light text-[#111]">{heading(d)}</span>
-                        <p className="mt-1 flex items-center gap-2 text-[11px] uppercase tracking-[0.1em] text-black/35">
-                          {d.kind === "buyer" && <Chip pulse={false}>buyer</Chip>}
-                          {sub(d)}
-                        </p>
+                <div key={d.id} className="relative">
+                  <Link href={`/declarations/${d.id}`} className="block">
+                    <Card className="flex h-full flex-col p-6 transition-colors hover:border-black/15 hover:bg-[#fafaf8]">
+                      <div className="flex items-start justify-between gap-3 pr-8">
+                        <div className="min-w-0">
+                          <span className="block truncate font-[family-name:var(--font-plex)] text-2xl font-light text-[#111]">{heading(d)}</span>
+                          <p className="mt-1 flex items-center gap-2 text-[11px] uppercase tracking-[0.1em] text-black/35">
+                            {d.kind === "buyer" && <Chip pulse={false}>buyer</Chip>}
+                            {sub(d)}
+                          </p>
+                        </div>
+                        <Chip tone={tone(d)} pulse={false}>{STEP_LABEL[d.step]}</Chip>
                       </div>
-                      <Chip tone={tone(d)} pulse={false}>{STEP_LABEL[d.step]}</Chip>
-                    </div>
-                    <div className="mt-5 grid grid-cols-2 gap-y-3 text-[12px]">
-                      <Meta label="Period" value={d.period} />
-                      <Meta label="Route" value={<span className="flex items-center gap-1.5"><span className="font-mono text-[10px] text-black/40">{jur?.flag}</span> {d.origin} → {d.market}</span>} />
-                      <Meta label="Products" value={productCount(d)} />
-                      <Meta label="Due" value={d.due} />
-                    </div>
-                    <div className="mt-5 flex items-center gap-3 border-t border-black/[0.06] pt-4">
-                      <Progress value={pct(d)} tone={tone(d)} />
-                      <span className="font-mono text-[11px] text-black/45">{done}/{d.suppliers.length}</span>
-                      <ArrowRight size={15} strokeWidth={1.5} className="text-black/30" />
-                    </div>
-                  </Card>
-                </Link>
+                      <div className="mt-5 grid grid-cols-2 gap-y-3 text-[12px]">
+                        <Meta label="Period" value={d.period} />
+                        <Meta label="Route" value={<span className="flex items-center gap-1.5"><span className="font-mono text-[10px] text-black/40">{jur?.flag}</span> {d.origin} → {d.market}</span>} />
+                        <Meta label="Products" value={productCount(d)} />
+                        <Meta label="Due" value={d.due} />
+                      </div>
+                      <div className="mt-5 flex items-center gap-3 border-t border-black/[0.06] pt-4">
+                        <Progress value={pct(d)} tone={tone(d)} />
+                        <span className="font-mono text-[11px] text-black/45">{done}/{d.suppliers.length}</span>
+                        <ArrowRight size={15} strokeWidth={1.5} className="text-black/30" />
+                      </div>
+                    </Card>
+                  </Link>
+                  <button
+                    onClick={() => {
+                      const id = duplicateToDraft(d);
+                      toast({ message: "Duplicated as a draft", detail: "Scope and suppliers copied — adjust the period and quantities.", tone: "ok" });
+                      router.push(`/declarations/new?draft=${id}`);
+                    }}
+                    aria-label={`Duplicate ${heading(d)}`}
+                    title="Duplicate previous request"
+                    className="absolute right-3 top-3 grid h-7 w-7 place-items-center rounded-lg text-black/30 transition-colors hover:bg-black/[0.05] hover:text-black"
+                  >
+                    <Copy size={13} strokeWidth={1.5} />
+                  </button>
+                </div>
               );
             })}
           </div>
@@ -281,7 +361,24 @@ export default function DeclarationsPage() {
                           </div>
                         </td>
                         <td className="px-4 py-3 text-[12px] text-black/60">{d.due}</td>
-                        <td className="px-4 py-3"><Chip tone={tone(d)} pulse={false}>{STEP_LABEL[d.step]}</Chip></td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <Chip tone={tone(d)} pulse={false}>{STEP_LABEL[d.step]}</Chip>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const id = duplicateToDraft(d);
+                                toast({ message: "Duplicated as a draft", detail: "Scope and suppliers copied — adjust the period and quantities.", tone: "ok" });
+                                router.push(`/declarations/new?draft=${id}`);
+                              }}
+                              aria-label={`Duplicate ${heading(d)}`}
+                              title="Duplicate previous request"
+                              className="text-black/30 transition-colors hover:text-black"
+                            >
+                              <Copy size={13} strokeWidth={1.5} />
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}

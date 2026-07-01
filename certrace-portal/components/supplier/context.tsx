@@ -25,6 +25,7 @@ import {
   loadState,
   saveState,
   saveProfileFor,
+  pushEvent,
   uid,
 } from "@/lib/supplier-store";
 import { runQualityCheck, type CheckResult } from "@/lib/ai-check";
@@ -101,6 +102,7 @@ type Ctx = {
   requiredComplete: boolean;
   firstIncompleteRequired: string | null;
   missingRequiredCount: number;
+  totalRequiredCount: number;
   goToCheck: () => void;
 
   // autosave status (shown in the header)
@@ -225,27 +227,38 @@ export function SupplierProvider({ req, children }: { req: SupplierRequest; chil
   );
 
   /* ── documents (multi-file) ──────────────────────────────── */
-  const addFiles = React.useCallback((docId: string, files: { name: string; size: number }[]) => {
-    if (files.length === 0) return;
-    setState((s) => {
-      const existing = s.docs[docId]?.files ?? [];
-      const merged = [...existing, ...files.map((f) => ({ name: f.name, size: f.size, addedAt: Date.now() }))];
-      return {
-        ...s,
-        docs: { ...s.docs, [docId]: { id: docId, status: "uploaded", files: merged } },
-        status: s.status === "new" ? "draft" : s.status,
-      };
-    });
-  }, []);
-  const removeFile = React.useCallback((docId: string, index: number) => {
-    setState((s) => {
-      const files = (s.docs[docId]?.files ?? []).filter((_, i) => i !== index);
-      const docs = { ...s.docs };
-      if (files.length) docs[docId] = { id: docId, status: "uploaded", files };
-      else delete docs[docId];
-      return { ...s, docs };
-    });
-  }, []);
+  const addFiles = React.useCallback(
+    (docId: string, files: { name: string; size: number }[]) => {
+      if (files.length === 0) return;
+      const label = req.documents.find((d) => d.id === docId)?.label ?? docId;
+      setState((s) => {
+        const existing = s.docs[docId]?.files ?? [];
+        const merged = [...existing, ...files.map((f) => ({ name: f.name, size: f.size, addedAt: Date.now() }))];
+        const next = {
+          ...s,
+          docs: { ...s.docs, [docId]: { id: docId, status: "uploaded" as const, files: merged } },
+          status: (s.status === "new" ? "draft" : s.status) as SubmissionStatus,
+        };
+        return pushEvent(next, "doc_upload", `${files.length > 1 ? `${files.length} files` : files[0].name} attached to ${label}`);
+      });
+    },
+    [req.documents],
+  );
+  const removeFile = React.useCallback(
+    (docId: string, index: number) => {
+      const label = req.documents.find((d) => d.id === docId)?.label ?? docId;
+      setState((s) => {
+        const removed = s.docs[docId]?.files[index];
+        const files = (s.docs[docId]?.files ?? []).filter((_, i) => i !== index);
+        const docs = { ...s.docs };
+        if (files.length) docs[docId] = { id: docId, status: "uploaded", files };
+        else delete docs[docId];
+        const next = { ...s, docs };
+        return removed ? pushEvent(next, "doc_remove", `${removed.name} removed from ${label}`) : next;
+      });
+    },
+    [req.documents],
+  );
   const clearDoc = React.useCallback((docId: string) => {
     setState((s) => {
       const docs = { ...s.docs };
@@ -346,7 +359,10 @@ export function SupplierProvider({ req, children }: { req: SupplierRequest; chil
   /* ── submission ──────────────────────────────────────────── */
   const runCheck = React.useCallback(() => {
     const result = runQualityCheck(req, state.values, state.docs);
-    setState((s) => ({ ...s, lastCheck: result, status: s.status === "submitted" ? s.status : "in_check" }));
+    setState((s) => {
+      const next = { ...s, lastCheck: result, status: (s.status === "submitted" ? s.status : "in_check") as SubmissionStatus };
+      return pushEvent(next, "check_run", `AI quality check run — score ${result.score}, ${result.critical} critical, ${result.warnings} warning${result.warnings === 1 ? "" : "s"}`);
+    });
     return result;
   }, [req, state.values, state.docs]);
 
@@ -364,7 +380,8 @@ export function SupplierProvider({ req, children }: { req: SupplierRequest; chil
           signedRole: role,
           note: s.status === "revision_requested" ? s.revisionNote : undefined,
         };
-        return { ...s, status: "submitted", versions: [...s.versions, version], unlocked: [], unlockedDocs: [], revisionNote: "" };
+        const next = { ...s, status: "submitted" as SubmissionStatus, versions: [...s.versions, version], unlocked: [], unlockedDocs: [], revisionNote: "" };
+        return pushEvent(next, "submit", `Version ${n} signed by ${signedBy} (${role}) and submitted — score ${result.score}, ${result.warnings} warning${result.warnings === 1 ? "" : "s"}`);
       });
     },
     [req],
@@ -379,14 +396,16 @@ export function SupplierProvider({ req, children }: { req: SupplierRequest; chil
         ? [valueKey("direct-emissions", firstProduct), valueKey("method", firstProduct)]
         : [];
       const firstDoc = req.documents.find((d) => d.required)?.id;
-      return {
+      const note =
+        "Please re-check the direct emissions figure for the main product and confirm whether actual or default data was used. Also re-upload the Mill Test Certificate — the copy attached was unreadable.";
+      const next: SupplierState = {
         ...s,
         status: "revision_requested",
         unlocked,
         unlockedDocs: firstDoc ? [firstDoc] : [],
-        revisionNote:
-          "Please re-check the direct emissions figure for the main product and confirm whether actual or default data was used. Also re-upload the Mill Test Certificate — the copy attached was unreadable.",
+        revisionNote: note,
       };
+      return pushEvent(next, "revision_requested", `${req.exporterName} requested a revision — "${note}"`);
     });
     setView("overview");
   }, [req.products, req.documents]);
@@ -564,6 +583,7 @@ export function SupplierProvider({ req, children }: { req: SupplierRequest; chil
     requiredComplete,
     firstIncompleteRequired,
     missingRequiredCount,
+    totalRequiredCount: requiredFieldKeys.length,
     goToCheck,
     saveStatus,
   };

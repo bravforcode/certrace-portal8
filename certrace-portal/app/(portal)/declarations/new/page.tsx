@@ -18,10 +18,9 @@ import {
   UserRound,
   Globe,
   Clock,
-  Bell,
   Scale,
 } from "lucide-react";
-import { Card, Button, Eyebrow, Chip, Field, inputClass, cn } from "@/components/ui";
+import { Card, Button, Eyebrow, Chip, Field, StatusDot, inputClass, cn } from "@/components/ui";
 import { Select, DatePicker } from "@/components/controls";
 import { toast } from "@/components/toast";
 import {
@@ -48,8 +47,10 @@ import {
   getDestination,
   destinationsForRegulation,
   STATUS_META,
+  REFERENCE_TYPES,
+  type ReferenceType,
 } from "@/lib/config";
-import { SUPPLIER_DIRECTORY, type DirectorySupplier, ORG } from "@/lib/data";
+import { SUPPLIER_DIRECTORY, readinessMeta, type DirectorySupplier, ORG } from "@/lib/data";
 import { getDraft, saveDraft, deleteDraft, newDraftId, type Lot, type Mapping, type WizardSnapshot } from "@/lib/drafts";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -71,10 +72,6 @@ const newLot = (): Lot => ({ id: uid(), qty: "", unit: DEFAULT_UNIT, from: "", t
 const lotValid = (l: Lot) => Number(l.qty) > 0 && Boolean(l.unit);
 
 /* ── small shared bits ───────────────────────────────────── */
-function notify(name: string) {
-  toast({ message: `Added to the ${name} waitlist.`, tone: "info", detail: "We'll email you the moment it opens." });
-}
-
 function SectionIntro({ kicker, children }: { kicker: string; children: React.ReactNode }) {
   return (
     <div>
@@ -157,6 +154,7 @@ export default function NewDeclarationPage() {
   const [month, setMonth] = React.useState("January");
   const [rangeStart, setRangeStart] = React.useState("");
   const [rangeEnd, setRangeEnd] = React.useState("");
+  const [referenceType, setReferenceType] = React.useState<ReferenceType>("po");
 
   // products + classification
   const [query, setQuery] = React.useState("");
@@ -169,6 +167,7 @@ export default function NewDeclarationPage() {
 
   // documents (buyer)
   const [extras, setExtras] = React.useState<string[]>([]);
+  const [customRequest, setCustomRequest] = React.useState("");
 
   // suppliers
   const [directory, setDirectory] = React.useState<DirectorySupplier[]>(SUPPLIER_DIRECTORY);
@@ -208,8 +207,10 @@ export default function NewDeclarationPage() {
     setMonth(s.month);
     setRangeStart(s.rangeStart);
     setRangeEnd(s.rangeEnd);
+    setReferenceType(s.referenceType ?? "po");
     setProducts(s.products);
     setExtras(s.extras);
+    setCustomRequest(s.customRequest ?? "");
     setDirectory(s.directory);
     setMapping(s.mapping);
     setReportFields(s.reportFields);
@@ -443,14 +444,14 @@ export default function NewDeclarationPage() {
 
   const buildSnapshot = (): WizardSnapshot => ({
     regulation, origin, destination,
-    purpose, name, description, periodId, year, quarter, half, month, rangeStart, rangeEnd,
-    products, reportFields, extras, directory, mapping, deadline, reminders, notes, step,
+    purpose, name, description, periodId, year, quarter, half, month, rangeStart, rangeEnd, referenceType,
+    products, reportFields, extras, customRequest, directory, mapping, deadline, reminders, notes, step,
   });
 
   // Closing the wizard saves a draft (when anything meaningful was entered) so
   // nothing is lost, then returns to the list — standard SaaS behaviour.
   const handleClose = () => {
-    const touched = Boolean(name.trim() || description.trim() || products.length || extras.length || Object.keys(mapping).length || step > 0);
+    const touched = Boolean(name.trim() || description.trim() || products.length || extras.length || customRequest.trim() || Object.keys(mapping).length || step > 0);
     if (touched) {
       const id = draftId.current ?? newDraftId();
       draftId.current = id;
@@ -578,9 +579,6 @@ export default function NewDeclarationPage() {
                   ) : (
                     <div key={j.code} className="rounded-xl border border-black/[0.06] bg-white p-3 opacity-75">
                       {inner}
-                      <button type="button" onClick={() => notify(j.name)} className="mt-2 inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.08em] text-black/45 hover:text-black">
-                        <Bell size={11} strokeWidth={1.5} /> notify me
-                      </button>
                     </div>
                   );
                 })}
@@ -724,6 +722,19 @@ export default function NewDeclarationPage() {
                 Period reads as <span className="font-mono text-black/60">{periodSummary}</span>
               </p>
             </Card>
+
+            <div>
+              <div className="font-pixel text-[10px] uppercase tracking-[0.16em] text-black/40">Reference type</div>
+              <p className="mt-1 text-[11px] leading-relaxed text-black/40">What suppliers should key this request to, so you can tell which lot each submission belongs to.</p>
+              <div className="mt-2.5 grid gap-2 sm:grid-cols-3">
+                {REFERENCE_TYPES.map((r) => (
+                  <SelectCard key={r.id} active={referenceType === r.id} onClick={() => setReferenceType(r.id)} className="p-3">
+                    <span className="text-sm text-black/75">{r.label}</span>
+                    <p className="mt-1 text-[11px] leading-relaxed text-black/40">{r.hint}</p>
+                  </SelectCard>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
@@ -972,6 +983,18 @@ export default function NewDeclarationPage() {
                   </div>
                 </div>
               ))}
+
+              <div>
+                <div className="mb-2 font-pixel text-[10px] uppercase tracking-[0.16em] text-black/40">Custom</div>
+                <Field label="Add custom request (optional)" hint="Anything not covered above — e.g. “Please attach your furnace operating log.”">
+                  <textarea
+                    className={cn(inputClass, "min-h-[76px] resize-y")}
+                    value={customRequest}
+                    onChange={(e) => setCustomRequest(e.target.value)}
+                    placeholder="Describe what you need from the supplier…"
+                  />
+                </Field>
+              </div>
             </div>
           </div>
         )}
@@ -999,12 +1022,16 @@ export default function NewDeclarationPage() {
 
                   {stats.map(({ entry, total }) => {
                     const sup = directory.find((d) => d.id === entry.supplierId);
+                    const readiness = readinessMeta[sup?.readiness ?? "new"];
                     return (
                       <div key={entry.supplierId} className="mt-3 rounded-xl border border-black/[0.07] bg-[#fafaf8] p-3">
                         <div className="flex items-center justify-between gap-2">
                           <div className="min-w-0">
-                            <div className="truncate text-[13px] text-black/80">{sup?.company}</div>
-                            <div className="truncate text-[11px] text-black/40">{sup?.contact ? `${sup.contact} · ` : ""}{sup?.email}</div>
+                            <div className="flex items-center gap-1.5">
+                              <StatusDot tone={readiness.tone} />
+                              <span className="truncate text-[13px] text-black/80">{sup?.company}</span>
+                            </div>
+                            <div className="truncate text-[11px] text-black/40">{sup?.contact ? `${sup.contact} · ` : ""}{sup?.email} · {readiness.label}</div>
                           </div>
                           <div className="flex flex-none items-center gap-3">
                             {total !== "—" && <span className="font-mono text-[11px] text-black/45">{total}</span>}
@@ -1038,7 +1065,7 @@ export default function NewDeclarationPage() {
                       <Select
                         value=""
                         onChange={(v) => v && addSupplier(pid, v)}
-                        options={available.map((d) => ({ value: d.id, label: d.company, hint: d.country }))}
+                        options={available.map((d) => ({ value: d.id, label: d.company, hint: `${d.country} · ${readinessMeta[d.readiness ?? "new"].label}` }))}
                         placeholder="Add supplier from directory…"
                         className="w-64"
                         ariaLabel="Add supplier"
@@ -1132,9 +1159,10 @@ export default function NewDeclarationPage() {
                 ["Purpose", PURPOSES.find((p) => p.id === purpose)?.title ?? ""],
                 ["Request name", name.trim() || "—"],
                 ["Period", periodSummary],
+                ["Reference type", REFERENCE_TYPES.find((r) => r.id === referenceType)?.label ?? "—"],
                 ["Products", `${products.length} · CN-classified`],
                 ["Report fields", purpose === "cbam" ? `${includedFields.length} of ${resolvedFields.length} (${requiredCount} required)` : `${includedFields.length} selected`],
-                ...(purpose === "buyer" ? ([["Extra documents", `${extras.length} requested`]] as [string, string][]) : []),
+                ...(purpose === "buyer" ? ([["Extra documents", `${extras.length}${customRequest.trim() ? " + custom note" : ""} requested`]] as [string, string][]) : []),
                 ["Total volume", totalTonnes > 0 ? `${fmt(totalTonnes)} t across ${totalLots} lots` : `${totalLots} lots`],
                 ["Deadline", deadline ? new Date(deadline + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "—"],
                 ["Reminders", Object.entries(reminders).filter(([, v]) => v).map(([k]) => (k === "d7" ? "7d" : k === "d3" ? "3d" : "due")).join(" · ") || "none"],

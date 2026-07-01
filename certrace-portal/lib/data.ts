@@ -47,6 +47,18 @@ export type Declaration = {
   productCount?: number;
 };
 
+/* Supplier readiness — surfaced when the exporter is picking suppliers for a
+   new request, so they know what to expect before they invite anyone:
+     returning   — already completed a CBAM request before (🟢)
+     missing_installation — has a directory entry but no installation on file (🟡)
+     new         — never submitted anything through Certrace (🔴) */
+export type SupplierReadiness = "returning" | "missing_installation" | "new";
+export const readinessMeta: Record<SupplierReadiness, { label: string; tone: "ok" | "warn" | "err" }> = {
+  returning: { label: "Completed CBAM before", tone: "ok" },
+  missing_installation: { label: "Missing installation info", tone: "warn" },
+  new: { label: "Never submitted", tone: "err" },
+};
+
 /* The company's saved supplier directory. New suppliers invited during a
    declaration are appended here — no separate onboarding. */
 export type DirectorySupplier = {
@@ -56,14 +68,15 @@ export type DirectorySupplier = {
   email: string;
   country: string;
   material?: string;
+  readiness?: SupplierReadiness;
 };
 export const SUPPLIER_DIRECTORY: DirectorySupplier[] = [
-  { id: "d1", company: "Siam Yamato Steel", contact: "Niran T.", email: "exports@siamyamato.co.th", country: "TH", material: "Hot-rolled coil" },
-  { id: "d2", company: "Thai Metal Pro", contact: "Ploy S.", email: "carbon@thaimetalpro.com", country: "TH", material: "Steel billet" },
-  { id: "d3", company: "G J Steel", contact: "Anan W.", email: "esg@gjsteel.co.th", country: "TH", material: "Hot-rolled coil" },
-  { id: "d4", company: "Rayong Steel Co", contact: "Suda P.", email: "quality@rayongsteel.co.th", country: "TH", material: "Rebar" },
-  { id: "d5", company: "EEC Galvanizing Ltd", contact: "Korn M.", email: "ops@eecgalv.co.th", country: "TH", material: "Galvanised sheet" },
-  { id: "d6", company: "Chonburi Foundry", contact: "Wichai R.", email: "sales@chonburifoundry.co.th", country: "TH", material: "Pig iron" },
+  { id: "d1", company: "Siam Yamato Steel", contact: "Niran T.", email: "exports@siamyamato.co.th", country: "TH", material: "Hot-rolled coil", readiness: "returning" },
+  { id: "d2", company: "Thai Metal Pro", contact: "Ploy S.", email: "carbon@thaimetalpro.com", country: "TH", material: "Steel billet", readiness: "returning" },
+  { id: "d3", company: "G J Steel", contact: "Anan W.", email: "esg@gjsteel.co.th", country: "TH", material: "Hot-rolled coil", readiness: "missing_installation" },
+  { id: "d4", company: "Rayong Steel Co", contact: "Suda P.", email: "quality@rayongsteel.co.th", country: "TH", material: "Rebar", readiness: "returning" },
+  { id: "d5", company: "EEC Galvanizing Ltd", contact: "Korn M.", email: "ops@eecgalv.co.th", country: "TH", material: "Galvanised sheet", readiness: "returning" },
+  { id: "d6", company: "Chonburi Foundry", contact: "Wichai R.", email: "sales@chonburifoundry.co.th", country: "TH", material: "Pig iron", readiness: "new" },
 ];
 
 export type SeatRole = "owner" | "member" | "legal" | "auditor";
@@ -101,10 +114,39 @@ export const ORG = {
 };
 
 export const USER = {
+  // Permanent, never changes — this is the identity your org access, history and
+  // seats are actually keyed to. Email is just a contact channel on top of it,
+  // so swapping email (e.g. an employee leaving) never orphans the account.
+  accountId: "CTR-8841-2093",
+  username: "wasawat.k",
   name: "Wasawat K.",
   role: "Head of Export Ops",
   initials: "WK",
+  email: "wasawat@siamsteel.co.th",
+  emailVerified: true,
+  memberSince: "Mar 2026",
 };
+
+export type NoticeCategory = "security" | "event" | "credential" | "offer";
+export type Notice = {
+  id: string;
+  category: NoticeCategory;
+  tone: "err" | "info" | "ok" | "warn" | "muted";
+  title: string;
+  meta: string;
+  href: string;
+  time: string;
+  read?: boolean;
+};
+
+export const NOTIFICATIONS: Notice[] = [
+  { id: "n1", category: "event", tone: "err", title: "G J Steel is overdue", meta: "CBAM Q2 2026 · 9 days no response", href: "/declarations/cbam-2026-q2-steel", time: "2h ago" },
+  { id: "n2", category: "credential", tone: "info", title: "Legal sign-off requested", meta: "Krit Legal Partners notified", href: "/declarations/cbam-2026-q1-steel", time: "1d ago" },
+  { id: "n3", category: "credential", tone: "ok", title: "Q1 2026 package accepted", meta: "EU importer confirmed receipt", href: "/reports", time: "3d ago" },
+  { id: "n4", category: "security", tone: "warn", title: "New sign-in from Chrome on macOS", meta: "Bangkok, TH · if this wasn't you, secure your account", href: "/settings?tab=privacy", time: "4d ago" },
+  { id: "n5", category: "event", tone: "ok", title: "Thai Metal Pro submitted their form", meta: "64% → 100% complete · ready to review", href: "/suppliers/d2", time: "5d ago" },
+  { id: "n6", category: "offer", tone: "muted", title: "EUDR coverage is opening soon", meta: "Join the waitlist from Coverage", href: "/regulations", time: "1w ago" },
+];
 
 // Steel & iron supply chain only — the precursors and inputs a CBAM steel
 // installation actually has to account for (pig iron, scrap, DRI, coatings, grid power).
@@ -117,6 +159,20 @@ const supplierPool = (): SupplierRow[] => [
   { id: "s6", name: "Chonburi Foundry", ref: "#0512", country: "TH", material: "Pig iron", progress: 0, status: "not_started", emissions: null, updated: "—", critical: true },
   { id: "s7", name: "Map Ta Phut Power", ref: "#0044", country: "TH", material: "Grid electricity", progress: 100, status: "submitted", emissions: 0.51, updated: "4d ago", critical: false },
   { id: "s8", name: "Eastern Scrap Trading", ref: "#0623", country: "TH", material: "Steel scrap", progress: 45, status: "in_progress", emissions: null, updated: "1d ago", critical: false },
+];
+
+/* QA fixture — deliberately malformed/extreme rows for stress-testing the AI
+   check (lib/ai-check.ts) and the PDF renderer (lib/download.ts). Not wired
+   into any live declaration, dashboard, or reports list — importing this
+   into a real Declaration would surface obviously-broken numbers to whoever
+   is looking at the demo, so it stays a standalone fixture until there's an
+   automated (Phase D) test harness to drive it instead. */
+export const EDGE_CASE_SUPPLIERS: SupplierRow[] = [
+  { id: "qa1", name: "Eastern Seaboard Integrated Steel Manufacturing & Galvanizing Public Company Limited", ref: "#9001", country: "TH", material: "Hot-rolled coil", progress: 100, status: "submitted", emissions: 1.6, updated: "1d ago", critical: true },
+  { id: "qa2", name: "Zero Co", ref: "#9002", country: "TH", material: "Steel billet", progress: 100, status: "submitted", emissions: 0, updated: "1d ago", critical: false },
+  { id: "qa3", name: "Way-Over-Benchmark Mills", ref: "#9003", country: "TH", material: "Rebar", progress: 100, status: "submitted", emissions: 42, updated: "1d ago", critical: true },
+  { id: "qa4", name: "No Data Yet Ltd", ref: "#9004", country: "TH", material: "Steel scrap", progress: 0, status: "not_started", emissions: null, updated: "—", critical: false },
+  { id: "qa5", name: "Unmapped Material Co", ref: "#9005", country: "TH", material: "Ferro-alloy additive", progress: 100, status: "submitted", emissions: 0.95, updated: "1d ago", critical: false },
 ];
 
 export const DECLARATIONS: Declaration[] = [
@@ -267,6 +323,11 @@ export type SupplierProfile = {
   critical: boolean;
   compliancePct: number;
   emissions: number | null;
+  installation: { name: string; id: string } | null;
+  requiredFields: { completed: number; total: number };
+  documentsStats: { uploaded: number; total: number };
+  missingInfo: string[];
+  verificationStatus: "not_verified" | "internally_verified" | "third_party_verified";
   products: { name: string; cn: string }[];
   declarations: { id: string; name: string; period: string; status: SupplierStatus; progress: number; due: string }[];
   reports: { id: string; period: string; emissions: number | null; state: "accepted" | "submitted" }[];
@@ -326,6 +387,23 @@ export function getSupplierProfile(slug: string): SupplierProfile | null {
     ...(reports.length ? [{ when: reports[0].period, text: `${reports[0].period} package accepted by importer`, tone: "ok" as const }] : []),
   ];
 
+  // Generate mock statistics based on the supplier's status
+  const requiredFieldsTotal = 18;
+  const requiredFieldsCompleted = submitted ? 18 : base.status === "in_progress" ? Math.floor((base.progress / 100) * 18) : 0;
+  
+  const documentsTotal = 10;
+  const documentsUploaded = documents.length;
+
+  const missingInfo = [];
+  if (base.status === "in_progress") {
+    missingInfo.push("Electricity consumption data");
+    missingInfo.push("Production route details");
+  } else if (base.status === "overdue" || base.status === "not_started") {
+    missingInfo.push("All mandatory CBAM data");
+  }
+
+  const verificationStatus = submitted ? "third_party_verified" : base.status === "in_progress" ? "not_verified" : "not_verified";
+
   return {
     id: base.id,
     name: base.name,
@@ -338,6 +416,11 @@ export function getSupplierProfile(slug: string): SupplierProfile | null {
     critical: base.critical,
     compliancePct: base.progress,
     emissions: base.emissions,
+    installation: { name: `${base.name} Primary Facility`, id: `${base.country}-${Math.floor(1000 + Math.random() * 9000)}` },
+    requiredFields: { completed: requiredFieldsCompleted, total: requiredFieldsTotal },
+    documentsStats: { uploaded: documentsUploaded, total: documentsTotal },
+    missingInfo,
+    verificationStatus,
     products,
     declarations,
     reports,

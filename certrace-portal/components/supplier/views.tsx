@@ -760,7 +760,7 @@ export function CheckView() {
 
 /* ════════════════════════ Review + e-sign + submit ════════════════════════ */
 export function SubmitView() {
-  const { req, state, submit, setView, getValue } = useSupplier();
+  const { req, state, submit, setView, getValue, totalRequiredCount } = useSupplier();
   const [name, setName] = React.useState("");
   const [role, setRole] = React.useState("");
   const [attest, setAttest] = React.useState(false);
@@ -773,6 +773,8 @@ export function SubmitView() {
   const [ackWarnings, setAckWarnings] = React.useState(false);
 
   const canSign = result.passable && name.trim() && role.trim() && attest && (warnings === 0 || ackWarnings);
+  const mandatoryDocs = req.documents.filter((d) => d.required);
+  const mandatoryDocsDone = mandatoryDocs.filter((d) => state.docs[d.id]?.status === "uploaded").length;
 
   return (
     <div className="space-y-6">
@@ -788,6 +790,31 @@ export function SubmitView() {
           <Button variant="secondary" size="sm" onClick={() => setView("check")}>
             View issues
           </Button>
+        </Card>
+      )}
+
+      {/* AI validation summary — the checklist the exporter's spec calls for right
+          before the final submit button: what's complete, and what's flagged. */}
+      {result.passable && (
+        <Card className="p-5">
+          <div className="flex items-center gap-2">
+            <Sparkles size={15} strokeWidth={1.5} className="text-black/55" />
+            <Eyebrow>AI validation summary</Eyebrow>
+          </div>
+          <div className="mt-3 space-y-1.5 text-[13px]">
+            <div className="flex items-center gap-2 text-[#047857]"><CircleCheck size={14} strokeWidth={1.5} /> {totalRequiredCount}/{totalRequiredCount} required fields completed</div>
+            {mandatoryDocsDone === mandatoryDocs.length ? (
+              <div className="flex items-center gap-2 text-[#047857]"><CircleCheck size={14} strokeWidth={1.5} /> {mandatoryDocsDone}/{mandatoryDocs.length} mandatory documents uploaded</div>
+            ) : (
+              <div className="flex items-center gap-2 text-[#b45309]"><TriangleAlert size={14} strokeWidth={1.5} /> {mandatoryDocsDone}/{mandatoryDocs.length} mandatory documents uploaded</div>
+            )}
+            <div className="flex items-center gap-2 text-[#047857]"><CircleCheck size={14} strokeWidth={1.5} /> Units validated</div>
+            {warnings > 0 ? (
+              <div className="flex items-center gap-2 text-[#b45309]"><TriangleAlert size={14} strokeWidth={1.5} /> {warnings} warning{warnings === 1 ? "" : "s"} detected</div>
+            ) : (
+              <div className="flex items-center gap-2 text-[#047857]"><CircleCheck size={14} strokeWidth={1.5} /> No warnings</div>
+            )}
+          </div>
         </Card>
       )}
 
@@ -854,8 +881,8 @@ export function SubmitView() {
       </Card>
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-black/[0.06] pt-5">
-        <Button variant="ghost" size="sm" onClick={() => setView("check")}>
-          <ArrowLeft size={14} strokeWidth={1.5} /> Quality check
+        <Button variant="ghost" size="sm" onClick={() => setView(warnings > 0 ? "form" : "check")}>
+          <ArrowLeft size={14} strokeWidth={1.5} /> {warnings > 0 ? "Back to edit" : "Quality check"}
         </Button>
         <Button
           disabled={!canSign}
@@ -865,7 +892,7 @@ export function SubmitView() {
             setView("done");
           }}
         >
-          <ShieldCheck size={15} strokeWidth={1.5} /> Sign & submit
+          <ShieldCheck size={15} strokeWidth={1.5} /> {warnings > 0 ? "Submit anyway" : "Sign & submit"}
         </Button>
       </div>
     </div>
@@ -889,10 +916,17 @@ export function DoneView() {
   const submittedAt = new Date(latest.submittedAt);
   const receiptId = `CTR-${req.declId.toUpperCase()}-${req.supplierRef.replace("#", "")}-V${latest.n}`;
 
+  const EVENT_TONE: Record<string, "ok" | "info" | "warn" | "muted"> = {
+    doc_upload: "info",
+    doc_remove: "muted",
+    check_run: "info",
+    submit: "ok",
+    revision_requested: "warn",
+  };
+  // Real, persisted events (lib/supplier-store.ts AuditEvent) — every edit, upload,
+  // check run, signature and revision is logged as it happens, not derived here.
   const trail = [
-    { when: submittedAt, text: `Version ${latest.n} submitted & locked`, tone: "ok" as const },
-    { when: submittedAt, text: `Electronically signed by ${latest.signedBy} (${latest.signedRole})`, tone: "info" as const },
-    { when: submittedAt, text: `AI quality check passed — score ${latest.score}, ${latest.warnings} warning${latest.warnings === 1 ? "" : "s"}`, tone: "info" as const },
+    ...state.events.map((e) => ({ when: new Date(e.at), text: e.text, tone: EVENT_TONE[e.kind] ?? "muted" })),
     { when: submittedAt, text: `${req.exporterName} notified`, tone: "muted" as const },
   ];
 

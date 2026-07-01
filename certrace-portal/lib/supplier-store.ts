@@ -53,6 +53,14 @@ export type Version = {
   note?: string;
 };
 
+/** One real, persisted event in the submission's history — the audit trail
+    (flow step 3: "records the complete Audit Trail — all edits, uploads,
+    signatures, timestamps, versions, and AI validation results"). Appended as
+    it happens, never derived at render time, so it survives across sessions
+    and can be embedded verbatim in the exporter's audit-ready package. */
+export type AuditEventKind = "doc_upload" | "doc_remove" | "check_run" | "submit" | "revision_requested";
+export type AuditEvent = { id: string; at: number; kind: AuditEventKind; text: string };
+
 export type SupplierState = {
   token: string;
   status: SubmissionStatus;
@@ -63,6 +71,7 @@ export type SupplierState = {
   profileSaved: boolean;
   versions: Version[];
   lastCheck: CheckResult | null;
+  events: AuditEvent[];
   /** Revision: value-keys the exporter unlocked. Empty/undefined = everything editable (first draft). */
   unlocked: string[];
   /** Revision: document ids the exporter asked to re-upload / change. */
@@ -85,6 +94,7 @@ export function emptyState(token: string): SupplierState {
     profileSaved: false,
     versions: [],
     lastCheck: null,
+    events: [],
     unlocked: [],
     unlockedDocs: [],
     revisionNote: "",
@@ -152,3 +162,9 @@ export function saveProfileFor(company: string, profile: SupplierProfile): void 
 
 export const uid = () =>
   typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+/** Append one real audit event — the single write path so every entry point
+    (supplier actions, exporter-initiated revisions) logs the same shape. */
+export function pushEvent(state: SupplierState, kind: AuditEventKind, text: string): SupplierState {
+  return { ...state, events: [...state.events, { id: uid(), at: Date.now(), kind, text }] };
+}

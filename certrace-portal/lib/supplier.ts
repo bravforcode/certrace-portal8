@@ -68,7 +68,7 @@ const MATERIAL_TO_PRODUCT: Record<string, string> = {
   "Steel scrap": "billet",
   "Grid electricity": "hrc",
 };
-const productForMaterial = (material: string): CatalogProduct =>
+export const productForMaterial = (material: string): CatalogProduct =>
   getCatalogProduct(MATERIAL_TO_PRODUCT[material] ?? "hrc") ?? getCatalogProduct("hrc")!;
 
 /* Deterministic mock lots from the supplier ref so the same link always shows

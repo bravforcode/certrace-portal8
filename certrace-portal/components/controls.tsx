@@ -20,7 +20,7 @@ const POPOVER_Z = 200;
 const useIsoLayoutEffect = typeof window !== "undefined" ? React.useLayoutEffect : React.useEffect;
 
 /* ── Portal ───────────────────────────────────────────────── */
-function Portal({ children }: { children: React.ReactNode }) {
+export function Portal({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
   if (!mounted) return null;
