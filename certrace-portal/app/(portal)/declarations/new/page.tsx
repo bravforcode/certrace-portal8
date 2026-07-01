@@ -84,13 +84,19 @@ function SectionIntro({ kicker, children }: { kicker: string; children: React.Re
   );
 }
 
-function SelectCard({ active, onClick, children, className }: { active: boolean; onClick: () => void; children: React.ReactNode; className?: string }) {
+function SelectCard({ active, onClick, disabled, children, className }: { active: boolean; onClick: () => void; disabled?: boolean; children: React.ReactNode; className?: string }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       aria-pressed={active}
-      className={cn("rounded-2xl border bg-white p-5 text-left transition-colors", active ? "border-black/25 bg-[#f0eee8]" : "border-black/[0.07] hover:border-black/15", className)}
+      className={cn(
+        "rounded-2xl border bg-white p-5 text-left transition-colors",
+        active ? "border-black/25 bg-[#f0eee8]" : "border-black/[0.07]",
+        disabled ? "cursor-not-allowed opacity-70" : "hover:border-black/15",
+        className,
+      )}
     >
       {children}
     </button>
@@ -525,36 +531,13 @@ export default function NewDeclarationPage() {
                     <p className="mt-3 text-xs leading-relaxed text-black/50">{live ? `${r.cadence} · filed to ${r.authority}.` : r.soonNote}</p>
                   </>
                 );
-                return live ? (
-                  <SelectCard key={r.id} active={active} onClick={() => setRegulation(r.id)}>
+                return (
+                  <SelectCard key={r.id} active={active} disabled={!live} onClick={() => live && setRegulation(r.id)}>
                     {inner}
                   </SelectCard>
-                ) : (
-                  <div key={r.id} className="rounded-2xl border border-black/[0.06] bg-white p-5 opacity-80">
-                    {inner}
-                    <button
-                      type="button"
-                      onClick={() => notify(r.short)}
-                      className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-black/10 px-3 py-1.5 text-[11px] text-black/55 hover:border-black/25 hover:text-black"
-                    >
-                      <Bell size={12} strokeWidth={1.5} /> Notify me when live
-                    </button>
-                  </div>
                 );
               })}
             </div>
-
-            <Card warm className="p-5">
-              <Eyebrow>What {activeRegulation.short} asks suppliers for</Eyebrow>
-              <p className="mt-2 text-[12px] leading-relaxed text-black/50">
-                Certrace builds each supplier&apos;s guided form from these data points automatically — you never assemble a questionnaire by hand.
-              </p>
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {activeRegulation.dataPoints.map((d) => (
-                  <span key={d} className="rounded-full border border-black/[0.08] bg-white px-2.5 py-1 text-[11px] text-black/55">{d}</span>
-                ))}
-              </div>
-            </Card>
           </div>
         )}
 
@@ -1195,9 +1178,13 @@ export default function NewDeclarationPage() {
 
       {/* Nav */}
       <div className="sticky bottom-0 -mx-1 flex items-center justify-between gap-3 border-t border-black/[0.06] bg-[#f5f4f0]/90 px-1 py-4 backdrop-blur">
-        <Button variant="ghost" size="sm" onClick={back} disabled={step === 0}>
-          <ArrowLeft size={14} strokeWidth={1.5} /> Back
-        </Button>
+        {step > 0 ? (
+          <Button variant="ghost" size="sm" onClick={back}>
+            <ArrowLeft size={14} strokeWidth={1.5} /> Back
+          </Button>
+        ) : (
+          <span />
+        )}
         <div className="flex items-center gap-3">
           {isLast ? (
             <Button onClick={create}>
