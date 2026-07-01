@@ -2,14 +2,13 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Layers,
   Building2,
   FileCheck2,
   Users,
-  Globe2,
   Settings,
   CreditCard,
   Bell,
@@ -19,23 +18,31 @@ import {
   TriangleAlert,
   ShieldCheck,
   BadgeCheck,
+  Globe,
+  UserCircle2,
+  LogOut,
+  CheckCheck,
 } from "lucide-react";
 import { cn, StatusDot } from "./ui";
+import { Dropdown } from "./controls";
 import { CertraceLogo } from "./logo";
 import { Toaster } from "./toast";
-import { ORG, USER } from "@/lib/data";
-import { JURISDICTIONS } from "@/lib/config";
+import { ORG, USER, NOTIFICATIONS, type Notice } from "@/lib/data";
+import { LANGUAGES, useLanguage } from "@/lib/i18n";
+import { useProfile } from "@/lib/profile";
 
-const NAV = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/declarations", label: "Declarations", icon: Layers },
-  { href: "/suppliers", label: "Suppliers", icon: Building2 },
-  { href: "/reports", label: "Reports", icon: FileCheck2 },
-  { href: "/team", label: "Team & seats", icon: Users },
-  { href: "/regulations", label: "Coverage", icon: Globe2 },
-  { href: "/billing", label: "Plan & billing", icon: CreditCard },
-  { href: "/settings", label: "Settings", icon: Settings },
-];
+function useNav() {
+  const { t } = useLanguage();
+  return [
+    { href: "/dashboard", label: t("nav_dashboard"), icon: LayoutDashboard },
+    { href: "/declarations", label: t("nav_declarations"), icon: Layers },
+    { href: "/suppliers", label: t("nav_suppliers"), icon: Building2 },
+    { href: "/reports", label: t("nav_reports"), icon: FileCheck2 },
+    { href: "/team", label: t("nav_team"), icon: Users },
+    { href: "/billing", label: t("nav_billing"), icon: CreditCard },
+    { href: "/settings", label: t("nav_settings"), icon: Settings },
+  ];
+}
 
 function Wordmark() {
   return (
@@ -45,124 +52,191 @@ function Wordmark() {
   );
 }
 
-function CountrySwitcher() {
-  const [open, setOpen] = React.useState(false);
-  const [active, setActive] = React.useState(JURISDICTIONS[0]);
-  return (
-    <div className="relative">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-2 rounded-xl border border-black/10 px-3 py-2 text-[11px] uppercase tracking-[0.1em] text-black/55 hover:border-black/25 hover:text-black"
-      >
-        <span className="font-mono text-[10px] tracking-[0.16em] text-black/40">{active.flag}</span>
-        {active.name}
-        <ChevronDown size={13} strokeWidth={1.5} className={cn("transition-transform", open && "rotate-180")} />
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-50" onClick={() => setOpen(false)} aria-hidden />
-          <div
-            className="absolute right-0 z-[60] mt-2 w-64 overflow-hidden rounded-2xl border border-black/[0.07] bg-white"
-            style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.06)" }}
-          >
-            <div className="border-b border-black/[0.06] px-4 py-2.5 font-pixel text-[10px] uppercase tracking-[0.16em] text-black/35">
-              Operating jurisdiction
-            </div>
-            {JURISDICTIONS.map((j) => {
-              const live = j.status === "live";
-              return (
-                <button
-                  key={j.code}
-                  disabled={!j.available}
-                  onClick={() => {
-                    setActive(j);
-                    setOpen(false);
-                  }}
-                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-[#fafaf8] disabled:cursor-not-allowed disabled:opacity-45"
-                >
-                  <span className="font-mono text-[10px] tracking-[0.16em] text-black/40">{j.flag}</span>
-                  <span className="flex-1">
-                    <span className="block text-sm text-black/70">{j.name}</span>
-                    <span className="block text-[11px] text-black/35">{live ? j.factorSet : "coming soon"}</span>
-                  </span>
-                  <StatusDot tone={live ? "ok" : "muted"} />
-                </button>
-              );
-            })}
-            <div className="border-t border-black/[0.06] px-4 py-2.5 text-[11px] text-black/35">
-              Thailand is live. More markets onboard as factor libraries verify.
-            </div>
-          </div>
-        </>
-      )}
-    </div>
-  );
+const CATEGORY_ICON: Record<Notice["category"], React.ElementType> = {
+  security: ShieldCheck,
+  event: TriangleAlert,
+  credential: BadgeCheck,
+  offer: Bell,
+};
+
+const READ_KEY = "certrace:notifications:read";
+
+/* Shared with the /notifications page so the bell badge and the full history
+   agree on what's read — localStorage only (no backend in this MVP). */
+export function useNotificationRead() {
+  const [readIds, setReadIds] = React.useState<string[]>([]);
+  React.useEffect(() => {
+    try {
+      setReadIds(JSON.parse(window.localStorage.getItem(READ_KEY) ?? "[]"));
+    } catch {
+      setReadIds([]);
+    }
+  }, []);
+  const markRead = React.useCallback((ids: string[]) => {
+    setReadIds((prev) => {
+      const next = Array.from(new Set([...prev, ...ids]));
+      window.localStorage.setItem(READ_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+  return { readIds, markRead };
 }
 
-type Notice = { icon: React.ElementType; tone: "err" | "info" | "ok" | "warn"; title: string; meta: string; href: string };
-const NOTICES: Notice[] = [
-  { icon: TriangleAlert, tone: "err", title: "G J Steel is overdue", meta: "CBAM Q2 2026 · 9 days no response", href: "/declarations/cbam-2026-q2-steel" },
-  { icon: ShieldCheck, tone: "info", title: "Legal sign-off requested", meta: "Krit Legal Partners notified", href: "/declarations/cbam-2026-q1-steel" },
-  { icon: BadgeCheck, tone: "ok", title: "Q1 2026 package accepted", meta: "EU importer confirmed receipt", href: "/reports" },
-];
-
 function NotificationsBell() {
-  const [open, setOpen] = React.useState(false);
+  const { t } = useLanguage();
+  const { readIds, markRead } = useNotificationRead();
+  const unread = NOTIFICATIONS.filter((n) => !readIds.includes(n.id));
+
   return (
-    <div className="relative">
-      <button
-        aria-label="Notifications"
-        onClick={() => setOpen((v) => !v)}
-        className="relative grid h-9 w-9 place-items-center rounded-xl border border-black/10 text-black/55 hover:border-black/25 hover:text-black"
-      >
-        <Bell size={16} strokeWidth={1.5} />
-        <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#f87171]" />
-      </button>
-      {open && (
+    <Dropdown
+      align="right"
+      width="w-80"
+      trigger={() => (
+        <span
+          aria-label="Notifications"
+          className="relative grid h-9 w-9 place-items-center rounded-xl border border-black/10 text-black/55 hover:border-black/25 hover:text-black"
+        >
+          <Bell size={16} strokeWidth={1.5} />
+          {unread.length > 0 && <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#f87171]" />}
+        </span>
+      )}
+    >
+      {(close) => (
         <>
-          <div className="fixed inset-0 z-50" onClick={() => setOpen(false)} aria-hidden />
-          <div
-            className="absolute right-0 z-[60] mt-2 w-80 overflow-hidden rounded-2xl border border-black/[0.07] bg-white"
-            style={{ boxShadow: "0 8px 32px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.06)" }}
-          >
-            <div className="flex items-center justify-between border-b border-black/[0.06] px-4 py-2.5">
-              <span className="font-pixel text-[10px] uppercase tracking-[0.16em] text-black/35">Notifications</span>
-              <span className="font-mono text-[10px] text-black/35">3 new</span>
-            </div>
-            {NOTICES.map((n) => {
-              const Icon = n.icon;
+          <div className="flex items-center justify-between border-b border-black/[0.06] px-3 py-2.5">
+            <span className="font-pixel text-[10px] uppercase tracking-[0.16em] text-black/35">{t("topbar_notifications")}</span>
+            {unread.length > 0 ? (
+              <button
+                onClick={() => markRead(NOTIFICATIONS.map((n) => n.id))}
+                className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.08em] text-black/40 hover:text-black"
+              >
+                <CheckCheck size={12} strokeWidth={1.5} /> Mark all read
+              </button>
+            ) : (
+              <span className="font-mono text-[10px] text-black/30">{t("topbar_no_new")}</span>
+            )}
+          </div>
+          <div>
+            {NOTIFICATIONS.map((n) => {
+              const Icon = CATEGORY_ICON[n.category];
+              const isRead = readIds.includes(n.id);
               return (
                 <Link
-                  key={n.title}
+                  key={n.id}
                   href={n.href}
-                  onClick={() => setOpen(false)}
-                  className="flex items-start gap-3 border-b border-black/[0.04] px-4 py-3 last:border-0 hover:bg-[#fafaf8]"
+                  onClick={() => {
+                    markRead([n.id]);
+                    close();
+                  }}
+                  className={cn("flex items-start gap-3 border-b border-black/[0.04] px-3 py-3 last:border-0 hover:bg-[#fafaf8]", isRead && "opacity-55")}
                 >
                   <span className="mt-0.5 grid h-7 w-7 flex-none place-items-center rounded-lg border border-black/10 text-black/55">
                     <Icon size={14} strokeWidth={1.5} />
                   </span>
-                  <span className="min-w-0">
-                    <span className="flex items-center gap-2 text-[13px] text-black/75">
-                      <StatusDot tone={n.tone} /> {n.title}
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-start gap-2 text-[13px] leading-snug text-black/75">
+                      <StatusDot tone={n.tone} className="mt-[7px]" />
+                      <span>{n.title}</span>
                     </span>
                     <span className="mt-0.5 block text-[11px] text-black/40">{n.meta}</span>
                   </span>
+                  <span className="mt-0.5 flex-none font-mono text-[10px] text-black/30">{n.time}</span>
                 </Link>
               );
             })}
-            <Link href="/dashboard" onClick={() => setOpen(false)} className="block px-4 py-2.5 text-center text-[11px] uppercase tracking-[0.1em] text-black/40 hover:text-black">
-              View all activity →
-            </Link>
           </div>
         </>
       )}
-    </div>
+    </Dropdown>
+  );
+}
+
+function AccountMenu() {
+  const router = useRouter();
+  const { t } = useLanguage();
+  const { lang, setLang } = useLanguage();
+  const { profile } = useProfile();
+  const fullName = `${profile.firstName} ${profile.lastName}`.trim();
+  const [signingOut, setSigningOut] = React.useState(false);
+
+  const signOut = () => {
+    setSigningOut(true);
+    window.setTimeout(() => router.push("/login"), 600);
+  };
+
+  return (
+    <Dropdown
+      align="right"
+      width="w-64"
+      trigger={(open) => (
+        <span className="flex max-w-[160px] items-center gap-2 rounded-xl border border-black/10 px-3 py-2 hover:border-black/20 sm:max-w-none">
+          <span className="min-w-0 text-left leading-tight">
+            <span className="block truncate text-[12px] text-black/70">{fullName}</span>
+            <span className="block truncate text-[10px] uppercase tracking-[0.1em] text-black/35">{profile.companyName}</span>
+          </span>
+          <ChevronDown size={13} strokeWidth={1.5} className={cn("flex-none text-black/30 transition-transform", open && "rotate-180")} />
+        </span>
+      )}
+    >
+      {(close) => (
+        <>
+          <div className="border-b border-black/[0.06] px-3 py-3">
+            <div className="text-[13px] text-black/80">{fullName}</div>
+            <div className="mt-0.5 truncate text-[11px] text-black/40">{USER.email}</div>
+          </div>
+          <div className="py-1">
+            <Link href="/settings?tab=organisation" onClick={close} className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] text-black/70 hover:bg-[#fafaf8]">
+              <UserCircle2 size={15} strokeWidth={1.5} className="text-black/40" /> {t("account_profile")}
+            </Link>
+            <Link href="/settings?tab=notifications" onClick={close} className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] text-black/70 hover:bg-[#fafaf8]">
+              <Bell size={15} strokeWidth={1.5} className="text-black/40" /> {t("account_notifications")}
+            </Link>
+            <Link href="/billing" onClick={close} className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] text-black/70 hover:bg-[#fafaf8]">
+              <CreditCard size={15} strokeWidth={1.5} className="text-black/40" /> {t("account_billing")}
+            </Link>
+          </div>
+          <div className="border-t border-black/[0.06] py-1">
+            <div className="flex items-center gap-2 px-2.5 pb-1 pt-2 font-pixel text-[10px] uppercase tracking-[0.16em] text-black/30">
+              <Globe size={12} strokeWidth={1.5} /> {t("language_label")}
+            </div>
+            {LANGUAGES.map((l) => (
+              <button
+                key={l.code}
+                onClick={() => setLang(l.code)}
+                className="flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-[#fafaf8]"
+              >
+                <span className="flex items-center gap-2.5">
+                  <span className="font-mono text-[10px] tracking-[0.1em] text-black/40">{l.glyph}</span>
+                  <span className={cn(l.code === lang ? "text-black/85" : "text-black/60")}>{l.nativeLabel}</span>
+                </span>
+                {l.code === lang && <span className="h-1.5 w-1.5 rounded-full bg-[#111]" />}
+              </button>
+            ))}
+          </div>
+          <div className="border-t border-black/[0.06] py-1">
+            <button
+              disabled={signingOut}
+              onClick={signOut}
+              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] text-black/70 hover:bg-[#fafaf8] disabled:cursor-not-allowed"
+            >
+              {signingOut ? (
+                <span className="h-[15px] w-[15px] flex-none animate-spin rounded-full border-2 border-black/15 border-t-black/50" aria-hidden />
+              ) : (
+                <LogOut size={15} strokeWidth={1.5} className="text-black/40" />
+              )}
+              {signingOut ? "Signing out…" : t("account_signout")}
+            </button>
+          </div>
+        </>
+      )}
+    </Dropdown>
   );
 }
 
 export function PortalShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = React.useState(false);
+  const nav = useNav();
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
 
@@ -178,27 +252,16 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
           >
             {mobileOpen ? <X size={20} strokeWidth={1.5} /> : <Menu size={20} strokeWidth={1.5} />}
           </button>
-          <div className="hidden w-[228px] md:block">
+          <div className="hidden w-[228px] items-center md:flex">
             <Wordmark />
           </div>
-          <div className="md:hidden">
+          <div className="flex items-center md:hidden">
             <Wordmark />
           </div>
 
           <div className="ml-auto flex items-center gap-2 md:gap-3">
-            <div className="hidden sm:block">
-              <CountrySwitcher />
-            </div>
             <NotificationsBell />
-            <div className="flex items-center gap-2.5 rounded-xl border border-black/10 py-1.5 pl-1.5 pr-3">
-              <span className="grid h-7 w-7 place-items-center rounded-lg bg-[#111] text-[11px] font-medium text-white">
-                {USER.initials}
-              </span>
-              <span className="hidden leading-tight sm:block">
-                <span className="block text-[12px] text-black/70">{USER.name}</span>
-                <span className="block text-[10px] uppercase tracking-[0.1em] text-black/35">{ORG.name}</span>
-              </span>
-            </div>
+            <AccountMenu />
           </div>
         </div>
       </header>
@@ -216,7 +279,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
           )}
         >
           <nav className="flex flex-col gap-0.5">
-            {NAV.map((item) => {
+            {nav.map((item) => {
               const Icon = item.icon;
               const active = isActive(item.href);
               return (

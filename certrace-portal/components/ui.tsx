@@ -1,4 +1,5 @@
 import * as React from "react";
+import { Check } from "lucide-react";
 
 export function cn(...classes: (string | false | null | undefined)[]) {
   return classes.filter(Boolean).join(" ");
@@ -22,11 +23,11 @@ const toneText: Record<Tone, string> = {
   muted: "text-black/40",
 };
 
-export function StatusDot({ tone = "muted", pulse, glow }: { tone?: Tone; pulse?: boolean; glow?: boolean }) {
+export function StatusDot({ tone = "muted", pulse, glow, className }: { tone?: Tone; pulse?: boolean; glow?: boolean; className?: string }) {
   return (
     <span
       aria-hidden
-      className={cn("inline-block h-[6px] w-[6px] flex-none rounded-full", pulse && "ct-pulse")}
+      className={cn("inline-block h-[6px] w-[6px] flex-none rounded-full", pulse && "ct-pulse", className)}
       style={{ background: dotColor[tone], boxShadow: glow ? `0 0 6px ${dotColor[tone]}` : undefined }}
     />
   );
@@ -79,6 +80,63 @@ export function Button({ variant = "primary", size = "md", className, children, 
     <button className={cn(base, sizing, variants[variant], className)} {...props}>
       {children}
     </button>
+  );
+}
+
+/* ── Save button state machine ─────────────────────────────
+   Shared "Save changes → Saving… → Saved → Save changes" cycle used across
+   every settings form, so the feedback pattern reads the same everywhere. */
+export type SaveState = "idle" | "saving" | "saved";
+
+export function useSaveState(holdSavedMs = 1600) {
+  const [state, setState] = React.useState<SaveState>("idle");
+  const run = React.useCallback(
+    (action?: () => void, delayMs = 700) => {
+      if (state === "saving") return;
+      setState("saving");
+      window.setTimeout(() => {
+        action?.();
+        setState("saved");
+        window.setTimeout(() => setState("idle"), holdSavedMs);
+      }, delayMs);
+    },
+    [state, holdSavedMs],
+  );
+  return { state, run };
+}
+
+export function SaveButton({
+  state,
+  idleLabel = "Save changes",
+  savingLabel = "Saving…",
+  savedLabel = "Saved",
+  icon,
+  className,
+  variant = "primary",
+  disabled,
+  ...props
+}: {
+  state: SaveState;
+  idleLabel?: string;
+  savingLabel?: string;
+  savedLabel?: string;
+  icon?: React.ReactNode;
+  disabled?: boolean;
+} & Omit<BtnProps, "children" | "disabled">) {
+  // The primary button is dark-filled (needs a light spinner); secondary/ghost
+  // are light (needs a dark one) — otherwise the spinner is invisible on one of them.
+  const spinnerClass = variant === "primary" ? "border-white/25 border-t-white/80" : "border-black/15 border-t-black/50";
+  return (
+    <Button size="sm" variant={variant} disabled={state === "saving" || disabled} className={className} {...props}>
+      {state === "saving" ? (
+        <span className={cn("h-3.5 w-3.5 animate-spin rounded-full border-2", spinnerClass)} aria-hidden />
+      ) : state === "saved" ? (
+        <Check size={13} strokeWidth={1.5} />
+      ) : (
+        icon
+      )}
+      {state === "saving" ? savingLabel : state === "saved" ? savedLabel : idleLabel}
+    </Button>
   );
 }
 
@@ -173,6 +231,42 @@ export function Field({
       {children}
       {hint && <span className="mt-1.5 block text-xs text-black/35">{hint}</span>}
     </label>
+  );
+}
+
+/* ── Switch (toggle) ────────────────────────────────────── */
+export function Switch({
+  checked,
+  onChange,
+  disabled,
+  ariaLabel,
+}: {
+  checked: boolean;
+  onChange?: (v: boolean) => void;
+  disabled?: boolean;
+  ariaLabel?: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={ariaLabel}
+      disabled={disabled}
+      onClick={() => onChange?.(!checked)}
+      className={cn(
+        "relative inline-flex h-6 w-10 flex-none items-center rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+        checked ? "border-transparent bg-[#111]" : "border-black/15 bg-black/[0.06]",
+      )}
+    >
+      <span
+        aria-hidden
+        className={cn(
+          "inline-block h-4 w-4 flex-none translate-x-1 rounded-full bg-white shadow-sm transition-transform",
+          checked && "translate-x-[18px]",
+        )}
+      />
+    </button>
   );
 }
 

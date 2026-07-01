@@ -17,14 +17,12 @@ import {
   Building2,
   Landmark,
   Link2,
-  ExternalLink,
   PenLine,
   TriangleAlert,
   CircleCheck,
   CircleX,
   Users,
   ChevronRight,
-  FileCode,
 } from "lucide-react";
 import {
   Card,
@@ -40,8 +38,9 @@ import {
 } from "./ui";
 import { toast } from "./toast";
 import { Declaration, ORG } from "@/lib/data";
-import { getRegulation, getJurisdiction, type ResolvedCbamField } from "@/lib/config";
-import { downloadPackage } from "@/lib/download";
+import { getRegulation, getJurisdiction, scope2Treatment, type ResolvedCbamField } from "@/lib/config";
+import { downloadPackage, downloadXmlFile } from "@/lib/download";
+import { validateForRegistry, buildCbamXml } from "@/lib/cbam-xml";
 import {
   sectionsForRequest,
   fieldsForSection,
@@ -68,7 +67,7 @@ import {
   type ReviewRollup,
 } from "@/lib/exporter-review";
 
-type Tab = "submissions" | "summary" | "package" | "xml";
+type Tab = "submissions" | "summary" | "package";
 
 /* Server-safe zeroed roll-up so the first render matches before localStorage is
    read on mount (the real data depends on the supplier + exporter stores). */
@@ -88,6 +87,46 @@ const EMPTY_ROLL: ReviewRollup = {
   avgScore: null,
   stage: "collecting",
 };
+
+/* Shapes an approved submission list into the package's per-supplier rows,
+   documents and AI findings — reused by both download entry points (in-review
+   and post-filing) so the package looks the same regardless of when it's
+   generated. Pulls from data the workflow already computed (the supplier's
+   own field answers, uploaded docs, AI check) rather than inventing figures. */
+function supplierPackageData(approved: ReviewSubmission[]) {
+  const products = approved.flatMap((s) => s.request.products.map((rp) => rp.product));
+  return {
+    scope2Notes: scope2Treatment(products),
+    suppliers: approved.map((s) => {
+      const line = s.emissions[0];
+      const pid = line?.productId;
+      const direct = pid ? Number(s.values[valueKey("direct-emissions", pid)]) : NaN;
+      const indirect = pid ? Number(s.values[valueKey("indirect-emissions", pid)]) : NaN;
+      return {
+        name: s.supplier.name,
+        material: s.supplier.material,
+        emissions: line?.perTonne ?? null,
+        productionRoute: pid ? s.values[valueKey("process-route", pid)] : undefined,
+        directEmissions: Number.isFinite(direct) ? direct : null,
+        indirectEmissions: Number.isFinite(indirect) ? indirect : null,
+        verificationStatus: s.values[valueKey("verification")] || undefined,
+        exportQuantity: line?.tonnes,
+      };
+    }),
+    documents: approved.flatMap((s) =>
+      s.request.documents.map((d) => ({
+        supplier: s.supplier.name,
+        name: d.label,
+        status: (s.docs[d.id]?.status === "uploaded" ? "uploaded" : "missing") as "uploaded" | "missing",
+      })),
+    ),
+    aiWarnings: approved.flatMap((s) =>
+      (s.check?.findings ?? [])
+        .filter((f) => f.severity === "critical" || f.severity === "warning")
+        .map((f) => ({ supplier: s.supplier.name, message: f.detail, type: f.severity as "critical" | "warning" })),
+    ),
+  };
+}
 
 /* ════════════════════════════════════════════════════════════
    Declaration review workspace (exporter side · flow steps 4–10)
@@ -113,15 +152,34 @@ export function DeclarationWorkflow({ declaration }: { declaration: Declaration 
   }, [refresh]);
 
   const roll: ReviewRollup = React.useMemo(() => (mounted ? buildRollup(declaration, exporter) : EMPTY_ROLL), [declaration, exporter, mounted]);
+
+  // Step 4 — "the exporter is notified data is ready for review": watch for
+  // submissions that arrived since the last read (e.g. a supplier submitted in
+  // another tab) and surface it, instead of silently refreshing underneath them.
+  const lastSubmittedCount = React.useRef<number | null>(null);
+  React.useEffect(() => {
+    if (!mounted) return;
+    if (lastSubmittedCount.current !== null && roll.submittedCount > lastSubmittedCount.current) {
+      const delta = roll.submittedCount - lastSubmittedCount.current;
+      toast({ message: `${delta} new submission${delta === 1 ? "" : "s"} ready for review`, detail: "The Submissions tab has been updated.", tone: "info" });
+    }
+    lastSubmittedCount.current = roll.submittedCount;
+  }, [mounted, roll.submittedCount]);
   const open = openId ? roll.submissions.find((s) => s.supplier.id === openId) ?? null : null;
 
   return (
     <div className="space-y-7">
       {/* Breadcrumb + header */}
       <div className="space-y-4">
-        <Link href="/declarations" className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.1em] text-black/40 hover:text-black">
-          <ArrowLeft size={13} strokeWidth={1.5} /> Declarations
-        </Link>
+        {open ? (
+          <button onClick={() => setOpenId(null)} className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.1em] text-black/40 hover:text-black">
+            <ArrowLeft size={13} strokeWidth={1.5} /> All submissions
+          </button>
+        ) : (
+          <Link href="/declarations" className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.1em] text-black/40 hover:text-black">
+            <ArrowLeft size={13} strokeWidth={1.5} /> Declarations
+          </Link>
+        )}
         <div className="flex flex-col gap-4 border-b border-black/[0.06] pb-6 md:flex-row md:items-end md:justify-between">
           <div className="min-w-0">
             <Eyebrow>{reg.full}</Eyebrow>
@@ -151,12 +209,11 @@ export function DeclarationWorkflow({ declaration }: { declaration: Declaration 
           ["submissions", "Submissions", Inbox],
           ["summary", "Executive Summary", Sparkles],
           ["package", "Audit Package", BadgeCheck],
-          ["xml", "EU XML Export", FileCode],
         ] as const).map(([key, label, Icon]) => (
           <button
             key={key}
             onClick={() => {
-              setTab(key as Tab);
+              setTab(key);
               setOpenId(null);
             }}
             className={cn(
@@ -175,16 +232,14 @@ export function DeclarationWorkflow({ declaration }: { declaration: Declaration 
           <Card className="p-10 text-center text-sm text-black/35">Loading submissions…</Card>
         ) : tab === "submissions" ? (
           open ? (
-            <SubmissionReview decl={declaration} sub={open} onBack={() => setOpenId(null)} onChanged={setExporter} />
+            <SubmissionReview decl={declaration} sub={open} onChanged={setExporter} />
           ) : (
             <SubmissionsTab decl={declaration} roll={roll} onOpen={(id) => setOpenId(id)} />
           )
         ) : tab === "summary" ? (
           <ExecutiveSummaryTab decl={declaration} roll={roll} exporter={exporter} onChanged={setExporter} onOpen={(id) => { setTab("submissions"); setOpenId(id); }} />
-        ) : tab === "package" ? (
-          <AuditPackageTab decl={declaration} roll={roll} exporter={exporter} onChanged={setExporter} />
         ) : (
-          <XmlExportTab decl={declaration} roll={roll} />
+          <AuditPackageTab decl={declaration} roll={roll} exporter={exporter} onChanged={setExporter} />
         )}
       </div>
     </div>
@@ -199,7 +254,7 @@ function LifecycleBar({ roll, filed }: { roll: ReviewRollup; filed: boolean }) {
   return (
     <Card warm className="p-4">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
           {stages.map((s, i) => {
             const done = i < activeIdx || (filed && s === "filed");
             const current = i === activeIdx;
@@ -207,7 +262,7 @@ function LifecycleBar({ roll, filed }: { roll: ReviewRollup; filed: boolean }) {
               <React.Fragment key={s}>
                 <span
                   className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] uppercase tracking-[0.08em]",
+                    "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] uppercase tracking-[0.08em]",
                     done ? "bg-[#ecfdf5] text-[#047857]" : current ? "bg-[#111] text-white" : "text-black/35",
                   )}
                 >
@@ -234,7 +289,6 @@ function SubmissionsTab({ decl, roll, onOpen }: { decl: Declaration; roll: Revie
     { value: roll.changesCount, label: "Changes requested" },
     { value: roll.approvedCount, label: "Approved" },
   ];
-  const first = roll.submissions[0];
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -245,21 +299,12 @@ function SubmissionsTab({ decl, roll, onOpen }: { decl: Declaration; roll: Revie
         ))}
       </div>
 
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <Eyebrow>Supplier submissions</Eyebrow>
-          <p className="mt-1 max-w-xl text-sm text-black/45">
-            Each supplier filled their own smartlink, the AI checked it, they e-signed and submitted. Open a submission to read the
-            data, see the AI summary, and approve it or request a revision.
-          </p>
-        </div>
-        {first && (
-          <a href={first.href} target="_blank" rel="noreferrer">
-            <Button variant="secondary" size="sm">
-              <ExternalLink size={14} strokeWidth={1.5} /> Preview supplier view
-            </Button>
-          </a>
-        )}
+      <div className="min-w-0">
+        <Eyebrow>Supplier submissions</Eyebrow>
+        <p className="mt-1 max-w-xl text-sm text-black/45">
+          Each supplier filled their own Smart Link, the AI checked it, they e-signed and submitted. Click a submission to read the
+          data, see the AI summary, and approve it or request a revision.
+        </p>
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-black/[0.08] bg-white">
@@ -273,12 +318,27 @@ function SubmissionsTab({ decl, roll, onOpen }: { decl: Declaration; roll: Revie
 
 function SubmissionRow({ sub, onOpen }: { sub: ReviewSubmission; onOpen: () => void }) {
   const meta = LIFECYCLE_META[sub.lifecycle];
-  const copy = () => {
+  const [copied, setCopied] = React.useState(false);
+  const copyTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  React.useEffect(() => () => { if (copyTimer.current) clearTimeout(copyTimer.current); }, []);
+  const copy = (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (typeof navigator !== "undefined" && navigator.clipboard) navigator.clipboard.writeText(`${window.location.origin}${sub.href}`);
-    toast({ message: "Smartlink copied", detail: `${sub.supplier.name}'s personal data-request link.`, tone: "ok" });
+    setCopied(true);
+    if (copyTimer.current) clearTimeout(copyTimer.current);
+    copyTimer.current = setTimeout(() => setCopied(false), 1900);
   };
+  // Whole row opens the detail — but only once the supplier has actually
+  // submitted. Suppliers still collecting stay non-clickable (just remindable).
+  const clickable = sub.submitted;
   return (
-    <div className="flex items-center gap-3 border-b border-black/[0.05] px-4 py-3.5 last:border-0 hover:bg-[#fafaf8]">
+    <div
+      onClick={clickable ? onOpen : undefined}
+      role={clickable ? "button" : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onKeyDown={clickable ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(); } } : undefined}
+      className={cn("flex items-center gap-3 border-b border-black/[0.05] px-4 py-3.5 last:border-0", clickable && "cursor-pointer hover:bg-[#fafaf8]")}
+    >
       <span className="flex min-w-0 flex-1 items-center gap-2.5">
         {sub.supplier.critical && <span className="h-1.5 w-1.5 flex-none rounded-full bg-black/40" title="CBAM-critical supplier" />}
         <span className="min-w-0">
@@ -294,24 +354,30 @@ function SubmissionRow({ sub, onOpen }: { sub: ReviewSubmission; onOpen: () => v
         </span>
       </span>
 
-      {/* smartlink controls */}
-      <span className="hidden items-center gap-1.5 sm:inline-flex">
-        <button onClick={copy} title="Copy smartlink" aria-label="Copy smartlink" className="grid h-6 w-6 place-items-center rounded-full border border-black/10 text-black/45 transition-colors hover:border-black/25 hover:text-black">
-          <Link2 size={12} strokeWidth={1.5} />
-        </button>
-        <a href={sub.href} target="_blank" rel="noreferrer" title="Open supplier view" aria-label="Open supplier view" className="grid h-6 w-6 place-items-center rounded-full border border-black/10 text-black/45 transition-colors hover:border-black/25 hover:text-black">
-          <ExternalLink size={12} strokeWidth={1.5} />
-        </a>
-      </span>
+      {/* copy Smart Link — flips to a "copied" state inline, no popup */}
+      <button
+        onClick={copy}
+        title="Copy Smart Link"
+        aria-label="Copy Smart Link"
+        style={{ transitionTimingFunction: "var(--ease-signature)" }}
+        className={cn(
+          "hidden h-7 items-center gap-1.5 rounded-full border px-2.5 text-[10px] uppercase tracking-[0.08em] transition-all duration-300 sm:inline-flex",
+          copied ? "border-[#16a34a]/30 bg-[#16a34a]/10 text-[#15803d]" : "border-black/10 text-black/45 hover:border-black/25 hover:text-black",
+        )}
+      >
+        <span className="relative grid h-3 w-3 place-items-center">
+          <Link2 size={12} strokeWidth={1.5} className={cn("absolute transition-all duration-300", copied ? "scale-50 opacity-0" : "scale-100 opacity-100")} />
+          <Check size={12} strokeWidth={2.5} className={cn("absolute transition-all duration-300", copied ? "scale-100 opacity-100" : "scale-50 opacity-0")} />
+        </span>
+        {copied ? "Copied" : "Copy link"}
+      </button>
 
       <span className="flex flex-none items-center gap-3">
         <StatusLabel tone={meta.tone} label={meta.label} pulse={sub.lifecycle === "in_review" || sub.lifecycle === "submitted"} glow={sub.lifecycle === "approved"} />
         {sub.submitted ? (
-          <Button variant="secondary" size="sm" onClick={onOpen}>
-            Review <ArrowRight size={13} strokeWidth={1.5} />
-          </Button>
+          <ChevronRight size={16} strokeWidth={1.5} className="text-black/30" />
         ) : (
-          <Button variant="ghost" size="sm" onClick={() => toast({ message: "Reminder sent", detail: `${sub.supplier.name} nudged to complete their smartlink.`, tone: "info" })}>
+          <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); toast({ message: "Reminder sent", detail: `${sub.supplier.name} nudged to complete their Smart Link.`, tone: "info" }); }}>
             <Bell size={13} strokeWidth={1.5} /> Remind
           </Button>
         )}
@@ -321,7 +387,7 @@ function SubmissionRow({ sub, onOpen }: { sub: ReviewSubmission; onOpen: () => v
 }
 
 /* ════════════════════════ Submission review (steps 5,6,7,9) ════════════════════════ */
-function SubmissionReview({ decl, sub, onBack, onChanged }: { decl: Declaration; sub: ReviewSubmission; onBack: () => void; onChanged: (s: ExporterDeclState) => void }) {
+function SubmissionReview({ decl, sub, onChanged }: { decl: Declaration; sub: ReviewSubmission; onChanged: (s: ExporterDeclState) => void }) {
   const [showRevision, setShowRevision] = React.useState(false);
   const meta = LIFECYCLE_META[sub.lifecycle];
 
@@ -332,19 +398,6 @@ function SubmissionReview({ decl, sub, onBack, onChanged }: { decl: Declaration;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <button onClick={onBack} className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.1em] text-black/40 hover:text-black">
-          <ArrowLeft size={13} strokeWidth={1.5} /> All submissions
-        </button>
-        <div className="flex items-center gap-2">
-          <a href={sub.href} target="_blank" rel="noreferrer">
-            <Button variant="secondary" size="sm">
-              <ExternalLink size={13} strokeWidth={1.5} /> Open supplier view
-            </Button>
-          </a>
-        </div>
-      </div>
-
       {/* identity header */}
       <div className="flex flex-col gap-3 border-b border-black/[0.06] pb-5 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
@@ -371,7 +424,7 @@ function SubmissionReview({ decl, sub, onBack, onChanged }: { decl: Declaration;
           <div className="flex items-start gap-3">
             <span className="mt-0.5 grid h-8 w-8 flex-none place-items-center rounded-lg bg-[#dbeafe] text-[#2563eb]"><PenLine size={15} strokeWidth={1.5} /></span>
             <div className="min-w-0 text-[13px] leading-relaxed text-black/65">
-              <span className="text-black/80">Revision requested.</span> {sub.supplier.name} has been asked to update {sub.review.unlockedFields.length} field{sub.review.unlockedFields.length === 1 ? "" : "s"}{sub.review.unlockedDocs.length ? ` and ${sub.review.unlockedDocs.length} document${sub.review.unlockedDocs.length === 1 ? "" : "s"}` : ""}. Only those unlock on their smartlink.
+              <span className="text-black/80">Revision requested.</span> {sub.supplier.name} has been asked to update {sub.review.unlockedFields.length} field{sub.review.unlockedFields.length === 1 ? "" : "s"}{sub.review.unlockedDocs.length ? ` and ${sub.review.unlockedDocs.length} document${sub.review.unlockedDocs.length === 1 ? "" : "s"}` : ""}. Only those unlock on their Smart Link.
               {sub.review.comment && <p className="mt-1.5 text-black/55">“{sub.review.comment}”</p>}
             </div>
           </div>
@@ -391,7 +444,7 @@ function SubmissionReview({ decl, sub, onBack, onChanged }: { decl: Declaration;
           onSubmit={(payload) => {
             onChanged(requestRevision(decl.id, sub.supplier.id, sub.version, payload));
             setShowRevision(false);
-            toast({ message: "Revision requested", detail: `${sub.supplier.name}'s smartlink reopened the flagged items.`, tone: "info" });
+            toast({ message: "Revision requested", detail: `${sub.supplier.name}'s Smart Link reopened the flagged items — they'll be emailed.`, tone: "info" });
           }}
         />
       ) : (
@@ -603,14 +656,17 @@ function ReviewerPicker({ decl, sub, onChanged }: { decl: Declaration; sub: Revi
         <Users size={15} strokeWidth={1.5} className="text-black/55" />
         <Eyebrow>Internal reviewers</Eyebrow>
       </div>
-      <p className="mt-1.5 text-[12px] text-black/45">Share this submission with the teams who need to sign off — ESG, Compliance, Legal or your verifier. They get scoped, read-only access to the source data.</p>
+      <p className="mt-1.5 text-[12px] text-black/45">Share this submission with the teams who need to sign off — ESG, Compliance, Legal or your verifier. We email them an invite, and they get scoped, read-only access to the source data.</p>
       <div className="mt-3 flex flex-wrap gap-1.5">
         {REVIEWERS.map((r) => {
           const on = sub.review.reviewers.includes(r.id);
           return (
             <button
               key={r.id}
-              onClick={() => onChanged(toggleReviewer(decl.id, sub.supplier.id, r.id))}
+              onClick={() => {
+                onChanged(toggleReviewer(decl.id, sub.supplier.id, r.id));
+                if (!on) toast({ message: `${r.name} assigned`, detail: `Notified by email — scoped, read-only access to ${sub.supplier.name}'s submission.`, tone: "info" });
+              }}
               className={cn(
                 "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[12px] transition-colors",
                 on ? "border-black/25 bg-[#f0eee8] text-black/80" : "border-black/10 text-black/50 hover:border-black/25 hover:text-black",
@@ -624,7 +680,7 @@ function ReviewerPicker({ decl, sub, onChanged }: { decl: Declaration; sub: Revi
       </div>
       {sub.review.reviewers.length > 0 && (
         <p className="mt-2.5 text-[11px] text-[#047857]">
-          Shared with {sub.review.reviewers.map((id) => getReviewer(id)?.name).filter(Boolean).join(", ")}.
+          Shared with {sub.review.reviewers.map((id) => getReviewer(id)?.name).filter(Boolean).join(", ")} — they'll be notified by email.
         </p>
       )}
     </Card>
@@ -663,7 +719,7 @@ function RevisionForm({ decl, sub, onCancel, onSubmit }: { decl: Declaration; su
         <PenLine size={15} strokeWidth={1.5} className="text-[#2563eb]" />
         <Eyebrow>Request a revision</Eyebrow>
       </div>
-      <p className="mt-1.5 text-[12px] text-black/50">Select exactly what {sub.supplier.name} should fix. Only these reopen on their smartlink — everything else stays locked — and they resubmit as v{sub.version + 1}.</p>
+      <p className="mt-1.5 text-[12px] text-black/50">Select exactly what {sub.supplier.name} should fix. Only these reopen on their Smart Link — everything else stays locked — and they resubmit as v{sub.version + 1}.</p>
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div>
@@ -792,6 +848,48 @@ function ExecutiveSummaryTab({ decl, roll, exporter, onChanged, onOpen }: { decl
   );
 }
 
+function RegistryXmlPanel({ decl, approved, refSlug }: { decl: Declaration; approved: ReviewSubmission[]; refSlug: string }) {
+  const validation = React.useMemo(() => validateForRegistry(decl, approved), [decl, approved]);
+
+  const handleDownload = () => {
+    const xmlContent = buildCbamXml(decl, approved);
+    downloadXmlFile(refSlug, xmlContent);
+    toast({ message: "XML downloaded.", detail: "Ready to upload to the CBAM Transitional Registry." });
+  };
+
+  return (
+    <div className="space-y-4">
+      {validation.isValid ? (
+        <div className="rounded-xl border border-[#047857]/20 bg-[#ecfdf5] p-4 text-sm text-[#047857]">
+           <div className="flex items-center gap-2 font-medium">
+             <Check size={16} strokeWidth={2} />
+             Schema valid for definitive period
+           </div>
+           <p className="mt-1 text-black/60">No default values used, all required installation data present.</p>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-[#dc2626]/20 bg-[#fef2f2] p-4 text-sm text-[#dc2626]">
+           <div className="flex items-center gap-2 font-medium">
+             <CircleX size={16} strokeWidth={2} />
+             Validation failed
+           </div>
+           <ul className="mt-2 list-inside list-disc space-y-1 text-black/70">
+             {validation.errors.map((err, i) => (
+               <li key={i}>{err.supplierName}: {err.issue}</li>
+             ))}
+           </ul>
+        </div>
+      )}
+
+      <div className="hairline-grid h-28 rounded-xl border border-black/[0.06]" aria-hidden />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-[11px] text-black/35"><StatusDot tone={validation.isValid ? "ok" : "err"} /> strict schema validation</div>
+        <Button variant="secondary" size="sm" onClick={handleDownload} disabled={!validation.isValid}><Download size={13} strokeWidth={1.5} /> Download XML</Button>
+      </div>
+    </div>
+  );
+}
+
 /* ════════════════════════ Audit-ready package (step 10) + hand off ════════════════════════ */
 function AuditPackageTab({ decl, roll, exporter, onChanged }: { decl: Declaration; roll: ReviewRollup; exporter: ExporterDeclState; onChanged: (s: ExporterDeclState) => void }) {
   const reg = getRegulation(decl.regulation)!;
@@ -818,9 +916,16 @@ function AuditPackageTab({ decl, roll, exporter, onChanged }: { decl: Declaratio
       supplierCount: approved.length,
       carbonPricePaid: decl.carbonPricePaid ?? 0,
       factorSet: jur.factorSet,
-      suppliers: approved.map((s) => ({ name: s.supplier.name, material: s.supplier.material, emissions: s.emissions[0]?.perTonne ?? null })),
+      ...supplierPackageData(approved),
+      versionHistory: approved.flatMap((s) =>
+        s.versions.map((v) => ({ supplier: s.supplier.name, version: v.n, when: new Date(v.submittedAt).toUTCString(), score: v.score })),
+      ),
+      auditTrail: approved
+        .flatMap((s) => s.events.map((e) => ({ supplier: s.supplier.name, when: new Date(e.at).toUTCString(), text: e.text, at: e.at })))
+        .sort((a, b) => a.at - b.at)
+        .map(({ supplier, when, text }) => ({ supplier, when, text })),
     });
-    toast({ message: "Package downloaded.", detail: "Open it and Print → Save as PDF." });
+    toast({ message: "Package downloaded.", detail: "Ready to file with the authority." });
   };
 
   const targets = [
@@ -898,6 +1003,30 @@ function AuditPackageTab({ decl, roll, exporter, onChanged }: { decl: Declaratio
         )}
       </Card>
 
+      {/* registry data xml */}
+      <Card className="overflow-hidden p-0 mt-5">
+        <div className="flex items-center gap-2 border-b border-black/[0.06] bg-black/[0.02] px-5 py-3">
+          <StatusDot /> <StatusDot /> <StatusDot />
+          <span className="ml-2 font-mono text-[11px] text-black/35">certrace · {ref.toLowerCase()}-registry.xml</span>
+          {generated && <span className="ml-auto"><StatusLabel tone="ok" label="generated" glow /></span>}
+        </div>
+        {generated ? (
+          <div className="space-y-5 p-7">
+            <div>
+              <div className="font-pixel text-[10px] uppercase tracking-[0.2em] text-black/40">CBAM Transitional Registry</div>
+              <div className="mt-2 font-[family-name:var(--font-plex)] text-2xl font-light text-[#111]">Definitive Period XML</div>
+              <div className="mt-1 text-sm text-black/45">Registry-compliant XML file, ready for direct upload.</div>
+            </div>
+            <RegistryXmlPanel decl={decl} approved={approved} refSlug={ref.toLowerCase()} />
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center p-14 text-center">
+             <span className="grid h-12 w-12 place-items-center rounded-xl border border-black/10 text-black/40"><FileText size={20} strokeWidth={1.5} /></span>
+            <p className="mt-4 text-sm text-black/45">{canGenerate ? "Approve submissions, then generate the package to unlock XML export." : "Approve at least one submission to generate the package."}</p>
+          </div>
+        )}
+      </Card>
+
       {/* hand off */}
       {generated && (
         <>
@@ -971,9 +1100,21 @@ function FiledReceipt({ decl, roll, reg, recipients, ref, filedAt }: { decl: Dec
       supplierCount: approved.length,
       carbonPricePaid: decl.carbonPricePaid ?? 0,
       factorSet: jur.factorSet,
-      suppliers: approved.map((s) => ({ name: s.supplier.name, material: s.supplier.material, emissions: s.emissions[0]?.perTonne ?? null })),
+      ...supplierPackageData(approved),
+      versionHistory: approved.flatMap((s) =>
+        s.versions.map((v) => ({ supplier: s.supplier.name, version: v.n, when: new Date(v.submittedAt).toUTCString(), score: v.score })),
+      ),
+      auditTrail: approved
+        .flatMap((s) => s.events.map((e) => ({ supplier: s.supplier.name, when: new Date(e.at).toUTCString(), text: e.text, at: e.at })))
+        .sort((a, b) => a.at - b.at)
+        .map(({ supplier, when, text }) => ({ supplier, when, text })),
     });
-    toast({ message: "Package downloaded.", detail: "Open it and Print → Save as PDF." });
+    toast({ message: "Package downloaded.", detail: "Ready to file with the authority." });
+  };
+  const doDownloadXml = () => {
+    const xmlContent = buildCbamXml(decl, approved);
+    downloadXmlFile(ref.toLowerCase(), xmlContent);
+    toast({ message: "XML downloaded.", detail: "Ready to upload to the CBAM Transitional Registry." });
   };
   const lines = [
     { on: recipients.buyer, label: "EU buyer / importer", to: "procurement@eu-importer.example" },
@@ -1015,135 +1156,10 @@ function FiledReceipt({ decl, roll, reg, recipients, ref, filedAt }: { decl: Dec
 
       <div className="flex flex-wrap items-center justify-center gap-3">
         <Button variant="secondary" size="sm" onClick={doDownload}><Download size={14} strokeWidth={1.5} /> Download package</Button>
+        <Button variant="secondary" size="sm" onClick={doDownloadXml}><Download size={14} strokeWidth={1.5} /> Download XML</Button>
         <Link href="/reports"><Button size="sm">View in reports <ArrowRight size={14} strokeWidth={1.5} /></Button></Link>
         <Link href="/dashboard"><Button variant="ghost" size="sm">Back to dashboard</Button></Link>
       </div>
-    </div>
-  );
-}
-
-/* ════════════════════════ EU XML Export (CBAM specific) ════════════════════════ */
-function XmlExportTab({ decl, roll }: { decl: Declaration; roll: ReviewRollup }) {
-  const [validating, setValidating] = React.useState(false);
-  const [progress, setProgress] = React.useState(0);
-  const [done, setDone] = React.useState(false);
-
-  const handleExport = () => {
-    setValidating(true);
-    // Simulate validation and XML generation
-    const interval = setInterval(() => {
-      setProgress((p) => {
-        if (p >= 100) {
-          clearInterval(interval);
-          setValidating(false);
-          setDone(true);
-          
-          const approved = roll.submissions.filter((s) => s.lifecycle === "approved");
-          const today = new Date().toISOString().split('T')[0];
-          
-          const goodsXml = approved.map((sub, index) => {
-            const emissions = sub.emissions[0];
-            return `      <cbam:GoodsItem>
-        <cbam:ItemNumber>${index + 1}</cbam:ItemNumber>
-        <cbam:CommodityCode>${sub.supplier.material === "Steel" ? "72081000" : "76011000"}</cbam:CommodityCode>
-        <cbam:Description>${sub.supplier.material} imported from ${sub.supplier.name}</cbam:Description>
-        <cbam:Quantity>100</cbam:Quantity>
-        <cbam:Emissions>
-          <cbam:DirectEmissions>${emissions?.productId ? sub.values[valueKey("direct-emissions", emissions.productId)] : 1.5}</cbam:DirectEmissions>
-          <cbam:IndirectEmissions>${emissions?.productId ? sub.values[valueKey("indirect-emissions", emissions.productId)] : 0.5}</cbam:IndirectEmissions>
-          <cbam:TotalSpecificEmissions>${emissions?.perTonne ?? 2.0}</cbam:TotalSpecificEmissions>
-        </cbam:Emissions>
-      </cbam:GoodsItem>`;
-          }).join("\\n");
-      
-          const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>
-<cbam:CBAMDeclaration xmlns:cbam="urn:eu:taxud:cbam:v1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-  <cbam:DeclarationHeader>
-    <cbam:DeclarationID>CBAM-${decl.period.replace(/\\s+/g, "")}-${decl.id.substring(0, 8).toUpperCase()}</cbam:DeclarationID>
-    <cbam:ReportingPeriod>${decl.period}</cbam:ReportingPeriod>
-    <cbam:CreationDate>${today}</cbam:CreationDate>
-    <cbam:Declarant>
-      <cbam:Name>${ORG.name}</cbam:Name>
-      <cbam:EORI>${(ORG as any).eori ?? "NL123456789"}</cbam:EORI>
-    </cbam:Declarant>
-  </cbam:DeclarationHeader>
-  <cbam:ImportedGoods>
-${goodsXml || `    <!-- No approved supplier submissions yet -->`}
-  </cbam:ImportedGoods>
-  <cbam:TotalEmissions>
-    <cbam:TotalEmbeddedEmissions>${roll.reviewedEmissions}</cbam:TotalEmbeddedEmissions>
-  </cbam:TotalEmissions>
-</cbam:CBAMDeclaration>`;
-
-          const blob = new Blob([xmlContent], { type: "application/xml" });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = `cbam_report_${decl.period.replace(/\\s+/g, "_")}.xml`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-          
-          toast({ message: "XML Generated", detail: "CBAM XML file downloaded successfully.", tone: "ok" });
-          return 100;
-        }
-        return p + 20;
-      });
-    }, 400);
-  };
-
-  const missingData = roll.awaitingCount > 0;
-
-  return (
-    <div className="space-y-5">
-      <div>
-        <Eyebrow>EU CBAM Registry XML</Eyebrow>
-        <p className="mt-1 max-w-2xl text-sm text-black/45">
-          Generate the official XSD-compliant XML file required for the EU CBAM Transitional Registry. The system will run a pre-flight validation check before generating the file.
-        </p>
-      </div>
-
-      <Card className="p-8 text-center flex flex-col items-center justify-center">
-        <div className="h-16 w-16 rounded-2xl bg-[#fafaf8] border border-black/10 flex items-center justify-center mb-6 text-[#2563eb]">
-          <FileCode size={28} strokeWidth={1.5} />
-        </div>
-        
-        <h3 className="font-medium text-[#111] text-lg">Export Machine-Readable Report</h3>
-        <p className="text-sm text-black/50 mt-2 max-w-md">
-          {missingData 
-            ? "Warning: Some suppliers have not submitted their data yet. Exporting now will result in incomplete XML data, which may be rejected by the EU."
-            : "All submissions are collected. You are ready to generate the compliance XML."}
-        </p>
-
-        {validating ? (
-          <div className="mt-8 w-64 max-w-full space-y-2">
-            <div className="flex justify-between text-xs text-black/50">
-              <span>Validating schema...</span>
-              <span>{progress}%</span>
-            </div>
-            <div className="h-1.5 w-full bg-black/5 rounded-full overflow-hidden">
-              <div className="h-full bg-[#2563eb] transition-all duration-300" style={{ width: `${progress}%` }} />
-            </div>
-          </div>
-        ) : done ? (
-          <div className="mt-8 space-y-4">
-            <div className="inline-flex items-center gap-2 text-[#047857] bg-[#ecfdf5] px-4 py-2 rounded-full text-sm font-medium">
-              <Check size={16} /> Validation Passed
-            </div>
-            <p className="text-xs text-black/40">File: cbam_report_{decl.period.replace(/\s+/g, "_")}.xml downloaded.</p>
-          </div>
-        ) : (
-          <Button 
-            className="mt-8" 
-            onClick={handleExport}
-            variant={missingData ? "secondary" : "primary"}
-          >
-            <FileCode size={16} strokeWidth={1.5} className="mr-2" />
-            Validate & Export XML
-          </Button>
-        )}
-      </Card>
     </div>
   );
 }

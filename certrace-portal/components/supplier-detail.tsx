@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Bell, ExternalLink, FileText, Package, Clock, AlertTriangle } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bell, ExternalLink, FileText, Package, Clock, AlertTriangle, Download, ShieldCheck, CheckCircle2 } from "lucide-react";
 import { Card, Button, Chip, Stat, Eyebrow, Progress, StatusLabel, StatusDot, cn } from "./ui";
 import { toast } from "./toast";
 import { type SupplierProfile, supplierStatusMeta } from "@/lib/data";
@@ -29,6 +29,12 @@ export function SupplierDetail({ profile: p }: { profile: SupplierProfile }) {
               <span>{p.contact}</span>
               <span className="text-black/30">·</span>
               <a href={`mailto:${p.email}`} className="hover:text-black">{p.email}</a>
+              {p.installation && (
+                <>
+                  <span className="text-black/30">·</span>
+                  <span title="Production Installation">{p.installation.name} <span className="font-mono text-[10px] text-black/35">({p.installation.id})</span></span>
+                </>
+              )}
             </p>
             <div className="mt-2.5"><StatusLabel tone={meta.tone} label={meta.label} glow={p.status === "submitted"} pulse={p.status === "in_progress"} /></div>
           </div>
@@ -36,6 +42,12 @@ export function SupplierDetail({ profile: p }: { profile: SupplierProfile }) {
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="secondary" size="sm" onClick={() => toast({ message: `Reminder sent to ${p.name}.`, detail: "They get a fresh guided-form link.", tone: "info" })}>
             <Bell size={14} strokeWidth={1.5} /> Send reminder
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => toast({ message: `Downloading report for ${p.name}...`, tone: "info" })}>
+            <Download size={14} strokeWidth={1.5} /> Report
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => toast({ message: `Downloading documents for ${p.name}...`, tone: "info" })}>
+            <Download size={14} strokeWidth={1.5} /> Documents
           </Button>
           <Link href="/s/demo-token">
             <Button size="sm">
@@ -74,6 +86,51 @@ export function SupplierDetail({ profile: p }: { profile: SupplierProfile }) {
                 );
               })}
             </div>
+          </Card>
+
+          <Card className="p-5">
+            <div className="flex items-center justify-between mb-4">
+              <Eyebrow>Data & Documents</Eyebrow>
+              {p.verificationStatus === "third_party_verified" && (
+                <Chip tone="ok"><ShieldCheck size={12} className="inline mr-1" /> Third-party verified</Chip>
+              )}
+              {p.verificationStatus === "internally_verified" && (
+                <Chip tone="info"><CheckCircle2 size={12} className="inline mr-1" /> Internally verified</Chip>
+              )}
+              {p.verificationStatus === "not_verified" && (
+                <Chip tone="muted">Not verified</Chip>
+              )}
+            </div>
+            <div className="grid gap-6 md:grid-cols-2">
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[12px] text-black/70">Required Fields</span>
+                  <span className="font-mono text-[11px] text-black/50">{p.requiredFields.completed}/{p.requiredFields.total}</span>
+                </div>
+                <Progress value={(p.requiredFields.completed / p.requiredFields.total) * 100} tone={p.requiredFields.completed === p.requiredFields.total ? "ok" : "warn"} />
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[12px] text-black/70">Documents Uploaded</span>
+                  <span className="font-mono text-[11px] text-black/50">{p.documentsStats.uploaded}/{p.documentsStats.total}</span>
+                </div>
+                <Progress value={(p.documentsStats.uploaded / p.documentsStats.total) * 100} tone={p.documentsStats.uploaded === p.documentsStats.total ? "ok" : "info"} />
+              </div>
+            </div>
+            
+            {p.missingInfo && p.missingInfo.length > 0 && (
+              <div className="mt-5 rounded-lg border border-[#b45309]/20 bg-[#b45309]/5 p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <AlertTriangle size={14} className="text-[#b45309]" />
+                  <span className="text-[12px] font-medium text-[#b45309]">Missing Information</span>
+                </div>
+                <ul className="list-disc pl-5 text-[12px] text-[#b45309]/80 space-y-1">
+                  {p.missingInfo.map((info, idx) => (
+                    <li key={idx}>{info}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </Card>
 
           <Card className="p-5">

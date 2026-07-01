@@ -1,6 +1,6 @@
 "use client";
 
-export const runtime = 'edge';
+export const runtime = "edge";
 
 /* The smartlink destination. The exporter's declaration emails every mapped
    supplier a link to /s/<token>; the token resolves to that supplier's slice of

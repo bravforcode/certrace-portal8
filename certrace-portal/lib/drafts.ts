@@ -5,7 +5,7 @@
    the declarations list surfaces drafts at the top and links back into the
    wizard to resume exactly where the exporter left off. */
 
-import type { Purpose } from "./config";
+import type { Purpose, ReferenceType } from "./config";
 import type { DirectorySupplier } from "./data";
 
 /* A production lot bought from a supplier in the period. */
@@ -35,9 +35,11 @@ export type WizardSnapshot = {
   month: string;
   rangeStart: string;
   rangeEnd: string;
+  referenceType: ReferenceType;
   products: string[];
   reportFields: Record<string, boolean>;
   extras: string[];
+  customRequest: string;
   directory: DirectorySupplier[];
   mapping: Mapping;
   deadline: string;

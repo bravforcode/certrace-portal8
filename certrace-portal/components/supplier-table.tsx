@@ -1,6 +1,9 @@
+"use client";
+
 import * as React from "react";
+import Link from "next/link";
 import { Progress, StatusLabel, cn } from "./ui";
-import { SupplierRow, supplierStatusMeta } from "@/lib/data";
+import { SupplierRow, supplierStatusMeta, supplierSlug } from "@/lib/data";
 
 export function SupplierTable({
   rows,
@@ -31,17 +34,18 @@ export function SupplierTable({
       {rows.map((row, i) => {
         const meta = supplierStatusMeta[row.status];
         return (
-          <div
+          <Link
             key={row.id}
+            href={`/suppliers/${supplierSlug(row.name)}`}
             className={cn(
-              "grid items-center gap-3 border-b border-black/[0.04] px-4 last:border-0 hover:bg-[#fafaf8]",
+              "grid items-center gap-3 border-b border-black/[0.04] px-4 last:border-0 hover:bg-[#fafaf8] cursor-pointer",
               compact ? "py-2.5" : "py-3.5",
               showEmissions ? "grid-cols-[1.6fr_1fr_0.8fr_0.8fr]" : "grid-cols-[1.6fr_1fr_0.9fr]",
             )}
           >
             <span className="flex min-w-0 items-center gap-2">
               {row.critical && <span className="h-1 w-1 flex-none rounded-full bg-black/40" title="CBAM-critical" />}
-              <span className="truncate font-mono text-[12px] text-black/60">{row.name}</span>
+              <span className="truncate font-mono text-[12px] text-black/60 hover:text-black">{row.name}</span>
               <span className="font-mono text-[11px] text-black/25">{row.ref}</span>
             </span>
             <span>
@@ -52,16 +56,21 @@ export function SupplierTable({
                 {row.emissions != null ? row.emissions.toFixed(2) : <span className="text-black/25">—</span>}
               </span>
             )}
-            <span className="flex items-center justify-between gap-2">
+            <span className="flex items-center justify-between gap-2" onClick={(e) => {
+              if (actions) {
+                // Prevent navigation if an action was clicked (not perfect without tracking exact target, but actions usually are standalone)
+                // We'll just let the Link handle the click for now unless the user clicks a specific button inside.
+              }
+            }}>
               <StatusLabel
                 tone={meta.tone}
                 label={meta.label}
                 pulse={row.status === "in_progress"}
                 glow={row.status === "submitted"}
               />
-              {actions?.(row)}
+              <div onClick={(e) => e.preventDefault()}>{actions?.(row)}</div>
             </span>
-          </div>
+          </Link>
         );
       })}
     </div>
