@@ -1064,7 +1064,7 @@ function XmlExportTab({ decl, roll }: { decl: Declaration; roll: ReviewRollup })
     <cbam:CreationDate>${today}</cbam:CreationDate>
     <cbam:Declarant>
       <cbam:Name>${ORG.name}</cbam:Name>
-      <cbam:EORI>${ORG.eori ?? "NL123456789"}</cbam:EORI>
+      <cbam:EORI>${(ORG as any).eori ?? "NL123456789"}</cbam:EORI>
     </cbam:Declarant>
   </cbam:DeclarationHeader>
   <cbam:ImportedGoods>
