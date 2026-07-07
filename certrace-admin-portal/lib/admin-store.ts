@@ -9,6 +9,8 @@ import {
   TICKETS,
   ANNOUNCEMENTS,
   FEATURE_FLAGS,
+  INVOICES,
+  STAFF,
   getRole,
   type AuditEvent,
   type ModuleId,
@@ -17,6 +19,7 @@ import {
   type Ticket,
   type Announcement,
   type FeatureFlag,
+  type Invoice,
   type StaffUser,
 } from "@/lib/admin-data";
 
@@ -29,8 +32,12 @@ type Overlay = {
   ticketStatus: Record<string, Ticket["status"]>;
   ticketReplies: Record<string, Ticket["thread"]>;
   announcements: Record<string, Partial<Announcement>>;
+  announcementsNew: Announcement[];
   flags: Record<string, boolean>;
   impersonations: { orgId: string; staffId: string; reason: string; startedAt: string }[];
+  staffNew: StaffUser[];
+  staffEdit: Record<string, Partial<StaffUser>>;
+  invoiceStatus: Record<string, Invoice["status"]>;
 };
 
 const EMPTY: Overlay = {
@@ -40,8 +47,12 @@ const EMPTY: Overlay = {
   ticketStatus: {},
   ticketReplies: {},
   announcements: {},
+  announcementsNew: [],
   flags: {},
   impersonations: [],
+  staffNew: [],
+  staffEdit: {},
+  invoiceStatus: {},
 };
 
 function read(): Overlay {
@@ -153,7 +164,31 @@ export function replyTicket(actor: StaffUser, id: string, body: string, internal
 
 export function allAnnouncements(): Announcement[] {
   const o = read();
-  return ANNOUNCEMENTS.map((a) => ({ ...a, ...o.announcements[a.id] }));
+  return [
+    ...o.announcementsNew.map((a) => ({ ...a, ...o.announcements[a.id] })),
+    ...ANNOUNCEMENTS.map((a) => ({ ...a, ...o.announcements[a.id] })),
+  ];
+}
+
+export function createAnnouncement(
+  actor: StaffUser,
+  input: { title: string; body: string; audience: string },
+  publish: boolean,
+) {
+  const id = `ann-live-${Date.now()}`;
+  mutate((o) => {
+    o.announcementsNew.unshift({
+      id,
+      title: input.title,
+      body: input.body,
+      audience: input.audience,
+      status: publish ? "published" : "draft",
+      authorId: actor.id,
+      publishedAt: publish ? nowStamp() : undefined,
+    });
+  });
+  logAudit(actor, "announcements", publish ? "announcement.publish" : "announcement.draft", id, input.title);
+  return id;
 }
 
 export function publishAnnouncement(actor: StaffUser, id: string) {
@@ -173,6 +208,68 @@ export function toggleFlag(actor: StaffUser, key: string, enabled: boolean) {
     o.flags[key] = enabled;
   });
   logAudit(actor, "system", enabled ? "flag.enable" : "flag.disable", key);
+}
+
+/* ── Staff directory (fixtures + invited/edited overlay) ──── */
+
+export function allStaff(): StaffUser[] {
+  const o = read();
+  return [...STAFF, ...o.staffNew].map((s) => ({ ...s, ...o.staffEdit[s.id] }));
+}
+
+export function findStaff(id: string): StaffUser | undefined {
+  return allStaff().find((s) => s.id === id);
+}
+
+export function staffName(id: string) {
+  return findStaff(id)?.name ?? id;
+}
+
+export function inviteStaff(actor: StaffUser, input: { name: string; email: string; roleId: string }) {
+  const id = `st-live-${Date.now()}`;
+  mutate((o) => {
+    o.staffNew.push({ id, name: input.name, email: input.email, roleId: input.roleId, status: "invited", lastLoginAt: "—" });
+  });
+  logAudit(actor, "staff", "staff.invite", id, `Invited ${input.name} as ${getRole(input.roleId).name}.`);
+  return id;
+}
+
+export function updateStaff(actor: StaffUser, id: string, patch: Partial<StaffUser>, action: string, detail?: string) {
+  mutate((o) => {
+    o.staffEdit[id] = { ...o.staffEdit[id], ...patch };
+  });
+  logAudit(actor, "staff", action, id, detail);
+}
+
+/* First sign-in activates an invited account; every sign-in stamps last login.
+   Session bookkeeping, not a staff-management action — so no audit entry. */
+export function recordLogin(id: string) {
+  mutate((o) => {
+    const current = findStaff(id);
+    o.staffEdit[id] = {
+      ...o.staffEdit[id],
+      lastLoginAt: nowStamp(),
+      ...(current?.status === "invited" ? { status: "active" as const } : {}),
+    };
+  });
+}
+
+/* ── Invoices ─────────────────────────────────────────────── */
+
+export function allInvoices(): Invoice[] {
+  const o = read();
+  return INVOICES.map((i) => ({ ...i, status: o.invoiceStatus[i.id] ?? i.status }));
+}
+
+export function markInvoicePaid(actor: StaffUser, id: string) {
+  mutate((o) => {
+    o.invoiceStatus[id] = "paid";
+  });
+  logAudit(actor, "billing", "invoice.mark-paid", id, "Payment recorded manually.");
+}
+
+export function sendInvoiceReminder(actor: StaffUser, id: string, orgName: string) {
+  logAudit(actor, "billing", "invoice.remind", id, `Dunning reminder emailed to ${orgName}.`);
 }
 
 export function startImpersonation(actor: StaffUser, orgId: string, reason: string) {

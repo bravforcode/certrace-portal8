@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Card, PageHeader, TagBadge } from "@/components/ui";
 import { FilterChips, HealthBar, Table, Td, Th } from "@/components/admin/bits";
 import { ModuleGuard } from "@/components/admin/shell";
-import { ORGS, getStaff, type OrgKind } from "@/lib/admin-data";
+import { ORGS, getStaff, thb, type OrgKind } from "@/lib/admin-data";
 
 type Filter = "all" | OrgKind | "risk";
 
@@ -65,7 +65,7 @@ export default function Accounts() {
                   </Td>
                   <Td><span className="font-mono text-[11px] text-black/50">{o.kind}</span></Td>
                   <Td><TagBadge>{o.plan}</TagBadge></Td>
-                  <Td><span className="font-mono text-[12px]">{o.mrr ? `€${o.mrr.toLocaleString()}` : "—"}</span></Td>
+                  <Td><span className="font-mono text-[12px]">{o.mrr ? thb(o.mrr) : "—"}</span></Td>
                   <Td>{o.seats}</Td>
                   <Td><HealthBar value={o.health} /></Td>
                   <Td className="whitespace-nowrap">{getStaff(o.csOwnerId)?.name}</Td>

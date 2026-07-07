@@ -5,8 +5,8 @@ import { Button, Card, PageHeader } from "@/components/ui";
 import { SectionTitle, StatusChip, Table, Td, Th } from "@/components/admin/bits";
 import { ModuleGuard } from "@/components/admin/shell";
 import { useAdminAuth } from "@/lib/admin-auth";
-import { useAdminStore, allDrafts, updateDraft, nowStamp } from "@/lib/admin-store";
-import { REG_DATASETS, getStaff } from "@/lib/admin-data";
+import { useAdminStore, allDrafts, updateDraft, nowStamp, staffName } from "@/lib/admin-store";
+import { REG_DATASETS } from "@/lib/admin-data";
 
 export default function RegulatoryData() {
   const { user, hasPower } = useAdminAuth();
@@ -63,8 +63,8 @@ export default function RegulatoryData() {
                       <h3 className="mt-1.5 text-[15px] text-black/80">{dr.title}</h3>
                       <p className="mt-1 rounded-lg bg-black/[0.03] px-3 py-1.5 font-mono text-[12px] text-black/55">{dr.diff}</p>
                       <p className="mt-1.5 text-xs text-black/40">
-                        Drafted by {getStaff(dr.draftedById)?.name} · {dr.draftedAt.slice(0, 10)}
-                        {dr.approvedById && <> · decided by {getStaff(dr.approvedById)?.name} {dr.decidedAt?.slice(0, 10)}</>}
+                        Drafted by {staffName(dr.draftedById)} · {dr.draftedAt.slice(0, 10)}
+                        {dr.approvedById && <> · decided by {staffName(dr.approvedById)} {dr.decidedAt?.slice(0, 10)}</>}
                         {dr.note && <> · {dr.note}</>}
                       </p>
                     </div>

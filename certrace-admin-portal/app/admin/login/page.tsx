@@ -8,19 +8,22 @@ import { useRouter } from "next/navigation";
 import { CertraceLogo } from "@/components/logo";
 import { cn } from "@/components/ui";
 import { useAdminAuth } from "@/lib/admin-auth";
-import { DEPARTMENTS, STAFF, getRole, type DeptId } from "@/lib/admin-data";
+import { useAdminStore, allStaff } from "@/lib/admin-store";
+import { DEPARTMENTS, getRole } from "@/lib/admin-data";
 
 export default function StaffLogin() {
   const { user, ready, signIn } = useAdminAuth();
   const router = useRouter();
+  useAdminStore();
 
   React.useEffect(() => {
     if (ready && user) router.replace("/admin/dashboard");
   }, [ready, user, router]);
 
+  // Deactivated accounts can't sign in; invited ones activate on first login.
   const byDept = DEPARTMENTS.map((d) => ({
     dept: d,
-    people: STAFF.filter((s) => s.status === "active" && getRole(s.roleId).dept === d.id),
+    people: allStaff().filter((s) => s.status !== "deactivated" && getRole(s.roleId).dept === d.id),
   })).filter((g) => g.people.length > 0);
 
   return (
@@ -69,10 +72,11 @@ export default function StaffLogin() {
                         <span className="block text-[13px] text-black/75">{p.name}</span>
                         <span className="mt-0.5 block font-pixel text-[10px] uppercase tracking-[0.14em] text-black/35">
                           {role.name}
+                          {p.status === "invited" && <span className="ml-1.5 rounded bg-[#eff6ff] px-1.5 py-0.5 text-[#2563eb]">invited</span>}
                         </span>
                       </span>
                       <span className="font-pixel text-[10px] uppercase tracking-[0.14em] text-black/25 transition-colors group-hover:text-black/60">
-                        Sign in →
+                        {p.status === "invited" ? "First login →" : "Sign in →"}
                       </span>
                     </button>
                   );

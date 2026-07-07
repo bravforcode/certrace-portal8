@@ -2,6 +2,19 @@
    Spec: certrace-portal/docs/ADMIN-CONSOLE-PLAN.md §2 (roles), §3 (matrix), §6 (model).
    Everything here is fixture data; transactional overlays live in admin-store.ts. */
 
+/* ── Currency ─────────────────────────────────────────────── */
+
+/* All monetary amounts platform-wide are Thai baht (THB). */
+export function thb(amount: number) {
+  return `฿${amount.toLocaleString("en-US")}`;
+}
+
+export function thbCompact(amount: number) {
+  return `฿${(amount / 1000).toFixed(0)}k`;
+}
+
+export const VAT_RATE = 0.07; // Thai VAT
+
 /* ── Departments, roles, permissions ─────────────────────── */
 
 export type DeptId =
@@ -213,15 +226,15 @@ export type Org = {
 };
 
 export const ORGS: Org[] = [
-  { id: "org-01", name: "Siam Steel Group", kind: "exporter", country: "TH", plan: "Enterprise", mrr: 4200, seats: 14, health: 86, renewalRisk: false, csOwnerId: "st-05", createdAt: "2025-11-02", lastActivity: "2026-07-06 09:18", openTickets: 1, sectors: ["Iron & Steel"] },
-  { id: "org-02", name: "Bangkok Aluminium Works", kind: "exporter", country: "TH", plan: "Growth", mrr: 1400, seats: 6, health: 74, renewalRisk: false, csOwnerId: "st-05", createdAt: "2026-01-15", lastActivity: "2026-07-06 08:02", openTickets: 2, sectors: ["Aluminium"] },
-  { id: "org-03", name: "Chao Phraya Coil Co.", kind: "exporter", country: "TH", plan: "Growth", mrr: 1400, seats: 5, health: 91, renewalRisk: false, csOwnerId: "st-04", createdAt: "2026-02-20", lastActivity: "2026-07-05 18:44", openTickets: 0, sectors: ["Iron & Steel"] },
+  { id: "org-01", name: "Siam Steel Group", kind: "exporter", country: "TH", plan: "Enterprise", mrr: 168000, seats: 14, health: 86, renewalRisk: false, csOwnerId: "st-05", createdAt: "2025-11-02", lastActivity: "2026-07-06 09:18", openTickets: 1, sectors: ["Iron & Steel"] },
+  { id: "org-02", name: "Bangkok Aluminium Works", kind: "exporter", country: "TH", plan: "Growth", mrr: 56000, seats: 6, health: 74, renewalRisk: false, csOwnerId: "st-05", createdAt: "2026-01-15", lastActivity: "2026-07-06 08:02", openTickets: 2, sectors: ["Aluminium"] },
+  { id: "org-03", name: "Chao Phraya Coil Co.", kind: "exporter", country: "TH", plan: "Growth", mrr: 56000, seats: 5, health: 91, renewalRisk: false, csOwnerId: "st-04", createdAt: "2026-02-20", lastActivity: "2026-07-05 18:44", openTickets: 0, sectors: ["Iron & Steel"] },
   { id: "org-04", name: "Eastern Seaboard Alloys", kind: "exporter", country: "TH", plan: "Trial", mrr: 0, seats: 3, health: 58, renewalRisk: false, csOwnerId: "st-04", createdAt: "2026-06-18", lastActivity: "2026-07-04 13:20", openTickets: 1, sectors: ["Aluminium"] },
-  { id: "org-05", name: "Mekong Steel Trading", kind: "exporter", country: "TH", plan: "Growth", mrr: 1400, seats: 4, health: 41, renewalRisk: true, csOwnerId: "st-05", createdAt: "2025-12-09", lastActivity: "2026-06-22 10:05", openTickets: 3, sectors: ["Iron & Steel"] },
+  { id: "org-05", name: "Mekong Steel Trading", kind: "exporter", country: "TH", plan: "Growth", mrr: 56000, seats: 4, health: 41, renewalRisk: true, csOwnerId: "st-05", createdAt: "2025-12-09", lastActivity: "2026-06-22 10:05", openTickets: 3, sectors: ["Iron & Steel"] },
   { id: "org-06", name: "Ayutthaya Wireworks", kind: "exporter", country: "TH", plan: "Trial", mrr: 0, seats: 2, health: 66, renewalRisk: false, csOwnerId: "st-04", createdAt: "2026-06-30", lastActivity: "2026-07-06 07:51", openTickets: 0, sectors: ["Iron & Steel"] },
-  { id: "org-07", name: "Thai Metal Pro", kind: "supplier", country: "TH", plan: "Growth", mrr: 350, seats: 4, health: 79, renewalRisk: false, csOwnerId: "st-05", createdAt: "2026-03-04", lastActivity: "2026-07-06 09:05", openTickets: 1, sectors: ["Iron & Steel"] },
+  { id: "org-07", name: "Thai Metal Pro", kind: "supplier", country: "TH", plan: "Growth", mrr: 14000, seats: 4, health: 79, renewalRisk: false, csOwnerId: "st-05", createdAt: "2026-03-04", lastActivity: "2026-07-06 09:05", openTickets: 1, sectors: ["Iron & Steel"] },
   { id: "org-08", name: "Rayong Green Metals", kind: "supplier", country: "TH", plan: "Trial", mrr: 0, seats: 2, health: 72, renewalRisk: false, csOwnerId: "st-04", createdAt: "2026-05-11", lastActivity: "2026-07-05 16:12", openTickets: 0, sectors: ["Aluminium"] },
-  { id: "org-09", name: "Krung Thep Castings", kind: "supplier", country: "TH", plan: "Growth", mrr: 350, seats: 3, health: 63, renewalRisk: false, csOwnerId: "st-05", createdAt: "2026-04-22", lastActivity: "2026-07-03 09:47", openTickets: 0, sectors: ["Iron & Steel"] },
+  { id: "org-09", name: "Krung Thep Castings", kind: "supplier", country: "TH", plan: "Growth", mrr: 14000, seats: 3, health: 63, renewalRisk: false, csOwnerId: "st-05", createdAt: "2026-04-22", lastActivity: "2026-07-03 09:47", openTickets: 0, sectors: ["Iron & Steel"] },
   { id: "org-10", name: "TÜV Rheinland Thailand", kind: "verifier-partner", country: "TH", plan: "Partner", mrr: 0, seats: 5, health: 88, renewalRisk: false, csOwnerId: "st-03", createdAt: "2026-01-08", lastActivity: "2026-07-05 15:30", openTickets: 0, sectors: ["Verification"] },
 ];
 
@@ -344,19 +357,19 @@ export type Invoice = {
 };
 
 export const INVOICES: Invoice[] = [
-  { id: "INV-2607", orgId: "org-01", amount: 4200, period: "Jul 2026", status: "due", issuedAt: "2026-07-01" },
-  { id: "INV-2606", orgId: "org-01", amount: 4200, period: "Jun 2026", status: "paid", issuedAt: "2026-06-01" },
-  { id: "INV-2605", orgId: "org-02", amount: 1400, period: "Jul 2026", status: "due", issuedAt: "2026-07-01" },
-  { id: "INV-2604", orgId: "org-03", amount: 1400, period: "Jul 2026", status: "paid", issuedAt: "2026-07-01" },
-  { id: "INV-2603", orgId: "org-05", amount: 1400, period: "Jun 2026", status: "overdue", issuedAt: "2026-06-01" },
-  { id: "INV-2602", orgId: "org-05", amount: 1400, period: "Jul 2026", status: "due", issuedAt: "2026-07-01" },
-  { id: "INV-2601", orgId: "org-07", amount: 350, period: "Jul 2026", status: "paid", issuedAt: "2026-07-01" },
-  { id: "INV-2600", orgId: "org-09", amount: 350, period: "Jul 2026", status: "due", issuedAt: "2026-07-01" },
+  { id: "INV-2607", orgId: "org-01", amount: 168000, period: "Jul 2026", status: "due", issuedAt: "2026-07-01" },
+  { id: "INV-2606", orgId: "org-01", amount: 168000, period: "Jun 2026", status: "paid", issuedAt: "2026-06-01" },
+  { id: "INV-2605", orgId: "org-02", amount: 56000, period: "Jul 2026", status: "due", issuedAt: "2026-07-01" },
+  { id: "INV-2604", orgId: "org-03", amount: 56000, period: "Jul 2026", status: "paid", issuedAt: "2026-07-01" },
+  { id: "INV-2603", orgId: "org-05", amount: 56000, period: "Jun 2026", status: "overdue", issuedAt: "2026-06-01" },
+  { id: "INV-2602", orgId: "org-05", amount: 56000, period: "Jul 2026", status: "due", issuedAt: "2026-07-01" },
+  { id: "INV-2601", orgId: "org-07", amount: 14000, period: "Jul 2026", status: "paid", issuedAt: "2026-07-01" },
+  { id: "INV-2600", orgId: "org-09", amount: 14000, period: "Jul 2026", status: "due", issuedAt: "2026-07-01" },
 ];
 
 export const PLANS = [
-  { name: "Trial", price: "€0", blurb: "14-day evaluation, 1 declaration, watermarked outputs.", orgs: ORGS.filter((o) => o.plan === "Trial").length },
-  { name: "Growth", price: "€1,400/mo", blurb: "Unlimited declarations, 10 seats, standard support SLA.", orgs: ORGS.filter((o) => o.plan === "Growth").length },
+  { name: "Trial", price: "฿0", blurb: "14-day evaluation, 1 declaration, watermarked outputs.", orgs: ORGS.filter((o) => o.plan === "Trial").length },
+  { name: "Growth", price: "฿56,000/mo", blurb: "Unlimited declarations, 10 seats, standard support SLA.", orgs: ORGS.filter((o) => o.plan === "Growth").length },
   { name: "Enterprise", price: "custom", blurb: "SSO, approval-chain templates, dedicated CS, 99.9% SLA.", orgs: ORGS.filter((o) => o.plan === "Enterprise").length },
   { name: "Partner", price: "rev-share", blurb: "Verifier partners — scoped portal access, no subscription.", orgs: ORGS.filter((o) => o.plan === "Partner").length },
 ];
@@ -442,7 +455,7 @@ export const AUDIT_FIXTURES: AuditEvent[] = [
   { id: "a-120", at: "2026-07-06 09:26", actorId: "st-16", module: "accounts", action: "impersonation.start", target: "org-02", detail: "Reason: reproduce blank Smart Link (T-1040). Time-boxed 30 min." },
   { id: "a-119", at: "2026-07-06 08:44", actorId: "st-07", module: "regulatory", action: "draft.review", target: "dr-01", detail: "Opened for approval review." },
   { id: "a-118", at: "2026-07-05 18:03", actorId: "st-15", module: "system", action: "flag.enable", target: "smartlink-v2-renderer", detail: "Enabled for org-02 only (canary)." },
-  { id: "a-117", at: "2026-07-05 17:12", actorId: "st-13", module: "billing", action: "credit.draft", target: "org-05", detail: "Drafted €1,400 goodwill credit — pending Finance approval (segregation of duties)." },
+  { id: "a-117", at: "2026-07-05 17:12", actorId: "st-13", module: "billing", action: "credit.draft", target: "org-05", detail: "Drafted ฿56,000 goodwill credit — pending Finance approval (segregation of duties)." },
   { id: "a-116", at: "2026-07-05 14:25", actorId: "st-10", module: "verification", action: "queue.assign", target: "q-02", detail: "Assigned to Kavin Srisuwan." },
   { id: "a-115", at: "2026-07-04 16:50", actorId: "st-21", module: "support", action: "ticket.escalate", target: "T-1041", detail: "Routed to Revenue Ops." },
   { id: "a-114", at: "2026-07-04 11:08", actorId: "st-22", module: "staff", action: "role.grant", target: "st-23", detail: "Invited Greta Lindqvist as Regulatory Analyst.", superFlag: true },
@@ -542,12 +555,12 @@ export const KPIS = {
 };
 
 export const MRR_TREND = [
-  { month: "Feb", value: 5250 },
-  { month: "Mar", value: 6300 },
-  { month: "Apr", value: 7350 },
-  { month: "May", value: 8400 },
-  { month: "Jun", value: 9100 },
-  { month: "Jul", value: 9100 },
+  { month: "Feb", value: 210000 },
+  { month: "Mar", value: 252000 },
+  { month: "Apr", value: 294000 },
+  { month: "May", value: 336000 },
+  { month: "Jun", value: 364000 },
+  { month: "Jul", value: 364000 },
 ];
 
 export const FUNNEL = [

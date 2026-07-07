@@ -1,15 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Card, PageHeader, Stat, StatusDot } from "@/components/ui";
 import { MiniBars, SectionTitle, StatusChip, Table, Td, Th } from "@/components/admin/bits";
 import { ModuleGuard } from "@/components/admin/shell";
 import { useAdminAuth, roleOf } from "@/lib/admin-auth";
-import { useAdminStore, allQueue, allAudit, allDrafts, allTickets } from "@/lib/admin-store";
-import { KPIS, MRR_TREND, ORGS, DECLARATIONS, getOrg, getStaff } from "@/lib/admin-data";
+import { useAdminStore, allQueue, allAudit, allDrafts, allTickets, staffName } from "@/lib/admin-store";
+import { KPIS, MRR_TREND, ORGS, DECLARATIONS, getOrg, thb, thbCompact } from "@/lib/admin-data";
 
 export default function Dashboard() {
   const { user, can } = useAdminAuth();
+  const router = useRouter();
   useAdminStore();
   if (!user) return null;
 
@@ -44,7 +46,7 @@ export default function Dashboard() {
         />
 
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <Card className="p-5"><Stat value={`€${KPIS.mrr.toLocaleString()}`} label="MRR" sub={`${KPIS.activeOrgs} paying orgs · ${KPIS.trials} trials`} /></Card>
+          <Card className="p-5"><Stat value={thb(KPIS.mrr)} label="MRR" sub={`${KPIS.activeOrgs} paying orgs · ${KPIS.trials} trials`} /></Card>
           <Card className="p-5"><Stat value={KPIS.declarationsInFlight} label="Declarations in flight" sub="across all tenants" /></Card>
           <Card className="p-5"><Stat value={queue.length} label="Verification queue" sub={`${pendingDrafts} reg draft${pendingDrafts === 1 ? "" : "s"} awaiting approval`} /></Card>
           <Card className="p-5"><Stat value={openTickets} label="Open tickets" sub={`${KPIS.renewalRisk} account at renewal risk`} /></Card>
@@ -54,7 +56,7 @@ export default function Dashboard() {
           <Card>
             <SectionTitle>Revenue trend</SectionTitle>
             <div className="px-5 pb-5">
-              <MiniBars data={MRR_TREND} format={(v) => `€${(v / 1000).toFixed(1)}k`} />
+              <MiniBars data={MRR_TREND} format={thbCompact} />
             </div>
           </Card>
 
@@ -87,7 +89,11 @@ export default function Dashboard() {
               <thead><tr><Th>Item</Th><Th>Org</Th><Th>Kind</Th><Th>SLA</Th><Th>Status</Th></tr></thead>
               <tbody>
                 {queue.map((q) => (
-                  <tr key={q.id} className="ct-row">
+                  <tr
+                    key={q.id}
+                    className="ct-row cursor-pointer transition-colors hover:bg-black/[0.02]"
+                    onClick={() => router.push("/admin/verification-queue")}
+                  >
                     <Td className="max-w-md">{q.summary}</Td>
                     <Td>{getOrg(q.orgId)?.name}</Td>
                     <Td><span className="font-mono text-[11px] text-black/50">{q.kind}</span></Td>
@@ -111,7 +117,7 @@ export default function Dashboard() {
               <li key={e.id} className="flex items-baseline gap-3 border-b border-black/[0.05] py-2.5 text-[13px] last:border-b-0">
                 <span className="w-28 flex-none font-mono text-[11px] text-black/35">{e.at.slice(5)}</span>
                 <span className="text-black/70">
-                  <span className="text-black/45">{getStaff(e.actorId)?.name ?? e.actorId}</span>{" "}
+                  <span className="text-black/45">{staffName(e.actorId)}</span>{" "}
                   <span className="font-mono text-[12px]">{e.action}</span>{" "}
                   <span className="text-black/45">→ {e.target}</span>
                   {e.superFlag && <span className="ml-2 rounded bg-[#3C7ACB]/10 px-1.5 py-0.5 font-pixel text-[9px] uppercase tracking-[0.12em] text-[#2c5c9c]">Super admin</span>}
