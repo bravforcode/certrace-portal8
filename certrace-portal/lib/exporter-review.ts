@@ -57,6 +57,18 @@ export type SupplierReview = {
   decidedAt: number | null;
 };
 
+/* Buyer & Authority Handoff (Stage 5/8) — the exporter is never the CBAM
+   declarant, so "filing" here means pushing verified data into the two real
+   channels a non-EU operator has: the CBAM Registry's O3CI module and the
+   Annex IV Communication Template. `acknowledgedAt` tracks each recipient
+   confirming receipt — the true end state, distinct from "we sent it". */
+export type DispatchRecipient = "buyer" | "authority" | "verifier";
+export type DispatchState = {
+  o3ciPushedAt: number | null;
+  templateSentAt: number | null;
+  acknowledgedAt: Partial<Record<DispatchRecipient, number>>;
+};
+
 export type ExporterDeclState = {
   declId: string;
   reviews: Record<string, SupplierReview>; // by supplierId
@@ -64,6 +76,7 @@ export type ExporterDeclState = {
   packageGeneratedAt: number | null;
   filedAt: number | null;
   recipients: { buyer: boolean; authority: boolean; verifier: boolean };
+  dispatch: DispatchState;
 };
 
 const defaultReview = (): SupplierReview => ({
@@ -86,6 +99,7 @@ export function loadExporterState(declId: string): ExporterDeclState {
     packageGeneratedAt: null,
     filedAt: null,
     recipients: { buyer: true, authority: true, verifier: true },
+    dispatch: { o3ciPushedAt: null, templateSentAt: null, acknowledgedAt: {} },
   };
   if (typeof window === "undefined") return empty;
   try {
@@ -470,6 +484,34 @@ export function fileDeclaration(declId: string, recipients: { buyer: boolean; au
 export function setRecipients(declId: string, recipients: { buyer: boolean; authority: boolean; verifier: boolean }): ExporterDeclState {
   const state = loadExporterState(declId);
   const next = { ...state, recipients };
+  saveExporterState(next);
+  return next;
+}
+
+/** Push verified installation + emissions data into the CBAM Registry's O3CI
+    module (Operators of Third-Country Installations) — any declarant holding
+    this operator's EORI reference can then pull it in directly. */
+export function pushToO3CI(declId: string): ExporterDeclState {
+  const state = loadExporterState(declId);
+  const next = { ...state, dispatch: { ...state.dispatch, o3ciPushedAt: state.dispatch.o3ciPushedAt ?? Date.now() } };
+  saveExporterState(next);
+  return next;
+}
+
+/** Send the Annex IV-aligned CBAM Communication Template to buyers/declarants
+    not using O3CI — the regulator-recognised fallback to a generic PDF. */
+export function sendCommunicationTemplate(declId: string): ExporterDeclState {
+  const state = loadExporterState(declId);
+  const next = { ...state, dispatch: { ...state.dispatch, templateSentAt: state.dispatch.templateSentAt ?? Date.now() } };
+  saveExporterState(next);
+  return next;
+}
+
+/** Records a recipient confirming receipt — the real end state, since the
+    exporter can never claim "filed with the authority" on someone else's behalf. */
+export function acknowledgeRecipient(declId: string, recipient: DispatchRecipient): ExporterDeclState {
+  const state = loadExporterState(declId);
+  const next = { ...state, dispatch: { ...state.dispatch, acknowledgedAt: { ...state.dispatch.acknowledgedAt, [recipient]: Date.now() } } };
   saveExporterState(next);
   return next;
 }

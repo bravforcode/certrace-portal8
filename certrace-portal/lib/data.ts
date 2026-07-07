@@ -2,6 +2,8 @@
    Posture: a Thai steel exporter (Siam Steel Export Co.) filing CBAM for the EU,
    as of mid-June 2026. CBAM-only, steel-only — matches the launch gating in config.ts. */
 
+import { getCreatedDeclaration } from "./declarations-store";
+
 export type SupplierStatus = "submitted" | "in_progress" | "overdue" | "not_started";
 
 export type SupplierRow = {
@@ -284,7 +286,7 @@ export const REPORTS: ReportRecord[] = [
   },
 ];
 
-export const getDeclaration = (id: string) => DECLARATIONS.find((d) => d.id === id);
+export const getDeclaration = (id: string) => DECLARATIONS.find((d) => d.id === id) ?? getCreatedDeclaration(id) ?? undefined;
 
 export const supplierStatusMeta: Record<SupplierStatus, { label: string; tone: "ok" | "info" | "warn" | "err" | "muted" }> = {
   submitted: { label: "submitted", tone: "ok" },

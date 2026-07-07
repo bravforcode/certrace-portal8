@@ -1,10 +1,79 @@
-/* Real client-side file generation.
-   Produces an actual, on-brand PDF and triggers a download — so every
-   Download / PDF button delivers a file that's ready to file with the
-   authority, not an HTML page with print instructions. */
+/* ════════════════════════════════════════════════════════════
+   CBAM COMMUNICATION & AUDIT PACKAGE (PDF) + file download helpers
+
+   Real client-side file generation. This builds the full package a buyer's
+   CBAM declarant, a verifier or an auditor actually works from — not a
+   one-page summary. Structure:
+
+     Cover                     identity, period, dataset hash, totals
+     Contents                  with real page numbers (backfilled)
+     Part A                    declaration summary + consolidated table
+     Part B                    methodology & legal basis (definitive period)
+     Part C                    one chapter PER SUPPLIER: installation data,
+                               per-product emissions detail, carbon price,
+                               verification, evidence register, findings,
+                               version history
+     Part D                    consolidated evidence register
+     Part E                    findings & data quality
+     Part F                    version history
+     Part G                    internal approval & sign-off record
+     Part H                    full audit trail
+     Part I                    glossary & regulatory references
+     Seal                      dataset hash + signature block
+
+   With a typical 8-supplier declaration this renders 20–30+ pages — the
+   size a real communication/audit package runs, because every number is
+   traceable to its installation, method and evidence.
+   ════════════════════════════════════════════════════════════ */
 
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+
+/* ── Input types ───────────────────────────────────────────── */
+
+export type ChapterProduct = {
+  name: string;
+  cnCode: string;
+  hsCode?: string;
+  category: string;
+  group: string;
+  route?: string;
+  quantityTonnes: number;
+  directPerTonne: number | null;
+  indirectPerTonne: number | null;
+  totalPerTonne: number | null;
+  absoluteTCO2e: number | null;
+  method?: string; // "actual" | "default"
+  precursors?: string;
+  precursorRoutes?: string;
+};
+
+export type SupplierChapter = {
+  name: string;
+  ref: string;
+  country: string;
+  version: number;
+  submittedAt: string | null;
+  signedBy?: string | null;
+  signedRole?: string | null;
+  dataQualityScore?: number | null;
+  installation: { name: string; address: string; country: string; unlocode?: string; coordinates?: string };
+  products: ChapterProduct[];
+  carbonPrice: { amount: string; instrument?: string; note?: string };
+  verification: string;
+  documents: { label: string; required: boolean; status: "uploaded" | "missing"; files: string[] }[];
+  findings: { severity: "critical" | "warning"; title: string; detail: string }[];
+  versions: { n: number; when: string; score: number; signedBy?: string | null }[];
+};
+
+export type SignOffStep = {
+  label: string;
+  actor: string;
+  title: string;
+  status: string;
+  when: string | null;
+  comment?: string;
+};
 
 export type PackageInput = {
   ref: string;
@@ -33,17 +102,20 @@ export type PackageInput = {
   }[];
   aiWarnings?: { supplier: string; message: string; type: "critical" | "warning" }[];
   documents?: { supplier: string; name: string; status: "uploaded" | "missing" }[];
-  /** Per-category Scope 2 (indirect) liability treatment — see lib/config.ts's
-      SCOPE2_IN_LIABILITY. Surfaced so the declarant never has to guess (or a
-      buyer/authority never has to ask) whether indirect emissions are billable
-      for this sector during the current definitive period. */
   scope2Notes?: { category: string; included: boolean }[];
-  /** Real, persisted events across every approved submission — not a claim. */
   auditTrail?: { supplier: string; when: string; text: string }[];
-  /** Every submitted version per supplier, so revisions are traceable. */
   versionHistory?: { supplier: string; version: number; when: string; score: number }[];
+  /** Full per-supplier chapters (Part C). When present the package renders the
+      complete communication/audit document instead of summary tables only. */
+  chapters?: SupplierChapter[];
+  /** Internal approval chain record (Part G). */
+  signOff?: SignOffStep[];
+  /** sha-256 of the dataset JSON, computed by downloadPackage — printed on the
+      cover and the seal page so any copy can be checked against the source. */
+  contentHash?: string;
 };
 
+/* ── Palette (design system: ink on bone, colour = status only) ── */
 type RGB = [number, number, number];
 const INK: RGB = [17, 17, 17];
 const MUTED: RGB = [128, 128, 122];
@@ -55,15 +127,15 @@ const AMBER: RGB = [180, 95, 6];
 
 const MARGIN = 48;
 
-/* jsPDF's built-in fonts (helvetica/courier/times) only implement WinAnsi
-   (cp1252) — anything outside that doesn't error, it silently renders as
-   mojibake. That includes the arrow used in "origin → market", the subscript
-   in "tCO₂e", and any Thai-script text (e.g. a jurisdiction's factorSet name).
-   Every string reaching doc.text()/autoTable is routed through this first, so
-   an unsupported character degrades to a visible "?" instead of shipping a
-   corrupted government-facing document. */
+/* jsPDF's built-in fonts only implement WinAnsi (cp1252) — anything outside
+   silently renders as mojibake. Every string reaching doc.text()/autoTable
+   routes through this, so unsupported characters degrade to "?" instead of
+   shipping corrupted glyphs in a government-facing document. */
 const UNICODE_FALLBACK: Record<string, string> = {
   "→": "->",
+  "≥": ">=",
+  "≤": "<=",
+  "·": "-",
   "₀": "0", "₁": "1", "₂": "2", "₃": "3", "₄": "4",
   "₅": "5", "₆": "6", "₇": "7", "₈": "8", "₉": "9",
 };
@@ -75,9 +147,6 @@ function pdfSafe(text: string): string {
       continue;
     }
     const cp = ch.codePointAt(0)!;
-    // printable ASCII, Latin-1 supplement, the common cp1252 punctuation block
-    // (curly quotes, en/em dash, ellipsis), and \n/\r (intentional line breaks
-    // inside multi-line table cells) all render/behave fine as-is.
     const safe =
       cp === 0x0a ||
       cp === 0x0d ||
@@ -89,6 +158,8 @@ function pdfSafe(text: string): string {
   return out;
 }
 
+const fmtN = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
+
 export function buildPackagePdf(p: PackageInput): jsPDF {
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -96,10 +167,12 @@ export function buildPackagePdf(p: PackageInput): jsPDF {
   const contentWidth = pageWidth - MARGIN * 2;
   let y = MARGIN;
 
+  const toc: { label: string; page: number }[] = [];
+
   const ensureSpace = (needed: number) => {
-    if (y + needed > pageHeight - MARGIN) {
+    if (y + needed > pageHeight - MARGIN - 12) {
       doc.addPage();
-      y = MARGIN;
+      y = MARGIN + 10;
     }
   };
 
@@ -112,17 +185,40 @@ export function buildPackagePdf(p: PackageInput): jsPDF {
     y += 16;
   };
 
+  /** Big part heading — always starts a fresh page and records a TOC entry. */
+  const partHeading = (label: string, title: string, lead?: string) => {
+    doc.addPage();
+    y = MARGIN + 10;
+    toc.push({ label: `${label} — ${title}`, page: doc.getNumberOfPages() });
+    doc.setFont("courier", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(...MUTED);
+    doc.text(pdfSafe(label).toUpperCase(), MARGIN, y);
+    y += 20;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(19);
+    doc.setTextColor(...INK);
+    doc.text(pdfSafe(title), MARGIN, y);
+    y += 14;
+    doc.setDrawColor(...BORDER);
+    doc.line(MARGIN, y, pageWidth - MARGIN, y);
+    y += 18;
+    if (lead) paragraph(lead);
+  };
+
   const kv = (label: string, value: string) => {
     ensureSpace(20);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
+    doc.setFontSize(9.5);
     doc.setTextColor(...MUTED);
     doc.text(pdfSafe(label), MARGIN, y);
     doc.setTextColor(...INK);
-    doc.text(pdfSafe(value), pageWidth - MARGIN, y, { align: "right" });
+    const lines = doc.splitTextToSize(pdfSafe(value), contentWidth * 0.55) as string[];
+    doc.text(lines, pageWidth - MARGIN, y, { align: "right" });
+    const rowH = Math.max(1, lines.length) * 12 + 8;
     doc.setDrawColor(...BORDER);
-    doc.line(MARGIN, y + 6, pageWidth - MARGIN, y + 6);
-    y += 20;
+    doc.line(MARGIN, y + rowH - 12, pageWidth - MARGIN, y + rowH - 12);
+    y += rowH;
   };
 
   const paragraph = (text: string, color: RGB = MUTED, size = 9) => {
@@ -135,20 +231,39 @@ export function buildPackagePdf(p: PackageInput): jsPDF {
     y += lines.length * (size + 3) + 8;
   };
 
-  const table = (title: string, head: string[], body: string[][], colorColumn?: { index: number; color: (raw: string) => RGB | null }) => {
+  const bullet = (text: string, color: RGB = MUTED, size = 9) => {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(size);
+    const lines = doc.splitTextToSize(pdfSafe(text), contentWidth - 14) as string[];
+    ensureSpace(lines.length * (size + 3) + 3);
+    doc.setTextColor(...color);
+    doc.circle(MARGIN + 3, y - 2.5, 1.1, "F");
+    doc.text(lines, MARGIN + 14, y);
+    y += lines.length * (size + 3) + 5;
+  };
+
+  const table = (
+    title: string | null,
+    head: string[],
+    body: string[][],
+    opts?: { colorColumn?: { index: number; color: (raw: string) => RGB | null }; columnWidths?: Record<number, number> },
+  ) => {
     if (!body.length) return;
-    eyebrow(title);
+    if (title) eyebrow(title);
     autoTable(doc, {
       startY: y,
-      margin: { left: MARGIN, right: MARGIN, bottom: MARGIN },
+      margin: { left: MARGIN, right: MARGIN, bottom: MARGIN + 16, top: MARGIN + 10 },
       head: [head.map(pdfSafe)],
       body: body.map((row) => row.map(pdfSafe)),
-      styles: { font: "helvetica", fontSize: 8.5, textColor: INK, cellPadding: 6, lineColor: BORDER, lineWidth: 0.5, valign: "middle" },
-      headStyles: { fillColor: HEAD_BG, textColor: MUTED, fontStyle: "normal", fontSize: 7 },
+      styles: { font: "helvetica", fontSize: 8, textColor: INK, cellPadding: 5, lineColor: BORDER, lineWidth: 0.5, valign: "middle" },
+      headStyles: { fillColor: HEAD_BG, textColor: MUTED, fontStyle: "normal", fontSize: 6.8 },
+      columnStyles: opts?.columnWidths
+        ? Object.fromEntries(Object.entries(opts.columnWidths).map(([k, w]) => [k, { cellWidth: w }]))
+        : undefined,
       didParseCell: (data) => {
-        if (colorColumn && data.section === "body" && data.column.index === colorColumn.index) {
+        if (opts?.colorColumn && data.section === "body" && data.column.index === opts.colorColumn.index) {
           const raw = String(data.cell.raw ?? "");
-          const c = colorColumn.color(raw);
+          const c = opts.colorColumn.color(raw);
           if (c) {
             data.cell.styles.textColor = c;
             data.cell.styles.fontStyle = "bold";
@@ -157,99 +272,106 @@ export function buildPackagePdf(p: PackageInput): jsPDF {
       },
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    y = (doc as any).lastAutoTable.finalY + 20;
+    y = (doc as any).lastAutoTable.finalY + 18;
   };
 
-  /* Header */
+  /* ════════ COVER ════════ */
   doc.setFont("courier", "normal");
-  doc.setFontSize(9);
+  doc.setFontSize(9.5);
   doc.setTextColor(...INK);
-  doc.text("CERTRACE", MARGIN, y);
+  doc.text("CERTRACE", MARGIN, MARGIN + 4);
   doc.setDrawColor(...BORDER);
-  doc.roundedRect(pageWidth - MARGIN - 100, y - 13, 100, 18, 3, 3);
-  doc.setFont("courier", "normal");
+  doc.roundedRect(pageWidth - MARGIN - 130, MARGIN - 9, 130, 18, 3, 3);
   doc.setFontSize(8);
   doc.setTextColor(...MUTED);
-  doc.text(pdfSafe(p.ref), pageWidth - MARGIN - 50, y, { align: "center" });
+  doc.text(pdfSafe(p.ref), pageWidth - MARGIN - 65, MARGIN + 3, { align: "center" });
+
+  y = 190;
+  doc.setFont("courier", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(...MUTED);
+  doc.text(pdfSafe(p.regulationFull).toUpperCase(), MARGIN, y);
   y += 30;
-
-  eyebrow(p.regulationFull);
-
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(23);
+  doc.setFontSize(28);
   doc.setTextColor(...INK);
-  doc.text("Embedded emissions declaration", MARGIN, y);
-  y += 20;
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10.5);
+  doc.text("CBAM Communication", MARGIN, y);
+  y += 32;
+  doc.text("& Audit Package", MARGIN, y);
+  y += 30;
+  doc.setFontSize(11);
   doc.setTextColor(...MUTED);
   doc.text(pdfSafe(`${p.sector} · ${p.period} · ${p.origin} → ${p.market}`), MARGIN, y);
-  y += 28;
+  y += 44;
 
-  /* Stat boxes */
   const stats: [string, string][] = [
-    [p.totalEmbedded.toLocaleString(), "tCO2e embedded"],
-    [String(p.supplierCount), "suppliers verified"],
-    ["100%", "audit-ready"],
+    [fmtN(p.totalEmbedded), "tCO2e embedded"],
+    [String(p.supplierCount), "supplier submissions"],
+    [String(doc ? (p.chapters?.reduce((a, c) => a + c.products.length, 0) ?? p.suppliers?.length ?? 0) : 0), "goods reported"],
   ];
   const boxGap = 8;
   const boxW = (contentWidth - boxGap * 2) / 3;
-  const boxH = 54;
-  ensureSpace(boxH + 24);
+  const boxH = 58;
   stats.forEach(([v, l], i) => {
     const bx = MARGIN + i * (boxW + boxGap);
     doc.setDrawColor(...BORDER);
     doc.roundedRect(bx, y, boxW, boxH, 6, 6);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(18);
+    doc.setFontSize(19);
     doc.setTextColor(...INK);
-    doc.text(pdfSafe(v), bx + 12, y + 27);
-    doc.setFont("helvetica", "normal");
+    doc.text(pdfSafe(v), bx + 12, y + 28);
     doc.setFontSize(7.5);
     doc.setTextColor(...MUTED);
-    doc.text(pdfSafe(l).toUpperCase(), bx + 12, y + 41);
+    doc.text(pdfSafe(l).toUpperCase(), bx + 12, y + 44);
   });
-  y += boxH + 26;
+  y += boxH + 40;
 
-  /* Declarant */
-  eyebrow("Declarant");
-  kv("Exporter", p.org);
-  kv("Installation / facility ID", p.installationId);
-  kv("Methodology", `IPCC · GHG Protocol · ${p.factorSet}`);
-  kv("Carbon price paid in origin", p.carbonPricePaid === 0 ? "None (Thailand — no carbon price)" : String(p.carbonPricePaid));
-  y += 10;
-
-  /* Legal notice — Scope 2 liability treatment, so nobody downstream has to
-     guess (or worse, assume the wrong thing) about what's billable. */
-  if (p.scope2Notes?.length) {
-    eyebrow("Legal notice", AMBER);
-    for (const note of p.scope2Notes) {
-      paragraph(
-        note.included
-          ? `${note.category}: indirect (Scope 2 / electricity) emissions are reported above and count toward the CBAM financial obligation for this sector.`
-          : `${note.category}: indirect (Scope 2 / electricity) emissions are reported above but are currently excluded from the CBAM financial obligation for this sector during the definitive period — only the direct and precursor emissions shown are billable.`,
-      );
-    }
-    y += 2;
+  doc.setFont("courier", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(...MUTED);
+  doc.text(pdfSafe(`Communicating operator: ${p.org} · ${p.installationId}`), MARGIN, y);
+  y += 14;
+  doc.text(pdfSafe(`Generated: ${new Date().toUTCString()}`), MARGIN, y);
+  y += 14;
+  if (p.contentHash) {
+    doc.text(pdfSafe(`Dataset sha-256: ${p.contentHash}`), MARGIN, y, { maxWidth: contentWidth });
+    y += 14;
   }
 
-  /* AI Validation Outcomes */
-  table(
-    "AI Validation Outcomes",
-    ["Type", "Supplier", "Issue"],
-    (p.aiWarnings ?? []).map((w) => [w.type.toUpperCase(), w.supplier, w.message]),
-    { index: 0, color: (raw) => (raw === "CRITICAL" ? RED : raw === "WARNING" ? AMBER : null) },
+  doc.setFontSize(7.5);
+  doc.text(
+    pdfSafe(
+      "This package supports the buyer's CBAM declaration. It is communicated by the third-country operator; only the EU importer's Authorised CBAM Declarant files with the CBAM Registry.",
+    ),
+    MARGIN,
+    pageHeight - MARGIN - 24,
+    { maxWidth: contentWidth },
   );
 
-  /* Per-supplier embedded emissions */
+  /* ════════ CONTENTS (reserved — backfilled after render) ════════ */
+  doc.addPage();
+  const tocPage = doc.getNumberOfPages();
+
+  /* ════════ PART A — DECLARATION SUMMARY ════════ */
+  partHeading("Part A", "Declaration summary");
+  kv("Regulation", p.regulationFull);
+  kv("Reporting period", p.period);
+  kv("Goods sector", p.sector);
+  kv("Route", `${p.origin} → ${p.market}`);
+  kv("Communicating operator (exporter)", p.org);
+  kv("Operator reference", p.installationId);
+  kv("Monitoring methodology", `Annex IV, Reg. (EU) 2023/956 · Implementing Reg. (EU) 2023/1773 · ${p.factorSet}`);
+  kv("Total embedded emissions (approved submissions)", `${fmtN(p.totalEmbedded)} tCO2e`);
+  kv("Carbon price paid in country of origin", p.carbonPricePaid === 0 ? "None (Thailand currently has no carbon price)" : fmtN(p.carbonPricePaid));
+  y += 8;
+
   table(
-    "Per-supplier embedded emissions (tCO₂e/t)",
+    "Consolidated per-supplier embedded emissions (tCO2e per tonne)",
     ["Supplier", "Material & route", "Export qty", "Direct", "Indirect", "Precursor", "Total", "Verification"],
     (p.suppliers ?? []).map((s) => [
       s.name,
       s.productionRoute ? `${s.material}\n${s.productionRoute}` : s.material,
-      s.exportQuantity != null ? `${s.exportQuantity.toLocaleString()} t` : "—",
+      s.exportQuantity != null ? `${fmtN(s.exportQuantity)} t` : "—",
       s.directEmissions != null ? s.directEmissions.toFixed(2) : "—",
       s.indirectEmissions != null ? s.indirectEmissions.toFixed(2) : "—",
       s.precursorEmissions != null ? s.precursorEmissions.toFixed(2) : "—",
@@ -258,51 +380,283 @@ export function buildPackagePdf(p: PackageInput): jsPDF {
     ]),
   );
 
-  /* Supporting documents */
-  table(
-    "Supporting documents package",
-    ["Supplier", "Document", "Status"],
-    (p.documents ?? []).map((d) => [d.supplier, d.name, d.status.toUpperCase()]),
-    { index: 2, color: (raw) => (raw === "UPLOADED" ? GREEN : raw === "MISSING" ? RED : null) },
+  /* ════════ PART B — METHODOLOGY & LEGAL BASIS ════════ */
+  partHeading(
+    "Part B",
+    "Methodology & legal basis",
+    "How every figure in this package was determined, and the definitive-period rules it was checked against. A reviewer should be able to reproduce each number from this section plus the per-supplier chapters in Part C.",
   );
 
-  /* Version history */
+  eyebrow("Calculation methodology");
+  bullet("Specific embedded emissions (SEE) per good = specific direct emissions + specific indirect (electricity) emissions, in tCO2e per tonne of net mass, monitored at installation level per Annex IV of Regulation (EU) 2023/956.");
+  bullet("Complex goods additionally carry the attributed embedded emissions of their relevant precursor materials (e.g. pig iron, ferro-alloys, crude steel inputs).");
+  bullet(`Emission factors: ${p.factorSet}. Electricity factors follow the applicable grid or PPA factor with documented source.`);
+  bullet("Quantities are normalised to tonnes of net mass; emissions figures to tCO2e per tonne (the CBAM canonical form).");
+  y += 6;
+
+  if (p.scope2Notes?.length) {
+    eyebrow("Scope 2 (indirect) liability treatment", AMBER);
+    for (const note of p.scope2Notes) {
+      bullet(
+        note.included
+          ? `${note.category}: indirect (electricity) emissions are reported AND count toward the CBAM financial obligation for this sector.`
+          : `${note.category}: indirect (electricity) emissions are reported for transparency but are currently excluded from the CBAM financial obligation for this sector in the definitive period — only direct and precursor emissions are billable.`,
+      );
+    }
+    y += 6;
+  }
+
+  eyebrow("Definitive-period rules applied");
+  bullet("Default values are permitted but carry a markup (+10% in 2026, +20% in 2027, +30% from 2028) — every default-value figure in this package is flagged in its supplier chapter.");
+  bullet("Complex goods: default values may cover at most 20% of total embedded emissions; at least 80% must be actual, installation-level data.");
+  bullet("Actual-value figures require verification by an EN ISO 14065-accredited verifier; verification statements are referenced per supplier in Part C and included in the evidence register.");
+  bullet("A carbon price effectively paid in the country of origin is deductible from the CBAM obligation; the amount, instrument and country are recorded per supplier.");
+  bullet("CBAM certificate prices track the EU ETS auction average (quarterly in 2026, weekly from 2027). Certificate purchase and surrender happen on the declarant's side.");
+  y += 6;
+
+  eyebrow("Data lineage");
+  paragraph(
+    "Each supplier submission was collected through a Certrace Smart Link, passed the automated quality check (completeness, validation, anomaly, standardisation), was electronically signed by the supplier's authorised person, frozen as an immutable version, reviewed and approved by the exporter's internal chain (Part G), and only then locked into this package. The full event log is reproduced in Part H.",
+  );
+
+  /* ════════ PART C — PER-SUPPLIER CHAPTERS ════════ */
+  const chapters = p.chapters ?? [];
+  chapters.forEach((c, idx) => {
+    partHeading(`Part C.${idx + 1}`, c.name);
+
+    doc.setFont("courier", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(...MUTED);
+    const metaBits = [
+      `Ref ${c.ref}`,
+      c.country,
+      `Version ${c.version}`,
+      c.submittedAt ? `Submitted ${c.submittedAt}` : null,
+      c.signedBy ? `Signed by ${c.signedBy}${c.signedRole ? ` (${c.signedRole})` : ""}` : null,
+      c.dataQualityScore != null ? `Data quality ${c.dataQualityScore}/100` : null,
+    ].filter(Boolean) as string[];
+    doc.text(pdfSafe(metaBits.join("  ·  ")), MARGIN, y, { maxWidth: contentWidth });
+    y += 20;
+
+    eyebrow("Installation");
+    kv("Installation name", c.installation.name || "—");
+    kv("Address", c.installation.address || "—");
+    kv("Country", c.installation.country || "—");
+    if (c.installation.unlocode) kv("UN/LOCODE", c.installation.unlocode);
+    kv("Coordinates (main emission source)", c.installation.coordinates || "—");
+    y += 6;
+
+    for (const prod of c.products) {
+      eyebrow(`Good — ${prod.name}`);
+      kv("CN code", prod.cnCode + (prod.hsCode ? `  (HS ${prod.hsCode})` : ""));
+      kv("Aggregated goods category", `${prod.category} — ${prod.group}`);
+      if (prod.route) kv("Production route", prod.route);
+      kv("Quantity (net mass)", `${fmtN(prod.quantityTonnes)} t`);
+      table(
+        null,
+        ["Component", "tCO2e / t", "Basis"],
+        [
+          ["Direct (Scope 1)", prod.directPerTonne != null ? prod.directPerTonne.toFixed(2) : "—", prod.method === "default" ? "DEFAULT VALUES" : "ACTUAL DATA"],
+          ["Indirect (electricity)", prod.indirectPerTonne != null ? prod.indirectPerTonne.toFixed(2) : "—", prod.method === "default" ? "DEFAULT VALUES" : "ACTUAL DATA"],
+          ["Total embedded (SEE)", prod.totalPerTonne != null ? prod.totalPerTonne.toFixed(2) : "—", ""],
+          ["Absolute for quantity", prod.absoluteTCO2e != null ? `${fmtN(prod.absoluteTCO2e)} tCO2e` : "—", ""],
+        ],
+        { colorColumn: { index: 2, color: (raw) => (raw === "DEFAULT VALUES" ? AMBER : raw === "ACTUAL DATA" ? GREEN : null) } },
+      );
+      if (prod.precursors) {
+        eyebrow("Precursors");
+        paragraph(prod.precursors, INK, 9);
+        if (prod.precursorRoutes) paragraph(`Production routes: ${prod.precursorRoutes}`);
+      }
+    }
+
+    eyebrow("Carbon price in country of origin");
+    kv("Amount", c.carbonPrice.amount === "0" || !c.carbonPrice.amount ? "0 (no carbon price paid)" : c.carbonPrice.amount);
+    if (c.carbonPrice.instrument) kv("Instrument", c.carbonPrice.instrument);
+    y += 4;
+
+    eyebrow("Verification");
+    paragraph(c.verification || "No verification statement provided.", c.verification ? INK : AMBER, 9);
+
+    table(
+      "Evidence register",
+      ["Document", "Required", "Status", "Files"],
+      c.documents.map((d) => [d.label, d.required ? "Required" : "Optional", d.status.toUpperCase(), d.files.join(", ") || "—"]),
+      { colorColumn: { index: 2, color: (raw) => (raw === "UPLOADED" ? GREEN : raw === "MISSING" ? RED : null) } },
+    );
+
+    if (c.findings.length) {
+      eyebrow("Open findings at approval");
+      for (const f of c.findings) {
+        bullet(`[${f.severity.toUpperCase()}] ${f.title} — ${f.detail}`, f.severity === "critical" ? RED : AMBER, 8.5);
+      }
+      y += 4;
+    }
+
+    table(
+      "Version history",
+      ["Version", "Submitted", "Quality score", "Signed by"],
+      c.versions.map((v) => [`V${v.n}`, v.when, String(v.score), v.signedBy ?? "—"]),
+    );
+  });
+
+  /* ════════ PART D — CONSOLIDATED EVIDENCE REGISTER ════════ */
+  partHeading("Part D", "Consolidated evidence register", "Every supporting document across all submissions, with upload status at the time this package was sealed.");
   table(
-    "Version history",
-    ["Supplier", "Version", "Submitted", "Score"],
+    null,
+    ["Supplier", "Document", "Status"],
+    (p.documents ?? []).map((d) => [d.supplier, d.name, d.status.toUpperCase()]),
+    { colorColumn: { index: 2, color: (raw) => (raw === "UPLOADED" ? GREEN : raw === "MISSING" ? RED : null) } },
+  );
+
+  /* ════════ PART E — FINDINGS & DATA QUALITY ════════ */
+  partHeading("Part E", "Findings & data quality", "Automated quality-check outcomes that remained open when each submission was approved. Critical findings block a supplier's submission; warnings pass through with acknowledgement and are disclosed here.");
+  table(
+    null,
+    ["Severity", "Supplier", "Finding"],
+    (p.aiWarnings ?? []).map((w) => [w.type.toUpperCase(), w.supplier, w.message]),
+    { colorColumn: { index: 0, color: (raw) => (raw === "CRITICAL" ? RED : raw === "WARNING" ? AMBER : null) } },
+  );
+  if (!(p.aiWarnings ?? []).length) paragraph("No findings were open at approval — every submission passed the automated checks cleanly.", GREEN);
+
+  /* ════════ PART F — VERSION HISTORY ════════ */
+  partHeading("Part F", "Version history", "Every submitted version of every supplier's data. A revision requested by the exporter reopens only the flagged fields; the resubmission is a new version — earlier versions are never overwritten.");
+  table(
+    null,
+    ["Supplier", "Version", "Submitted", "Quality score"],
     (p.versionHistory ?? []).map((v) => [v.supplier, `V${v.version}`, v.when, String(v.score)]),
   );
 
-  /* Audit trail */
+  /* ════════ PART G — APPROVAL & SIGN-OFF RECORD ════════ */
+  partHeading("Part G", "Internal approval & sign-off record", "The exporter's internal review chain for this declaration. Each step is electronically recorded against the exact dataset version being approved.");
+  if (p.signOff?.length) {
+    table(
+      null,
+      ["Step", "Actor", "Role", "Outcome", "Date"],
+      p.signOff.map((s) => [s.label, s.actor, s.title, s.status.replace("_", " ").toUpperCase(), s.when ?? "—"]),
+      { colorColumn: { index: 3, color: (raw) => (raw === "APPROVED" ? GREEN : raw === "CHANGES REQUESTED" ? RED : null) } },
+    );
+    const commented = p.signOff.filter((s) => s.comment);
+    if (commented.length) {
+      eyebrow("Step comments");
+      for (const s of commented) bullet(`${s.actor} (${s.label}): "${s.comment}"`, INK, 8.5);
+    }
+  } else {
+    paragraph("No internal sign-off chain was recorded for this declaration. For regulated filings, Certrace recommends at minimum a preparer + approver chain (see the Review & Approval workspace).", AMBER);
+  }
+
+  /* ════════ PART H — AUDIT TRAIL ════════ */
+  partHeading("Part H", "Audit trail", "The complete, append-only event log across every submission in this declaration — collection, quality checks, signatures, revisions, approvals. Timestamps are UTC.");
   table(
-    "Audit trail",
+    null,
     ["Timestamp", "Supplier", "Event"],
     (p.auditTrail ?? []).map((e) => [e.when, e.supplier, e.text]),
+    { columnWidths: { 0: 130, 1: 100 } },
   );
 
-  /* Seal */
-  ensureSpace(40);
+  /* ════════ PART I — GLOSSARY & REFERENCES ════════ */
+  partHeading("Part I", "Glossary & regulatory references");
+  eyebrow("Glossary");
+  const glossary: [string, string][] = [
+    ["CBAM", "Carbon Border Adjustment Mechanism — the EU's carbon price on embedded emissions of imported goods."],
+    ["SEE", "Specific embedded emissions — tCO2e per tonne of net mass of a good (direct + indirect, plus attributed precursor emissions for complex goods)."],
+    ["Direct emissions", "Scope 1 emissions from the production processes of the installation, including heating/cooling consumed."],
+    ["Indirect emissions", "Emissions from the production of electricity consumed during production."],
+    ["Precursor", "An input material that is itself a CBAM good, whose embedded emissions carry into the finished (complex) good."],
+    ["Complex good", "A good produced using relevant precursor materials — its SEE must include the precursors' attributed emissions."],
+    ["Default value", "Commission-published fallback emission intensity, marked up year-on-year; capped at 20% of embedded emissions for complex goods."],
+    ["CN code", "8-digit Combined Nomenclature commodity code identifying the good."],
+    ["Authorised CBAM Declarant", "The EU importer (or indirect customs representative) authorised to file CBAM declarations and surrender certificates."],
+    ["O3CI", "The CBAM Registry module for Operators of Third-Country Installations — where a non-EU producer registers installations and shares emissions data with declarants."],
+    ["Communication template", "The Commission's Annex IV-aligned format for transmitting embedded-emissions data from operator to declarant."],
+  ];
+  for (const [term, def] of glossary) bullet(`${term} — ${def}`, MUTED, 8.5);
+  y += 6;
+  eyebrow("Regulatory references");
+  bullet("Regulation (EU) 2023/956 establishing a carbon border adjustment mechanism (the CBAM Regulation), incl. Annex IV monitoring rules.");
+  bullet("Implementing Regulation (EU) 2023/1773 on reporting obligations and the communication of embedded emissions data.");
+  bullet("CBAM Registry — Authorisation Management Module and the Operators of Third-Country Installations (O3CI) portal.");
+  bullet("EU ETS auction prices (the reference for CBAM certificate pricing from 2026/2027).");
+
+  /* ════════ SEAL ════════ */
+  doc.addPage();
+  toc.push({ label: "Seal & signatures", page: doc.getNumberOfPages() });
+  y = MARGIN + 30;
   doc.setFillColor(...GREEN);
   doc.circle(MARGIN + 3, y - 3, 3, "F");
   doc.setFont("courier", "normal");
-  doc.setFontSize(8);
+  doc.setFontSize(8.5);
   doc.setTextColor(...MUTED);
   const auditCount = p.auditTrail?.length ?? 0;
-  const sealText = `Generated ${new Date().toUTCString()} · sealed by Certrace · sha-256 evidence trail${auditCount ? ` · ${auditCount} audit events embedded above` : ""} · reviewer sign-off attached`;
-  doc.text(pdfSafe(sealText), MARGIN + 12, y, { maxWidth: contentWidth - 12 });
-
-  /* Page numbers */
-  const pageCount = doc.getNumberOfPages();
-  for (let i = 1; i <= pageCount; i++) {
-    doc.setPage(i);
-    doc.setFont("courier", "normal");
+  doc.text(
+    pdfSafe(`Sealed by Certrace · ${new Date().toUTCString()}${auditCount ? ` · ${auditCount} audit events embedded in Part H` : ""}`),
+    MARGIN + 12,
+    y,
+    { maxWidth: contentWidth - 12 },
+  );
+  y += 22;
+  if (p.contentHash) {
+    doc.text(pdfSafe(`Dataset sha-256: ${p.contentHash}`), MARGIN, y, { maxWidth: contentWidth });
+    y += 18;
+  }
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.text(
+    pdfSafe("Any copy of this package can be checked against the hash above. Regenerating the package from the same sealed dataset reproduces the same figures."),
+    MARGIN,
+    y,
+    { maxWidth: contentWidth },
+  );
+  y += 50;
+  for (const who of ["Prepared by (exporter)", "Approved by (management sign-off)", "Received by (declarant / buyer)"]) {
+    doc.setDrawColor(...BORDER);
+    doc.line(MARGIN, y, MARGIN + 220, y);
     doc.setFontSize(7.5);
     doc.setTextColor(...MUTED);
-    doc.text(pdfSafe(`${p.ref} · page ${i} of ${pageCount}`), pageWidth - MARGIN, pageHeight - 24, { align: "right" });
+    doc.text(pdfSafe(who).toUpperCase(), MARGIN, y + 12);
+    y += 52;
+  }
+
+  /* ════════ BACKFILL CONTENTS ════════ */
+  doc.setPage(tocPage);
+  let ty = MARGIN + 10;
+  doc.setFont("courier", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(...MUTED);
+  doc.text("CONTENTS", MARGIN, ty);
+  ty += 26;
+  doc.setFont("helvetica", "normal");
+  for (const entry of toc) {
+    doc.setFontSize(9.5);
+    doc.setTextColor(...INK);
+    doc.text(pdfSafe(entry.label), MARGIN, ty, { maxWidth: contentWidth - 60 });
+    doc.setTextColor(...MUTED);
+    doc.text(String(entry.page), pageWidth - MARGIN, ty, { align: "right" });
+    doc.setDrawColor(...BORDER);
+    doc.line(MARGIN, ty + 5, pageWidth - MARGIN, ty + 5);
+    ty += 20;
+    if (ty > pageHeight - MARGIN) break; // single TOC page — plenty for ~20 parts
+  }
+
+  /* ════════ RUNNING HEADERS + PAGE NUMBERS ════════ */
+  const pageCount = doc.getNumberOfPages();
+  for (let i = 2; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFont("courier", "normal");
+    doc.setFontSize(7);
+    doc.setTextColor(...MUTED);
+    doc.text(pdfSafe(`CERTRACE · ${p.ref}`), MARGIN, 26);
+    doc.text("CONFIDENTIAL — REGULATORY SUBMISSION SUPPORT", pageWidth - MARGIN, 26, { align: "right" });
+    doc.setDrawColor(...BORDER);
+    doc.line(MARGIN, 32, pageWidth - MARGIN, 32);
+    doc.setFontSize(7.5);
+    doc.text(pdfSafe(`${p.ref} · page ${i} of ${pageCount}`), pageWidth - MARGIN, pageHeight - 22, { align: "right" });
   }
 
   return doc;
 }
+
+/* ── Download helpers ──────────────────────────────────────── */
 
 export function downloadFile(filename: string, contents: string, mime = "text/html") {
   if (typeof window === "undefined") return;
@@ -317,10 +671,26 @@ export function downloadFile(filename: string, contents: string, mime = "text/ht
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function downloadPackage(p: PackageInput) {
+/** sha-256 of the dataset JSON — printed on the cover + seal page so any copy
+    of the package can be checked against the source dataset. */
+async function datasetHash(p: PackageInput): Promise<string | undefined> {
+  try {
+    if (typeof crypto === "undefined" || !crypto.subtle) return undefined;
+    const data = new TextEncoder().encode(JSON.stringify(p));
+    const digest = await crypto.subtle.digest("SHA-256", data);
+    return Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+  } catch {
+    return undefined;
+  }
+}
+
+export async function downloadPackage(p: PackageInput) {
   if (typeof window === "undefined") return;
+  const contentHash = p.contentHash ?? (await datasetHash(p));
   const slug = `${p.regulationShort}-${p.period}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-  buildPackagePdf(p).save(`certrace-${slug}.pdf`);
+  buildPackagePdf({ ...p, contentHash }).save(`certrace-${slug}.pdf`);
 }
 
 export function downloadXmlFile(slug: string, xmlContent: string) {

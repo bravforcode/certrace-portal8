@@ -1,6 +1,35 @@
+/* ════════════════════════════════════════════════════════════
+   CBAM REGISTRY DATA EXPORT (XML)
+
+   Pre-flight validation + XML generation for the exporter's data handoff.
+   The structure mirrors the field set of the official CBAM communication
+   template (Annex IV, Implementing Regulation (EU) 2023/1773) and the shape
+   of the Registry's quarterly-report schema — one <ImportedGood> block per
+   good with commodity code, installation, produced measure, emissions,
+   carbon price, verification and supporting documents.
+
+   ⚠️ The definitive-period XSD has not been published in final form; the
+   namespace below is a Certrace placeholder and must be pinned to the
+   official schema the moment the Commission publishes it. Everything else —
+   field names, code lists, validation rules — follows the published rules.
+
+   Validation encodes the REAL definitive-period rules (same rulebook as
+   lib/compliance-engine.ts):
+   • Default values ARE permitted — with a year-on-year markup — so they are
+     a warning (cost), not an error, EXCEPT on complex goods where actual
+     data must cover ≥80% of embedded emissions (the 20% cap). Our data
+     model carries one method per product, so "default" on a complex good
+     means 0% actual → hard error.
+   • "Actual" methodology requires an accredited verification statement in
+     the definitive period → missing verification on an actual claim = error.
+   • Installation name / address / coordinates are required; UN/LOCODE is
+     optional in the official template → warning only.
+   ════════════════════════════════════════════════════════════ */
+
 import { Declaration, ORG } from "./data";
 import { ReviewSubmission } from "./exporter-review";
 import { valueKey } from "./supplier";
+import { isComplexGood } from "./config";
 
 export type XmlValidationError = {
   supplierId: string;
@@ -10,85 +39,72 @@ export type XmlValidationError = {
 };
 
 export type ValidationResult = {
-  isValid: boolean;
+  isValid: boolean; // no errors (warnings allowed)
   errors: XmlValidationError[];
 };
 
-/**
- * Pre-flight validation against CBAM Definitive Period requirements.
- * Ensures the data is registry-ready before XML generation.
- */
+/* Origin countries the app currently ships → ISO 3166-1 alpha-2. The supplier
+   form stores the display name; the Registry wants the code. */
+const COUNTRY_ISO: Record<string, string> = {
+  Thailand: "TH",
+  Vietnam: "VN",
+  Indonesia: "ID",
+  Malaysia: "MY",
+  TH: "TH",
+  VN: "VN",
+  ID: "ID",
+  MY: "MY",
+};
+const isoCountry = (nameOrCode: string): string => COUNTRY_ISO[nameOrCode] ?? nameOrCode.slice(0, 2).toUpperCase();
+
+/** Pre-flight validation against CBAM definitive-period rules. */
 export function validateForRegistry(decl: Declaration, submissions: ReviewSubmission[]): ValidationResult {
   const errors: XmlValidationError[] = [];
+  const push = (sub: ReviewSubmission, issue: string, severity: "error" | "warning") =>
+    errors.push({ supplierId: sub.supplier.id, supplierName: sub.supplier.name, issue, severity });
 
   for (const sub of submissions) {
     if (!sub.submitted) continue;
 
-    // Check Installation Data
-    const instName = sub.values[valueKey("inst-name")];
-    const unlocode = sub.values[valueKey("inst-unlocode")];
-    const coords = sub.values[valueKey("inst-coords")];
-    const address = sub.values[valueKey("inst-address")];
+    // Installation identification (required by the communication template)
+    if (!sub.values[valueKey("inst-name")]?.trim()) push(sub, "Missing installation name.", "error");
+    if (!sub.values[valueKey("inst-address")]?.trim()) push(sub, "Missing installation address.", "error");
+    if (!sub.values[valueKey("inst-coords")]?.trim()) push(sub, "Missing geographic coordinates of the main emission source.", "error");
+    if (!sub.values[valueKey("inst-unlocode")]?.trim()) push(sub, "UN/LOCODE not provided (optional, but speeds up Registry matching).", "warning");
 
-    if (!instName || instName.trim() === "") {
-      errors.push({
-        supplierId: sub.supplier.id,
-        supplierName: sub.supplier.name,
-        issue: "Missing Installation Name.",
-        severity: "error",
-      });
-    }
+    const verification = (sub.values[valueKey("verification")] ?? "").trim();
 
-    if (!unlocode || unlocode.trim() === "") {
-      errors.push({
-        supplierId: sub.supplier.id,
-        supplierName: sub.supplier.name,
-        issue: "Missing UN/LOCODE.",
-        severity: "error",
-      });
-    }
-
-    if (!coords || coords.trim() === "") {
-      errors.push({
-        supplierId: sub.supplier.id,
-        supplierName: sub.supplier.name,
-        issue: "Missing Geographic Coordinates.",
-        severity: "error",
-      });
-    }
-
-    if (!address || address.trim() === "") {
-      errors.push({
-        supplierId: sub.supplier.id,
-        supplierName: sub.supplier.name,
-        issue: "Missing Installation Address.",
-        severity: "error",
-      });
-    }
-
-    // Check Goods & Emissions Data
     for (const rp of sub.request.products) {
       const pid = rp.product.id;
       const method = sub.values[valueKey("method", pid)];
-      const totalEmissions = sub.values[valueKey("total-emissions", pid)];
+      const total = Number(sub.values[valueKey("total-emissions", pid)]);
+      const direct = Number(sub.values[valueKey("direct-emissions", pid)]);
+      const indirect = Number(sub.values[valueKey("indirect-emissions", pid)]);
 
-      // Definitive period rule: no default values allowed for total emissions
-      if (method === "default") {
-        errors.push({
-          supplierId: sub.supplier.id,
-          supplierName: sub.supplier.name,
-          issue: `Default emission method used for product ${rp.product.name}. This is not permitted in the definitive period.`,
-          severity: "error",
-        });
+      if (!Number.isFinite(total) || total <= 0) {
+        push(sub, `Missing or invalid total embedded emissions for ${rp.product.name}.`, "error");
+      } else if (Number.isFinite(direct) && Number.isFinite(indirect) && Math.abs(total - (direct + indirect)) > 0.05) {
+        push(sub, `Total embedded emissions ≠ direct + indirect for ${rp.product.name}.`, "error");
       }
 
-      if (!totalEmissions || Number(totalEmissions) < 0) {
-        errors.push({
-          supplierId: sub.supplier.id,
-          supplierName: sub.supplier.name,
-          issue: `Invalid or missing total emissions for product ${rp.product.name}.`,
-          severity: "error",
-        });
+      if (method === "default") {
+        if (isComplexGood(rp.product)) {
+          push(
+            sub,
+            `${rp.product.name} is a complex good reported entirely on default values — actual data must cover at least 80% of embedded emissions (the 20% default-value cap).`,
+            "error",
+          );
+        } else {
+          push(sub, `${rp.product.name} uses default values — permitted, but the current-year markup applies and raises the buyer's CBAM cost.`, "warning");
+        }
+      }
+
+      if (method === "actual" && !verification) {
+        push(sub, `${rp.product.name} claims actual-value methodology with no accredited verification statement — required in the definitive period.`, "error");
+      }
+
+      if (isComplexGood(rp.product) && !sub.values[valueKey("precursors", pid)]?.trim()) {
+        push(sub, `${rp.product.name} is a complex good but reports no precursor embedded emissions.`, "warning");
       }
     }
   }
@@ -99,107 +115,150 @@ export function validateForRegistry(decl: Declaration, submissions: ReviewSubmis
   };
 }
 
+const escapeXml = (unsafe: string) =>
+  (unsafe || "").replace(/[<>&'"]/g, (c) => {
+    switch (c) {
+      case "<": return "&lt;";
+      case ">": return "&gt;";
+      case "&": return "&amp;";
+      case "'": return "&apos;";
+      case '"': return "&quot;";
+      default: return c;
+    }
+  });
+
+/** Registry wants CN codes without display spacing: "7208 39 00" → "72083900". */
+const cnCompact = (cn: string) => cn.replace(/\s+/g, "");
+
 /**
- * Builds a formatted XML string mapping the certrace state to the CBAM Registry structure.
+ * Builds the CBAM Registry data XML from the exporter's approved submissions.
+ * One <ImportedGood> per supplier × product, numbered sequentially, mirroring
+ * the communication-template field set.
  */
 export function buildCbamXml(decl: Declaration, submissions: ReviewSubmission[]): string {
-  // We use string building instead of a heavy DOM parser to keep the bundle small for edge deployments.
-  const escapeXml = (unsafe: string) =>
-    (unsafe || "").replace(/[<>&'"]/g, (c) => {
-      switch (c) {
-        case "<":
-          return "&lt;";
-        case ">":
-          return "&gt;";
-        case "&":
-          return "&amp;";
-        case "'":
-          return "&apos;";
-        case '"':
-          return "&quot;";
-        default:
-          return c;
-      }
-    });
+  const now = new Date().toISOString();
+  const submitted = submissions.filter((s) => s.submitted);
+  const reportId = `CTR-${decl.id.toUpperCase()}`;
 
-  let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
-  xml += `<CBAMDeclaration xmlns="urn:eu:taxud:cbam:v1">\n`;
-  xml += `  <DeclarationHeader>\n`;
-  xml += `    <DeclarationID>${escapeXml(decl.id)}</DeclarationID>\n`;
-  xml += `    <ReportingPeriod>${escapeXml(decl.period)}</ReportingPeriod>\n`;
-  xml += `    <Declarant>\n`;
-  xml += `      <Name>${escapeXml(ORG.name)}</Name>\n`;
-  xml += `      <CountryCode>${escapeXml(ORG.origin)}</CountryCode>\n`;
-  xml += `    </Declarant>\n`;
-  xml += `  </DeclarationHeader>\n`;
+  const L: string[] = [];
+  const line = (depth: number, s: string) => L.push(`${"  ".repeat(depth)}${s}`);
 
-  xml += `  <GoodsImported>\n`;
-  for (const sub of submissions) {
-    if (!sub.submitted) continue;
+  line(0, `<?xml version="1.0" encoding="UTF-8"?>`);
+  line(0, `<!-- Generated by Certrace. Field set mirrors the CBAM communication template`);
+  line(0, `     (Annex IV, Implementing Regulation (EU) 2023/1773). Namespace is a placeholder`);
+  line(0, `     until the Commission publishes the final definitive-period XSD. -->`);
+  line(0, `<CBAMEmissionsCommunication xmlns="urn:certrace:cbam:communication:v2" generatedAt="${now}">`);
+
+  /* ── Header ── */
+  line(1, `<Header>`);
+  line(2, `<ReportId>${escapeXml(reportId)}</ReportId>`);
+  line(2, `<ReportingPeriod>${escapeXml(decl.period)}</ReportingPeriod>`);
+  line(2, `<IssuedAt>${now}</IssuedAt>`);
+  line(1, `</Header>`);
+
+  /* ── Operator (the exporter communicating the data — NOT the declarant;
+        only the EU importer's Authorised CBAM Declarant files the declaration) ── */
+  line(1, `<Operator role="ThirdCountryOperator">`);
+  line(2, `<Name>${escapeXml(ORG.name)}</Name>`);
+  line(2, `<CountryCode>${escapeXml(isoCountry(ORG.origin))}</CountryCode>`);
+  line(2, `<OperatorReference>${escapeXml(ORG.installationId)}</OperatorReference>`);
+  line(1, `</Operator>`);
+
+  /* ── Goods ── */
+  line(1, `<ImportedGoodsList>`);
+  let item = 0;
+  for (const sub of submitted) {
+    const instName = sub.values[valueKey("inst-name")] ?? "";
+    const instCountry = sub.values[valueKey("inst-country")] ?? "";
+    const instAddress = sub.values[valueKey("inst-address")] ?? "";
+    const instUnlocode = sub.values[valueKey("inst-unlocode")] ?? "";
+    const instCoords = sub.values[valueKey("inst-coords")] ?? "";
+    const carbonPrice = sub.values[valueKey("carbon-price")] ?? "0";
+    const carbonPriceForm = sub.values[valueKey("carbon-price-form")] ?? "";
+    const verification = sub.values[valueKey("verification")] ?? "";
+    const latest = sub.versions[sub.versions.length - 1];
 
     for (const rp of sub.request.products) {
       const pid = rp.product.id;
-      const cnCode = rp.product.cnCode;
-      const quantity = rp.totalTonnes;
+      item++;
       const direct = sub.values[valueKey("direct-emissions", pid)] || "0";
       const indirect = sub.values[valueKey("indirect-emissions", pid)] || "0";
+      const total = sub.values[valueKey("total-emissions", pid)] || String(Number(direct) + Number(indirect));
       const method = sub.values[valueKey("method", pid)] || "actual";
-      
-      const instName = sub.values[valueKey("inst-name")];
-      const instCountry = sub.values[valueKey("inst-country")];
-      const instUnlocode = sub.values[valueKey("inst-unlocode")];
-      const instCoords = sub.values[valueKey("inst-coords")];
-      const instAddress = sub.values[valueKey("inst-address")];
-      const carbonPrice = sub.values[valueKey("carbon-price")];
-      const carbonPriceForm = sub.values[valueKey("carbon-price-form")];
-      const verification = sub.values[valueKey("verification")];
-      const precursors = sub.values[valueKey("precursors", pid)];
-      const precursorRoute = sub.values[valueKey("precursor-route", pid)];
+      const route = sub.values[valueKey("process-route", pid)] ?? "";
+      const precursors = sub.values[valueKey("precursors", pid)] ?? "";
+      const precursorRoute = sub.values[valueKey("precursor-route", pid)] ?? "";
 
-      xml += `    <GoodItem>\n`;
-      xml += `      <CNCode>${escapeXml(cnCode)}</CNCode>\n`;
-      xml += `      <Quantity unit="tonnes">${quantity}</Quantity>\n`;
-      xml += `      <Installation>\n`;
-      xml += `        <Name>${escapeXml(instName)}</Name>\n`;
-      xml += `        <Address>${escapeXml(instAddress)}</Address>\n`;
-      xml += `        <CountryCode>${escapeXml(instCountry === "Thailand" ? "TH" : instCountry)}</CountryCode>\n`;
-      xml += `        <UNLOCODE>${escapeXml(instUnlocode)}</UNLOCODE>\n`;
-      xml += `        <Coordinates>${escapeXml(instCoords)}</Coordinates>\n`;
-      xml += `      </Installation>\n`;
-      xml += `      <Emissions>\n`;
-      xml += `        <DirectEmissions>${escapeXml(String(direct))}</DirectEmissions>\n`;
-      xml += `        <IndirectEmissions>${escapeXml(String(indirect))}</IndirectEmissions>\n`;
-      xml += `        <DeterminationMethod>${escapeXml(method)}</DeterminationMethod>\n`;
-      xml += `      </Emissions>\n`;
-      
-      if (precursors && precursors.trim() !== "") {
-        xml += `      <Precursors>\n`;
-        xml += `        <Description>${escapeXml(precursors)}</Description>\n`;
-        if (precursorRoute) {
-          xml += `        <ProductionRoute>${escapeXml(precursorRoute)}</ProductionRoute>\n`;
+      line(2, `<ImportedGood itemNumber="${item}">`);
+      line(3, `<CommodityCode>`);
+      line(4, `<CnCode>${escapeXml(cnCompact(rp.product.cnCode))}</CnCode>`);
+      line(4, `<HsHeading>${escapeXml(rp.product.hsCode)}</HsHeading>`);
+      line(4, `<Description>${escapeXml(rp.product.name)}</Description>`);
+      line(4, `<AggregatedGoodsCategory>${escapeXml(`${rp.product.category} — ${rp.product.group}`)}</AggregatedGoodsCategory>`);
+      line(3, `</CommodityCode>`);
+      line(3, `<OriginCountry>${escapeXml(isoCountry(instCountry || sub.supplier.country))}</OriginCountry>`);
+      line(3, `<ProducedMeasure unit="tonnes">${rp.totalTonnes}</ProducedMeasure>`);
+
+      line(3, `<Installation>`);
+      line(4, `<Name>${escapeXml(instName)}</Name>`);
+      line(4, `<Address>${escapeXml(instAddress)}</Address>`);
+      line(4, `<CountryCode>${escapeXml(isoCountry(instCountry || sub.supplier.country))}</CountryCode>`);
+      if (instUnlocode.trim()) line(4, `<UnLocode>${escapeXml(instUnlocode)}</UnLocode>`);
+      line(4, `<Coordinates>${escapeXml(instCoords)}</Coordinates>`);
+      line(3, `</Installation>`);
+
+      if (route.trim()) line(3, `<ProductionRoute>${escapeXml(route)}</ProductionRoute>`);
+
+      line(3, `<GoodsEmissions>`);
+      line(4, `<SpecificDirectEmissions unit="tCO2e/t">${escapeXml(String(direct))}</SpecificDirectEmissions>`);
+      line(4, `<SpecificIndirectEmissions unit="tCO2e/t">${escapeXml(String(indirect))}</SpecificIndirectEmissions>`);
+      line(4, `<SpecificTotalEmbeddedEmissions unit="tCO2e/t">${escapeXml(String(total))}</SpecificTotalEmbeddedEmissions>`);
+      line(4, `<DeterminationMethod>${escapeXml(method === "default" ? "DefaultValues" : "ActualData")}</DeterminationMethod>`);
+      line(3, `</GoodsEmissions>`);
+
+      if (precursors.trim()) {
+        line(3, `<Precursors>`);
+        line(4, `<EmbeddedEmissionsDescription>${escapeXml(precursors)}</EmbeddedEmissionsDescription>`);
+        if (precursorRoute.trim()) line(4, `<ProductionRoutes>${escapeXml(precursorRoute)}</ProductionRoutes>`);
+        line(3, `</Precursors>`);
+      }
+
+      line(3, `<CarbonPriceDue>`);
+      line(4, `<CountryCode>${escapeXml(isoCountry(instCountry || sub.supplier.country))}</CountryCode>`);
+      line(4, `<AmountPaid currency="THB">${escapeXml(carbonPrice || "0")}</AmountPaid>`);
+      if (carbonPriceForm.trim()) line(4, `<TypeOfInstrument>${escapeXml(carbonPriceForm)}</TypeOfInstrument>`);
+      line(3, `</CarbonPriceDue>`);
+
+      if (verification.trim()) {
+        line(3, `<Verification>`);
+        line(4, `<VerifierDetails>${escapeXml(verification)}</VerifierDetails>`);
+        line(3, `</Verification>`);
+      }
+
+      const uploaded = sub.request.documents.filter((d) => sub.docs[d.id]?.status === "uploaded");
+      if (uploaded.length) {
+        line(3, `<SupportingDocuments>`);
+        for (const d of uploaded) {
+          const files = sub.docs[d.id]?.files ?? [];
+          line(4, `<Document type="${escapeXml(d.label)}">${escapeXml(files.map((f) => f.name).join("; ") || "attached")}</Document>`);
         }
-        xml += `      </Precursors>\n`;
+        line(3, `</SupportingDocuments>`);
       }
 
-      if (carbonPrice && carbonPrice !== "0") {
-        xml += `      <CarbonPriceDue>\n`;
-        xml += `        <AmountPaid>${escapeXml(carbonPrice)}</AmountPaid>\n`;
-        if (carbonPriceForm) {
-          xml += `        <LegalForm>${escapeXml(carbonPriceForm)}</LegalForm>\n`;
-        }
-        xml += `      </CarbonPriceDue>\n`;
+      if (latest) {
+        line(3, `<SubmissionSignature>`);
+        line(4, `<SignedBy>${escapeXml(latest.signedBy ?? "")}</SignedBy>`);
+        line(4, `<Role>${escapeXml(latest.signedRole ?? "")}</Role>`);
+        line(4, `<SubmittedAt>${new Date(latest.submittedAt).toISOString()}</SubmittedAt>`);
+        line(4, `<Version>${latest.n}</Version>`);
+        line(3, `</SubmissionSignature>`);
       }
 
-      if (verification && verification.trim() !== "") {
-        xml += `      <Verification>\n`;
-        xml += `        <VerifierDetails>${escapeXml(verification)}</VerifierDetails>\n`;
-        xml += `      </Verification>\n`;
-      }
-      xml += `    </GoodItem>\n`;
+      line(2, `</ImportedGood>`);
     }
   }
-  xml += `  </GoodsImported>\n`;
-  xml += `</CBAMDeclaration>\n`;
+  line(1, `</ImportedGoodsList>`);
+  line(0, `</CBAMEmissionsCommunication>`);
 
-  return xml;
+  return L.join("\n") + "\n";
 }

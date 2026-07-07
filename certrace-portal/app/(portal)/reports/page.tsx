@@ -5,7 +5,10 @@ import { Card, PageHeader, Stat, StatusLabel, Eyebrow, Tone } from "@/components
 import { toast } from "@/components/toast";
 import { downloadPackage } from "@/lib/download";
 import { REPORTS, DECLARATIONS, ORG } from "@/lib/data";
-import { getRegulation, getJurisdiction, SCOPE2_IN_LIABILITY } from "@/lib/config";
+import { getRegulation, getJurisdiction } from "@/lib/config";
+import { loadExporterState, rollup, EXPORTER } from "@/lib/exporter-review";
+import { loadChain } from "@/lib/approval-chain";
+import { buildSupplierChapters, buildSignOff, packageSummaryData, packageHistoryData } from "@/lib/package-data";
 
 const stateMeta: Record<string, { label: string; tone: Tone }> = {
   draft: { label: "draft", tone: "muted" },
@@ -17,57 +20,39 @@ const stateMeta: Record<string, { label: string; tone: Tone }> = {
 export default function ReportsPage() {
   const jur = getJurisdiction(ORG.origin)!;
 
-  const handleDownload = (r: (typeof REPORTS)[number]) => {
+  /* Re-generates the package from the SAME resolved dataset the declaration
+     workspace uses (lib/exporter-review.ts + lib/package-data.ts) — this page
+     never invents its own figures. */
+  const handleDownload = async (r: (typeof REPORTS)[number]) => {
     const reg = getRegulation(r.regulation)!;
     const decl = DECLARATIONS.find((d) => d.period.startsWith(r.period));
-    downloadPackage({
+    if (!decl) {
+      toast({ message: "Declaration not found", detail: `No declaration matches ${r.period}.`, tone: "err" });
+      return;
+    }
+    const roll = rollup(decl, loadExporterState(decl.id));
+    const submitted = roll.submissions.filter((s) => s.submitted);
+
+    await downloadPackage({
       ref: r.id,
       regulationShort: reg.short,
       regulationFull: reg.full,
-      period: r.period,
-      sector: "Steel & iron",
+      period: decl.period,
+      sector: decl.sector,
       origin: jur.name,
-      market: "European Union",
-      org: ORG.name,
+      market: decl.market === "EU" ? "European Union" : decl.market,
+      org: EXPORTER.org,
       installationId: ORG.installationId,
-      totalEmbedded: decl?.totalEmbedded ?? 4700,
-      supplierCount: decl?.suppliers.length ?? 8,
-      carbonPricePaid: 0,
+      totalEmbedded: decl.totalEmbedded ?? roll.submittedEmissions,
+      supplierCount: submitted.length,
+      carbonPricePaid: decl.carbonPricePaid ?? 0,
       factorSet: jur.factorSet,
-      scope2Notes: [{ category: "Iron & Steel", included: SCOPE2_IN_LIABILITY["Iron & Steel"] }],
-      suppliers: decl?.suppliers.map((s, i) => ({
-        name: s.name, 
-        material: s.material, 
-        emissions: s.emissions,
-        productionRoute: s.material.includes("Steel") || s.material.includes("coil") || s.material.includes("Rebar") || s.material.includes("Pig iron") ? "BF-BOF" : "N/A",
-        directEmissions: s.emissions != null ? Number((s.emissions * 0.7).toFixed(2)) : null,
-        indirectEmissions: s.emissions != null ? Number((s.emissions * 0.2).toFixed(2)) : null,
-        precursorEmissions: s.emissions != null ? Number((s.emissions * 0.1).toFixed(2)) : null,
-        verificationStatus: "Third-party verified",
-        exportQuantity: 500 * (i + 1),
-      })),
-      aiWarnings: decl?.suppliers.slice(0, 2).map((s, i) => ({
-        supplier: s.name,
-        message: i === 0 ? "Electricity consumption appears unusually low compared to production volume." : "Direct emissions are 18% above the industry benchmark.",
-        type: (i === 0 ? "warning" : "critical") as "warning" | "critical",
-      })),
-      documents: decl?.suppliers.flatMap((s, i) => [
-        { supplier: s.name, name: "Mill Test Certificate (EN 10204 3.1)", status: "uploaded" as const },
-        { supplier: s.name, name: "CBAM embedded-emissions sheet", status: "uploaded" as const },
-        { supplier: s.name, name: "Certificate of Origin", status: (i === 0 ? "missing" : "uploaded") as "missing" | "uploaded" }
-      ]),
-      versionHistory: decl?.suppliers.map((s) => ({
-        supplier: s.name,
-        version: 1,
-        when: r.generated,
-        score: 100,
-      })),
-      auditTrail: decl?.suppliers.flatMap((s) => [
-        { supplier: s.name, when: r.generated, text: "Opened the guided form" },
-        { supplier: s.name, when: r.generated, text: "Submitted verified CBAM data" },
-      ]),
+      ...packageSummaryData(submitted),
+      ...packageHistoryData(submitted),
+      chapters: buildSupplierChapters(submitted),
+      signOff: buildSignOff(loadChain(decl.id)),
     });
-    toast({ message: "Package downloaded.", detail: "Ready to file with the authority." });
+    toast({ message: "Package downloaded.", detail: "Regenerated from the sealed dataset — same figures, checkable hash." });
   };
 
   return (
