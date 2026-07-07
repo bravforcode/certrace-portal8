@@ -309,6 +309,53 @@ export function MultiSelect({
   );
 }
 
+/* ── Modal (centered dialog) ──────────────────────────────── */
+export function Modal({
+  open,
+  onClose,
+  children,
+  width = "max-w-lg",
+  labelledBy,
+}: {
+  open: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
+  width?: string;
+  labelledBy?: string;
+}) {
+  React.useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [open, onClose]);
+
+  if (!open) return null;
+  return (
+    <Portal>
+      <div
+        className="fixed inset-0 z-[300] flex items-center justify-center overflow-y-auto bg-black/35 p-4 backdrop-blur-[2px]"
+        onMouseDown={(e) => e.target === e.currentTarget && onClose()}
+      >
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={labelledBy}
+          className={cn("ct-enter my-auto w-full rounded-2xl border border-black/[0.07] bg-white", width)}
+          style={{ boxShadow: "0 24px 64px rgba(0,0,0,0.18), 0 4px 16px rgba(0,0,0,0.08)" }}
+        >
+          {children}
+        </div>
+      </div>
+    </Portal>
+  );
+}
+
 /* ── Dropdown (generic menu) ──────────────────────────────── */
 export function Dropdown({
   trigger,

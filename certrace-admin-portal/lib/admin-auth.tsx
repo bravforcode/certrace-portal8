@@ -6,7 +6,6 @@
 
 import * as React from "react";
 import {
-  STAFF,
   type StaffUser,
   type ModuleId,
   type AccessLevel,
@@ -15,6 +14,7 @@ import {
   getDepartment,
   access,
 } from "@/lib/admin-data";
+import { findStaff, recordLogin } from "@/lib/admin-store";
 
 const SESSION_KEY = "certrace-admin:session";
 
@@ -34,14 +34,24 @@ export function AdminAuthProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = React.useState(false);
 
   React.useEffect(() => {
-    const id = window.localStorage.getItem(SESSION_KEY);
-    setUser(STAFF.find((s) => s.id === id) ?? null);
+    // Resolve the session against the live directory (fixtures + invited/edited
+    // staff) and re-resolve on every store mutation, so role changes and
+    // deactivations apply to the signed-in user immediately.
+    const sync = () => {
+      const id = window.localStorage.getItem(SESSION_KEY);
+      const u = id ? findStaff(id) : undefined;
+      setUser(u && u.status !== "deactivated" ? u : null);
+    };
+    sync();
     setReady(true);
+    window.addEventListener("admin-store", sync);
+    return () => window.removeEventListener("admin-store", sync);
   }, []);
 
   const signIn = React.useCallback((staffId: string) => {
     window.localStorage.setItem(SESSION_KEY, staffId);
-    setUser(STAFF.find((s) => s.id === staffId) ?? null);
+    recordLogin(staffId); // stamps last login, activates invited accounts, fires the store event
+    setUser(findStaff(staffId) ?? null);
   }, []);
 
   const signOut = React.useCallback(() => {

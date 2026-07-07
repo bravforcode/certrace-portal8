@@ -6,8 +6,8 @@ import { Button, Card, PageHeader } from "@/components/ui";
 import { FilterChips, SectionTitle, StatusChip } from "@/components/admin/bits";
 import { ModuleGuard } from "@/components/admin/shell";
 import { useAdminAuth } from "@/lib/admin-auth";
-import { useAdminStore, allQueue, updateQueue } from "@/lib/admin-store";
-import { getOrg, getStaff, type QueueKind, type QueueStatus } from "@/lib/admin-data";
+import { useAdminStore, allQueue, updateQueue, staffName } from "@/lib/admin-store";
+import { getOrg, type QueueKind, type QueueStatus } from "@/lib/admin-data";
 
 type Filter = "all" | QueueKind | QueueStatus;
 
@@ -76,7 +76,7 @@ export default function VerificationQueue() {
                       {getOrg(q.orgId)?.name}
                     </Link>
                     <span className="font-mono">{q.declId}</span>
-                    {q.assigneeId && <span>Assignee: {getStaff(q.assigneeId)?.name}</span>}
+                    {q.assigneeId && <span>Assignee: {staffName(q.assigneeId)}</span>}
                   </div>
                   {q.resolution && (
                     <p className="mt-2 rounded-xl bg-[#ecfdf5] px-3 py-2 text-xs text-[#047857]">Resolution: {q.resolution}</p>

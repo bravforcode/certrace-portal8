@@ -3,7 +3,7 @@
 import { Card, PageHeader, Progress, Stat } from "@/components/ui";
 import { MiniBars, SectionTitle, StatusChip, Table, Td, Th } from "@/components/admin/bits";
 import { ModuleGuard } from "@/components/admin/shell";
-import { DECLARATIONS, FUNNEL, KPIS, MRR_TREND, ORGS, QUEUE, getOrg } from "@/lib/admin-data";
+import { DECLARATIONS, FUNNEL, KPIS, MRR_TREND, ORGS, QUEUE, getOrg, thb, thbCompact } from "@/lib/admin-data";
 
 export default function Reports() {
   const byStatus = ["collecting", "in-review", "approved", "dispatched"].map((s) => ({
@@ -22,7 +22,7 @@ export default function Reports() {
         />
 
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <Card className="p-5"><Stat value={`€${KPIS.mrr.toLocaleString()}`} label="MRR" sub="flat month-over-month" /></Card>
+          <Card className="p-5"><Stat value={thb(KPIS.mrr)} label="MRR" sub="flat month-over-month" /></Card>
           <Card className="p-5"><Stat value={`${Math.round((FUNNEL[4].value / FUNNEL[1].value) * 100)}%`} label="Trial → paid" sub={`${FUNNEL[1].value} trials, 30 days`} /></Card>
           <Card className="p-5"><Stat value={`${Math.round((resolvedQueue / QUEUE.length) * 100)}%`} label="Queue resolved" sub={`${resolvedQueue}/${QUEUE.length} items`} /></Card>
           <Card className="p-5"><Stat value={KPIS.renewalRisk} label="Accounts at risk" sub="of renewal churn" /></Card>
@@ -47,7 +47,7 @@ export default function Reports() {
           <Card>
             <SectionTitle>Revenue trend</SectionTitle>
             <div className="px-5 pb-5">
-              <MiniBars data={MRR_TREND} format={(v) => `€${(v / 1000).toFixed(1)}k`} />
+              <MiniBars data={MRR_TREND} format={thbCompact} />
               <p className="mt-4 text-xs text-black/40">
                 Flat Jun→Jul: no new paid conversions this month; two trials in late-stage evaluation.
               </p>

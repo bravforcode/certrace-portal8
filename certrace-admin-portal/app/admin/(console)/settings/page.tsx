@@ -65,7 +65,7 @@ export default function StaffSettings() {
             <Button size="sm" variant="ghost" onClick={() => resetStore()}>
               Reset demo data
             </Button>
-            <span className="text-xs text-black/35">Reset clears local actions (queue, drafts, replies, flags, audit) back to fixtures.</span>
+            <span className="text-xs text-black/35">Reset clears local actions (queue, drafts, replies, flags, staff invites/edits, invoice payments, announcements, audit) back to fixtures.</span>
           </div>
         </Card>
       </div>

@@ -4,8 +4,8 @@ import * as React from "react";
 import { Card, PageHeader } from "@/components/ui";
 import { FilterChips, SectionTitle, Table, Td, Th } from "@/components/admin/bits";
 import { ModuleGuard } from "@/components/admin/shell";
-import { useAdminStore, allAudit } from "@/lib/admin-store";
-import { getStaff, type ModuleId } from "@/lib/admin-data";
+import { useAdminStore, allAudit, staffName } from "@/lib/admin-store";
+import { type ModuleId } from "@/lib/admin-data";
 
 type Filter = "all" | "super" | ModuleId;
 
@@ -52,7 +52,7 @@ export default function AuditLog() {
                 <tr key={e.id} className={`ct-row ${e.superFlag ? "bg-[#3C7ACB]/[0.04]" : ""}`}>
                   <Td><span className="whitespace-nowrap font-mono text-[11px] text-black/40">{e.at}</span></Td>
                   <Td className="whitespace-nowrap">
-                    {getStaff(e.actorId)?.name ?? e.actorId}
+                    {staffName(e.actorId)}
                     {e.superFlag && (
                       <span className="ml-2 rounded bg-[#3C7ACB]/10 px-1.5 py-0.5 font-pixel text-[9px] uppercase tracking-[0.12em] text-[#2c5c9c]">Super</span>
                     )}

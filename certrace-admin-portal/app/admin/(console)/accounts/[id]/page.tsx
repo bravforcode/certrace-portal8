@@ -8,8 +8,9 @@ import { Button, Card, PageHeader, TagBadge } from "@/components/ui";
 import { HealthBar, KV, SectionTitle, StatusChip, Table, Td, Th } from "@/components/admin/bits";
 import { ModuleGuard } from "@/components/admin/shell";
 import { useAdminAuth } from "@/lib/admin-auth";
-import { useAdminStore, allTickets, allAudit, startImpersonation } from "@/lib/admin-store";
-import { getOrg, getStaff, DECLARATIONS, INVOICES, DPAS } from "@/lib/admin-data";
+import { useAdminStore, allTickets, allAudit, allInvoices, startImpersonation, staffName } from "@/lib/admin-store";
+import { InvoiceModal } from "@/components/admin/invoice-modal";
+import { getOrg, getStaff, thb, DECLARATIONS, DPAS } from "@/lib/admin-data";
 
 export default function AccountDetail() {
   const { id } = useParams<{ id: string }>();
@@ -18,6 +19,7 @@ export default function AccountDetail() {
   const [impOpen, setImpOpen] = React.useState(false);
   const [reason, setReason] = React.useState("");
   const [impStarted, setImpStarted] = React.useState(false);
+  const [openInvoiceId, setOpenInvoiceId] = React.useState<string | null>(null);
 
   const org = getOrg(id);
   if (!org) {
@@ -29,7 +31,8 @@ export default function AccountDetail() {
   }
 
   const decls = DECLARATIONS.filter((d) => d.orgId === org.id);
-  const invoices = INVOICES.filter((i) => i.orgId === org.id);
+  const invoices = allInvoices().filter((i) => i.orgId === org.id);
+  const openInvoice = openInvoiceId ? invoices.find((i) => i.id === openInvoiceId) ?? null : null;
   const tickets = allTickets().filter((t) => t.orgId === org.id);
   const dpa = DPAS.find((d) => d.orgId === org.id);
   const activity = allAudit().filter((e) => e.target === org.id || decls.some((d) => e.target === d.id));
@@ -96,7 +99,7 @@ export default function AccountDetail() {
             <SectionTitle>Profile</SectionTitle>
             <div className="px-5 pb-4 -mt-2">
               <KV k="Plan" v={<TagBadge>{org.plan}</TagBadge>} />
-              <KV k="MRR" v={org.mrr ? `€${org.mrr.toLocaleString()}` : "—"} />
+              <KV k="MRR" v={org.mrr ? thb(org.mrr) : "—"} />
               <KV k="Seats" v={org.seats} />
               <KV k="Health" v={<HealthBar value={org.health} />} />
               <KV k="Renewal risk" v={org.renewalRisk ? "Yes — flagged by CS" : "No"} />
@@ -139,10 +142,14 @@ export default function AccountDetail() {
                 <thead><tr><Th>Invoice</Th><Th>Period</Th><Th>Amount</Th><Th>Status</Th></tr></thead>
                 <tbody>
                   {invoices.map((i) => (
-                    <tr key={i.id} className="ct-row">
-                      <Td><span className="font-mono text-[12px]">{i.id}</span></Td>
+                    <tr
+                      key={i.id}
+                      className="ct-row cursor-pointer transition-colors hover:bg-black/[0.02]"
+                      onClick={() => setOpenInvoiceId(i.id)}
+                    >
+                      <Td><span className="font-mono text-[12px] underline decoration-black/20 underline-offset-2">{i.id}</span></Td>
                       <Td>{i.period}</Td>
-                      <Td><span className="font-mono text-[12px]">€{i.amount.toLocaleString()}</span></Td>
+                      <Td><span className="font-mono text-[12px]">{thb(i.amount)}</span></Td>
                       <Td><StatusChip value={i.status} /></Td>
                     </tr>
                   ))}
@@ -183,7 +190,7 @@ export default function AccountDetail() {
                 <li key={e.id} className="flex items-baseline gap-3 border-b border-black/[0.05] py-2.5 text-[13px] last:border-b-0">
                   <span className="w-28 flex-none font-mono text-[11px] text-black/35">{e.at.slice(5)}</span>
                   <span className="text-black/70">
-                    <span className="text-black/45">{getStaff(e.actorId)?.name}</span>{" "}
+                    <span className="text-black/45">{staffName(e.actorId)}</span>{" "}
                     <span className="font-mono text-[12px]">{e.action}</span>
                     {e.detail && <span className="text-black/45"> — {e.detail}</span>}
                   </span>
@@ -192,6 +199,8 @@ export default function AccountDetail() {
             </ul>
           )}
         </Card>
+
+        <InvoiceModal invoice={openInvoice} onClose={() => setOpenInvoiceId(null)} />
       </div>
     </ModuleGuard>
   );

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Sans, Geist, Geist_Mono, Courier_Prime } from "next/font/google";
 import { AdminAuthProvider } from "@/lib/admin-auth";
+import { Toaster } from "@/components/toast";
 import "./globals.css";
 
 // Display: IBM Plex Sans — always weight 300 for headlines/numerals.
@@ -39,7 +40,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en">
       <body className={`${plex.variable} ${geist.variable} ${geistMono.variable} ${courier.variable} antialiased`}>
-        <AdminAuthProvider>{children}</AdminAuthProvider>
+        <AdminAuthProvider>
+          {children}
+          <Toaster />
+        </AdminAuthProvider>
       </body>
     </html>
   );

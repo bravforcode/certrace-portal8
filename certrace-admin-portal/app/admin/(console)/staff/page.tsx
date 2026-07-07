@@ -1,10 +1,15 @@
 "use client";
 
-import { Card, PageHeader, TagBadge } from "@/components/ui";
+import * as React from "react";
+import { Pencil, UserPlus, X } from "lucide-react";
+import { Button, Card, Field, PageHeader, TagBadge, inputClass } from "@/components/ui";
+import { Modal, Select } from "@/components/controls";
 import { LevelBadge, SectionTitle, StatusChip, Table, Td, Th } from "@/components/admin/bits";
 import { ModuleGuard } from "@/components/admin/shell";
+import { toast } from "@/components/toast";
 import { useAdminAuth } from "@/lib/admin-auth";
-import { DEPARTMENTS, ROLES, STAFF, DEPT_ACCESS, getRole, type ModuleId } from "@/lib/admin-data";
+import { useAdminStore, allStaff, inviteStaff, updateStaff } from "@/lib/admin-store";
+import { DEPARTMENTS, ROLES, DEPT_ACCESS, getRole, getDepartment, type ModuleId, type StaffUser } from "@/lib/admin-data";
 
 const MATRIX_MODULES: { id: ModuleId; label: string }[] = [
   { id: "accounts", label: "Accounts" },
@@ -21,9 +26,101 @@ const MATRIX_MODULES: { id: ModuleId; label: string }[] = [
   { id: "legal", label: "Legal" },
 ];
 
+const ROLE_OPTIONS = ROLES.map((r) => ({
+  value: r.id,
+  label: r.name,
+  hint: `${getDepartment(r.dept).name} · tier ${r.tier}`,
+}));
+
+const validEmail = (v: string) => /^\S+@\S+\.\S+$/.test(v);
+
+function StaffForm({
+  initial,
+  submitLabel,
+  onSubmit,
+}: {
+  initial: { name: string; email: string; roleId: string };
+  submitLabel: string;
+  onSubmit: (v: { name: string; email: string; roleId: string }) => void;
+}) {
+  const [name, setName] = React.useState(initial.name);
+  const [email, setEmail] = React.useState(initial.email);
+  const [roleId, setRoleId] = React.useState(initial.roleId);
+  const valid = name.trim().length >= 2 && validEmail(email) && roleId;
+
+  return (
+    <div className="space-y-4">
+      <Field label="Full name">
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Nariya Suksawat" className={inputClass} />
+      </Field>
+      <Field label="Work email" hint="Must be a certrace.dev address in production — mock accepts any email.">
+        <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@certrace.dev" className={inputClass} />
+      </Field>
+      <Field label="Role" hint={roleId ? getRole(roleId).blurb : undefined}>
+        <Select value={roleId} onChange={setRoleId} options={ROLE_OPTIONS} placeholder="Select a role…" ariaLabel="Role" />
+      </Field>
+      <div className="flex justify-end pt-1">
+        <Button size="sm" disabled={!valid} onClick={() => onSubmit({ name: name.trim(), email: email.trim(), roleId })}>
+          {submitLabel}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function StaffAndRoles() {
-  const { hasPower } = useAdminAuth();
+  const { user, hasPower } = useAdminAuth();
+  useAdminStore();
   const canManage = hasPower("manage-staff");
+  const [inviting, setInviting] = React.useState(false);
+  const [editing, setEditing] = React.useState<StaffUser | null>(null);
+
+  const staff = allStaff();
+
+  const handleInvite = (v: { name: string; email: string; roleId: string }) => {
+    if (!user) return;
+    inviteStaff(user, v);
+    setInviting(false);
+    toast({ message: `${v.name} invited as ${getRole(v.roleId).name}`, detail: "They appear on the sign-in screen and activate on first login." });
+  };
+
+  const handleEdit = (v: { name: string; email: string; roleId: string }) => {
+    if (!user || !editing) return;
+    const changes: string[] = [];
+    if (v.name !== editing.name) changes.push(`name → ${v.name}`);
+    if (v.email !== editing.email) changes.push(`email → ${v.email}`);
+    if (v.roleId !== editing.roleId) changes.push(`role ${getRole(editing.roleId).name} → ${getRole(v.roleId).name}`);
+    if (changes.length === 0) {
+      setEditing(null);
+      return;
+    }
+    updateStaff(
+      user,
+      editing.id,
+      { name: v.name, email: v.email, roleId: v.roleId },
+      v.roleId !== editing.roleId ? "staff.role-change" : "staff.update",
+      changes.join(" · "),
+    );
+    setEditing(null);
+    toast({ message: `${v.name} updated`, detail: changes.join(" · ") });
+  };
+
+  const setStatus = (person: StaffUser, status: "active" | "deactivated") => {
+    if (!user) return;
+    updateStaff(
+      user,
+      person.id,
+      { status },
+      status === "deactivated" ? "staff.deactivate" : "staff.reactivate",
+      `${person.name} (${getRole(person.roleId).name})`,
+    );
+    setEditing(null);
+    toast({
+      message: status === "deactivated" ? `${person.name} deactivated` : `${person.name} reactivated`,
+      detail: status === "deactivated" ? "All console access revoked; sessions end immediately." : "Console access restored.",
+      tone: status === "deactivated" ? "warn" : "ok",
+    });
+  };
 
   return (
     <ModuleGuard module="staff">
@@ -31,12 +128,19 @@ export default function StaffAndRoles() {
         <PageHeader
           eyebrow="Staff & roles"
           title="Certrace staff directory"
-          lead={`${STAFF.length} staff across ${DEPARTMENTS.length - 1} departments plus a narrowly-held Super Admin tier. Access is granted per department, refined per role.`}
+          lead={`${staff.length} staff across ${DEPARTMENTS.length - 1} departments plus a narrowly-held Super Admin tier. Access is granted per department, refined per role.`}
+          actions={
+            canManage ? (
+              <Button size="sm" onClick={() => setInviting(true)}>
+                <UserPlus size={14} strokeWidth={1.5} /> Invite staff
+              </Button>
+            ) : undefined
+          }
         />
 
         {DEPARTMENTS.map((dept) => {
           const roles = ROLES.filter((r) => r.dept === dept.id);
-          const people = STAFF.filter((s) => getRole(s.roleId).dept === dept.id);
+          const people = staff.filter((s) => getRole(s.roleId).dept === dept.id);
           if (!roles.length) return null;
           return (
             <Card key={dept.id}>
@@ -65,17 +169,29 @@ export default function StaffAndRoles() {
                 </div>
                 <div>
                   <Table className="min-w-0">
-                    <thead><tr><Th>Person</Th><Th>Role</Th><Th>Status</Th><Th>Last login</Th></tr></thead>
+                    <thead><tr><Th>Person</Th><Th>Role</Th><Th>Status</Th><Th>Last login</Th>{canManage && <Th />}</tr></thead>
                     <tbody>
                       {people.map((p) => (
                         <tr key={p.id} className="ct-row">
-                          <Td>
+                          <Td className={p.status === "deactivated" ? "opacity-50" : undefined}>
                             {p.name}
                             <span className="block font-mono text-[10px] text-black/35">{p.email}</span>
                           </Td>
                           <Td><TagBadge>{getRole(p.roleId).name}</TagBadge></Td>
                           <Td><StatusChip value={p.status} /></Td>
                           <Td><span className="font-mono text-[11px] text-black/40">{p.lastLoginAt}</span></Td>
+                          {canManage && (
+                            <Td>
+                              <button
+                                type="button"
+                                aria-label={`Edit ${p.name}`}
+                                onClick={() => setEditing(p)}
+                                className="rounded-lg p-1.5 text-black/35 transition-colors hover:bg-black/[0.05] hover:text-black"
+                              >
+                                <Pencil size={13} strokeWidth={1.5} />
+                              </button>
+                            </Td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -115,6 +231,66 @@ export default function StaffAndRoles() {
             {canManage ? " You can invite staff and edit role assignments." : " Editing requires the manage-staff power (Exec Admin, Platform Admin or Super Admin)."}
           </p>
         </Card>
+
+        {/* Invite */}
+        <Modal open={inviting} onClose={() => setInviting(false)} labelledBy="invite-title">
+          <div className="flex items-start justify-between gap-4 p-6 pb-4">
+            <div>
+              <h2 id="invite-title" className="font-[family-name:var(--font-plex)] text-xl font-light tracking-tight text-[#111]">Invite staff member</h2>
+              <p className="mt-1 text-xs text-black/45">They appear as “invited” on the sign-in screen and activate on first login. The invite is audited.</p>
+            </div>
+            <button type="button" aria-label="Close" onClick={() => setInviting(false)} className="rounded-lg p-2 text-black/40 transition-colors hover:bg-black/[0.05] hover:text-black">
+              <X size={16} strokeWidth={1.5} />
+            </button>
+          </div>
+          <div className="p-6 pt-0">
+            <StaffForm initial={{ name: "", email: "", roleId: "" }} submitLabel="Send invite" onSubmit={handleInvite} />
+          </div>
+        </Modal>
+
+        {/* Edit */}
+        <Modal open={!!editing} onClose={() => setEditing(null)} labelledBy="edit-title">
+          {editing && (
+            <>
+              <div className="flex items-start justify-between gap-4 p-6 pb-4">
+                <div>
+                  <h2 id="edit-title" className="font-[family-name:var(--font-plex)] text-xl font-light tracking-tight text-[#111]">Edit {editing.name}</h2>
+                  <p className="mt-1 text-xs text-black/45">Name, email and role changes are audited{editing.id === user?.id ? " · this is your own account" : ""}.</p>
+                </div>
+                <button type="button" aria-label="Close" onClick={() => setEditing(null)} className="rounded-lg p-2 text-black/40 transition-colors hover:bg-black/[0.05] hover:text-black">
+                  <X size={16} strokeWidth={1.5} />
+                </button>
+              </div>
+              <div className="p-6 pt-0">
+                <StaffForm
+                  key={editing.id}
+                  initial={{ name: editing.name, email: editing.email, roleId: editing.roleId }}
+                  submitLabel="Save changes"
+                  onSubmit={handleEdit}
+                />
+                <div className="mt-5 flex items-center justify-between gap-3 border-t border-black/[0.06] pt-4">
+                  {editing.status === "deactivated" ? (
+                    <Button size="sm" variant="secondary" onClick={() => setStatus(editing, "active")}>Reactivate account</Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={editing.id === user?.id}
+                      title={editing.id === user?.id ? "You cannot deactivate your own account." : undefined}
+                      className="!text-[#dc2626] hover:!border-[#dc2626]/40 hover:!bg-[#fef2f2]"
+                      onClick={() => setStatus(editing, "deactivated")}
+                    >
+                      Deactivate account
+                    </Button>
+                  )}
+                  <span className="text-xs text-black/35">
+                    {editing.status === "deactivated" ? "Deactivated accounts cannot sign in." : "Revokes sign-in immediately; audited."}
+                  </span>
+                </div>
+              </div>
+            </>
+          )}
+        </Modal>
       </div>
     </ModuleGuard>
   );
