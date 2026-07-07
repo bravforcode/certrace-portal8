@@ -7,8 +7,9 @@ import { Plus, ArrowRight, LayoutGrid, Table2, Search, ChevronLeft, ChevronRight
 import { Card, Button, Chip, Progress, Eyebrow, cn } from "@/components/ui";
 import { toast } from "@/components/toast";
 import { DECLARATIONS, SUPPLIER_DIRECTORY, ORG, type Declaration, type DirectorySupplier } from "@/lib/data";
-import { getRegulation, getJurisdiction } from "@/lib/config";
+import { getRegulation, getJurisdiction, type Purpose } from "@/lib/config";
 import { loadDrafts, deleteDraft, saveDraft, newDraftId, type Draft, type Mapping, type WizardSnapshot } from "@/lib/drafts";
+import { loadCreatedDeclarations } from "@/lib/declarations-store";
 import { productForMaterial } from "@/lib/supplier";
 
 const STEP_LABEL: Record<string, string> = {
@@ -36,6 +37,12 @@ function heading(d: Declaration) {
 }
 function sub(d: Declaration) {
   return d.kind === "buyer" ? "Buyer request" : getRegulation(d.regulation)?.full ?? "";
+}
+function purposesLabel(purposes: Purpose[], long: boolean) {
+  const cbam = long ? "CBAM compliance" : "CBAM";
+  const buyer = long ? "Buyer request" : "Buyer";
+  if (purposes.includes("cbam") && purposes.includes("buyer")) return `${cbam} + ${buyer}`;
+  return purposes.includes("buyer") ? buyer : cbam;
 }
 
 /* "Duplicate Previous Request" — many exporters repeat similar requests every
@@ -69,7 +76,7 @@ function duplicateToDraft(d: Declaration): string {
     regulation: d.regulation,
     origin: d.origin,
     destination: d.market,
-    purpose: d.kind ?? "cbam",
+    purposes: [d.kind ?? "cbam"],
     name,
     description: "",
     periodId: "annual",
@@ -79,11 +86,8 @@ function duplicateToDraft(d: Declaration): string {
     month: "January",
     rangeStart: "",
     rangeEnd: "",
-    referenceType: "po",
     products,
     reportFields: {},
-    extras: [],
-    customRequest: "",
     directory,
     mapping,
     deadline: "",
@@ -97,7 +101,7 @@ function duplicateToDraft(d: Declaration): string {
     id,
     updatedAt: Date.now(),
     snapshot,
-    display: { name, purpose: snapshot.purpose, productCount: products.length, supplierCount: directory.length, period: "", deadline: "" },
+    display: { name, purposes: snapshot.purposes, productCount: products.length, supplierCount: directory.length, period: "", deadline: "" },
   });
   return id;
 }
@@ -141,10 +145,16 @@ export default function DeclarationsPage() {
     setDrafts(loadDrafts());
   };
 
+  // Declarations created through the wizard live in localStorage (see
+  // lib/declarations-store.ts) — merge them ahead of the static demo fixtures.
+  const [created, setCreated] = React.useState<Declaration[]>([]);
+  React.useEffect(() => setCreated(loadCreatedDeclarations()), []);
+  const allDeclarations = React.useMemo(() => [...created, ...DECLARATIONS], [created]);
+
   const list = React.useMemo(() => {
     const needle = q.trim().toLowerCase();
     if (status === "draft") return []; // drafts render in their own leading block
-    return DECLARATIONS.filter((d) => {
+    return allDeclarations.filter((d) => {
       if (kind !== "all" && (d.kind ?? "cbam") !== kind) return false;
       if (status === "open" && d.step === "done") return false;
       if (status === "overdue" && !(d.step !== "done" && d.dueInDays < 0)) return false;
@@ -152,14 +162,14 @@ export default function DeclarationsPage() {
       if (needle && ![heading(d), sub(d), d.period, d.sector, d.kind ?? "cbam"].join(" ").toLowerCase().includes(needle)) return false;
       return true;
     });
-  }, [q, kind, status]);
+  }, [allDeclarations, q, kind, status]);
 
   const draftItems = React.useMemo(() => {
     const needle = q.trim().toLowerCase();
     if (!(status === "all" || status === "draft")) return [];
     return drafts.filter((d) => {
-      if (kind !== "all" && d.display.purpose !== kind) return false;
-      if (needle && ![d.display.name, d.display.purpose, d.display.period].join(" ").toLowerCase().includes(needle)) return false;
+      if (kind !== "all" && !d.display.purposes.includes(kind as Purpose)) return false;
+      if (needle && ![d.display.name, ...d.display.purposes, d.display.period].join(" ").toLowerCase().includes(needle)) return false;
       return true;
     });
   }, [drafts, q, kind, status]);
@@ -173,8 +183,8 @@ export default function DeclarationsPage() {
   const showDrafts = draftItems.length > 0 && (status === "draft" || safePage === 1);
   const shownCount = status === "draft" ? draftItems.length : list.length;
 
-  const open = DECLARATIONS.filter((d) => d.step !== "done").length;
-  const submitted = DECLARATIONS.filter((d) => d.step === "done").length;
+  const open = allDeclarations.filter((d) => d.step !== "done").length;
+  const submitted = allDeclarations.filter((d) => d.step === "done").length;
 
   const filterPill = (active: boolean) =>
     cn("rounded-full border px-3 py-1.5 text-[12px] transition-colors", active ? "border-black/25 bg-[#111] text-white" : "border-black/10 text-black/55 hover:border-black/25");
@@ -193,7 +203,7 @@ export default function DeclarationsPage() {
             <Chip tone="info" pulse={false}>{open} open</Chip>
             <Chip tone="ok" pulse={false}>{submitted} submitted</Chip>
             {drafts.length > 0 && <Chip pulse={false}>{drafts.length} draft{drafts.length === 1 ? "" : "s"}</Chip>}
-            <Chip pulse={false}>{DECLARATIONS.length} total</Chip>
+            <Chip pulse={false}>{allDeclarations.length} total</Chip>
           </div>
         </div>
         <Link href="/declarations/new" className="hidden md:block">
@@ -444,7 +454,7 @@ function DraftCard({ draft, onDiscard }: { draft: Draft; onDiscard: () => void }
             <span className="block truncate font-[family-name:var(--font-plex)] text-2xl font-light text-[#111]">{draft.display.name}</span>
             <p className="mt-1.5 flex items-center gap-2 text-[11px] uppercase tracking-[0.1em] text-black/35">
               <Chip pulse={false}>Draft</Chip>
-              {draft.display.purpose === "buyer" ? "Buyer request" : "CBAM compliance"}
+              {purposesLabel(draft.display.purposes, true)}
             </p>
           </div>
           <div className="mt-5 grid grid-cols-2 gap-y-3 text-[12px]">
@@ -479,7 +489,7 @@ function DraftRow({ draft, onDiscard }: { draft: Draft; onDiscard: () => void })
         <div className="text-[13px] text-black/80">{draft.display.name}</div>
         <div className="text-[11px] text-black/40">Draft · not yet sent</div>
       </td>
-      <td className="px-4 py-3"><span className="font-mono text-[11px] uppercase tracking-[0.08em] text-black/50">{draft.display.purpose === "buyer" ? "Buyer" : "CBAM"}</span></td>
+      <td className="px-4 py-3"><span className="font-mono text-[11px] uppercase tracking-[0.08em] text-black/50">{purposesLabel(draft.display.purposes, false)}</span></td>
       <td className="px-4 py-3 text-[12px] text-black/60">{draft.display.period || "—"}</td>
       <td className="px-4 py-3 text-[12px] text-black/60"><span className="font-mono text-[10px] text-black/40">{jur?.flag}</span> {ORG.origin} → EU</td>
       <td className="px-4 py-3 font-mono text-[12px] text-black/60">{draft.display.productCount}</td>

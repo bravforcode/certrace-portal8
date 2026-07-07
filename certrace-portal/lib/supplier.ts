@@ -14,7 +14,7 @@
    answers. Both are the seam where a real API would slot in.
    ════════════════════════════════════════════════════════════ */
 
-import { DECLARATIONS, ORG, USER, type SupplierRow } from "./data";
+import { getDeclaration, ORG, USER, type SupplierRow } from "./data";
 import {
   getRegulation,
   getJurisdiction,
@@ -27,7 +27,14 @@ import {
 
 /* ── Token ─────────────────────────────────────────────────────
    Opaque-ish but deterministic: base64url("declId|supplierId"). Isomorphic so
-   the route (server) and the provider (client) decode the same way. */
+   the route (server) and the provider (client) decode the same way.
+
+   ⚠️ SECURITY — MVP ONLY. This encoding is NOT authentication: anyone who can
+   guess a declaration + supplier id can mint a link. Acceptable in this
+   frontend-only demo (all data is mock, nothing is server-persisted), but
+   production Smart Links MUST be server-issued signed tokens (HMAC or JWT)
+   with expiry + revocation, resolved against server-side access control.
+   See docs/SECURITY.md. */
 function b64urlEncode(s: string): string {
   if (typeof btoa !== "undefined") return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   return Buffer.from(s, "utf8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -138,7 +145,7 @@ const DEFAULT_NOTE =
 export function resolveRequest(token: string): SupplierRequest | null {
   const decoded = decodeToken(token);
   if (!decoded) return null;
-  const decl = DECLARATIONS.find((d) => d.id === decoded.declId);
+  const decl = getDeclaration(decoded.declId);
   if (!decl) return null;
   const row = decl.suppliers.find((s) => s.id === decoded.supplierId);
   if (!row) return null;

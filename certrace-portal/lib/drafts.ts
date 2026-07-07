@@ -5,7 +5,7 @@
    the declarations list surfaces drafts at the top and links back into the
    wizard to resume exactly where the exporter left off. */
 
-import type { Purpose, ReferenceType } from "./config";
+import type { Purpose } from "./config";
 import type { DirectorySupplier } from "./data";
 
 /* A production lot bought from a supplier in the period. */
@@ -25,7 +25,7 @@ export type WizardSnapshot = {
   regulation: string; // regulation id (e.g. "cbam")
   origin: string; // origin jurisdiction code (e.g. "TH")
   destination: string; // destination market code (e.g. "EU")
-  purpose: Purpose;
+  purposes: Purpose[]; // one or both of "cbam" / "buyer"
   name: string;
   description: string;
   periodId: string;
@@ -35,11 +35,8 @@ export type WizardSnapshot = {
   month: string;
   rangeStart: string;
   rangeEnd: string;
-  referenceType: ReferenceType;
   products: string[];
   reportFields: Record<string, boolean>;
-  extras: string[];
-  customRequest: string;
   directory: DirectorySupplier[];
   mapping: Mapping;
   deadline: string;
@@ -55,7 +52,7 @@ export type Draft = {
   /** denormalised fields the declarations list renders without rehydrating */
   display: {
     name: string;
-    purpose: Purpose;
+    purposes: Purpose[];
     productCount: number;
     supplierCount: number;
     period: string;
@@ -65,13 +62,28 @@ export type Draft = {
 
 const KEY = "certrace:drafts";
 
+/* Defends against drafts written by an older schema (or otherwise malformed
+   localStorage data) missing fields the current UI assumes are always
+   present — e.g. `display.purposes`, added after this app already had
+   drafts in the wild. Normalise once here so nothing downstream needs to
+   guard against it. */
+function normaliseDraft(d: Draft): Draft {
+  return {
+    ...d,
+    display: {
+      ...d.display,
+      purposes: Array.isArray(d.display?.purposes) && d.display.purposes.length ? d.display.purposes : ["cbam"],
+    },
+  };
+}
+
 export function loadDrafts(): Draft[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = window.localStorage.getItem(KEY);
     if (!raw) return [];
     const arr = JSON.parse(raw) as Draft[];
-    return Array.isArray(arr) ? arr.slice().sort((a, b) => b.updatedAt - a.updatedAt) : [];
+    return Array.isArray(arr) ? arr.map(normaliseDraft).sort((a, b) => b.updatedAt - a.updatedAt) : [];
   } catch {
     return [];
   }

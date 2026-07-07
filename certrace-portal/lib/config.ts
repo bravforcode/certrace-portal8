@@ -340,18 +340,6 @@ export const BUYER_PERIODS: PeriodOption[] = [
   { id: "custom", label: "Custom range", hint: "Choose your own start and end dates.", picker: "range" },
 ];
 
-/* ── Reference type ────────────────────────────────────────────
-   Every reporting period — CBAM or Buyer Request — needs a reference type so
-   the exporter (and the supplier) know which lot the request is tied to. */
-export type ReferenceType = "po" | "shipment" | "batch" | "invoice" | "other";
-export const REFERENCE_TYPES: { id: ReferenceType; label: string; hint: string }[] = [
-  { id: "po", label: "Purchase Order", hint: "Tie the request to a specific PO number." },
-  { id: "shipment", label: "Shipment", hint: "Tie the request to a shipment / container." },
-  { id: "batch", label: "Batch / Lot", hint: "Tie the request to a production batch or lot." },
-  { id: "invoice", label: "Invoice", hint: "Tie the request to a commercial invoice." },
-  { id: "other", label: "Other", hint: "Any other reference your suppliers will recognise." },
-];
-
 /* ── Product catalogue (real CBAM master data) ────────────────
    CN codes are real Combined-Nomenclature codes that fall inside the CBAM
    scope of Annex I to Regulation (EU) 2023/956 (iron & steel — ch. 72/73 +
@@ -375,15 +363,16 @@ export type CatalogProduct = {
 export const PRODUCT_CATALOG: CatalogProduct[] = [
   // ── Iron & Steel · primary & precursors ──
   { id: "ironore", name: "Iron ore, agglomerated (sinter / pellets)", category: "Iron & Steel", group: "Primary inputs", cnCode: "2601 12 00", hsCode: "2601", keywords: ["ore", "sinter", "pellet", "precursor"] },
-  { id: "pigiron", name: "Pig iron, non-alloy", category: "Iron & Steel", group: "Primary inputs", cnCode: "7201 10 00", hsCode: "7201", keywords: ["pig", "iron", "primary"] },
+  { id: "pigiron", name: "Pig iron, non-alloy", category: "Iron & Steel", group: "Primary inputs", cnCode: "7201 10 90", hsCode: "7201", keywords: ["pig", "iron", "primary"] },
   { id: "pigiron-alloy", name: "Pig iron, alloy / spiegeleisen", category: "Iron & Steel", group: "Primary inputs", cnCode: "7201 50 90", hsCode: "7201", keywords: ["pig", "spiegeleisen", "alloy"] },
-  { id: "femn", name: "Ferro-manganese", category: "Iron & Steel", group: "Primary inputs", cnCode: "7202 11 00", hsCode: "7202", keywords: ["ferro", "manganese", "alloy"] },
-  { id: "fecr", name: "Ferro-chromium", category: "Iron & Steel", group: "Primary inputs", cnCode: "7202 41 00", hsCode: "7202", keywords: ["ferro", "chromium", "alloy"] },
+  { id: "femn", name: "Ferro-manganese", category: "Iron & Steel", group: "Primary inputs", cnCode: "7202 11 80", hsCode: "7202", keywords: ["ferro", "manganese", "alloy"] },
+  { id: "fecr", name: "Ferro-chromium", category: "Iron & Steel", group: "Primary inputs", cnCode: "7202 41 10", hsCode: "7202", keywords: ["ferro", "chromium", "alloy"] },
+  { id: "feni", name: "Ferro-nickel", category: "Iron & Steel", group: "Primary inputs", cnCode: "7202 60 00", hsCode: "7202", keywords: ["ferro", "nickel", "alloy"] },
   { id: "dri", name: "Direct reduced iron (DRI / HBI)", category: "Iron & Steel", group: "Primary inputs", cnCode: "7203 10 00", hsCode: "7203", keywords: ["dri", "hbi", "sponge", "reduced"] },
   { id: "granules", name: "Iron granules & powders", category: "Iron & Steel", group: "Primary inputs", cnCode: "7205 10 00", hsCode: "7205", keywords: ["granule", "powder"] },
   // ── Iron & Steel · semi-finished ──
   { id: "ingot", name: "Ingots, non-alloy steel", category: "Iron & Steel", group: "Semi-finished", cnCode: "7206 10 00", hsCode: "7206", keywords: ["ingot", "semi"] },
-  { id: "billet", name: "Billets (semi-finished)", category: "Iron & Steel", group: "Semi-finished", cnCode: "7207 11 00", hsCode: "7207", keywords: ["billet", "semi"] },
+  { id: "billet", name: "Billets (semi-finished)", category: "Iron & Steel", group: "Semi-finished", cnCode: "7207 11 90", hsCode: "7207", keywords: ["billet", "semi"] },
   { id: "slab", name: "Slabs (semi-finished)", category: "Iron & Steel", group: "Semi-finished", cnCode: "7207 12 10", hsCode: "7207", keywords: ["slab", "semi"] },
   // ── Iron & Steel · flat products ──
   { id: "hrc", name: "Hot-rolled coil", category: "Iron & Steel", group: "Flat products", cnCode: "7208 39 00", hsCode: "7208", keywords: ["hrc", "coil", "flat", "hot rolled"] },
@@ -392,7 +381,8 @@ export const PRODUCT_CATALOG: CatalogProduct[] = [
   { id: "galv", name: "Hot-dip galvanised sheet", category: "Iron & Steel", group: "Flat products", cnCode: "7210 49 00", hsCode: "7210", keywords: ["galvanised", "galvanized", "zinc", "coated", "sheet"] },
   { id: "prepaint", name: "Pre-painted / colour-coated sheet", category: "Iron & Steel", group: "Flat products", cnCode: "7210 70 80", hsCode: "7210", keywords: ["painted", "coated", "colour", "color"] },
   { id: "tinplate", name: "Tinplate (tin-coated sheet)", category: "Iron & Steel", group: "Flat products", cnCode: "7210 12 20", hsCode: "7210", keywords: ["tinplate", "tin", "coated"] },
-  { id: "narrowstrip", name: "Narrow strip (< 600 mm)", category: "Iron & Steel", group: "Flat products", cnCode: "7211 23 00", hsCode: "7211", keywords: ["strip", "narrow"] },
+  { id: "narrowstrip", name: "Narrow strip (< 600 mm)", category: "Iron & Steel", group: "Flat products", cnCode: "7211 23 30", hsCode: "7211", keywords: ["strip", "narrow"] },
+  { id: "narrowstrip-coated", name: "Narrow strip, coated / plated (< 600 mm)", category: "Iron & Steel", group: "Flat products", cnCode: "7212 30 00", hsCode: "7212", keywords: ["strip", "narrow", "coated", "plated", "zinc"] },
   // ── Iron & Steel · long products ──
   { id: "wirerod", name: "Wire rod (in coils)", category: "Iron & Steel", group: "Long products", cnCode: "7213 91 10", hsCode: "7213", keywords: ["wire", "rod", "long"] },
   { id: "rebar", name: "Reinforcing bar (rebar)", category: "Iron & Steel", group: "Long products", cnCode: "7214 20 00", hsCode: "7214", keywords: ["rebar", "bar", "reinforcing"] },
@@ -401,18 +391,27 @@ export const PRODUCT_CATALOG: CatalogProduct[] = [
   { id: "angle", name: "Angles (L-sections)", category: "Iron & Steel", group: "Long products", cnCode: "7216 21 00", hsCode: "7216", keywords: ["angle", "l-section"] },
   { id: "wire", name: "Steel wire", category: "Iron & Steel", group: "Long products", cnCode: "7217 10 90", hsCode: "7217", keywords: ["wire", "drawn"] },
   // ── Iron & Steel · stainless & alloy ──
+  { id: "ss-semi", name: "Stainless steel, ingots & semi-finished", category: "Iron & Steel", group: "Stainless & alloy", cnCode: "7218 10 00", hsCode: "7218", keywords: ["stainless", "ingot", "semi", "inox"] },
   { id: "ss-flat", name: "Stainless flat-rolled (≥ 600 mm)", category: "Iron & Steel", group: "Stainless & alloy", cnCode: "7219 34 00", hsCode: "7219", keywords: ["stainless", "flat", "inox"] },
+  { id: "ss-flat-narrow", name: "Stainless flat-rolled (< 600 mm)", category: "Iron & Steel", group: "Stainless & alloy", cnCode: "7220 20 00", hsCode: "7220", keywords: ["stainless", "flat", "narrow", "inox"] },
+  { id: "ss-wirerod", name: "Stainless wire rod", category: "Iron & Steel", group: "Stainless & alloy", cnCode: "7221 00 10", hsCode: "7221", keywords: ["stainless", "wire", "rod", "inox"] },
   { id: "ss-bar", name: "Stainless bars & rods", category: "Iron & Steel", group: "Stainless & alloy", cnCode: "7222 20 00", hsCode: "7222", keywords: ["stainless", "bar"] },
+  { id: "ss-wire", name: "Stainless wire", category: "Iron & Steel", group: "Stainless & alloy", cnCode: "7223 00 19", hsCode: "7223", keywords: ["stainless", "wire", "inox"] },
+  { id: "alloy-semi", name: "Other alloy steel, ingots & semi-finished", category: "Iron & Steel", group: "Stainless & alloy", cnCode: "7224 10 90", hsCode: "7224", keywords: ["alloy", "ingot", "semi"] },
   { id: "alloy-flat", name: "Other alloy steel, flat-rolled", category: "Iron & Steel", group: "Stainless & alloy", cnCode: "7225 40 00", hsCode: "7225", keywords: ["alloy", "flat"] },
+  { id: "alloy-flat-narrow", name: "Other alloy steel, flat-rolled (< 600 mm)", category: "Iron & Steel", group: "Stainless & alloy", cnCode: "7226 92 00", hsCode: "7226", keywords: ["alloy", "flat", "narrow"] },
+  { id: "alloy-wirerod", name: "Other alloy steel, wire rod", category: "Iron & Steel", group: "Stainless & alloy", cnCode: "7227 90 95", hsCode: "7227", keywords: ["alloy", "wire", "rod"] },
   { id: "alloy-bar", name: "Other alloy steel, bars", category: "Iron & Steel", group: "Stainless & alloy", cnCode: "7228 30 00", hsCode: "7228", keywords: ["alloy", "bar"] },
+  { id: "alloy-wire", name: "Other alloy steel, wire", category: "Iron & Steel", group: "Stainless & alloy", cnCode: "7229 90 90", hsCode: "7229", keywords: ["alloy", "wire"] },
   // ── Iron & Steel · tubes & pipes ──
-  { id: "seamless", name: "Seamless tubes & pipes", category: "Iron & Steel", group: "Tubes & pipes", cnCode: "7304 39 92", hsCode: "7304", keywords: ["pipe", "tube", "seamless"] },
+  { id: "castironpipe", name: "Cast-iron tubes & pipes", category: "Iron & Steel", group: "Tubes & pipes", cnCode: "7303 00 90", hsCode: "7303", keywords: ["pipe", "tube", "cast iron"] },
+  { id: "seamless", name: "Seamless tubes & pipes", category: "Iron & Steel", group: "Tubes & pipes", cnCode: "7304 39 88", hsCode: "7304", keywords: ["pipe", "tube", "seamless"] },
   { id: "linepipe", name: "Welded large-diameter line pipe", category: "Iron & Steel", group: "Tubes & pipes", cnCode: "7305 11 00", hsCode: "7305", keywords: ["line", "pipe", "welded", "large"] },
   { id: "weldtube", name: "Welded tubes & pipes", category: "Iron & Steel", group: "Tubes & pipes", cnCode: "7306 30 80", hsCode: "7306", keywords: ["welded", "tube", "pipe"] },
   { id: "fittings", name: "Tube & pipe fittings", category: "Iron & Steel", group: "Tubes & pipes", cnCode: "7307 19 10", hsCode: "7307", keywords: ["fitting", "flange", "elbow"] },
   // ── Iron & Steel · downstream articles ──
   { id: "sheetpiling", name: "Sheet piling", category: "Iron & Steel", group: "Articles", cnCode: "7301 10 00", hsCode: "7301", keywords: ["sheet", "piling"] },
-  { id: "rails", name: "Railway rails", category: "Iron & Steel", group: "Articles", cnCode: "7302 10 90", hsCode: "7302", keywords: ["rail", "railway", "track"] },
+  { id: "rails", name: "Railway rails", category: "Iron & Steel", group: "Articles", cnCode: "7302 10 22", hsCode: "7302", keywords: ["rail", "railway", "track"] },
   { id: "structures", name: "Structures (towers, bridges, frames)", category: "Iron & Steel", group: "Articles", cnCode: "7308 90 98", hsCode: "7308", keywords: ["structure", "tower", "bridge", "frame"] },
   { id: "scaffolding", name: "Scaffolding & props", category: "Iron & Steel", group: "Articles", cnCode: "7308 40 00", hsCode: "7308", keywords: ["scaffolding", "prop"] },
   { id: "tanks", name: "Reservoirs & tanks (> 300 L)", category: "Iron & Steel", group: "Articles", cnCode: "7309 00 90", hsCode: "7309", keywords: ["tank", "reservoir"] },
@@ -421,7 +420,7 @@ export const PRODUCT_CATALOG: CatalogProduct[] = [
   { id: "fasteners", name: "Screws, bolts & nuts", category: "Iron & Steel", group: "Articles", cnCode: "7318 15 90", hsCode: "7318", keywords: ["bolt", "screw", "nut", "fastener"] },
   { id: "articles", name: "Other articles of iron or steel", category: "Iron & Steel", group: "Articles", cnCode: "7326 90 98", hsCode: "7326", keywords: ["article", "other"] },
   // ── Aluminium · unwrought ──
-  { id: "al-unwrought", name: "Unwrought aluminium, not alloyed", category: "Aluminium", group: "Unwrought", cnCode: "7601 10 00", hsCode: "7601", keywords: ["unwrought", "ingot", "primary"] },
+  { id: "al-unwrought", name: "Unwrought aluminium, not alloyed", category: "Aluminium", group: "Unwrought", cnCode: "7601 10 90", hsCode: "7601", keywords: ["unwrought", "ingot", "primary"] },
   { id: "al-unwrought-alloy", name: "Unwrought aluminium alloys", category: "Aluminium", group: "Unwrought", cnCode: "7601 20 80", hsCode: "7601", keywords: ["unwrought", "alloy", "ingot"] },
   { id: "al-powder", name: "Aluminium powders & flakes", category: "Aluminium", group: "Unwrought", cnCode: "7603 10 00", hsCode: "7603", keywords: ["powder", "flake"] },
   // ── Aluminium · wrought products ──
@@ -550,90 +549,6 @@ export type ProductUnit = (typeof PRODUCT_UNITS)[number];
 /* No default unit — the exporter must pick the unit their goods were invoiced
    in, so a quantity is never silently mis-typed as tonnes. */
 export const DEFAULT_UNIT = "";
-
-/* ── Optional buyer-request documents ─────────────────────────
-   Additional to the CBAM carbon data — the full menu of deliverables EU buyers
-   ask exporters for alongside a CBAM number. Everything here is optional and
-   configured per request; the exporter ticks only what a given buyer needs.
-   Grouped to stay scannable as the list is comprehensive. */
-export type RequestDoc = { id: string; label: string };
-export type RequestGroup = { group: string; items: RequestDoc[] };
-export const ADDITIONAL_REQUESTS: RequestGroup[] = [
-  {
-    group: "Manufacturing & quality",
-    items: [
-      { id: "prod-cert", label: "Production Certificate" },
-      { id: "mtc", label: "Mill Certificate (MTC)" },
-      { id: "batch-cert", label: "Batch / Lot Certificate" },
-      { id: "qa-report", label: "QA Report" },
-      { id: "mtr", label: "Material Test Report (MTR)" },
-      { id: "spec-sheet", label: "Product Specification Sheet" },
-    ],
-  },
-  {
-    group: "Sustainability",
-    items: [
-      { id: "sustain-report", label: "Sustainability Report" },
-      { id: "epd", label: "Environmental Product Declaration (EPD)" },
-      { id: "lca", label: "Life Cycle Assessment (LCA)" },
-      { id: "cfr", label: "Carbon Footprint Report" },
-      { id: "rec", label: "Renewable Energy Certificate" },
-      { id: "esg", label: "ESG Report" },
-    ],
-  },
-  {
-    group: "Compliance",
-    items: [
-      { id: "coo", label: "Certificate of Origin (COO)" },
-      { id: "doc", label: "Declaration of Conformity (DoC)" },
-      { id: "reach", label: "REACH Declaration" },
-      { id: "rohs", label: "RoHS Declaration" },
-      { id: "ce", label: "CE Declaration" },
-    ],
-  },
-  {
-    group: "ISO certifications",
-    items: [
-      { id: "iso9001", label: "ISO 9001" },
-      { id: "iso14001", label: "ISO 14001" },
-      { id: "iso45001", label: "ISO 45001" },
-      { id: "iso50001", label: "ISO 50001" },
-      { id: "iso-other", label: "Other ISO Certificates" },
-    ],
-  },
-  {
-    group: "Commercial documents",
-    items: [
-      { id: "ci", label: "Commercial Invoice" },
-      { id: "packing", label: "Packing List" },
-      { id: "po", label: "Purchase Order" },
-    ],
-  },
-  {
-    group: "Technical documents",
-    items: [
-      { id: "tds", label: "Technical Data Sheet" },
-      { id: "sds", label: "Safety Data Sheet (SDS)" },
-      { id: "drawing", label: "Product Drawing" },
-    ],
-  },
-  {
-    group: "Product traceability",
-    items: [
-      { id: "batch-no", label: "Batch Number" },
-      { id: "heat-no", label: "Heat Number" },
-    ],
-  },
-  {
-    group: "Custom buyer requirements",
-    items: [
-      { id: "questionnaire", label: "Buyer-specific Questionnaire" },
-      { id: "supporting", label: "Additional Supporting Documents" },
-      { id: "comments", label: "Comments / Explanation" },
-      { id: "custom-upload", label: "Custom File Upload" },
-    ],
-  },
-];
 
 export const getCatalogProduct = (id: string) => PRODUCT_CATALOG.find((p) => p.id === id);
 export const productTemplate = (p: CatalogProduct) => `CBAM · ${p.category} · ${p.group}`;

@@ -1,12 +1,25 @@
-import { notFound } from "next/navigation";
+"use client";
+
+import * as React from "react";
+import { useRouter } from "next/navigation";
 import { DeclarationWorkflow } from "@/components/declaration-workflow";
-import { getDeclaration } from "@/lib/data";
+import { getDeclaration, type Declaration } from "@/lib/data";
 
-export const runtime = "edge";
+export default function DeclarationDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = React.use(params);
+  const router = useRouter();
+  const [declaration, setDeclaration] = React.useState<Declaration | null>(() => getDeclaration(id) ?? null);
 
-export default async function DeclarationDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const declaration = getDeclaration(id);
-  if (!declaration) notFound();
+  React.useEffect(() => {
+    if (declaration) return;
+    const found = getDeclaration(id);
+    if (found) {
+      setDeclaration(found);
+    } else {
+      router.replace("/declarations");
+    }
+  }, [id, declaration, router]);
+
+  if (!declaration) return null;
   return <DeclarationWorkflow declaration={declaration} />;
 }
