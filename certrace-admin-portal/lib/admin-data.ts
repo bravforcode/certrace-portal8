@@ -206,7 +206,7 @@ export function getStaff(id: string) {
 /* ── Tenant orgs ──────────────────────────────────────────── */
 
 export type OrgKind = "exporter" | "supplier" | "verifier-partner";
-export type Plan = "Trial" | "Growth" | "Enterprise" | "Partner";
+export type Plan = "Trial" | "Starter" | "Standard" | "Enterprise" | "Partner";
 
 export type Org = {
   id: string;
@@ -227,14 +227,14 @@ export type Org = {
 
 export const ORGS: Org[] = [
   { id: "org-01", name: "Siam Steel Group", kind: "exporter", country: "TH", plan: "Enterprise", mrr: 168000, seats: 14, health: 86, renewalRisk: false, csOwnerId: "st-05", createdAt: "2025-11-02", lastActivity: "2026-07-06 09:18", openTickets: 1, sectors: ["Iron & Steel"] },
-  { id: "org-02", name: "Bangkok Aluminium Works", kind: "exporter", country: "TH", plan: "Growth", mrr: 56000, seats: 6, health: 74, renewalRisk: false, csOwnerId: "st-05", createdAt: "2026-01-15", lastActivity: "2026-07-06 08:02", openTickets: 2, sectors: ["Aluminium"] },
-  { id: "org-03", name: "Chao Phraya Coil Co.", kind: "exporter", country: "TH", plan: "Growth", mrr: 56000, seats: 5, health: 91, renewalRisk: false, csOwnerId: "st-04", createdAt: "2026-02-20", lastActivity: "2026-07-05 18:44", openTickets: 0, sectors: ["Iron & Steel"] },
+  { id: "org-02", name: "Bangkok Aluminium Works", kind: "exporter", country: "TH", plan: "Standard", mrr: 56000, seats: 6, health: 74, renewalRisk: false, csOwnerId: "st-05", createdAt: "2026-01-15", lastActivity: "2026-07-06 08:02", openTickets: 2, sectors: ["Aluminium"] },
+  { id: "org-03", name: "Chao Phraya Coil Co.", kind: "exporter", country: "TH", plan: "Standard", mrr: 56000, seats: 5, health: 91, renewalRisk: false, csOwnerId: "st-04", createdAt: "2026-02-20", lastActivity: "2026-07-05 18:44", openTickets: 0, sectors: ["Iron & Steel"] },
   { id: "org-04", name: "Eastern Seaboard Alloys", kind: "exporter", country: "TH", plan: "Trial", mrr: 0, seats: 3, health: 58, renewalRisk: false, csOwnerId: "st-04", createdAt: "2026-06-18", lastActivity: "2026-07-04 13:20", openTickets: 1, sectors: ["Aluminium"] },
-  { id: "org-05", name: "Mekong Steel Trading", kind: "exporter", country: "TH", plan: "Growth", mrr: 56000, seats: 4, health: 41, renewalRisk: true, csOwnerId: "st-05", createdAt: "2025-12-09", lastActivity: "2026-06-22 10:05", openTickets: 3, sectors: ["Iron & Steel"] },
+  { id: "org-05", name: "Mekong Steel Trading", kind: "exporter", country: "TH", plan: "Standard", mrr: 56000, seats: 4, health: 41, renewalRisk: true, csOwnerId: "st-05", createdAt: "2025-12-09", lastActivity: "2026-06-22 10:05", openTickets: 3, sectors: ["Iron & Steel"] },
   { id: "org-06", name: "Ayutthaya Wireworks", kind: "exporter", country: "TH", plan: "Trial", mrr: 0, seats: 2, health: 66, renewalRisk: false, csOwnerId: "st-04", createdAt: "2026-06-30", lastActivity: "2026-07-06 07:51", openTickets: 0, sectors: ["Iron & Steel"] },
-  { id: "org-07", name: "Thai Metal Pro", kind: "supplier", country: "TH", plan: "Growth", mrr: 14000, seats: 4, health: 79, renewalRisk: false, csOwnerId: "st-05", createdAt: "2026-03-04", lastActivity: "2026-07-06 09:05", openTickets: 1, sectors: ["Iron & Steel"] },
+  { id: "org-07", name: "Thai Metal Pro", kind: "supplier", country: "TH", plan: "Standard", mrr: 14000, seats: 4, health: 79, renewalRisk: false, csOwnerId: "st-05", createdAt: "2026-03-04", lastActivity: "2026-07-06 09:05", openTickets: 1, sectors: ["Iron & Steel"] },
   { id: "org-08", name: "Rayong Green Metals", kind: "supplier", country: "TH", plan: "Trial", mrr: 0, seats: 2, health: 72, renewalRisk: false, csOwnerId: "st-04", createdAt: "2026-05-11", lastActivity: "2026-07-05 16:12", openTickets: 0, sectors: ["Aluminium"] },
-  { id: "org-09", name: "Krung Thep Castings", kind: "supplier", country: "TH", plan: "Growth", mrr: 14000, seats: 3, health: 63, renewalRisk: false, csOwnerId: "st-05", createdAt: "2026-04-22", lastActivity: "2026-07-03 09:47", openTickets: 0, sectors: ["Iron & Steel"] },
+  { id: "org-09", name: "Krung Thep Castings", kind: "supplier", country: "TH", plan: "Standard", mrr: 14000, seats: 3, health: 63, renewalRisk: false, csOwnerId: "st-05", createdAt: "2026-04-22", lastActivity: "2026-07-03 09:47", openTickets: 0, sectors: ["Iron & Steel"] },
   { id: "org-10", name: "TÜV Rheinland Thailand", kind: "verifier-partner", country: "TH", plan: "Partner", mrr: 0, seats: 5, health: 88, renewalRisk: false, csOwnerId: "st-03", createdAt: "2026-01-08", lastActivity: "2026-07-05 15:30", openTickets: 0, sectors: ["Verification"] },
 ];
 
@@ -367,10 +367,15 @@ export const INVOICES: Invoice[] = [
   { id: "INV-2600", orgId: "org-09", amount: 14000, period: "Jul 2026", status: "due", issuedAt: "2026-07-01" },
 ];
 
+/* The three real tiers are annual-only and supplier-scaled — mirrors
+   certrace-portal/lib/config.ts PLANS exactly. Trial and Partner are
+   separate account states, not paid tiers, so they're listed alongside
+   for revenue-ops visibility but aren't part of "the three tiers". */
 export const PLANS = [
   { name: "Trial", price: "฿0", blurb: "14-day evaluation, 1 declaration, watermarked outputs.", orgs: ORGS.filter((o) => o.plan === "Trial").length },
-  { name: "Growth", price: "฿56,000/mo", blurb: "Unlimited declarations, 10 seats, standard support SLA.", orgs: ORGS.filter((o) => o.plan === "Growth").length },
-  { name: "Enterprise", price: "custom", blurb: "SSO, approval-chain templates, dedicated CS, 99.9% SLA.", orgs: ORGS.filter((o) => o.plan === "Enterprise").length },
+  { name: "Starter", price: "฿180,000/yr", blurb: "Up to 20 suppliers. Smart request builder, live dashboard + reminders, audit-ready export.", orgs: ORGS.filter((o) => o.plan === "Starter").length },
+  { name: "Standard", price: "฿360,000/yr", blurb: "Up to 50 suppliers. Everything in Starter, plus an auditor portal seat and multi-regulation templates.", orgs: ORGS.filter((o) => o.plan === "Standard").length },
+  { name: "Enterprise", price: "฿720,000/yr", blurb: "50+ suppliers, custom above ~150. Priority support + onboarding, legal-network sign-off access.", orgs: ORGS.filter((o) => o.plan === "Enterprise").length },
   { name: "Partner", price: "rev-share", blurb: "Verifier partners — scoped portal access, no subscription.", orgs: ORGS.filter((o) => o.plan === "Partner").length },
 ];
 
