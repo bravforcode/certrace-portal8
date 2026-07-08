@@ -206,19 +206,21 @@ export const STATUS_META: Record<Status, { label: string; tone: "ok" | "info" | 
 };
 
 /* ── Pricing ────────────────────────────────────────────────
-   Real, launch-ready plans. Suppliers are always free and never
-   take a seat — that's the wedge. Priced in EUR (CBAM is an EU regime;
-   exporters budget the obligation in EUR). Annual billing ≈ 2 months free. */
+   Three tiers, annual only, supplier-scaled. Suppliers themselves never
+   pay and never take a seat — that's the wedge — but the number of
+   suppliers an org can actively collect data from is what the plan caps,
+   and what an upgrade buys more of. Priced in THB (exporters budget this
+   as a Thai cost centre). */
 
 export type Plan = {
-  id: "starter" | "growth" | "scale";
+  id: "starter" | "standard" | "enterprise";
   name: string;
   tagline: string;
-  monthly: number; // EUR / month, billed monthly
-  annual: number; // EUR / month, billed annually
+  annual: number; // THB / year, billed annually — the only cadence
   highlight?: boolean;
   ctaKind: "downgrade" | "current" | "upgrade" | "contact";
-  limits: { seats: string; declarations: string; origins: string };
+  supplierCap: number | null; // max suppliers included; null = talk to sales above ~150
+  limits: { suppliers: string };
   features: string[];
 };
 
@@ -227,52 +229,32 @@ export const PLANS: Plan[] = [
     id: "starter",
     name: "Starter",
     tagline: "One exporter, one regime. Get a clean CBAM filing out the door.",
-    monthly: 290,
-    annual: 240,
+    annual: 180_000,
     ctaKind: "downgrade",
-    limits: { seats: "3 seats", declarations: "4 declarations / year", origins: "1 origin country" },
-    features: [
-      "CBAM steel & iron workflow",
-      "Unlimited free supplier forms",
-      "Embedded-emissions calculator (TGO factors)",
-      "Audit-ready PDF package",
-      "Email support",
-    ],
+    supplierCap: 20,
+    limits: { suppliers: "Up to 20 suppliers" },
+    features: ["Smart request builder", "Live dashboard + reminders", "Audit-ready export"],
   },
   {
-    id: "growth",
-    name: "Growth",
-    tagline: "For exporters filing every quarter with legal + verifier in the loop.",
-    monthly: 790,
-    annual: 660,
+    id: "standard",
+    name: "Standard",
+    tagline: "Most fit — for exporters with a real supplier base and a buyer or verifier watching.",
+    annual: 360_000,
     highlight: true,
     ctaKind: "current",
-    limits: { seats: "8 seats", declarations: "Unlimited declarations", origins: "1 origin country" },
-    features: [
-      "Everything in Starter",
-      "Legal & verifier sign-off seats",
-      "Auditor portal (scoped source-data access)",
-      "Compliance gap engine + carbon-price deductions",
-      "Submission receipts to buyer + authority",
-      "Priority support",
-    ],
+    supplierCap: 50,
+    limits: { suppliers: "Up to 50 suppliers" },
+    features: ["Everything in Starter", "Auditor portal seat", "Multi-regulation templates"],
   },
   {
-    id: "scale",
-    name: "Scale",
-    tagline: "Multi-entity groups and trading houses. Custom factors, SSO, API.",
-    monthly: 0,
-    annual: 0,
+    id: "enterprise",
+    name: "Enterprise",
+    tagline: "Trading houses and multi-entity groups running supplier bases past 50.",
+    annual: 720_000,
     ctaKind: "contact",
-    limits: { seats: "Unlimited seats", declarations: "Unlimited declarations", origins: "Multi-origin & multi-entity" },
-    features: [
-      "Everything in Growth",
-      "Multiple legal entities & origins",
-      "SSO / SAML + audit logging",
-      "API access & ERP connectors",
-      "Custom & primary emission factors",
-      "Dedicated onboarding + SLA",
-    ],
+    supplierCap: null,
+    limits: { suppliers: "50+ suppliers · custom above ~150" },
+    features: ["Everything in Standard", "Priority support + onboarding", "Legal-network sign-off access"],
   },
 ];
 
@@ -503,6 +485,16 @@ export const PRIMARY_GROUPS = new Set(["Primary inputs", "Unwrought"]);
 export const isComplexGood = (p: CatalogProduct) => !PRIMARY_GROUPS.has(p.group);
 
 export type ResolvedCbamField = CbamField & { required: boolean };
+
+/* Per-product resolution — the union list above says what the DECLARATION
+   collects; these two say what applies to ONE good. A raw iron-ore line never
+   answers precursor questions just because a rebar SKU shares the declaration,
+   and electricity detail is only mandatory on the aluminium goods themselves. */
+export const fieldAppliesTo = (f: CbamField, p: CatalogProduct): boolean =>
+  f.scope === "all" || (f.scope === "complex" && isComplexGood(p)) || (f.scope === "aluminium" && p.category === "Aluminium");
+export const fieldRequiredFor = (f: CbamField, p: CatalogProduct): boolean =>
+  f.mandatory === true || (f.mandatory === "complex" && isComplexGood(p)) || (f.mandatory === "aluminium" && p.category === "Aluminium");
+
 /** The real, applicable CBAM checklist for a given product selection. */
 export function resolveCbamFields(selected: CatalogProduct[]): ResolvedCbamField[] {
   const hasComplex = selected.some(isComplexGood);

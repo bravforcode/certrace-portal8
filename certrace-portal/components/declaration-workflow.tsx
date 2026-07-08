@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   ArrowRight,
@@ -17,16 +18,15 @@ import {
   Building2,
   Landmark,
   Link2,
+  Lock,
   PenLine,
+  Plus,
   TriangleAlert,
   CircleCheck,
   CircleX,
   Users,
   ChevronRight,
-  Gauge,
-  Calculator,
   History,
-  Package,
 } from "lucide-react";
 import {
   Card,
@@ -41,13 +41,17 @@ import {
   cn,
 } from "./ui";
 import { toast } from "./toast";
+import { AddMemberModal } from "./add-member-modal";
+import { DeclarationMenu } from "./declaration-menu";
 import { Declaration, ORG } from "@/lib/data";
-import { getRegulation, getJurisdiction, scope2Treatment, type ResolvedCbamField } from "@/lib/config";
+import { getRegulation, getJurisdiction, type ResolvedCbamField } from "@/lib/config";
 import { downloadPackage, downloadXmlFile } from "@/lib/download";
 import { validateForRegistry, buildCbamXml } from "@/lib/cbam-xml";
 import {
   sectionsForRequest,
   fieldsForSection,
+  productFieldsForSection,
+  fieldAppliesTo,
   isOnceField,
   valueKey,
   type SupplierSection,
@@ -63,8 +67,11 @@ import {
   sendCommunicationTemplate,
   acknowledgeRecipient,
   markPackageGenerated,
-  REVIEWERS,
-  getReviewer,
+  requestReportSignoffs,
+  confirmReportSignoff,
+  withdrawReportSignoff,
+  remindSupplier,
+  lastReminderAt,
   LIFECYCLE_META,
   EXPORTER,
   type ExporterDeclState,
@@ -72,25 +79,15 @@ import {
   type ReviewRollup,
   type DispatchRecipient,
 } from "@/lib/exporter-review";
-import { computeComplianceFacts, MASS_THRESHOLD_TONNES_PER_YEAR, type ComplianceFacts } from "@/lib/compliance-engine";
+import { loadTeam, getTeamMember, type TeamMember } from "@/lib/team-store";
+import { computeComplianceFacts, type ComplianceFacts } from "@/lib/compliance-engine";
 import { buildSupplierChapters, buildSignOff, packageSummaryData, packageHistoryData } from "@/lib/package-data";
 import { buildIntelligence, type IntelligenceReport } from "@/lib/compliance-intelligence";
-import {
-  loadChain,
-  startChain,
-  approveStep,
-  requestChangesAtStep,
-  skipStep,
-  addComment,
-  activeSteps,
-  currentStep,
-  isChainComplete,
-  CHAIN_TEMPLATE_META,
-  type ChainState,
-  type ChainTemplateId,
-} from "@/lib/approval-chain";
 
-type Tab ="overview" | "submissions" | "intelligence" | "emissions" | "approval" | "output" | "handoff" | "audit";
+/* The four steps of the flow, in the order a real exporter walks them, plus
+   two always-available insight views. */
+type StepKey = "submissions" | "report" | "signoff" | "dispatch";
+type View = StepKey | "intelligence" | "audit";
 
 /* Server-safe zeroed roll-up so the first render matches before localStorage is
    read on mount (the real data depends on the supplier + exporter stores). */
@@ -111,40 +108,39 @@ const EMPTY_ROLL: ReviewRollup = {
   stage: "collecting",
 };
 
-/* Package data assembly moved to lib/package-data.ts so the Reports page
-   generates the exact same package from the exact same dataset. */
-
 /* ════════════════════════════════════════════════════════════
    Declaration compliance workspace (exporter side · post-submission)
 
-   Eight sections replace the old Submissions / Executive Summary / Audit
-   Package tabs — see docs/EXPORTER-PORTAL-REDESIGN.md for the architecture:
-     Overview                    control tower
-     Submissions & Evidence      per-supplier frozen data (kept, extended)
-     Compliance Intelligence     Stage 2 — AI judgment, always advisory
-     Emissions & Methodology     Stage 1 — the actual regulatory math
-     Review & Approval           Stage 4 — configurable internal sign-off chain
-     Output Center               Stage 5 — the output fan-out
-     Buyer & Authority Handoff   the real O3CI / Communication Template channels
-     Audit Trail & Version History — one unified, append-only timeline
+   Redesigned as ONE guided flow instead of eight peer tabs — the page always
+   answers "what do I do now, and what's waiting on someone else":
+
+     1  Supplier data      suppliers send data back; review each submission,
+                           approve it or request a revision, loop in internal
+                           reviewers (add new people from a popup)
+     2  Generate report    unlocks when every supplier is approved — the
+                           audit package (PDF) + Registry XML
+     3  Internal sign-off  send the report to named people to preview;
+                           each confirms before anything leaves the building
+     4  Send & export      O3CI push / Communication Template to the EU
+                           buyer, registry and verifier + acknowledgements
+
+   Compliance Intelligence and the Audit Trail stay as supporting views.
+   Locked steps stay visible and say exactly what unlocks them.
    ════════════════════════════════════════════════════════════ */
 export function DeclarationWorkflow({ declaration }: { declaration: Declaration }) {
+  const router = useRouter();
   const reg = getRegulation(declaration.regulation)!;
   const jur = getJurisdiction(declaration.origin)!;
 
-  // exporter + chain state live in localStorage — hydrate after mount to avoid
-  // a server/client mismatch, then re-read on focus so a supplier resubmission
+  // exporter state lives in localStorage — hydrate after mount to avoid a
+  // server/client mismatch, then re-read on focus so a supplier resubmission
   // in another tab shows up here without a backend.
   const [exporter, setExporter] = React.useState<ExporterDeclState>(() => loadExporterState(declaration.id));
-  const [chain, setChain] = React.useState<ChainState>(() => loadChain(declaration.id));
   const [mounted, setMounted] = React.useState(false);
-  const [tab, setTab] = React.useState<Tab>("overview");
+  const [view, setView] = React.useState<View>("submissions");
   const [openId, setOpenId] = React.useState<string | null>(null);
 
-  const refresh = React.useCallback(() => {
-    setExporter(loadExporterState(declaration.id));
-    setChain(loadChain(declaration.id));
-  }, [declaration.id]);
+  const refresh = React.useCallback(() => setExporter(loadExporterState(declaration.id)), [declaration.id]);
   React.useEffect(() => {
     setMounted(true);
     refresh();
@@ -156,26 +152,90 @@ export function DeclarationWorkflow({ declaration }: { declaration: Declaration 
   const facts: ComplianceFacts = React.useMemo(() => computeComplianceFacts(roll), [roll]);
   const intel: IntelligenceReport = React.useMemo(() => buildIntelligence(roll, facts), [roll, facts]);
   const legalRequired = facts.anyCapViolations || facts.anyUnverifiedActual || roll.anomalies > 0;
-  const chainComplete = isChainComplete(chain, legalRequired);
+  // Registry pre-flight over the approved dataset — the same check that gates
+  // the XML download and the dispatch buttons, surfaced up here so the
+  // next-action banner never claims "ready" while the Registry would reject.
+  const preflightOk = React.useMemo(() => {
+    const approved = roll.submissions.filter((s) => s.lifecycle === "approved");
+    if (approved.length === 0) return true;
+    return validateForRegistry(declaration, approved).isValid;
+  }, [declaration, roll]);
 
-  // "the exporter is notified data is ready for review": watch for
-  // submissions that arrived since the last read (e.g. a supplier submitted in
-  // another tab) and surface it, instead of silently refreshing underneath them.
+  // flow gates — each step unlocks the next
+  const generated = Boolean(exporter.packageGeneratedAt);
+  const signoffs = exporter.signoffs ?? [];
+  const confirmedSignoffs = signoffs.filter((s) => s.confirmedAt).length;
+  const signoffPending = signoffs.length - confirmedSignoffs;
+  const signoffComplete = generated && signoffs.length > 0 && signoffPending === 0;
+  const dispatched = Boolean(exporter.dispatch.o3ciPushedAt || exporter.dispatch.templateSentAt);
+
+  // land the exporter on the step that actually needs them (once, after hydration)
+  const initialised = React.useRef(false);
+  React.useEffect(() => {
+    if (!mounted || initialised.current) return;
+    initialised.current = true;
+    if (!roll.allApproved) return; // default "submissions"
+    if (!generated) setView("report");
+    else if (!signoffComplete) setView("signoff");
+    else setView("dispatch");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mounted]);
+
+  // "the exporter is notified data is ready for review": watch for submissions
+  // that arrived since the last read (e.g. a supplier submitted in another tab).
   const lastSubmittedCount = React.useRef<number | null>(null);
   React.useEffect(() => {
     if (!mounted) return;
     if (lastSubmittedCount.current !== null && roll.submittedCount > lastSubmittedCount.current) {
       const delta = roll.submittedCount - lastSubmittedCount.current;
-      toast({ message: `${delta} new submission${delta === 1 ? "" : "s"} ready for review`, detail: "Submissions & Evidence has been updated.", tone: "info" });
+      toast({ message: `${delta} new submission${delta === 1 ? "" : "s"} ready for review`, detail: "Supplier data has been updated.", tone: "info" });
     }
     lastSubmittedCount.current = roll.submittedCount;
   }, [mounted, roll.submittedCount]);
+
   const open = openId ? roll.submissions.find((s) => s.supplier.id === openId) ?? null : null;
 
-  const goTo = (t: Tab) => {
-    setTab(t);
+  const goTo = (v: View) => {
+    setView(v);
     setOpenId(null);
   };
+
+  const steps: StepMeta[] = [
+    {
+      key: "submissions",
+      label: "Supplier data",
+      icon: Inbox,
+      locked: false,
+      done: roll.allApproved,
+      sub: `${roll.approvedCount}/${roll.total} approved`,
+    },
+    {
+      key: "report",
+      label: "Generate report",
+      icon: FileText,
+      locked: !roll.allApproved,
+      done: generated,
+      sub: generated ? "PDF + XML generated" : roll.allApproved ? "ready to generate" : "needs all approvals",
+    },
+    {
+      key: "signoff",
+      label: "Internal sign-off",
+      icon: ClipboardCheck,
+      locked: !generated,
+      done: signoffComplete,
+      sub: signoffs.length > 0 ? `${confirmedSignoffs}/${signoffs.length} confirmed` : generated ? "send for confirmation" : "needs the report",
+    },
+    {
+      key: "dispatch",
+      label: "Send & export",
+      icon: Send,
+      locked: !signoffComplete,
+      done: dispatched,
+      sub: dispatched ? "dispatched" : "O3CI · buyer · verifier",
+    },
+  ];
+  const currentKey: StepKey = (steps.find((s) => !s.done && !s.locked)?.key ?? "dispatch") as StepKey;
+  const activeStep = steps.find((s) => s.key === view);
 
   return (
     <div className="space-y-7">
@@ -207,30 +267,43 @@ export function DeclarationWorkflow({ declaration }: { declaration: Declaration 
           <div className="flex flex-wrap items-center gap-2">
             <Chip tone={declaration.dueInDays < 0 ? "err" : declaration.dueInDays < 21 ? "warn" : "muted"}>due {declaration.due}</Chip>
             <Chip tone="ok">{reg.authority.split("·")[0].trim()}</Chip>
+            <DeclarationMenu decl={declaration} afterDelete={() => router.replace("/declarations")} />
           </div>
         </div>
       </div>
 
-      <LifecycleBar roll={roll} dispatched={Boolean(exporter.dispatch.o3ciPushedAt || exporter.dispatch.templateSentAt)} />
+      {/* What to do now — replaces the old Overview tab */}
+      {mounted && (
+        <NextAction
+          roll={roll}
+          generated={generated}
+          signoffs={signoffs.length}
+          signoffPending={signoffPending}
+          signoffComplete={signoffComplete}
+          dispatched={dispatched}
+          preflightOk={preflightOk}
+          exporter={exporter}
+          view={view}
+          onGo={goTo}
+        />
+      )}
 
-      {/* Tabs */}
+      {/* Step rail — the flow itself */}
+      <StepRail steps={steps} view={view} currentKey={currentKey} onSelect={goTo} />
+
+      {/* Supporting views */}
       <div className="flex flex-wrap items-center gap-1.5">
+        <span className="mr-1 text-[10px] uppercase tracking-[0.14em] text-black/30">Insights</span>
         {([
-          ["overview", "Overview", Gauge],
-          ["submissions", "Submissions & Evidence", Inbox],
-          ["intelligence", "Compliance Intelligence", Sparkles],
-          ["emissions", "Emissions & Methodology", Calculator],
-          ["approval", "Review & Approval", ClipboardCheck],
-          ["output", "Output Center", Package],
-          ["handoff", "Buyer & Authority", Send],
-          ["audit", "Audit Trail", History],
+          ["intelligence", "Compliance intelligence", Sparkles],
+          ["audit", "Audit trail", History],
         ] as const).map(([key, label, Icon]) => (
           <button
             key={key}
             onClick={() => goTo(key)}
             className={cn(
               "inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-[11px] uppercase tracking-[0.08em] transition-colors",
-              tab === key ? "border-black/25 bg-[#111] text-white" : "border-black/10 text-black/50 hover:border-black/25 hover:text-black",
+              view === key ? "border-black/25 bg-[#111] text-white" : "border-black/10 text-black/50 hover:border-black/25 hover:text-black",
             )}
           >
             <Icon size={13} strokeWidth={1.5} /> {label}
@@ -239,159 +312,262 @@ export function DeclarationWorkflow({ declaration }: { declaration: Declaration 
       </div>
 
       {/* Panels */}
-      <div key={`${tab}-${openId ?? ""}`} className="ct-enter">
+      <div key={`${view}-${openId ?? ""}`} className="ct-enter">
         {!mounted ? (
           <Card className="p-10 text-center text-sm text-black/35">Loading submissions…</Card>
-        ) : tab === "overview" ? (
-          <OverviewTab decl={declaration} roll={roll} facts={facts} intel={intel} chain={chain} legalRequired={legalRequired} onNavigate={goTo} />
-        ) : tab === "submissions" ? (
+        ) : activeStep?.locked ? (
+          <LockedPanel step={activeStep} steps={steps} onGo={goTo} />
+        ) : view === "submissions" ? (
           open ? (
             <SubmissionReview decl={declaration} sub={open} onChanged={setExporter} />
           ) : (
-            <SubmissionsTab decl={declaration} roll={roll} onOpen={(id) => setOpenId(id)} />
+            <SubmissionsTab decl={declaration} roll={roll} exporter={exporter} onChanged={setExporter} onOpen={(id) => setOpenId(id)} />
           )
-        ) : tab === "intelligence" ? (
+        ) : view === "report" ? (
+          <ReportTab decl={declaration} roll={roll} exporter={exporter} onChanged={setExporter} onOpenSubmission={(id) => { setView("submissions"); setOpenId(id); }} />
+        ) : view === "signoff" ? (
+          <SignoffTab decl={declaration} exporter={exporter} onChanged={setExporter} legalRequired={legalRequired} />
+        ) : view === "dispatch" ? (
+          <DispatchTab
+            decl={declaration}
+            roll={roll}
+            exporter={exporter}
+            onChanged={setExporter}
+            signoffComplete={signoffComplete}
+            onNavigate={goTo}
+            onOpenSubmission={(id) => { setView("submissions"); setOpenId(id); }}
+          />
+        ) : view === "intelligence" ? (
           <ComplianceIntelligenceTab roll={roll} intel={intel} />
-        ) : tab === "emissions" ? (
-          <EmissionsMethodologyTab roll={roll} facts={facts} />
-        ) : tab === "approval" ? (
-          <ReviewApprovalTab decl={declaration} chain={chain} onChanged={setChain} legalRequired={legalRequired} />
-        ) : tab === "output" ? (
-          <OutputCenterTab decl={declaration} roll={roll} exporter={exporter} onChanged={setExporter} />
-        ) : tab === "handoff" ? (
-          <BuyerAuthorityHandoffTab decl={declaration} roll={roll} exporter={exporter} onChanged={setExporter} chainComplete={chainComplete} />
         ) : (
-          <AuditTrailTab roll={roll} chain={chain} />
+          <AuditTrailTab roll={roll} exporter={exporter} />
         )}
       </div>
     </div>
   );
 }
 
-/* ── Lifecycle bar (Collecting → Reviewing → Approved → Dispatched) ──
-   "Dispatched" — not "Filed" — because the exporter never files with the
-   authority directly; see the Buyer & Authority Handoff tab. */
-function LifecycleBar({ roll, dispatched }: { roll: ReviewRollup; dispatched: boolean }) {
-  const stages = ["collecting", "reviewing", "approved", "filed"] as const;
-  const labels: Record<(typeof stages)[number], string> = { collecting: "Collecting", reviewing: "In review", approved: "Approved", filed: "Dispatched" };
-  const activeIdx = stages.indexOf(roll.stage === "filed" && !dispatched ? "approved" : roll.stage);
+/* ════════════════════════ Next action banner ════════════════════════ */
+function NextAction({
+  roll,
+  generated,
+  signoffs,
+  signoffPending,
+  signoffComplete,
+  dispatched,
+  preflightOk,
+  exporter,
+  view,
+  onGo,
+}: {
+  roll: ReviewRollup;
+  generated: boolean;
+  signoffs: number;
+  signoffPending: number;
+  signoffComplete: boolean;
+  dispatched: boolean;
+  preflightOk: boolean;
+  exporter: ExporterDeclState;
+  view: View;
+  onGo: (v: View) => void;
+}) {
+  const toReview = roll.counts.submitted + roll.counts.in_review;
+  const acked = Object.keys(exporter.dispatch.acknowledgedAt).length;
+  const wanted = Object.values(exporter.recipients).filter(Boolean).length;
+
+  let tone: "warn" | "info" | "ok" = "info";
+  let text: React.ReactNode;
+  let cta = "Open";
+  let target: View = "submissions";
+
+  if (toReview > 0) {
+    text = (
+      <>
+        <span className="text-black/80">{toReview} submission{toReview === 1 ? "" : "s"}</span> waiting for your review.
+      </>
+    );
+    cta = "Review supplier data";
+  } else if (roll.awaitingCount > 0 || roll.changesCount > 0) {
+    tone = "warn";
+    const parts: string[] = [];
+    if (roll.awaitingCount > 0) parts.push(`${roll.awaitingCount} supplier${roll.awaitingCount === 1 ? "" : "s"} haven't submitted`);
+    if (roll.changesCount > 0) parts.push(`${roll.changesCount} revision${roll.changesCount === 1 ? "" : "s"} still with the supplier`);
+    text = (
+      <>
+        Waiting on suppliers — <span className="text-black/80">{parts.join(" · ")}</span>.
+      </>
+    );
+    cta = "See who's outstanding";
+  } else if (!generated) {
+    tone = "ok";
+    text = (
+      <>
+        <span className="text-black/80">All supplier data approved.</span> Generate the report package.
+      </>
+    );
+    cta = "Generate report";
+    target = "report";
+  } else if (signoffs === 0) {
+    text = (
+      <>
+        <span className="text-black/80">Report generated.</span> Send it for internal sign-off.
+      </>
+    );
+    cta = "Send for sign-off";
+    target = "signoff";
+  } else if (signoffPending > 0) {
+    tone = "warn";
+    text = (
+      <>
+        Waiting on <span className="text-black/80">{signoffPending} internal confirmation{signoffPending === 1 ? "" : "s"}</span>.
+      </>
+    );
+    cta = "View sign-off";
+    target = "signoff";
+  } else if (!dispatched && !preflightOk) {
+    tone = "warn";
+    text = (
+      <>
+        <span className="text-black/80">Registry pre-flight failed.</span> Fix the flagged submissions before anything is sent.
+      </>
+    );
+    cta = "View issues";
+    target = "dispatch";
+  } else if (!dispatched) {
+    tone = "ok";
+    text = (
+      <>
+        <span className="text-black/80">Signed off.</span> Ready to send & export.
+      </>
+    );
+    cta = "Send & export";
+    target = "dispatch";
+  } else if (acked < wanted) {
+    text = (
+      <>
+        Dispatched — <span className="text-black/80">{acked}/{wanted} recipients</span> acknowledged.
+      </>
+    );
+    cta = "Track acknowledgements";
+    target = "dispatch";
+  } else {
+    tone = "ok";
+    text = (
+      <>
+        <span className="text-black/80">Cycle complete.</span> All recipients acknowledged.
+      </>
+    );
+    cta = "Audit trail";
+    target = "audit";
+  }
+
   return (
-    <Card warm className="p-4">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-          {stages.map((s, i) => {
-            const done = i < activeIdx || (dispatched && s === "filed");
-            const current = i === activeIdx && !(dispatched && s === "filed");
-            return (
-              <React.Fragment key={s}>
-                <span
-                  className={cn(
-                    "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] uppercase tracking-[0.08em]",
-                    done ? "bg-[#ecfdf5] text-[#047857]" : current ? "bg-[#111] text-white" : "text-black/35",
-                  )}
-                >
-                  {done && <Check size={11} strokeWidth={2.5} />} {labels[s]}
-                </span>
-                {i < stages.length - 1 && <span className="hidden h-px w-3 flex-none bg-black/15 sm:block" />}
-              </React.Fragment>
-            );
-          })}
-        </div>
-        <span className="font-mono text-[11px] text-black/45">
-          {roll.approvedCount}/{roll.total} approved · {roll.submittedCount} submitted
-        </span>
-      </div>
+    <Card highlight className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+      <span className="flex min-w-0 flex-1 items-center gap-3">
+        <StatusDot tone={tone} pulse={tone !== "ok"} glow={tone === "ok"} />
+        <span className="text-sm leading-relaxed text-black/55">{text}</span>
+      </span>
+      {view !== target && (
+        <Button size="sm" variant="secondary" className="flex-none bg-white" onClick={() => onGo(target)}>
+          {cta} <ArrowRight size={13} strokeWidth={1.5} />
+        </Button>
+      )}
     </Card>
   );
 }
 
-/* ════════════════════════ Overview — control tower ════════════════════════ */
-function OverviewTab({
-  decl,
-  roll,
-  facts,
-  intel,
-  chain,
-  legalRequired,
-  onNavigate,
-}: {
-  decl: Declaration;
-  roll: ReviewRollup;
-  facts: ComplianceFacts;
-  intel: IntelligenceReport;
-  chain: ChainState;
-  legalRequired: boolean;
-  onNavigate: (t: Tab) => void;
-}) {
-  const scoreTone = (s: number) => (s >= 85 ? "#047857" : s >= 60 ? "#b45309" : "#dc2626");
-  const steps = activeSteps(chain, legalRequired);
-  const doneSteps = steps.filter((s) => s.status === "approved" || s.status === "skipped").length;
-  const active = currentStep(chain, legalRequired);
-  const complete = isChainComplete(chain, legalRequired);
+/* ════════════════════════ Step rail ════════════════════════ */
+type StepMeta = { key: StepKey; label: string; icon: React.ElementType; locked: boolean; done: boolean; sub: string };
 
+function StepRail({ steps, view, currentKey, onSelect }: { steps: StepMeta[]; view: View; currentKey: StepKey; onSelect: (v: View) => void }) {
   return (
-    <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Card className="p-5">
-          <Stat value={<span style={{ color: scoreTone(intel.trustScore) }}>{intel.trustScore}</span>} label="Trust score" />
-        </Card>
-        <Card className="p-5">
-          <Stat value={decl.due} label={decl.dueInDays < 0 ? "was due" : `due in ${decl.dueInDays}d`} />
-        </Card>
-        <Card className="p-5">
-          <Stat value={chain.started ? `${doneSteps}/${steps.length}` : "—"} label="Sign-off steps" />
-        </Card>
-        <Card className="p-5">
-          <Stat value={roll.awaitingCount} label="Suppliers outstanding" />
-        </Card>
-      </div>
-
-      {roll.submittedCount > 0 && (
-        <Card className="p-5">
-          <Eyebrow>Estimated CBAM exposure</Eyebrow>
-          <div className="mt-2 font-[family-name:var(--font-plex)] text-3xl font-light text-[#111]">
-            €{intel.businessImpact.low.toLocaleString("en-US")}–{intel.businessImpact.high.toLocaleString("en-US")}
-          </div>
-          <p className="mt-1.5 max-w-2xl text-[12px] text-black/45">{intel.businessImpact.note}</p>
-        </Card>
-      )}
-
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <button onClick={() => onNavigate("intelligence")} className="rounded-2xl border border-black/[0.07] bg-white p-5 text-left transition-colors hover:border-black/20">
-          <Eyebrow>Compliance intelligence</Eyebrow>
-          <p className="mt-2 text-sm text-black/60">{intel.approvalRecommendation.rationale}</p>
-          <span className="mt-3 inline-flex items-center gap-1 text-[11px] uppercase tracking-[0.08em] text-black/45">
-            Review flags <ArrowRight size={12} strokeWidth={1.5} />
-          </span>
-        </button>
-        <button onClick={() => onNavigate("approval")} className="rounded-2xl border border-black/[0.07] bg-white p-5 text-left transition-colors hover:border-black/20">
-          <Eyebrow>Review & approval</Eyebrow>
-          <p className="mt-2 text-sm text-black/60">
-            {!chain.started ? "No sign-off chain started yet." : complete ? "All required sign-offs are complete." : `Waiting on ${active?.label ?? "the next step"}.`}
-          </p>
-          <span className="mt-3 inline-flex items-center gap-1 text-[11px] uppercase tracking-[0.08em] text-black/45">
-            Open chain <ArrowRight size={12} strokeWidth={1.5} />
-          </span>
-        </button>
-      </div>
-
-      {roll.awaitingCount > 0 && (
-        <Card warm className="flex items-center gap-3 p-4">
-          <StatusDot tone="warn" />
-          <p className="text-sm text-black/55">
-            {roll.awaitingCount} supplier{roll.awaitingCount === 1 ? "" : "s"} {roll.awaitingCount === 1 ? "hasn't" : "haven't"} submitted yet.
-          </p>
-          <Button variant="ghost" size="sm" className="ml-auto" onClick={() => onNavigate("submissions")}>
-            Go to Submissions
-          </Button>
-        </Card>
-      )}
+    <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+      {steps.map((s, i) => {
+        const selected = view === s.key;
+        const isCurrent = s.key === currentKey && !s.done;
+        return (
+          <button
+            key={s.key}
+            onClick={() => onSelect(s.key)}
+            aria-current={selected ? "step" : undefined}
+            className={cn(
+              "rounded-2xl border p-4 text-left transition-colors",
+              selected ? "border-black/30 bg-white" : "border-black/[0.07] bg-white hover:border-black/20",
+              s.locked && !selected && "opacity-60",
+            )}
+          >
+            <div className="flex items-center gap-2.5">
+              <span
+                className={cn(
+                  "grid h-7 w-7 flex-none place-items-center rounded-full text-[11px]",
+                  s.done ? "bg-[#ecfdf5] text-[#047857]" : s.locked ? "border border-black/10 text-black/30" : isCurrent ? "bg-[#111] text-white" : "border border-black/20 text-black/55",
+                )}
+              >
+                {s.done ? <Check size={13} strokeWidth={2.5} /> : s.locked ? <Lock size={11} strokeWidth={1.5} /> : i + 1}
+              </span>
+              <span className="min-w-0">
+                <span className={cn("block truncate text-[12.5px]", selected || isCurrent ? "text-black/85" : "text-black/60")}>{s.label}</span>
+                <span className={cn("mt-0.5 block truncate font-mono text-[10px]", s.done ? "text-[#047857]" : "text-black/35")}>{s.sub}</span>
+              </span>
+            </div>
+            <div className={cn("mt-3 h-[3px] w-full overflow-hidden rounded-full", s.done ? "bg-[#10b981]" : isCurrent ? "bg-black/[0.08]" : "bg-black/[0.05]")}>
+              {isCurrent && <div className="h-full w-1/3 rounded-full bg-[#111]" />}
+            </div>
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-/* ════════════════════════ Submissions & Evidence (step 4) ════════════════════════ */
-function SubmissionsTab({ decl, roll, onOpen }: { decl: Declaration; roll: ReviewRollup; onOpen: (id: string) => void }) {
+/* A locked step stays visible and explains exactly what unlocks it. */
+function LockedPanel({ step, steps, onGo }: { step: StepMeta; steps: StepMeta[]; onGo: (v: View) => void }) {
+  const blocker = steps.find((s) => !s.done && !s.locked);
+  const reason =
+    step.key === "report"
+      ? "Every supplier submission must be approved before the report can be generated — the package only ever contains verified data."
+      : step.key === "signoff"
+        ? "Generate the report first — sign-off is a confirmation of the exact package that will be sent."
+        : "Internal sign-off must be complete before anything is dispatched — every requested confirmation has to land first.";
+  return (
+    <Card className="flex flex-col items-center justify-center p-14 text-center">
+      <span className="grid h-12 w-12 place-items-center rounded-xl border border-black/10 text-black/35">
+        <Lock size={20} strokeWidth={1.5} />
+      </span>
+      <p className="mt-4 text-sm text-black/60">{step.label} is locked for now.</p>
+      <p className="mt-1.5 max-w-md text-[12.5px] leading-relaxed text-black/40">{reason}</p>
+      {blocker && (
+        <Button className="mt-5" size="sm" variant="secondary" onClick={() => onGo(blocker.key)}>
+          Go to {blocker.label} <ArrowRight size={13} strokeWidth={1.5} />
+        </Button>
+      )}
+    </Card>
+  );
+}
+
+/* ════════════════════════ Step 1 — Supplier data ════════════════════════ */
+/* "2m ago" / "3h ago" / "2d ago" for persisted timestamps. */
+function ago(ts: number): string {
+  const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.round(s / 60)}m ago`;
+  if (s < 86400) return `${Math.round(s / 3600)}h ago`;
+  return `${Math.round(s / 86400)}d ago`;
+}
+
+function SubmissionsTab({
+  decl,
+  roll,
+  exporter,
+  onChanged,
+  onOpen,
+}: {
+  decl: Declaration;
+  roll: ReviewRollup;
+  exporter: ExporterDeclState;
+  onChanged: (s: ExporterDeclState) => void;
+  onOpen: (id: string) => void;
+}) {
   const stats: { value: React.ReactNode; label: string }[] = [
     { value: `${roll.submittedCount}/${roll.total}`, label: "Submitted" },
     { value: roll.counts.in_review + roll.counts.submitted, label: "Awaiting review" },
@@ -411,21 +587,30 @@ function SubmissionsTab({ decl, roll, onOpen }: { decl: Declaration; roll: Revie
       <div className="min-w-0">
         <Eyebrow>Supplier submissions</Eyebrow>
         <p className="mt-1 max-w-xl text-sm text-black/45">
-          Each supplier filled their own Smart Link, the AI checked it, they e-signed and submitted. Click a submission to read the
-          data, see the AI summary, and approve it or request a revision.
+          Each supplier filled their own Smart Link, the AI checked it, they e-signed and submitted. Open a submission to read the
+          data, loop in your internal reviewers, then approve it or request a revision.
         </p>
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-black/[0.08] bg-white">
         {roll.submissions.map((s) => (
-          <SubmissionRow key={s.supplier.id} sub={s} onOpen={() => onOpen(s.supplier.id)} />
+          <SubmissionRow
+            key={s.supplier.id}
+            sub={s}
+            lastReminded={lastReminderAt(exporter, s.supplier.id)}
+            onRemind={() => {
+              onChanged(remindSupplier(decl.id, s.supplier.id));
+              toast({ message: "Reminder sent", detail: `${s.supplier.name} nudged by email to complete their Smart Link.`, tone: "info" });
+            }}
+            onOpen={() => onOpen(s.supplier.id)}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-function SubmissionRow({ sub, onOpen }: { sub: ReviewSubmission; onOpen: () => void }) {
+function SubmissionRow({ sub, lastReminded, onRemind, onOpen }: { sub: ReviewSubmission; lastReminded: number | null; onRemind: () => void; onOpen: () => void }) {
   const meta = LIFECYCLE_META[sub.lifecycle];
   const [copied, setCopied] = React.useState(false);
   const copyTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -449,7 +634,12 @@ function SubmissionRow({ sub, onOpen }: { sub: ReviewSubmission; onOpen: () => v
       className={cn("flex items-center gap-3 border-b border-black/[0.05] px-4 py-3.5 last:border-0", clickable && "cursor-pointer hover:bg-[#fafaf8]")}
     >
       <span className="flex min-w-0 flex-1 items-center gap-2.5">
-        {sub.supplier.critical && <span className="h-1.5 w-1.5 flex-none rounded-full bg-black/40" title="CBAM-critical supplier" />}
+        {sub.supplier.critical && (
+          <span
+            className="h-1.5 w-1.5 flex-none rounded-full bg-black/40"
+            title="CBAM-critical: this supplier carries a major share of the declaration's embedded emissions — the package can't be filed without them."
+          />
+        )}
         <span className="min-w-0">
           <span className="flex items-center gap-2">
             <span className="truncate text-[13px] text-black/75">{sub.supplier.name}</span>
@@ -459,6 +649,7 @@ function SubmissionRow({ sub, onOpen }: { sub: ReviewSubmission; onOpen: () => v
             <span className="font-mono text-[10px] text-black/35">{sub.supplier.country}</span>
             {sub.supplier.material}
             {sub.submitted && <span className="text-black/30">· v{sub.version}{sub.check ? ` · score ${sub.check.score}` : ""}</span>}
+            {!sub.submitted && lastReminded && <span className="text-black/30">· reminded {ago(lastReminded)}</span>}
           </span>
         </span>
       </span>
@@ -486,7 +677,7 @@ function SubmissionRow({ sub, onOpen }: { sub: ReviewSubmission; onOpen: () => v
         {sub.submitted ? (
           <ChevronRight size={16} strokeWidth={1.5} className="text-black/30" />
         ) : (
-          <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); toast({ message: "Reminder sent", detail: `${sub.supplier.name} nudged to complete their Smart Link.`, tone: "info" }); }}>
+          <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); onRemind(); }}>
             <Bell size={13} strokeWidth={1.5} /> Remind
           </Button>
         )}
@@ -495,7 +686,7 @@ function SubmissionRow({ sub, onOpen }: { sub: ReviewSubmission; onOpen: () => v
   );
 }
 
-/* ════════════════════════ Submission review (steps 5,6,7,9) ════════════════════════ */
+/* ════════════════════════ Submission review ════════════════════════ */
 function SubmissionReview({ decl, sub, onChanged }: { decl: Declaration; sub: ReviewSubmission; onChanged: (s: ExporterDeclState) => void }) {
   const [showRevision, setShowRevision] = React.useState(false);
   const meta = LIFECYCLE_META[sub.lifecycle];
@@ -544,10 +735,9 @@ function SubmissionReview({ decl, sub, onChanged }: { decl: Declaration; sub: Re
       <SubmittedData sub={sub} />
       <ReviewerPicker decl={decl} sub={sub} onChanged={onChanged} />
 
-      {/* Decision (steps 7 / 9) */}
+      {/* Decision */}
       {showRevision ? (
         <RevisionForm
-          decl={decl}
           sub={sub}
           onCancel={() => setShowRevision(false)}
           onSubmit={(payload) => {
@@ -582,7 +772,7 @@ function SubmissionReview({ decl, sub, onChanged }: { decl: Declaration; sub: Re
   );
 }
 
-/* AI-flagged evidence summary for one submission (step 5) */
+/* AI-flagged evidence summary for one submission */
 function ExecSummary({ sub }: { sub: ReviewSubmission }) {
   const check = sub.check;
   const scoreTone = (s: number) => (s >= 85 ? "#047857" : s >= 60 ? "#b45309" : "#dc2626");
@@ -611,18 +801,25 @@ function ExecSummary({ sub }: { sub: ReviewSubmission }) {
           <div>
             <div className="font-pixel text-[10px] uppercase tracking-[0.16em] text-black/40">Key emissions data</div>
             <div className="mt-2 space-y-1.5">
-              {sub.emissions.map((e) => (
-                <div key={e.productId} className="flex items-center justify-between rounded-lg border border-black/[0.06] bg-[#fafaf8] px-3 py-2">
-                  <div className="min-w-0">
-                    <div className="truncate text-[13px] text-black/75">{e.productName}</div>
-                    <div className="font-mono text-[10px] text-black/40">CN {e.cnCode} · {e.tonnes.toLocaleString("en-US")} t</div>
+              {sub.emissions.map((e) => {
+                const direct = Number(sub.values[valueKey("direct-emissions", e.productId)]) || null;
+                const indirect = Number(sub.values[valueKey("indirect-emissions", e.productId)]) || null;
+                return (
+                  <div key={e.productId} className="flex items-center justify-between rounded-lg border border-black/[0.06] bg-[#fafaf8] px-3 py-2">
+                    <div className="min-w-0">
+                      <div className="truncate text-[13px] text-black/75">{e.productName}</div>
+                      <div className="font-mono text-[10px] text-black/40">CN {e.cnCode} · {e.tonnes.toLocaleString("en-US")} t</div>
+                      {direct !== null && indirect !== null && (
+                        <div className="font-mono text-[10px] text-black/35">direct {direct.toFixed(2)} · indirect {indirect.toFixed(2)} tCO₂e/t</div>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <div className="font-[family-name:var(--font-plex)] text-lg font-light text-[#111]">{e.perTonne.toFixed(2)} <span className="text-xs text-black/40">tCO₂e/t</span></div>
+                      <div className="font-mono text-[10px] text-black/40">{e.total.toLocaleString("en-US")} tCO₂e total</div>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <div className="font-[family-name:var(--font-plex)] text-lg font-light text-[#111]">{e.perTonne.toFixed(2)} <span className="text-xs text-black/40">tCO₂e/t</span></div>
-                    <div className="font-mono text-[10px] text-black/40">{e.total.toLocaleString("en-US")} tCO₂e total</div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-[12px] text-black/50">
               <span>Embedded total: <span className="text-black/75">{sub.totalTCO2e.toLocaleString("en-US")} tCO₂e</span></span>
@@ -732,16 +929,21 @@ function SectionBlock({ section, sub, displayValue }: { section: SupplierSection
         </dl>
       ) : (
         <div className="mt-2.5 space-y-3">
-          {sub.request.products.map((rp) => (
-            <div key={rp.product.id} className={cn(sub.request.products.length > 1 && "rounded-xl border border-black/[0.06] bg-[#fafaf8] p-3")}>
-              {sub.request.products.length > 1 && <div className="mb-2 text-[11px] text-black/50">{rp.product.name} <span className="font-mono text-[10px] text-black/35">· CN {rp.product.cnCode}</span></div>}
-              <dl className="grid grid-cols-1 gap-x-6 gap-y-2.5 sm:grid-cols-2">
-                {fields.map((f) => (
-                  <DataRow key={f.id} label={f.label} value={displayValue(f, rp.product.id)} />
-                ))}
-              </dl>
-            </div>
-          ))}
+          {sub.request.products.map((rp) => {
+            // mirror the supplier's own form: only the fields that apply to this good
+            const productFields = productFieldsForSection(sub.request, section, rp.product);
+            if (productFields.length === 0) return null;
+            return (
+              <div key={rp.product.id} className={cn(sub.request.products.length > 1 && "rounded-xl border border-black/[0.06] bg-[#fafaf8] p-3")}>
+                {sub.request.products.length > 1 && <div className="mb-2 text-[11px] text-black/50">{rp.product.name} <span className="font-mono text-[10px] text-black/35">· CN {rp.product.cnCode}</span></div>}
+                <dl className="grid grid-cols-1 gap-x-6 gap-y-2.5 sm:grid-cols-2">
+                  {productFields.map((f) => (
+                    <DataRow key={f.id} label={f.label} value={displayValue(f, rp.product.id)} />
+                  ))}
+                </dl>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -757,9 +959,13 @@ function DataRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-/* Assign internal reviewers to look at one submission (step 6) — distinct from
-   the declaration-level sign-off chain in Review & Approval. */
+/* Assign internal reviewers to look at one submission — the whole team is
+   offered, and "+ Add person" creates someone new without leaving the page. */
 function ReviewerPicker({ decl, sub, onChanged }: { decl: Declaration; sub: ReviewSubmission; onChanged: (s: ExporterDeclState) => void }) {
+  const [members, setMembers] = React.useState<TeamMember[]>([]);
+  const [showAdd, setShowAdd] = React.useState(false);
+  React.useEffect(() => setMembers(loadTeam()), []);
+
   return (
     <Card warm className="p-5">
       <div className="flex items-center gap-2">
@@ -768,14 +974,14 @@ function ReviewerPicker({ decl, sub, onChanged }: { decl: Declaration; sub: Revi
       </div>
       <p className="mt-1.5 text-[12px] text-black/45">Share this submission with the teams who need to sign off — ESG, Compliance, Legal or your verifier. We email them an invite, and they get scoped, read-only access to the source data.</p>
       <div className="mt-3 flex flex-wrap gap-1.5">
-        {REVIEWERS.map((r) => {
-          const on = sub.review.reviewers.includes(r.id);
+        {members.map((m) => {
+          const on = sub.review.reviewers.includes(m.id);
           return (
             <button
-              key={r.id}
+              key={m.id}
               onClick={() => {
-                onChanged(toggleReviewer(decl.id, sub.supplier.id, r.id));
-                if (!on) toast({ message: `${r.name} assigned`, detail: `Notified by email — scoped, read-only access to ${sub.supplier.name}'s submission.`, tone: "info" });
+                onChanged(toggleReviewer(decl.id, sub.supplier.id, m.id));
+                if (!on) toast({ message: `${m.name} assigned`, detail: `Notified by email — scoped, read-only access to ${sub.supplier.name}'s submission.`, tone: "info" });
               }}
               className={cn(
                 "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[12px] transition-colors",
@@ -783,22 +989,40 @@ function ReviewerPicker({ decl, sub, onChanged }: { decl: Declaration; sub: Revi
               )}
             >
               <span className={cn("grid h-4 w-4 place-items-center rounded-full", on ? "bg-[#111] text-white" : "border border-black/20")}>{on && <Check size={10} strokeWidth={3} />}</span>
-              {r.name} <span className="text-black/35">· {r.role}</span>
+              {m.name} <span className="text-black/35">· {m.role}</span>
             </button>
           );
         })}
+        <button
+          onClick={() => setShowAdd(true)}
+          className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-black/20 px-3 py-1.5 text-[12px] text-black/45 transition-colors hover:border-black/40 hover:text-black"
+        >
+          <Plus size={12} strokeWidth={2} /> Add person
+        </button>
       </div>
       {sub.review.reviewers.length > 0 && (
         <p className="mt-2.5 text-[11px] text-[#047857]">
-          Shared with {sub.review.reviewers.map((id) => getReviewer(id)?.name).filter(Boolean).join(", ")} — they'll be notified by email.
+          Shared with {sub.review.reviewers.map((id) => getTeamMember(id)?.name).filter(Boolean).join(", ")} — they'll be notified by email.
         </p>
       )}
+      <AddMemberModal
+        open={showAdd}
+        onClose={() => setShowAdd(false)}
+        note={`They join your team list and are assigned to ${sub.supplier.name}'s submission right away — scoped, read-only access to this source data.`}
+        onAdded={(m) => {
+          setMembers(loadTeam());
+          if (!sub.review.reviewers.includes(m.id)) {
+            onChanged(toggleReviewer(decl.id, sub.supplier.id, m.id));
+          }
+          toast({ message: `${m.name} added & assigned`, detail: "Invite emailed — they also appear under Team & seats.", tone: "ok" });
+        }}
+      />
     </Card>
   );
 }
 
-/* Request revision — pick specific fields + docs + a comment (step 7 → writes step 8) */
-function RevisionForm({ decl, sub, onCancel, onSubmit }: { decl: Declaration; sub: ReviewSubmission; onCancel: () => void; onSubmit: (p: { fields: string[]; docs: string[]; comment: string }) => void }) {
+/* Request revision — pick specific fields + docs + a comment */
+function RevisionForm({ sub, onCancel, onSubmit }: { sub: ReviewSubmission; onCancel: () => void; onSubmit: (p: { fields: string[]; docs: string[]; comment: string }) => void }) {
   const sections = sectionsForRequest(sub.request);
   const [fields, setFields] = React.useState<Set<string>>(new Set(sub.review.unlockedFields));
   const [docs, setDocs] = React.useState<Set<string>>(new Set(sub.review.unlockedDocs));
@@ -816,7 +1040,11 @@ function RevisionForm({ decl, sub, onCancel, onSubmit }: { decl: Declaration; su
     const fs = fieldsForSection(sub.request, section);
     for (const f of fs) {
       if (isOnceField(f.group)) fieldRows.push({ key: valueKey(f.id), label: f.label });
-      else for (const rp of sub.request.products) fieldRows.push({ key: valueKey(f.id, rp.product.id), label: sub.request.products.length > 1 ? `${f.label} — ${rp.product.name}` : f.label });
+      else
+        for (const rp of sub.request.products) {
+          if (!fieldAppliesTo(f, rp.product)) continue; // can't reopen a field this good never answers
+          fieldRows.push({ key: valueKey(f.id, rp.product.id), label: sub.request.products.length > 1 ? `${f.label} — ${rp.product.name}` : f.label });
+        }
     }
   }
 
@@ -884,7 +1112,7 @@ function RevisionForm({ decl, sub, onCancel, onSubmit }: { decl: Declaration; su
   );
 }
 
-/* ════════════════════════ Compliance Intelligence (Stage 2, AI advisory) ════════════════════════ */
+/* ════════════════════════ Compliance Intelligence (advisory) ════════════════════════ */
 function ComplianceIntelligenceTab({ roll, intel }: { roll: ReviewRollup; intel: IntelligenceReport }) {
   if (roll.submittedCount === 0) {
     return <Card className="p-10 text-center text-sm text-black/40">No submissions yet — trust score, narrative and business impact appear once suppliers start submitting.</Card>;
@@ -992,194 +1220,24 @@ function ComplianceIntelligenceTab({ roll, intel }: { roll: ReviewRollup; intel:
   );
 }
 
-/* ════════════════════════ Emissions & Methodology (Stage 1, deterministic) ════════════════════════ */
-function EmissionsMethodologyTab({ roll, facts }: { roll: ReviewRollup; facts: ComplianceFacts }) {
-  const submitted = roll.submissions.filter((s) => s.submitted);
-  if (submitted.length === 0) {
-    return <Card className="p-10 text-center text-sm text-black/40">No submissions yet — methodology and emissions figures appear once suppliers start submitting.</Card>;
-  }
-  const scope2 = scope2Treatment(submitted.flatMap((s) => s.request.products.map((rp) => rp.product)));
-  const totalCapViolations = Object.values(facts.perSupplier).reduce((a, s) => a + s.capViolations.length, 0);
-
-  return (
-    <div className="space-y-5">
-      <Card className={cn("flex items-center gap-3 p-4", facts.declarable ? "border-black/[0.08]" : "border-[rgba(180,83,9,0.25)] bg-[#fffbeb]")}>
-        <StatusDot tone={facts.declarable ? "ok" : "warn"} />
-        <p className="text-sm text-black/60">
-          {facts.totalTonnes.toLocaleString("en-US")} t across submitted suppliers {facts.declarable ? "clears" : "is below"} the {MASS_THRESHOLD_TONNES_PER_YEAR}t/year mass threshold — indicative only; the real threshold is assessed on the importer's total annual CBAM imports across every supplier, not one declaration.
-        </p>
-      </Card>
-
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Card className="p-5"><Stat value={facts.totalGrossTCO2e.toLocaleString("en-US")} label="Gross tCO₂e reported" /></Card>
-        <Card className="p-5"><Stat value={facts.totalChargeableTCO2e.toLocaleString("en-US")} label="Chargeable tCO₂e" /></Card>
-        <Card className="p-5"><Stat value={`€${facts.totalNetExposureEUR.toLocaleString("en-US")}`} label="Net exposure" /></Card>
-        <Card className="p-5"><Stat value={totalCapViolations} label="Cap violations" /></Card>
-      </div>
-
-      <Card className="p-0">
-        <div className="border-b border-black/[0.06] px-5 py-3"><Eyebrow>Scope 2 (indirect) liability</Eyebrow></div>
-        <div className="divide-y divide-black/[0.05] px-5">
-          {scope2.map((s) => (
-            <div key={s.category} className="flex items-center justify-between py-3 text-[13px] text-black/65">
-              <span>{s.category}</span>
-              <StatusLabel tone={s.included ? "warn" : "muted"} label={s.included ? "in the bill" : "reported only"} />
-            </div>
-          ))}
-        </div>
-      </Card>
-
-      <Card className="overflow-hidden p-0">
-        <div className="border-b border-black/[0.06] px-5 py-3"><Eyebrow>By supplier</Eyebrow></div>
-        <div className="divide-y divide-black/[0.05]">
-          {submitted.map((s) => {
-            const f = facts.perSupplier[s.supplier.id];
-            if (!f) return null;
-            const clean = f.capViolations.length === 0 && f.unverifiedActual.length === 0 && f.evidenceGaps.every((g) => !g.required);
-            return (
-              <div key={s.supplier.id} className="flex flex-col gap-2 px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <div className="text-[13px] text-black/75">{s.supplier.name}</div>
-                  <div className="mt-0.5 font-mono text-[11px] text-black/40">
-                    {f.grossTCO2e.toLocaleString("en-US")} → {f.chargeableTCO2e.toLocaleString("en-US")} tCO₂e chargeable · €{f.netExposureEUR.toLocaleString("en-US")}
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {f.capViolations.length > 0 && <Chip tone="err">cap breach</Chip>}
-                  {f.unverifiedActual.length > 0 && <Chip tone="warn">unverified actual</Chip>}
-                  {f.evidenceGaps.some((g) => g.required) && <Chip tone="warn">evidence gap</Chip>}
-                  {clean && <Chip tone="ok">clean</Chip>}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-/* ════════════════════════ Review & Approval (Stage 4) ════════════════════════ */
-function ReviewApprovalTab({ decl, chain, onChanged, legalRequired }: { decl: Declaration; chain: ChainState; onChanged: (c: ChainState) => void; legalRequired: boolean }) {
-  const [comment, setComment] = React.useState("");
-
-  if (!chain.started) {
-    return (
-      <div className="space-y-5">
-        <div>
-          <Eyebrow>Start the sign-off chain</Eyebrow>
-          <p className="mt-1 max-w-xl text-sm text-black/45">Choose how this organisation approves a regulatory declaration before it's dispatched. Configurable per declaration — comments, e-signature and a full audit history are built in.</p>
-        </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {(Object.keys(CHAIN_TEMPLATE_META) as ChainTemplateId[]).map((id) => (
-            <button key={id} onClick={() => onChanged(startChain(decl.id, id))} className="rounded-2xl border border-black/[0.08] bg-white p-5 text-left transition-colors hover:border-black/25">
-              <div className="text-sm text-[#111]">{CHAIN_TEMPLATE_META[id].label}</div>
-              <p className="mt-1.5 text-[12.5px] text-black/50">{CHAIN_TEMPLATE_META[id].description}</p>
-            </button>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  const active = currentStep(chain, legalRequired);
-  const complete = isChainComplete(chain, legalRequired);
-
-  return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <Eyebrow>{CHAIN_TEMPLATE_META[chain.template].label} chain</Eyebrow>
-          <p className="mt-1 text-sm text-black/45">{complete ? "Every required step is signed off." : `Waiting on ${active?.label ?? "…"}.`}</p>
-        </div>
-        {complete && <StatusLabel tone="ok" label="ready to dispatch" glow />}
-      </div>
-
-      <Card className="divide-y divide-black/[0.06] p-0">
-        {chain.steps.map((s) => {
-          const skippable = s.conditional && !legalRequired && s.status === "pending";
-          const isCurrent = active?.role === s.role;
-          return (
-            <div key={s.role} className="p-5">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <span
-                    className={cn(
-                      "grid h-9 w-9 flex-none place-items-center rounded-xl",
-                      s.status === "approved" ? "bg-[#ecfdf5] text-[#047857]" : s.status === "changes_requested" ? "bg-[#fef2f2] text-[#dc2626]" : s.status === "skipped" ? "bg-black/[0.04] text-black/30" : "border border-black/10 text-black/40",
-                    )}
-                  >
-                    {s.status === "approved" ? <Check size={16} strokeWidth={2} /> : s.status === "changes_requested" ? <CircleX size={16} strokeWidth={1.5} /> : <Users size={16} strokeWidth={1.5} />}
-                  </span>
-                  <div>
-                    <div className="text-sm text-black/80">
-                      {s.label} {s.conditional && <span className="ml-1 text-[10px] uppercase tracking-[0.08em] text-black/35">conditional</span>}
-                    </div>
-                    <div className="mt-0.5 text-[11px] text-black/40">
-                      {s.actorName} · {s.actorTitle}
-                      {s.at ? ` · ${new Date(s.at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : ""}
-                    </div>
-                  </div>
-                </div>
-                <StatusLabel tone={s.status === "approved" ? "ok" : s.status === "changes_requested" ? "err" : s.status === "skipped" ? "muted" : "info"} label={s.status.replace("_", " ")} glow={s.status === "approved"} />
-              </div>
-              {s.comment && <p className="mt-2.5 pl-12 text-[12.5px] text-black/55">“{s.comment}”</p>}
-              {isCurrent && s.status === "pending" && (
-                <div className="mt-3 flex flex-wrap items-center gap-2 pl-12">
-                  <Button size="sm" onClick={() => onChanged(approveStep(decl.id, s.role))}>
-                    <Check size={13} strokeWidth={1.5} /> Approve
-                  </Button>
-                  <Button variant="secondary" size="sm" onClick={() => onChanged(requestChangesAtStep(decl.id, s.role, "Changes requested."))}>
-                    Request changes
-                  </Button>
-                  {skippable && (
-                    <Button variant="ghost" size="sm" onClick={() => onChanged(skipStep(decl.id, s.role))}>
-                      Skip — not triggered
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </Card>
-
-      <Card className="p-5">
-        <Eyebrow>Comments</Eyebrow>
-        <div className="mt-2.5 space-y-2.5">
-          {chain.comments.length === 0 && <p className="text-[12.5px] text-black/40">No comments yet.</p>}
-          {chain.comments.map((c) => (
-            <div key={c.id} className="text-[12.5px] text-black/60">
-              <span className="text-black/75">{c.author}</span> <span className="text-black/35">· {new Date(c.at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
-              <p className="mt-0.5">{c.text}</p>
-            </div>
-          ))}
-        </div>
-        <div className="mt-3 flex items-center gap-2">
-          <input className={cn(inputClass, "flex-1")} value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Add a comment for the chain…" />
-          <Button
-            size="sm"
-            disabled={!comment.trim()}
-            onClick={() => {
-              onChanged(addComment(decl.id, EXPORTER.contact, comment.trim()));
-              setComment("");
-            }}
-          >
-            Post
-          </Button>
-        </div>
-      </Card>
-    </div>
-  );
-}
-
-/* ════════════════════════ Output Center (Stage 5) ════════════════════════ */
-function OutputCenterTab({ decl, roll, exporter, onChanged }: { decl: Declaration; roll: ReviewRollup; exporter: ExporterDeclState; onChanged: (s: ExporterDeclState) => void }) {
+/* ════════════════════════ Step 2 — Generate report ════════════════════════ */
+function ReportTab({
+  decl,
+  roll,
+  exporter,
+  onChanged,
+  onOpenSubmission,
+}: {
+  decl: Declaration;
+  roll: ReviewRollup;
+  exporter: ExporterDeclState;
+  onChanged: (s: ExporterDeclState) => void;
+  onOpenSubmission: (supplierId: string) => void;
+}) {
   const reg = getRegulation(decl.regulation)!;
   const jur = getJurisdiction(decl.origin)!;
   const approved = roll.submissions.filter((s) => s.lifecycle === "approved");
   const generated = Boolean(exporter.packageGeneratedAt);
-  const canGenerate = approved.length > 0;
   const ref = `CTR-${reg.short.replace(/\s/g, "")}-${decl.period}`.replace(/[^A-Za-z0-9-]/g, "");
 
   const doDownload = async () => {
@@ -1200,7 +1258,7 @@ function OutputCenterTab({ decl, roll, exporter, onChanged }: { decl: Declaratio
       ...packageSummaryData(approved),
       ...packageHistoryData(approved),
       chapters: buildSupplierChapters(approved),
-      signOff: buildSignOff(loadChain(decl.id)),
+      signOff: buildSignOff(exporter.signoffs ?? []),
     });
     toast({ message: "Package downloaded.", detail: "Full communication & audit package — per-supplier chapters, evidence register, sign-off record and audit trail." });
   };
@@ -1215,8 +1273,8 @@ function OutputCenterTab({ decl, roll, exporter, onChanged }: { decl: Declaratio
   return (
     <div className="space-y-5">
       <div>
-        <Eyebrow>Output center</Eyebrow>
-        <p className="mt-1 max-w-2xl text-sm text-black/45">One approved dataset, generated into every artifact someone actually needs — collect once, generate everything.</p>
+        <Eyebrow>Report package</Eyebrow>
+        <p className="mt-1 max-w-2xl text-sm text-black/45">One approved dataset, generated into every artifact you need.</p>
       </div>
 
       <Card className="overflow-hidden p-0">
@@ -1246,8 +1304,17 @@ function OutputCenterTab({ decl, roll, exporter, onChanged }: { decl: Declaratio
         ) : (
           <div className="flex flex-col items-center justify-center p-14 text-center">
             <span className="grid h-12 w-12 place-items-center rounded-xl border border-black/10 text-black/40"><FileText size={20} strokeWidth={1.5} /></span>
-            <p className="mt-4 text-sm text-black/45">{canGenerate ? "Approve submissions, then generate the package." : "Approve at least one submission to generate the package."}</p>
-            <Button className="mt-4" size="sm" disabled={!canGenerate} onClick={() => onChanged(markPackageGenerated(decl.id))}>
+            <p className="mt-4 text-sm text-black/45">
+              Every supplier is approved — generate the sealed package when you're ready.
+            </p>
+            <Button
+              className="mt-4"
+              size="sm"
+              onClick={() => {
+                onChanged(markPackageGenerated(decl.id));
+                toast({ message: "Report generated", detail: "Audit package + Registry XML sealed from the approved dataset. Next: internal sign-off.", tone: "ok" });
+              }}
+            >
               <FileText size={14} strokeWidth={1.5} /> Generate package
             </Button>
           </div>
@@ -1265,14 +1332,14 @@ function OutputCenterTab({ decl, roll, exporter, onChanged }: { decl: Declaratio
             <div>
               <div className="font-pixel text-[10px] uppercase tracking-[0.2em] text-black/40">CBAM Communication Template · O3CI-ready</div>
               <div className="mt-2 font-[family-name:var(--font-plex)] text-2xl font-light text-[#111]">Annex IV data export</div>
-              <div className="mt-1 text-sm text-black/45">Feeds the CBAM Registry's O3CI module directly, or hands to a buyer not on it yet — see Buyer & Authority Handoff.</div>
+              <div className="mt-1 text-sm text-black/45">Feeds the CBAM Registry's O3CI module directly, or hands to a buyer not on it yet — see Send & export.</div>
             </div>
-            <RegistryXmlPanel decl={decl} approved={approved} refSlug={ref.toLowerCase()} />
+            <RegistryXmlPanel decl={decl} approved={approved} refSlug={ref.toLowerCase()} onOpenSubmission={onOpenSubmission} />
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center p-14 text-center">
             <span className="grid h-12 w-12 place-items-center rounded-xl border border-black/10 text-black/40"><FileText size={20} strokeWidth={1.5} /></span>
-            <p className="mt-4 text-sm text-black/45">{canGenerate ? "Approve submissions, then generate the package to unlock the XML export." : "Approve at least one submission to generate the package."}</p>
+            <p className="mt-4 text-sm text-black/45">Generating the package also produces the Registry XML export.</p>
           </div>
         )}
       </Card>
@@ -1290,8 +1357,20 @@ function OutputCenterTab({ decl, roll, exporter, onChanged }: { decl: Declaratio
   );
 }
 
-function RegistryXmlPanel({ decl, approved, refSlug }: { decl: Declaration; approved: ReviewSubmission[]; refSlug: string }) {
+function RegistryXmlPanel({
+  decl,
+  approved,
+  refSlug,
+  onOpenSubmission,
+}: {
+  decl: Declaration;
+  approved: ReviewSubmission[];
+  refSlug: string;
+  onOpenSubmission: (supplierId: string) => void;
+}) {
   const validation = React.useMemo(() => validateForRegistry(decl, approved), [decl, approved]);
+  const hardErrors = validation.errors.filter((e) => e.severity === "error");
+  const warnings = validation.errors.filter((e) => e.severity === "warning");
 
   const handleDownload = () => {
     const xmlContent = buildCbamXml(decl, approved);
@@ -1307,17 +1386,39 @@ function RegistryXmlPanel({ decl, approved, refSlug }: { decl: Declaration; appr
             <Check size={16} strokeWidth={2} />
             Schema valid for definitive period
           </div>
-          <p className="mt-1 text-black/60">No default values used, all required installation data present.</p>
+          <p className="mt-1 text-black/60">All required installation and emissions data present.</p>
         </div>
       ) : (
         <div className="rounded-xl border border-[#dc2626]/20 bg-[#fef2f2] p-4 text-sm text-[#dc2626]">
           <div className="flex items-center gap-2 font-medium">
             <CircleX size={16} strokeWidth={2} />
-            Validation failed
+            The Registry would reject this — {hardErrors.length} blocking issue{hardErrors.length === 1 ? "" : "s"}
           </div>
-          <ul className="mt-2 list-inside list-disc space-y-1 text-black/70">
-            {validation.errors.map((err, i) => (
-              <li key={i}>{err.supplierName}: {err.issue}</li>
+          <ul className="mt-2 space-y-1 text-black/70">
+            {hardErrors.map((err, i) => (
+              <li key={i}>
+                <button
+                  onClick={() => onOpenSubmission(err.supplierId)}
+                  className="text-left underline decoration-black/20 underline-offset-2 hover:decoration-black/60"
+                  title="Open this supplier's submission"
+                >
+                  <span className="text-black/85">{err.supplierName}</span>: {err.issue}
+                </button>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-[12px] text-black/50">Click an issue to open that supplier's submission and request a revision.</p>
+        </div>
+      )}
+      {warnings.length > 0 && (
+        <div className="rounded-xl border border-[#b45309]/20 bg-[#fffbeb] p-4 text-sm">
+          <div className="flex items-center gap-2 font-medium text-[#b45309]">
+            <TriangleAlert size={15} strokeWidth={1.8} />
+            {warnings.length} warning{warnings.length === 1 ? "" : "s"} — accepted by the Registry, but worth knowing
+          </div>
+          <ul className="mt-2 space-y-1 text-[13px] text-black/60">
+            {warnings.map((w, i) => (
+              <li key={i}><span className="text-black/80">{w.supplierName}</span>: {w.issue}</li>
             ))}
           </ul>
         </div>
@@ -1332,24 +1433,191 @@ function RegistryXmlPanel({ decl, approved, refSlug }: { decl: Declaration; appr
   );
 }
 
-/* ════════════════════════ Buyer & Authority Handoff (Stage 8) ════════════════════════ */
-function BuyerAuthorityHandoffTab({
+/* ════════════════════════ Step 3 — Internal sign-off ════════════════════════ */
+function SignoffTab({
+  decl,
+  exporter,
+  onChanged,
+  legalRequired,
+}: {
+  decl: Declaration;
+  exporter: ExporterDeclState;
+  onChanged: (s: ExporterDeclState) => void;
+  legalRequired: boolean;
+}) {
+  const [members, setMembers] = React.useState<TeamMember[]>([]);
+  const [selected, setSelected] = React.useState<Set<string>>(new Set());
+  const [showAdd, setShowAdd] = React.useState(false);
+  React.useEffect(() => setMembers(loadTeam()), []);
+
+  const signoffs = exporter.signoffs ?? [];
+  const requestedIds = new Set(signoffs.map((s) => s.memberId));
+  const available = members.filter((m) => !requestedIds.has(m.id));
+  const legalCovered = signoffs.some((s) => getTeamMember(s.memberId)?.dept === "Legal");
+
+  const toggleSelect = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const send = () => {
+    const names = [...selected].map((id) => getTeamMember(id)?.name).filter(Boolean).join(", ");
+    onChanged(requestReportSignoffs(decl.id, [...selected]));
+    setSelected(new Set());
+    toast({ message: "Preview sent", detail: `${names} emailed a read-only preview of the report — dispatch unlocks when everyone confirms.`, tone: "info" });
+  };
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <Eyebrow>Internal sign-off</Eyebrow>
+        <p className="mt-1 max-w-2xl text-sm text-black/45">
+          Send the report for confirmation before it goes out. Each person gets a read-only preview link, and confirmations are recorded automatically.
+        </p>
+      </div>
+
+      {legalRequired && !legalCovered && (
+        <Card warm className="flex items-start gap-3 p-4">
+          <TriangleAlert size={16} strokeWidth={1.5} className="mt-0.5 flex-none text-[#b45309]" />
+          <p className="text-[12.5px] leading-relaxed text-black/55">
+            Anomalies were flagged in this declaration — include <span className="text-black/75">Legal counsel</span> in the sign-off.
+          </p>
+        </Card>
+      )}
+
+      {/* who has it / who confirmed */}
+      {signoffs.length > 0 && (
+        <Card className="divide-y divide-black/[0.06] p-0">
+          {signoffs.map((s) => {
+            const m = getTeamMember(s.memberId);
+            const confirmed = Boolean(s.confirmedAt);
+            return (
+              <div key={s.memberId} className="flex flex-wrap items-center gap-3 p-5">
+                <span
+                  className={cn(
+                    "grid h-9 w-9 flex-none place-items-center rounded-xl",
+                    confirmed ? "bg-[#ecfdf5] text-[#047857]" : "border border-black/10 text-black/40",
+                  )}
+                >
+                  {confirmed ? <Check size={16} strokeWidth={2} /> : <Users size={16} strokeWidth={1.5} />}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm text-black/80">{m?.name ?? "Removed member"}</div>
+                  <div className="mt-0.5 text-[11px] text-black/40">
+                    {m?.role ?? "—"} · preview sent {new Date(s.requestedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                  </div>
+                </div>
+                {confirmed ? (
+                  <StatusLabel tone="ok" label={`confirmed ${new Date(s.confirmedAt!).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`} glow />
+                ) : (
+                  <div className="flex flex-none items-center gap-2">
+                    <StatusLabel tone="info" label="awaiting confirmation" pulse />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      title="Demo: records the confirmation that would arrive from their preview link."
+                      onClick={() => {
+                        onChanged(confirmReportSignoff(decl.id, s.memberId));
+                        toast({ message: `${m?.name ?? "Reviewer"} confirmed`, detail: "Their confirmation is on the record and embedded in the package.", tone: "ok" });
+                      }}
+                    >
+                      Mark confirmed
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => onChanged(withdrawReportSignoff(decl.id, s.memberId))}>
+                      Withdraw
+                    </Button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </Card>
+      )}
+
+      {/* ask more people */}
+      <Card warm className="p-5">
+        <div className="flex items-center gap-2">
+          <Users size={15} strokeWidth={1.5} className="text-black/55" />
+          <Eyebrow>{signoffs.length > 0 ? "Ask someone else" : "Who needs to confirm?"}</Eyebrow>
+        </div>
+        <p className="mt-1.5 text-[12px] text-black/45">Pick from your team, or add a new person — they'll appear under Team & seats too.</p>
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {available.map((m) => {
+            const on = selected.has(m.id);
+            return (
+              <button
+                key={m.id}
+                onClick={() => toggleSelect(m.id)}
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[12px] transition-colors",
+                  on ? "border-black/25 bg-[#f0eee8] text-black/80" : "border-black/10 text-black/50 hover:border-black/25 hover:text-black",
+                )}
+              >
+                <span className={cn("grid h-4 w-4 place-items-center rounded-full", on ? "bg-[#111] text-white" : "border border-black/20")}>{on && <Check size={10} strokeWidth={3} />}</span>
+                {m.name} <span className="text-black/35">· {m.role}</span>
+              </button>
+            );
+          })}
+          <button
+            onClick={() => setShowAdd(true)}
+            className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-black/20 px-3 py-1.5 text-[12px] text-black/45 transition-colors hover:border-black/40 hover:text-black"
+          >
+            <Plus size={12} strokeWidth={2} /> Add person
+          </button>
+        </div>
+        <div className="mt-4 flex items-center justify-between gap-3 border-t border-black/[0.06] pt-4">
+          <span className="text-[11px] text-black/40">{selected.size === 0 ? "Select at least one person" : `${selected.size} selected`}</span>
+          <Button size="sm" disabled={selected.size === 0} onClick={send}>
+            <Send size={14} strokeWidth={1.5} /> Send for confirmation
+          </Button>
+        </div>
+      </Card>
+
+      <AddMemberModal
+        open={showAdd}
+        onClose={() => setShowAdd(false)}
+        note="They join your team list and can be sent this report to confirm — an emailed, read-only preview of exactly what will be dispatched."
+        onAdded={(m) => {
+          setMembers(loadTeam());
+          setSelected((prev) => new Set(prev).add(m.id));
+          toast({ message: `${m.name} added`, detail: "Selected below — hit “Send for confirmation” when your list is complete.", tone: "ok" });
+        }}
+      />
+    </div>
+  );
+}
+
+/* ════════════════════════ Step 4 — Send & export ════════════════════════ */
+function DispatchTab({
   decl,
   roll,
   exporter,
   onChanged,
-  chainComplete,
+  signoffComplete,
+  onNavigate,
+  onOpenSubmission,
 }: {
   decl: Declaration;
   roll: ReviewRollup;
   exporter: ExporterDeclState;
   onChanged: (s: ExporterDeclState) => void;
-  chainComplete: boolean;
+  signoffComplete: boolean;
+  onNavigate: (v: View) => void;
+  onOpenSubmission: (supplierId: string) => void;
 }) {
   const reg = getRegulation(decl.regulation)!;
   const recipients = exporter.recipients;
   const dispatch = exporter.dispatch;
-  const readyToDispatch = chainComplete && roll.total > 0 && roll.submissions.every((s) => s.lifecycle === "approved");
+  const allApproved = roll.total > 0 && roll.submissions.every((s) => s.lifecycle === "approved");
+  // The Registry would reject non-conforming data, so dispatch runs the same
+  // pre-flight the XML export does — a hard error here blocks the push.
+  const approved = roll.submissions.filter((s) => s.lifecycle === "approved");
+  const validation = React.useMemo(() => validateForRegistry(decl, approved), [decl, approved]);
+  const hardErrors = validation.errors.filter((e) => e.severity === "error");
+  const readyToDispatch = signoffComplete && allApproved && validation.isValid;
   const dispatched = Boolean(dispatch.o3ciPushedAt || dispatch.templateSentAt);
 
   const targets: { key: DispatchRecipient; icon: typeof Building2; title: string; to: string; desc: string }[] = [
@@ -1368,9 +1636,46 @@ function BuyerAuthorityHandoffTab({
       </Card>
 
       {!readyToDispatch && (
-        <Card warm className="flex items-center gap-3 p-4">
-          <StatusDot tone="warn" />
-          <p className="text-sm text-black/55">{!chainComplete ? "The internal sign-off chain isn't complete yet — see Review & Approval." : "Every submission must be approved before dispatch."}</p>
+        <Card warm className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <StatusDot tone="warn" />
+            <p className="text-sm text-black/55">
+              {!signoffComplete
+                ? "Internal sign-off isn't complete yet — every requested confirmation must land first."
+                : !allApproved
+                  ? "Every submission must be approved before dispatch."
+                  : "The dataset has blocking Registry issues — fix them before anything is sent."}
+            </p>
+          </div>
+          {!signoffComplete && (
+            <Button size="sm" variant="ghost" className="flex-none" onClick={() => onNavigate("signoff")}>
+              View sign-off <ArrowRight size={13} strokeWidth={1.5} />
+            </Button>
+          )}
+        </Card>
+      )}
+
+      {/* Same pre-flight the Registry runs — a hard error means the push would bounce. */}
+      {signoffComplete && allApproved && hardErrors.length > 0 && (
+        <Card className="border-[#dc2626]/25 p-5">
+          <div className="flex items-center gap-2">
+            <CircleX size={15} strokeWidth={1.8} className="text-[#dc2626]" />
+            <Eyebrow>Registry pre-flight failed</Eyebrow>
+          </div>
+          <ul className="mt-2.5 space-y-1.5 text-[13px] text-black/65">
+            {hardErrors.map((err, i) => (
+              <li key={i}>
+                <button
+                  onClick={() => onOpenSubmission(err.supplierId)}
+                  className="text-left underline decoration-black/20 underline-offset-2 hover:decoration-black/60"
+                  title="Open this supplier's submission"
+                >
+                  <span className="text-black/85">{err.supplierName}</span>: {err.issue}
+                </button>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2.5 text-[12px] text-black/45">Click an issue to open the submission — request a revision there, and dispatch unlocks once the resubmission passes.</p>
         </Card>
       )}
 
@@ -1454,12 +1759,31 @@ function BuyerAuthorityHandoffTab({
 }
 
 /* ════════════════════════ Audit Trail & Version History ════════════════════════ */
-function AuditTrailTab({ roll, chain }: { roll: ReviewRollup; chain: ChainState }) {
+function AuditTrailTab({ roll, exporter }: { roll: ReviewRollup; exporter: ExporterDeclState }) {
   type Row = { at: number; who: string; text: string };
+  const recipientLabel: Record<DispatchRecipient, string> = { buyer: "EU buyer / importer", authority: "EU CBAM Registry", verifier: "Accredited verifier" };
+
+  const supplierName = (id: string) => roll.submissions.find((s) => s.supplier.id === id)?.supplier.name ?? id;
   const rows: Row[] = [
     ...roll.submissions.flatMap((s) => s.events.map((e) => ({ at: e.at, who: s.supplier.name, text: e.text }))),
-    ...chain.steps.filter((s): s is typeof s & { at: number } => s.at !== null).map((s) => ({ at: s.at, who: s.actorName, text: `${s.label}: ${s.status.replace("_", " ")}${s.comment ? ` — "${s.comment}"` : ""}` })),
-    ...chain.comments.map((c) => ({ at: c.at, who: c.author, text: `Comment on the sign-off chain: "${c.text}"` })),
+    ...Object.entries(exporter.remindersSent ?? {}).flatMap(([supplierId, times]) =>
+      times.map((at) => ({ at, who: EXPORTER.contact, text: `Reminder emailed to ${supplierName(supplierId)} — Smart Link still awaiting submission` })),
+    ),
+    ...(exporter.packageGeneratedAt ? [{ at: exporter.packageGeneratedAt, who: EXPORTER.contact, text: "Report package generated — audit PDF + Registry XML sealed from the approved dataset" }] : []),
+    ...(exporter.signoffs ?? []).flatMap((s) => {
+      const m = getTeamMember(s.memberId);
+      const name = m?.name ?? "Reviewer";
+      const out: Row[] = [{ at: s.requestedAt, who: EXPORTER.contact, text: `Report preview sent to ${name}${m ? ` (${m.role})` : ""} for confirmation` }];
+      if (s.confirmedAt) out.push({ at: s.confirmedAt, who: name, text: "Confirmed the report — sign-off recorded in the package" });
+      return out;
+    }),
+    ...(exporter.dispatch.o3ciPushedAt ? [{ at: exporter.dispatch.o3ciPushedAt, who: EXPORTER.contact, text: "Pushed to the CBAM Registry's O3CI module" }] : []),
+    ...(exporter.dispatch.templateSentAt ? [{ at: exporter.dispatch.templateSentAt, who: EXPORTER.contact, text: "Communication Template sent to the buyer" }] : []),
+    ...Object.entries(exporter.dispatch.acknowledgedAt).map(([key, at]) => ({
+      at: at as number,
+      who: recipientLabel[key as DispatchRecipient],
+      text: "Acknowledged receipt of the declaration data",
+    })),
   ].sort((a, b) => b.at - a.at);
 
   if (rows.length === 0) {
@@ -1470,7 +1794,7 @@ function AuditTrailTab({ roll, chain }: { roll: ReviewRollup; chain: ChainState 
     <div className="space-y-3">
       <div>
         <Eyebrow>Audit trail</Eyebrow>
-        <p className="mt-1 max-w-2xl text-sm text-black/45">One unified, append-only timeline across every submission and the internal sign-off chain.</p>
+        <p className="mt-1 max-w-2xl text-sm text-black/45">One unified, append-only timeline — supplier submissions, internal sign-offs and every dispatch, newest first.</p>
       </div>
       <Card className="divide-y divide-black/[0.05] p-0">
         {rows.map((r, i) => (

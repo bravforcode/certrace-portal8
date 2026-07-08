@@ -3,14 +3,13 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, ArrowRight, LayoutGrid, Table2, Search, ChevronLeft, ChevronRight, PenLine, Trash2, Copy } from "lucide-react";
+import { Plus, ArrowRight, LayoutGrid, Table2, Search, ChevronLeft, ChevronRight, PenLine, Trash2 } from "lucide-react";
 import { Card, Button, Chip, Progress, Eyebrow, cn } from "@/components/ui";
-import { toast } from "@/components/toast";
-import { DECLARATIONS, SUPPLIER_DIRECTORY, ORG, type Declaration, type DirectorySupplier } from "@/lib/data";
+import { DeclarationMenu } from "@/components/declaration-menu";
+import { DECLARATIONS, ORG, type Declaration } from "@/lib/data";
 import { getRegulation, getJurisdiction, type Purpose } from "@/lib/config";
-import { loadDrafts, deleteDraft, saveDraft, newDraftId, type Draft, type Mapping, type WizardSnapshot } from "@/lib/drafts";
-import { loadCreatedDeclarations } from "@/lib/declarations-store";
-import { productForMaterial } from "@/lib/supplier";
+import { loadDrafts, deleteDraft, type Draft } from "@/lib/drafts";
+import { loadCreatedDeclarations, loadHiddenDeclarationIds } from "@/lib/declarations-store";
 
 const STEP_LABEL: Record<string, string> = {
   collect: "Collecting",
@@ -38,72 +37,10 @@ function heading(d: Declaration) {
 function sub(d: Declaration) {
   return d.kind === "buyer" ? "Buyer request" : getRegulation(d.regulation)?.full ?? "";
 }
-function purposesLabel(purposes: Purpose[], long: boolean) {
+function purposeLabel(purpose: Purpose, long: boolean) {
   const cbam = long ? "CBAM compliance" : "CBAM";
   const buyer = long ? "Buyer request" : "Buyer";
-  if (purposes.includes("cbam") && purposes.includes("buyer")) return `${cbam} + ${buyer}`;
-  return purposes.includes("buyer") ? buyer : cbam;
-}
-
-/* "Duplicate Previous Request" — many exporters repeat similar requests every
-   quarter or year; re-seed the wizard from a past declaration's scope
-   (purpose, products, suppliers) as a fresh draft instead of starting blank.
-   Quantities and dates are left for the exporter to re-enter — they change
-   every period even when the scope doesn't. */
-function duplicateToDraft(d: Declaration): string {
-  const materials = Array.from(new Set(d.suppliers.map((s) => s.material)));
-  const products = Array.from(new Set(materials.map((m) => productForMaterial(m).id)));
-
-  const mapping: Mapping = {};
-  d.suppliers.forEach((s) => {
-    const pid = productForMaterial(s.material).id;
-    const entries = mapping[pid] ?? [];
-    if (!entries.some((e) => e.supplierId === s.id)) {
-      mapping[pid] = [...entries, { supplierId: s.id, lots: [{ id: `${s.id}-l1`, qty: "", unit: "", from: "", to: "", notes: "" }] }];
-    }
-  });
-
-  // Keep the declaration's own supplier ids (they're what `mapping` above keys
-  // on) even when a directory match is found — otherwise the two disagree and
-  // the wizard can't resolve a supplier's name back from the mapping.
-  const directory: DirectorySupplier[] = d.suppliers.map((s) => {
-    const match = SUPPLIER_DIRECTORY.find((x) => x.company === s.name);
-    return match ? { ...match, id: s.id } : { id: s.id, company: s.name, contact: "", email: "", country: s.country };
-  });
-
-  const name = `${heading(d)} (copy)`;
-  const snapshot: WizardSnapshot = {
-    regulation: d.regulation,
-    origin: d.origin,
-    destination: d.market,
-    purposes: [d.kind ?? "cbam"],
-    name,
-    description: "",
-    periodId: "annual",
-    year: String(new Date().getFullYear()),
-    quarter: "Q1",
-    half: "H1",
-    month: "January",
-    rangeStart: "",
-    rangeEnd: "",
-    products,
-    reportFields: {},
-    directory,
-    mapping,
-    deadline: "",
-    reminders: { d7: true, d3: true, due: true },
-    notes: "",
-    step: 0,
-  };
-
-  const id = newDraftId();
-  saveDraft({
-    id,
-    updatedAt: Date.now(),
-    snapshot,
-    display: { name, purposes: snapshot.purposes, productCount: products.length, supplierCount: directory.length, period: "", deadline: "" },
-  });
-  return id;
+  return purpose === "buyer" ? buyer : cbam;
 }
 
 const KINDS = [
@@ -147,9 +84,18 @@ export default function DeclarationsPage() {
 
   // Declarations created through the wizard live in localStorage (see
   // lib/declarations-store.ts) — merge them ahead of the static demo fixtures.
+  // Deleted fixtures live on a hidden list and are filtered out here.
   const [created, setCreated] = React.useState<Declaration[]>([]);
-  React.useEffect(() => setCreated(loadCreatedDeclarations()), []);
-  const allDeclarations = React.useMemo(() => [...created, ...DECLARATIONS], [created]);
+  const [hidden, setHidden] = React.useState<string[]>([]);
+  const refreshDeclarations = React.useCallback(() => {
+    setCreated(loadCreatedDeclarations());
+    setHidden(loadHiddenDeclarationIds());
+  }, []);
+  React.useEffect(() => refreshDeclarations(), [refreshDeclarations]);
+  const allDeclarations = React.useMemo(
+    () => [...created, ...DECLARATIONS].filter((d) => !hidden.includes(d.id)),
+    [created, hidden],
+  );
 
   const list = React.useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -168,8 +114,8 @@ export default function DeclarationsPage() {
     const needle = q.trim().toLowerCase();
     if (!(status === "all" || status === "draft")) return [];
     return drafts.filter((d) => {
-      if (kind !== "all" && !d.display.purposes.includes(kind as Purpose)) return false;
-      if (needle && ![d.display.name, ...d.display.purposes, d.display.period].join(" ").toLowerCase().includes(needle)) return false;
+      if (kind !== "all" && d.display.purpose !== kind) return false;
+      if (needle && ![d.display.name, d.display.purpose, d.display.period].join(" ").toLowerCase().includes(needle)) return false;
       return true;
     });
   }, [drafts, q, kind, status]);
@@ -312,18 +258,9 @@ export default function DeclarationsPage() {
                       </div>
                     </Card>
                   </Link>
-                  <button
-                    onClick={() => {
-                      const id = duplicateToDraft(d);
-                      toast({ message: "Duplicated as a draft", detail: "Scope and suppliers copied — adjust the period and quantities.", tone: "ok" });
-                      router.push(`/declarations/new?draft=${id}`);
-                    }}
-                    aria-label={`Duplicate ${heading(d)}`}
-                    title="Duplicate previous request"
-                    className="absolute right-3 top-3 grid h-7 w-7 place-items-center rounded-lg text-black/30 transition-colors hover:bg-black/[0.05] hover:text-black"
-                  >
-                    <Copy size={13} strokeWidth={1.5} />
-                  </button>
+                  <div className="absolute right-3 top-3">
+                    <DeclarationMenu decl={d} size="sm" afterDelete={refreshDeclarations} />
+                  </div>
                 </div>
               );
             })}
@@ -374,19 +311,10 @@ export default function DeclarationsPage() {
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
                             <Chip tone={tone(d)} pulse={false}>{STEP_LABEL[d.step]}</Chip>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const id = duplicateToDraft(d);
-                                toast({ message: "Duplicated as a draft", detail: "Scope and suppliers copied — adjust the period and quantities.", tone: "ok" });
-                                router.push(`/declarations/new?draft=${id}`);
-                              }}
-                              aria-label={`Duplicate ${heading(d)}`}
-                              title="Duplicate previous request"
-                              className="text-black/30 transition-colors hover:text-black"
-                            >
-                              <Copy size={13} strokeWidth={1.5} />
-                            </button>
+                            {/* stop the row's navigate-on-click before it reaches the menu */}
+                            <span onClick={(e) => e.stopPropagation()}>
+                              <DeclarationMenu decl={d} size="sm" afterDelete={refreshDeclarations} />
+                            </span>
                           </div>
                         </td>
                       </tr>
@@ -454,7 +382,7 @@ function DraftCard({ draft, onDiscard }: { draft: Draft; onDiscard: () => void }
             <span className="block truncate font-[family-name:var(--font-plex)] text-2xl font-light text-[#111]">{draft.display.name}</span>
             <p className="mt-1.5 flex items-center gap-2 text-[11px] uppercase tracking-[0.1em] text-black/35">
               <Chip pulse={false}>Draft</Chip>
-              {purposesLabel(draft.display.purposes, true)}
+              {purposeLabel(draft.display.purpose, true)}
             </p>
           </div>
           <div className="mt-5 grid grid-cols-2 gap-y-3 text-[12px]">
@@ -489,7 +417,7 @@ function DraftRow({ draft, onDiscard }: { draft: Draft; onDiscard: () => void })
         <div className="text-[13px] text-black/80">{draft.display.name}</div>
         <div className="text-[11px] text-black/40">Draft · not yet sent</div>
       </td>
-      <td className="px-4 py-3"><span className="font-mono text-[11px] uppercase tracking-[0.08em] text-black/50">{purposesLabel(draft.display.purposes, false)}</span></td>
+      <td className="px-4 py-3"><span className="font-mono text-[11px] uppercase tracking-[0.08em] text-black/50">{purposeLabel(draft.display.purpose, false)}</span></td>
       <td className="px-4 py-3 text-[12px] text-black/60">{draft.display.period || "—"}</td>
       <td className="px-4 py-3 text-[12px] text-black/60"><span className="font-mono text-[10px] text-black/40">{jur?.flag}</span> {ORG.origin} → EU</td>
       <td className="px-4 py-3 font-mono text-[12px] text-black/60">{draft.display.productCount}</td>

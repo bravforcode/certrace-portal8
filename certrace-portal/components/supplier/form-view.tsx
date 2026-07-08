@@ -12,7 +12,7 @@ import { ArrowRight, ArrowDown, Lock, Info, Building2, FlaskConical, Zap, Boxes,
 import { Card, Button, Eyebrow, inputClass, cn } from "@/components/ui";
 import { Select } from "@/components/controls";
 import { useSupplier, type FieldFlag } from "./context";
-import { valueKey, type SupplierSection } from "@/lib/supplier";
+import { valueKey, fieldAppliesTo, fieldRequiredFor, type SupplierSection } from "@/lib/supplier";
 import type { ResolvedCbamField } from "@/lib/config";
 
 /* How a flagged field's stroke + inline note look. `ring` is the resting stroke;
@@ -216,9 +216,17 @@ function SectionCard({ section, productId }: { section: SupplierSection; product
   const { req, sectionProgress } = useSupplier();
   // Show every field in the section's groups — auto-derived ones (CN, category,
   // quantity, total) render locked for context; the rest are editable inputs.
-  const shown = req.fields.filter((f) => section.groups.includes(f.group));
+  // Per-product sections only show the fields that apply to THAT good, with
+  // required-ness resolved against it (precursors → complex goods only,
+  // electricity detail mandatory only for aluminium).
+  const product = productId ? req.products.find((rp) => rp.product.id === productId)?.product : undefined;
+  const shown = req.fields
+    .filter((f) => section.groups.includes(f.group) && (!product || fieldAppliesTo(f, product)))
+    .map((f) => (product ? { ...f, required: fieldRequiredFor(f, product) } : f));
   const Icon = SECTION_ICON[section.key] ?? Info;
   const prog = section.scope === "once" ? sectionProgress(section) : null;
+
+  if (shown.length === 0) return null;
 
   return (
     <Card className="p-5">

@@ -12,6 +12,8 @@ import {
   type SupplierSection,
   sectionsForRequest,
   fieldsForSection,
+  fieldAppliesTo,
+  fieldRequiredFor,
   valueKey,
   isOnceField,
   AUTO_FIELDS,
@@ -326,15 +328,18 @@ export function SupplierProvider({ req, children }: { req: SupplierRequest; chil
         const done = required.filter((d) => state.docs[d.id]?.status === "uploaded").length;
         return { done, total: required.length, complete: required.length > 0 && done === required.length };
       }
-      const fields = fieldsForSection(req, section).filter((f) => f.required);
+      const fields = fieldsForSection(req, section);
       let total = 0;
       let done = 0;
       for (const f of fields) {
         if (isOnceField(f.group)) {
+          if (!f.required) continue;
           total++;
           if (state.values[valueKey(f.id)]?.trim()) done++;
         } else {
+          // only count a field against the goods it applies to & is required for
           for (const rp of req.products) {
+            if (!fieldAppliesTo(f, rp.product) || !fieldRequiredFor(f, rp.product)) continue;
             total++;
             if (state.values[valueKey(f.id, rp.product.id)]?.trim()) done++;
           }
@@ -415,9 +420,14 @@ export function SupplierProvider({ req, children }: { req: SupplierRequest; chil
   const requiredFieldKeys = React.useMemo(() => {
     const keys: string[] = [];
     for (const f of req.fields) {
-      if (AUTO_FIELDS.has(f.id) || !f.required) continue;
-      if (isOnceField(f.group)) keys.push(valueKey(f.id));
-      else for (const rp of req.products) keys.push(valueKey(f.id, rp.product.id));
+      if (AUTO_FIELDS.has(f.id)) continue;
+      if (isOnceField(f.group)) {
+        if (f.required) keys.push(valueKey(f.id));
+      } else {
+        for (const rp of req.products) {
+          if (fieldAppliesTo(f, rp.product) && fieldRequiredFor(f, rp.product)) keys.push(valueKey(f.id, rp.product.id));
+        }
+      }
     }
     return keys;
   }, [req]);

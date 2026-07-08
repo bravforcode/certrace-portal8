@@ -2,22 +2,18 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Plus, Search, X, Copy, Check, ChevronLeft, ChevronRight, ArrowRight } from "lucide-react";
+import { Plus, Search, X, Copy, Check, ChevronLeft, ChevronRight, ArrowRight, TriangleAlert } from "lucide-react";
 import { Card, PageHeader, Button, Chip, StatusLabel, Stat, Eyebrow, Field, inputClass, cn } from "@/components/ui";
 import { toast } from "@/components/toast";
-import { DECLARATIONS, SupplierRow, supplierStatusMeta, supplierSlug } from "@/lib/data";
+import { ORG, SupplierRow, supplierStatusMeta, supplierSlug, getUniqueSuppliers } from "@/lib/data";
+import { getPlan } from "@/lib/config";
 
 const PAGE_SIZE = 6;
 
 export default function SuppliersPage() {
-  // de-dupe across declarations into a directory
-  const seed = React.useMemo(() => {
-    const map = new Map<string, SupplierRow>();
-    DECLARATIONS.forEach((d) => d.suppliers.forEach((s) => map.set(s.name, s)));
-    return [...map.values()];
-  }, []);
-
-  const [suppliers, setSuppliers] = React.useState<SupplierRow[]>(seed);
+  const [suppliers, setSuppliers] = React.useState<SupplierRow[]>(getUniqueSuppliers);
+  const plan = getPlan(ORG.plan)!;
+  const atCap = plan.supplierCap != null && suppliers.length >= plan.supplierCap;
   const [query, setQuery] = React.useState("");
   const [adding, setAdding] = React.useState(false);
   const [page, setPage] = React.useState(1);
@@ -65,7 +61,11 @@ export default function SuppliersPage() {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Card className="p-5">
-          <Stat value={suppliers.length} label="In directory" />
+          <Stat
+            value={plan.supplierCap != null ? `${suppliers.length}/${plan.supplierCap}` : suppliers.length}
+            label="In directory"
+            sub={`${plan.name} plan cap`}
+          />
         </Card>
         <Card className="p-5">
           <Stat value={onPlatform} label="Data on platform" />
@@ -77,6 +77,25 @@ export default function SuppliersPage() {
           <Stat value="94%" label="Avg completion" />
         </Card>
       </div>
+
+      {atCap && (
+        <Card warm className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 grid h-9 w-9 flex-none place-items-center rounded-xl border border-black/10 text-black/60">
+              <TriangleAlert size={17} strokeWidth={1.5} />
+            </span>
+            <div>
+              <p className="text-sm text-[#111]">You&apos;ve reached the {plan.name} plan&apos;s {plan.supplierCap}-supplier cap.</p>
+              <p className="mt-1 text-sm text-black/45">New suppliers still work — upgrade to raise the cap before your next filing.</p>
+            </div>
+          </div>
+          <Link href="/billing" className="flex-none">
+            <Button variant="secondary" size="sm">
+              View plans <ArrowRight size={14} strokeWidth={1.5} />
+            </Button>
+          </Link>
+        </Card>
+      )}
 
       <div className="relative max-w-sm">
         <Search size={15} strokeWidth={1.5} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-black/30" />

@@ -1,17 +1,17 @@
 /* ════════════════════════════════════════════════════════════
    PACKAGE DATA BUILDERS
 
-   Shapes resolved submissions (lib/exporter-review.ts) and the approval
-   chain (lib/approval-chain.ts) into the input the PDF package generator
-   (lib/download.ts) renders. Shared by the declaration workspace and the
-   Reports page so both always generate the SAME package from the SAME
-   dataset — no page ever invents its own numbers.
+   Shapes resolved submissions and report sign-offs (lib/exporter-review.ts)
+   into the input the PDF package generator (lib/download.ts) renders. Shared
+   by the declaration workspace and the Reports page so both always generate
+   the SAME package from the SAME dataset — no page ever invents its own
+   numbers.
    ════════════════════════════════════════════════════════════ */
 
 import { valueKey } from "./supplier";
 import { scope2Treatment } from "./config";
-import type { ReviewSubmission } from "./exporter-review";
-import type { ChainState } from "./approval-chain";
+import type { ReviewSubmission, ReportSignoff } from "./exporter-review";
+import { getTeamMember } from "./team-store";
 import type { SupplierChapter, SignOffStep, ChapterProduct, PackageInput } from "./download";
 
 const fmtDate = (ts: number) => new Date(ts).toUTCString();
@@ -86,17 +86,19 @@ export function buildSupplierChapters(subs: ReviewSubmission[]): SupplierChapter
   });
 }
 
-/** Part G — the internal approval chain, if one was run. */
-export function buildSignOff(chain: ChainState): SignOffStep[] | undefined {
-  if (!chain.started || chain.steps.length === 0) return undefined;
-  return chain.steps.map((s) => ({
-    label: s.label,
-    actor: s.actorName,
-    title: s.actorTitle,
-    status: s.status,
-    when: s.at ? fmtDate(s.at) : null,
-    comment: s.comment || undefined,
-  }));
+/** Part G — the report sign-off record, if confirmations were requested. */
+export function buildSignOff(signoffs: ReportSignoff[]): SignOffStep[] | undefined {
+  if (signoffs.length === 0) return undefined;
+  return signoffs.map((s) => {
+    const m = getTeamMember(s.memberId);
+    return {
+      label: m ? `${m.role} review` : "Report review",
+      actor: m?.name ?? "Reviewer",
+      title: m?.role ?? "",
+      status: s.confirmedAt ? "confirmed" : "awaiting confirmation",
+      when: fmtDate(s.confirmedAt ?? s.requestedAt),
+    };
+  });
 }
 
 /** Parts A/D/E — consolidated summary tables, evidence register and findings.

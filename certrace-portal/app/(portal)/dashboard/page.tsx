@@ -2,9 +2,8 @@ import Link from "next/link";
 import { ArrowRight, Plus, TriangleAlert } from "lucide-react";
 import { Card, PageHeader, Button, Stat, Chip, StatusDot, Progress, Eyebrow, StatusLabel } from "@/components/ui";
 import { SupplierTable } from "@/components/supplier-table";
-import { DECLARATIONS } from "@/lib/data";
-import { getRegulation } from "@/lib/config";
-import { USER } from "@/lib/data";
+import { DECLARATIONS, ORG, USER, getUniqueSuppliers } from "@/lib/data";
+import { getRegulation, getPlan } from "@/lib/config";
 
 const STEP_LABEL: Record<string, string> = {
   collect: "Collecting",
@@ -24,6 +23,8 @@ export default function DashboardPage() {
   const completion = Math.round(
     active.suppliers.reduce((a, s) => a + s.progress, 0) / active.suppliers.length,
   );
+  const plan = getPlan(ORG.plan)!;
+  const supplierCount = getUniqueSuppliers().length;
 
   return (
     <div className="space-y-8">
@@ -53,6 +54,13 @@ export default function DashboardPage() {
         </Card>
         <Card highlight className="p-6">
           <Stat value={`${active.dueInDays}d`} label="Next deadline" sub="CBAM Q2 · 31 Jul" />
+        </Card>
+        <Card className="p-6">
+          <Stat
+            value={plan.supplierCap != null ? `${supplierCount}/${plan.supplierCap}` : supplierCount}
+            label="Suppliers, org-wide"
+            sub={`${plan.name} plan cap`}
+          />
         </Card>
       </div>
 

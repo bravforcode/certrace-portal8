@@ -69,6 +69,15 @@ export type DispatchState = {
   acknowledgedAt: Partial<Record<DispatchRecipient, number>>;
 };
 
+/* Report sign-off — after the package is generated the exporter sends it to
+   named people (team-store members) to preview and confirm. Every requested
+   confirmation must land before the declaration can be dispatched. */
+export type ReportSignoff = {
+  memberId: string; // team-store member id
+  requestedAt: number;
+  confirmedAt: number | null;
+};
+
 export type ExporterDeclState = {
   declId: string;
   reviews: Record<string, SupplierReview>; // by supplierId
@@ -77,6 +86,9 @@ export type ExporterDeclState = {
   filedAt: number | null;
   recipients: { buyer: boolean; authority: boolean; verifier: boolean };
   dispatch: DispatchState;
+  signoffs: ReportSignoff[];
+  /** reminder timestamps per supplier, newest last — "when did we last nudge them" */
+  remindersSent: Record<string, number[]>;
 };
 
 const defaultReview = (): SupplierReview => ({
@@ -100,6 +112,8 @@ export function loadExporterState(declId: string): ExporterDeclState {
     filedAt: null,
     recipients: { buyer: true, authority: true, verifier: true },
     dispatch: { o3ciPushedAt: null, templateSentAt: null, acknowledgedAt: {} },
+    signoffs: [],
+    remindersSent: {},
   };
   if (typeof window === "undefined") return empty;
   try {
@@ -503,6 +517,56 @@ export function pushToO3CI(declId: string): ExporterDeclState {
 export function sendCommunicationTemplate(declId: string): ExporterDeclState {
   const state = loadExporterState(declId);
   const next = { ...state, dispatch: { ...state.dispatch, templateSentAt: state.dispatch.templateSentAt ?? Date.now() } };
+  saveExporterState(next);
+  return next;
+}
+
+/** Record a reminder to a supplier who hasn't submitted — persists so the
+    workspace can answer "when did we last chase them" across sessions. */
+export function remindSupplier(declId: string, supplierId: string): ExporterDeclState {
+  const state = loadExporterState(declId);
+  const next = {
+    ...state,
+    remindersSent: { ...state.remindersSent, [supplierId]: [...(state.remindersSent[supplierId] ?? []), Date.now()] },
+  };
+  saveExporterState(next);
+  return next;
+}
+
+export const lastReminderAt = (state: ExporterDeclState, supplierId: string): number | null => {
+  const list = state.remindersSent[supplierId] ?? [];
+  return list.length > 0 ? list[list.length - 1] : null;
+};
+
+/* ── Report sign-off actions ───────────────────────────────── */
+
+/** Send the generated report to people for preview + confirmation. Deduped —
+    re-requesting someone who's already on the list is a no-op. */
+export function requestReportSignoffs(declId: string, memberIds: string[]): ExporterDeclState {
+  const state = loadExporterState(declId);
+  const existing = new Set(state.signoffs.map((s) => s.memberId));
+  const added = memberIds.filter((id) => !existing.has(id)).map((memberId) => ({ memberId, requestedAt: Date.now(), confirmedAt: null }));
+  const next = { ...state, signoffs: [...state.signoffs, ...added] };
+  saveExporterState(next);
+  return next;
+}
+
+/** A reviewer confirming the report reads exactly as sent — demo affordance
+    for what would arrive via their emailed preview link. */
+export function confirmReportSignoff(declId: string, memberId: string): ExporterDeclState {
+  const state = loadExporterState(declId);
+  const next = {
+    ...state,
+    signoffs: state.signoffs.map((s) => (s.memberId === memberId ? { ...s, confirmedAt: s.confirmedAt ?? Date.now() } : s)),
+  };
+  saveExporterState(next);
+  return next;
+}
+
+/** Withdraw a pending request (a confirmed sign-off stays on the record). */
+export function withdrawReportSignoff(declId: string, memberId: string): ExporterDeclState {
+  const state = loadExporterState(declId);
+  const next = { ...state, signoffs: state.signoffs.filter((s) => s.memberId !== memberId || s.confirmedAt !== null) };
   saveExporterState(next);
   return next;
 }
