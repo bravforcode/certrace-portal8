@@ -26,8 +26,7 @@
    traceable to its installation, method and evidence.
    ════════════════════════════════════════════════════════════ */
 
-import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
+import type { jsPDF } from "jspdf";
 
 /* ── Input types ───────────────────────────────────────────── */
 
@@ -160,7 +159,9 @@ function pdfSafe(text: string): string {
 
 const fmtN = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 
-export function buildPackagePdf(p: PackageInput): jsPDF {
+export async function buildPackagePdf(p: PackageInput): Promise<jsPDF> {
+  const { jsPDF } = await import("jspdf");
+  const { default: autoTable } = await import("jspdf-autotable");
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -690,7 +691,8 @@ export async function downloadPackage(p: PackageInput) {
   if (typeof window === "undefined") return;
   const contentHash = p.contentHash ?? (await datasetHash(p));
   const slug = `${p.regulationShort}-${p.period}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-  buildPackagePdf({ ...p, contentHash }).save(`certrace-${slug}.pdf`);
+  const doc = await buildPackagePdf({ ...p, contentHash });
+  doc.save(`certrace-${slug}.pdf`);
 }
 
 export function downloadXmlFile(slug: string, xmlContent: string) {
