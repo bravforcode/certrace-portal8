@@ -1,13 +1,12 @@
 "use client";
 
 import { Download, Building2, Landmark, BadgeCheck } from "lucide-react";
-import { Card, PageHeader, Stat, StatusLabel, Eyebrow, Tone } from "@/components/ui";
+import { Card, PageHeader, Stat, StatusLabel, Eyebrow, Chip, Tone } from "@/components/ui";
 import { toast } from "@/components/toast";
 import { downloadPackage } from "@/lib/download";
 import { REPORTS, DECLARATIONS, ORG } from "@/lib/data";
-import { getRegulation, getJurisdiction } from "@/lib/config";
+import { getRegulation, getJurisdiction, getPlan } from "@/lib/config";
 import { loadExporterState, rollup, EXPORTER } from "@/lib/exporter-review";
-import { loadChain } from "@/lib/approval-chain";
 import { buildSupplierChapters, buildSignOff, packageSummaryData, packageHistoryData } from "@/lib/package-data";
 
 const stateMeta: Record<string, { label: string; tone: Tone }> = {
@@ -19,6 +18,8 @@ const stateMeta: Record<string, { label: string; tone: Tone }> = {
 
 export default function ReportsPage() {
   const jur = getJurisdiction(ORG.origin)!;
+  const plan = getPlan(ORG.plan)!;
+  const multiRegulation = plan.id !== "starter"; // "Multi-regulation templates" ships from Standard up
 
   /* Re-generates the package from the SAME resolved dataset the declaration
      workspace uses (lib/exporter-review.ts + lib/package-data.ts) — this page
@@ -30,7 +31,8 @@ export default function ReportsPage() {
       toast({ message: "Declaration not found", detail: `No declaration matches ${r.period}.`, tone: "err" });
       return;
     }
-    const roll = rollup(decl, loadExporterState(decl.id));
+    const exporterState = loadExporterState(decl.id);
+    const roll = rollup(decl, exporterState);
     const submitted = roll.submissions.filter((s) => s.submitted);
 
     await downloadPackage({
@@ -50,7 +52,7 @@ export default function ReportsPage() {
       ...packageSummaryData(submitted),
       ...packageHistoryData(submitted),
       chapters: buildSupplierChapters(submitted),
-      signOff: buildSignOff(loadChain(decl.id)),
+      signOff: buildSignOff(exporterState.signoffs ?? []),
     });
     toast({ message: "Package downloaded.", detail: "Regenerated from the sealed dataset — same figures, checkable hash." });
   };
@@ -73,6 +75,16 @@ export default function ReportsPage() {
         <Card className="p-5">
           <Stat value="0" label="Rejected" />
         </Card>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.08em] text-black/35">
+        <span>{plan.name} plan —</span>
+        <Chip tone="ok">Audit-ready export</Chip>
+        {multiRegulation ? (
+          <Chip tone="ok">Multi-regulation templates</Chip>
+        ) : (
+          <Chip tone="muted">Multi-regulation templates — upgrade to Standard</Chip>
+        )}
       </div>
 
       <div className="space-y-3">

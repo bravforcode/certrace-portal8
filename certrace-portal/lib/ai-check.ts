@@ -14,7 +14,7 @@
    ════════════════════════════════════════════════════════════ */
 
 import type { SupplierRequest, SectionKey } from "./supplier";
-import { AUTO_FIELDS, valueKey, isOnceField } from "./supplier";
+import { AUTO_FIELDS, valueKey, isOnceField, fieldAppliesTo, fieldRequiredFor } from "./supplier";
 import type { DocState } from "./supplier-store";
 
 export type Severity = "critical" | "warning" | "pass";
@@ -59,14 +59,17 @@ export function runQualityCheck(req: SupplierRequest, values: Record<string, str
   let missingRequired = 0;
   for (const f of req.fields) {
     if (AUTO_FIELDS.has(f.id)) continue;
-    if (!f.required) continue;
     if (isOnceField(f.group)) {
+      if (!f.required) continue;
       if (!values[valueKey(f.id)]?.trim()) {
         missingRequired++;
         push({ category: "Completeness", severity: "critical", title: `${f.label} is missing`, detail: `${f.group} · required by ${req.regulationShort}.`, fieldId: f.id, fix: "Fill this field in the questionnaire." });
       }
     } else {
+      // Per-product: a field is only demanded of the goods it applies to —
+      // precursors of complex goods, electricity detail of aluminium.
       for (const { product } of req.products) {
+        if (!fieldAppliesTo(f, product) || !fieldRequiredFor(f, product)) continue;
         if (!values[valueKey(f.id, product.id)]?.trim()) {
           missingRequired++;
           push({ category: "Completeness", severity: "critical", title: `${f.label} missing for ${product.name}`, detail: `${f.group} · required per good.`, productId: product.id, fieldId: f.id, fix: "Fill this field for the product." });

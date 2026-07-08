@@ -25,7 +25,7 @@ export type WizardSnapshot = {
   regulation: string; // regulation id (e.g. "cbam")
   origin: string; // origin jurisdiction code (e.g. "TH")
   destination: string; // destination market code (e.g. "EU")
-  purposes: Purpose[]; // one or both of "cbam" / "buyer"
+  purpose: Purpose; // "cbam" or "buyer" — mutually exclusive, each has its own qualification path
   name: string;
   description: string;
   periodId: string;
@@ -52,7 +52,7 @@ export type Draft = {
   /** denormalised fields the declarations list renders without rehydrating */
   display: {
     name: string;
-    purposes: Purpose[];
+    purpose: Purpose;
     productCount: number;
     supplierCount: number;
     period: string;
@@ -64,15 +64,16 @@ const KEY = "certrace:drafts";
 
 /* Defends against drafts written by an older schema (or otherwise malformed
    localStorage data) missing fields the current UI assumes are always
-   present — e.g. `display.purposes`, added after this app already had
-   drafts in the wild. Normalise once here so nothing downstream needs to
+   present. Also migrates the old `display.purposes` array (back when a
+   declaration could be both CBAM and Buyer at once) down to a single
+   `display.purpose`. Normalise once here so nothing downstream needs to
    guard against it. */
-function normaliseDraft(d: Draft): Draft {
+function normaliseDraft(d: Draft & { display: { purposes?: Purpose[] } }): Draft {
   return {
     ...d,
     display: {
       ...d.display,
-      purposes: Array.isArray(d.display?.purposes) && d.display.purposes.length ? d.display.purposes : ["cbam"],
+      purpose: d.display?.purpose ?? d.display?.purposes?.[0] ?? "cbam",
     },
   };
 }

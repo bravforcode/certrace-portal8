@@ -45,7 +45,16 @@ import {
   destinationsForRegulation,
   STATUS_META,
 } from "@/lib/config";
-import { SUPPLIER_DIRECTORY, readinessMeta, type DirectorySupplier, type Declaration, type SupplierRow, ORG } from "@/lib/data";
+import {
+  SUPPLIER_DIRECTORY,
+  readinessMeta,
+  type DirectorySupplier,
+  type Declaration,
+  type SupplierRow,
+  type RequestProductSpec,
+  type SupplierRequestSpec,
+  ORG,
+} from "@/lib/data";
 import { getDraft, saveDraft, deleteDraft, newDraftId, type Lot, type Mapping, type WizardSnapshot } from "@/lib/drafts";
 import { saveCreatedDeclaration, newDeclarationId } from "@/lib/declarations-store";
 
@@ -129,6 +138,17 @@ function Stepper({ steps, step, goto }: { steps: { key: string; label: string }[
   );
 }
 
+const WIZARD_STEPS = [
+  { key: "scope", label: "Scope" },
+  { key: "purpose", label: "Purpose" },
+  { key: "period", label: "Period" },
+  { key: "products", label: "Products" },
+  { key: "classify", label: "Classification" },
+  { key: "suppliers", label: "Suppliers" },
+  { key: "deadline", label: "Deadline" },
+  { key: "review", label: "Review" },
+];
+
 /* ════════════════════════════════════════════════════════════ */
 export default function NewDeclarationPage() {
   const router = useRouter();
@@ -138,8 +158,7 @@ export default function NewDeclarationPage() {
   const [regulation, setRegulation] = React.useState("cbam");
   const [origin, setOrigin] = React.useState(ORG.origin);
   const [destination, setDestination] = React.useState("EU");
-  const [purposes, setPurposes] = React.useState<Purpose[]>(["cbam"]);
-  const togglePurpose = (id: Purpose) => setPurposes((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+  const [purpose, setPurpose] = React.useState<Purpose>("cbam");
   const [name, setName] = React.useState("");
   const [description, setDescription] = React.useState("");
 
@@ -189,7 +208,7 @@ export default function NewDeclarationPage() {
     setRegulation(s.regulation ?? "cbam");
     setOrigin(s.origin ?? ORG.origin);
     setDestination(s.destination ?? "EU");
-    setPurposes(s.purposes?.length ? s.purposes : ["cbam"]);
+    setPurpose(s.purpose ?? "cbam");
     setName(s.name);
     setDescription(s.description);
     setPeriodId(s.periodId);
@@ -221,32 +240,16 @@ export default function NewDeclarationPage() {
     }
   }, [eligibleDestinations, destination]);
 
-  // derived — CBAM and Buyer Request are not mutually exclusive: an exporter
-  // can run a declaration that's both the official CBAM filing AND a specific
-  // buyer's extra request on top of it.
-  const hasCbam = purposes.includes("cbam");
-  const hasBuyer = purposes.includes("buyer");
-  // Once CBAM is part of the declaration, the period is the official CBAM
-  // cadence (annual/quarterly) even if a buyer request rides along. Only a
-  // pure buyer request gets the flexible cadence list.
-  const periodOptions = hasBuyer && !hasCbam ? BUYER_PERIODS : CBAM_PERIODS;
+  // derived — a declaration is either the official CBAM filing or a specific
+  // buyer's data request, never both; each has its own qualification path.
+  const hasCbam = purpose === "cbam";
+  const hasBuyer = purpose === "buyer";
+  // CBAM declarations run on the official CBAM cadence (annual/quarterly); a
+  // Buyer Request gets the flexible cadence list instead.
+  const periodOptions = hasBuyer ? BUYER_PERIODS : CBAM_PERIODS;
   const activePeriod = periodOptions.find((p) => p.id === periodId) ?? periodOptions[0];
 
-  const steps = React.useMemo(() => {
-    const base = [
-      { key: "scope", label: "Scope" },
-      { key: "purpose", label: "Purpose" },
-      { key: "period", label: "Period" },
-      { key: "products", label: "Products" },
-    ];
-    // Choosing both gets two classification pages — the CBAM checklist stays
-    // exactly as it is for a CBAM-only run; Buyer classification is the extra
-    // page for whatever this specific buyer wants on top of it.
-    if (hasCbam) base.push({ key: "classify-cbam", label: hasBuyer ? "CBAM Classification" : "Classification" });
-    if (hasBuyer) base.push({ key: "classify-buyer", label: hasCbam ? "Buyer Classification" : "Classification" });
-    base.push({ key: "suppliers", label: "Suppliers" }, { key: "deadline", label: "Deadline" }, { key: "review", label: "Review" });
-    return base;
-  }, [hasCbam, hasBuyer]);
+  const steps = WIZARD_STEPS;
   const current = steps[Math.min(step, steps.length - 1)].key;
 
   React.useEffect(() => {
@@ -418,17 +421,14 @@ export default function NewDeclarationPage() {
             eligibleDestinations.some((d) => d.code === destination),
         );
       case "purpose":
-        return name.trim().length > 0 && (hasCbam || hasBuyer);
+        return name.trim().length > 0;
       case "period":
         return activePeriod.picker === "range" ? Boolean(rangeStart && rangeEnd) : true;
       case "products":
         return products.length > 0;
-      case "classify-cbam":
-        // CBAM always has its mandatory fields covered.
-        return true;
-      case "classify-buyer":
-        // A Buyer Request (alone or alongside CBAM) needs ≥1 field selected.
-        return resolvedFields.some((f) => reportFields[f.id]);
+      case "classify":
+        // CBAM always has its mandatory fields covered; a Buyer Request needs ≥1 field selected.
+        return hasCbam ? true : resolvedFields.some((f) => reportFields[f.id]);
       case "suppliers":
         return (
           products.length > 0 &&
@@ -450,7 +450,7 @@ export default function NewDeclarationPage() {
 
   const buildSnapshot = (): WizardSnapshot => ({
     regulation, origin, destination,
-    purposes, name, description, periodId, year, quarter, half, month, rangeStart, rangeEnd,
+    purpose, name, description, periodId, year, quarter, half, month, rangeStart, rangeEnd,
     products, reportFields, directory, mapping, deadline, reminders, notes, step,
   });
 
@@ -466,8 +466,8 @@ export default function NewDeclarationPage() {
         updatedAt: Date.now(),
         snapshot: buildSnapshot(),
         display: {
-          name: name.trim() || PURPOSES.find((p) => p.id === (hasCbam ? "cbam" : "buyer"))?.title || "Untitled declaration",
-          purposes,
+          name: name.trim() || PURPOSES.find((p) => p.id === purpose)?.title || "Untitled declaration",
+          purpose,
           productCount: products.length,
           supplierCount: uniqueSuppliers,
           period: periodSummary,
@@ -484,23 +484,37 @@ export default function NewDeclarationPage() {
 
     const id = newDeclarationId();
     const declaredName = name.trim() || "New declaration";
-    const suppliers: SupplierRow[] = products.flatMap((pid) => {
-      const product = getCatalogProduct(pid);
-      return (mapping[pid] ?? []).map((entry) => {
-        const sup = directory.find((d) => d.id === entry.supplierId);
-        return {
-          id: `${entry.supplierId}-${pid}`,
-          name: sup?.company ?? "Unknown supplier",
-          ref: `#${entry.supplierId.slice(-4).toUpperCase()}`,
-          country: sup?.country ?? "—",
-          material: product?.name ?? "—",
-          progress: 0,
-          status: "not_started",
-          emissions: null,
-          updated: "just now",
-          critical: false,
-        };
-      });
+
+    // Invert the product→suppliers mapping: ONE row (and ONE Smart Link) per
+    // supplier, carrying every product they were mapped to plus the real lots.
+    const bySupplier = new Map<string, RequestProductSpec[]>();
+    for (const pid of products) {
+      for (const entry of mapping[pid] ?? []) {
+        const specs = bySupplier.get(entry.supplierId) ?? [];
+        specs.push({
+          productId: pid,
+          lots: entry.lots.filter(lotValid).map((l) => ({ qty: Number(l.qty) || 0, unit: l.unit, from: l.from, to: l.to, notes: l.notes })),
+        });
+        bySupplier.set(entry.supplierId, specs);
+      }
+    }
+    const requests: SupplierRequestSpec[] = [...bySupplier.entries()].map(([supplierId, specs]) => ({ supplierId, products: specs }));
+
+    const suppliers: SupplierRow[] = requests.map((r) => {
+      const sup = directory.find((d) => d.id === r.supplierId);
+      const first = getCatalogProduct(r.products[0]?.productId ?? "");
+      return {
+        id: r.supplierId,
+        name: sup?.company ?? "Unknown supplier",
+        ref: `#${r.supplierId.slice(-4).toUpperCase()}`,
+        country: sup?.country ?? "—",
+        material: r.products.length === 1 ? (first?.name ?? "—") : `${r.products.length} products`,
+        progress: 0,
+        status: "not_started",
+        emissions: null,
+        updated: "just now",
+        critical: false,
+      };
     });
 
     const declaration: Declaration = {
@@ -517,9 +531,11 @@ export default function NewDeclarationPage() {
       suppliers,
       totalEmbedded: null,
       carbonPricePaid: 0,
-      kind: hasCbam ? "cbam" : "buyer",
-      title: !hasCbam && hasBuyer ? declaredName : undefined,
+      kind: purpose,
+      title: hasBuyer ? declaredName : undefined,
       productCount: products.length,
+      requests,
+      includedFieldIds: includedFields.map((f) => f.id),
     };
     saveCreatedDeclaration(declaration);
 
@@ -557,10 +573,8 @@ export default function NewDeclarationPage() {
   );
 
   // The report-fields checklist is shared state (reportFields), but the
-  // "required" lock is scoped to the CBAM Classification page only — the
-  // Buyer Classification page always behaves like a standalone Buyer Request
-  // (buyer-recommended fields pre-checked, everything freely toggleable,
-  // "recommended" not "required"), whether or not CBAM rides alongside it.
+  // CBAM locks its mandatory fields on; a Buyer Request pre-checks the
+  // buyer-recommended fields but leaves everything freely toggleable.
   const classificationFields = (mode: Purpose) => (
     <Card warm className="p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -780,35 +794,30 @@ export default function NewDeclarationPage() {
         {current === "purpose" && (
           <div className="space-y-6">
             <SectionIntro kicker="What is this declaration for?">
-              Pick one, or both — run the official CBAM filing and a specific buyer's extra request in the same declaration. Choosing both adds a second classification page so each side stays clean.
+              Choose one — the official CBAM filing, or a specific buyer's data request. Each has its own qualification checklist, so keep the two separate.
             </SectionIntro>
             <div className="grid gap-3 sm:grid-cols-2">
               {PURPOSES.map((p) => {
-                const active = purposes.includes(p.id);
+                const active = purpose === p.id;
                 return (
-                  <SelectCard key={p.id} active={active} onClick={() => togglePurpose(p.id)}>
+                  <SelectCard key={p.id} active={active} onClick={() => setPurpose(p.id)}>
                     <div className="flex items-center justify-between">
                       <span className="font-[family-name:var(--font-plex)] text-xl font-light text-[#111]">{p.title}</span>
                       <span
                         className={cn(
-                          "grid h-5 w-5 flex-none place-items-center rounded-md border transition-colors",
-                          active ? "border-transparent bg-[#111] text-white" : "border-black/20",
+                          "grid h-5 w-5 flex-none place-items-center rounded-full border transition-colors",
+                          active ? "border-[5px] border-[#111]" : "border-black/20",
                         )}
-                      >
-                        {active && <Check size={12} strokeWidth={2.5} />}
-                      </span>
+                      />
                     </div>
                     <p className="mt-2 text-xs leading-relaxed text-black/50">{p.description}</p>
                   </SelectCard>
                 );
               })}
             </div>
-            {!hasCbam && !hasBuyer && (
-              <p className="text-[12px] text-[#dc2626]">Pick at least one — CBAM Compliance, Buyer Request, or both.</p>
-            )}
             <div className="space-y-4 border-t border-black/[0.06] pt-6">
               <Field label="Request name" hint="Shown to suppliers and on every reminder. Make it recognisable.">
-                <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} placeholder={PURPOSES.find((p) => p.id === (hasCbam ? "cbam" : "buyer"))?.namePlaceholder} />
+                <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} placeholder={PURPOSES.find((p) => p.id === purpose)?.namePlaceholder} />
               </Field>
               <Field label="Request description (optional)" hint="Context for your suppliers — what this is for, who the buyer is.">
                 <textarea className={cn(inputClass, "min-h-[84px] resize-y")} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g. Annual CBAM carbon data for our EU steel exports. Please report at installation level." />
@@ -821,11 +830,9 @@ export default function NewDeclarationPage() {
         {current === "period" && (
           <div className="space-y-6">
             <SectionIntro kicker="Reporting period">
-              {hasBuyer && !hasCbam
+              {hasBuyer
                 ? "Buyer requests can run on any cadence. Pick the rhythm that matches how this buyer wants the data."
-                : hasBuyer
-                  ? "This declaration includes the official CBAM filing, so the period follows the CBAM cadence — annual or quarterly."
-                  : "Official CBAM declarations are annual — but you can collect supplier data quarterly if that fits your cycle."}
+                : "Official CBAM declarations are annual — but you can collect supplier data quarterly if that fits your cycle."}
             </SectionIntro>
             <div className="grid gap-3 sm:grid-cols-2">
               {periodOptions.map((p: PeriodOption) => (
@@ -963,29 +970,14 @@ export default function NewDeclarationPage() {
           </div>
         )}
 
-        {/* 6a ─ CLASSIFICATION (CBAM) — unchanged from the CBAM-only flow */}
-        {current === "classify-cbam" && (
+        {/* 6 ─ CLASSIFICATION — CBAM's own checklist, or the buyer's, depending on purpose */}
+        {current === "classify" && (
           <div className="space-y-5">
             <SectionIntro kicker="Classification & report fields">
               Certrace classified each product automatically — category, CN / HS codes and the CBAM template come from the catalogue and can&apos;t be edited. The checklist below reflects the data points that actually apply to the goods you selected.
             </SectionIntro>
             {classificationProductCards}
-            {classificationFields("cbam")}
-          </div>
-        )}
-
-        {/* 6b ─ CLASSIFICATION (BUYER) — only when a Buyer Request is included;
-              its own page when CBAM is also included, so the two checklists
-              never mix on one screen. Behaves exactly like a standalone Buyer
-              Request regardless of whether CBAM rides alongside it — see the
-              comment above `classificationFields`. */}
-        {current === "classify-buyer" && (
-          <div className="space-y-5">
-            <SectionIntro kicker={hasCbam ? "Buyer classification & report fields" : "Classification & report fields"}>
-              Certrace classified each product automatically — category, CN / HS codes and the CBAM template come from the catalogue and can&apos;t be edited. The checklist below reflects the data points that actually apply to the goods you selected.
-            </SectionIntro>
-            {classificationProductCards}
-            {classificationFields("buyer")}
+            {classificationFields(purpose)}
           </div>
         )}
 
@@ -1146,7 +1138,7 @@ export default function NewDeclarationPage() {
                 ["Regulation", `${activeRegulation.short} · ${activeRegulation.full}`],
                 ["Route", `${originJ?.name ?? origin} → ${destinationMarket.name}`],
                 ["Authority", activeRegulation.authority],
-                ["Purpose", purposes.map((id) => PURPOSES.find((p) => p.id === id)?.title).filter(Boolean).join(" + ") || "—"],
+                ["Purpose", PURPOSES.find((p) => p.id === purpose)?.title ?? "—"],
                 ["Request name", name.trim() || "—"],
                 ["Period", periodSummary],
                 ["Products", `${products.length} · CN-classified`],

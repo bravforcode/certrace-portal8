@@ -7,23 +7,24 @@ import { Card, PageHeader, Button, Eyebrow, Chip, StatusDot, StatusLabel, Field,
 import { toast } from "@/components/toast";
 import { downloadFile } from "@/lib/download";
 import { PLANS, Plan } from "@/lib/config";
-import { ORG } from "@/lib/data";
+import { ORG, getUniqueSuppliers } from "@/lib/data";
 
-const CURRENT = ORG.plan; // "growth"
-const order: Plan["id"][] = ["starter", "growth", "scale"];
+const CURRENT = ORG.plan; // "standard"
+const order: Plan["id"][] = ["starter", "standard", "enterprise"];
+
+const thb = (n: number) => `฿${n.toLocaleString("en-US")}`;
 
 const INVOICES = [
-  { id: "INV-2026-06", date: "01 Jun 2026", amount: "€660.00", plan: "Growth · annual" },
-  { id: "INV-2026-05", date: "01 May 2026", amount: "€660.00", plan: "Growth · annual" },
-  { id: "INV-2026-04", date: "01 Apr 2026", amount: "€660.00", plan: "Growth · annual" },
+  { id: "INV-2026-06", date: "01 Jun 2026", amount: thb(360_000), plan: "Standard · annual" },
 ];
 
 export default function BillingPage() {
-  const [annual, setAnnual] = React.useState(true);
   const [checkout, setCheckout] = React.useState<Plan | null>(null);
+  const supplierCount = getUniqueSuppliers().length;
+  const currentPlan = PLANS.find((p) => p.id === CURRENT)!;
 
   const ctaFor = (p: Plan): { label: string; kind: "current" | "upgrade" | "downgrade" | "contact" } => {
-    if (p.id === "scale") return { label: "Talk to sales", kind: "contact" };
+    if (p.id === "enterprise") return { label: "Talk to sales", kind: "contact" };
     if (p.id === CURRENT) return { label: "Current plan", kind: "current" };
     return order.indexOf(p.id) > order.indexOf(CURRENT)
       ? { label: `Upgrade to ${p.name}`, kind: "upgrade" }
@@ -34,24 +35,8 @@ export default function BillingPage() {
     <div className="space-y-8">
       <PageHeader
         eyebrow="Plan & billing"
-        title="Pricing that scales with filings, not suppliers."
-        lead="You pay for seats and workflow. Your suppliers fill their forms for free, forever — that's how you get them to actually respond."
-        actions={
-          <div className="inline-flex items-center rounded-full border border-black/10 p-1 text-[11px] uppercase tracking-[0.1em]">
-            <button
-              onClick={() => setAnnual(false)}
-              className={cn("rounded-full px-3 py-1.5 transition-colors", !annual ? "bg-[#111] text-white" : "text-black/45 hover:text-black")}
-            >
-              Monthly
-            </button>
-            <button
-              onClick={() => setAnnual(true)}
-              className={cn("rounded-full px-3 py-1.5 transition-colors", annual ? "bg-[#111] text-white" : "text-black/45 hover:text-black")}
-            >
-              Annual · save 2 months
-            </button>
-          </div>
-        }
+        title="Pricing that scales with suppliers, not seats."
+        lead="Three tiers, billed annually. Suppliers fill their forms for free, forever — the plan caps how many you actively collect data from, not who on your team can log in."
       />
 
       {/* Current plan strip */}
@@ -59,8 +44,10 @@ export default function BillingPage() {
         <div className="flex items-center gap-3">
           <StatusDot tone="ok" glow pulse />
           <p className="text-sm text-black/60">
-            You&apos;re on <span className="text-[#111]">{ORG.planLabel}</span> · billed annually · renews 1 Jul 2026 ·{" "}
-            <span className="font-mono text-[12px] text-black/45">{ORG.seatsUsed}/{ORG.seatsTotal} seats</span>
+            You&apos;re on <span className="text-[#111]">{ORG.planLabel}</span> · billed annually · renews 1 Jul 2027 ·{" "}
+            <span className="font-mono text-[12px] text-black/45">
+              {supplierCount}/{currentPlan.supplierCap ?? "∞"} suppliers
+            </span>
           </p>
         </div>
         <Chip tone="ok">suppliers free</Chip>
@@ -70,7 +57,6 @@ export default function BillingPage() {
       <div className="grid gap-3 lg:grid-cols-3">
         {PLANS.map((p) => {
           const cta = ctaFor(p);
-          const price = annual ? p.annual : p.monthly;
           const isCurrent = p.id === CURRENT;
           return (
             <Card
@@ -80,27 +66,19 @@ export default function BillingPage() {
             >
               <div className="flex items-center justify-between">
                 <span className="font-[family-name:var(--font-plex)] text-2xl font-light text-[#111]">{p.name}</span>
-                {isCurrent ? <Chip tone="ok">current</Chip> : p.highlight ? <Chip tone="info">most popular</Chip> : null}
+                {isCurrent ? <Chip tone="ok">current</Chip> : p.highlight ? <Chip tone="info">most fit</Chip> : null}
               </div>
               <p className="mt-2 min-h-[40px] text-[13px] leading-relaxed text-black/45">{p.tagline}</p>
 
               <div className="mt-4 flex items-end gap-1.5 border-t border-black/[0.06] pt-4">
-                {p.id === "scale" ? (
-                  <span className="font-[family-name:var(--font-plex)] text-3xl font-light text-[#111]">Custom</span>
-                ) : (
-                  <>
-                    <span className="font-[family-name:var(--font-plex)] text-4xl font-light text-[#111]">€{price}</span>
-                    <span className="mb-1 text-[12px] text-black/40">/ mo{annual ? " · billed yearly" : ""}</span>
-                  </>
-                )}
+                <span className="font-[family-name:var(--font-plex)] text-4xl font-light text-[#111]">{thb(p.annual)}</span>
+                <span className="mb-1 text-[12px] text-black/40">/ yr</span>
               </div>
 
               <div className="mt-4 flex flex-wrap gap-1.5">
-                {[p.limits.seats, p.limits.declarations, p.limits.origins].map((l) => (
-                  <span key={l} className="rounded-full border border-black/[0.08] px-2.5 py-1 text-[10px] uppercase tracking-[0.06em] text-black/45">
-                    {l}
-                  </span>
-                ))}
+                <span className="rounded-full border border-black/[0.08] px-2.5 py-1 text-[10px] uppercase tracking-[0.06em] text-black/45">
+                  {p.limits.suppliers}
+                </span>
               </div>
 
               <ul className="mt-4 flex-1 space-y-2.5 border-t border-black/[0.06] pt-4">
@@ -196,22 +174,21 @@ export default function BillingPage() {
         </Link>
       </p>
 
-      {checkout && <CheckoutModal plan={checkout} annual={annual} onClose={() => setCheckout(null)} />}
+      {checkout && <CheckoutModal plan={checkout} onClose={() => setCheckout(null)} />}
     </div>
   );
 }
 
 /* ── Checkout flow (continuous to success) ──────────────── */
-function CheckoutModal({ plan, annual, onClose }: { plan: Plan; annual: boolean; onClose: () => void }) {
+function CheckoutModal({ plan, onClose }: { plan: Plan; onClose: () => void }) {
   const [phase, setPhase] = React.useState<"review" | "processing" | "done">("review");
-  const monthly = annual ? plan.annual : plan.monthly;
-  const total = annual ? plan.annual * 12 : plan.monthly;
+  const total = plan.annual;
 
   const pay = () => {
     setPhase("processing");
     setTimeout(() => {
       setPhase("done");
-      toast({ message: `You're on ${plan.name}.`, detail: "Receipt sent · new seats unlocked immediately." });
+      toast({ message: `You're on ${plan.name}.`, detail: "Receipt sent · new supplier cap unlocked immediately." });
     }, 1400);
   };
 
@@ -237,12 +214,12 @@ function CheckoutModal({ plan, annual, onClose }: { plan: Plan; annual: boolean;
           <div className="mt-5 space-y-4">
             <Card warm className="divide-y divide-black/[0.06] p-0">
               <div className="flex items-center justify-between px-4 py-3">
-                <span className="text-[13px] text-black/55">{plan.name} · {annual ? "annual" : "monthly"}</span>
-                <span className="font-mono text-[13px] text-black/70">€{monthly}/mo</span>
+                <span className="text-[13px] text-black/55">{plan.name} · annual</span>
+                <span className="font-mono text-[13px] text-black/70">{plan.limits.suppliers}</span>
               </div>
               <div className="flex items-center justify-between px-4 py-3">
-                <span className="text-[13px] text-black/55">Billed {annual ? "yearly today" : "monthly"}</span>
-                <span className="font-[family-name:var(--font-plex)] text-xl font-light text-[#111]">€{total.toLocaleString()}</span>
+                <span className="text-[13px] text-black/55">Billed yearly today</span>
+                <span className="font-[family-name:var(--font-plex)] text-xl font-light text-[#111]">฿{total.toLocaleString()}</span>
               </div>
             </Card>
             <Field label="Card details">
@@ -253,7 +230,7 @@ function CheckoutModal({ plan, annual, onClose }: { plan: Plan; annual: boolean;
               </div>
             </Field>
             <Button className="w-full" onClick={pay}>
-              Pay €{total.toLocaleString()} & upgrade <ArrowRight size={15} strokeWidth={1.5} />
+              Pay ฿{total.toLocaleString()} & upgrade <ArrowRight size={15} strokeWidth={1.5} />
             </Button>
             <p className="text-center text-[11px] text-black/35">Prorated against your current plan. Cancel anytime.</p>
           </div>
@@ -262,7 +239,7 @@ function CheckoutModal({ plan, annual, onClose }: { plan: Plan; annual: boolean;
         {phase === "processing" && (
           <div className="mt-8 flex flex-col items-center gap-3 py-6">
             <StatusLabel tone="info" label="processing payment…" pulse />
-            <p className="text-[12px] text-black/35">Securing your seats.</p>
+            <p className="text-[12px] text-black/35">Raising your supplier cap.</p>
           </div>
         )}
 
@@ -273,7 +250,7 @@ function CheckoutModal({ plan, annual, onClose }: { plan: Plan; annual: boolean;
                 <Check size={26} strokeWidth={1.5} />
               </span>
               <p className="mt-3 max-w-xs text-sm text-black/50">
-                {plan.limits.seats} and {plan.id === "scale" ? "every feature" : "the full workflow"} are active now. A receipt is on its way.
+                {plan.limits.suppliers} and {plan.id === "enterprise" ? "every feature" : "the full workflow"} are active now. A receipt is on its way.
               </p>
             </div>
             <div className="flex items-center justify-between rounded-xl border border-black/[0.08] bg-[#faf9f7] px-4 py-3">

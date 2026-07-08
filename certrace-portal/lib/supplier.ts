@@ -14,12 +14,14 @@
    answers. Both are the seam where a real API would slot in.
    ════════════════════════════════════════════════════════════ */
 
-import { getDeclaration, ORG, USER, type SupplierRow } from "./data";
+import { getDeclaration, ORG, USER, type Declaration, type SupplierRow, type RequestLotSpec } from "./data";
 import {
   getRegulation,
   getJurisdiction,
   getDestination,
   resolveCbamFields,
+  fieldAppliesTo,
+  fieldRequiredFor,
   getCatalogProduct,
   type ResolvedCbamField,
   type CatalogProduct,
@@ -142,6 +144,35 @@ const REQUESTED_DOCS: RequestDocAsk[] = [
 const DEFAULT_NOTE =
   "Please report at installation level using actual data where you have it. If you only have default factors, mark the method as “default”. Reach out if anything is unclear — we'd rather help than receive a guess.";
 
+/* Net mass in tonnes across a set of lots — the CBAM canonical quantity.
+   Tonnes count as-is, kg convert; other invoice units (pieces, metres, …)
+   can't be converted without product data, so they ride along in the lot
+   list but don't contribute to the net-mass total. */
+const netMassTonnes = (lots: { qty: number; unit: string }[]): number =>
+  Math.round(lots.reduce((a, l) => a + (l.unit === "tonnes (t)" ? l.qty : l.unit === "kg" ? l.qty / 1000 : 0), 0) * 100) / 100;
+
+/* Wizard-created declarations carry the exact ask (decl.requests); build the
+   supplier's slice from it — every product they were mapped to, with the real
+   lots the exporter entered. */
+function productsFromSpec(decl: Declaration, row: SupplierRow): RequestProduct[] | null {
+  const spec = decl.requests?.find((r) => r.supplierId === row.id);
+  if (!spec || spec.products.length === 0) return null;
+  const out: RequestProduct[] = [];
+  for (const ps of spec.products) {
+    const product = getCatalogProduct(ps.productId);
+    if (!product) continue;
+    const lots: RequestLot[] = ps.lots.map((l: RequestLotSpec, i: number) => ({
+      id: `${row.id}-${ps.productId}-l${i + 1}`,
+      qty: l.qty,
+      unit: l.unit,
+      from: l.from,
+      to: l.to,
+    }));
+    out.push({ product, lots, totalTonnes: netMassTonnes(ps.lots) });
+  }
+  return out.length > 0 ? out : null;
+}
+
 export function resolveRequest(token: string): SupplierRequest | null {
   const decoded = decodeToken(token);
   if (!decoded) return null;
@@ -154,12 +185,23 @@ export function resolveRequest(token: string): SupplierRequest | null {
   const origin = getJurisdiction(decl.origin);
   const dest = getDestination(decl.market);
 
-  const product = productForMaterial(row.material);
-  const lots = lotsForSupplier(row);
-  const totalTonnes = lots.reduce((a, l) => a + (l.unit === "tonnes (t)" ? l.qty : 0), 0);
-  const products: RequestProduct[] = [{ product, lots, totalTonnes }];
+  // Real spec when the wizard recorded one; material-based synthesis for fixtures.
+  let products = productsFromSpec(decl, row);
+  if (!products) {
+    const product = productForMaterial(row.material);
+    const lots = lotsForSupplier(row);
+    const totalTonnes = lots.reduce((a, l) => a + (l.unit === "tonnes (t)" ? l.qty : 0), 0);
+    products = [{ product, lots, totalTonnes }];
+  }
 
-  const fields = resolveCbamFields(products.map((p) => p.product));
+  // Scope the checklist to THIS supplier's goods, then honor the exporter's
+  // Classification choices: a CBAM run always keeps the legally-required set;
+  // a Buyer Request asks exactly the fields the exporter selected.
+  const resolved = resolveCbamFields(products.map((p) => p.product));
+  const included = decl.includedFieldIds;
+  const fields = included
+    ? resolved.filter((f) => (decl.kind === "buyer" ? included.includes(f.id) : f.required || included.includes(f.id)))
+    : resolved;
 
   return {
     token,
@@ -244,3 +286,15 @@ export function sectionsForRequest(req: SupplierRequest): SupplierSection[] {
 export function fieldsForSection(req: SupplierRequest, section: SupplierSection): ResolvedCbamField[] {
   return req.fields.filter((f) => section.groups.includes(f.group) && !AUTO_FIELDS.has(f.id));
 }
+
+/** Same, scoped to ONE good — precursor questions only reach products that
+    actually have precursors, electricity detail only the electrolysis goods.
+    `required` is re-resolved per product so an optional-for-steel field isn't
+    marked mandatory just because an aluminium good shares the request. */
+export function productFieldsForSection(req: SupplierRequest, section: SupplierSection, product: CatalogProduct): ResolvedCbamField[] {
+  return fieldsForSection(req, section)
+    .filter((f) => fieldAppliesTo(f, product))
+    .map((f) => ({ ...f, required: fieldRequiredFor(f, product) }));
+}
+
+export { fieldAppliesTo, fieldRequiredFor };

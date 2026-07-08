@@ -3,6 +3,7 @@
    as of mid-June 2026. CBAM-only, steel-only — matches the launch gating in config.ts. */
 
 import { getCreatedDeclaration } from "./declarations-store";
+import { getCatalogProduct } from "./config";
 
 export type SupplierStatus = "submitted" | "in_progress" | "overdue" | "not_started";
 
@@ -28,6 +29,23 @@ export type DeclarationStep =
   | "submit"
   | "done";
 
+/* ── The exact ask, per supplier ──────────────────────────────
+   Wizard-created declarations persist what was actually requested: which
+   catalogue products each supplier delivers and the real lots behind them,
+   plus which optional CBAM fields the exporter kept. The Smart Link resolves
+   from this — one link per supplier covering ALL their products — instead of
+   re-deriving a single product from a display string. Fixture declarations
+   don't carry it; lib/supplier.ts falls back to material-based synthesis. */
+export type RequestLotSpec = {
+  qty: number;
+  unit: string; // as invoiced — lib/supplier.ts converts net mass to tonnes
+  from: string; // optional production-period start (ISO)
+  to: string; // optional production-period end (ISO)
+  notes: string;
+};
+export type RequestProductSpec = { productId: string; lots: RequestLotSpec[] };
+export type SupplierRequestSpec = { supplierId: string; products: RequestProductSpec[] };
+
 export type Declaration = {
   id: string;
   name: string;
@@ -47,6 +65,10 @@ export type Declaration = {
   /** display title for the list (buyer requests carry their own name) */
   title?: string;
   productCount?: number;
+  /** per-supplier request spec (wizard-created declarations only) */
+  requests?: SupplierRequestSpec[];
+  /** CBAM field ids the exporter included on Classification (required ones are always in) */
+  includedFieldIds?: string[];
 };
 
 /* Supplier readiness — surfaced when the exporter is picking suppliers for a
@@ -106,8 +128,8 @@ export type ReportRecord = {
 
 export const ORG = {
   name: "Siam Steel Export Co.",
-  plan: "growth" as const, // plan id in config.PLANS
-  planLabel: "Growth",
+  plan: "standard" as const, // plan id in config.PLANS
+  planLabel: "Standard",
   origin: "TH",
   sector: "Steel & iron",
   installationId: "TH-RYG-0418",
@@ -295,6 +317,16 @@ export const supplierStatusMeta: Record<SupplierStatus, { label: string; tone: "
   not_started: { label: "not started", tone: "muted" },
 };
 
+/* De-duped supplier directory across every declaration — the single source
+   of truth for "how many suppliers is this org actively working with",
+   which is what the supplier-scaled plan caps in config.PLANS. Suppliers
+   page, dashboard and billing all read the same count from here. */
+export function getUniqueSuppliers(): SupplierRow[] {
+  const map = new Map<string, SupplierRow>();
+  DECLARATIONS.forEach((d) => d.suppliers.forEach((s) => map.set(s.name, s)));
+  return [...map.values()];
+}
+
 /* ── Supplier profile (exporter-side detail) ──────────────────
    Assembled from existing declaration data. Master data (product names, CN
    codes) is real; quantities, documents and the activity log are mock. */
@@ -305,10 +337,10 @@ const DIRECTORY_BY_COMPANY = new Map(SUPPLIER_DIRECTORY.map((d) => [d.company, d
 // material → real CN code (CBAM master data) for the products-supplied view.
 const MATERIAL_CN: Record<string, { name: string; cn: string }> = {
   "Hot-rolled coil": { name: "Hot-rolled coil", cn: "7208 39 00" },
-  "Steel billet": { name: "Billets (semi-finished)", cn: "7207 11 00" },
+  "Steel billet": { name: "Billets (semi-finished)", cn: "7207 11 90" },
   Rebar: { name: "Reinforcing bar (rebar)", cn: "7214 20 00" },
   "Zinc coating": { name: "Hot-dip galvanised sheet", cn: "7210 49 00" },
-  "Pig iron": { name: "Pig iron, non-alloy", cn: "7201 10 00" },
+  "Pig iron": { name: "Pig iron, non-alloy", cn: "7201 10 90" },
   "Grid electricity": { name: "Electricity (precursor input)", cn: "2716 00 00" },
   "Steel scrap": { name: "Ferrous waste & scrap", cn: "7204 49 90" },
 };
@@ -352,8 +384,18 @@ export function getSupplierProfile(slug: string): SupplierProfile | null {
   if (!base) return null;
 
   const dir = DIRECTORY_BY_COMPANY.get(base.name);
+  // Wizard-created declarations carry the exact catalogue products requested;
+  // fixtures fall back to the display-material lookup.
+  const fromRequests = hits.flatMap((h) =>
+    (h.decl.requests?.find((r) => r.supplierId === h.row.id)?.products ?? [])
+      .map((p) => getCatalogProduct(p.productId))
+      .filter((p): p is NonNullable<typeof p> => Boolean(p))
+      .map((p) => ({ name: p.name, cn: p.cnCode })),
+  );
   const materials = [...new Set(hits.map((h) => h.row.material))];
-  const products = materials.map((m) => MATERIAL_CN[m] ?? { name: m, cn: "—" });
+  const fromMaterials = materials.map((m) => MATERIAL_CN[m] ?? { name: m, cn: "—" });
+  const merged = fromRequests.length > 0 ? fromRequests : fromMaterials;
+  const products = [...new Map(merged.map((p) => [p.cn + p.name, p])).values()];
 
   // newest declarations first (by |dueInDays| with open ones first)
   const declarations = hits
