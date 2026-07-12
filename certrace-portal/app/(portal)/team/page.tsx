@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { Plus, ShieldCheck, BadgeCheck, User, Crown, ClipboardCheck, Inbox, UserPlus } from "lucide-react";
-import { Card, PageHeader, Button, Chip, StatusLabel, Eyebrow, Stat, cn, Tone } from "@/components/ui";
+import { Card, PageHeader, Button, Chip, StatusLabel, Eyebrow, Stat, cn, Tone, EmptyState } from "@/components/ui";
 import { AddMemberModal } from "@/components/add-member-modal";
 import { toast } from "@/components/toast";
 import { SEATS, DECLARATIONS, ORG, Seat, SeatRole } from "@/lib/data";
@@ -143,7 +143,7 @@ export default function TeamPage() {
           {members.map((m) => {
             const list = assignments[m.id] ?? [];
             return (
-              <Card key={m.id} className="p-5">
+              <Card key={m.id} warm={m.kind === "external"} className="p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">
                     <span className="grid h-10 w-10 flex-none place-items-center rounded-xl border border-black/10 font-[family-name:var(--font-plex)] text-sm font-light text-black/60">
@@ -158,9 +158,12 @@ export default function TeamPage() {
                 </div>
 
                 {list.length === 0 ? (
-                  <p className="mt-4 rounded-xl border border-dashed border-black/10 px-4 py-3 text-[12px] text-black/35">
-                    No checks assigned right now.
-                  </p>
+                  <div className="mt-4">
+                    <EmptyState
+                      title="No checks assigned"
+                      body="Assign checks from a declaration's submission or sign-off step."
+                    />
+                  </div>
                 ) : (
                   <div className="mt-4 space-y-1.5">
                     {list.map((a, i) => (

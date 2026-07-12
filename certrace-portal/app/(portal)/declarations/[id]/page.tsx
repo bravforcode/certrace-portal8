@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { DeclarationWorkflow } from "@/components/declaration-workflow";
 import { getDeclaration, type Declaration } from "@/lib/data";
 
+export const runtime = "edge";
+
 export default function DeclarationDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = React.use(params);
   const router = useRouter();

@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, ArrowRight, LayoutGrid, Table2, Search, ChevronLeft, ChevronRight, PenLine, Trash2 } from "lucide-react";
-import { Card, Button, Chip, Progress, Eyebrow, cn } from "@/components/ui";
+import { Card, Button, Chip, Progress, Eyebrow, cn, EmptyState } from "@/components/ui";
 import { DeclarationMenu } from "@/components/declaration-menu";
 import { DECLARATIONS, ORG, type Declaration } from "@/lib/data";
 import { getRegulation, getJurisdiction, type Purpose } from "@/lib/config";
@@ -221,10 +221,9 @@ export default function DeclarationsPage() {
         </span>
       </div>
 
-      {/* CARDS */}
       {view === "cards" &&
         (pageItems.length === 0 && !showDrafts ? (
-          <Empty />
+          <Empty onClear={() => { setQ(""); setKind("all"); setStatus("all"); }} />
         ) : (
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {showDrafts && draftItems.map((d) => <DraftCard key={d.id} draft={d} onDiscard={() => discardDraft(d.id)} />)}
@@ -267,10 +266,9 @@ export default function DeclarationsPage() {
           </div>
         ))}
 
-      {/* TABLE */}
       {view === "table" &&
         (pageItems.length === 0 && !showDrafts ? (
-          <Empty />
+          <Empty onClear={() => { setQ(""); setKind("all"); setStatus("all"); }} />
         ) : (
           <Card className="overflow-hidden p-0">
             <div className="overflow-x-auto">
@@ -448,16 +446,21 @@ function PageBtn({ children, disabled, onClick, ...rest }: React.ButtonHTMLAttri
   );
 }
 
-function Empty() {
+function Empty({ onClear }: { onClear: () => void }) {
   return (
-    <Link href="/declarations/new" className="block">
-      <div className="flex min-h-[220px] flex-col items-center justify-center rounded-2xl border border-dashed border-black/10 p-8 text-center transition-colors hover:border-black/25 hover:bg-[#fafaf8]">
-        <span className="grid h-11 w-11 place-items-center rounded-xl border border-black/10 text-black/50">
-          <Plus size={18} strokeWidth={1.5} />
-        </span>
-        <p className="mt-4 text-sm font-light text-black/70">No declarations match these filters</p>
-        <p className="mt-1 max-w-xs text-xs text-black/40">Clear the filters, or start a new declaration — CBAM compliance or a custom buyer request.</p>
-      </div>
-    </Link>
+    <EmptyState
+      title="No declarations match these filters"
+      body="Clear the filters, or start a new declaration — CBAM compliance or a custom buyer request."
+      action={
+        <div className="flex items-center gap-2 justify-center">
+          <Button variant="secondary" size="sm" onClick={onClear}>Clear filters</Button>
+          <Link href="/declarations/new">
+            <Button size="sm">
+              <Plus size={14} strokeWidth={1.5} /> New declaration
+            </Button>
+          </Link>
+        </div>
+      }
+    />
   );
 }
