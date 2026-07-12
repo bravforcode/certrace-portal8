@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { Plus, Search, X, Copy, Check, ChevronLeft, ChevronRight, ArrowRight, TriangleAlert } from "lucide-react";
-import { Card, PageHeader, Button, Chip, StatusLabel, Stat, Eyebrow, Field, inputClass, cn } from "@/components/ui";
+import { Card, PageHeader, Button, Chip, StatusLabel, Stat, Eyebrow, Field, inputClass, cn, EmptyState } from "@/components/ui";
 import { toast } from "@/components/toast";
 import { ORG, SupplierRow, supplierStatusMeta, supplierSlug, getUniqueSuppliers } from "@/lib/data";
 import { getPlan } from "@/lib/config";
@@ -44,6 +44,7 @@ export default function SuppliersPage() {
       },
       ...list,
     ]);
+    setQuery("");
   };
 
   return (
@@ -99,7 +100,16 @@ export default function SuppliersPage() {
 
       <div className="relative max-w-sm">
         <Search size={15} strokeWidth={1.5} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-black/30" />
-        <input className={inputClass + " pl-10"} placeholder="Search suppliers…" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <input className={inputClass + " pl-10 pr-10"} placeholder="Search suppliers…" value={query} onChange={(e) => setQuery(e.target.value)} />
+        {query && (
+          <button
+            onClick={() => setQuery("")}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-black/30 hover:text-black transition-colors"
+            aria-label="Clear search"
+          >
+            <X size={15} strokeWidth={1.5} />
+          </button>
+        )}
       </div>
 
       <Card className="overflow-hidden p-0">
@@ -138,7 +148,17 @@ export default function SuppliersPage() {
           );
         })}
         {filtered.length === 0 && (
-          <div className="px-5 py-10 text-center text-sm text-black/35">No suppliers match “{query}”.</div>
+          <div className="px-5 py-10">
+            <EmptyState
+              title={`No suppliers match "${query}"`}
+              body="Try a different search term or clear the filters."
+              action={
+                <Button variant="secondary" size="sm" onClick={() => setQuery("")}>
+                  Clear search
+                </Button>
+              }
+            />
+          </div>
         )}
       </Card>
 

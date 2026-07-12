@@ -1,7 +1,10 @@
+"use client";
+
 import Link from "next/link";
-import { ArrowRight, Plus, TriangleAlert } from "lucide-react";
-import { Card, PageHeader, Button, Stat, Chip, StatusDot, Progress, Eyebrow, StatusLabel } from "@/components/ui";
+import { ArrowRight, Plus, TriangleAlert, Bell } from "lucide-react";
+import { Card, PageHeader, Button, Stat, Chip, StatusDot, Progress, Eyebrow, StatusLabel, EmptyState } from "@/components/ui";
 import { SupplierTable } from "@/components/supplier-table";
+import { toast } from "@/components/toast";
 import { DECLARATIONS, ORG, USER, getUniqueSuppliers } from "@/lib/data";
 import { getRegulation, getPlan } from "@/lib/config";
 
@@ -79,11 +82,16 @@ export default function DashboardPage() {
             </p>
           </div>
         </div>
-        <Link href={`/declarations/${active.id}`} className="flex-none">
-          <Button variant="secondary" size="sm">
-            Open declaration <ArrowRight size={14} strokeWidth={1.5} />
+        <div className="flex items-center gap-2 flex-none">
+          <Button variant="ghost" size="sm" onClick={() => toast({ message: "Reminder sent to overdue suppliers", tone: "ok", detail: "They will receive an email shortly." })}>
+            <Bell size={14} strokeWidth={1.5} /> Send Reminder
           </Button>
-        </Link>
+          <Link href={`/declarations/${active.id}`}>
+            <Button variant="secondary" size="sm">
+              Open declaration <ArrowRight size={14} strokeWidth={1.5} />
+            </Button>
+          </Link>
+        </div>
       </Card>
 
       <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
@@ -96,39 +104,53 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          {DECLARATIONS.filter((d) => d.step !== "done").map((d) => {
-            const reg = getRegulation(d.regulation);
-            const done = d.suppliers.filter((s) => s.status === "submitted").length;
-            const pct = Math.round((done / d.suppliers.length) * 100);
-            return (
-              <Link key={d.id} href={`/declarations/${d.id}`} className="block">
-                <Card className="p-5 transition-colors hover:border-black/15 hover:bg-[#fafaf8]">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-[family-name:var(--font-plex)] text-lg font-light text-[#111]">
-                          {reg?.short}
-                        </span>
-                        <span className="text-sm text-black/40">· {d.period}</span>
+          {DECLARATIONS.filter((d) => d.step !== "done").length === 0 ? (
+            <EmptyState
+              title="No active declarations"
+              body="You're all caught up. Start a new declaration when you're ready."
+              action={
+                <Link href="/declarations/new">
+                  <Button variant="secondary" size="sm">
+                    <Plus size={14} strokeWidth={1.5} /> New declaration
+                  </Button>
+                </Link>
+              }
+            />
+          ) : (
+            DECLARATIONS.filter((d) => d.step !== "done").map((d) => {
+              const reg = getRegulation(d.regulation);
+              const done = d.suppliers.filter((s) => s.status === "submitted").length;
+              const pct = Math.round((done / d.suppliers.length) * 100);
+              return (
+                <Link key={d.id} href={`/declarations/${d.id}`} className="block">
+                  <Card className="p-5 transition-colors hover:border-black/15 hover:bg-[#fafaf8]">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-[family-name:var(--font-plex)] text-lg font-light text-[#111]">
+                            {reg?.short}
+                          </span>
+                          <span className="text-sm text-black/40">· {d.period}</span>
+                        </div>
+                        <p className="mt-0.5 text-[12px] text-black/40">
+                          {d.sector} → {d.market} · due {d.due}
+                        </p>
                       </div>
-                      <p className="mt-0.5 text-[12px] text-black/40">
-                        {d.sector} → {d.market} · due {d.due}
-                      </p>
+                      <Chip tone={d.dueInDays < 0 ? "err" : d.dueInDays < 21 ? "warn" : "muted"} pulse={false}>
+                        {STEP_LABEL[d.step]}
+                      </Chip>
                     </div>
-                    <Chip tone={d.dueInDays < 0 ? "err" : d.dueInDays < 21 ? "warn" : "muted"} pulse={false}>
-                      {STEP_LABEL[d.step]}
-                    </Chip>
-                  </div>
-                  <div className="mt-4 flex items-center gap-3">
-                    <Progress value={pct} />
-                    <span className="font-mono text-[11px] text-black/45">
-                      {done}/{d.suppliers.length}
-                    </span>
-                  </div>
-                </Card>
-              </Link>
-            );
-          })}
+                    <div className="mt-4 flex items-center gap-3">
+                      <Progress value={pct} />
+                      <span className="font-mono text-[11px] text-black/45">
+                        {done}/{d.suppliers.length}
+                      </span>
+                    </div>
+                  </Card>
+                </Link>
+              );
+            })
+          )}
         </section>
 
         {/* Live supplier feed */}
