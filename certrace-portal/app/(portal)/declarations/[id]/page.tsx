@@ -1,14 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import { DeclarationWorkflow } from "@/components/declaration-workflow";
 import { getDeclaration, type Declaration } from "@/lib/data";
 
 export const runtime = "edge";
 
-export default function DeclarationDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = React.use(params);
+export default function DeclarationDetailPage() {
+  const params = useParams<{ id: string }>();
+  const id = params.id;
   const router = useRouter();
   const [declaration, setDeclaration] = React.useState<Declaration | null>(() => getDeclaration(id) ?? null);
 
