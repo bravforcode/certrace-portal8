@@ -5,8 +5,6 @@ import { useRouter, useParams } from "next/navigation";
 import { DeclarationWorkflow } from "@/components/declaration-workflow";
 import { getDeclaration, type Declaration } from "@/lib/data";
 
-export const runtime = "edge";
-
 export default function DeclarationDetailPage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
