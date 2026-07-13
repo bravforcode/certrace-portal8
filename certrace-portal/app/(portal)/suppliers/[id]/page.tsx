@@ -5,8 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import { SupplierDetail } from "@/components/supplier-detail";
 import { getSupplierProfile } from "@/lib/data";
 
-export const runtime = "edge";
-
 export default function SupplierDetailPage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
