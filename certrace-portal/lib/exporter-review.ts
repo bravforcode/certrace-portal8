@@ -25,7 +25,8 @@
    where a real API slots in.
    ════════════════════════════════════════════════════════════ */
 
-import { type Declaration, type SupplierRow, ORG, USER } from "./data";
+import { type Declaration, type SupplierRow } from "./data";
+import { getOrgIdentity } from "./org";
 import {
   makeToken,
   resolveRequest,
@@ -83,6 +84,9 @@ export type ExporterDeclState = {
   reviews: Record<string, SupplierReview>; // by supplierId
   summaryGeneratedAt: number | null;
   packageGeneratedAt: number | null;
+  /** fingerprint of the approved dataset the package was generated from —
+      dispatch is blocked when the live dataset no longer matches it */
+  packageHash: string | null;
   filedAt: number | null;
   recipients: { buyer: boolean; authority: boolean; verifier: boolean };
   dispatch: DispatchState;
@@ -109,6 +113,7 @@ export function loadExporterState(declId: string): ExporterDeclState {
     reviews: {},
     summaryGeneratedAt: null,
     packageGeneratedAt: null,
+    packageHash: null,
     filedAt: null,
     recipients: { buyer: true, authority: true, verifier: true },
     dispatch: { o3ciPushedAt: null, templateSentAt: null, acknowledgedAt: {} },
@@ -214,19 +219,28 @@ function synthesise(request: SupplierRequest, row: SupplierRow): { values: Recor
   values[valueKey("inst-unlocode")] = "THRYG";
   values[valueKey("inst-coords")] = "12.6802, 101.2810";
   values[valueKey("carbon-price")] = "0";
+  values[valueKey("carbon-price-currency")] = "THB";
   values[valueKey("carbon-price-form")] = "";
   values[valueKey("verification")] = "SGS (Thailand) Ltd · accredited — full verification, unqualified opinion";
 
   for (const rp of request.products) {
     const pid = rp.product.id;
-    const direct = Number((total * 0.82).toFixed(2));
-    const indirect = Number((total * 0.18).toFixed(2));
+    // Own-process split + a structured precursor row; the derived total keeps
+    // the same headline figure the fixtures always showed.
+    const precQty = 0.4;
+    const precSee = 0.55;
+    const precContribution = precQty * precSee;
+    const own = Math.max(0.2, total - precContribution);
+    const direct = Number((own * 0.82).toFixed(2));
+    const indirect = Number((own * 0.18).toFixed(2));
     values[valueKey("process-route", pid)] = "EAF (electric arc furnace)";
     values[valueKey("direct-emissions", pid)] = String(direct);
     values[valueKey("indirect-emissions", pid)] = String(indirect);
-    values[valueKey("total-emissions", pid)] = (direct + indirect).toFixed(2);
+    values[valueKey("total-emissions", pid)] = (direct + indirect + precContribution).toFixed(2);
     values[valueKey("method", pid)] = useDefaultMethod ? "default" : "actual";
-    values[valueKey("precursors", pid)] = "Pig iron 1.92 tCO₂e/t; ferrous scrap 0.08 tCO₂e/t";
+    values[valueKey("precursors", pid)] = JSON.stringify([
+      { name: "Pig iron", cn: "7201 10 90", qty: String(precQty), see: String(precSee), route: "BF route" },
+    ]);
     values[valueKey("precursor-route", pid)] = "BF route (pig iron) · recycled (scrap)";
   }
 
@@ -460,7 +474,7 @@ export function requestRevision(
   const next = pushEvent(
     { ...ss, status: "revision_requested" as const, unlocked: payload.fields, unlockedDocs: payload.docs, revisionNote: payload.comment },
     "revision_requested",
-    `${EXPORTER.contact} requested a revision on ${payload.fields.length} field${payload.fields.length === 1 ? "" : "s"}${payload.docs.length ? ` and ${payload.docs.length} document${payload.docs.length === 1 ? "" : "s"}` : ""} — "${payload.comment}"`,
+    `${exporterIdentity().contact} requested a revision on ${payload.fields.length} field${payload.fields.length === 1 ? "" : "s"}${payload.docs.length ? ` and ${payload.docs.length} document${payload.docs.length === 1 ? "" : "s"}` : ""} — "${payload.comment}"`,
   );
   saveState(next);
   return mutateReview(declId, supplierId, (r) => ({
@@ -481,9 +495,32 @@ export function markSummaryGenerated(declId: string): ExporterDeclState {
   return next;
 }
 
-export function markPackageGenerated(declId: string): ExporterDeclState {
+/** Stable fingerprint of the approved dataset — values, docs and versions per
+    supplier. If this changes after generation (a resubmission, a re-approval),
+    the generated package no longer matches reality and dispatch must wait for
+    a regeneration. djb2 over canonical JSON is plenty for change detection. */
+export function datasetHash(submissions: ReviewSubmission[]): string {
+  const canonical = submissions
+    .filter((s) => s.lifecycle === "approved")
+    .map((s) => ({
+      id: s.supplier.id,
+      v: s.version,
+      values: s.values,
+      docs: Object.keys(s.docs)
+        .sort()
+        .map((k) => ({ k, files: (s.docs[k]?.files ?? []).map((f) => f.name) })),
+    }));
+  const str = JSON.stringify(canonical);
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
+  return (h >>> 0).toString(16);
+}
+
+export function markPackageGenerated(declId: string, hash: string): ExporterDeclState {
   const state = loadExporterState(declId);
-  const next = { ...state, packageGeneratedAt: state.packageGeneratedAt ?? Date.now() };
+  // Regeneration is allowed (and required) after the dataset changes — the
+  // timestamp and hash always move together.
+  const next = { ...state, packageGeneratedAt: Date.now(), packageHash: hash };
   saveExporterState(next);
   return next;
 }
@@ -580,8 +617,13 @@ export function acknowledgeRecipient(declId: string, recipient: DispatchRecipien
   return next;
 }
 
-/* The exporter org / signer identity, surfaced so the package header is real. */
-export const EXPORTER = { org: ORG.name, installationId: ORG.installationId, contact: USER.name, role: USER.role };
+/* The exporter org / signer identity, surfaced so the package header is real.
+   Resolved at CALL time from the live org profile — a Settings rename must
+   reach every output, which the old module-load fixture constant never did. */
+export function exporterIdentity(): { org: string; installationId: string; contact: string; role: string } {
+  const o = getOrgIdentity();
+  return { org: o.name, installationId: o.installationId, contact: o.contact, role: o.role };
+}
 
 /* Re-export so the workflow UI groups the read-only submitted data the same way
    the supplier questionnaire did (Installation, Goods, Emissions, …). */

@@ -14,6 +14,7 @@ import { Select } from "@/components/controls";
 import { useSupplier, type FieldFlag } from "./context";
 import { valueKey, fieldAppliesTo, fieldRequiredFor, type SupplierSection } from "@/lib/supplier";
 import type { ResolvedCbamField } from "@/lib/config";
+import { parsePrecursors, serializePrecursors, emptyPrecursorRow, type PrecursorRow } from "@/lib/precursors";
 
 /* How a flagged field's stroke + inline note look. `ring` is the resting stroke;
    `ringStrong` is the brief pulse when the supplier is led to the field. */
@@ -48,6 +49,10 @@ const SELECTS: Record<string, { value: string; label: string }[]> = {
   method: [
     { value: "actual", label: "Actual installation data" },
     { value: "default", label: "Default values" },
+  ],
+  "carbon-price-currency": [
+    { value: "THB", label: "THB — Thai baht" },
+    { value: "EUR", label: "EUR — Euro" },
   ],
   "carbon-price-form": [
     { value: "ets", label: "Emissions Trading System (ETS)" },
@@ -146,7 +151,15 @@ function FieldControl({ field, productId }: { field: ResolvedCbamField; productI
         ariaLabel={field.label}
       />
     );
-  } else if (field.id === "precursors" || field.id === "precursor-route" || field.id === "inst-address") {
+  } else if (field.id === "precursors") {
+    control = (
+      <PrecursorEditor
+        value={value}
+        editable={editable}
+        onChange={(v) => setValue(field.id, productId, v)}
+      />
+    );
+  } else if (field.id === "precursor-route" || field.id === "inst-address") {
     control = (
       <textarea
         disabled={!editable}
@@ -194,6 +207,73 @@ function FieldControl({ field, productId }: { field: ResolvedCbamField; productI
         {!flag && <span className="mt-1 block text-[11px] text-black/35">{field.hint}</span>}
       </label>
       {flag && <FlagNote severity={flag.severity} message={flag.message} />}
+    </div>
+  );
+}
+
+/* ── Structured precursor rows ─────────────────────────────────
+   Each relevant precursor is a row: material, CN code, tonnes consumed per
+   tonne of the good, its embedded emissions, and its route. The rows are the
+   ONLY calculable form — the good's total embedded emissions derive from them
+   (own direct + own indirect + Σ qty × SEE). Legacy free-text entries are
+   shown for reference and replaced the moment rows are saved. */
+function PrecursorEditor({ value, editable, onChange }: { value: string; editable: boolean; onChange: (v: string) => void }) {
+  const rows = React.useMemo(() => parsePrecursors(value) ?? [], [value]);
+  const legacyText = value.trim() && parsePrecursors(value) === null ? value : null;
+
+  const patch = (i: number, p: Partial<PrecursorRow>) => {
+    const next = rows.map((r, idx) => (idx === i ? { ...r, ...p } : r));
+    onChange(serializePrecursors(next));
+  };
+  const addRow = () => onChange(serializePrecursors([...rows, emptyPrecursorRow()]));
+  const removeRow = (i: number) => {
+    const next = rows.filter((_, idx) => idx !== i);
+    onChange(next.length ? serializePrecursors(next) : "");
+  };
+
+  const cell = cn(inputClass, "px-2.5 py-2 text-[12.5px]", !editable && "cursor-not-allowed opacity-60");
+
+  return (
+    <div className="space-y-2">
+      {legacyText && (
+        <div className="rounded-lg border border-[#d97706]/30 bg-[#fffbeb] px-3 py-2 text-[11.5px] leading-relaxed text-[#92400e]">
+          Previously entered as free text: “{legacyText.slice(0, 160)}{legacyText.length > 160 ? "…" : ""}”. Re-enter it as rows below — free text can’t be calculated or sent to the Registry.
+        </div>
+      )}
+      {rows.map((r, i) => (
+        <div key={i} className="rounded-xl border border-black/[0.07] bg-[#fafaf8] p-2.5">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-[1.4fr_0.9fr_0.7fr_0.7fr]">
+            <input disabled={!editable} value={r.name} onChange={(e) => patch(i, { name: e.target.value })} placeholder="Material, e.g. Steel billet" aria-label="Precursor material" className={cell} />
+            <input disabled={!editable} value={r.cn} onChange={(e) => patch(i, { cn: e.target.value })} placeholder="CN code" aria-label="Precursor CN code" className={cell} />
+            <div className="relative">
+              <input type="number" min={0} step="any" disabled={!editable} value={r.qty} onChange={(e) => patch(i, { qty: e.target.value })} placeholder="0.00" aria-label="Tonnes consumed per tonne of this good" className={cn(cell, "pr-9 w-full")} />
+              <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 font-mono text-[10px] text-black/35">t/t</span>
+            </div>
+            <div className="relative">
+              <input type="number" min={0} step="any" disabled={!editable} value={r.see} onChange={(e) => patch(i, { see: e.target.value })} placeholder="0.00" aria-label="Embedded emissions of the precursor" className={cn(cell, "pr-14 w-full")} />
+              <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 font-mono text-[10px] text-black/35">tCO₂e/t</span>
+            </div>
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <input disabled={!editable} value={r.route} onChange={(e) => patch(i, { route: e.target.value })} placeholder="Production route of this precursor (optional)" aria-label="Precursor production route" className={cn(cell, "flex-1")} />
+            {editable && (
+              <button type="button" onClick={() => removeRow(i)} aria-label="Remove precursor row" className="flex-none text-[11px] text-black/40 hover:text-[#dc2626]">
+                Remove
+              </button>
+            )}
+          </div>
+        </div>
+      ))}
+      {editable && (
+        <button type="button" onClick={addRow} className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-black/15 px-3 py-1.5 text-[11.5px] text-black/55 hover:border-black/30 hover:text-black">
+          + Add precursor
+        </button>
+      )}
+      {rows.length > 0 && (
+        <p className="text-right font-mono text-[11px] text-black/40">
+          precursor contribution: {rows.reduce((a, r) => a + (Number(r.qty) > 0 && Number(r.see) > 0 ? Number(r.qty) * Number(r.see) : 0), 0).toFixed(2)} tCO₂e/t
+        </p>
+      )}
     </div>
   );
 }

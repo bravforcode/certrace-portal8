@@ -14,7 +14,8 @@
    answers. Both are the seam where a real API would slot in.
    ════════════════════════════════════════════════════════════ */
 
-import { getDeclaration, ORG, USER, type Declaration, type SupplierRow, type RequestLotSpec } from "./data";
+import { getDeclaration, type Declaration, type SupplierRow, type RequestLotSpec } from "./data";
+import { getOrgIdentity } from "./org";
 import {
   getRegulation,
   getJurisdiction,
@@ -23,6 +24,7 @@ import {
   fieldAppliesTo,
   fieldRequiredFor,
   getCatalogProduct,
+  sectorLabelFor,
   type ResolvedCbamField,
   type CatalogProduct,
 } from "./config";
@@ -126,20 +128,31 @@ export type SupplierRequest = {
   deadline: string;
   dueInDays: number;
   noteToSuppliers: string;
+  /** sector wording derived from THIS supplier's goods ("steel", "aluminium") */
+  sectorWord: string;
   // what to fill
   products: RequestProduct[];
   fields: ResolvedCbamField[];
   documents: RequestDocAsk[];
 };
 
-/* The documents an EU steel buyer/importer typically asks for alongside the CBAM
-   carbon data. Fixed, realistic set for the demo request. */
-const REQUESTED_DOCS: RequestDocAsk[] = [
-  { id: "cbam-sheet", label: "CBAM communication / embedded-emissions sheet", required: true },
-  { id: "mtc", label: "Mill Test Certificate (EN 10204 3.1)", required: true },
-  { id: "coo", label: "Certificate of Origin (COO)", required: true },
-  { id: "verif", label: "Verification statement (accredited verifier)", required: false },
-];
+/* The documents an EU buyer/importer typically asks for alongside the CBAM
+   carbon data — chosen per goods category, so an aluminium supplier is never
+   asked for a steel mill certificate. */
+function requestedDocsFor(products: CatalogProduct[]): RequestDocAsk[] {
+  const hasAluminium = products.some((p) => p.category === "Aluminium");
+  const hasSteel = products.some((p) => p.category === "Iron & Steel");
+  const materialCert: RequestDocAsk =
+    hasAluminium && !hasSteel
+      ? { id: "mtc", label: "Works / alloy test certificate (EN 10204 3.1)", required: true }
+      : { id: "mtc", label: "Mill Test Certificate (EN 10204 3.1)", required: true };
+  return [
+    { id: "cbam-sheet", label: "CBAM communication / embedded-emissions sheet", required: true },
+    materialCert,
+    { id: "coo", label: "Certificate of Origin (COO)", required: true },
+    { id: "verif", label: "Verification statement (accredited verifier)", required: false },
+  ];
+}
 
 const DEFAULT_NOTE =
   "Please report at installation level using actual data where you have it. If you only have default factors, mark the method as “default”. Reach out if anything is unclear — we'd rather help than receive a guess.";
@@ -203,6 +216,9 @@ export function resolveRequest(token: string): SupplierRequest | null {
     ? resolved.filter((f) => (decl.kind === "buyer" ? included.includes(f.id) : f.required || included.includes(f.id)))
     : resolved;
 
+  const org = getOrgIdentity();
+  const sectorLabel = sectorLabelFor(products.map((p) => p.product));
+
   return {
     token,
     declId: decl.id,
@@ -211,8 +227,8 @@ export function resolveRequest(token: string): SupplierRequest | null {
     supplierRef: row.ref,
     supplierCountry: row.country,
     critical: row.critical,
-    exporterName: ORG.name,
-    exporterContact: USER.name,
+    exporterName: org.name,
+    exporterContact: org.contact,
     regulationId: reg.id,
     regulationShort: reg.short,
     regulationFull: reg.full,
@@ -223,10 +239,13 @@ export function resolveRequest(token: string): SupplierRequest | null {
     period: decl.period,
     deadline: decl.due,
     dueInDays: decl.dueInDays,
-    noteToSuppliers: DEFAULT_NOTE,
+    // the exporter's actual instruction reaches the supplier; canned copy is
+    // only the fallback for fixtures that never had one
+    noteToSuppliers: decl.notesToSuppliers?.trim() || DEFAULT_NOTE,
+    sectorWord: sectorLabel === "Aluminium" ? "aluminium" : sectorLabel === "Iron & Steel" ? "steel" : "steel & aluminium",
     products,
     fields,
-    documents: REQUESTED_DOCS,
+    documents: requestedDocsFor(products.map((p) => p.product)),
   };
 }
 
@@ -274,6 +293,15 @@ export const valueKey = (fieldId: string, productId?: string) => (productId ? `$
 
 const ONCE_GROUPS = new Set(["Installation", "Carbon price", "Verification"]);
 export const isOnceField = (group: string) => ONCE_GROUPS.has(group);
+
+/** Verification is legally required once ANY good claims actual data — a
+    supplier reporting every good on default values needs no accredited
+    verifier in the definitive period. A not-yet-chosen method counts as
+    "actual" (the safe default), so the requirement only relaxes on an
+    explicit all-defaults submission. */
+export function verificationRequired(req: SupplierRequest, values: Record<string, string>): boolean {
+  return req.products.some((rp) => (values[valueKey("method", rp.product.id)] || "actual") !== "default");
+}
 
 /** Which sections actually apply to this request (electricity/precursors only
     appear when the goods bring them into scope). */

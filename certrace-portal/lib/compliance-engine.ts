@@ -12,6 +12,7 @@
 
 import { valueKey } from "./supplier";
 import { isComplexGood, SCOPE2_IN_LIABILITY, type CatalogProduct } from "./config";
+import { precursorContribution } from "./precursors";
 import type { ReviewSubmission, ReviewRollup } from "./exporter-review";
 
 /* Default-value markup schedule (Implementing Regulation) — pushes declarants
@@ -32,6 +33,24 @@ export const COMPLEX_GOOD_DEFAULT_CAP = 0.2;
    auction average published by the Commission — this is a stand-in for that
    figure, not a filed number. */
 export const EU_ETS_PROXY_EUR_PER_TCO2E = 82;
+
+/* Indicative THB→EUR conversion for the carbon-price deduction estimate.
+   The supplier states the currency explicitly (carbon-price-currency field);
+   the deduction itself is an ESTIMATE — the declarant applies the official
+   exchange rate at filing. */
+export const THB_PER_EUR = 39;
+
+/** Reporting-period year for the default-value markup schedule. The markup
+    follows the PERIOD being reported, never the wall clock — a 2026 dataset
+    reviewed in 2027 still carries the 2026 markup. */
+export function yearFromPeriod(periodStart?: string, periodLabel?: string): number {
+  if (periodStart) {
+    const y = Number(periodStart.slice(0, 4));
+    if (y > 2000) return y;
+  }
+  const m = /(20\d\d)/.exec(periodLabel ?? "");
+  return m ? Number(m[1]) : new Date().getFullYear();
+}
 
 /* 50-tonne/year mass threshold below which an EU importer does not need
    authorised-CBAM-declarant status. Evaluated here per declaration as an
@@ -77,12 +96,16 @@ function productFacts(sub: ReviewSubmission, product: CatalogProduct, year: numb
   const method = sub.values[valueKey("method", product.id)] || "";
   const direct = Number(sub.values[valueKey("direct-emissions", product.id)]) || 0;
   const indirect = Number(sub.values[valueKey("indirect-emissions", product.id)]) || 0;
+  // Precursor embedded emissions carried into a complex good count toward the
+  // chargeable base alongside the good's own direct emissions (Annex IV: the
+  // precursors' embedded emissions are part of the good's embedded emissions).
+  const precursor = isComplexGood(product) ? precursorContribution(sub.values[valueKey("precursors", product.id)]) : 0;
   const rp = sub.request.products.find((p) => p.product.id === product.id);
   const tonnes = rp?.totalTonnes ?? 0;
 
   const includeIndirect = SCOPE2_IN_LIABILITY[product.category];
-  const grossPerTonne = direct + indirect;
-  const chargeablePerTonne = direct + (includeIndirect ? indirect : 0);
+  const grossPerTonne = direct + indirect + precursor;
+  const chargeablePerTonne = direct + precursor + (includeIndirect ? indirect : 0);
 
   const defaultUsed = method === "default";
   const markup = defaultUsed ? markupForYear(year) : 0;
@@ -119,7 +142,14 @@ function supplierFacts(sub: ReviewSubmission, year: number): SupplierFacts {
     .filter((d) => sub.docs[d.id]?.status !== "uploaded")
     .map((d) => ({ docLabel: d.label, required: d.required }));
 
-  const carbonPricePaidEUR = Number(sub.values[valueKey("carbon-price")]) || 0;
+  /* Carbon-price deduction — the supplier reports a price PER tCO₂e in a
+     stated currency; the estimated deduction is that per-tonne price (in EUR)
+     applied across the chargeable emissions, capped so it can never flip the
+     exposure negative. Pre-fix this subtracted the raw number as absolute EUR. */
+  const cpPerTonne = Number(sub.values[valueKey("carbon-price")]) || 0;
+  const cpCurrency = sub.values[valueKey("carbon-price-currency")] || "THB";
+  const cpPerTonneEUR = cpCurrency === "EUR" ? cpPerTonne : cpPerTonne / THB_PER_EUR;
+  const carbonPricePaidEUR = Math.max(0, cpPerTonneEUR) * chargeable;
   const netExposureEUR = Math.max(0, chargeable * EU_ETS_PROXY_EUR_PER_TCO2E - carbonPricePaidEUR);
 
   return {

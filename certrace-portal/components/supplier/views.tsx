@@ -59,7 +59,7 @@ export function LandingView() {
         {req.exporterName} needs your carbon data.
       </h1>
       <p className="mt-3 text-[15px] leading-relaxed text-black/55">
-        You’re <span className="text-black/80">{req.supplierName}</span>. To keep shipping {req.originName} steel into the {req.destinationName}, {req.exporterName} has
+        You’re <span className="text-black/80">{req.supplierName}</span>. To keep shipping {req.originName} {req.sectorWord} into the {req.destinationName}, {req.exporterName} has
         to report the embedded emissions of the goods they buy from you — under {req.regulationFull}. This takes about 10 minutes, it’s free, and you don’t need an account.
       </p>
 
@@ -334,10 +334,25 @@ function DocRow({ d }: { d: RequestDocAsk }) {
   }, [isTarget, clearDocFocus]);
 
   const ring = fs ? cn("transition-shadow duration-700", pulse ? fs.ringStrong : fs.ring) : "";
-  const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const picked = Array.from(e.target.files ?? []).map((f) => ({ name: f.name, size: f.size }));
-    addFiles(d.id, picked);
+  const onPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const list = Array.from(e.target.files ?? []);
     e.target.value = ""; // let the same file be re-picked later
+    // Keep the real bytes for files up to 1.5 MB so the exporter can retrieve
+    // the evidence; bigger files record name + size only (storage quota).
+    const MAX_INLINE = 1_500_000;
+    const picked = await Promise.all(
+      list.map(
+        (f) =>
+          new Promise<{ name: string; size: number; dataUrl?: string }>((resolve) => {
+            if (f.size > MAX_INLINE) return resolve({ name: f.name, size: f.size });
+            const reader = new FileReader();
+            reader.onload = () => resolve({ name: f.name, size: f.size, dataUrl: typeof reader.result === "string" ? reader.result : undefined });
+            reader.onerror = () => resolve({ name: f.name, size: f.size });
+            reader.readAsDataURL(f);
+          }),
+      ),
+    );
+    addFiles(d.id, picked);
   };
 
   return (
