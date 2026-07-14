@@ -26,7 +26,11 @@ export type SupplierProfile = {
 };
 
 export type DocStatus = "missing" | "uploaded";
-export type UploadedFile = { name: string; size: number; addedAt: number };
+/* `dataUrl` carries the actual file bytes (base64) for files up to ~1.5 MB so
+   the exporter can genuinely retrieve the evidence — not just its filename.
+   Larger files keep name+size only (storage quota) and must be transferred
+   out-of-band until a real upload pipeline exists. */
+export type UploadedFile = { name: string; size: number; addedAt: number; dataUrl?: string };
 /** One requested document slot can hold several files (multi-page certs, etc.).
     `status` stays "uploaded" while ≥1 file is attached, so the AI check and the
     completion matrix keep reading it the same way. */

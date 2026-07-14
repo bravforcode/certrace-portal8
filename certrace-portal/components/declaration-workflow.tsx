@@ -43,10 +43,11 @@ import {
 import { toast } from "./toast";
 import { AddMemberModal } from "./add-member-modal";
 import { DeclarationMenu } from "./declaration-menu";
-import { Declaration, ORG } from "@/lib/data";
+import { Declaration } from "@/lib/data";
 import { getRegulation, getJurisdiction, type ResolvedCbamField } from "@/lib/config";
 import { downloadPackage, downloadXmlFile } from "@/lib/download";
 import { validateForRegistry, buildCbamXml } from "@/lib/cbam-xml";
+import { formatPrecursors } from "@/lib/precursors";
 import {
   sectionsForRequest,
   fieldsForSection,
@@ -73,14 +74,15 @@ import {
   remindSupplier,
   lastReminderAt,
   LIFECYCLE_META,
-  EXPORTER,
+  exporterIdentity,
+  datasetHash,
   type ExporterDeclState,
   type ReviewSubmission,
   type ReviewRollup,
   type DispatchRecipient,
 } from "@/lib/exporter-review";
 import { loadTeam, getTeamMember, type TeamMember } from "@/lib/team-store";
-import { computeComplianceFacts, type ComplianceFacts } from "@/lib/compliance-engine";
+import { computeComplianceFacts, yearFromPeriod, type ComplianceFacts } from "@/lib/compliance-engine";
 import { buildSupplierChapters, buildSignOff, packageSummaryData, packageHistoryData } from "@/lib/package-data";
 import { buildIntelligence, type IntelligenceReport } from "@/lib/compliance-intelligence";
 
@@ -149,7 +151,11 @@ export function DeclarationWorkflow({ declaration }: { declaration: Declaration 
   }, [refresh]);
 
   const roll: ReviewRollup = React.useMemo(() => (mounted ? buildRollup(declaration, exporter) : EMPTY_ROLL), [declaration, exporter, mounted]);
-  const facts: ComplianceFacts = React.useMemo(() => computeComplianceFacts(roll), [roll]);
+  // Default-value markup follows the reporting period, not today's date.
+  const facts: ComplianceFacts = React.useMemo(
+    () => computeComplianceFacts(roll, yearFromPeriod(declaration.periodStart, declaration.period)),
+    [roll, declaration.periodStart, declaration.period],
+  );
   const intel: IntelligenceReport = React.useMemo(() => buildIntelligence(roll, facts), [roll, facts]);
   const legalRequired = facts.anyCapViolations || facts.anyUnverifiedActual || roll.anomalies > 0;
   // Registry pre-flight over the approved dataset — the same check that gates
@@ -868,6 +874,11 @@ function SubmittedData({ sub }: { sub: ReviewSubmission }) {
         const rp = sub.request.products.find((p) => p.product.id === productId);
         return rp ? `${rp.totalTonnes.toLocaleString("en-US")} t` : "—";
       }
+      case "precursors": {
+        // structured rows render as readable lines, not raw JSON
+        const raw = sub.values[valueKey(field.id, productId)];
+        return raw ? formatPrecursors(raw) || "—" : "—";
+      }
       default:
         return sub.values[valueKey(field.id, productId)] || "—";
     }
@@ -905,7 +916,22 @@ function SectionBlock({ section, sub, displayValue }: { section: SupplierSection
                 </span>
                 <span className="min-w-0 flex-1 truncate text-black/65">{d.label}</span>
                 {!d.required && <span className="text-[9px] uppercase tracking-[0.1em] text-black/30">optional</span>}
-                <span className="font-mono text-[10px] text-black/35">{uploaded ? files.map((f) => f.name).join(", ") || "uploaded" : "not attached"}</span>
+                {uploaded ? (
+                  <span className="flex flex-wrap items-center gap-1.5 font-mono text-[10px] text-black/35">
+                    {files.length === 0 && "uploaded"}
+                    {files.map((f, i) =>
+                      f.dataUrl ? (
+                        <a key={i} href={f.dataUrl} download={f.name} className="underline decoration-black/20 underline-offset-2 hover:text-black hover:decoration-black/50" title="Download this file">
+                          {f.name}
+                        </a>
+                      ) : (
+                        <span key={i} title="File larger than the inline limit - request it out-of-band">{f.name}</span>
+                      ),
+                    )}
+                  </span>
+                ) : (
+                  <span className="font-mono text-[10px] text-black/35">not attached</span>
+                )}
               </div>
             );
           })}
@@ -1238,19 +1264,25 @@ function ReportTab({
   const jur = getJurisdiction(decl.origin)!;
   const approved = roll.submissions.filter((s) => s.lifecycle === "approved");
   const generated = Boolean(exporter.packageGeneratedAt);
+  // The sealed package must match the live approved dataset — a resubmission
+  // or re-approval after generation makes it stale until regenerated.
+  const currentHash = datasetHash(roll.submissions);
+  const stale = generated && exporter.packageHash !== null && exporter.packageHash !== currentHash;
   const ref = `CTR-${reg.short.replace(/\s/g, "")}-${decl.period}`.replace(/[^A-Za-z0-9-]/g, "");
 
   const doDownload = async () => {
+    const who = exporterIdentity();
     await downloadPackage({
       ref,
       regulationShort: reg.short,
       regulationFull: reg.full,
-      period: decl.period,
+      period: decl.periodStart && decl.periodEnd ? `${decl.period} (${decl.periodStart} → ${decl.periodEnd})` : decl.period,
       sector: decl.sector,
       origin: jur.name,
       market: decl.market === "EU" ? "European Union" : decl.market,
-      org: EXPORTER.org,
-      installationId: ORG.installationId,
+      org: who.org,
+      installationId: who.installationId,
+      buyerLine: decl.buyer ? `${decl.buyer.name} · EORI ${decl.buyer.eori}` : undefined,
       totalEmbedded: roll.reviewedEmissions,
       supplierCount: approved.length,
       carbonPricePaid: decl.carbonPricePaid ?? 0,
@@ -1285,6 +1317,21 @@ function ReportTab({
         </div>
         {generated ? (
           <div className="space-y-5 p-7">
+            {stale && (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#d97706]/25 bg-[#fffbeb] px-4 py-3 text-sm text-[#92400e]">
+                <span>The approved dataset changed after this package was generated — regenerate before sending anything out.</span>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    onChanged(markPackageGenerated(decl.id, currentHash));
+                    toast({ message: "Package regenerated", detail: "PDF + Registry XML now reflect the current approved dataset.", tone: "ok" });
+                  }}
+                >
+                  Regenerate
+                </Button>
+              </div>
+            )}
             <div>
               <div className="font-pixel text-[10px] uppercase tracking-[0.2em] text-black/40">Audit & Evidence Package</div>
               <div className="mt-2 font-[family-name:var(--font-plex)] text-2xl font-light text-[#111]">{reg.full}</div>
@@ -1311,7 +1358,7 @@ function ReportTab({
               className="mt-4"
               size="sm"
               onClick={() => {
-                onChanged(markPackageGenerated(decl.id));
+                onChanged(markPackageGenerated(decl.id, datasetHash(roll.submissions)));
                 toast({ message: "Report generated", detail: "Audit package + Registry XML sealed from the approved dataset. Next: internal sign-off.", tone: "ok" });
               }}
             >
@@ -1617,11 +1664,20 @@ function DispatchTab({
   const approved = roll.submissions.filter((s) => s.lifecycle === "approved");
   const validation = React.useMemo(() => validateForRegistry(decl, approved), [decl, approved]);
   const hardErrors = validation.errors.filter((e) => e.severity === "error");
-  const readyToDispatch = signoffComplete && allApproved && validation.isValid;
+  // The generated package must still match the live dataset — a resubmission
+  // after generation makes it stale, and stale data must never be dispatched.
+  const packageStale = exporter.packageHash !== null && exporter.packageHash !== datasetHash(roll.submissions);
+  const readyToDispatch = signoffComplete && allApproved && validation.isValid && !packageStale;
   const dispatched = Boolean(dispatch.o3ciPushedAt || dispatch.templateSentAt);
 
   const targets: { key: DispatchRecipient; icon: typeof Building2; title: string; to: string; desc: string }[] = [
-    { key: "buyer", icon: Building2, title: "EU buyer / importer", to: "procurement@eu-importer.example", desc: "The declarant who actually files with the CBAM Registry." },
+    {
+      key: "buyer",
+      icon: Building2,
+      title: decl.buyer?.name ?? "EU buyer / importer",
+      to: decl.buyer ? `${decl.buyer.email} · EORI ${decl.buyer.eori}` : "No buyer on this declaration — add one in the wizard",
+      desc: "The declarant who actually files with the CBAM Registry.",
+    },
     { key: "authority", icon: Landmark, title: reg.authority, to: "O3CI · CBAM Registry", desc: "Reached via the O3CI push below, not a direct portal login." },
     { key: "verifier", icon: BadgeCheck, title: "Accredited verifier", to: "TÜV SÜD · auditor portal", desc: "Scoped source-data access — no email attachments." },
   ];
@@ -1644,7 +1700,9 @@ function DispatchTab({
                 ? "Internal sign-off isn't complete yet — every requested confirmation must land first."
                 : !allApproved
                   ? "Every submission must be approved before dispatch."
-                  : "The dataset has blocking Registry issues — fix them before anything is sent."}
+                  : packageStale
+                    ? "The dataset changed after the report was generated — regenerate the package before dispatch."
+                    : "The dataset has blocking Registry issues — fix them before anything is sent."}
             </p>
           </div>
           {!signoffComplete && (
@@ -1760,6 +1818,7 @@ function DispatchTab({
 
 /* ════════════════════════ Audit Trail & Version History ════════════════════════ */
 function AuditTrailTab({ roll, exporter }: { roll: ReviewRollup; exporter: ExporterDeclState }) {
+  const who = exporterIdentity().contact;
   type Row = { at: number; who: string; text: string };
   const recipientLabel: Record<DispatchRecipient, string> = { buyer: "EU buyer / importer", authority: "EU CBAM Registry", verifier: "Accredited verifier" };
 
@@ -1767,18 +1826,18 @@ function AuditTrailTab({ roll, exporter }: { roll: ReviewRollup; exporter: Expor
   const rows: Row[] = [
     ...roll.submissions.flatMap((s) => s.events.map((e) => ({ at: e.at, who: s.supplier.name, text: e.text }))),
     ...Object.entries(exporter.remindersSent ?? {}).flatMap(([supplierId, times]) =>
-      times.map((at) => ({ at, who: EXPORTER.contact, text: `Reminder emailed to ${supplierName(supplierId)} — Smart Link still awaiting submission` })),
+      times.map((at) => ({ at, who: who, text: `Reminder emailed to ${supplierName(supplierId)} — Smart Link still awaiting submission` })),
     ),
-    ...(exporter.packageGeneratedAt ? [{ at: exporter.packageGeneratedAt, who: EXPORTER.contact, text: "Report package generated — audit PDF + Registry XML sealed from the approved dataset" }] : []),
+    ...(exporter.packageGeneratedAt ? [{ at: exporter.packageGeneratedAt, who: who, text: "Report package generated — audit PDF + Registry XML sealed from the approved dataset" }] : []),
     ...(exporter.signoffs ?? []).flatMap((s) => {
       const m = getTeamMember(s.memberId);
       const name = m?.name ?? "Reviewer";
-      const out: Row[] = [{ at: s.requestedAt, who: EXPORTER.contact, text: `Report preview sent to ${name}${m ? ` (${m.role})` : ""} for confirmation` }];
+      const out: Row[] = [{ at: s.requestedAt, who: who, text: `Report preview sent to ${name}${m ? ` (${m.role})` : ""} for confirmation` }];
       if (s.confirmedAt) out.push({ at: s.confirmedAt, who: name, text: "Confirmed the report — sign-off recorded in the package" });
       return out;
     }),
-    ...(exporter.dispatch.o3ciPushedAt ? [{ at: exporter.dispatch.o3ciPushedAt, who: EXPORTER.contact, text: "Pushed to the CBAM Registry's O3CI module" }] : []),
-    ...(exporter.dispatch.templateSentAt ? [{ at: exporter.dispatch.templateSentAt, who: EXPORTER.contact, text: "Communication Template sent to the buyer" }] : []),
+    ...(exporter.dispatch.o3ciPushedAt ? [{ at: exporter.dispatch.o3ciPushedAt, who: who, text: "Pushed to the CBAM Registry's O3CI module" }] : []),
+    ...(exporter.dispatch.templateSentAt ? [{ at: exporter.dispatch.templateSentAt, who: who, text: "Communication Template sent to the buyer" }] : []),
     ...Object.entries(exporter.dispatch.acknowledgedAt).map(([key, at]) => ({
       at: at as number,
       who: recipientLabel[key as DispatchRecipient],

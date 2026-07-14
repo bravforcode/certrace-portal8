@@ -45,6 +45,9 @@ export type ChapterProduct = {
   method?: string; // "actual" | "default"
   precursors?: string;
   precursorRoutes?: string;
+  electricityConsumed?: string; // MWh/t
+  electricityFactor?: string; // factor + documented source
+  electrolysisTech?: string; // prebake | soderberg (primary aluminium only)
 };
 
 export type SupplierChapter = {
@@ -84,6 +87,8 @@ export type PackageInput = {
   market: string; // e.g. "European Union"
   org: string;
   installationId: string;
+  /** EU buyer / declarant line, e.g. "Berlin Stahlhandel GmbH · EORI DE55…" */
+  buyerLine?: string;
   totalEmbedded: number; // tCO₂e
   supplierCount: number;
   carbonPricePaid: number;
@@ -361,6 +366,7 @@ export async function buildPackagePdf(p: PackageInput): Promise<jsPDF> {
   kv("Route", `${p.origin} → ${p.market}`);
   kv("Communicating operator (exporter)", p.org);
   kv("Operator reference", p.installationId);
+  if (p.buyerLine) kv("EU buyer / declarant", p.buyerLine);
   kv("Monitoring methodology", `Annex IV, Reg. (EU) 2023/956 · Implementing Reg. (EU) 2023/1773 · ${p.factorSet}`);
   kv("Total embedded emissions (approved submissions)", `${fmtN(p.totalEmbedded)} tCO2e`);
   kv("Carbon price paid in country of origin", p.carbonPricePaid === 0 ? "None (Thailand currently has no carbon price)" : fmtN(p.carbonPricePaid));
@@ -389,7 +395,7 @@ export async function buildPackagePdf(p: PackageInput): Promise<jsPDF> {
   );
 
   eyebrow("Calculation methodology");
-  bullet("Specific embedded emissions (SEE) per good = specific direct emissions + specific indirect (electricity) emissions, in tCO2e per tonne of net mass, monitored at installation level per Annex IV of Regulation (EU) 2023/956.");
+  bullet("Specific embedded emissions (SEE) per good = own-process direct emissions + own-process indirect (electricity) emissions + embedded emissions of relevant precursors (complex goods), in tCO2e per tonne of net mass, monitored at installation level per Annex IV of Regulation (EU) 2023/956.");
   bullet("Complex goods additionally carry the attributed embedded emissions of their relevant precursor materials (e.g. pig iron, ferro-alloys, crude steel inputs).");
   bullet(`Emission factors: ${p.factorSet}. Electricity factors follow the applicable grid or PPA factor with documented source.`);
   bullet("Quantities are normalised to tonnes of net mass; emissions figures to tCO2e per tonne (the CBAM canonical form).");
@@ -464,6 +470,14 @@ export async function buildPackagePdf(p: PackageInput): Promise<jsPDF> {
         ],
         { colorColumn: { index: 2, color: (raw) => (raw === "DEFAULT VALUES" ? AMBER : raw === "ACTUAL DATA" ? GREEN : null) } },
       );
+      // Electricity data — justifies the indirect figure; required content for
+      // aluminium goods, so it must appear in the communicated package.
+      if (prod.electricityConsumed || prod.electricityFactor || prod.electrolysisTech) {
+        eyebrow("Electricity");
+        if (prod.electricityConsumed) kv("Electricity consumed", `${prod.electricityConsumed} MWh/t`);
+        if (prod.electricityFactor) kv("Emission factor & source", prod.electricityFactor);
+        if (prod.electrolysisTech) kv("Electrolysis technology", prod.electrolysisTech === "soderberg" ? "Soderberg" : "Prebake");
+      }
       if (prod.precursors) {
         eyebrow("Precursors");
         paragraph(prod.precursors, INK, 9);
@@ -472,7 +486,7 @@ export async function buildPackagePdf(p: PackageInput): Promise<jsPDF> {
     }
 
     eyebrow("Carbon price in country of origin");
-    kv("Amount", c.carbonPrice.amount === "0" || !c.carbonPrice.amount ? "0 (no carbon price paid)" : c.carbonPrice.amount);
+    kv("Amount", !c.carbonPrice.amount || c.carbonPrice.amount === "0" || c.carbonPrice.amount.startsWith("0 ") ? "0 (no carbon price paid)" : c.carbonPrice.amount);
     if (c.carbonPrice.instrument) kv("Instrument", c.carbonPrice.instrument);
     y += 4;
 

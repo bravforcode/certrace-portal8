@@ -46,6 +46,16 @@ export type RequestLotSpec = {
 export type RequestProductSpec = { productId: string; lots: RequestLotSpec[] };
 export type SupplierRequestSpec = { supplierId: string; products: RequestProductSpec[] };
 
+/* The EU buyer / importer this declaration's data is communicated to. Their
+   Authorised CBAM Declarant is the party that actually files with the CBAM
+   Registry — without a named buyer + EORI the output cannot reach anyone. */
+export type DeclarationBuyer = {
+  name: string; // legal name of the EU importer
+  eori: string; // EORI number the declarant files under
+  email: string; // where the Communication Template is sent
+  contact?: string;
+};
+
 export type Declaration = {
   id: string;
   name: string;
@@ -69,6 +79,15 @@ export type Declaration = {
   requests?: SupplierRequestSpec[];
   /** CBAM field ids the exporter included on Classification (required ones are always in) */
   includedFieldIds?: string[];
+  /** EU buyer / importer whose declarant receives this data (wizard-created) */
+  buyer?: DeclarationBuyer;
+  /** exporter's note shown at the top of every supplier's guided form */
+  notesToSuppliers?: string;
+  /** internal request description from the wizard */
+  description?: string;
+  /** ISO reporting-period bounds, e.g. 2026-01-01 / 2026-12-31 */
+  periodStart?: string;
+  periodEnd?: string;
 };
 
 /* Supplier readiness — surfaced when the exporter is picking suppliers for a

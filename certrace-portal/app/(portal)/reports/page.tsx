@@ -6,7 +6,7 @@ import { toast } from "@/components/toast";
 import { downloadPackage } from "@/lib/download";
 import { REPORTS, DECLARATIONS, ORG } from "@/lib/data";
 import { getRegulation, getJurisdiction, getPlan } from "@/lib/config";
-import { loadExporterState, rollup, EXPORTER } from "@/lib/exporter-review";
+import { loadExporterState, rollup, exporterIdentity } from "@/lib/exporter-review";
 import { buildSupplierChapters, buildSignOff, packageSummaryData, packageHistoryData } from "@/lib/package-data";
 
 const stateMeta: Record<string, { label: string; tone: Tone }> = {
@@ -43,8 +43,9 @@ export default function ReportsPage() {
       sector: decl.sector,
       origin: jur.name,
       market: decl.market === "EU" ? "European Union" : decl.market,
-      org: EXPORTER.org,
-      installationId: ORG.installationId,
+      org: exporterIdentity().org,
+      installationId: exporterIdentity().installationId,
+      buyerLine: decl.buyer ? `${decl.buyer.name} · EORI ${decl.buyer.eori}` : undefined,
       totalEmbedded: decl.totalEmbedded ?? roll.submittedEmissions,
       supplierCount: submitted.length,
       carbonPricePaid: decl.carbonPricePaid ?? 0,

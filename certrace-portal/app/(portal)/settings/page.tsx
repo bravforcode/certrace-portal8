@@ -146,7 +146,7 @@ function OrganisationTab() {
               <Field label="Primary sector" hint="Which CBAM-affected industry your organisation reports under.">
                 <Select value={sectorId} onChange={setSectorId} options={sectorOptions} ariaLabel="Primary sector" />
               </Field>
-              <Field label="Installation / facility ID" hint="Required for CBAM declarant identification.">
+              <Field label="Operator / facility reference" hint="Your operator reference — shared with buyers and used for O3CI matching. (Exporters are never the CBAM declarant; the EU importer's declarant files.)">
                 <input className={inputClass} value={installationId} onChange={(e) => setInstallationId(e.target.value)} />
               </Field>
             </div>

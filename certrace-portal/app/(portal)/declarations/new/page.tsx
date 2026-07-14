@@ -34,6 +34,7 @@ import {
   PRODUCT_CATEGORIES,
   type ProductCategory,
   resolveCbamFields,
+  sectorLabelFor,
   PRODUCT_UNITS,
   DEFAULT_UNIT,
   REGULATIONS,
@@ -161,6 +162,9 @@ export default function NewDeclarationPage() {
   const [purpose, setPurpose] = React.useState<Purpose>("cbam");
   const [name, setName] = React.useState("");
   const [description, setDescription] = React.useState("");
+  // The EU buyer / importer whose Authorised CBAM Declarant receives this
+  // data — without them the final communication has no addressee.
+  const [buyer, setBuyer] = React.useState({ name: "", eori: "", email: "" });
 
   // period
   const [periodId, setPeriodId] = React.useState("annual");
@@ -211,6 +215,7 @@ export default function NewDeclarationPage() {
     setPurpose(s.purpose ?? "cbam");
     setName(s.name);
     setDescription(s.description);
+    setBuyer({ name: s.buyerName ?? "", eori: s.buyerEori ?? "", email: s.buyerEmail ?? "" });
     setPeriodId(s.periodId);
     setYear(s.year);
     setQuarter(s.quarter);
@@ -275,6 +280,51 @@ export default function NewDeclarationPage() {
     }
   }, [activePeriod, year, quarter, half, month, rangeStart, rangeEnd]);
 
+  /* ISO bounds of the reporting period — the machine-usable form every output
+     and validation needs ("Annual 2026" alone is not a period). */
+  const periodBounds = React.useMemo((): { start: string; end: string } | null => {
+    const y = Number(year);
+    const iso = (yy: number, m: number, d: number) => `${yy}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    switch (activePeriod.picker) {
+      case "year":
+        return { start: iso(y, 1, 1), end: iso(y, 12, 31) };
+      case "quarter": {
+        const qi = ["Q1", "Q2", "Q3", "Q4"].indexOf(quarter);
+        const sm = qi * 3 + 1;
+        const em = sm + 2;
+        return { start: iso(y, sm, 1), end: iso(y, em, new Date(y, em, 0).getDate()) };
+      }
+      case "half":
+        return half === "H1" ? { start: iso(y, 1, 1), end: iso(y, 6, 30) } : { start: iso(y, 7, 1), end: iso(y, 12, 31) };
+      case "month": {
+        const mi = MONTHS.indexOf(month) + 1;
+        return { start: iso(y, mi, 1), end: iso(y, mi, new Date(y, mi, 0).getDate()) };
+      }
+      case "range":
+        return rangeStart && rangeEnd ? { start: rangeStart, end: rangeEnd } : null;
+      default:
+        return null;
+    }
+  }, [activePeriod.picker, year, quarter, half, month, rangeStart, rangeEnd]);
+
+  /* Suppliers can only report a period once it has ended — default the
+     deadline to a month past the period end, and never accept one inside it. */
+  const deadlineTouched = React.useRef(false);
+  React.useEffect(() => {
+    if (deadlineTouched.current || !periodBounds) return;
+    const end = new Date(periodBounds.end + "T00:00:00");
+    end.setDate(end.getDate() + 31);
+    setDeadline(end.toISOString().slice(0, 10));
+  }, [periodBounds]);
+  const deadlineBeforePeriodEnd = Boolean(periodBounds && deadline && deadline <= periodBounds.end);
+
+  /* Buyer qualification — a CBAM declaration must be addressable to a real EU
+     importer (their declarant files it). Loose EORI shape: country prefix +
+     6–15 alphanumerics. */
+  const eoriOk = /^[A-Za-z]{2}[A-Za-z0-9]{6,15}$/.test(buyer.eori.replace(/\s/g, ""));
+  const buyerEmailOk = /.+@.+\..+/.test(buyer.email.trim());
+  const buyerValid = buyer.name.trim().length > 0 && eoriOk && buyerEmailOk;
+
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase();
     return PRODUCT_CATALOG.filter((p) => {
@@ -328,12 +378,14 @@ export default function NewDeclarationPage() {
     return s.size;
   }, [mapping]);
   const totalLots = React.useMemo(() => Object.values(mapping).reduce((a, entries) => a + entries.reduce((b, e) => b + e.lots.length, 0), 0), [mapping]);
+  // Net mass across ALL lots — kg convert; only mass units exist (config).
   const totalTonnes = React.useMemo(() => {
     let t = 0;
     Object.values(mapping).forEach((entries) => entries.forEach((e) => e.lots.forEach((l) => {
       if (l.unit === "tonnes (t)") t += Number(l.qty) || 0;
+      else if (l.unit === "kg") t += (Number(l.qty) || 0) / 1000;
     })));
-    return t;
+    return Math.round(t * 100) / 100;
   }, [mapping]);
   const estDays = Math.min(45, 7 + uniqueSuppliers * 2 + Math.ceil(products.length / 3));
 
@@ -421,7 +473,8 @@ export default function NewDeclarationPage() {
             eligibleDestinations.some((d) => d.code === destination),
         );
       case "purpose":
-        return name.trim().length > 0;
+        // A CBAM declaration must name the EU buyer whose declarant files it.
+        return name.trim().length > 0 && (!hasCbam || buyerValid);
       case "period":
         return activePeriod.picker === "range" ? Boolean(rangeStart && rangeEnd) : true;
       case "products":
@@ -438,7 +491,9 @@ export default function NewDeclarationPage() {
           })
         );
       case "deadline":
-        return Boolean(deadline);
+        // Suppliers report a period AFTER it ends — a deadline inside the
+        // reporting period cannot yield complete data.
+        return Boolean(deadline) && !deadlineBeforePeriodEnd;
       default:
         return true;
     }
@@ -450,7 +505,9 @@ export default function NewDeclarationPage() {
 
   const buildSnapshot = (): WizardSnapshot => ({
     regulation, origin, destination,
-    purpose, name, description, periodId, year, quarter, half, month, rangeStart, rangeEnd,
+    purpose, name, description,
+    buyerName: buyer.name, buyerEori: buyer.eori, buyerEmail: buyer.email,
+    periodId, year, quarter, half, month, rangeStart, rangeEnd,
     products, reportFields, directory, mapping, deadline, reminders, notes, step,
   });
 
@@ -523,7 +580,8 @@ export default function NewDeclarationPage() {
       regulation,
       origin,
       market: destination,
-      sector: ORG.sector,
+      // sector reflects the goods actually declared, never the org profile
+      sector: sectorLabelFor(selectedProducts),
       period: periodSummary,
       due: deadline ? new Date(deadline + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—",
       dueInDays: deadline ? Math.ceil((new Date(deadline + "T00:00:00").getTime() - Date.now()) / 86_400_000) : 9999,
@@ -536,6 +594,15 @@ export default function NewDeclarationPage() {
       productCount: products.length,
       requests,
       includedFieldIds: includedFields.map((f) => f.id),
+      // The pieces the outputs and the supplier form depend on — previously
+      // collected here and silently dropped.
+      buyer: buyer.name.trim()
+        ? { name: buyer.name.trim(), eori: buyer.eori.replace(/\s/g, "").toUpperCase(), email: buyer.email.trim() }
+        : undefined,
+      notesToSuppliers: notes.trim() || undefined,
+      description: description.trim() || undefined,
+      periodStart: periodBounds?.start,
+      periodEnd: periodBounds?.end,
     };
     saveCreatedDeclaration(declaration);
 
@@ -819,9 +886,42 @@ export default function NewDeclarationPage() {
               <Field label="Request name" hint="Shown to suppliers and on every reminder. Make it recognisable.">
                 <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} placeholder={PURPOSES.find((p) => p.id === purpose)?.namePlaceholder} />
               </Field>
-              <Field label="Request description (optional)" hint="Context for your suppliers — what this is for, who the buyer is.">
+              <Field label="Request description (optional)" hint="Context for your suppliers — what this is for.">
                 <textarea className={cn(inputClass, "min-h-[84px] resize-y")} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g. Annual CBAM carbon data for our EU steel exports. Please report at installation level." />
               </Field>
+            </div>
+
+            {/* The EU buyer whose Authorised CBAM Declarant will file this data.
+                Required for CBAM — the communication has to reach a named
+                declarant, matched in the Registry by EORI. */}
+            <div className="space-y-4 border-t border-black/[0.06] pt-6">
+              <SectionIntro kicker={hasCbam ? "EU buyer / importer (required)" : "EU buyer / importer"}>
+                {hasCbam
+                  ? "Who imports these goods into the EU? Their Authorised CBAM Declarant files the declaration — Certrace addresses the Communication Template and the O3CI share to them."
+                  : "The buyer this data request is for."}
+              </SectionIntro>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Buyer legal name">
+                  <input className={inputClass} value={buyer.name} onChange={(e) => setBuyer((b) => ({ ...b, name: e.target.value }))} placeholder="e.g. Berlin Stahlhandel GmbH" />
+                </Field>
+                <Field label="EORI number" hint={buyer.eori && !eoriOk ? "Format: 2-letter country + 6–15 characters, e.g. DE551234567890" : "The declarant's Registry identifier."}>
+                  <input
+                    className={cn(inputClass, buyer.eori && !eoriOk && "border-[#f87171]/70 focus:border-[#f87171]")}
+                    value={buyer.eori}
+                    onChange={(e) => setBuyer((b) => ({ ...b, eori: e.target.value }))}
+                    placeholder="e.g. DE551234567890"
+                  />
+                </Field>
+                <Field label="Contact email" hint={buyer.email && !buyerEmailOk ? "Enter a valid email address." : "Where the Communication Template is sent."}>
+                  <input
+                    type="email"
+                    className={cn(inputClass, buyer.email && !buyerEmailOk && "border-[#f87171]/70 focus:border-[#f87171]")}
+                    value={buyer.email}
+                    onChange={(e) => setBuyer((b) => ({ ...b, email: e.target.value }))}
+                    placeholder="e.g. cbam@buyer.example"
+                  />
+                </Field>
+              </div>
             </div>
           </div>
         )}
@@ -1076,8 +1176,28 @@ export default function NewDeclarationPage() {
             <SectionIntro kicker="Deadline & reminders">
               Set the submission deadline suppliers see, and let Certrace chase them automatically so you don&apos;t have to.
             </SectionIntro>
-            <LabeledControl label="Submission deadline" hint="The date suppliers must submit by.">
-              <DatePicker value={deadline} onChange={setDeadline} className="max-w-xs" ariaLabel="Submission deadline" />
+            <LabeledControl
+              label="Submission deadline"
+              hint={
+                deadlineBeforePeriodEnd
+                  ? undefined
+                  : `The date suppliers must submit by${periodBounds ? ` — defaulted to one month after the period ends (${periodBounds.end})` : ""}.`
+              }
+            >
+              <DatePicker
+                value={deadline}
+                onChange={(v) => {
+                  deadlineTouched.current = true;
+                  setDeadline(v);
+                }}
+                className="max-w-xs"
+                ariaLabel="Submission deadline"
+              />
+              {deadlineBeforePeriodEnd && (
+                <span className="mt-1.5 block text-xs text-[#dc2626]">
+                  The reporting period runs until {periodBounds?.end} — suppliers can only report complete data after it ends. Pick a later deadline.
+                </span>
+              )}
             </LabeledControl>
 
             <Card warm className="p-5">
@@ -1140,7 +1260,8 @@ export default function NewDeclarationPage() {
                 ["Authority", activeRegulation.authority],
                 ["Purpose", PURPOSES.find((p) => p.id === purpose)?.title ?? "—"],
                 ["Request name", name.trim() || "—"],
-                ["Period", periodSummary],
+                ["EU buyer", buyer.name.trim() ? `${buyer.name.trim()} · ${buyer.eori.replace(/\s/g, "").toUpperCase()}` : "—"],
+                ["Period", periodBounds ? `${periodSummary} (${periodBounds.start} → ${periodBounds.end})` : periodSummary],
                 ["Products", `${products.length} · CN-classified`],
                 ["Report fields", hasCbam ? `${includedFields.length} of ${resolvedFields.length} (${requiredCount} required)` : `${includedFields.length} selected`],
                 ["Total volume", totalTonnes > 0 ? `${fmt(totalTonnes)} t across ${totalLots} lots` : `${totalLots} lots`],

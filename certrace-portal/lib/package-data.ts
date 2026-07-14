@@ -10,6 +10,7 @@
 
 import { valueKey } from "./supplier";
 import { scope2Treatment } from "./config";
+import { formatPrecursors } from "./precursors";
 import type { ReviewSubmission, ReportSignoff } from "./exporter-review";
 import { getTeamMember } from "./team-store";
 import type { SupplierChapter, SignOffStep, ChapterProduct, PackageInput } from "./download";
@@ -44,8 +45,12 @@ export function buildSupplierChapters(subs: ReviewSubmission[]): SupplierChapter
         totalPerTonne: total,
         absoluteTCO2e: total != null ? Math.round(total * rp.totalTonnes) : null,
         method: v("method", pid) || undefined,
-        precursors: v("precursors", pid) || undefined,
+        // structured rows print as readable lines; legacy prose passes through
+        precursors: v("precursors", pid) ? formatPrecursors(v("precursors", pid)) : undefined,
         precursorRoutes: v("precursor-route", pid) || undefined,
+        electricityConsumed: v("elec-consumed", pid) || undefined,
+        electricityFactor: v("elec-factor", pid) || undefined,
+        electrolysisTech: v("al-process", pid) || undefined,
       };
     });
 
@@ -67,7 +72,7 @@ export function buildSupplierChapters(subs: ReviewSubmission[]): SupplierChapter
       },
       products,
       carbonPrice: {
-        amount: v("carbon-price") || "0",
+        amount: `${v("carbon-price") || "0"} ${v("carbon-price-currency") || "THB"}/tCO₂e`,
         instrument: v("carbon-price-form") || undefined,
         note: (v("carbon-price") || "0") === "0" ? "Thailand currently has no carbon price." : undefined,
       },

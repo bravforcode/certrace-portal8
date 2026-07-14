@@ -14,7 +14,9 @@
    ════════════════════════════════════════════════════════════ */
 
 import type { SupplierRequest, SectionKey } from "./supplier";
-import { AUTO_FIELDS, valueKey, isOnceField, fieldAppliesTo, fieldRequiredFor } from "./supplier";
+import { AUTO_FIELDS, valueKey, isOnceField, fieldAppliesTo, fieldRequiredFor, verificationRequired } from "./supplier";
+import { parsePrecursors, precursorContribution, rowComplete } from "./precursors";
+import { isComplexGood, type ProductCategory } from "./config";
 import type { DocState } from "./supplier-store";
 
 export type Severity = "critical" | "warning" | "pass";
@@ -48,19 +50,35 @@ const num = (v: string | undefined) => {
   return Number(v.replace(/,/g, ""));
 };
 
-// Plausible specific direct-emission bands for steel/iron (tCO₂e per tonne).
-const STEEL_DIRECT_TYPICAL = { low: 0.3, high: 2.8, hardMax: 6 };
+/* Plausible OWN-PROCESS direct-emission bands per goods category (tCO₂e/t).
+   The band must match the good being checked — flagging an aluminium smelter
+   against "a realistic steel route" (the pre-fix behaviour) is noise for the
+   supplier and cover for real errors. Downstream steps (rolling, extrusion)
+   legitimately sit near the low end, so `low` is a soft nudge only. */
+const DIRECT_BANDS: Record<ProductCategory, { low: number; high: number; hardMax: number; word: string }> = {
+  "Iron & Steel": { low: 0.1, high: 2.8, hardMax: 6, word: "steel" },
+  Aluminium: { low: 0.02, high: 2.2, hardMax: 5, word: "aluminium" },
+};
+
+/** First numeric token in a free-text electricity factor ("0.399 tCO₂/MWh — grid OM"). */
+const factorNumber = (v: string | undefined): number => {
+  const m = /-?\d+(?:\.\d+)?/.exec(v ?? "");
+  return m ? Number(m[0]) : NaN;
+};
 
 export function runQualityCheck(req: SupplierRequest, values: Record<string, string>, docs: Record<string, DocState>): CheckResult {
   const findings: Finding[] = [];
   const push = (f: Omit<Finding, "id">) => findings.push({ id: `${f.category}-${findings.length}`, ...f });
 
   /* ── Completeness ─────────────────────────────────────────── */
+  const verifRequired = verificationRequired(req, values);
   let missingRequired = 0;
   for (const f of req.fields) {
     if (AUTO_FIELDS.has(f.id)) continue;
     if (isOnceField(f.group)) {
       if (!f.required) continue;
+      // verification relaxes to optional when every good is on default values
+      if (f.id === "verification" && !verifRequired) continue;
       if (!values[valueKey(f.id)]?.trim()) {
         missingRequired++;
         push({ category: "Completeness", severity: "critical", title: `${f.label} is missing`, detail: `${f.group} · required by ${req.regulationShort}.`, fieldId: f.id, fix: "Fill this field in the questionnaire." });
@@ -99,36 +117,85 @@ export function runQualityCheck(req: SupplierRequest, values: Record<string, str
   let nonTonneUnits = false;
   let defaultMethodUsed = false;
   for (const { product, lots } of req.products) {
+    const band = DIRECT_BANDS[product.category] ?? DIRECT_BANDS["Iron & Steel"];
     const direct = num(values[valueKey("direct-emissions", product.id)]);
     const indirect = num(values[valueKey("indirect-emissions", product.id)]);
+    const elec = num(values[valueKey("elec-consumed", product.id)]);
     const method = values[valueKey("method", product.id)] ?? "";
+    const rawPrecursors = values[valueKey("precursors", product.id)];
 
     // Validation — numbers present & positive
     if (Number.isNaN(direct)) {
       push({ category: "Validation", severity: "critical", title: `Direct emissions not a number (${product.name})`, detail: "Enter specific direct emissions in tCO₂e per tonne.", productId: product.id, fieldId: "direct-emissions" });
     } else if (direct <= 0) {
       push({ category: "Validation", severity: "critical", title: `Direct emissions must be greater than zero (${product.name})`, detail: "A produced good cannot have zero direct emissions.", productId: product.id, fieldId: "direct-emissions" });
-    } else if (direct > STEEL_DIRECT_TYPICAL.hardMax) {
-      push({ category: "Validation", severity: "critical", title: `Direct emissions look impossibly high (${product.name})`, detail: `${direct} tCO₂e/t exceeds any realistic steel route — check the unit and decimal point.`, productId: product.id, fieldId: "direct-emissions" });
+    } else if (direct > band.hardMax) {
+      push({ category: "Validation", severity: "critical", title: `Direct emissions look impossibly high (${product.name})`, detail: `${direct} tCO₂e/t exceeds any realistic ${band.word} production route — check the unit and decimal point.`, productId: product.id, fieldId: "direct-emissions" });
+    }
+    // Indirect — same rigour as direct (a negative or nonsense value must never
+    // silently shrink the total, which is exactly what happened pre-fix)
+    if (values[valueKey("indirect-emissions", product.id)]?.trim()) {
+      if (Number.isNaN(indirect)) {
+        push({ category: "Validation", severity: "critical", title: `Indirect emissions not a number (${product.name})`, detail: "Enter specific indirect (electricity) emissions in tCO₂e per tonne.", productId: product.id, fieldId: "indirect-emissions" });
+      } else if (indirect < 0) {
+        push({ category: "Validation", severity: "critical", title: `Indirect emissions cannot be negative (${product.name})`, detail: `${indirect} tCO₂e/t is physically impossible — electricity use cannot remove emissions.`, productId: product.id, fieldId: "indirect-emissions" });
+      }
+    }
+    if (values[valueKey("elec-consumed", product.id)]?.trim() && !Number.isNaN(elec) && elec < 0) {
+      push({ category: "Validation", severity: "critical", title: `Electricity consumption cannot be negative (${product.name})`, detail: "MWh per tonne must be zero or more.", productId: product.id, fieldId: "elec-consumed" });
     }
 
-    // Internal consistency — total must equal direct + indirect (auto-derived, so
-    // this only fails if a value was hand-edited inconsistently)
+    // Cross-check — indirect should reconcile with electricity × grid factor
+    // when both are given (±35% tolerance covers PPAs and partial self-supply).
+    const factor = factorNumber(values[valueKey("elec-factor", product.id)]);
+    if (!Number.isNaN(elec) && elec > 0 && !Number.isNaN(factor) && factor > 0 && !Number.isNaN(indirect) && indirect >= 0) {
+      const expected = elec * factor;
+      if (expected > 0.05 && Math.abs(indirect - expected) / expected > 0.35) {
+        push({ category: "Validation", severity: "warning", title: `Indirect emissions don't match electricity data (${product.name})`, detail: `Electricity ${elec} MWh/t × factor ${factor} ≈ ${expected.toFixed(2)} tCO₂e/t, but indirect reads ${indirect}. Explain the gap (PPA, self-generation) or correct one of them.`, productId: product.id, fieldId: "indirect-emissions" });
+      }
+    }
+
+    // Precursors — structured rows are the only calculable form. A complex good
+    // on ACTUAL data must carry at least one complete row; legacy prose is
+    // flagged for restructuring, never silently accepted as a number.
+    if (isComplexGood(product)) {
+      const rows = parsePrecursors(rawPrecursors);
+      if (rawPrecursors?.trim() && rows === null) {
+        push({ category: "Validation", severity: "warning", title: `Precursors are free text (${product.name})`, detail: "Re-enter precursors as structured rows (material, quantity per tonne, embedded emissions) so they can be calculated and communicated.", productId: product.id, fieldId: "precursors" });
+      }
+      if (method !== "default") {
+        const complete = (rows ?? []).filter(rowComplete);
+        if (complete.length === 0) {
+          push({ category: "Validation", severity: "critical", title: `Precursor breakdown missing (${product.name})`, detail: "A complex good on actual data must list each relevant precursor with quantity per tonne and its embedded emissions.", productId: product.id, fieldId: "precursors" });
+        }
+      }
+      if (rows) {
+        for (const r of rows) {
+          if (!r.name.trim()) continue;
+          if (!(Number(r.qty) > 0) || !(Number(r.see) > 0)) {
+            push({ category: "Validation", severity: "critical", title: `Precursor "${r.name}" incomplete (${product.name})`, detail: "Each precursor row needs a positive quantity per tonne and positive embedded emissions.", productId: product.id, fieldId: "precursors" });
+          }
+        }
+      }
+    }
+
+    // Internal consistency — total must equal own direct + own indirect +
+    // precursor contribution (auto-derived; fails only on hand-edited stores).
     if (!Number.isNaN(direct) && !Number.isNaN(indirect)) {
       const total = num(values[valueKey("total-emissions", product.id)]);
-      const expected = direct + indirect;
+      const expected = direct + indirect + (isComplexGood(product) ? precursorContribution(rawPrecursors) : 0);
       if (!Number.isNaN(total) && Math.abs(total - expected) > 0.05) {
-        push({ category: "Validation", severity: "critical", title: `Total ≠ direct + indirect (${product.name})`, detail: `Total reads ${total} but direct + indirect = ${expected.toFixed(2)} tCO₂e/t.`, productId: product.id, fieldId: "total-emissions" });
+        push({ category: "Validation", severity: "critical", title: `Total ≠ own emissions + precursors (${product.name})`, detail: `Total reads ${total} but own direct + own indirect + precursor contribution = ${expected.toFixed(2)} tCO₂e/t.`, productId: product.id, fieldId: "total-emissions" });
       }
     }
 
     // Anomaly — plausible but unusual
-    if (!Number.isNaN(direct) && direct > 0 && direct <= STEEL_DIRECT_TYPICAL.hardMax) {
-      if (direct > STEEL_DIRECT_TYPICAL.high) {
-        push({ category: "Anomaly", severity: "warning", title: `Direct emissions above typical (${product.name})`, detail: `${direct} tCO₂e/t is high for a Thai steel route (typical ${STEEL_DIRECT_TYPICAL.low}–${STEEL_DIRECT_TYPICAL.high}). Fine if it's an integrated BF-BOF mill — just confirm.`, productId: product.id, fieldId: "direct-emissions" });
+    if (!Number.isNaN(direct) && direct > 0 && direct <= band.hardMax) {
+      if (direct > band.high) {
+        push({ category: "Anomaly", severity: "warning", title: `Direct emissions above typical (${product.name})`, detail: `${direct} tCO₂e/t is high for a ${band.word} route (typical ${band.low}–${band.high}). Fine for the most carbon-intensive routes — just confirm.`, productId: product.id, fieldId: "direct-emissions" });
       }
-      if (direct < STEEL_DIRECT_TYPICAL.low) {
-        push({ category: "Anomaly", severity: "warning", title: `Direct emissions unusually low (${product.name})`, detail: `${direct} tCO₂e/t is below typical — double-check scope and that all sources are counted.`, productId: product.id, fieldId: "direct-emissions" });
+      if (direct < band.low) {
+        push({ category: "Anomaly", severity: "warning", title: `Direct emissions unusually low (${product.name})`, detail: `${direct} tCO₂e/t is below typical for ${band.word} — double-check scope and that all sources are counted.`, productId: product.id, fieldId: "direct-emissions" });
       }
     }
     if (method === "default") {

@@ -191,7 +191,7 @@ export const destinationsForRegulation = (regId: string) => DESTINATION_MARKETS.
 // the rest are gated until their factor libraries + calc routes are verified.
 export const PRODUCT_SECTORS: ProductSector[] = [
   { id: "steel", name: "Steel & iron", cnHint: "CN 72, 73", regs: ["cbam"], available: true },
-  { id: "aluminium", name: "Aluminium", cnHint: "CN 76", regs: ["cbam"], available: false, soonNote: "Smelter routes in verification — opens next." },
+  { id: "aluminium", name: "Aluminium", cnHint: "CN 76", regs: ["cbam"], available: true },
   { id: "cement", name: "Cement", cnHint: "CN 2523", regs: ["cbam"], available: false, soonNote: "Clinker factors in build." },
   { id: "fertiliser", name: "Fertilisers", cnHint: "CN 31", regs: ["cbam"], available: false, soonNote: "On the roadmap." },
   { id: "hydrogen", name: "Hydrogen", cnHint: "CN 2804", regs: ["cbam"], available: false, soonNote: "On the roadmap." },
@@ -437,14 +437,14 @@ export const PRODUCT_CATALOG: CatalogProduct[] = [
 
    `resolveCbamFields()` turns a product selection into the real applicable
    checklist — a single global list whose contents reflect the goods chosen. */
-export type FieldScope = "all" | "complex" | "aluminium";
+export type FieldScope = "all" | "complex" | "aluminium" | "electrolysis";
 export type CbamField = {
   id: string;
   label: string;
   group: string;
   hint: string;
   scope: FieldScope;
-  mandatory: boolean | "complex" | "aluminium";
+  mandatory: boolean | "complex" | "aluminium" | "electrolysis";
   buyerRecommended?: boolean;
 };
 
@@ -458,22 +458,25 @@ export const CBAM_FIELDS: CbamField[] = [
   // Goods — what was produced
   { id: "goods-category", label: "Aggregated goods category", group: "Goods", scope: "all", mandatory: true, buyerRecommended: true, hint: "CBAM aggregated category for the CN code" },
   { id: "cn-code", label: "CN code", group: "Goods", scope: "all", mandatory: true, buyerRecommended: true, hint: "8-digit Combined Nomenclature code" },
-  { id: "process-route", label: "Production process / route", group: "Goods", scope: "all", mandatory: true, buyerRecommended: true, hint: "e.g. BF-BOF, EAF, DRI-EAF for steel" },
-  { id: "quantity", label: "Quantity produced (net mass, t)", group: "Goods", scope: "all", mandatory: true, buyerRecommended: true, hint: "Net mass in tonnes for the period" },
-  // Embedded emissions — the heart of CBAM
-  { id: "direct-emissions", label: "Direct specific emissions (tCO₂e/t)", group: "Embedded emissions", scope: "all", mandatory: true, buyerRecommended: true, hint: "Specific direct embedded emissions" },
-  { id: "indirect-emissions", label: "Indirect specific emissions (tCO₂e/t)", group: "Embedded emissions", scope: "all", mandatory: true, buyerRecommended: true, hint: "Specific indirect (electricity) embedded emissions" },
-  { id: "total-emissions", label: "Total embedded emissions (tCO₂e/t)", group: "Embedded emissions", scope: "all", mandatory: true, buyerRecommended: true, hint: "Direct + indirect specific embedded emissions" },
+  { id: "process-route", label: "Production process / route", group: "Goods", scope: "all", mandatory: true, buyerRecommended: true, hint: "Steel: e.g. BF-BOF, EAF, DRI-EAF · Aluminium: e.g. electrolysis (Hall-Héroult), remelt, extrusion" },
+  { id: "quantity", label: "Quantity covered by this request (net mass, t)", group: "Goods", scope: "all", mandatory: true, buyerRecommended: true, hint: "Net mass the exporter bought from you in the period — not your installation's total production" },
+  // Embedded emissions — the heart of CBAM. Direct/indirect cover the good's
+  // OWN production process; precursor embedded emissions are entered as
+  // structured rows below and the total is DERIVED (own + precursors).
+  { id: "direct-emissions", label: "Direct specific emissions — own process (tCO₂e/t)", group: "Embedded emissions", scope: "all", mandatory: true, buyerRecommended: true, hint: "Direct emissions of YOUR production step only — precursors are added separately below" },
+  { id: "indirect-emissions", label: "Indirect specific emissions — own process (tCO₂e/t)", group: "Embedded emissions", scope: "all", mandatory: true, buyerRecommended: true, hint: "Electricity-related emissions of YOUR production step only" },
+  { id: "total-emissions", label: "Total embedded emissions (tCO₂e/t)", group: "Embedded emissions", scope: "all", mandatory: true, buyerRecommended: true, hint: "Derived automatically: own direct + own indirect + precursor contribution" },
   { id: "method", label: "Determination method (actual / default)", group: "Embedded emissions", scope: "all", mandatory: true, buyerRecommended: true, hint: "Whether actual data or default values were used" },
   // Electricity — required where indirect emissions dominate (aluminium electrolysis)
   { id: "elec-consumed", label: "Electricity consumed (MWh/t)", group: "Electricity", scope: "all", mandatory: "aluminium", hint: "Electricity used per tonne of output — drives indirect emissions" },
   { id: "elec-factor", label: "Electricity emission factor & source", group: "Electricity", scope: "all", mandatory: "aluminium", hint: "Grid / PPA factor and its documented source" },
-  { id: "al-process", label: "Electrolysis technology (prebake / Søderberg)", group: "Electricity", scope: "aluminium", mandatory: "aluminium", hint: "Smelting route — only relevant for aluminium goods" },
+  { id: "al-process", label: "Electrolysis technology (prebake / Søderberg)", group: "Electricity", scope: "electrolysis", mandatory: "electrolysis", hint: "Smelting route — only for primary (unwrought) aluminium from electrolysis" },
   // Precursors — only complex (downstream) goods embed upstream emissions
-  { id: "precursors", label: "Relevant precursors & their embedded emissions", group: "Precursors", scope: "complex", mandatory: "complex", hint: "Embedded emissions of input materials carried into the finished good" },
+  { id: "precursors", label: "Relevant precursors & their embedded emissions", group: "Precursors", scope: "complex", mandatory: "complex", hint: "One row per input material: quantity consumed per tonne of this good × its embedded emissions" },
   { id: "precursor-route", label: "Precursor production routes", group: "Precursors", scope: "complex", mandatory: false, hint: "How each precursor was produced, where known" },
   // Carbon price — offsets the CBAM liability
-  { id: "carbon-price", label: "Carbon price due in country of origin", group: "Carbon price", scope: "all", mandatory: true, buyerRecommended: true, hint: "Carbon price actually paid, if any" },
+  { id: "carbon-price", label: "Carbon price due in country of origin", group: "Carbon price", scope: "all", mandatory: true, buyerRecommended: true, hint: "Carbon price actually paid per tonne of CO₂e, if any" },
+  { id: "carbon-price-currency", label: "Carbon price currency", group: "Carbon price", scope: "all", mandatory: false, hint: "Currency the carbon price was paid in (THB or EUR)" },
   { id: "carbon-price-form", label: "Form of carbon price (ETS / tax / levy)", group: "Carbon price", scope: "all", mandatory: false, hint: "Instrument under which the price was paid" },
   // Verification — accredited assurance of the figures
   { id: "verification", label: "Verification & verifier details", group: "Verification", scope: "all", mandatory: true, buyerRecommended: true, hint: "Accredited verifier and verification outcome" },
@@ -483,6 +486,10 @@ export const CBAM_FIELDS: CbamField[] = [
    embedded emissions; primary inputs and unwrought metal do not. */
 export const PRIMARY_GROUPS = new Set(["Primary inputs", "Unwrought"]);
 export const isComplexGood = (p: CatalogProduct) => !PRIMARY_GROUPS.has(p.group);
+/* Electrolysis goods = primary (unwrought) aluminium — the only goods where a
+   smelting-technology question makes sense. A downstream extruder must never
+   be forced to answer prebake/Søderberg. */
+export const isElectrolysisGood = (p: CatalogProduct) => p.category === "Aluminium" && p.group === "Unwrought";
 
 export type ResolvedCbamField = CbamField & { required: boolean };
 
@@ -491,36 +498,54 @@ export type ResolvedCbamField = CbamField & { required: boolean };
    answers precursor questions just because a rebar SKU shares the declaration,
    and electricity detail is only mandatory on the aluminium goods themselves. */
 export const fieldAppliesTo = (f: CbamField, p: CatalogProduct): boolean =>
-  f.scope === "all" || (f.scope === "complex" && isComplexGood(p)) || (f.scope === "aluminium" && p.category === "Aluminium");
+  f.scope === "all" ||
+  (f.scope === "complex" && isComplexGood(p)) ||
+  (f.scope === "aluminium" && p.category === "Aluminium") ||
+  (f.scope === "electrolysis" && isElectrolysisGood(p));
 export const fieldRequiredFor = (f: CbamField, p: CatalogProduct): boolean =>
-  f.mandatory === true || (f.mandatory === "complex" && isComplexGood(p)) || (f.mandatory === "aluminium" && p.category === "Aluminium");
+  f.mandatory === true ||
+  (f.mandatory === "complex" && isComplexGood(p)) ||
+  (f.mandatory === "aluminium" && p.category === "Aluminium") ||
+  (f.mandatory === "electrolysis" && isElectrolysisGood(p));
 
 /** The real, applicable CBAM checklist for a given product selection. */
 export function resolveCbamFields(selected: CatalogProduct[]): ResolvedCbamField[] {
   const hasComplex = selected.some(isComplexGood);
   const hasAluminium = selected.some((p) => p.category === "Aluminium");
+  const hasElectrolysis = selected.some(isElectrolysisGood);
   const inScope = (s: FieldScope) =>
-    s === "all" || (s === "complex" && hasComplex) || (s === "aluminium" && hasAluminium);
+    s === "all" || (s === "complex" && hasComplex) || (s === "aluminium" && hasAluminium) || (s === "electrolysis" && hasElectrolysis);
   return CBAM_FIELDS.filter((f) => inScope(f.scope)).map((f) => ({
     ...f,
     required:
       f.mandatory === true ||
       (f.mandatory === "complex" && hasComplex) ||
-      (f.mandatory === "aluminium" && hasAluminium),
+      (f.mandatory === "aluminium" && hasAluminium) ||
+      (f.mandatory === "electrolysis" && hasElectrolysis),
   }));
 }
 
+/** Sector label derived from the goods actually selected — a declaration's
+    sector must never be stamped from the org profile (an aluminium filing was
+    labeled "Steel & iron" before this). */
+export function sectorLabelFor(selected: CatalogProduct[]): string {
+  const cats = new Set(selected.map((p) => p.category));
+  if (cats.size === 1) return [...cats][0];
+  if (cats.size > 1) return "Steel & aluminium";
+  return "—";
+}
+
 /* ── Scope 2 (indirect) liability rule ────────────────────────
-   CBAM definitive-period reality: indirect (Scope 2 / electricity) emissions
-   are *reported* for every good, but they only count toward the financial
-   obligation for some sectors. During the initial definitive period iron & steel
-   exclude indirect emissions from the bill (the electricity is priced elsewhere),
-   whereas aluminium — whose footprint is dominated by smelter electricity —
-   carries them in. Certrace applies this automatically from the CN code so an
-   exporter never over- or under-states their liability. */
+   CBAM definitive-period rule, Annex II of Regulation (EU) 2023/956: for the
+   goods listed there — iron & steel, aluminium and hydrogen — ONLY direct
+   emissions count toward the financial obligation (these sectors receive
+   indirect-cost compensation under the EU ETS State-aid framework). Indirect
+   (electricity) emissions are still REPORTED for every good, they just don't
+   enter the certificate bill. Certrace applies this automatically from the
+   CN code so an exporter never over- or under-states their liability. */
 export const SCOPE2_IN_LIABILITY: Record<ProductCategory, boolean> = {
   "Iron & Steel": false,
-  Aluminium: true,
+  Aluminium: false, // Annex II good — direct-only in the definitive period
 };
 export type Scope2Treatment = { category: ProductCategory; included: boolean };
 /** Per-category Scope 2 treatment for the goods currently selected. */
@@ -532,11 +557,13 @@ export function scope2Treatment(selected: CatalogProduct[]): Scope2Treatment[] {
 }
 
 /* ── Export quantity units ────────────────────────────────────
-   CBAM embedded emissions are reported per **tonne of net mass**, so tonnes is
-   the canonical unit and the default. The rest cover how exporters actually
-   invoice steel/iron/aluminium goods (sheet by m², long products by metre,
-   fasteners by piece) — converted to net mass for the calculation. */
-export const PRODUCT_UNITS = ["tonnes (t)", "kg", "pieces", "metres (m)", "m²", "m³", "litres (L)"] as const;
+   CBAM embedded emissions are reported per **tonne of net mass** — every
+   quantity in a declaration must resolve to net mass. Only mass units are
+   accepted: an invoice line in pieces / metres / m² cannot be converted
+   without per-product conversion data, and a silent zero would understate
+   emissions (exactly the failure the 2026-07-13 test demonstrated). Exporters
+   invoicing in other units convert to net mass before entering the lot. */
+export const PRODUCT_UNITS = ["tonnes (t)", "kg"] as const;
 export type ProductUnit = (typeof PRODUCT_UNITS)[number];
 /* No default unit — the exporter must pick the unit their goods were invoiced
    in, so a quantity is never silently mis-typed as tonnes. */

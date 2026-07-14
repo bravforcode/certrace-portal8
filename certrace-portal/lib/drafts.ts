@@ -28,6 +28,10 @@ export type WizardSnapshot = {
   purpose: Purpose; // "cbam" or "buyer" — mutually exclusive, each has its own qualification path
   name: string;
   description: string;
+  /** EU buyer / importer whose declarant will receive the data */
+  buyerName?: string;
+  buyerEori?: string;
+  buyerEmail?: string;
   periodId: string;
   year: string;
   quarter: string;

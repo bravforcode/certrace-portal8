@@ -17,7 +17,10 @@ import {
   valueKey,
   isOnceField,
   AUTO_FIELDS,
+  verificationRequired,
 } from "@/lib/supplier";
+import { isComplexGood } from "@/lib/config";
+import { precursorContribution } from "@/lib/precursors";
 import {
   type SupplierState,
   type SupplierProfile,
@@ -62,7 +65,7 @@ type Ctx = {
   autoValue: (fieldId: string, productId?: string) => string | null;
 
   // documents (multi-file)
-  addFiles: (docId: string, files: { name: string; size: number }[]) => void;
+  addFiles: (docId: string, files: { name: string; size: number; dataUrl?: string }[]) => void;
   removeFile: (docId: string, index: number) => void;
   clearDoc: (docId: string) => void;
   isDocEditable: (docId: string) => boolean;
@@ -192,7 +195,9 @@ export function SupplierProvider({ req, children }: { req: SupplierRequest; chil
           const d = Number(state.values[valueKey("direct-emissions", productId)] || "");
           const i = Number(state.values[valueKey("indirect-emissions", productId)] || "");
           if (Number.isNaN(d) && Number.isNaN(i)) return null;
-          return ((Number.isNaN(d) ? 0 : d) + (Number.isNaN(i) ? 0 : i)).toFixed(2);
+          // Total embedded = own process + precursor contribution (complex goods)
+          const prec = isComplexGood(rp.product) ? precursorContribution(state.values[valueKey("precursors", productId)]) : 0;
+          return ((Number.isNaN(d) ? 0 : d) + (Number.isNaN(i) ? 0 : i) + prec).toFixed(2);
         }
         default:
           return null;
@@ -213,29 +218,32 @@ export function SupplierProvider({ req, children }: { req: SupplierRequest; chil
     (fieldId: string, productId: string | undefined, value: string) => {
       setState((s) => {
         const values = { ...s.values, [valueKey(fieldId, productId)]: value };
-        // keep total-emissions in sync when a component changes
-        if (fieldId === "direct-emissions" || fieldId === "indirect-emissions") {
-          const d = Number(fieldId === "direct-emissions" ? value : values[valueKey("direct-emissions", productId)] || "");
-          const i = Number(fieldId === "indirect-emissions" ? value : values[valueKey("indirect-emissions", productId)] || "");
-          if (!Number.isNaN(d) || !Number.isNaN(i)) {
-            values[valueKey("total-emissions", productId)] = ((Number.isNaN(d) ? 0 : d) + (Number.isNaN(i) ? 0 : i)).toFixed(2);
+        // keep total-emissions in sync when any component changes — own direct
+        // + own indirect + precursor contribution for complex goods
+        if (fieldId === "direct-emissions" || fieldId === "indirect-emissions" || fieldId === "precursors") {
+          const d = Number(values[valueKey("direct-emissions", productId)] || "");
+          const i = Number(values[valueKey("indirect-emissions", productId)] || "");
+          const product = req.products.find((rp) => rp.product.id === productId)?.product;
+          const prec = product && isComplexGood(product) ? precursorContribution(values[valueKey("precursors", productId)]) : 0;
+          if (!Number.isNaN(d) || !Number.isNaN(i) || prec > 0) {
+            values[valueKey("total-emissions", productId)] = ((Number.isNaN(d) ? 0 : d) + (Number.isNaN(i) ? 0 : i) + prec).toFixed(2);
           }
         }
         const status: SubmissionStatus = s.status === "new" ? "draft" : s.status;
         return { ...s, values, status };
       });
     },
-    [],
+    [req.products],
   );
 
   /* ── documents (multi-file) ──────────────────────────────── */
   const addFiles = React.useCallback(
-    (docId: string, files: { name: string; size: number }[]) => {
+    (docId: string, files: { name: string; size: number; dataUrl?: string }[]) => {
       if (files.length === 0) return;
       const label = req.documents.find((d) => d.id === docId)?.label ?? docId;
       setState((s) => {
         const existing = s.docs[docId]?.files ?? [];
-        const merged = [...existing, ...files.map((f) => ({ name: f.name, size: f.size, addedAt: Date.now() }))];
+        const merged = [...existing, ...files.map((f) => ({ name: f.name, size: f.size, dataUrl: f.dataUrl, addedAt: Date.now() }))];
         const next = {
           ...s,
           docs: { ...s.docs, [docId]: { id: docId, status: "uploaded" as const, files: merged } },
@@ -268,14 +276,18 @@ export function SupplierProvider({ req, children }: { req: SupplierRequest; chil
       return { ...s, docs };
     });
   }, []);
-  // During a revision only the documents the exporter unlocked can be changed.
+  // During a revision the exporter's unlocked documents can be REPLACED, and
+  // any document that was never attached can still be added — a supplier must
+  // always be able to volunteer missing required evidence.
   const isDocEditable = React.useCallback(
     (docId: string) => {
       if (state.status === "submitted") return false;
-      if (state.status === "revision_requested") return state.unlockedDocs.includes(docId);
+      if (state.status === "revision_requested") {
+        return state.unlockedDocs.includes(docId) || (state.docs[docId]?.status !== "uploaded");
+      }
       return true;
     },
-    [state.status, state.unlockedDocs],
+    [state.status, state.unlockedDocs, state.docs],
   );
 
   /* ── seats ───────────────────────────────────────────────── */
@@ -334,6 +346,7 @@ export function SupplierProvider({ req, children }: { req: SupplierRequest; chil
       for (const f of fields) {
         if (isOnceField(f.group)) {
           if (!f.required) continue;
+          if (f.id === "verification" && !verificationRequired(req, state.values)) continue;
           total++;
           if (state.values[valueKey(f.id)]?.trim()) done++;
         } else {
@@ -418,9 +431,12 @@ export function SupplierProvider({ req, children }: { req: SupplierRequest; chil
   /* ── required-field completeness (gates the AI run) ──────────
      Never spend an AI run until every legally-required field has a value. */
   const requiredFieldKeys = React.useMemo(() => {
+    const verifRequired = verificationRequired(req, state.values);
     const keys: string[] = [];
     for (const f of req.fields) {
       if (AUTO_FIELDS.has(f.id)) continue;
+      // verification relaxes to optional when every good is on default values
+      if (f.id === "verification" && !verifRequired) continue;
       if (isOnceField(f.group)) {
         if (f.required) keys.push(valueKey(f.id));
       } else {
@@ -430,7 +446,7 @@ export function SupplierProvider({ req, children }: { req: SupplierRequest; chil
       }
     }
     return keys;
-  }, [req]);
+  }, [req, state.values]);
   const incompleteRequired = React.useMemo(
     () => requiredFieldKeys.filter((k) => !state.values[k]?.trim()),
     [requiredFieldKeys, state.values],
