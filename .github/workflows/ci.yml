@@ -159,7 +159,6 @@ jobs:
     permissions:
       actions: read
       contents: read
-      security-events: write
     steps:
       - name: Check out repository
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
@@ -173,9 +172,79 @@ jobs:
           fi
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@641a925cfafe92d0fdf8b239ba4053e3f8d99d6d # v3
+        uses: github/codeql-action/init@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v4.37.0
         with:
           languages: javascript-typescript,python
 
       - name: Analyze source
-        uses: github/codeql-action/analyze@641a925cfafe92d0fdf8b239ba4053e3f8d99d6d # v3
+        uses: github/codeql-action/analyze@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v4.37.0
+        with:
+          output: codeql-results
+          upload: never
+
+      - name: Fail on high-severity CodeQL findings
+        shell: bash
+        run: |
+          python - <<'PY'
+          import glob
+          import json
+          import sys
+
+          sarif_files = glob.glob("codeql-results/**/*.sarif", recursive=True)
+          if not sarif_files:
+              raise SystemExit("CodeQL produced no SARIF output.")
+
+          blocking = []
+          total_results = 0
+          for sarif_file in sarif_files:
+              with open(sarif_file, encoding="utf-8") as handle:
+                  document = json.load(handle)
+              for run in document.get("runs", []):
+                  tool = run.get("tool", {})
+                  components = [tool.get("driver", {}), *tool.get("extensions", [])]
+                  rules = {
+                      rule.get("id"): rule
+                      for component in components
+                      for rule in component.get("rules", [])
+                      if rule.get("id")
+                  }
+                  for result in run.get("results", []):
+                      total_results += 1
+                      rule_id = result.get("ruleId", "unknown-rule")
+                      properties = dict(rules.get(rule_id, {}).get("properties", {}))
+                      properties.update(result.get("properties", {}))
+                      raw_severity = properties.get("security-severity")
+                      try:
+                          security_severity = float(raw_severity)
+                      except (TypeError, ValueError):
+                          security_severity = None
+                      if result.get("level") == "error" or (
+                          security_severity is not None and security_severity >= 7.0
+                      ):
+                          locations = result.get("locations") or [{}]
+                          location = (
+                              locations[0]
+                              .get("physicalLocation", {})
+                              .get("artifactLocation", {})
+                              .get("uri", "unknown-path")
+                          )
+                          blocking.append((rule_id, security_severity, location))
+
+          if blocking:
+              for rule_id, severity, location in blocking:
+                  print(f"Blocking CodeQL finding: {rule_id} severity={severity} path={location}")
+              raise SystemExit(1)
+          print(
+              f"CodeQL analyzed {len(sarif_files)} SARIF file(s); "
+              f"{total_results} result(s), no high/critical security finding."
+          )
+          PY
+
+      - name: Upload CodeQL SARIF diagnostics
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: codeql-sarif
+          path: codeql-results/
+          if-no-files-found: error
+          retention-days: 7
