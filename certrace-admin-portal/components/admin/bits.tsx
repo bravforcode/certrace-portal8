@@ -33,7 +33,7 @@ export const STATUS_TONE: Record<string, Tone> = {
   collecting: "info",
   "in-review": "warn",
   approved: "ok",
-  dispatched: "ok",
+  "draft-preview": "muted",
   // queue
   open: "err",
   assigned: "warn",

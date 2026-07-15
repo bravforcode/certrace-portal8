@@ -3,7 +3,7 @@
 
    Settings → Organisation writes a live overlay to localStorage
    (`certrace:profile`, see lib/profile.tsx). Every OUTPUT surface — the
-   supplier Smart Link, the Registry XML <Operator>, the PDF package and the
+   supplier demo link, the manual-entry worksheet, the draft PDF preview and the
    dispatch screens — must read the SAME identity, or the platform emits
    documents in the wrong legal name (the exact failure the 2026-07-13
    compliance test caught: renamed org never reached the outputs).

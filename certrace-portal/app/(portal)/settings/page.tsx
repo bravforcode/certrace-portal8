@@ -29,11 +29,6 @@ import { useProfile, generateUsername } from "@/lib/profile";
 import { type PrefKey, PREF_KEY } from "@/lib/notification-prefs";
 import { JOB_TITLES, JOB_TITLE_OPTIONS } from "@/lib/job-titles";
 
-// Mock "the only password that verifies" — matches the pre-filled demo
-// password on /login, since there's no real auth backend in this MVP.
-const MOCK_PASSWORD = "demo-password";
-const errInput = "border-[#f87171]/60 focus:border-[#f87171]";
-
 type Tab = "organisation" | "profile" | "notifications" | "privacy";
 const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
   { key: "organisation", label: "Organisation", icon: Building2 },
@@ -211,17 +206,7 @@ function ProfileTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded]);
 
-  const [changingEmail, setChangingEmail] = React.useState(false);
-  const [emailSent, setEmailSent] = React.useState<string | null>(null);
-  const [newEmail, setNewEmail] = React.useState("");
-  const [pw, setPw] = React.useState("");
-  const [touched, setTouched] = React.useState({ email: false, pw: false });
-  const [sending, setSending] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
-
-  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail.trim());
-  const pwValid = pw === MOCK_PASSWORD;
-  const canSendVerification = emailValid && pwValid;
 
   const copyId = () => {
     navigator.clipboard?.writeText(USER.accountId);
@@ -237,22 +222,6 @@ function ProfileTab() {
         jobTitle: jobTitleOption === "other" ? jobTitleOther || "Other" : jobTitleOption,
       });
     });
-
-  const sendVerification = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!canSendVerification) {
-      setTouched({ email: true, pw: true });
-      return;
-    }
-    setSending(true);
-    window.setTimeout(() => {
-      setSending(false);
-      setEmailSent(newEmail);
-      setChangingEmail(false);
-      setPw("");
-      setTouched({ email: false, pw: false });
-    }, 700);
-  };
 
   return (
     <div className="space-y-6">
@@ -302,8 +271,7 @@ function ProfileTab() {
           </button>
         </div>
         <p className="mt-3 text-[12px] leading-relaxed text-black/40">
-          This ID is permanent and never changes — your declarations, suppliers and seats stay attached to it even if the email below changes.
-          If the person who set up this account leaves the company, ownership can move to a new email without losing any history.
+          Demo account identifier only. It is not backed by an identity provider, permanent account, tenant boundary, or recovery process.
         </p>
         <div className="mt-3 flex items-center justify-between text-[12px] text-black/40">
           <span>Member since</span>
@@ -319,57 +287,13 @@ function ProfileTab() {
           </span>
           <div className="min-w-0 flex-1">
             <div className="truncate text-[13px] text-black/75">{USER.email}</div>
-            <div className="text-[11px] text-black/35">Primary — used to sign in and receive alerts.</div>
+            <div className="text-[11px] text-black/35">Fixture only — sign-in and alerts are not configured.</div>
           </div>
         </div>
 
-        {emailSent && (
-          <div className="mt-3 rounded-xl border border-[rgba(96,165,250,0.25)] bg-[#eff6ff] px-4 py-3 text-[12px] leading-relaxed text-[#2563eb]">
-            Verification sent to <span className="font-medium">{emailSent}</span>. Click the link there to finish the switch — nothing changes
-            until you confirm, and your account, history and org access stay exactly the same.
-          </div>
-        )}
-
-        {!changingEmail ? (
-          <button
-            onClick={() => setChangingEmail(true)}
-            className="mt-4 inline-flex items-center gap-1.5 rounded-xl border border-black/10 px-3.5 py-2 text-[11px] uppercase tracking-[0.08em] text-black/55 hover:border-black/25 hover:text-black"
-          >
-            Change email
-          </button>
-        ) : (
-          <form onSubmit={sendVerification} noValidate className="mt-4 space-y-3 border-t border-black/[0.06] pt-4">
-            <Field label="New email">
-              <input
-                className={cn(inputClass, touched.email && !emailValid && errInput)}
-                type="email"
-                value={newEmail}
-                onChange={(e) => setNewEmail(e.target.value)}
-                onBlur={() => setTouched((t) => ({ ...t, email: true }))}
-                placeholder="new@company.com"
-              />
-            </Field>
-            <Field label="Confirm current password" hint="For your security, we verify it's really you before changing anything.">
-              <input
-                className={cn(inputClass, touched.pw && !pwValid && errInput)}
-                type="password"
-                value={pw}
-                onChange={(e) => setPw(e.target.value)}
-                onBlur={() => setTouched((t) => ({ ...t, pw: true }))}
-                placeholder="••••••••"
-              />
-              {touched.pw && pw.length > 0 && !pwValid && <span className="mt-1.5 block text-xs text-[#dc2626]">That password isn&apos;t correct.</span>}
-            </Field>
-            <div className="flex items-center gap-2">
-              <Button size="sm" type="submit" disabled={sending} className={cn(!canSendVerification && !sending && "opacity-40")}>
-                {sending ? "Sending…" : "Send verification"}
-              </Button>
-              <Button size="sm" type="button" variant="ghost" onClick={() => setChangingEmail(false)}>
-                Cancel
-              </Button>
-            </div>
-          </form>
-        )}
+        <p className="mt-3 rounded-xl border border-[#b45309]/20 bg-[#fffbeb] px-4 py-3 text-[12px] leading-relaxed text-black/55">
+          Email changes and verification messages are unavailable until an authentication authority and transactional email provider are configured.
+        </p>
       </Card>
     </div>
   );
@@ -382,8 +306,8 @@ const PREF_ROWS: { key: PrefKey; icon: React.ElementType; title: string; body: s
   { key: "security", icon: ShieldCheck, title: "Security", body: "Account activity that matters — sign-ins, password changes and security alerts.", locked: true },
   { key: "declarations", icon: Building2, title: "Declarations", body: "Updates on declaration progress, approvals, revisions and reporting deadlines." },
   { key: "suppliers", icon: UserRound, title: "Suppliers", body: "When a supplier is invited, submits their data, or needs a follow-up." },
-  { key: "ai_review", icon: Sparkles, title: "AI Review & Compliance", body: "When AI flags an issue, finishes validating a submission, or compliance action is needed." },
-  { key: "documents", icon: FileText, title: "Documents", body: "Missing, uploaded, approved, rejected or expiring documents." },
+  { key: "ai_review", icon: Sparkles, title: "Quality checks & compliance", body: "Deterministic validation results, advisory anomaly flags, and local compliance follow-ups." },
+  { key: "documents", icon: FileText, title: "Evidence references", body: "Browser-local filename metadata only; secure evidence storage and scanning are not configured." },
   { key: "product", icon: Megaphone, title: "Product updates", body: "New features, improvements and platform announcements." },
 ];
 
@@ -437,109 +361,27 @@ const INITIAL_SESSIONS: Session[] = [
 ];
 
 function PrivacyTab() {
-  const [current, setCurrent] = React.useState("");
-  const [next, setNext] = React.useState("");
-  const [confirm, setConfirm] = React.useState("");
-  const [touched, setTouched] = React.useState({ current: false, next: false, confirm: false });
-  const [sessions, setSessions] = React.useState(INITIAL_SESSIONS);
   const [cookiesOpen, setCookiesOpen] = React.useState(false);
-  const { state, run } = useSaveState();
-
-  const currentValid = current === MOCK_PASSWORD;
-  const nextValid = next.length >= 8;
-  const confirmValid = confirm.length > 0 && confirm === next;
-  const canUpdate = currentValid && nextValid && confirmValid;
-  const mismatch = touched.confirm && confirm.length > 0 && confirm !== next;
-
-  const attemptUpdate = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!canUpdate) {
-      setTouched({ current: true, next: true, confirm: true });
-      return;
-    }
-    run(() => {
-      setCurrent("");
-      setNext("");
-      setConfirm("");
-      setTouched({ current: false, next: false, confirm: false });
-    });
-  };
-
-  const { state: signOutState, run: runSignOutOthers } = useSaveState();
-  const signOutOthers = () => {
-    runSignOutOthers(() => {
-      setSessions((s) => s.filter((x) => x.current));
-    });
-  };
 
   return (
     <div className="space-y-6">
       <Card className="p-6">
         <Eyebrow>Change password</Eyebrow>
-        <form onSubmit={attemptUpdate} noValidate className="mt-4 grid gap-4 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <Field label="Current password">
-              <input
-                className={cn(inputClass, touched.current && !currentValid && errInput)}
-                type="password"
-                value={current}
-                onChange={(e) => setCurrent(e.target.value)}
-                onBlur={() => setTouched((t) => ({ ...t, current: true }))}
-                placeholder="••••••••"
-              />
-              {touched.current && current.length > 0 && !currentValid && <span className="mt-1.5 block text-xs text-[#dc2626]">That password isn&apos;t correct.</span>}
-            </Field>
-          </div>
-          <Field label="New password">
-            <input
-              className={cn(inputClass, touched.next && !nextValid && errInput)}
-              type="password"
-              value={next}
-              onChange={(e) => setNext(e.target.value)}
-              onBlur={() => setTouched((t) => ({ ...t, next: true }))}
-              placeholder="At least 8 characters"
-            />
-          </Field>
-          <Field label="Confirm new password">
-            <input
-              className={cn(inputClass, mismatch && errInput)}
-              type="password"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              onBlur={() => setTouched((t) => ({ ...t, confirm: true }))}
-              placeholder="Re-enter new password"
-            />
-          </Field>
-          {mismatch && <span className="sm:col-span-2 text-xs text-[#dc2626]">Passwords don&apos;t match.</span>}
-          <div className="sm:col-span-2">
-            <SaveButton
-              state={state}
-              onClick={attemptUpdate}
-              idleLabel="Update password"
-              savingLabel="Updating…"
-              savedLabel="Updated"
-              icon={<KeyRound size={13} strokeWidth={1.5} />}
-              className={cn(!canUpdate && state === "idle" && "opacity-40")}
-            />
-          </div>
-        </form>
+        <p className="mt-3 max-w-xl text-[13px] leading-relaxed text-black/50">
+          Password changes are disabled in this readiness demo. No authentication authority or server-side session exists.
+        </p>
+        <Button className="mt-4" size="sm" disabled>
+          <KeyRound size={13} strokeWidth={1.5} /> Backend not configured
+        </Button>
       </Card>
 
       <Card className="p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <Eyebrow>Device login</Eyebrow>
-          {sessions.length > 1 && (
-            <SaveButton
-              state={signOutState}
-              onClick={signOutOthers}
-              variant="secondary"
-              idleLabel="Sign out of all other devices"
-              savingLabel="Signing out of all other devices…"
-            />
-          )}
+          <Eyebrow>Illustrative device list</Eyebrow>
         </div>
+        <p className="mt-2 text-[12px] leading-relaxed text-black/45">These rows are visual fixtures, not observed or revocable sessions.</p>
         <div className="mt-4 divide-y divide-black/[0.06]">
-          {sessions.map((s) => {
+          {INITIAL_SESSIONS.map((s) => {
             const Icon = s.icon;
             return (
               <div key={s.id} className="flex items-center gap-3.5 py-3">
@@ -549,7 +391,7 @@ function PrivacyTab() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-[13px] text-black/75">{s.device}</span>
-                    {s.current && <Chip tone="ok">this device</Chip>}
+                    {s.current && <Chip tone="muted">fixture</Chip>}
                   </div>
                   <div className="mt-0.5 text-[11px] text-black/40">{s.location} · {s.lastActive}</div>
                 </div>
@@ -562,7 +404,7 @@ function PrivacyTab() {
       <Card className="p-6">
         <Eyebrow>Cookies</Eyebrow>
         <div className="mt-3 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-          <p className="max-w-md text-[13px] leading-relaxed text-black/50">Configure how cookies are used across the platform — essential cookies keep you signed in; the rest are optional.</p>
+          <p className="max-w-md text-[13px] leading-relaxed text-black/50">Configure local demo preferences. No authenticated session or production analytics service is configured.</p>
           <Button variant="secondary" size="sm" onClick={() => setCookiesOpen(true)}>
             <Cookie size={13} strokeWidth={1.5} /> Manage cookies
           </Button>

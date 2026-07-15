@@ -8,17 +8,15 @@ import { Button, Card, PageHeader, TagBadge } from "@/components/ui";
 import { HealthBar, KV, SectionTitle, StatusChip, Table, Td, Th } from "@/components/admin/bits";
 import { ModuleGuard } from "@/components/admin/shell";
 import { useAdminAuth } from "@/lib/admin-auth";
-import { useAdminStore, allTickets, allAudit, allInvoices, startImpersonation, staffName } from "@/lib/admin-store";
+import { useAdminStore, allTickets, allAudit, allInvoices, staffName } from "@/lib/admin-store";
 import { InvoiceModal } from "@/components/admin/invoice-modal";
 import { getOrg, getStaff, thb, DECLARATIONS, DPAS } from "@/lib/admin-data";
 
 export default function AccountDetail() {
   const { id } = useParams<{ id: string }>();
-  const { user, hasPower } = useAdminAuth();
+  const { hasPower } = useAdminAuth();
   useAdminStore();
   const [impOpen, setImpOpen] = React.useState(false);
-  const [reason, setReason] = React.useState("");
-  const [impStarted, setImpStarted] = React.useState(false);
   const [openInvoiceId, setOpenInvoiceId] = React.useState<string | null>(null);
 
   const org = getOrg(id);
@@ -59,38 +57,10 @@ export default function AccountDetail() {
 
         {impOpen && (
           <Card warm className="p-5">
-            {impStarted ? (
-              <p className="text-sm text-black/60">
-                <span className="font-pixel text-[10px] uppercase tracking-[0.14em] text-[#2c5c9c]">Session logged</span>{" "}
-                — impersonation of {org.name} recorded to the audit log, time-boxed to 30 minutes. In production this
-                opens the tenant portal with a persistent staff banner.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                <p className="text-sm text-black/60">
-                  Impersonation is audited and time-boxed (30 min). A visible banner is shown in the tenant portal for
-                  the whole session. A reason is required.
-                </p>
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <input
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    placeholder="Reason (e.g. reproduce T-1040 blank Smart Link)"
-                    className="flex-1 rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm text-black/70 placeholder:text-black/25 focus:border-black/25 focus:outline-none"
-                  />
-                  <Button
-                    size="sm"
-                    disabled={reason.trim().length < 8}
-                    onClick={() => {
-                      if (user) startImpersonation(user, org.id, reason.trim());
-                      setImpStarted(true);
-                    }}
-                  >
-                    Start session
-                  </Button>
-                </div>
-              </div>
-            )}
+            <p className="text-sm text-black/60">
+              Impersonation is unavailable. It requires authoritative staff authentication, tenant authorization,
+              short-lived server sessions, revocation, and an immutable security audit trail; none are configured in this demo.
+            </p>
           </Card>
         )}
 

@@ -14,25 +14,47 @@
 
 import type { SectionKey } from "./supplier";
 import type { CheckResult } from "./ai-check";
+import type { MeasuredValue } from "./mrv";
+
+export type SupplierActorRole = "producer" | "trader";
+
+export type InstallationProfile = {
+  id: string;
+  name: string;
+  country: string;
+  address: string;
+  unlocode: string;
+  coordinates: string;
+  routes: string[];
+  /** Installation production activity for the reporting period. This is not
+      the commercial shipment quantity requested by the exporter. */
+  productionActivityTonnes: string;
+  productionActivityMeasurement?: MeasuredValue;
+};
 
 export type SupplierProfile = {
   legalName: string;
+  actorRole: SupplierActorRole;
+  /** A trader forwards data from the named producer; it is not represented as
+      the operator of an installation. */
+  upstreamProducer: string;
   installationName: string;
   country: string;
   address: string;
   unlocode: string;
   coordinates: string;
   route: string; // production process / route, e.g. EAF
+  productionActivityTonnes: string;
+  productionActivityMeasurement?: MeasuredValue;
+  additionalInstallations: InstallationProfile[];
 };
 
 export type DocStatus = "missing" | "uploaded";
-/* `dataUrl` carries the actual file bytes (base64) for files up to ~1.5 MB so
-   the exporter can genuinely retrieve the evidence — not just its filename.
-   Larger files keep name+size only (storage quota) and must be transferred
-   out-of-band until a real upload pipeline exists. */
-export type UploadedFile = { name: string; size: number; addedAt: number; dataUrl?: string };
+/* Only safe metadata is retained. Evidence bytes require private backend
+   storage, malware scanning and retention controls, which are not configured. */
+export type UploadedFile = { name: string; size: number; addedAt: number; storage: "metadata_only" };
 /** One requested document slot can hold several files (multi-page certs, etc.).
-    `status` stays "uploaded" while ≥1 file is attached, so the AI check and the
+    `status` stays "uploaded" while ≥1 file reference is attached, so deterministic checks and the
     completion matrix keep reading it the same way. */
 export type DocState = { id: string; status: DocStatus; files: UploadedFile[] };
 
@@ -59,13 +81,16 @@ export type Version = {
 
 /** One real, persisted event in the submission's history — the audit trail
     (flow step 3: "records the complete Audit Trail — all edits, uploads,
-    signatures, timestamps, versions, and AI validation results"). Appended as
+    typed attestations, timestamps, versions, and deterministic validation results"). Appended as
     it happens, never derived at render time, so it survives across sessions
-    and can be embedded verbatim in the exporter's audit-ready package. */
+    and can be shown in a draft preview. It is not an immutable audit event. */
 export type AuditEventKind = "doc_upload" | "doc_remove" | "check_run" | "submit" | "revision_requested";
 export type AuditEvent = { id: string; at: number; kind: AuditEventKind; text: string };
 
 export type SupplierState = {
+  schemaVersion: 2;
+  dataClassification: "readiness_demo";
+  legacyUnverifiedQuarantined: boolean;
   token: string;
   status: SubmissionStatus;
   values: Record<string, string>;
@@ -84,11 +109,36 @@ export type SupplierState = {
   updatedAt: number;
 };
 
-const keyFor = (token: string) => `certrace:supplier:${token}`;
-const PROFILE_KEY = "certrace:supplier:profiles"; // company → profile, for reuse across requests
+const keyFor = (token: string) => `certrace:v2:supplier:${token}`;
+const legacyKeyFor = (token: string) => `certrace:supplier:${token}`;
+const quarantineKeyFor = (token: string) => `certrace:legacy_unverified:supplier:${token}`;
+const PROFILE_KEY = "certrace:v2:supplier:profiles";
+const LEGACY_PROFILE_KEY = "certrace:supplier:profiles";
+const QUARANTINE_PROFILE_KEY = "certrace:legacy_unverified:supplier:profiles";
+
+function quarantineLegacyRecord(legacyKey: string, quarantineKey: string): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const legacy = window.localStorage.getItem(legacyKey);
+    if (legacy === null) return window.localStorage.getItem(quarantineKey) !== null;
+    window.localStorage.removeItem(legacyKey);
+    if (window.localStorage.getItem(quarantineKey) === null) {
+      window.localStorage.setItem(
+        quarantineKey,
+        JSON.stringify({ classification: "legacy_unverified", quarantinedAt: Date.now(), originalKey: legacyKey, discardedBytes: legacy.length, reason: "Unversioned record discarded; payload not retained." }),
+      );
+    }
+    return true;
+  } catch {
+    return true;
+  }
+}
 
 export function emptyState(token: string): SupplierState {
   return {
+    schemaVersion: 2,
+    dataClassification: "readiness_demo",
+    legacyUnverifiedQuarantined: false,
     token,
     status: "new",
     values: {},
@@ -108,22 +158,46 @@ export function emptyState(token: string): SupplierState {
 
 export function loadState(token: string): SupplierState {
   if (typeof window === "undefined") return emptyState(token);
+  const legacyUnverifiedQuarantined = quarantineLegacyRecord(legacyKeyFor(token), quarantineKeyFor(token));
   try {
     const raw = window.localStorage.getItem(keyFor(token));
-    if (!raw) return emptyState(token);
+    if (!raw) return { ...emptyState(token), legacyUnverifiedQuarantined };
     const parsed = JSON.parse(raw) as SupplierState;
-    return { ...emptyState(token), ...parsed, token };
+    if (parsed.schemaVersion !== 2 || parsed.dataClassification !== "readiness_demo") {
+      window.localStorage.removeItem(keyFor(token));
+      window.localStorage.setItem(
+        quarantineKeyFor(token),
+        JSON.stringify({ classification: "legacy_unverified", quarantinedAt: Date.now(), originalKey: keyFor(token), discardedBytes: raw.length, reason: "Invalid schema record discarded; payload not retained." }),
+      );
+      return { ...emptyState(token), legacyUnverifiedQuarantined: true };
+    }
+    return { ...emptyState(token), ...parsed, token, legacyUnverifiedQuarantined };
   } catch {
-    return emptyState(token);
+    return { ...emptyState(token), legacyUnverifiedQuarantined };
   }
 }
 
-export function saveState(state: SupplierState): void {
-  if (typeof window === "undefined") return;
+export function saveState(state: SupplierState): boolean {
+  if (typeof window === "undefined") return false;
   try {
-    window.localStorage.setItem(keyFor(state.token), JSON.stringify({ ...state, updatedAt: Date.now() }));
+    const docs = Object.fromEntries(
+      Object.entries(state.docs).map(([id, doc]) => [
+        id,
+        {
+          ...doc,
+          files: doc.files.map((file) => ({
+            name: file.name,
+            size: file.size,
+            addedAt: file.addedAt,
+            storage: "metadata_only" as const,
+          })),
+        },
+      ]),
+    );
+    window.localStorage.setItem(keyFor(state.token), JSON.stringify({ ...state, docs, updatedAt: Date.now() }));
+    return true;
   } catch {
-    /* ignore quota / serialization — never break the supplier's flow */
+    return false;
   }
 }
 
@@ -147,6 +221,7 @@ export function getSubmissionStatus(token: string): { status: SubmissionStatus; 
 /* Reusable company profiles — the "no re-typing identity next time" story. */
 export function loadProfiles(): Record<string, SupplierProfile> {
   if (typeof window === "undefined") return {};
+  quarantineLegacyRecord(LEGACY_PROFILE_KEY, QUARANTINE_PROFILE_KEY);
   try {
     return JSON.parse(window.localStorage.getItem(PROFILE_KEY) || "{}");
   } catch {

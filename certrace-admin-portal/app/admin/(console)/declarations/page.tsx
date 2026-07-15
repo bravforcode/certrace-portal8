@@ -37,7 +37,7 @@ export default function DeclarationsMonitor() {
             { value: "collecting", label: "Collecting", count: count("collecting") },
             { value: "in-review", label: "In review", count: count("in-review") },
             { value: "approved", label: "Approved", count: count("approved") },
-            { value: "dispatched", label: "Dispatched", count: count("dispatched") },
+            { value: "draft-preview", label: "Draft preview", count: count("draft-preview") },
             { value: "flagged", label: "Risk-flagged", count: DECLARATIONS.filter((d) => d.riskFlags.length > 0).length },
           ]}
         />
@@ -51,7 +51,7 @@ export default function DeclarationsMonitor() {
             <tbody>
               {rows.map((d) => {
                 const org = getOrg(d.orgId);
-                const deadlineSoon = d.status !== "dispatched" && d.deadline <= "2026-08-31";
+                const deadlineSoon = d.status !== "draft-preview" && d.deadline <= "2027-01-31";
                 return (
                   <tr key={d.id} className="ct-row transition-colors hover:bg-black/[0.02]">
                     <Td className="whitespace-nowrap">

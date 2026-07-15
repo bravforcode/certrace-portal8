@@ -36,7 +36,9 @@ import {
   resolveCbamFields,
   sectorLabelFor,
   PRODUCT_UNITS,
+  PRODUCT_UNIT_LABELS,
   DEFAULT_UNIT,
+  type ProductUnit,
   REGULATIONS,
   getRegulation,
   JURISDICTIONS,
@@ -45,7 +47,10 @@ import {
   getDestination,
   destinationsForRegulation,
   STATUS_META,
+  METHOD_CONDITIONAL_FIELD_IDS,
 } from "@/lib/config";
+import { decimal } from "@/lib/mrv";
+import { addExact, formatDecimal, goodsMass, isPositiveMass } from "@/lib/workflow-measurements";
 import {
   SUPPLIER_DIRECTORY,
   readinessMeta,
@@ -58,6 +63,7 @@ import {
 } from "@/lib/data";
 import { getDraft, saveDraft, deleteDraft, newDraftId, type Lot, type Mapping, type WizardSnapshot } from "@/lib/drafts";
 import { saveCreatedDeclaration, newDeclarationId } from "@/lib/declarations-store";
+import { cbamDeclarationDueDate } from "@/lib/mrv";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const YEARS = ["2024", "2025", "2026", "2027"];
@@ -73,9 +79,8 @@ const HALVES = [
 ];
 
 const uid = () => (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `id-${Date.now()}-${Math.random()}`);
-const fmt = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 const newLot = (): Lot => ({ id: uid(), qty: "", unit: DEFAULT_UNIT, from: "", to: "", notes: "" });
-const lotValid = (l: Lot) => Number(l.qty) > 0 && Boolean(l.unit);
+const lotValid = (l: Lot): l is Lot & { unit: ProductUnit } => isPositiveMass(l.qty, l.unit);
 
 /* ── small shared bits ───────────────────────────────────── */
 function SectionIntro({ kicker, children }: { kicker: string; children: React.ReactNode }) {
@@ -370,7 +375,7 @@ export default function NewDeclarationPage() {
       }
       return next;
     });
-  }, [resolvedFields, hasCbam]);
+  }, [resolvedFields, hasCbam, hasBuyer]);
 
   const uniqueSuppliers = React.useMemo(() => {
     const s = new Set<string>();
@@ -378,14 +383,12 @@ export default function NewDeclarationPage() {
     return s.size;
   }, [mapping]);
   const totalLots = React.useMemo(() => Object.values(mapping).reduce((a, entries) => a + entries.reduce((b, e) => b + e.lots.length, 0), 0), [mapping]);
-  // Net mass across ALL lots — kg convert; only mass units exist (config).
+  // Exact canonical net mass across all commercial lots.
   const totalTonnes = React.useMemo(() => {
-    let t = 0;
-    Object.values(mapping).forEach((entries) => entries.forEach((e) => e.lots.forEach((l) => {
-      if (l.unit === "tonnes (t)") t += Number(l.qty) || 0;
-      else if (l.unit === "kg") t += (Number(l.qty) || 0) / 1000;
-    })));
-    return Math.round(t * 100) / 100;
+    const canonical = Object.values(mapping).flatMap((entries) =>
+      entries.flatMap((entry) => entry.lots.filter(lotValid).map((lot) => goodsMass(lot.qty, lot.unit).canonicalValue)),
+    );
+    return addExact(canonical);
   }, [mapping]);
   const estDays = Math.min(45, 7 + uniqueSuppliers * 2 + Math.ceil(products.length / 3));
 
@@ -451,13 +454,14 @@ export default function NewDeclarationPage() {
   const supplierStats = (productId: string) => {
     const entries = mapping[productId] ?? [];
     return entries.map((e) => {
-      const byUnit: Record<string, number> = {};
+      const byUnit: Partial<Record<ProductUnit, string>> = {};
       e.lots.forEach((l) => {
-        byUnit[l.unit] = (byUnit[l.unit] ?? 0) + (Number(l.qty) || 0);
+        if (!lotValid(l)) return;
+        byUnit[l.unit] = addExact([byUnit[l.unit] ?? "0", l.qty]);
       });
       const total = Object.entries(byUnit)
-        .filter(([, v]) => v > 0)
-        .map(([u, v]) => `${fmt(v)} ${u.split(" ")[0]}`)
+        .filter((entry): entry is [ProductUnit, string] => Boolean(entry[1] && decimal(entry[1]).isPositive()))
+        .map(([unit, value]) => `${formatDecimal(value)} ${unit}`)
         .join(" + ");
       return { entry: e, total: total || "—" };
     });
@@ -550,7 +554,14 @@ export default function NewDeclarationPage() {
         const specs = bySupplier.get(entry.supplierId) ?? [];
         specs.push({
           productId: pid,
-          lots: entry.lots.filter(lotValid).map((l) => ({ qty: Number(l.qty) || 0, unit: l.unit, from: l.from, to: l.to, notes: l.notes })),
+          lots: entry.lots.filter(lotValid).map((l) => ({
+            qty: l.qty,
+            unit: l.unit,
+            measurement: goodsMass(l.qty, l.unit),
+            from: l.from,
+            to: l.to,
+            notes: l.notes,
+          })),
         });
         bySupplier.set(entry.supplierId, specs);
       }
@@ -585,10 +596,12 @@ export default function NewDeclarationPage() {
       period: periodSummary,
       due: deadline ? new Date(deadline + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "—",
       dueInDays: deadline ? Math.ceil((new Date(deadline + "T00:00:00").getTime() - Date.now()) / 86_400_000) : 9999,
+      collectionDeadline: deadline || undefined,
+      cbamDeclarationDue: regulation === "cbam" ? cbamDeclarationDueDate(Number(periodBounds?.start.slice(0, 4) || year)) : undefined,
       step: "collect",
       suppliers,
       totalEmbedded: null,
-      carbonPricePaid: 0,
+      carbonPricePaid: "0",
       kind: purpose,
       title: hasBuyer ? declaredName : undefined,
       productCount: products.length,
@@ -604,11 +617,16 @@ export default function NewDeclarationPage() {
       periodStart: periodBounds?.start,
       periodEnd: periodBounds?.end,
     };
-    saveCreatedDeclaration(declaration);
+    try {
+      saveCreatedDeclaration(declaration);
+    } catch (error) {
+      toast({ message: "Local save failed", detail: error instanceof Error ? error.message : "The declaration was not created.", tone: "err" });
+      return;
+    }
 
     toast({
       message: "Declaration created.",
-      detail: `${declaredName} — ${uniqueSuppliers} suppliers · ${products.length} products · ${totalLots} lots queued.`,
+      detail: `${declaredName} — saved locally with ${uniqueSuppliers} supplier references, ${products.length} products and ${totalLots} commercial lots. Nothing was sent.`,
       tone: "ok",
     });
     router.push(`/declarations/${id}`);
@@ -664,7 +682,7 @@ export default function NewDeclarationPage() {
             <div className="mb-1.5 font-pixel text-[10px] uppercase tracking-[0.16em] text-black/40">{group}</div>
             <div className="space-y-1.5">
               {resolvedFields.filter((f) => f.group === group).map((f) => {
-                const locked = mode === "cbam" && hasCbam && f.required;
+                const locked = (mode === "cbam" && hasCbam && f.required) || METHOD_CONDITIONAL_FIELD_IDS.has(f.id);
                 const on = locked ? true : Boolean(reportFields[f.id]);
                 const recommended = Boolean(f.buyerRecommended) && !locked;
                 return (
@@ -753,7 +771,7 @@ export default function NewDeclarationPage() {
                       <Chip tone={meta.tone}>{meta.label}</Chip>
                     </div>
                     <div className="mt-1 text-[11px] uppercase tracking-[0.1em] text-black/35">{r.full}</div>
-                    <p className="mt-3 text-xs leading-relaxed text-black/50">{live ? `${r.cadence} · filed to ${r.authority}.` : r.soonNote}</p>
+                    <p className="mt-3 text-xs leading-relaxed text-black/50">{live ? `${r.cadence} · prepared for manual handoff to the responsible EU-side declarant.` : r.soonNote}</p>
                   </>
                 );
                 return (
@@ -850,7 +868,7 @@ export default function NewDeclarationPage() {
                 <Globe size={15} strokeWidth={1.5} />
               </span>
               <p className="text-sm leading-relaxed text-black/55">
-                <span className="text-black/75">{originJ?.name ?? origin}</span> → <span className="text-black/75">{destinationMarket.name}</span> · factors from <span className="text-black/75">{originJ?.factorSet ?? "—"}</span>, filed to <span className="text-black/75">{activeRegulation.authority}</span>.
+                <span className="text-black/75">{originJ?.name ?? origin}</span> → <span className="text-black/75">{destinationMarket.name}</span> · factor source <span className="text-black/75">{originJ?.factorSet ?? "—"}</span>. The EU importer or indirect customs representative files; Certrace does not.
               </p>
             </Card>
           </div>
@@ -861,7 +879,7 @@ export default function NewDeclarationPage() {
         {current === "purpose" && (
           <div className="space-y-6">
             <SectionIntro kicker="What is this declaration for?">
-              Choose one — the official CBAM filing, or a specific buyer's data request. Each has its own qualification checklist, so keep the two separate.
+              Choose one — CBAM data preparation for the responsible EU-side declarant, or a specific buyer&apos;s data request. Each has its own checklist, so keep the two separate.
             </SectionIntro>
             <div className="grid gap-3 sm:grid-cols-2">
               {PURPOSES.map((p) => {
@@ -883,7 +901,7 @@ export default function NewDeclarationPage() {
               })}
             </div>
             <div className="space-y-4 border-t border-black/[0.06] pt-6">
-              <Field label="Request name" hint="Shown to suppliers and on every reminder. Make it recognisable.">
+              <Field label="Request name" hint="Shown in this browser-local demo. Make it recognisable.">
                 <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} placeholder={PURPOSES.find((p) => p.id === purpose)?.namePlaceholder} />
               </Field>
               <Field label="Request description (optional)" hint="Context for your suppliers — what this is for.">
@@ -897,7 +915,7 @@ export default function NewDeclarationPage() {
             <div className="space-y-4 border-t border-black/[0.06] pt-6">
               <SectionIntro kicker={hasCbam ? "EU buyer / importer (required)" : "EU buyer / importer"}>
                 {hasCbam
-                  ? "Who imports these goods into the EU? Their Authorised CBAM Declarant files the declaration — Certrace addresses the Communication Template and the O3CI share to them."
+                  ? "Who imports these goods into the EU? Their Authorised CBAM Declarant files the declaration. Certrace currently prepares only a manual-entry mapping aid."
                   : "The buyer this data request is for."}
               </SectionIntro>
               <div className="grid gap-4 sm:grid-cols-2">
@@ -912,7 +930,7 @@ export default function NewDeclarationPage() {
                     placeholder="e.g. DE551234567890"
                   />
                 </Field>
-                <Field label="Contact email" hint={buyer.email && !buyerEmailOk ? "Enter a valid email address." : "Where the Communication Template is sent."}>
+                <Field label="Contact email" hint={buyer.email && !buyerEmailOk ? "Enter a valid email address." : "Reference only; Certrace does not send a template or email."}>
                   <input
                     type="email"
                     className={cn(inputClass, buyer.email && !buyerEmailOk && "border-[#f87171]/70 focus:border-[#f87171]")}
@@ -1074,7 +1092,7 @@ export default function NewDeclarationPage() {
         {current === "classify" && (
           <div className="space-y-5">
             <SectionIntro kicker="Classification & report fields">
-              Certrace classified each product automatically — category, CN / HS codes and the CBAM template come from the catalogue and can&apos;t be edited. The checklist below reflects the data points that actually apply to the goods you selected.
+              Catalogue search is a curated shortcut, not a customs-classification decision. Selected codes are checked against the versioned CN rule set; unresolved goods are blocked instead of receiving a fallback. Confirm classification with a qualified customs specialist.
             </SectionIntro>
             {classificationProductCards}
             {classificationFields(purpose)}
@@ -1161,7 +1179,7 @@ export default function NewDeclarationPage() {
                       }}
                       className="inline-flex items-center gap-1.5 rounded-xl border border-dashed border-black/15 px-3.5 py-2.5 text-[12px] text-black/55 hover:border-black/30 hover:text-black"
                     >
-                      <Plus size={13} strokeWidth={1.5} /> Invite new supplier
+                      <Plus size={13} strokeWidth={1.5} /> Add directory supplier
                     </button>
                   </div>
                 </Card>
@@ -1173,8 +1191,8 @@ export default function NewDeclarationPage() {
         {/* 8 ─ DEADLINE */}
         {current === "deadline" && (
           <div className="space-y-6">
-            <SectionIntro kicker="Deadline & reminders">
-              Set the submission deadline suppliers see, and let Certrace chase them automatically so you don&apos;t have to.
+            <SectionIntro kicker="Deadline & follow-up plan">
+              Set the internal supplier-data collection deadline and record optional follow-up dates. No reminder automation or email provider is configured.
             </SectionIntro>
             <LabeledControl
               label="Submission deadline"
@@ -1201,7 +1219,8 @@ export default function NewDeclarationPage() {
             </LabeledControl>
 
             <Card warm className="p-5">
-              <Eyebrow>Automatic reminders</Eyebrow>
+              <Eyebrow>Local follow-up checklist</Eyebrow>
+              <p className="mt-1 text-[11.5px] text-black/45">Scheduling metadata only — no email provider or reminder automation is configured.</p>
               <div className="mt-3 divide-y divide-black/[0.05]">
                 {([
                   ["d7", "7 days before the deadline"],
@@ -1236,7 +1255,7 @@ export default function NewDeclarationPage() {
         {current === "review" && (
           <div className="space-y-5">
             <SectionIntro kicker="Review & create">
-              One last look. We&apos;ll prepare the guided forms and reminders — you send them when you&apos;re ready.
+              One last look. Certrace prepares same-browser demo forms and a local follow-up plan; nothing is sent.
             </SectionIntro>
 
             <Card warm className="grid grid-cols-2 divide-x divide-y divide-black/[0.06] p-0 sm:grid-cols-4 sm:divide-y-0">
@@ -1264,9 +1283,9 @@ export default function NewDeclarationPage() {
                 ["Period", periodBounds ? `${periodSummary} (${periodBounds.start} → ${periodBounds.end})` : periodSummary],
                 ["Products", `${products.length} · CN-classified`],
                 ["Report fields", hasCbam ? `${includedFields.length} of ${resolvedFields.length} (${requiredCount} required)` : `${includedFields.length} selected`],
-                ["Total volume", totalTonnes > 0 ? `${fmt(totalTonnes)} t across ${totalLots} lots` : `${totalLots} lots`],
+                ["Total volume", decimal(totalTonnes).isPositive() ? `${formatDecimal(totalTonnes)} TNE across ${totalLots} lots` : `${totalLots} lots`],
                 ["Deadline", deadline ? new Date(deadline + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "—"],
-                ["Reminders", Object.entries(reminders).filter(([, v]) => v).map(([k]) => (k === "d7" ? "7d" : k === "d3" ? "3d" : "due")).join(" · ") || "none"],
+                ["Follow-up plan", Object.entries(reminders).filter(([, v]) => v).map(([k]) => (k === "d7" ? "7d" : k === "d3" ? "3d" : "due")).join(" · ") || "none"],
               ].map(([k, v]) => (
                 <div key={k} className="flex items-center justify-between gap-4 px-5 py-3">
                   <span className="text-[11px] uppercase tracking-[0.1em] text-black/35">{k}</span>
@@ -1329,7 +1348,7 @@ export default function NewDeclarationPage() {
 
       {/* invite modal */}
       {inviteFor && (
-        <Modal onClose={() => setInviteFor(null)} title="Invite supplier" subtitle="Saved to your directory — no onboarding needed">
+        <Modal onClose={() => setInviteFor(null)} title="Add directory supplier" subtitle="Saved in this browser only — no invitation is sent">
           <div className="space-y-3 px-5 py-4">
             <Field label="Company name">
               <IconInput icon={Building2} value={inv.company} onChange={(v) => setInv((s) => ({ ...s, company: v }))} placeholder="e.g. Eastern Steel Mill" />
@@ -1358,7 +1377,7 @@ export default function NewDeclarationPage() {
 
 /* ── lot row ──────────────────────────────────────────────── */
 function LotRow({ lot, index, canRemove, onChange, onRemove }: { lot: Lot; index: number; canRemove: boolean; onChange: (p: Partial<Lot>) => void; onRemove: () => void }) {
-  const qtyMissing = !(Number(lot.qty) > 0);
+  const qtyMissing = !lotValid(lot);
   return (
     <div className="rounded-lg border border-black/[0.06] bg-white p-2.5">
       <div className="flex items-center gap-2">
@@ -1383,7 +1402,7 @@ function LotRow({ lot, index, canRemove, onChange, onRemove }: { lot: Lot; index
             qtyMissing ? "border-[#f87171]/60 focus:border-[#f87171]" : "border-black/10 focus:border-black/25",
           )}
         />
-        <Select value={lot.unit} onChange={(v) => onChange({ unit: v })} options={PRODUCT_UNITS.map((u) => ({ value: u, label: u }))} placeholder="Select unit" className="w-36" ariaLabel="Unit" invalid={!lot.unit} />
+        <Select value={lot.unit} onChange={(v) => onChange({ unit: v as ProductUnit })} options={PRODUCT_UNITS.map((unit) => ({ value: unit, label: PRODUCT_UNIT_LABELS[unit] }))} placeholder="Select unit" className="w-48" ariaLabel="Unit" invalid={!lot.unit} />
       </div>
       {/* Optional: production date range — equal-width columns, single line */}
       <div className="mt-2 grid grid-cols-2 gap-2">

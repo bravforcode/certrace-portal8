@@ -258,7 +258,7 @@ export default function TeamPage() {
       <AddMemberModal
         open={showAdd}
         onClose={() => setShowAdd(false)}
-        note="They join your team roster and take a seat. Assign their first check from any declaration — a submission review or a report sign-off."
+        note="They join this browser’s demo roster. No account, seat, email, or reviewer access is created."
         onAdded={(m) => {
           setMembers(loadTeam());
           setSeats((prev) =>
@@ -277,7 +277,7 @@ export default function TeamPage() {
                   },
                 ],
           );
-          toast({ message: `${m.name} invited`, detail: "They now appear in every reviewer picker across your declarations.", tone: "ok" });
+          toast({ message: `${m.name} added locally`, detail: "They appear in this browser’s reviewer pickers; no invite was delivered.", tone: "info" });
         }}
       />
     </div>

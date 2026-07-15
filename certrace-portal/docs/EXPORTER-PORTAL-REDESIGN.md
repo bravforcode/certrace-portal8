@@ -1,4 +1,6 @@
-# Certrace — Post-Submission Compliance Architecture
+# Certrace — Post-Submission Compliance Architecture (Superseded)
+
+> Historical design note only. Do not implement its transitional 20% precursor cap, Registry XML, O3CI push, email-delivery, immutable-archive, or audit-ready claims. The definitive-period source of truth is [CBAM-DEFINITIVE-PERIOD-READINESS.md](./CBAM-DEFINITIVE-PERIOD-READINESS.md) and the versioned `lib/mrv` contracts.
 
 **Scope:** everything that happens after a supplier clicks Submit on the SmartLink. The supplier experience (AI assistant, validation, unit conversion, guidance) is out of scope and unchanged. This document redesigns the exporter side: `Executive Summary`, `Audit Package`, `Report` as they exist today are replaced by a compliance operating system built around one principle — **collect once, generate everything.**
 

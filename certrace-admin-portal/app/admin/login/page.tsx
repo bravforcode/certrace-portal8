@@ -20,7 +20,7 @@ export default function StaffLogin() {
     if (ready && user) router.replace("/admin/dashboard");
   }, [ready, user, router]);
 
-  // Deactivated accounts can't sign in; invited ones activate on first login.
+  // Browser-local fixture state only; this is not production authentication.
   const byDept = DEPARTMENTS.map((d) => ({
     dept: d,
     people: allStaff().filter((s) => s.status !== "deactivated" && getRole(s.roleId).dept === d.id),

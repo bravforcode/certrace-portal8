@@ -5,10 +5,11 @@
   expands from CBAM → EUDR/CSRD/Scope 3 and from steel → aluminium/cement, and
   from Thailand → SE Asia, by flipping `available` here — no new UI is required.
 
-  MVP launch posture (June 2026): CBAM is the only LIVE regulation, and within
-  CBAM only Steel & iron is open. Everything else renders as "coming soon" with
-  a real waitlist path — nothing is a dead end.
+  Readiness posture (July 2026): CBAM is the only live regulation. Steel and
+  aluminium are enabled; other sectors remain explicitly unavailable.
 */
+
+import { classifyCnCode } from "./mrv";
 
 export type Status = "live" | "soon" | "rollout" | "planned";
 
@@ -65,7 +66,7 @@ export const REGULATIONS: Regulation[] = [
     authority: "EU CBAM Registry · via importer / declarant",
     status: "live",
     available: true,
-    cadence: "Quarterly data · annual declaration",
+    cadence: "Annual operator data · annual declaration",
     dataPoints: [
       "Production route & process",
       "Direct (Scope 1) emissions",
@@ -76,7 +77,7 @@ export const REGULATIONS: Regulation[] = [
     requirements: [
       "Installation identification",
       "Embedded emissions per tonne (tCO₂e/t)",
-      "Verified emission factors or actual data",
+      "Accredited verification for actual values",
       "Carbon price evidence",
     ],
   },
@@ -228,12 +229,12 @@ export const PLANS: Plan[] = [
   {
     id: "starter",
     name: "Starter",
-    tagline: "One exporter, one regime. Get a clean CBAM filing out the door.",
+    tagline: "One exporter, one regime. Prepare a clean CBAM data handoff.",
     annual: 180_000,
     ctaKind: "downgrade",
     supplierCap: 20,
     limits: { suppliers: "Up to 20 suppliers" },
-    features: ["Smart request builder", "Live dashboard + reminders", "Audit-ready export"],
+    features: ["Guided request builder", "Local readiness dashboard", "Draft calculation preview"],
   },
   {
     id: "standard",
@@ -244,7 +245,7 @@ export const PLANS: Plan[] = [
     ctaKind: "current",
     supplierCap: 50,
     limits: { suppliers: "Up to 50 suppliers" },
-    features: ["Everything in Starter", "Auditor portal seat", "Multi-regulation templates"],
+    features: ["Everything in Starter", "Local reviewer workflow", "Steel & aluminium readiness templates"],
   },
   {
     id: "enterprise",
@@ -254,7 +255,7 @@ export const PLANS: Plan[] = [
     ctaKind: "contact",
     supplierCap: null,
     limits: { suppliers: "50+ suppliers · custom above ~150" },
-    features: ["Everything in Standard", "Priority support + onboarding", "Legal-network sign-off access"],
+    features: ["Everything in Standard", "Priority implementation support", "Planned verifier integration support"],
   },
 ];
 
@@ -306,11 +307,11 @@ export type PeriodOption = {
   /** which sub-picker the period needs */
   picker: "year" | "quarter" | "half" | "month" | "none" | "range";
 };
-// Official CBAM is annual; quarterly is offered because many exporters collect
-// supplier data each quarter even though the filing is yearly.
+// Definitive-period CBAM operator reporting and the declaration are annual.
+// Commercial teams may collect working data more often, but a partial period
+// must not be represented as the regulatory reporting period.
 export const CBAM_PERIODS: PeriodOption[] = [
-  { id: "annual", label: "Annual", hint: "Official CBAM cadence — recommended. Suppliers can report at year-end.", picker: "year" },
-  { id: "quarterly", label: "Quarterly", hint: "Collect supplier data each quarter (one quarter at a time).", picker: "quarter" },
+  { id: "annual", label: "Annual", hint: "Definitive-period CBAM reporting period (calendar year).", picker: "year" },
 ];
 // Buyer requests are flexible — the buyer decides the rhythm.
 export const BUYER_PERIODS: PeriodOption[] = [
@@ -322,15 +323,12 @@ export const BUYER_PERIODS: PeriodOption[] = [
   { id: "custom", label: "Custom range", hint: "Choose your own start and end dates.", picker: "range" },
 ];
 
-/* ── Product catalogue (real CBAM master data) ────────────────
-   CN codes are real Combined-Nomenclature codes that fall inside the CBAM
-   scope of Annex I to Regulation (EU) 2023/956 (iron & steel — ch. 72/73 +
-   precursor 2601 12; aluminium — ch. 76). The exporter searches; Certrace
-   fills in category, sub-group, CN/HS and the CBAM template automatically.
-   None of this is editable — master data is read-only by design.
-
-   ⚠️ Master data is REAL. Only transactional values (quantities, suppliers,
-   emissions) elsewhere in the app are mock. */
+/* ── Product search shortcuts ──────────────────────────────────
+   These common commercial descriptions are a UI convenience, not the legal
+   master-data boundary. Every exact CN8 code must also match the effective,
+   versioned rules in lib/mrv/regulatory-data.ts. An unmatched code stays
+   unclassified; callers must never substitute hot-rolled coil or another
+   catalogue row. */
 export type ProductCategory = "Iron & Steel" | "Aluminium";
 export type CatalogProduct = {
   id: string;
@@ -422,9 +420,9 @@ export const PRODUCT_CATALOG: CatalogProduct[] = [
   { id: "al-articles", name: "Other articles of aluminium", category: "Aluminium", group: "Articles", cnCode: "7616 99 90", hsCode: "7616", keywords: ["article", "other"] },
 ];
 
-/* ── CBAM data fields (real reporting requirements) ───────────
+/* ── CBAM data fields ─────────────────────────────────────────
    The data points an installation reports per good under the CBAM definitive
-   regime (Reg. (EU) 2023/956, Annex IV + Implementing Reg. (EU) 2023/1773).
+   regime (Reg. (EU) 2023/956 and Implementing Reg. (EU) 2025/2547).
 
    Not every good carries the same obligation, so each field declares:
    • `scope`     — which selected goods bring it into play
@@ -459,17 +457,29 @@ export const CBAM_FIELDS: CbamField[] = [
   { id: "goods-category", label: "Aggregated goods category", group: "Goods", scope: "all", mandatory: true, buyerRecommended: true, hint: "CBAM aggregated category for the CN code" },
   { id: "cn-code", label: "CN code", group: "Goods", scope: "all", mandatory: true, buyerRecommended: true, hint: "8-digit Combined Nomenclature code" },
   { id: "process-route", label: "Production process / route", group: "Goods", scope: "all", mandatory: true, buyerRecommended: true, hint: "Steel: e.g. BF-BOF, EAF, DRI-EAF · Aluminium: e.g. electrolysis (Hall-Héroult), remelt, extrusion" },
-  { id: "quantity", label: "Quantity covered by this request (net mass, t)", group: "Goods", scope: "all", mandatory: true, buyerRecommended: true, hint: "Net mass the exporter bought from you in the period — not your installation's total production" },
+  { id: "installation-reference", label: "Producing installation", group: "Goods", scope: "all", mandatory: true, buyerRecommended: true, hint: "Installation profile assigned to this product and process" },
+  { id: "monitoring-plan-id", label: "Monitoring plan reference", group: "Goods", scope: "all", mandatory: true, hint: "Operator-controlled monitoring plan identifier for this installation and reporting period" },
+  { id: "monitoring-plan-version", label: "Monitoring plan version", group: "Goods", scope: "all", mandatory: true, hint: "Version that governed this installation/process data" },
+  { id: "system-boundary", label: "Process and installation boundary", group: "Goods", scope: "all", mandatory: true, hint: "Included process units, emission sources and transfers for this production process" },
+  { id: "excluded-activities", label: "Excluded activities", group: "Goods", scope: "all", mandatory: true, hint: "Activities outside this boundary, or explicitly state none" },
+  { id: "data-gap-methodology", label: "Data-gap methodology", group: "Goods", scope: "all", mandatory: true, hint: "Method used for missing periods/readings, or explicitly state that no data gaps occurred" },
+  { id: "control-activities", label: "Monitoring control activities", group: "Goods", scope: "all", mandatory: true, hint: "Meter reconciliation, calibration, review and other controls, one per line" },
+  { id: "production-activity", label: "Process production activity (TNE)", group: "Goods", scope: "all", mandatory: true, buyerRecommended: true, hint: "Exact installation/process output for the reporting period — not the commercial shipment quantity" },
+  { id: "quantity", label: "Commercial quantity covered (net mass, TNE)", group: "Goods", scope: "all", mandatory: true, buyerRecommended: true, hint: "Canonical net mass the exporter bought from you in the period — separate from installation production activity" },
   // Embedded emissions — the heart of CBAM. Direct/indirect cover the good's
   // OWN production process; precursor embedded emissions are entered as
   // structured rows below and the total is DERIVED (own + precursors).
   { id: "direct-emissions", label: "Direct specific emissions — own process (tCO₂e/t)", group: "Embedded emissions", scope: "all", mandatory: true, buyerRecommended: true, hint: "Direct emissions of YOUR production step only — precursors are added separately below" },
   { id: "indirect-emissions", label: "Indirect specific emissions — own process (tCO₂e/t)", group: "Embedded emissions", scope: "all", mandatory: true, buyerRecommended: true, hint: "Electricity-related emissions of YOUR production step only" },
-  { id: "total-emissions", label: "Total embedded emissions (tCO₂e/t)", group: "Embedded emissions", scope: "all", mandatory: true, buyerRecommended: true, hint: "Derived automatically: own direct + own indirect + precursor contribution" },
+  { id: "total-emissions", label: "Definitive embedded emissions (TCO2E_PER_TNE)", group: "Embedded emissions", scope: "all", mandatory: true, buyerRecommended: true, hint: "Derived exactly from direct emissions and precursors; indirect emissions are retained separately but excluded for Annex-II steel/aluminium" },
   { id: "method", label: "Determination method (actual / default)", group: "Embedded emissions", scope: "all", mandatory: true, buyerRecommended: true, hint: "Whether actual data or default values were used" },
+  { id: "emissions-method", label: "MRV method", group: "Embedded emissions", scope: "all", mandatory: true, buyerRecommended: true, hint: "Calculation-based, mass balance or CEMS method used for the production process" },
+  { id: "plant-mrv", label: "Plant MRV calculation inputs", group: "Embedded emissions", scope: "all", mandatory: false, buyerRecommended: true, hint: "Required for actual values: source streams, mass balance or CEMS plus energy, allocation and aluminium PFC inputs, with evidence references" },
+  { id: "default-value-reference", label: "Commission default-value reference", group: "Embedded emissions", scope: "all", mandatory: false, buyerRecommended: true, hint: "Required when default is selected: effective dataset/version and exact default-value row used" },
   // Electricity — required where indirect emissions dominate (aluminium electrolysis)
   { id: "elec-consumed", label: "Electricity consumed (MWh/t)", group: "Electricity", scope: "all", mandatory: "aluminium", hint: "Electricity used per tonne of output — drives indirect emissions" },
-  { id: "elec-factor", label: "Electricity emission factor & source", group: "Electricity", scope: "all", mandatory: "aluminium", hint: "Grid / PPA factor and its documented source" },
+  { id: "elec-factor", label: "Electricity emission factor (TCO2E_PER_MWH)", group: "Electricity", scope: "all", mandatory: "aluminium", hint: "Exact grid, PPA or supplier-specific emission factor" },
+  { id: "elec-factor-source", label: "Electricity factor source", group: "Electricity", scope: "all", mandatory: "aluminium", hint: "Documented factor publication, PPA or calculation reference" },
   { id: "al-process", label: "Electrolysis technology (prebake / Søderberg)", group: "Electricity", scope: "electrolysis", mandatory: "electrolysis", hint: "Smelting route — only for primary (unwrought) aluminium from electrolysis" },
   // Precursors — only complex (downstream) goods embed upstream emissions
   { id: "precursors", label: "Relevant precursors & their embedded emissions", group: "Precursors", scope: "complex", mandatory: "complex", hint: "One row per input material: quantity consumed per tonne of this good × its embedded emissions" },
@@ -490,6 +500,8 @@ export const isComplexGood = (p: CatalogProduct) => !PRIMARY_GROUPS.has(p.group)
    smelting-technology question makes sense. A downstream extruder must never
    be forced to answer prebake/Søderberg. */
 export const isElectrolysisGood = (p: CatalogProduct) => p.category === "Aluminium" && p.group === "Unwrought";
+/** Always shown because the supplier's actual/default choice is made after the request is created. */
+export const METHOD_CONDITIONAL_FIELD_IDS = new Set(["plant-mrv", "default-value-reference"]);
 
 export type ResolvedCbamField = CbamField & { required: boolean };
 
@@ -563,12 +575,23 @@ export function scope2Treatment(selected: CatalogProduct[]): Scope2Treatment[] {
    without per-product conversion data, and a silent zero would understate
    emissions (exactly the failure the 2026-07-13 test demonstrated). Exporters
    invoicing in other units convert to net mass before entering the lot. */
-export const PRODUCT_UNITS = ["tonnes (t)", "kg"] as const;
+export const PRODUCT_UNITS = ["TNE", "KGM"] as const;
 export type ProductUnit = (typeof PRODUCT_UNITS)[number];
+export const PRODUCT_UNIT_LABELS: Record<ProductUnit, string> = {
+  TNE: "TNE — tonnes",
+  KGM: "KGM — kilograms",
+};
 /* No default unit — the exporter must pick the unit their goods were invoiced
    in, so a quantity is never silently mis-typed as tonnes. */
 export const DEFAULT_UNIT = "";
 
-export const getCatalogProduct = (id: string) => PRODUCT_CATALOG.find((p) => p.id === id);
+export const getCatalogProduct = (id: string) => {
+  const product = PRODUCT_CATALOG.find((candidate) => candidate.id === id);
+  if (!product) return undefined;
+  const regulatoryProduct = classifyCnCode(product.cnCode);
+  if (!regulatoryProduct) return undefined;
+  const expectedSector = product.category === "Iron & Steel" ? "IRON_STEEL" : "ALUMINIUM";
+  return regulatoryProduct.sector === expectedSector ? product : undefined;
+};
 export const productTemplate = (p: CatalogProduct) => `CBAM · ${p.category} · ${p.group}`;
 export const PRODUCT_CATEGORIES: ProductCategory[] = ["Iron & Steel", "Aluminium"];

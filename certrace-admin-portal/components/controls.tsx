@@ -179,7 +179,7 @@ export function Select({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={ariaLabel}
-        aria-invalid={invalid || undefined}
+        data-invalid={invalid || undefined}
         onClick={() => setOpen((v) => !v)}
         onKeyDown={onKey}
         className={cn(
@@ -508,7 +508,7 @@ export function DatePicker({
         type="button"
         aria-label={ariaLabel}
         aria-expanded={open}
-        aria-invalid={invalid || undefined}
+        data-invalid={invalid || undefined}
         onClick={() => setOpen((v) => !v)}
         className={cn(
           triggerBase,

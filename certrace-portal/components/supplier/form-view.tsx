@@ -12,15 +12,18 @@ import { ArrowRight, ArrowDown, Lock, Info, Building2, FlaskConical, Zap, Boxes,
 import { Card, Button, Eyebrow, inputClass, cn } from "@/components/ui";
 import { Select } from "@/components/controls";
 import { useSupplier, type FieldFlag } from "./context";
-import { valueKey, fieldAppliesTo, fieldRequiredFor, type SupplierSection } from "@/lib/supplier";
-import type { ResolvedCbamField } from "@/lib/config";
-import { parsePrecursors, serializePrecursors, emptyPrecursorRow, type PrecursorRow } from "@/lib/precursors";
+import { AUTO_FIELDS, valueKey, fieldAppliesTo, fieldRequiredFor, type SupplierSection } from "@/lib/supplier";
+import { isElectrolysisGood, type ResolvedCbamField } from "@/lib/config";
+import { parsePrecursors, serializePrecursors, emptyPrecursorRow, precursorContributionExact, type PrecursorRow } from "@/lib/precursors";
+import { formatDecimal } from "@/lib/workflow-measurements";
+import { PlantMrvEditor } from "./plant-mrv-editor";
+import { classifyCnCode } from "@/lib/mrv";
 
 /* How a flagged field's stroke + inline note look. `ring` is the resting stroke;
    `ringStrong` is the brief pulse when the supplier is led to the field. */
 const FLAG_STYLE: Record<FieldFlag["severity"], { ring: string; ringStrong: string; text: string; tag: string; icon: React.ElementType }> = {
-  critical: { ring: "ring-2 ring-[#dc2626]/40", ringStrong: "ring-4 ring-[#dc2626]/60", text: "text-[#dc2626]", tag: "AI check", icon: TriangleAlert },
-  warning: { ring: "ring-2 ring-[#d97706]/40", ringStrong: "ring-4 ring-[#d97706]/60", text: "text-[#b45309]", tag: "AI check", icon: TriangleAlert },
+  critical: { ring: "ring-2 ring-[#dc2626]/40", ringStrong: "ring-4 ring-[#dc2626]/60", text: "text-[#dc2626]", tag: "Quality check", icon: TriangleAlert },
+  warning: { ring: "ring-2 ring-[#d97706]/40", ringStrong: "ring-4 ring-[#d97706]/60", text: "text-[#b45309]", tag: "Quality check", icon: TriangleAlert },
   revision: { ring: "ring-2 ring-[#2563eb]/40", ringStrong: "ring-4 ring-[#2563eb]/55", text: "text-[#2563eb]", tag: "Exporter", icon: PenLine },
 };
 
@@ -38,17 +41,24 @@ function FlagNote({ severity, message }: { severity: FieldFlag["severity"]; mess
   );
 }
 
-const NUMERIC = new Set(["direct-emissions", "indirect-emissions", "elec-consumed", "carbon-price"]);
+const NUMERIC = new Set(["direct-emissions", "indirect-emissions", "elec-consumed", "elec-factor", "carbon-price", "production-activity"]);
 const UNIT: Record<string, string> = {
   "direct-emissions": "tCO₂e/t",
   "indirect-emissions": "tCO₂e/t",
   "elec-consumed": "MWh/t",
+  "elec-factor": "TCO2E_PER_MWH",
   "carbon-price": "/ tCO₂e",
+  "production-activity": "TNE",
 };
 const SELECTS: Record<string, { value: string; label: string }[]> = {
   method: [
     { value: "actual", label: "Actual installation data" },
     { value: "default", label: "Default values" },
+  ],
+  "emissions-method": [
+    { value: "STANDARD_CALCULATION", label: "Calculation-based" },
+    { value: "MASS_BALANCE", label: "Mass balance" },
+    { value: "CEMS", label: "Continuous emissions monitoring (CEMS)" },
   ],
   "carbon-price-currency": [
     { value: "THB", label: "THB — Thai baht" },
@@ -76,13 +86,19 @@ const SECTION_ICON: Record<string, React.ElementType> = {
 };
 
 function FieldControl({ field, productId }: { field: ResolvedCbamField; productId?: string }) {
-  const { getValue, setValue, isEditable, autoValue, flagged, focusKey, clearFocus } = useSupplier();
+  const { req, state, getValue, setValue, isEditable, autoValue, flagged, focusKey, clearFocus } = useSupplier();
   const auto = autoValue(field.id, productId);
   const key = valueKey(field.id, productId);
-  const editable = isEditable(key);
+  const workflowEditable = isEditable(key);
   const value = getValue(field.id, productId);
+  const calculationDerived = Boolean(productId) && (field.id === "direct-emissions" || field.id === "indirect-emissions") && getValue("method", productId) !== "default";
+  const editable = workflowEditable && !calculationDerived;
+  const methodConditionalRequired = Boolean(productId) && (
+    (field.id === "plant-mrv" && getValue("method", productId) !== "default") ||
+    (field.id === "default-value-reference" && getValue("method", productId) === "default")
+  );
 
-  // Flag (AI check or revision request). A "missing" flag clears the moment the
+  // Flag (deterministic check or revision request). A "missing" flag clears the moment the
   // field has a value — fixing it gives feedback without re-running the check.
   const rawFlag = flagged.get(key);
   const flag = rawFlag && !(rawFlag.kind === "missing" && value.trim()) ? rawFlag : null;
@@ -114,7 +130,7 @@ function FieldControl({ field, productId }: { field: ResolvedCbamField; productI
   const ringCls = fs ? cn("rounded-xl transition-shadow duration-700", pulse ? fs.ringStrong : fs.ring) : "rounded-xl";
 
   // Auto-derived (locked) — CN code, category, quantity, total emissions
-  if (auto !== null) {
+  if (AUTO_FIELDS.has(field.id)) {
     return (
       <div ref={ref} className="scroll-mt-28">
         <span className="mb-1.5 flex items-center gap-1.5 text-[11px] uppercase tracking-[0.08em] text-black/45">
@@ -134,13 +150,64 @@ function FieldControl({ field, productId }: { field: ResolvedCbamField; productI
   const label = (
     <span className="mb-1.5 flex items-center gap-1.5 text-[11px] uppercase tracking-[0.08em] text-black/55">
       {field.label}
-      {!field.required && <span className="text-[9px] tracking-[0.1em] text-black/30">optional</span>}
+      {!field.required && !methodConditionalRequired && <span className="text-[9px] tracking-[0.1em] text-black/30">optional</span>}
+      {methodConditionalRequired && <span className="text-[9px] tracking-[0.1em] text-[#b45309]">required for selected method</span>}
       {!editable && <Lock size={10} strokeWidth={1.5} className="text-black/30" />}
     </span>
   );
 
   let control: React.ReactNode;
-  if (SELECTS[field.id]) {
+  if (field.id === "process-route" && productId) {
+    const requestProduct = req.products.find((candidate) => candidate.product.id === productId);
+    const regulatoryProduct = requestProduct ? classifyCnCode(requestProduct.product.cnCode) : null;
+    const options = (regulatoryProduct?.productionRoutes ?? []).map((route) => ({ value: route, label: route.replaceAll("_", " ") }));
+    control = (
+      <Select
+        value={value}
+        onChange={(selection) => setValue(field.id, productId, selection)}
+        options={options}
+        placeholder={options.length > 0 ? "Select regulatory production route" : "CN classification required"}
+        className="w-full"
+        ariaLabel={field.label}
+        disabled={!editable || options.length === 0}
+      />
+    );
+  } else if (field.id === "installation-reference") {
+    const options = [
+      { value: "primary", label: `${state.profile?.installationName || getValue("inst-name") || "Primary installation"} (primary)` },
+      ...(state.profile?.additionalInstallations ?? []).map((installation) => ({ value: installation.id, label: installation.name || installation.id })),
+    ];
+    control = (
+      <Select
+        value={value}
+        onChange={(selection) => setValue(field.id, productId, selection)}
+        options={options}
+        placeholder="Select installation"
+        className="w-full"
+        ariaLabel={field.label}
+        disabled={!editable}
+      />
+    );
+  } else if (field.id === "plant-mrv" && productId) {
+    const requestProduct = req.products.find((candidate) => candidate.product.id === productId);
+    const selectedMethod = (getValue("emissions-method", productId) || "STANDARD_CALCULATION") as "STANDARD_CALCULATION" | "MASS_BALANCE" | "CEMS";
+    control = getValue("method", productId) === "default" ? (
+      <div className="rounded-xl border border-black/[0.06] bg-[#fafaf8] px-4 py-3 text-[12px] text-black/50">
+        Plant monitoring inputs are not used while Commission default values are selected. Any saved draft inputs remain local and will be validated if you switch back to actual data.
+      </div>
+    ) : requestProduct ? (
+      <PlantMrvEditor
+        raw={value}
+        method={selectedMethod}
+        productionActivityTne={getValue("production-activity", productId)}
+        productId={productId}
+        installationId={getValue("installation-reference", productId)}
+        isElectrolysis={isElectrolysisGood(requestProduct.product)}
+        editable={workflowEditable}
+        onChange={(next) => setValue(field.id, productId, next)}
+      />
+    ) : null;
+  } else if (SELECTS[field.id]) {
     control = (
       <Select
         value={value}
@@ -149,6 +216,7 @@ function FieldControl({ field, productId }: { field: ResolvedCbamField; productI
         placeholder="Select…"
         className="w-full"
         ariaLabel={field.label}
+        disabled={!editable}
       />
     );
   } else if (field.id === "precursors") {
@@ -156,10 +224,11 @@ function FieldControl({ field, productId }: { field: ResolvedCbamField; productI
       <PrecursorEditor
         value={value}
         editable={editable}
+        reportingPeriod={req.period}
         onChange={(v) => setValue(field.id, productId, v)}
       />
     );
-  } else if (field.id === "precursor-route" || field.id === "inst-address") {
+  } else if (["precursor-route", "inst-address", "system-boundary", "excluded-activities", "data-gap-methodology", "control-activities"].includes(field.id)) {
     control = (
       <textarea
         disabled={!editable}
@@ -201,11 +270,19 @@ function FieldControl({ field, productId }: { field: ResolvedCbamField; productI
 
   return (
     <div ref={ref} className="scroll-mt-28">
-      <label className="block">
-        {label}
-        <div className={ringCls}>{control}</div>
-        {!flag && <span className="mt-1 block text-[11px] text-black/35">{field.hint}</span>}
-      </label>
+      {field.id === "plant-mrv" || field.id === "precursors" ? (
+        <div className="block">
+          {label}
+          <div className={ringCls}>{control}</div>
+          {!flag && <span className="mt-1 block text-[11px] text-black/35">{field.hint}</span>}
+        </div>
+      ) : (
+        <label className="block">
+          {label}
+          <div className={ringCls}>{control}</div>
+          {!flag && <span className="mt-1 block text-[11px] text-black/35">{field.hint}</span>}
+        </label>
+      )}
       {flag && <FlagNote severity={flag.severity} message={flag.message} />}
     </div>
   );
@@ -217,9 +294,16 @@ function FieldControl({ field, productId }: { field: ResolvedCbamField; productI
    ONLY calculable form — the good's total embedded emissions derive from them
    (own direct + own indirect + Σ qty × SEE). Legacy free-text entries are
    shown for reference and replaced the moment rows are saved. */
-function PrecursorEditor({ value, editable, onChange }: { value: string; editable: boolean; onChange: (v: string) => void }) {
+function PrecursorEditor({ value, editable, reportingPeriod, onChange }: { value: string; editable: boolean; reportingPeriod: string; onChange: (v: string) => void }) {
   const rows = React.useMemo(() => parsePrecursors(value) ?? [], [value]);
   const legacyText = value.trim() && parsePrecursors(value) === null ? value : null;
+  const contribution = React.useMemo(() => {
+    try {
+      return precursorContributionExact(serializePrecursors(rows), reportingPeriod);
+    } catch {
+      return null;
+    }
+  }, [rows, reportingPeriod]);
 
   const patch = (i: number, p: Partial<PrecursorRow>) => {
     const next = rows.map((r, idx) => (idx === i ? { ...r, ...p } : r));
@@ -237,17 +321,27 @@ function PrecursorEditor({ value, editable, onChange }: { value: string; editabl
     <div className="space-y-2">
       {legacyText && (
         <div className="rounded-lg border border-[#d97706]/30 bg-[#fffbeb] px-3 py-2 text-[11.5px] leading-relaxed text-[#92400e]">
-          Previously entered as free text: “{legacyText.slice(0, 160)}{legacyText.length > 160 ? "…" : ""}”. Re-enter it as rows below — free text can’t be calculated or sent to the Registry.
+          Previously entered as free text: “{legacyText.slice(0, 160)}{legacyText.length > 160 ? "…" : ""}”. Re-enter it as rows below so the draft calculation and manual-entry worksheet can map it deterministically.
         </div>
       )}
       {rows.map((r, i) => (
         <div key={i} className="rounded-xl border border-black/[0.07] bg-[#fafaf8] p-2.5">
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-[1.4fr_0.9fr_0.7fr_0.7fr]">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-[1.4fr_0.9fr_0.9fr_0.9fr]">
             <input disabled={!editable} value={r.name} onChange={(e) => patch(i, { name: e.target.value })} placeholder="Material, e.g. Steel billet" aria-label="Precursor material" className={cell} />
             <input disabled={!editable} value={r.cn} onChange={(e) => patch(i, { cn: e.target.value })} placeholder="CN code" aria-label="Precursor CN code" className={cell} />
-            <div className="relative">
-              <input type="number" min={0} step="any" disabled={!editable} value={r.qty} onChange={(e) => patch(i, { qty: e.target.value })} placeholder="0.00" aria-label="Tonnes consumed per tonne of this good" className={cn(cell, "pr-9 w-full")} />
-              <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 font-mono text-[10px] text-black/35">t/t</span>
+            <div className="space-y-1">
+              <input type="number" min={0} step="any" disabled={!editable} value={r.qty} onChange={(e) => patch(i, { qty: e.target.value })} placeholder="Quantity ratio" aria-label="Precursor quantity per tonne of this good" className={cn(cell, "w-full")} />
+              <Select
+                value={r.qtyUnit}
+                onChange={(unit) => patch(i, { qtyUnit: unit as PrecursorRow["qtyUnit"] })}
+                options={[
+                  { value: "TNE_PER_TNE", label: "TNE_PER_TNE (t/t)" },
+                  { value: "KGM_PER_TNE", label: "KGM_PER_TNE (kg/t)" },
+                ]}
+                className="w-full"
+                ariaLabel="Precursor quantity unit"
+                disabled={!editable}
+              />
             </div>
             <div className="relative">
               <input type="number" min={0} step="any" disabled={!editable} value={r.see} onChange={(e) => patch(i, { see: e.target.value })} placeholder="0.00" aria-label="Embedded emissions of the precursor" className={cn(cell, "pr-14 w-full")} />
@@ -262,6 +356,42 @@ function PrecursorEditor({ value, editable, onChange }: { value: string; editabl
               </button>
             )}
           </div>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            <Select
+              value={r.method}
+              onChange={(method) => patch(i, { method: method as PrecursorRow["method"] })}
+              options={[{ value: "actual", label: "Actual precursor value" }, { value: "default", label: "Default precursor value" }]}
+              className="w-full"
+              ariaLabel="Precursor value method"
+              disabled={!editable}
+            />
+            {r.method === "default" && (
+              <Select
+                value={r.defaultValueBasis}
+                onChange={(basis) => patch(i, { defaultValueBasis: basis as PrecursorRow["defaultValueBasis"] })}
+                options={[
+                  { value: "published_includes_markup", label: "Published final value (markup included)" },
+                  { value: "unmarked_base", label: "Unmarked base (apply reporting-year markup)" },
+                ]}
+                className="w-full"
+                ariaLabel="Default precursor value basis"
+                disabled={!editable}
+              />
+            )}
+            {r.method === "actual" && (
+              <input
+                disabled={!editable}
+                value={r.verificationReference}
+                onChange={(event) => patch(i, { verificationReference: event.target.value })}
+                placeholder="Verifier report reference (reference only)"
+                aria-label="Precursor verifier report reference"
+                className={cell}
+              />
+            )}
+          </div>
+          {r.method === "actual" && (
+            <p className="mt-1.5 text-[10.5px] text-black/35">A typed reference does not make the value verified; an accredited report remains required.</p>
+          )}
         </div>
       ))}
       {editable && (
@@ -269,10 +399,13 @@ function PrecursorEditor({ value, editable, onChange }: { value: string; editabl
           + Add precursor
         </button>
       )}
-      {rows.length > 0 && (
+      {rows.length > 0 && contribution !== null && (
         <p className="text-right font-mono text-[11px] text-black/40">
-          precursor contribution: {rows.reduce((a, r) => a + (Number(r.qty) > 0 && Number(r.see) > 0 ? Number(r.qty) * Number(r.see) : 0), 0).toFixed(2)} tCO₂e/t
+          precursor contribution: {formatDecimal(contribution)} TCO2E_PER_TNE
         </p>
+      )}
+      {rows.length > 0 && contribution === null && (
+        <p className="text-right text-[11px] text-[#b45309]">Complete the reporting year and default basis before a deterministic contribution can be shown.</p>
       )}
     </div>
   );
@@ -344,7 +477,7 @@ export function FormView() {
   const installation = sections.find((s) => s.key === "installation");
   const tailOnce = sections.filter((s) => s.key === "carbon" || s.key === "verification");
 
-  // Open AI issues still needing attention (a filled-in "missing" no longer counts).
+  // Open validation issues still needing attention (a filled-in "missing" no longer counts).
   const issueCount = React.useMemo(
     () => [...flagged].filter(([k, f]) => !(f.kind === "missing" && state.values[k]?.trim())).length,
     [flagged, state.values],
@@ -387,7 +520,7 @@ export function FormView() {
               <TriangleAlert size={15} strokeWidth={1.5} />
             </span>
             <div className="min-w-0 flex-1 text-[13px] leading-relaxed text-black/65">
-              <span className="text-black/80">The quality check flagged {issueCount} field{issueCount === 1 ? "" : "s"}.</span> They’re outlined below with a note on what to check. Fix them and re-run the check before you sign.
+              <span className="text-black/80">The quality check flagged {issueCount} field{issueCount === 1 ? "" : "s"}.</span> They’re outlined below with a note on what to check. Fix them and re-run the check before recording a local attestation.
               <Button size="sm" className="mt-3" onClick={() => focusField(firstFlagKey)}>
                 Jump to first flagged field <ArrowDown size={13} strokeWidth={1.5} />
               </Button>
@@ -404,7 +537,7 @@ export function FormView() {
             <div className="flex items-center gap-2 pt-1">
               <span className="font-[family-name:var(--font-plex)] text-lg font-light text-[#111]">{rp.product.name}</span>
               <span className="font-mono text-[11px] text-black/35">CN {rp.product.cnCode}</span>
-              <span className="ml-auto font-mono text-[11px] text-black/35">{rp.totalTonnes.toLocaleString("en-US")} t · {rp.lots.length} lot{rp.lots.length === 1 ? "" : "s"}</span>
+              <span className="ml-auto font-mono text-[11px] text-black/35">{formatDecimal(rp.commercialQuantityTonnes)} TNE · {rp.lots.length} lot{rp.lots.length === 1 ? "" : "s"}</span>
             </div>
             {productSections.map((s) => (
               <SectionCard key={s.key} section={s} productId={rp.product.id} />

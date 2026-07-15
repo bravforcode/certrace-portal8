@@ -14,12 +14,17 @@ import { formatPrecursors } from "./precursors";
 import type { ReviewSubmission, ReportSignoff } from "./exporter-review";
 import { getTeamMember } from "./team-store";
 import type { SupplierChapter, SignOffStep, ChapterProduct, PackageInput } from "./download";
+import { decimal, decimalToString } from "./mrv";
+import { embeddedEmissionsPerTonne, multiplyExact } from "./workflow-measurements";
 
 const fmtDate = (ts: number) => new Date(ts).toUTCString();
-const numOrNull = (v: string | undefined): number | null => {
+const decimalOrNull = (v: string | undefined): string | null => {
   if (v == null || v.trim() === "") return null;
-  const n = Number(v.replace(/,/g, ""));
-  return Number.isFinite(n) ? n : null;
+  try {
+    return decimalToString(decimal(v.trim()));
+  } catch {
+    return null;
+  }
 };
 
 /** Part C of the package — one full chapter per submission. */
@@ -29,9 +34,20 @@ export function buildSupplierChapters(subs: ReviewSubmission[]): SupplierChapter
 
     const products: ChapterProduct[] = sub.request.products.map((rp) => {
       const pid = rp.product.id;
-      const direct = numOrNull(v("direct-emissions", pid));
-      const indirect = numOrNull(v("indirect-emissions", pid));
-      const total = numOrNull(v("total-emissions", pid)) ?? (direct != null && indirect != null ? direct + indirect : null);
+      const direct = decimalOrNull(v("direct-emissions", pid));
+      const indirect = decimalOrNull(v("indirect-emissions", pid));
+      let total: string | null = null;
+      try {
+        total = embeddedEmissionsPerTonne({
+          product: rp.product,
+          direct: v("direct-emissions", pid),
+          indirect: v("indirect-emissions", pid),
+          precursors: v("precursors", pid),
+          reportingPeriod: sub.request.period,
+        });
+      } catch {
+        total = null;
+      }
       return {
         name: rp.product.name,
         cnCode: rp.product.cnCode,
@@ -39,17 +55,29 @@ export function buildSupplierChapters(subs: ReviewSubmission[]): SupplierChapter
         category: rp.product.category,
         group: rp.product.group,
         route: v("process-route", pid) || undefined,
-        quantityTonnes: rp.totalTonnes,
+        installationReference: v("installation-reference", pid) || undefined,
+        productionActivityTonnes: v("production-activity", pid) || undefined,
+        mrvMethod: v("emissions-method", pid) || undefined,
+        monitoringPlanId: v("monitoring-plan-id", pid) || undefined,
+        monitoringPlanVersion: v("monitoring-plan-version", pid) || undefined,
+        systemBoundary: v("system-boundary", pid) || undefined,
+        excludedActivities: v("excluded-activities", pid) || undefined,
+        dataGapMethodology: v("data-gap-methodology", pid) || undefined,
+        controlActivities: v("control-activities", pid) || undefined,
+        quantityTonnes: rp.commercialQuantityTonnes,
         directPerTonne: direct,
         indirectPerTonne: indirect,
         totalPerTonne: total,
-        absoluteTCO2e: total != null ? Math.round(total * rp.totalTonnes) : null,
+        absoluteTCO2e: total != null ? multiplyExact(total, rp.commercialQuantityTonnes) : null,
+        calculationTraces: sub.emissions.find((line) => line.productId === pid)?.calculationTraces ?? [],
         method: v("method", pid) || undefined,
         // structured rows print as readable lines; legacy prose passes through
         precursors: v("precursors", pid) ? formatPrecursors(v("precursors", pid)) : undefined,
         precursorRoutes: v("precursor-route", pid) || undefined,
         electricityConsumed: v("elec-consumed", pid) || undefined,
-        electricityFactor: v("elec-factor", pid) || undefined,
+        electricityFactor: v("elec-factor", pid)
+          ? `${v("elec-factor", pid)} TCO2E_PER_MWH${v("elec-factor-source", pid) ? ` · ${v("elec-factor-source", pid)}` : ""}`
+          : undefined,
         electrolysisTech: v("al-process", pid) || undefined,
       };
     });
@@ -63,29 +91,48 @@ export function buildSupplierChapters(subs: ReviewSubmission[]): SupplierChapter
       signedBy: sub.signedBy,
       signedRole: sub.signedRole,
       dataQualityScore: sub.check?.score ?? null,
+      actorRole: sub.profile?.actorRole,
+      upstreamProducer: sub.profile?.upstreamProducer || undefined,
       installation: {
         name: v("inst-name"),
         address: v("inst-address"),
         country: v("inst-country") || sub.supplier.country,
         unlocode: v("inst-unlocode") || undefined,
         coordinates: v("inst-coords") || undefined,
+        productionActivity: sub.profile?.productionActivityMeasurement?.canonicalValue,
       },
+      additionalInstallations: (sub.profile?.additionalInstallations ?? []).map((installation) => ({
+        id: installation.id,
+        name: installation.name,
+        country: installation.country,
+        address: installation.address,
+        routes: installation.routes,
+        productionActivity: installation.productionActivityMeasurement?.canonicalValue,
+      })),
+      monitoringPlans: [...new Map(products.map((product) => [
+        `${product.installationReference ?? "primary"}:${product.monitoringPlanId ?? ""}:${product.monitoringPlanVersion ?? ""}`,
+        { id: product.monitoringPlanId ?? "", version: product.monitoringPlanVersion ?? "", installationReference: product.installationReference },
+      ])).values()],
       products,
       carbonPrice: {
         amount: `${v("carbon-price") || "0"} ${v("carbon-price-currency") || "THB"}/tCO₂e`,
         instrument: v("carbon-price-form") || undefined,
-        note: (v("carbon-price") || "0") === "0" ? "Thailand currently has no carbon price." : undefined,
+        note: (v("carbon-price") || "0") === "0" ? "No carbon price was reported for this dataset." : undefined,
       },
       verification: v("verification"),
       documents: sub.request.documents.map((d) => ({
         label: d.label,
         required: d.required,
-        status: (sub.docs[d.id]?.status === "uploaded" ? "uploaded" : "missing") as "uploaded" | "missing",
+        status: (sub.docs[d.id]?.status === "uploaded" ? "referenced" : "missing") as "referenced" | "missing",
         files: (sub.docs[d.id]?.files ?? []).map((f) => f.name),
       })),
-      findings: (sub.check?.findings ?? [])
-        .filter((f) => f.severity === "critical" || f.severity === "warning")
-        .map((f) => ({ severity: f.severity as "critical" | "warning", title: f.title, detail: f.detail })),
+      findings: [
+        ...(sub.check?.findings ?? [])
+          .filter((f) => f.severity === "critical" || f.severity === "warning")
+          .map((f) => ({ severity: f.severity as "critical" | "warning", title: f.title, detail: f.detail })),
+        ...sub.mrvAssemblyBlockers.map((detail) => ({ severity: "critical" as const, title: "MRV report assembly blocked", detail })),
+        ...(sub.mrvReportDraft?.blockers ?? []).map((detail) => ({ severity: "critical" as const, title: "Regulatory readiness blocked", detail })),
+      ],
       versions: sub.versions.map((ver) => ({ n: ver.n, when: fmtDate(ver.submittedAt), score: ver.score, signedBy: ver.signedBy })),
     };
   });
@@ -116,15 +163,15 @@ export function packageSummaryData(approved: ReviewSubmission[]) {
     suppliers: approved.map((s) => {
       const line = s.emissions[0];
       const pid = line?.productId;
-      const direct = pid ? Number(s.values[valueKey("direct-emissions", pid)]) : NaN;
-      const indirect = pid ? Number(s.values[valueKey("indirect-emissions", pid)]) : NaN;
+      const direct = pid ? decimalOrNull(s.values[valueKey("direct-emissions", pid)]) : null;
+      const indirect = pid ? decimalOrNull(s.values[valueKey("indirect-emissions", pid)]) : null;
       return {
         name: s.supplier.name,
         material: s.supplier.material,
         emissions: line?.perTonne ?? null,
         productionRoute: pid ? s.values[valueKey("process-route", pid)] : undefined,
-        directEmissions: Number.isFinite(direct) ? direct : null,
-        indirectEmissions: Number.isFinite(indirect) ? indirect : null,
+        directEmissions: direct,
+        indirectEmissions: indirect,
         verificationStatus: s.values[valueKey("verification")] || undefined,
         exportQuantity: line?.tonnes,
       };
@@ -133,7 +180,7 @@ export function packageSummaryData(approved: ReviewSubmission[]) {
       s.request.documents.map((d) => ({
         supplier: s.supplier.name,
         name: d.label,
-        status: (s.docs[d.id]?.status === "uploaded" ? "uploaded" : "missing") as "uploaded" | "missing",
+        status: (s.docs[d.id]?.status === "uploaded" ? "referenced" : "missing") as "referenced" | "missing",
       })),
     ),
     aiWarnings: approved.flatMap((s) =>

@@ -6,7 +6,7 @@ import { ModuleGuard } from "@/components/admin/shell";
 import { DECLARATIONS, FUNNEL, KPIS, MRR_TREND, ORGS, QUEUE, getOrg, thb, thbCompact } from "@/lib/admin-data";
 
 export default function Reports() {
-  const byStatus = ["collecting", "in-review", "approved", "dispatched"].map((s) => ({
+  const byStatus = ["collecting", "in-review", "approved", "draft-preview"].map((s) => ({
     status: s,
     count: DECLARATIONS.filter((d) => d.status === s).length,
   }));

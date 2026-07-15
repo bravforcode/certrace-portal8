@@ -52,7 +52,7 @@ export default function SuppliersPage() {
       <PageHeader
         eyebrow="Suppliers"
         title="Supplier directory."
-        lead="Everyone you collect data from, across every declaration. Suppliers fill a free guided form — no account, no fee — and their verified data carries forward."
+        lead="Everyone represented in this browser’s readiness demo. Supplier profiles and guided forms remain local and are not verified or shared across devices."
         actions={
           <Button onClick={() => setAdding(true)}>
             <Plus size={15} strokeWidth={1.5} /> Add supplier
@@ -204,7 +204,7 @@ function AddSupplierModal({ onClose, onAdd }: { onClose: () => void; onAdd: (nam
   const [name, setName] = React.useState("");
   const [material, setMaterial] = React.useState("");
   const [copied, setCopied] = React.useState(false);
-  const link = "https://app.certrace.com/s/" + (name ? name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") : "invite") + "-q2";
+  const link = "/s/demo-" + (name ? name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") : "supplier");
 
   const copy = async () => {
     try {
@@ -222,7 +222,7 @@ function AddSupplierModal({ onClose, onAdd }: { onClose: () => void; onAdd: (nam
       return;
     }
     onAdd(name.trim(), material.trim());
-    toast({ message: `Invite sent to ${name.trim()}.`, detail: "They get a free guided form — no account needed." });
+    toast({ message: `${name.trim()} added locally.`, detail: "No invite or email was sent; cross-device supplier access needs the deferred backend." });
     onClose();
   };
 
@@ -233,7 +233,7 @@ function AddSupplierModal({ onClose, onAdd }: { onClose: () => void; onAdd: (nam
         <div className="flex items-start justify-between">
           <div>
             <Eyebrow>Add supplier</Eyebrow>
-            <h2 className="mt-2 font-[family-name:var(--font-plex)] text-2xl font-light text-[#111]">Invite a supplier.</h2>
+            <h2 className="mt-2 font-[family-name:var(--font-plex)] text-2xl font-light text-[#111]">Add a demo supplier.</h2>
           </div>
           <button onClick={onClose} aria-label="Close" className="text-black/35 hover:text-black">
             <X size={20} strokeWidth={1.5} />
@@ -249,7 +249,7 @@ function AddSupplierModal({ onClose, onAdd }: { onClose: () => void; onAdd: (nam
           </Field>
 
           <div>
-            <span className="mb-2 block text-[11px] uppercase tracking-[0.1em] text-black/55">Or share a guided-form link</span>
+            <span className="mb-2 block text-[11px] uppercase tracking-[0.1em] text-black/55">Same-browser link placeholder</span>
             <div className="flex items-center gap-2 rounded-xl border border-black/10 px-3 py-2.5">
               <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-black/55">{link}</span>
               <button onClick={copy} className="inline-flex flex-none items-center gap-1 rounded-lg border border-black/10 px-2.5 py-1.5 text-[10px] uppercase tracking-[0.08em] text-black/55 hover:border-black/25 hover:text-black">
@@ -259,9 +259,9 @@ function AddSupplierModal({ onClose, onAdd }: { onClose: () => void; onAdd: (nam
           </div>
 
           <Button className="w-full" onClick={send}>
-            Send invite
+            Add locally
           </Button>
-          <p className="text-center text-[11px] text-black/35">Suppliers are always free and never take a seat.</p>
+          <p className="text-center text-[11px] text-black/35">Demo only — this action does not create access or deliver a link.</p>
         </div>
       </Card>
     </div>

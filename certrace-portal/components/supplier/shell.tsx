@@ -18,9 +18,10 @@ import type { SubmissionStatus } from "@/lib/supplier-store";
 function SaveIndicator({ status }: { status: SaveStatus }) {
   if (status === "idle") return null;
   const map = {
-    saving: { tone: "info" as const, label: "Saving…", pulse: true, glow: false },
-    saved: { tone: "ok" as const, label: "Saved", pulse: false, glow: true },
-    offline: { tone: "err" as const, label: "Offline — not saved", pulse: false, glow: false },
+    saving: { tone: "info" as const, label: "Saving locally…", pulse: true, glow: false },
+    saved: { tone: "ok" as const, label: "Saved in browser", pulse: false, glow: true },
+    offline: { tone: "warn" as const, label: "Offline · local only", pulse: false, glow: false },
+    error: { tone: "err" as const, label: "Local save failed", pulse: false, glow: false },
   };
   const m = map[status];
   return (
@@ -119,7 +120,7 @@ export function SupplierShell({ children }: { children: React.ReactNode }) {
 
       <footer className="mx-auto max-w-5xl px-4 pb-10 md:px-6">
         <p className="border-t border-black/[0.06] pt-5 text-center text-[11px] text-black/30">
-          Powered by Certrace · suppliers are always free, no account required · your data is encrypted and only shared with {req.exporterName}
+          Certrace readiness demo · browser-local sample data only · no encryption, email delivery, backend sync or cross-device Smart Links
         </p>
       </footer>
     </div>

@@ -7,7 +7,7 @@ import { Button, Card, PageHeader } from "@/components/ui";
 import { KV, SectionTitle, StatusChip } from "@/components/admin/bits";
 import { ModuleGuard } from "@/components/admin/shell";
 import { useAdminAuth } from "@/lib/admin-auth";
-import { useAdminStore, allTickets, replyTicket, setTicketStatus } from "@/lib/admin-store";
+import { useAdminStore, addTicketNote, allTickets, setTicketStatus } from "@/lib/admin-store";
 import { getOrg, getStaff, getDepartment } from "@/lib/admin-data";
 
 export default function TicketDetail() {
@@ -15,7 +15,6 @@ export default function TicketDetail() {
   const { user, hasPower } = useAdminAuth();
   useAdminStore();
   const [body, setBody] = React.useState("");
-  const [internal, setInternal] = React.useState(false);
 
   const ticket = allTickets().find((t) => t.id === ticketId);
   if (!ticket) {
@@ -93,24 +92,20 @@ export default function TicketDetail() {
                     value={body}
                     onChange={(e) => setBody(e.target.value)}
                     rows={3}
-                    placeholder={internal ? "Internal note (not visible to the customer)…" : "Reply to the customer…"}
+                    placeholder="Browser-local internal note (no customer message is sent)…"
                     className="w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-black/70 placeholder:text-black/25 focus:border-black/25 focus:outline-none"
                   />
                   <div className="mt-2 flex items-center justify-between gap-3">
-                    <label className="flex cursor-pointer items-center gap-2 text-xs text-black/45">
-                      <input type="checkbox" checked={internal} onChange={(e) => setInternal(e.target.checked)} className="accent-[#111]" />
-                      Internal note
-                    </label>
+                    <span className="text-xs text-black/45">Local demo only · no email or customer delivery</span>
                     <Button
                       size="sm"
                       disabled={body.trim().length < 2}
                       onClick={() => {
-                        replyTicket(user, ticket.id, body.trim(), internal);
+                        addTicketNote(user, ticket.id, body.trim());
                         setBody("");
-                        setInternal(false);
                       }}
                     >
-                      {internal ? "Add note" : "Send reply"}
+                      Add local note
                     </Button>
                   </div>
                 </div>

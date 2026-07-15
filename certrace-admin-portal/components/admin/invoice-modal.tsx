@@ -1,18 +1,16 @@
 "use client";
 
-/* Invoice document view — opened by clicking any invoice row (Billing page,
-   account detail). Renders the full tax invoice in THB with Thai VAT, plus the
-   billing actions (mark paid / dunning reminder / print) gated by manage-billing. */
+/* Browser-local invoice fixture. No payment processor, tax-document authority,
+   email provider or accounting backend is configured. */
 
 import * as React from "react";
-import { Banknote, Printer, Send, X } from "lucide-react";
-import { Button, cn } from "@/components/ui";
+import { Printer, X } from "lucide-react";
+import { Button } from "@/components/ui";
 import { Modal } from "@/components/controls";
 import { StatusChip } from "@/components/admin/bits";
 import { toast } from "@/components/toast";
 import { CertraceLogo } from "@/components/logo";
 import { useAdminAuth } from "@/lib/admin-auth";
-import { markInvoicePaid, sendInvoiceReminder } from "@/lib/admin-store";
 import { getOrg, thb, VAT_RATE, type Invoice } from "@/lib/admin-data";
 
 function dueDate(issuedAt: string) {
@@ -37,39 +35,12 @@ export function invoiceLines(inv: Invoice) {
 }
 
 function printInvoice(inv: Invoice) {
-  const L = invoiceLines(inv);
-  const w = window.open("", "_blank", "width=760,height=920");
-  if (!w) return;
-  w.document.write(`<!doctype html><html><head><title>${inv.id} — Certrace</title><style>
-    body{font-family:Georgia,serif;color:#1a1a1a;max-width:640px;margin:48px auto;padding:0 24px}
-    .mono{font-family:"Courier New",monospace}
-    h1{font-size:15px;letter-spacing:.2em;text-transform:uppercase;margin:0}
-    table{width:100%;border-collapse:collapse;margin-top:24px}
-    td,th{padding:10px 0;border-bottom:1px solid #e5e5e5;text-align:left;font-size:14px}
-    td:last-child,th:last-child{text-align:right}
-    .tot td{border-bottom:none;padding:6px 0}
-    .grand td{font-weight:bold;font-size:16px;border-top:2px solid #1a1a1a;padding-top:12px}
-    .muted{color:#777;font-size:12px}
-  </style></head><body>
-    <h1>Certrace — Tax Invoice</h1>
-    <p class="mono muted">${inv.id} · issued ${inv.issuedAt} · due ${L.due} · status: ${inv.status}</p>
-    <p><strong>From</strong><br/>Certrace Co., Ltd.<br/>88 Sukhumvit Road, Khlong Toei, Bangkok 10110, Thailand<br/>Tax ID 0-1055-66123-45-6</p>
-    <p><strong>Bill to</strong><br/>${L.org?.name ?? inv.orgId}<br/>Thailand</p>
-    <table>
-      <tr><th>Description</th><th>Amount</th></tr>
-      <tr><td>${L.description}<br/><span class="muted">${L.seatNote}</span></td><td class="mono">${thb(L.subtotal)}</td></tr>
-      <tr class="tot"><td>Subtotal</td><td class="mono">${thb(L.subtotal)}</td></tr>
-      <tr class="tot"><td>VAT (7%)</td><td class="mono">${thb(L.vat)}</td></tr>
-      <tr class="tot grand"><td>Total due</td><td class="mono">${thb(L.total)}</td></tr>
-    </table>
-    <p class="muted">All amounts in Thai baht (THB). Payment due within 14 days of issue.</p>
-    <script>window.print()</script>
-  </body></html>`);
-  w.document.close();
+  void inv;
+  window.print();
 }
 
 export function InvoiceModal({ invoice, onClose }: { invoice: Invoice | null; onClose: () => void }) {
-  const { user, hasPower } = useAdminAuth();
+  const { hasPower } = useAdminAuth();
   const canManage = hasPower("manage-billing");
 
   if (!invoice) return null;
@@ -81,7 +52,7 @@ export function InvoiceModal({ invoice, onClose }: { invoice: Invoice | null; on
         <div>
           <div className="flex items-center gap-3">
             <CertraceLogo className="h-[14px] w-auto" />
-            <span className="font-pixel text-[10px] uppercase tracking-[0.18em] text-black/35">Tax invoice</span>
+            <span className="font-pixel text-[10px] uppercase tracking-[0.18em] text-black/35">Illustrative invoice fixture</span>
           </div>
           <h2 id="invoice-title" className="mt-3 font-[family-name:var(--font-plex)] text-2xl font-light tracking-tight text-[#111]">
             {invoice.id}
@@ -100,8 +71,7 @@ export function InvoiceModal({ invoice, onClose }: { invoice: Invoice | null; on
         <div>
           <div className="font-pixel text-[10px] uppercase tracking-[0.16em] text-black/35">From</div>
           <p className="mt-1.5 text-[13px] leading-relaxed text-black/65">
-            Certrace Co., Ltd.<br />88 Sukhumvit Road, Khlong Toei<br />Bangkok 10110, Thailand<br />
-            <span className="font-mono text-[11px] text-black/40">Tax ID 0-1055-66123-45-6</span>
+            Certrace readiness demo<br />No legal issuer or tax-document authority configured
           </p>
         </div>
         <div>
@@ -131,38 +101,22 @@ export function InvoiceModal({ invoice, onClose }: { invoice: Invoice | null; on
           <span className="font-medium">Total due</span>
           <span className="font-[family-name:var(--font-plex)] text-xl font-light">{thb(L.total)}</span>
         </div>
-        <p className="pb-1 text-xs text-black/35">All amounts in Thai baht (THB). Payment due within 14 days of issue.</p>
+        <p className="pb-1 text-xs text-black/35">Illustrative THB figures only. This is not a legal invoice, payment request, or accounting record.</p>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2 p-6 pt-4">
         <Button size="sm" variant="ghost" onClick={() => printInvoice(invoice)}>
           <Printer size={14} strokeWidth={1.5} /> Print / PDF
         </Button>
-        <div className={cn("flex flex-wrap items-center gap-2", !canManage && "hidden")}>
-          {invoice.status !== "paid" && user && (
-            <>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => {
-                  sendInvoiceReminder(user, invoice.id, L.org?.name ?? invoice.orgId);
-                  toast({ message: `Reminder sent to ${L.org?.name}`, detail: `${invoice.id} · ${thb(L.total)} outstanding — logged to the audit trail.`, tone: "info" });
-                }}
-              >
-                <Send size={13} strokeWidth={1.5} /> Send reminder
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => {
-                  markInvoicePaid(user, invoice.id);
-                  toast({ message: `${invoice.id} marked as paid`, detail: `${thb(L.total)} · recorded to the audit trail.` });
-                }}
-              >
-                <Banknote size={14} strokeWidth={1.5} /> Mark as paid
-              </Button>
-            </>
-          )}
-        </div>
+        {canManage && invoice.status !== "paid" && (
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => toast({ message: "Billing action unavailable", detail: "No payment, accounting, email, or audit backend is configured.", tone: "info" })}
+          >
+            Billing backend required
+          </Button>
+        )}
         {!canManage && (
           <span className="text-xs text-black/35">Read-only — billing actions need the manage-billing power.</span>
         )}

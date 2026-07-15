@@ -18,11 +18,18 @@ function heading(d: Declaration) {
 
 export function duplicateToDraft(d: Declaration): string {
   const materials = Array.from(new Set(d.suppliers.map((s) => s.material)));
-  const products = Array.from(new Set(materials.map((m) => productForMaterial(m).id)));
+  const classified = materials.map((material) => ({ material, product: productForMaterial(material) }));
+  const unresolved = classified.filter((item) => item.product === null).map((item) => item.material);
+  if (unresolved.length > 0) {
+    throw new Error(`Resolve regulatory product classification before duplicating: ${unresolved.join(", ")}.`);
+  }
+  const products = Array.from(new Set(classified.map((item) => item.product!.id)));
 
   const mapping: Mapping = {};
   d.suppliers.forEach((s) => {
-    const pid = productForMaterial(s.material).id;
+    const product = productForMaterial(s.material);
+    if (!product) return;
+    const pid = product.id;
     const entries = mapping[pid] ?? [];
     if (!entries.some((e) => e.supplierId === s.id)) {
       mapping[pid] = [...entries, { supplierId: s.id, lots: [{ id: `${s.id}-l1`, qty: "", unit: "", from: "", to: "", notes: "" }] }];

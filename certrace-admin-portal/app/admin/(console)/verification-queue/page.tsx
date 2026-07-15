@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { Button, Card, PageHeader } from "@/components/ui";
-import { FilterChips, SectionTitle, StatusChip } from "@/components/admin/bits";
+import { FilterChips, StatusChip } from "@/components/admin/bits";
 import { ModuleGuard } from "@/components/admin/shell";
 import { useAdminAuth } from "@/lib/admin-auth";
 import { useAdminStore, allQueue, updateQueue, staffName } from "@/lib/admin-store";
@@ -12,7 +12,7 @@ import { getOrg, type QueueKind, type QueueStatus } from "@/lib/admin-data";
 type Filter = "all" | QueueKind | QueueStatus;
 
 const KIND_LABEL: Record<QueueKind, string> = {
-  "ai-critical": "AI critical",
+  "ai-critical": "Deterministic critical",
   escalation: "Escalation",
   "spot-audit": "Spot audit",
 };
@@ -39,7 +39,7 @@ export default function VerificationQueue() {
         <PageHeader
           eyebrow="Verification & QA"
           title="Verification queue"
-          lead="AI-check criticals, exporter escalations and routine spot audits — every item carries an SLA and an owner."
+          lead="Deterministic validation blockers, human-review escalations and local spot checks in this browser-only admin demo."
         />
 
         <FilterChips<Filter>
@@ -50,7 +50,7 @@ export default function VerificationQueue() {
             { value: "open", label: "Open", count: items.filter((i) => i.status === "open").length },
             { value: "assigned", label: "Assigned", count: items.filter((i) => i.status === "assigned").length },
             { value: "resolved", label: "Resolved", count: items.filter((i) => i.status === "resolved").length },
-            { value: "ai-critical", label: "AI critical" },
+            { value: "ai-critical", label: "Deterministic critical" },
             { value: "escalation", label: "Escalations" },
             { value: "spot-audit", label: "Spot audits" },
           ]}

@@ -17,8 +17,8 @@ const STEP_LABEL: Record<string, string> = {
   comply: "Compliance",
   review: "In review",
   report: "Report",
-  submit: "Submitting",
-  done: "Submitted",
+  submit: "Preparing handoff",
+  done: "Closed demo",
 };
 
 function tone(d: Declaration) {
@@ -53,7 +53,7 @@ const STATUSES = [
   { id: "draft", label: "Draft" },
   { id: "open", label: "Open" },
   { id: "overdue", label: "Overdue" },
-  { id: "submitted", label: "Submitted" },
+  { id: "submitted", label: "Closed demo" },
 ] as const;
 
 const PAGE_SIZE_CARDS = 8;
@@ -130,7 +130,7 @@ export default function DeclarationsPage() {
   const shownCount = status === "draft" ? draftItems.length : list.length;
 
   const open = allDeclarations.filter((d) => d.step !== "done").length;
-  const submitted = allDeclarations.filter((d) => d.step === "done").length;
+  const closed = allDeclarations.filter((d) => d.step === "done").length;
 
   const filterPill = (active: boolean) =>
     cn("rounded-full border px-3 py-1.5 text-[12px] transition-colors", active ? "border-black/25 bg-[#111] text-white" : "border-black/10 text-black/55 hover:border-black/25");
@@ -140,21 +140,21 @@ export default function DeclarationsPage() {
       {/* Description — matches dashboard header, action on the right */}
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <Eyebrow>Declarations</Eyebrow>
+          <Eyebrow>CBAM data workspaces</Eyebrow>
           <h1 className="mt-2 font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111] md:text-4xl">Reporting cycles.</h1>
           <p className="mt-3 max-w-xl text-sm leading-relaxed text-black/45">
-            Every regulation, market and period you&apos;re filing for. A declaration is the unit of compliance — scope it once, the platform runs the rest.
+            Browser-local supplier collection and draft calculation workspaces. The EU-side authorised CBAM declarant remains responsible for the annual declaration and filing.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <Chip tone="info" pulse={false}>{open} open</Chip>
-            <Chip tone="ok" pulse={false}>{submitted} submitted</Chip>
+            <Chip tone="muted" pulse={false}>{closed} closed demo</Chip>
             {drafts.length > 0 && <Chip pulse={false}>{drafts.length} draft{drafts.length === 1 ? "" : "s"}</Chip>}
             <Chip pulse={false}>{allDeclarations.length} total</Chip>
           </div>
         </div>
         <Link href="/declarations/new" className="hidden md:block">
           <Button>
-            <Plus size={15} strokeWidth={1.5} /> New declaration
+            <Plus size={15} strokeWidth={1.5} /> New data workspace
           </Button>
         </Link>
       </div>
@@ -413,7 +413,7 @@ function DraftRow({ draft, onDiscard }: { draft: Draft; onDiscard: () => void })
     >
       <td className="px-4 py-3">
         <div className="text-[13px] text-black/80">{draft.display.name}</div>
-        <div className="text-[11px] text-black/40">Draft · not yet sent</div>
+        <div className="text-[11px] text-black/40">Draft · browser-local · not shared</div>
       </td>
       <td className="px-4 py-3"><span className="font-mono text-[11px] uppercase tracking-[0.08em] text-black/50">{purposeLabel(draft.display.purpose, false)}</span></td>
       <td className="px-4 py-3 text-[12px] text-black/60">{draft.display.period || "—"}</td>

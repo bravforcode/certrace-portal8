@@ -13,7 +13,7 @@
 
 import type { ReviewRollup } from "./exporter-review";
 import type { ComplianceFacts } from "./compliance-engine";
-import { EU_ETS_PROXY_EUR_PER_TCO2E } from "./compliance-engine";
+import { decimal, decimalToString } from "./mrv";
 
 export type TrustFactor = { label: string; impact: number; detail: string }; // impact: signed points vs a 100 baseline
 
@@ -25,7 +25,7 @@ export type IntelligenceReport = {
   trustScore: number;
   trustFactors: TrustFactor[];
   changeNarrative: string[];
-  businessImpact: { low: number; high: number; note: string };
+  businessImpact: { low: string | null; high: string | null; note: string };
   weakEvidence: WeakEvidenceItem[];
   assumptions: AssumptionItem[];
   routing: RoutingSuggestion[];
@@ -39,14 +39,8 @@ function trustScoreFor(roll: ReviewRollup, facts: ComplianceFacts): { score: num
   const avgQuality = roll.avgScore ?? 100;
   const qualityDelta = Math.round((avgQuality - 100) * 0.5);
   if (qualityDelta !== 0) {
-    factors.push({ label: "Supplier data-quality average", impact: qualityDelta, detail: `Average AI quality score across submissions is ${avgQuality}/100.` });
+    factors.push({ label: "Supplier data-quality average", impact: qualityDelta, detail: `Average deterministic quality score across submissions is ${avgQuality}/100.` });
     score += qualityDelta;
-  }
-
-  if (facts.anyCapViolations) {
-    const n = Object.values(facts.perSupplier).reduce((a, s) => a + s.capViolations.length, 0);
-    factors.push({ label: "Default-value cap breached", impact: -15, detail: `${n} complex-good product${n === 1 ? "" : "s"} report on default values with no actual data — exceeds the 20% cap for complex goods.` });
-    score -= 15;
   }
 
   if (facts.anyUnverifiedActual) {
@@ -57,12 +51,12 @@ function trustScoreFor(roll: ReviewRollup, facts: ComplianceFacts): { score: num
 
   const evidenceGapCount = Object.values(facts.perSupplier).reduce((a, s) => a + s.evidenceGaps.filter((g) => g.required).length, 0);
   if (evidenceGapCount > 0) {
-    factors.push({ label: "Required evidence missing", impact: -8, detail: `${evidenceGapCount} required document${evidenceGapCount === 1 ? "" : "s"} not yet attached across submitted suppliers.` });
+    factors.push({ label: "Required evidence missing", impact: -8, detail: `${evidenceGapCount} required document reference${evidenceGapCount === 1 ? " is" : "s are"} missing; browser metadata is not evidence.` });
     score -= 8;
   }
 
   if (roll.anomalies > 0) {
-    factors.push({ label: "Unresolved anomalies", impact: -6, detail: `${roll.anomalies} anomaly flag${roll.anomalies === 1 ? "" : "s"} from the supplier-side AI check remain open.` });
+    factors.push({ label: "Unresolved anomalies", impact: -6, detail: `${roll.anomalies} advisory anomaly flag${roll.anomalies === 1 ? "" : "s"} remain open.` });
     score -= 6;
   }
 
@@ -95,19 +89,28 @@ function changeNarrativeFor(roll: ReviewRollup): string[] {
 
   const newCritical = submitted.filter((s) => s.supplier.critical && s.lifecycle !== "approved");
   if (newCritical.length > 0) {
-    lines.push(`${newCritical.length} CBAM-critical supplier${newCritical.length === 1 ? "" : "s"} — ${newCritical.map((s) => s.supplier.name).join(", ")} — still need${newCritical.length === 1 ? "s" : ""} a decision before this declaration can be filed.`);
+    lines.push(`${newCritical.length} CBAM-critical supplier${newCritical.length === 1 ? "" : "s"} — ${newCritical.map((s) => s.supplier.name).join(", ")} — still need${newCritical.length === 1 ? "s" : ""} a local review decision.`);
   }
 
   if (lines.length === 0) lines.push("No material change versus the prior review — figures and methodology are consistent with what's been approved before.");
   return lines;
 }
 
-function businessImpactFor(facts: ComplianceFacts): { low: number; high: number; note: string } {
+function businessImpactFor(facts: ComplianceFacts): { low: string | null; high: string | null; note: string } {
   const mid = facts.totalNetExposureEUR;
+  if (mid === null || facts.certificatePriceEURPerTCO2e === null) {
+    return {
+      low: null,
+      high: null,
+      note: facts.certificatePriceWarning ?? "An official effective-dated certificate price is required; no proxy was substituted.",
+    };
+  }
+  // Advisory presentation range only. Authoritative values remain decimal
+  // strings in Stage 1 and are never replaced by these rounded display bounds.
   return {
-    low: Math.round(mid * 0.85),
-    high: Math.round(mid * 1.15),
-    note: `Illustrative CBAM certificate exposure at ≈€${EU_ETS_PROXY_EUR_PER_TCO2E}/tCO₂e (EU ETS proxy), net of the Scope 2 liability rule, default-value markup and carbon price already paid. Not a filed figure — the range reflects price and verification uncertainty.`,
+    low: decimalToString(decimal(mid).times(decimal("0.85")).toDecimalPlaces(0)),
+    high: decimalToString(decimal(mid).times(decimal("1.15")).toDecimalPlaces(0)),
+    note: `Illustrative local range using the official effective-dated price of €${facts.certificatePriceEURPerTCO2e}/tCO₂e for ${facts.certificatePriceAsOf}. Not a filed figure; verification, free allocation and deductible carbon-price evidence remain separate gates.`,
   };
 }
 
@@ -117,10 +120,10 @@ function weakEvidenceFor(facts: ComplianceFacts, roll: ReviewRollup): WeakEviden
   for (const [supplierId, sf] of Object.entries(facts.perSupplier)) {
     const name = byId.get(supplierId)?.supplier.name ?? supplierId;
     for (const p of sf.unverifiedActual) {
-      items.push({ supplier: name, detail: `${p.productName} is reported as "actual" methodology but carries no verification statement — the strongest claim with the weakest backing.` });
+      items.push({ supplier: name, detail: `${p.productName} is reported as "actual" but no accredited verifier report is securely available. A typed reference or filename cannot label it verified.` });
     }
     for (const g of sf.evidenceGaps.filter((x) => x.required)) {
-      items.push({ supplier: name, detail: `${g.docLabel} was requested but never attached.` });
+      items.push({ supplier: name, detail: `${g.docLabel} has no securely stored/scanned evidence bytes; filename metadata is not evidence.` });
     }
   }
   return items;
@@ -132,7 +135,7 @@ function assumptionsFor(facts: ComplianceFacts, roll: ReviewRollup): AssumptionI
   for (const [supplierId, sf] of Object.entries(facts.perSupplier)) {
     const name = byId.get(supplierId)?.supplier.name ?? supplierId;
     for (const p of sf.defaultMethodProducts) {
-      items.push({ supplier: name, detail: `${p}: default emission factors used, marked up per the current-year schedule rather than measured at the installation.` });
+      items.push({ supplier: name, detail: `${p}: published final default values are used rather than measured installation data. Explicit unmarked precursor bases receive the effective reporting-year markup; published marked values are not marked twice.` });
     }
   }
   return items;
@@ -143,8 +146,7 @@ function routingFor(facts: ComplianceFacts, roll: ReviewRollup): RoutingSuggesti
   const suggestions: RoutingSuggestion[] = [];
   for (const [supplierId, sf] of Object.entries(facts.perSupplier)) {
     const name = byId.get(supplierId)?.supplier.name ?? supplierId;
-    if (sf.capViolations.length > 0) suggestions.push({ supplier: name, role: "compliance", reason: "Default-value cap breach on a complex good — methodology needs a documented decision before filing." });
-    if (sf.unverifiedActual.length > 0) suggestions.push({ supplier: name, role: "verifier", reason: "Actual-value claim has no accredited verification on file yet." });
+    if (sf.unverifiedActual.length > 0) suggestions.push({ supplier: name, role: "verifier", reason: "Actual-value claim has no securely available accredited-verifier report." });
     if (byId.get(supplierId)?.supplier.critical && byId.get(supplierId)?.lifecycle !== "approved") suggestions.push({ supplier: name, role: "esg", reason: "CBAM-critical supplier, not yet approved this cycle." });
   }
   return suggestions;
@@ -172,7 +174,7 @@ export function buildIntelligence(roll: ReviewRollup, facts: ComplianceFacts): I
       recommend,
       confidence,
       rationale: recommend
-        ? "Every submission is in, evidence is complete, and no methodology rule is breached — this declaration is ready for internal sign-off."
+        ? "Every submission is in and deterministic blockers are resolved for local sign-off. This recommendation is advisory and does not establish verification or legal readiness."
         : "At least one gap (methodology, evidence, or an outstanding supplier) should be resolved or explicitly accepted before recommending sign-off.",
     },
   };
