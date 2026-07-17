@@ -53,11 +53,16 @@ const EMPTY: Overlay = {
   invoiceStatus: {},
 };
 
+let cache: { raw: string | null; overlay: Overlay } | null = null;
+
 function read(): Overlay {
   if (typeof window === "undefined") return EMPTY;
   try {
     const raw = window.localStorage.getItem(KEY);
-    return raw ? { ...EMPTY, ...JSON.parse(raw) } : EMPTY;
+    if (cache && cache.raw === raw) return cache.overlay;
+    const overlay = raw ? { ...EMPTY, ...JSON.parse(raw) } : EMPTY;
+    cache = { raw, overlay };
+    return overlay;
   } catch {
     return EMPTY;
   }
@@ -69,9 +74,12 @@ function write(o: Overlay) {
 }
 
 function mutate(fn: (o: Overlay) => void) {
-  const o = read();
-  fn(o);
-  write(o);
+  // Draft on a deep copy: read() may hand back the shared EMPTY const or the
+  // cached overlay, and mutating either in place corrupts them (reset would
+  // leak, and a throwing fn would leave a half-applied cache under a stale key).
+  const draft = structuredClone(read());
+  fn(draft);
+  write(draft);
 }
 
 export function nowStamp() {

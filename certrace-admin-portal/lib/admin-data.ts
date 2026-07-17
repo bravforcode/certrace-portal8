@@ -83,8 +83,9 @@ export const DEPARTMENTS: { id: DeptId; name: string; code: string }[] = [
   { id: "super", name: "Super Admin", code: "ROOT" },
 ];
 
+const DEPT_BY_ID = new Map(DEPARTMENTS.map((d) => [d.id, d]));
 export function getDepartment(id: DeptId) {
-  return DEPARTMENTS.find((d) => d.id === id)!;
+  return DEPT_BY_ID.get(id)!;
 }
 
 export type Role = {
@@ -129,8 +130,9 @@ export const ROLES: Role[] = [
   { id: "super-admin", dept: "super", name: "Super Admin", tier: 9, powers: ["policy", "reassign-accounts", "edit-playbooks", "draft-regdata", "publish-regdata", "set-reg-live", "review-queue", "assign-queue", "calibrate-ai", "manage-verifiers", "manage-billing", "export-finance", "impersonate", "flags", "integrations", "audit-admin", "revoke-access", "legal-hold", "dsr", "reply-tickets", "escalate-tickets", "sla-config", "manage-staff", "publish-announcements"], blurb: "Break-glass override. Every action distinctly flagged in the audit log." },
 ];
 
+const ROLE_BY_ID = new Map(ROLES.map((r) => [r.id, r]));
 export function getRole(id: string) {
-  return ROLES.find((r) => r.id === id)!;
+  return ROLE_BY_ID.get(id)!;
 }
 
 /* Dept × module access — plan doc §3 verbatim (● admin ◐ act ○ view — none).
@@ -199,8 +201,9 @@ export const STAFF: StaffUser[] = [
   { id: "st-23", name: "Greta Lindqvist", email: "greta@certrace.dev", roleId: "reg-analyst", status: "invited", lastLoginAt: "—" },
 ];
 
+const STAFF_BY_ID = new Map(STAFF.map((s) => [s.id, s]));
 export function getStaff(id: string) {
-  return STAFF.find((s) => s.id === id);
+  return STAFF_BY_ID.get(id);
 }
 
 /* ── Tenant orgs ──────────────────────────────────────────── */
@@ -238,8 +241,9 @@ export const ORGS: Org[] = [
   { id: "org-10", name: "TÜV Rheinland Thailand", kind: "verifier-partner", country: "TH", plan: "Partner", mrr: 0, seats: 5, health: 88, renewalRisk: false, csOwnerId: "st-03", createdAt: "2026-01-08", lastActivity: "2026-07-05 15:30", openTickets: 0, sectors: ["Verification"] },
 ];
 
+const ORG_BY_ID = new Map(ORGS.map((o) => [o.id, o]));
 export function getOrg(id: string) {
-  return ORGS.find((o) => o.id === id);
+  return ORG_BY_ID.get(id);
 }
 
 /* ── Cross-tenant declarations monitor ────────────────────── */
