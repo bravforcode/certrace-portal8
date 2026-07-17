@@ -14,7 +14,6 @@ import {
   Trash2,
   Plus,
   Users,
-  Building2,
   Sparkles,
   CircleCheck,
   TriangleAlert,
@@ -32,8 +31,9 @@ import { Select } from "@/components/controls";
 import { toast } from "@/components/toast";
 import { useSupplier } from "./context";
 import { type SupplierSection, type RequestDocAsk, valueKey } from "@/lib/supplier";
-import { type SupplierProfile, loadProfiles } from "@/lib/supplier-store";
+import { type InstallationProfile, type SupplierProfile, loadProfiles } from "@/lib/supplier-store";
 import { runQualityCheck, CATEGORIES, CATEGORY_BLURB, type CheckResult, type Severity } from "@/lib/ai-check";
+import { formatDecimal, isPositiveMass } from "@/lib/workflow-measurements";
 
 const DEPARTMENTS = [
   "Operations / EHS",
@@ -48,7 +48,7 @@ const DEPARTMENTS = [
 
 /* ════════════════════════ Landing ════════════════════════ */
 export function LandingView() {
-  const { req, setView } = useSupplier();
+  const { req, state, setView } = useSupplier();
   const groups = Array.from(new Set(req.fields.map((f) => f.group)));
   return (
     <div className="mx-auto max-w-2xl py-6">
@@ -96,9 +96,21 @@ export function LandingView() {
           <ShieldCheck size={15} strokeWidth={1.5} />
         </span>
         <p className="text-[13px] leading-relaxed text-black/55">
-          Your figures are checked automatically before you submit, encrypted, and shared only with {req.exporterName} for this declaration. You can invite colleagues to fill the parts that belong to their department.
+          This readiness demo stores progress only in this browser. It does not encrypt or transmit data to {req.exporterName}, send email, or work across devices. Use sample data only.
         </p>
       </Card>
+
+      {req.classificationIssue && (
+        <Card className="mt-3 border-[#dc2626]/20 bg-[#fef2f2] p-4 text-[12.5px] leading-relaxed text-[#991b1b]">
+          {req.classificationIssue} No hot-rolled-coil or other fallback was applied.
+        </Card>
+      )}
+
+      {state.legacyUnverifiedQuarantined && (
+        <Card className="mt-3 border-[#b45309]/20 bg-[#fffbeb] p-4 text-[12.5px] leading-relaxed text-black/60">
+          An older browser record was quarantined as <span className="font-mono text-[11px]">legacy_unverified</span>. It was not migrated into this MRV draft.
+        </Card>
+      )}
 
       <div className="mt-7">
         <Button onClick={() => setView("overview")}>
@@ -110,13 +122,51 @@ export function LandingView() {
 }
 
 /* ════════════════════════ Profile (optional onboarding) ════════════════════════ */
-const emptyProfile: SupplierProfile = { legalName: "", installationName: "", country: "", address: "", unlocode: "", coordinates: "", route: "" };
+const emptyProfile: SupplierProfile = {
+  legalName: "",
+  actorRole: "producer",
+  upstreamProducer: "",
+  installationName: "",
+  country: "",
+  address: "",
+  unlocode: "",
+  coordinates: "",
+  route: "",
+  productionActivityTonnes: "",
+  additionalInstallations: [],
+};
+
+const newInstallation = (): InstallationProfile => ({
+  id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `installation-${Date.now()}`,
+  name: "",
+  country: "",
+  address: "",
+  unlocode: "",
+  coordinates: "",
+  routes: [],
+  productionActivityTonnes: "",
+});
 
 export function ProfileView() {
   const { req, saveProfile, setView, state } = useSupplier();
   const [p, setP] = React.useState<SupplierProfile>(() => state.profile ?? loadProfiles()[req.supplierName] ?? { ...emptyProfile, legalName: req.supplierName, country: req.originName });
-  const set = (k: keyof SupplierProfile, v: string) => setP((s) => ({ ...s, [k]: v }));
-  const valid = p.legalName.trim() && p.installationName.trim() && p.country.trim();
+  type TextProfileKey = Exclude<keyof SupplierProfile, "actorRole" | "additionalInstallations" | "productionActivityMeasurement">;
+  const set = (k: TextProfileKey, v: string) => setP((s) => ({ ...s, [k]: v }));
+  const valid = Boolean(
+    p.legalName.trim() &&
+    p.installationName.trim() &&
+    p.country.trim() &&
+    isPositiveMass(p.productionActivityTonnes, "TNE") &&
+    (p.actorRole === "producer" || p.upstreamProducer.trim()) &&
+    p.additionalInstallations.every((installation) =>
+      installation.name.trim() && installation.country.trim() && isPositiveMass(installation.productionActivityTonnes, "TNE"),
+    ),
+  );
+  const updateInstallation = (id: string, patch: Partial<InstallationProfile>) =>
+    setP((current) => ({
+      ...current,
+      additionalInstallations: current.additionalInstallations.map((installation) => (installation.id === id ? { ...installation, ...patch } : installation)),
+    }));
 
   return (
     <div className="mx-auto max-w-2xl py-4">
@@ -125,10 +175,27 @@ export function ProfileView() {
       </button>
       <h1 className="mt-4 font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111]">Company & installation profile</h1>
       <p className="mt-2 text-sm text-black/50">
-        Optional, and reusable. We save this securely so your installation identity pre-fills the questionnaire now and skips re-typing on every future request from any buyer.
+        Optional and stored only in this browser. Identify whether you operate the installation or are a trader forwarding the producer&apos;s data.
       </p>
 
       <Card className="mt-6 space-y-4 p-5">
+        <Field label="Your role in this request">
+          <Select
+            value={p.actorRole}
+            onChange={(value) => setP((current) => ({ ...current, actorRole: value as SupplierProfile["actorRole"] }))}
+            options={[
+              { value: "producer", label: "Producer / installation operator" },
+              { value: "trader", label: "Trader forwarding producer data" },
+            ]}
+            className="w-full"
+            ariaLabel="Supplier role"
+          />
+        </Field>
+        {p.actorRole === "trader" && (
+          <Field label="Upstream producer" hint="The installation operator whose data you are forwarding. A trader cannot verify installation-level actual values on the producer's behalf.">
+            <input className={inputClass} value={p.upstreamProducer} onChange={(e) => set("upstreamProducer", e.target.value)} placeholder="Producer legal name" />
+          </Field>
+        )}
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Legal company name">
             <input className={inputClass} value={p.legalName} onChange={(e) => set("legalName", e.target.value)} placeholder="Thai Metal Pro Co., Ltd" />
@@ -153,7 +220,35 @@ export function ProfileView() {
           <Field label="Main production route" hint="e.g. EAF, BF-BOF, DRI-EAF.">
             <input className={inputClass} value={p.route} onChange={(e) => set("route", e.target.value)} placeholder="EAF (electric arc furnace)" />
           </Field>
+          <Field label="Installation production activity (TNE)" hint="Exact total produced at this installation in the reporting period; separate from commercial shipment quantity.">
+            <input className={inputClass} inputMode="decimal" value={p.productionActivityTonnes} onChange={(e) => set("productionActivityTonnes", e.target.value)} placeholder="e.g. 125000" />
+          </Field>
         </div>
+
+        {p.additionalInstallations.map((installation, index) => (
+          <div key={installation.id} className="space-y-3 rounded-xl border border-black/[0.06] bg-[#fafaf8] p-4">
+            <div className="flex items-center justify-between">
+              <Eyebrow>Additional installation {index + 2}</Eyebrow>
+              <button
+                className="text-black/35 hover:text-[#dc2626]"
+                onClick={() => setP((current) => ({ ...current, additionalInstallations: current.additionalInstallations.filter((item) => item.id !== installation.id) }))}
+                aria-label={`Remove installation ${index + 2}`}
+              >
+                <Trash2 size={14} strokeWidth={1.5} />
+              </button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Installation name"><input className={inputClass} value={installation.name} onChange={(e) => updateInstallation(installation.id, { name: e.target.value })} /></Field>
+              <Field label="Country"><input className={inputClass} value={installation.country} onChange={(e) => updateInstallation(installation.id, { country: e.target.value })} /></Field>
+              <Field label="Production routes"><input className={inputClass} value={installation.routes.join(", ")} onChange={(e) => updateInstallation(installation.id, { routes: e.target.value.split(",").map((route) => route.trim()).filter(Boolean) })} placeholder="EAF, rolling" /></Field>
+              <Field label="Production activity (TNE)"><input className={inputClass} inputMode="decimal" value={installation.productionActivityTonnes} onChange={(e) => updateInstallation(installation.id, { productionActivityTonnes: e.target.value, productionActivityMeasurement: undefined })} /></Field>
+            </div>
+            <Field label="Site address"><input className={inputClass} value={installation.address} onChange={(e) => updateInstallation(installation.id, { address: e.target.value })} /></Field>
+          </div>
+        ))}
+        <Button variant="ghost" size="sm" onClick={() => setP((current) => ({ ...current, additionalInstallations: [...current.additionalInstallations, newInstallation()] }))}>
+          <Plus size={13} strokeWidth={1.5} /> Add installation
+        </Button>
       </Card>
 
       <div className="mt-6 flex items-center justify-between">
@@ -165,7 +260,7 @@ export function ProfileView() {
           disabled={!valid}
           onClick={() => {
             saveProfile(p);
-            toast({ message: "Profile saved", detail: "Your installation details now pre-fill the questionnaire.", tone: "ok" });
+            toast({ message: "Profile saved locally", detail: "The primary installation now pre-fills this browser's questionnaire.", tone: "ok" });
             setView("overview");
           }}
         >
@@ -193,7 +288,7 @@ export function OverviewView() {
           <h1 className="mt-2 font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111]">
             {req.regulationShort} · {req.period}
           </h1>
-          <p className="mt-2 text-sm text-black/50">For {req.exporterName} — fill each section, attach documents, run the check, then sign and submit.</p>
+          <p className="mt-2 text-sm text-black/50">For {req.exporterName} — fill each section, reference documents, run the check, then record a local attestation.</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="text-right">
@@ -334,25 +429,12 @@ function DocRow({ d }: { d: RequestDocAsk }) {
   }, [isTarget, clearDocFocus]);
 
   const ring = fs ? cn("transition-shadow duration-700", pulse ? fs.ringStrong : fs.ring) : "";
-  const onPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
     const list = Array.from(e.target.files ?? []);
     e.target.value = ""; // let the same file be re-picked later
-    // Keep the real bytes for files up to 1.5 MB so the exporter can retrieve
-    // the evidence; bigger files record name + size only (storage quota).
-    const MAX_INLINE = 1_500_000;
-    const picked = await Promise.all(
-      list.map(
-        (f) =>
-          new Promise<{ name: string; size: number; dataUrl?: string }>((resolve) => {
-            if (f.size > MAX_INLINE) return resolve({ name: f.name, size: f.size });
-            const reader = new FileReader();
-            reader.onload = () => resolve({ name: f.name, size: f.size, dataUrl: typeof reader.result === "string" ? reader.result : undefined });
-            reader.onerror = () => resolve({ name: f.name, size: f.size });
-            reader.readAsDataURL(f);
-          }),
-      ),
-    );
-    addFiles(d.id, picked);
+    // Never read or persist document bytes in localStorage. The filename and
+    // size are a demo reference only until secure storage + scanning exist.
+    addFiles(d.id, list.map((file) => ({ name: file.name, size: file.size })));
   };
 
   return (
@@ -398,7 +480,7 @@ function DocRow({ d }: { d: RequestDocAsk }) {
                   onClick={() => inputRef.current?.click()}
                   className="mt-2 inline-flex items-center gap-1.5 rounded-xl border border-dashed border-black/15 px-3.5 py-2 text-[12px] text-black/55 hover:border-black/30 hover:text-black"
                 >
-                  <Upload size={13} strokeWidth={1.5} /> {uploaded ? "Add more files" : "Upload file(s)"}
+                  <Upload size={13} strokeWidth={1.5} /> {uploaded ? "Add file reference" : "Choose file reference(s)"}
                 </button>
               </>
             ) : (
@@ -409,7 +491,7 @@ function DocRow({ d }: { d: RequestDocAsk }) {
               <p className={cn("mt-2 flex items-start gap-1.5 text-[11.5px] leading-relaxed", fs!.text)}>
                 {flag.severity === "revision" ? <PenLine size={12} strokeWidth={1.8} className="mt-[2px] flex-none" /> : <TriangleAlert size={12} strokeWidth={1.8} className="mt-[2px] flex-none" />}
                 <span>
-                  <span className="font-pixel text-[9px] uppercase tracking-[0.14em] opacity-70">{flag.severity === "revision" ? "Exporter" : "AI check"} · </span>
+                  <span className="font-pixel text-[9px] uppercase tracking-[0.14em] opacity-70">{flag.severity === "revision" ? "Exporter" : "Quality check"} · </span>
                   {flag.message}
                 </span>
               </p>
@@ -429,7 +511,7 @@ export function DocumentsView() {
       <div>
         <Eyebrow>Supporting documents</Eyebrow>
         <h1 className="mt-2 font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111]">Attach your certificates</h1>
-        <p className="mt-2 max-w-2xl text-sm text-black/50">{req.exporterName} asked for these alongside the carbon data. Required ones are flagged; optional ones help but won’t block you. You can attach several files to each.</p>
+        <p className="mt-2 max-w-2xl text-sm text-black/50">{req.exporterName} asked for these alongside the carbon data. This demo records only filenames and sizes; it does not retain or transmit document bytes.</p>
       </div>
 
       {docRevision && (
@@ -453,7 +535,7 @@ export function DocumentsView() {
           <DocRow key={d.id} d={d} />
         ))}
       </div>
-      <p className="text-[12px] text-black/35">Files stay in your browser for this demo — names and sizes are recorded so you can see the flow; nothing is uploaded to a server.</p>
+      <p className="text-[12px] text-[#b45309]">Evidence is unavailable for regulatory readiness until private backend storage, malware scanning and retention controls are configured. File bytes are not stored.</p>
 
       <div className="flex items-center justify-between border-t border-black/[0.06] pt-5">
         <Button variant="ghost" size="sm" onClick={() => setView("form")}>
@@ -469,7 +551,7 @@ export function DocumentsView() {
 
 /* ════════════════════════ Team / seats ════════════════════════ */
 export function TeamView() {
-  const { req, state, sections, addSeat, removeSeat, toggleAssign, setView, goToCheck, hasAnyInput } = useSupplier();
+  const { state, sections, addSeat, removeSeat, toggleAssign, setView, goToCheck, hasAnyInput } = useSupplier();
   const [form, setForm] = React.useState({ name: "", email: "", department: DEPARTMENTS[0] });
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
   const copyTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -481,7 +563,7 @@ export function TeamView() {
     setCopiedId(seatId);
     if (copyTimer.current) clearTimeout(copyTimer.current);
     copyTimer.current = setTimeout(() => setCopiedId(null), 1900);
-    toast({ message: "Scoped link copied", detail: "Send it to your colleague — it opens only their assigned sections.", tone: "ok" });
+    toast({ message: "Same-browser demo link copied", detail: "No access control, email delivery or cross-device state is configured.", tone: "info" });
   };
 
   React.useEffect(() => () => { if (copyTimer.current) clearTimeout(copyTimer.current); }, []);
@@ -492,13 +574,13 @@ export function TeamView() {
         <Eyebrow>Team & departments</Eyebrow>
         <h1 className="mt-2 font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111]">Split the work by department</h1>
         <p className="mt-2 max-w-2xl text-sm text-black/50">
-          This data lives in different teams — emissions with ESG, carbon price with finance, certificates with QA. Invite a colleague and assign the sections that are theirs. They get a link to just their part; you stay in control and sign at the end.
+          Model who owns each section. Collaborators and assignments are saved in this browser only; links do not provide access control or cross-device sharing.
         </p>
       </div>
 
-      {/* invite */}
+      {/* local collaborator model */}
       <Card className="p-5">
-        <Eyebrow>Invite a colleague</Eyebrow>
+        <Eyebrow>Add a demo collaborator</Eyebrow>
         <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
           <Field label="Name">
             <input className={inputClass} value={form.name} onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))} placeholder="Full name" />
@@ -515,11 +597,11 @@ export function TeamView() {
             disabled={!valid}
             onClick={() => {
               addSeat(form);
-              toast({ message: `${form.name} invited`, detail: "Assign their sections below.", tone: "ok" });
+              toast({ message: `${form.name} added locally`, detail: "Assign their sections below; no invitation was sent.", tone: "info" });
               setForm({ name: "", email: "", department: DEPARTMENTS[0] });
             }}
           >
-            <Plus size={13} strokeWidth={1.5} /> Invite
+            <Plus size={13} strokeWidth={1.5} /> Add locally
           </Button>
         </div>
       </Card>
@@ -528,7 +610,7 @@ export function TeamView() {
       {state.seats.length === 0 ? (
         <Card warm className="flex items-center gap-3 p-5 text-sm text-black/50">
           <Users size={18} strokeWidth={1.5} className="text-black/35" />
-          No colleagues yet — you can fill everything yourself, or invite the right people above.
+          No demo collaborators yet — you can fill everything yourself or model section ownership above.
         </Card>
       ) : (
         <div className="space-y-3">
@@ -559,7 +641,7 @@ export function TeamView() {
                       <Link2 size={12} strokeWidth={1.5} className={cn("absolute transition-all duration-300", copiedId === seat.id ? "scale-50 opacity-0" : "scale-100 opacity-100")} />
                       <Check size={12} strokeWidth={2.5} className={cn("absolute transition-all duration-300", copiedId === seat.id ? "scale-100 opacity-100" : "scale-50 opacity-0")} />
                     </span>
-                    {copiedId === seat.id ? "Copied!" : "Copy link"}
+                    {copiedId === seat.id ? "Copied!" : "Copy demo link"}
                   </button>
                   <button onClick={() => removeSeat(seat.id)} className="text-black/30 hover:text-[#dc2626]" aria-label="Remove colleague">
                     <Trash2 size={15} strokeWidth={1.5} />
@@ -604,7 +686,7 @@ export function TeamView() {
   );
 }
 
-/* ════════════════════════ AI quality check ════════════════════════ */
+/* ════════════════════════ Deterministic quality check ════════════════════════ */
 const SEV_META: Record<Severity, { tone: "ok" | "warn" | "err"; icon: React.ElementType; label: string }> = {
   pass: { tone: "ok", icon: CircleCheck, label: "Passed" },
   warning: { tone: "warn", icon: TriangleAlert, label: "Warning" },
@@ -626,7 +708,7 @@ export function CheckView() {
   }, [runCheck]);
 
   React.useEffect(() => {
-    // Never spend an AI run while required fields are still empty.
+    // Do not run the deterministic suite while required fields are still empty.
     if (requiredComplete && !state.lastCheck) run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -634,7 +716,7 @@ export function CheckView() {
   const scoreTone = (s: number) => (s >= 85 ? "#047857" : s >= 60 ? "#b45309" : "#dc2626");
 
   // Gate: incomplete required data — lead the supplier back to fill it in rather
-  // than running (and charging for) the AI check on data that can't pass anyway.
+  // than running the deterministic suite on data that cannot pass anyway.
   if (!requiredComplete) {
     return (
       <div className="mx-auto max-w-xl py-8 text-center">
@@ -643,7 +725,7 @@ export function CheckView() {
         </span>
         <h1 className="mt-5 font-[family-name:var(--font-plex)] text-2xl font-light tracking-tight text-[#111]">Finish the required fields first</h1>
         <p className="mt-2 text-sm text-black/50">
-          The AI quality check runs once every required field has a value — that way it never burns a run on data that isn’t ready yet. You have{" "}
+          Deterministic validation runs once every required field has a value. Advisory anomaly flags are shown separately and never approve data. You have{" "}
           <span className="text-[#b45309]">{missingRequiredCount} required field{missingRequiredCount === 1 ? "" : "s"}</span> left.
         </p>
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
@@ -663,7 +745,7 @@ export function CheckView() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <Eyebrow>Automatic quality check</Eyebrow>
-          <h1 className="mt-2 font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111]">AI checks your data before you sign</h1>
+          <h1 className="mt-2 font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111]">Deterministic checks before local attestation</h1>
           <p className="mt-2 max-w-2xl text-sm text-black/50">
             Completeness, validation, anomaly detection and standardization run automatically. Critical issues must be fixed; warnings you can acknowledge and proceed.
           </p>
@@ -759,7 +841,7 @@ export function CheckView() {
             </Button>
             {result.passable ? (
               <Button onClick={() => setView("submit")}>
-                Continue to sign & submit <ArrowRight size={15} strokeWidth={1.5} />
+                Continue to local attestation <ArrowRight size={15} strokeWidth={1.5} />
               </Button>
             ) : (
               <span className="inline-flex items-center gap-2 rounded-xl border border-[#dc2626]/20 bg-[#fef2f2] px-4 py-2.5 text-[12px] text-[#dc2626]">
@@ -773,7 +855,7 @@ export function CheckView() {
   );
 }
 
-/* ════════════════════════ Review + e-sign + submit ════════════════════════ */
+/* ════════════════════════ Review + browser-local attestation ════════════════════════ */
 export function SubmitView() {
   const { req, state, submit, setView, getValue, totalRequiredCount } = useSupplier();
   const [name, setName] = React.useState("");
@@ -795,8 +877,8 @@ export function SubmitView() {
     <div className="space-y-6">
       <div>
         <Eyebrow>Review & submit</Eyebrow>
-        <h1 className="mt-2 font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111]">One last look, then sign</h1>
-        <p className="mt-2 max-w-2xl text-sm text-black/50">This is what {req.exporterName} receives. Submitting locks it as a version with a timestamped audit trail.</p>
+        <h1 className="mt-2 font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111]">One last look, then record locally</h1>
+        <p className="mt-2 max-w-2xl text-sm text-black/50">This local demo records a version in this browser. It is not transmitted, immutable, identity-verified or an audit record.</p>
       </div>
 
       {!result.passable && (
@@ -808,20 +890,20 @@ export function SubmitView() {
         </Card>
       )}
 
-      {/* AI validation summary — the checklist the exporter's spec calls for right
+      {/* Deterministic validation summary — the checklist the exporter's spec calls for right
           before the final submit button: what's complete, and what's flagged. */}
       {result.passable && (
         <Card className="p-5">
           <div className="flex items-center gap-2">
             <Sparkles size={15} strokeWidth={1.5} className="text-black/55" />
-            <Eyebrow>AI validation summary</Eyebrow>
+            <Eyebrow>Deterministic validation summary</Eyebrow>
           </div>
           <div className="mt-3 space-y-1.5 text-[13px]">
             <div className="flex items-center gap-2 text-[#047857]"><CircleCheck size={14} strokeWidth={1.5} /> {totalRequiredCount}/{totalRequiredCount} required fields completed</div>
             {mandatoryDocsDone === mandatoryDocs.length ? (
-              <div className="flex items-center gap-2 text-[#047857]"><CircleCheck size={14} strokeWidth={1.5} /> {mandatoryDocsDone}/{mandatoryDocs.length} mandatory documents uploaded</div>
+              <div className="flex items-center gap-2 text-[#047857]"><CircleCheck size={14} strokeWidth={1.5} /> {mandatoryDocsDone}/{mandatoryDocs.length} mandatory file references recorded</div>
             ) : (
-              <div className="flex items-center gap-2 text-[#b45309]"><TriangleAlert size={14} strokeWidth={1.5} /> {mandatoryDocsDone}/{mandatoryDocs.length} mandatory documents uploaded</div>
+              <div className="flex items-center gap-2 text-[#b45309]"><TriangleAlert size={14} strokeWidth={1.5} /> {mandatoryDocsDone}/{mandatoryDocs.length} mandatory file references recorded</div>
             )}
             <div className="flex items-center gap-2 text-[#047857]"><CircleCheck size={14} strokeWidth={1.5} /> Units validated</div>
             {warnings > 0 ? (
@@ -844,7 +926,7 @@ export function SubmitView() {
               <div key={rp.product.id} className="flex items-center justify-between rounded-xl border border-black/[0.06] bg-[#fafaf8] px-4 py-3">
                 <div>
                   <div className="text-[14px] text-black/80">{rp.product.name}</div>
-                  <div className="font-mono text-[11px] text-black/40">CN {rp.product.cnCode} · {rp.totalTonnes.toLocaleString("en-US")} t</div>
+                  <div className="font-mono text-[11px] text-black/40">CN {rp.product.cnCode} · {formatDecimal(rp.commercialQuantityTonnes)} TNE</div>
                 </div>
                 <div className="text-right">
                   <div className="font-[family-name:var(--font-plex)] text-xl font-light text-[#111]">{total} <span className="text-sm text-black/40">tCO₂e/t</span></div>
@@ -855,17 +937,17 @@ export function SubmitView() {
           })}
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-[12px] text-black/50">
-          <span>Documents attached: {req.documents.filter((d) => state.docs[d.id]?.status === "uploaded").length}/{req.documents.length}</span>
+          <span>File references recorded: {req.documents.filter((d) => state.docs[d.id]?.status === "uploaded").length}/{req.documents.length}</span>
           <span>Quality score: <span style={{ color: result.score >= 85 ? "#047857" : result.score >= 60 ? "#b45309" : "#dc2626" }}>{result.score}</span></span>
           <span>{warnings} warning{warnings === 1 ? "" : "s"} flagged</span>
         </div>
       </Card>
 
-      {/* e-signature */}
+      {/* Browser-local attestation; not an electronic signature or identity proof. */}
       <Card className="p-5">
         <div className="flex items-center gap-2">
           <PenLine size={15} strokeWidth={1.5} className="text-black/55" />
-          <Eyebrow>Electronic signature</Eyebrow>
+          <Eyebrow>Local attestation</Eyebrow>
         </div>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <Field label="Full name">
@@ -883,6 +965,7 @@ export function SubmitView() {
             I confirm the information is accurate and complete to the best of my knowledge, and I’m authorised to submit it on behalf of {req.supplierName}.
           </span>
         </label>
+        <p className="mt-2 text-[11px] text-black/40">A typed name is browser-local demo metadata, not an authenticated electronic signature or verifier opinion.</p>
         {warnings > 0 && (
           <label className="mt-2.5 flex cursor-pointer items-start gap-2.5">
             <span className={cn("mt-0.5 grid h-5 w-5 flex-none place-items-center rounded-md border", ackWarnings ? "border-transparent bg-[#111] text-white" : "border-black/20")} onClick={() => setAckWarnings((v) => !v)}>
@@ -903,11 +986,11 @@ export function SubmitView() {
           disabled={!canSign}
           onClick={() => {
             submit(name.trim(), role.trim());
-            toast({ message: "Submitted", detail: `Sent to ${req.exporterName} with a timestamped audit trail.`, tone: "ok" });
+            toast({ message: "Demo version recorded", detail: `Available to ${req.exporterName}'s demo view only in this browser.`, tone: "ok" });
             setView("done");
           }}
         >
-          <ShieldCheck size={15} strokeWidth={1.5} /> {warnings > 0 ? "Submit anyway" : "Sign & submit"}
+          <ShieldCheck size={15} strokeWidth={1.5} /> {warnings > 0 ? "Record with warnings" : "Record local attestation"}
         </Button>
       </div>
     </div>
@@ -939,11 +1022,8 @@ export function DoneView() {
     revision_requested: "warn",
   };
   // Real, persisted events (lib/supplier-store.ts AuditEvent) — every edit, upload,
-  // check run, signature and revision is logged as it happens, not derived here.
-  const trail = [
-    ...state.events.map((e) => ({ when: new Date(e.at), text: e.text, tone: EVENT_TONE[e.kind] ?? "muted" })),
-    { when: submittedAt, text: `${req.exporterName} notified`, tone: "muted" as const },
-  ];
+  // check run, local attestation and revision is logged as it happens, not derived here.
+  const trail = state.events.map((e) => ({ when: new Date(e.at), text: e.text, tone: EVENT_TONE[e.kind] ?? "muted" }));
 
   return (
     <div className="space-y-6">
@@ -953,7 +1033,7 @@ export function DoneView() {
         </span>
         <h1 className="mt-4 font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111]">Submitted as Version {latest.n}</h1>
         <p className="mt-2 text-sm text-black/55">
-          Sent to {req.exporterName} — they’ll review it and only contact you if something needs a quick fix. Nothing to pay, no account to manage.
+          Recorded locally for {req.exporterName}&apos;s same-browser demo view. No email, backend delivery, cross-device sharing or legal submission occurred.
         </p>
         <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-3 py-1.5 font-mono text-[11px] text-black/55">
           receipt {receiptId}
@@ -1010,9 +1090,9 @@ export function DoneView() {
       <Card warm className="p-5">
         <Eyebrow>What happens next</Eyebrow>
         <ol className="mt-3 space-y-2 text-[13px] text-black/55">
-          <li className="flex gap-2"><span className="font-mono text-black/30">1</span> {req.exporterName} reviews your submission and the AI summary.</li>
+          <li className="flex gap-2"><span className="font-mono text-black/30">1</span> {req.exporterName} reviews the deterministic findings and advisory anomaly flags in this browser.</li>
           <li className="flex gap-2"><span className="font-mono text-black/30">2</span> They approve it, or request a revision on specific fields.</li>
-          <li className="flex gap-2"><span className="font-mono text-black/30">3</span> If a revision is needed, you’ll get an email — only the flagged fields unlock.</li>
+          <li className="flex gap-2"><span className="font-mono text-black/30">3</span> A demo revision appears only in this browser; no email is sent and cross-device links are unavailable.</li>
         </ol>
         <div className="mt-4 rounded-xl border border-dashed border-black/15 p-3">
           <div className="text-[11px] uppercase tracking-[0.1em] text-black/35">Demo</div>

@@ -12,11 +12,8 @@ import {
   Inbox,
   Sparkles,
   ClipboardCheck,
-  BadgeCheck,
   FileText,
   Download,
-  Building2,
-  Landmark,
   Link2,
   Lock,
   PenLine,
@@ -45,8 +42,8 @@ import { AddMemberModal } from "./add-member-modal";
 import { DeclarationMenu } from "./declaration-menu";
 import { Declaration } from "@/lib/data";
 import { getRegulation, getJurisdiction, type ResolvedCbamField } from "@/lib/config";
-import { downloadPackage, downloadXmlFile } from "@/lib/download";
-import { validateForRegistry, buildCbamXml } from "@/lib/cbam-xml";
+import { downloadFile, downloadPackage } from "@/lib/download";
+import { buildO3ciManualWorksheet, manualEntryIssues } from "@/lib/o3ci-worksheet";
 import { formatPrecursors } from "@/lib/precursors";
 import {
   sectionsForRequest,
@@ -63,10 +60,9 @@ import {
   approveSubmission,
   requestRevision,
   toggleReviewer,
-  setRecipients as persistRecipients,
-  pushToO3CI,
-  sendCommunicationTemplate,
-  acknowledgeRecipient,
+  recordWorksheetDownload,
+  setO3ciChecklistItem,
+  actualValueVerificationBlockers,
   markPackageGenerated,
   requestReportSignoffs,
   confirmReportSignoff,
@@ -79,12 +75,13 @@ import {
   type ExporterDeclState,
   type ReviewSubmission,
   type ReviewRollup,
-  type DispatchRecipient,
+  type O3ciChecklistKey,
 } from "@/lib/exporter-review";
 import { loadTeam, getTeamMember, type TeamMember } from "@/lib/team-store";
 import { computeComplianceFacts, yearFromPeriod, type ComplianceFacts } from "@/lib/compliance-engine";
 import { buildSupplierChapters, buildSignOff, packageSummaryData, packageHistoryData } from "@/lib/package-data";
 import { buildIntelligence, type IntelligenceReport } from "@/lib/compliance-intelligence";
+import { formatDecimal } from "@/lib/workflow-measurements";
 
 /* The four steps of the flow, in the order a real exporter walks them, plus
    two always-available insight views. */
@@ -102,8 +99,8 @@ const EMPTY_ROLL: ReviewRollup = {
   awaitingCount: 0,
   changesCount: 0,
   allApproved: false,
-  reviewedEmissions: 0,
-  submittedEmissions: 0,
+  reviewedEmissions: "0",
+  submittedEmissions: "0",
   warnings: 0,
   anomalies: 0,
   avgScore: null,
@@ -119,12 +116,12 @@ const EMPTY_ROLL: ReviewRollup = {
      1  Supplier data      suppliers send data back; review each submission,
                            approve it or request a revision, loop in internal
                            reviewers (add new people from a popup)
-     2  Generate report    unlocks when every supplier is approved — the
-                           audit package (PDF) + Registry XML
+     2  Generate preview   unlocks when every supplier is approved — a local
+                           draft PDF plus manual-entry worksheet
      3  Internal sign-off  send the report to named people to preview;
                            each confirms before anything leaves the building
-     4  Send & export      O3CI push / Communication Template to the EU
-                           buyer, registry and verifier + acknowledgements
+     4  Manual handoff     worksheet + self-attested operator checklist;
+                           no external submission or delivery
 
    Compliance Intelligence and the Audit Trail stay as supporting views.
    Locked steps stay visible and say exactly what unlocks them.
@@ -153,27 +150,26 @@ export function DeclarationWorkflow({ declaration }: { declaration: Declaration 
   const roll: ReviewRollup = React.useMemo(() => (mounted ? buildRollup(declaration, exporter) : EMPTY_ROLL), [declaration, exporter, mounted]);
   // Default-value markup follows the reporting period, not today's date.
   const facts: ComplianceFacts = React.useMemo(
-    () => computeComplianceFacts(roll, yearFromPeriod(declaration.periodStart, declaration.period)),
-    [roll, declaration.periodStart, declaration.period],
+    () => computeComplianceFacts(roll, yearFromPeriod(declaration.periodStart, declaration.period), declaration.periodEnd),
+    [roll, declaration.periodStart, declaration.periodEnd, declaration.period],
   );
   const intel: IntelligenceReport = React.useMemo(() => buildIntelligence(roll, facts), [roll, facts]);
-  const legalRequired = facts.anyCapViolations || facts.anyUnverifiedActual || roll.anomalies > 0;
-  // Registry pre-flight over the approved dataset — the same check that gates
-  // the XML download and the dispatch buttons, surfaced up here so the
-  // next-action banner never claims "ready" while the Registry would reject.
+  const legalRequired = facts.anyUnverifiedActual || roll.anomalies > 0;
+  // Internal mapping completeness + verifier-evidence gate. This is not a
+  // Registry schema validation or prediction of external acceptance.
   const preflightOk = React.useMemo(() => {
     const approved = roll.submissions.filter((s) => s.lifecycle === "approved");
-    if (approved.length === 0) return true;
-    return validateForRegistry(declaration, approved).isValid;
-  }, [declaration, roll]);
+    if (approved.length === 0) return false;
+    return manualEntryIssues(approved).length === 0 && actualValueVerificationBlockers(approved).length === 0;
+  }, [roll]);
 
   // flow gates — each step unlocks the next
   const generated = Boolean(exporter.packageGeneratedAt);
-  const signoffs = exporter.signoffs ?? [];
+  const signoffs = (exporter.signoffs ?? []).filter((signoff) => signoff.packageHash === exporter.packageHash);
   const confirmedSignoffs = signoffs.filter((s) => s.confirmedAt).length;
   const signoffPending = signoffs.length - confirmedSignoffs;
   const signoffComplete = generated && signoffs.length > 0 && signoffPending === 0;
-  const dispatched = Boolean(exporter.dispatch.o3ciPushedAt || exporter.dispatch.templateSentAt);
+  const handoffPrepared = Boolean(exporter.dispatch.worksheetDownloadedAt) && Object.values(exporter.dispatch.checklist).every(Boolean);
 
   // land the exporter on the step that actually needs them (once, after hydration)
   const initialised = React.useRef(false);
@@ -221,7 +217,7 @@ export function DeclarationWorkflow({ declaration }: { declaration: Declaration 
       icon: FileText,
       locked: !roll.allApproved,
       done: generated,
-      sub: generated ? "PDF + XML generated" : roll.allApproved ? "ready to generate" : "needs all approvals",
+      sub: generated ? "draft PDF preview generated" : roll.allApproved ? "ready to preview" : "needs all approvals",
     },
     {
       key: "signoff",
@@ -229,15 +225,15 @@ export function DeclarationWorkflow({ declaration }: { declaration: Declaration 
       icon: ClipboardCheck,
       locked: !generated,
       done: signoffComplete,
-      sub: signoffs.length > 0 ? `${confirmedSignoffs}/${signoffs.length} confirmed` : generated ? "send for confirmation" : "needs the report",
+      sub: signoffs.length > 0 ? `${confirmedSignoffs}/${signoffs.length} confirmed locally` : generated ? "assign confirmation" : "needs the preview",
     },
     {
       key: "dispatch",
-      label: "Send & export",
+      label: "Manual handoff",
       icon: Send,
       locked: !signoffComplete,
-      done: dispatched,
-      sub: dispatched ? "dispatched" : "O3CI · buyer · verifier",
+      done: handoffPrepared,
+      sub: handoffPrepared ? "manual checklist complete" : "worksheet · operator checklist",
     },
   ];
   const currentKey: StepKey = (steps.find((s) => !s.done && !s.locked)?.key ?? "dispatch") as StepKey;
@@ -271,8 +267,8 @@ export function DeclarationWorkflow({ declaration }: { declaration: Declaration 
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Chip tone={declaration.dueInDays < 0 ? "err" : declaration.dueInDays < 21 ? "warn" : "muted"}>due {declaration.due}</Chip>
-            <Chip tone="ok">{reg.authority.split("·")[0].trim()}</Chip>
+            <Chip tone={declaration.dueInDays < 0 ? "err" : declaration.dueInDays < 21 ? "warn" : "muted"}>supplier collection due {declaration.collectionDeadline ?? declaration.due}</Chip>
+            {declaration.cbamDeclarationDue && <Chip tone="info">EU-side annual declaration due {declaration.cbamDeclarationDue}</Chip>}
             <DeclarationMenu decl={declaration} afterDelete={() => router.replace("/declarations")} />
           </div>
         </div>
@@ -285,10 +281,8 @@ export function DeclarationWorkflow({ declaration }: { declaration: Declaration 
           generated={generated}
           signoffs={signoffs.length}
           signoffPending={signoffPending}
-          signoffComplete={signoffComplete}
-          dispatched={dispatched}
+          handoffPrepared={handoffPrepared}
           preflightOk={preflightOk}
-          exporter={exporter}
           view={view}
           onGo={goTo}
         />
@@ -302,7 +296,7 @@ export function DeclarationWorkflow({ declaration }: { declaration: Declaration 
         <span className="mr-1 text-[10px] uppercase tracking-[0.14em] text-black/30">Insights</span>
         {([
           ["intelligence", "Compliance intelligence", Sparkles],
-          ["audit", "Audit trail", History],
+          ["audit", "Local activity", History],
         ] as const).map(([key, label, Icon]) => (
           <button
             key={key}
@@ -321,7 +315,7 @@ export function DeclarationWorkflow({ declaration }: { declaration: Declaration 
       <div key={`${view}-${openId ?? ""}`} className="ct-enter">
         {!mounted ? (
           <Card className="p-10 text-center text-sm text-black/35">Loading submissions…</Card>
-        ) : activeStep?.locked ? (
+        ) : activeStep?.locked && view !== "dispatch" ? (
           <LockedPanel step={activeStep} steps={steps} onGo={goTo} />
         ) : view === "submissions" ? (
           open ? (
@@ -344,7 +338,7 @@ export function DeclarationWorkflow({ declaration }: { declaration: Declaration 
             onOpenSubmission={(id) => { setView("submissions"); setOpenId(id); }}
           />
         ) : view === "intelligence" ? (
-          <ComplianceIntelligenceTab roll={roll} intel={intel} />
+          <ComplianceIntelligenceTab roll={roll} intel={intel} facts={facts} />
         ) : (
           <AuditTrailTab roll={roll} exporter={exporter} />
         )}
@@ -359,10 +353,8 @@ function NextAction({
   generated,
   signoffs,
   signoffPending,
-  signoffComplete,
-  dispatched,
+  handoffPrepared,
   preflightOk,
-  exporter,
   view,
   onGo,
 }: {
@@ -370,16 +362,12 @@ function NextAction({
   generated: boolean;
   signoffs: number;
   signoffPending: number;
-  signoffComplete: boolean;
-  dispatched: boolean;
+  handoffPrepared: boolean;
   preflightOk: boolean;
-  exporter: ExporterDeclState;
   view: View;
   onGo: (v: View) => void;
 }) {
   const toReview = roll.counts.submitted + roll.counts.in_review;
-  const acked = Object.keys(exporter.dispatch.acknowledgedAt).length;
-  const wanted = Object.values(exporter.recipients).filter(Boolean).length;
 
   let tone: "warn" | "info" | "ok" = "info";
   let text: React.ReactNode;
@@ -416,10 +404,10 @@ function NextAction({
   } else if (signoffs === 0) {
     text = (
       <>
-        <span className="text-black/80">Report generated.</span> Send it for internal sign-off.
+        <span className="text-black/80">Draft preview generated.</span> Assign local internal sign-off.
       </>
     );
-    cta = "Send for sign-off";
+    cta = "Open sign-off";
     target = "signoff";
   } else if (signoffPending > 0) {
     tone = "warn";
@@ -430,41 +418,33 @@ function NextAction({
     );
     cta = "View sign-off";
     target = "signoff";
-  } else if (!dispatched && !preflightOk) {
+  } else if (!handoffPrepared && !preflightOk) {
     tone = "warn";
     text = (
       <>
-        <span className="text-black/80">Registry pre-flight failed.</span> Fix the flagged submissions before anything is sent.
+        <span className="text-black/80">Manual handoff is blocked.</span> Resolve data and accredited-verifier evidence gaps first.
       </>
     );
     cta = "View issues";
     target = "dispatch";
-  } else if (!dispatched) {
+  } else if (!handoffPrepared) {
     tone = "ok";
     text = (
       <>
-        <span className="text-black/80">Signed off.</span> Ready to send & export.
+        <span className="text-black/80">Locally signed off.</span> Prepare the manual O3CI worksheet and checklist.
       </>
     );
-    cta = "Send & export";
-    target = "dispatch";
-  } else if (acked < wanted) {
-    text = (
-      <>
-        Dispatched — <span className="text-black/80">{acked}/{wanted} recipients</span> acknowledged.
-      </>
-    );
-    cta = "Track acknowledgements";
+    cta = "Prepare manual handoff";
     target = "dispatch";
   } else {
     tone = "ok";
     text = (
       <>
-        <span className="text-black/80">Cycle complete.</span> All recipients acknowledged.
+        <span className="text-black/80">Manual-entry checklist recorded locally.</span> Complete the actual O3CI work in the operator&apos;s own account.
       </>
     );
-    cta = "Audit trail";
-    target = "audit";
+    cta = "Review checklist";
+    target = "dispatch";
   }
 
   return (
@@ -531,10 +511,10 @@ function LockedPanel({ step, steps, onGo }: { step: StepMeta; steps: StepMeta[];
   const blocker = steps.find((s) => !s.done && !s.locked);
   const reason =
     step.key === "report"
-      ? "Every supplier submission must be approved before the report can be generated — the package only ever contains verified data."
+      ? "Every supplier submission must pass deterministic checks and be approved before a draft preview can be generated. Approval does not make actual values verified."
       : step.key === "signoff"
-        ? "Generate the report first — sign-off is a confirmation of the exact package that will be sent."
-        : "Internal sign-off must be complete before anything is dispatched — every requested confirmation has to land first.";
+        ? "Generate the local draft preview first — sign-off is recorded only in this browser."
+        : "Complete the local sign-off model before preparing the manual-entry worksheet. Nothing is dispatched by Certrace.";
   return (
     <Card className="flex flex-col items-center justify-center p-14 text-center">
       <span className="grid h-12 w-12 place-items-center rounded-xl border border-black/10 text-black/35">
@@ -593,8 +573,7 @@ function SubmissionsTab({
       <div className="min-w-0">
         <Eyebrow>Supplier submissions</Eyebrow>
         <p className="mt-1 max-w-xl text-sm text-black/45">
-          Each supplier filled their own Smart Link, the AI checked it, they e-signed and submitted. Open a submission to read the
-          data, loop in your internal reviewers, then approve it or request a revision.
+          Same-browser demo links model supplier collection. No link is authenticated, emailed or cross-device. Open a submission to review deterministic checks before approval.
         </p>
       </div>
 
@@ -606,7 +585,7 @@ function SubmissionsTab({
             lastReminded={lastReminderAt(exporter, s.supplier.id)}
             onRemind={() => {
               onChanged(remindSupplier(decl.id, s.supplier.id));
-              toast({ message: "Reminder sent", detail: `${s.supplier.name} nudged by email to complete their Smart Link.`, tone: "info" });
+              toast({ message: "Follow-up noted locally", detail: `No reminder was sent to ${s.supplier.name}; contact them outside Certrace.`, tone: "info" });
             }}
             onOpen={() => onOpen(s.supplier.id)}
           />
@@ -663,8 +642,8 @@ function SubmissionRow({ sub, lastReminded, onRemind, onOpen }: { sub: ReviewSub
       {/* copy Smart Link — flips to a "copied" state inline, no popup */}
       <button
         onClick={copy}
-        title="Copy Smart Link"
-        aria-label="Copy Smart Link"
+        title="Copy same-browser demo link"
+        aria-label="Copy same-browser demo link"
         style={{ transitionTimingFunction: "var(--ease-signature)" }}
         className={cn(
           "hidden h-7 items-center gap-1.5 rounded-full border px-2.5 text-[10px] uppercase tracking-[0.08em] transition-all duration-300 sm:inline-flex",
@@ -675,7 +654,7 @@ function SubmissionRow({ sub, lastReminded, onRemind, onOpen }: { sub: ReviewSub
           <Link2 size={12} strokeWidth={1.5} className={cn("absolute transition-all duration-300", copied ? "scale-50 opacity-0" : "scale-100 opacity-100")} />
           <Check size={12} strokeWidth={2.5} className={cn("absolute transition-all duration-300", copied ? "scale-100 opacity-100" : "scale-50 opacity-0")} />
         </span>
-        {copied ? "Copied" : "Copy link"}
+        {copied ? "Copied" : "Demo link"}
       </button>
 
       <span className="flex flex-none items-center gap-3">
@@ -698,8 +677,12 @@ function SubmissionReview({ decl, sub, onChanged }: { decl: Declaration; sub: Re
   const meta = LIFECYCLE_META[sub.lifecycle];
 
   const approve = () => {
-    onChanged(approveSubmission(decl.id, sub.supplier.id, sub.version));
-    toast({ message: "Submission approved", detail: `${sub.supplier.name} · v${sub.version} locked into the compliance dataset.`, tone: "ok" });
+    try {
+      onChanged(approveSubmission(decl.id, sub.supplier.id, sub.version));
+      toast({ message: "Submission approved locally", detail: `${sub.supplier.name} · v${sub.version} added to the browser-local draft dataset.`, tone: "ok" });
+    } catch (error) {
+      toast({ message: "Approval blocked", detail: error instanceof Error ? error.message : "Resolve critical findings first.", tone: "err" });
+    }
   };
 
   return (
@@ -711,7 +694,7 @@ function SubmissionReview({ decl, sub, onChanged }: { decl: Declaration; sub: Re
           <h2 className="mt-1.5 font-[family-name:var(--font-plex)] text-2xl font-light tracking-tight text-[#111]">{sub.supplier.name}</h2>
           <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[12px] text-black/45">
             <span className="font-mono text-[11px] text-black/35">{sub.supplier.country} · {sub.supplier.ref}</span>
-            {sub.signedBy && <span>signed by {sub.signedBy} ({sub.signedRole})</span>}
+            {sub.signedBy && <span>locally attested by {sub.signedBy} ({sub.signedRole})</span>}
             {sub.submittedAt && <span>{new Date(sub.submittedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>}
           </p>
         </div>
@@ -722,7 +705,7 @@ function SubmissionReview({ decl, sub, onChanged }: { decl: Declaration; sub: Re
       {sub.lifecycle === "approved" && (
         <Card className="flex items-center gap-3 border-[#047857]/20 bg-[#ecfdf5] p-4">
           <StatusDot tone="ok" glow />
-          <p className="text-sm text-black/60">Approved — v{sub.version} is locked into the compliance dataset. Reopen by requesting another revision below.</p>
+          <p className="text-sm text-black/60">Approved in this local draft — v{sub.version} is not immutable, regulator-filed or verifier-approved.</p>
         </Card>
       )}
       {sub.lifecycle === "changes_requested" && (
@@ -730,7 +713,7 @@ function SubmissionReview({ decl, sub, onChanged }: { decl: Declaration; sub: Re
           <div className="flex items-start gap-3">
             <span className="mt-0.5 grid h-8 w-8 flex-none place-items-center rounded-lg bg-[#dbeafe] text-[#2563eb]"><PenLine size={15} strokeWidth={1.5} /></span>
             <div className="min-w-0 text-[13px] leading-relaxed text-black/65">
-              <span className="text-black/80">Revision requested.</span> {sub.supplier.name} has been asked to update {sub.review.unlockedFields.length} field{sub.review.unlockedFields.length === 1 ? "" : "s"}{sub.review.unlockedDocs.length ? ` and ${sub.review.unlockedDocs.length} document${sub.review.unlockedDocs.length === 1 ? "" : "s"}` : ""}. Only those unlock on their Smart Link.
+              <span className="text-black/80">Revision recorded locally.</span> {sub.review.unlockedFields.length} field{sub.review.unlockedFields.length === 1 ? "" : "s"}{sub.review.unlockedDocs.length ? ` and ${sub.review.unlockedDocs.length} document${sub.review.unlockedDocs.length === 1 ? "" : "s"}` : ""} reopen in this browser. No message was delivered.
               {sub.review.comment && <p className="mt-1.5 text-black/55">“{sub.review.comment}”</p>}
             </div>
           </div>
@@ -749,7 +732,7 @@ function SubmissionReview({ decl, sub, onChanged }: { decl: Declaration; sub: Re
           onSubmit={(payload) => {
             onChanged(requestRevision(decl.id, sub.supplier.id, sub.version, payload));
             setShowRevision(false);
-            toast({ message: "Revision requested", detail: `${sub.supplier.name}'s Smart Link reopened the flagged items — they'll be emailed.`, tone: "info" });
+            toast({ message: "Revision recorded locally", detail: `Flagged items reopen in this browser; ${sub.supplier.name} was not emailed.`, tone: "info" });
           }}
         />
       ) : (
@@ -761,14 +744,14 @@ function SubmissionReview({ decl, sub, onChanged }: { decl: Declaration; sub: Re
             <p className="text-sm text-black/55">
               {sub.lifecycle === "approved"
                 ? "Already approved. You can still request another revision if needed."
-                : "Review the data and the AI summary, then approve this version or send it back with specific fields to revise."}
+                : "Review deterministic findings and advisory anomaly flags, then approve this local draft or identify fields to revise."}
             </p>
           </div>
           <div className="flex flex-none items-center gap-2">
             <Button variant="secondary" size="sm" onClick={() => setShowRevision(true)}>
               <PenLine size={14} strokeWidth={1.5} /> Request revision
             </Button>
-            <Button size="sm" onClick={approve} disabled={sub.lifecycle === "approved"}>
+            <Button size="sm" onClick={approve} disabled={sub.lifecycle === "approved" || !sub.check?.passable || (sub.check?.critical ?? 0) > 0}>
               <Check size={14} strokeWidth={1.5} /> {sub.lifecycle === "approved" ? "Approved" : "Approve"}
             </Button>
           </div>
@@ -808,28 +791,28 @@ function ExecSummary({ sub }: { sub: ReviewSubmission }) {
             <div className="font-pixel text-[10px] uppercase tracking-[0.16em] text-black/40">Key emissions data</div>
             <div className="mt-2 space-y-1.5">
               {sub.emissions.map((e) => {
-                const direct = Number(sub.values[valueKey("direct-emissions", e.productId)]) || null;
-                const indirect = Number(sub.values[valueKey("indirect-emissions", e.productId)]) || null;
+                const direct = sub.values[valueKey("direct-emissions", e.productId)]?.trim() || null;
+                const indirect = sub.values[valueKey("indirect-emissions", e.productId)]?.trim() || null;
                 return (
                   <div key={e.productId} className="flex items-center justify-between rounded-lg border border-black/[0.06] bg-[#fafaf8] px-3 py-2">
                     <div className="min-w-0">
                       <div className="truncate text-[13px] text-black/75">{e.productName}</div>
-                      <div className="font-mono text-[10px] text-black/40">CN {e.cnCode} · {e.tonnes.toLocaleString("en-US")} t</div>
+                      <div className="font-mono text-[10px] text-black/40">CN {e.cnCode} · {formatDecimal(e.tonnes)} TNE</div>
                       {direct !== null && indirect !== null && (
-                        <div className="font-mono text-[10px] text-black/35">direct {direct.toFixed(2)} · indirect {indirect.toFixed(2)} tCO₂e/t</div>
+                        <div className="font-mono text-[10px] text-black/35">direct {formatDecimal(direct)} · indirect {formatDecimal(indirect)} TCO2E_PER_TNE</div>
                       )}
                     </div>
                     <div className="text-right">
-                      <div className="font-[family-name:var(--font-plex)] text-lg font-light text-[#111]">{e.perTonne.toFixed(2)} <span className="text-xs text-black/40">tCO₂e/t</span></div>
-                      <div className="font-mono text-[10px] text-black/40">{e.total.toLocaleString("en-US")} tCO₂e total</div>
+                      <div className="font-[family-name:var(--font-plex)] text-lg font-light text-[#111]">{formatDecimal(e.perTonne)} <span className="text-xs text-black/40">TCO2E_PER_TNE</span></div>
+                      <div className="font-mono text-[10px] text-black/40">{formatDecimal(e.total)} TCO2E total</div>
                     </div>
                   </div>
                 );
               })}
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-[12px] text-black/50">
-              <span>Embedded total: <span className="text-black/75">{sub.totalTCO2e.toLocaleString("en-US")} tCO₂e</span></span>
-              <span>Documents: {Object.values(sub.docs).filter((d) => d.status === "uploaded").length}/{sub.request.documents.length}</span>
+              <span>Embedded total: <span className="text-black/75">{formatDecimal(sub.totalTCO2e)} TCO2E</span></span>
+              <span>File references: {Object.values(sub.docs).filter((d) => d.status === "uploaded").length}/{sub.request.documents.length}</span>
             </div>
           </div>
 
@@ -872,7 +855,7 @@ function SubmittedData({ sub }: { sub: ReviewSubmission }) {
       }
       case "quantity": {
         const rp = sub.request.products.find((p) => p.product.id === productId);
-        return rp ? `${rp.totalTonnes.toLocaleString("en-US")} t` : "—";
+        return rp ? `${formatDecimal(rp.commercialQuantityTonnes)} TNE` : "—";
       }
       case "precursors": {
         // structured rows render as readable lines, not raw JSON
@@ -918,19 +901,13 @@ function SectionBlock({ section, sub, displayValue }: { section: SupplierSection
                 {!d.required && <span className="text-[9px] uppercase tracking-[0.1em] text-black/30">optional</span>}
                 {uploaded ? (
                   <span className="flex flex-wrap items-center gap-1.5 font-mono text-[10px] text-black/35">
-                    {files.length === 0 && "uploaded"}
-                    {files.map((f, i) =>
-                      f.dataUrl ? (
-                        <a key={i} href={f.dataUrl} download={f.name} className="underline decoration-black/20 underline-offset-2 hover:text-black hover:decoration-black/50" title="Download this file">
-                          {f.name}
-                        </a>
-                      ) : (
-                        <span key={i} title="File larger than the inline limit - request it out-of-band">{f.name}</span>
-                      ),
-                    )}
+                    {files.length === 0 && "metadata referenced"}
+                    {files.map((f, i) => (
+                      <span key={i} title="Metadata reference only — document bytes are not stored">{f.name} · reference only</span>
+                    ))}
                   </span>
                 ) : (
-                  <span className="font-mono text-[10px] text-black/35">not attached</span>
+                  <span className="font-mono text-[10px] text-black/35">no file reference</span>
                 )}
               </div>
             );
@@ -998,7 +975,7 @@ function ReviewerPicker({ decl, sub, onChanged }: { decl: Declaration; sub: Revi
         <Users size={15} strokeWidth={1.5} className="text-black/55" />
         <Eyebrow>Internal reviewers</Eyebrow>
       </div>
-      <p className="mt-1.5 text-[12px] text-black/45">Share this submission with the teams who need to sign off — ESG, Compliance, Legal or your verifier. We email them an invite, and they get scoped, read-only access to the source data.</p>
+      <p className="mt-1.5 text-[12px] text-black/45">Model local reviewer assignments for ESG, Compliance, Legal or a verifier. No email, identity authority or scoped access is configured.</p>
       <div className="mt-3 flex flex-wrap gap-1.5">
         {members.map((m) => {
           const on = sub.review.reviewers.includes(m.id);
@@ -1007,7 +984,7 @@ function ReviewerPicker({ decl, sub, onChanged }: { decl: Declaration; sub: Revi
               key={m.id}
               onClick={() => {
                 onChanged(toggleReviewer(decl.id, sub.supplier.id, m.id));
-                if (!on) toast({ message: `${m.name} assigned`, detail: `Notified by email — scoped, read-only access to ${sub.supplier.name}'s submission.`, tone: "info" });
+                if (!on) toast({ message: `${m.name} assigned locally`, detail: "No invitation or access link was sent.", tone: "info" });
               }}
               className={cn(
                 "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[12px] transition-colors",
@@ -1028,7 +1005,7 @@ function ReviewerPicker({ decl, sub, onChanged }: { decl: Declaration; sub: Revi
       </div>
       {sub.review.reviewers.length > 0 && (
         <p className="mt-2.5 text-[11px] text-[#047857]">
-          Shared with {sub.review.reviewers.map((id) => getTeamMember(id)?.name).filter(Boolean).join(", ")} — they'll be notified by email.
+          Locally assigned: {sub.review.reviewers.map((id) => getTeamMember(id)?.name).filter(Boolean).join(", ")} — no notification was sent.
         </p>
       )}
       <AddMemberModal
@@ -1040,7 +1017,7 @@ function ReviewerPicker({ decl, sub, onChanged }: { decl: Declaration; sub: Revi
           if (!sub.review.reviewers.includes(m.id)) {
             onChanged(toggleReviewer(decl.id, sub.supplier.id, m.id));
           }
-          toast({ message: `${m.name} added & assigned`, detail: "Invite emailed — they also appear under Team & seats.", tone: "ok" });
+          toast({ message: `${m.name} added & assigned locally`, detail: "No invitation was sent; they also appear under Team & seats.", tone: "info" });
         }}
       />
     </Card>
@@ -1056,7 +1033,8 @@ function RevisionForm({ sub, onCancel, onSubmit }: { sub: ReviewSubmission; onCa
 
   const toggle = (set: Set<string>, key: string, fn: (s: Set<string>) => void) => {
     const next = new Set(set);
-    next.has(key) ? next.delete(key) : next.add(key);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
     fn(next);
   };
 
@@ -1139,7 +1117,7 @@ function RevisionForm({ sub, onCancel, onSubmit }: { sub: ReviewSubmission; onCa
 }
 
 /* ════════════════════════ Compliance Intelligence (advisory) ════════════════════════ */
-function ComplianceIntelligenceTab({ roll, intel }: { roll: ReviewRollup; intel: IntelligenceReport }) {
+function ComplianceIntelligenceTab({ roll, intel, facts }: { roll: ReviewRollup; intel: IntelligenceReport; facts: ComplianceFacts }) {
   if (roll.submittedCount === 0) {
     return <Card className="p-10 text-center text-sm text-black/40">No submissions yet — trust score, narrative and business impact appear once suppliers start submitting.</Card>;
   }
@@ -1199,9 +1177,18 @@ function ComplianceIntelligenceTab({ roll, intel }: { roll: ReviewRollup; intel:
       <Card className="p-5">
         <Eyebrow>Estimated business impact</Eyebrow>
         <div className="mt-2 font-[family-name:var(--font-plex)] text-2xl font-light text-[#111]">
-          €{intel.businessImpact.low.toLocaleString("en-US")}–{intel.businessImpact.high.toLocaleString("en-US")}
+          {intel.businessImpact.low === null || intel.businessImpact.high === null
+            ? "Unavailable — official price required"
+            : `€${formatDecimal(intel.businessImpact.low)}–${formatDecimal(intel.businessImpact.high)}`}
         </div>
         <p className="mt-1.5 max-w-2xl text-[12px] text-black/45">{intel.businessImpact.note}</p>
+      </Card>
+
+      <Card warm className="p-5">
+        <Eyebrow>50-tonne threshold · not assessed</Eyebrow>
+        <p className="mt-1.5 max-w-2xl text-[12.5px] leading-relaxed text-black/55">
+          The threshold is assessed per EU importer and calendar year across all eligible CBAM imports, not per Certrace request or supplier. Electricity and hydrogen are excluded from the mass test. Importer-wide customs totals are unavailable here, so the request&apos;s {formatDecimal(facts.totalTonnes)} TNE is not used to claim an exemption.
+        </p>
       </Card>
 
       {intel.weakEvidence.length > 0 && (
@@ -1263,20 +1250,28 @@ function ReportTab({
   const reg = getRegulation(decl.regulation)!;
   const jur = getJurisdiction(decl.origin)!;
   const approved = roll.submissions.filter((s) => s.lifecycle === "approved");
+  const reportIssues = manualEntryIssues(approved);
+  const verificationBlockers = actualValueVerificationBlockers(approved);
+  const reportReady = roll.allApproved && approved.length > 0 && reportIssues.length === 0 && verificationBlockers.length === 0;
   const generated = Boolean(exporter.packageGeneratedAt);
-  // The sealed package must match the live approved dataset — a resubmission
-  // or re-approval after generation makes it stale until regenerated.
+  // The local draft preview must match the browser's approved dataset.
   const currentHash = datasetHash(roll.submissions);
   const stale = generated && exporter.packageHash !== null && exporter.packageHash !== currentHash;
   const ref = `CTR-${reg.short.replace(/\s/g, "")}-${decl.period}`.replace(/[^A-Za-z0-9-]/g, "");
 
   const doDownload = async () => {
+    if (!reportReady) {
+      toast({ message: "Draft package blocked", detail: verificationBlockers[0] ?? reportIssues[0]?.issue ?? "All current supplier versions must be approved.", tone: "err" });
+      return;
+    }
     const who = exporterIdentity();
     await downloadPackage({
       ref,
       regulationShort: reg.short,
       regulationFull: reg.full,
       period: decl.periodStart && decl.periodEnd ? `${decl.period} (${decl.periodStart} → ${decl.periodEnd})` : decl.period,
+      collectionDeadline: decl.collectionDeadline ?? decl.due,
+      cbamDeclarationDue: decl.cbamDeclarationDue,
       sector: decl.sector,
       origin: jur.name,
       market: decl.market === "EU" ? "European Union" : decl.market,
@@ -1285,28 +1280,28 @@ function ReportTab({
       buyerLine: decl.buyer ? `${decl.buyer.name} · EORI ${decl.buyer.eori}` : undefined,
       totalEmbedded: roll.reviewedEmissions,
       supplierCount: approved.length,
-      carbonPricePaid: decl.carbonPricePaid ?? 0,
+      carbonPricePaid: decl.carbonPricePaid ?? "0",
       factorSet: jur.factorSet,
       ...packageSummaryData(approved),
       ...packageHistoryData(approved),
       chapters: buildSupplierChapters(approved),
-      signOff: buildSignOff(exporter.signoffs ?? []),
+      signOff: buildSignOff((exporter.signoffs ?? []).filter((signoff) => signoff.packageHash === exporter.packageHash)),
     });
-    toast({ message: "Package downloaded.", detail: "Full communication & audit package — per-supplier chapters, evidence register, sign-off record and audit trail." });
+    toast({ message: "Draft preview downloaded", detail: "Local calculation preview only; not verified, immutable, filed or audit-ready." });
   };
 
   const stubOutputs = [
     { title: "Executive Summary", desc: "Trust score, narrative and business impact for management — see Compliance Intelligence.", status: "Available in-app" },
-    { title: "Buyer-specific report", desc: "This declaration scoped to one buyer's shipments and preferred layout.", status: "Generated on dispatch" },
-    { title: "ERP / Finance export", desc: "Per-supplier emissions + estimated CBAM cost line items, SAP/Oracle-ready fields.", status: "Available on the Scale plan" },
-    { title: "API export", desc: "The same compliance dataset via REST, with a webhook on new versions.", status: "Available on the Scale plan" },
+    { title: "Buyer-specific report", desc: "Planned layout for a named buyer; delivery and buyer templates are not configured.", status: "Deferred" },
+    { title: "ERP / Finance export", desc: "Planned per-supplier line items; no ERP connector is configured.", status: "Deferred" },
+    { title: "API export", desc: "Requires the deferred authenticated backend and webhook infrastructure.", status: "Backend required" },
   ];
 
   return (
     <div className="space-y-5">
       <div>
-        <Eyebrow>Report package</Eyebrow>
-        <p className="mt-1 max-w-2xl text-sm text-black/45">One approved dataset, generated into every artifact you need.</p>
+        <Eyebrow>Draft report preview</Eyebrow>
+        <p className="mt-1 max-w-2xl text-sm text-black/45">Browser-local calculation output with explicit evidence and verification blockers.</p>
       </div>
 
       <Card className="overflow-hidden p-0">
@@ -1323,9 +1318,10 @@ function ReportTab({
                 <Button
                   size="sm"
                   variant="secondary"
+                  disabled={!reportReady}
                   onClick={() => {
                     onChanged(markPackageGenerated(decl.id, currentHash));
-                    toast({ message: "Package regenerated", detail: "PDF + Registry XML now reflect the current approved dataset.", tone: "ok" });
+                    toast({ message: "Draft preview regenerated", detail: "The local PDF now reflects the current browser dataset.", tone: "ok" });
                   }}
                 >
                   Regenerate
@@ -1333,60 +1329,72 @@ function ReportTab({
               </div>
             )}
             <div>
-              <div className="font-pixel text-[10px] uppercase tracking-[0.2em] text-black/40">Audit & Evidence Package</div>
+              <div className="font-pixel text-[10px] uppercase tracking-[0.2em] text-black/40">Draft calculation & report preview</div>
               <div className="mt-2 font-[family-name:var(--font-plex)] text-2xl font-light text-[#111]">{reg.full}</div>
               <div className="mt-1 text-sm text-black/45">{decl.sector} · {decl.period} · {jur.name} → {decl.market}</div>
             </div>
             <div className="grid grid-cols-3 gap-3">
-              <Stat value={roll.reviewedEmissions.toLocaleString("en-US")} label="tCO₂e" />
+              <Stat value={formatDecimal(roll.reviewedEmissions)} label="TCO2E" />
               <Stat value={`${approved.length}`} label="suppliers" />
               <Stat value={`${roll.avgScore ?? "—"}`} label="avg score" />
             </div>
             <div className="hairline-grid h-28 rounded-xl border border-black/[0.06]" aria-hidden />
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2 text-[11px] text-black/35"><StatusDot tone="ok" /> sha-256 sealed · audit trail + version history embedded</div>
-              <Button variant="secondary" size="sm" onClick={doDownload}><Download size={13} strokeWidth={1.5} /> Download</Button>
+              <div className="flex items-center gap-2 text-[11px] text-black/35"><StatusDot tone="info" /> local SHA-256 checksum · not a trusted seal or immutable audit record</div>
+              <Button variant="secondary" size="sm" disabled={!reportReady} onClick={doDownload}><Download size={13} strokeWidth={1.5} /> Download draft PDF</Button>
             </div>
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center p-14 text-center">
             <span className="grid h-12 w-12 place-items-center rounded-xl border border-black/10 text-black/40"><FileText size={20} strokeWidth={1.5} /></span>
             <p className="mt-4 text-sm text-black/45">
-              Every supplier is approved — generate the sealed package when you're ready.
+              Every supplier draft is approved — generate a local calculation preview when you&apos;re ready.
             </p>
             <Button
               className="mt-4"
               size="sm"
+              disabled={!reportReady}
               onClick={() => {
                 onChanged(markPackageGenerated(decl.id, datasetHash(roll.submissions)));
-                toast({ message: "Report generated", detail: "Audit package + Registry XML sealed from the approved dataset. Next: internal sign-off.", tone: "ok" });
+                toast({ message: "Draft preview generated", detail: "No Registry XML, email delivery, trusted seal or legal filing was created.", tone: "ok" });
               }}
             >
-              <FileText size={14} strokeWidth={1.5} /> Generate package
+              <FileText size={14} strokeWidth={1.5} /> Generate draft preview
             </Button>
           </div>
         )}
       </Card>
 
+      {!reportReady && (
+        <Card className="border-[#b45309]/25 bg-[#fffbeb] p-5">
+          <div className="flex items-center gap-2 text-[#b45309]"><TriangleAlert size={15} strokeWidth={1.8} /><Eyebrow>Draft package blocked</Eyebrow></div>
+          <ul className="mt-2 space-y-1 text-[12.5px] text-black/60">
+            {!roll.allApproved && <li>Every current supplier version must pass deterministic checks and receive local approval.</li>}
+            {reportIssues.map((issue, index) => <li key={`mapping-${index}`}>{issue.supplierName}: {issue.issue}</li>)}
+            {verificationBlockers.map((blocker, index) => <li key={`verification-${index}`}>{blocker}</li>)}
+          </ul>
+        </Card>
+      )}
+
       <Card className="overflow-hidden p-0">
         <div className="flex items-center gap-2 border-b border-black/[0.06] bg-black/[0.02] px-5 py-3">
           <StatusDot /> <StatusDot /> <StatusDot />
-          <span className="ml-2 font-mono text-[11px] text-black/35">certrace · {ref.toLowerCase()}-registry.xml</span>
-          {generated && <span className="ml-auto"><StatusLabel tone="ok" label="generated" glow /></span>}
+          <span className="ml-2 font-mono text-[11px] text-black/35">certrace · {ref.toLowerCase()}-o3ci-manual-entry.csv</span>
+          {generated && <span className="ml-auto"><StatusLabel tone="info" label="draft aid" /></span>}
         </div>
         {generated ? (
           <div className="space-y-5 p-7">
             <div>
-              <div className="font-pixel text-[10px] uppercase tracking-[0.2em] text-black/40">CBAM Communication Template · O3CI-ready</div>
-              <div className="mt-2 font-[family-name:var(--font-plex)] text-2xl font-light text-[#111]">Annex IV data export</div>
-              <div className="mt-1 text-sm text-black/45">Feeds the CBAM Registry's O3CI module directly, or hands to a buyer not on it yet — see Send & export.</div>
+              <div className="font-pixel text-[10px] uppercase tracking-[0.2em] text-black/40">O3CI manual-entry worksheet</div>
+              <div className="mt-2 font-[family-name:var(--font-plex)] text-2xl font-light text-[#111]">Human mapping aid</div>
+              <div className="mt-1 text-sm text-black/45">Not an O3CI upload, official schema, Registry XML or proof of submission. Enter and verify values manually in the operator&apos;s own account.</div>
             </div>
-            <RegistryXmlPanel decl={decl} approved={approved} refSlug={ref.toLowerCase()} onOpenSubmission={onOpenSubmission} />
+            <O3ciWorksheetPanel decl={decl} approved={approved} refSlug={ref.toLowerCase()} onOpenSubmission={onOpenSubmission} />
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center p-14 text-center">
             <span className="grid h-12 w-12 place-items-center rounded-xl border border-black/10 text-black/40"><FileText size={20} strokeWidth={1.5} /></span>
-            <p className="mt-4 text-sm text-black/45">Generating the package also produces the Registry XML export.</p>
+            <p className="mt-4 text-sm text-black/45">Generate the draft preview to inspect the manual-entry worksheet.</p>
           </div>
         )}
       </Card>
@@ -1404,7 +1412,7 @@ function ReportTab({
   );
 }
 
-function RegistryXmlPanel({
+function O3ciWorksheetPanel({
   decl,
   approved,
   refSlug,
@@ -1415,34 +1423,47 @@ function RegistryXmlPanel({
   refSlug: string;
   onOpenSubmission: (supplierId: string) => void;
 }) {
-  const validation = React.useMemo(() => validateForRegistry(decl, approved), [decl, approved]);
-  const hardErrors = validation.errors.filter((e) => e.severity === "error");
-  const warnings = validation.errors.filter((e) => e.severity === "warning");
+  const issues = React.useMemo(() => manualEntryIssues(approved), [approved]);
+  const verificationBlockers = React.useMemo(() => actualValueVerificationBlockers(approved), [approved]);
+  const noApprovedSubmissions = approved.length === 0;
 
   const handleDownload = () => {
-    const xmlContent = buildCbamXml(decl, approved);
-    downloadXmlFile(refSlug, xmlContent);
-    toast({ message: "XML downloaded.", detail: "Ready to push to the CBAM Registry's O3CI module." });
+    if (noApprovedSubmissions || issues.length > 0 || verificationBlockers.length > 0) {
+      toast({
+        message: "Manual-entry CSV blocked",
+        detail: verificationBlockers[0] ?? (noApprovedSubmissions ? "No current supplier submission has passed deterministic checks and local approval." : "Resolve every required mapping field before preparing the worksheet."),
+        tone: "err",
+      });
+      return;
+    }
+    downloadFile(`certrace-${refSlug}-o3ci-manual-entry.csv`, buildO3ciManualWorksheet(decl, approved), "text/csv");
+    toast({ message: "Manual-entry CSV downloaded", detail: "Draft mapping aid only; no O3CI upload or schema validation occurred.", tone: "info" });
   };
 
   return (
     <div className="space-y-4">
-      {validation.isValid ? (
+      {noApprovedSubmissions && (
+        <div className="rounded-xl border border-[#dc2626]/20 bg-[#fef2f2] p-4 text-sm text-[#dc2626]">
+          <div className="flex items-center gap-2 font-medium"><CircleX size={16} strokeWidth={2} /> No locally approved submissions are available</div>
+          <p className="mt-1 text-black/60">A stale approval is ignored whenever current deterministic checks contain a critical finding.</p>
+        </div>
+      )}
+      {issues.length === 0 && !noApprovedSubmissions ? (
         <div className="rounded-xl border border-[#047857]/20 bg-[#ecfdf5] p-4 text-sm text-[#047857]">
           <div className="flex items-center gap-2 font-medium">
             <Check size={16} strokeWidth={2} />
-            Schema valid for definitive period
+            Manual mapping fields are complete
           </div>
-          <p className="mt-1 text-black/60">All required installation and emissions data present.</p>
+          <p className="mt-1 text-black/60">This is an internal completeness check, not validation against a Registry schema.</p>
         </div>
-      ) : (
+      ) : issues.length > 0 ? (
         <div className="rounded-xl border border-[#dc2626]/20 bg-[#fef2f2] p-4 text-sm text-[#dc2626]">
           <div className="flex items-center gap-2 font-medium">
             <CircleX size={16} strokeWidth={2} />
-            The Registry would reject this — {hardErrors.length} blocking issue{hardErrors.length === 1 ? "" : "s"}
+            Manual worksheet has {issues.length} blocking gap{issues.length === 1 ? "" : "s"}
           </div>
           <ul className="mt-2 space-y-1 text-black/70">
-            {hardErrors.map((err, i) => (
+            {issues.map((err, i) => (
               <li key={i}>
                 <button
                   onClick={() => onOpenSubmission(err.supplierId)}
@@ -1454,27 +1475,25 @@ function RegistryXmlPanel({
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-[12px] text-black/50">Click an issue to open that supplier's submission and request a revision.</p>
+          <p className="mt-2 text-[12px] text-black/50">Click an issue to open that supplier&apos;s submission and request a revision.</p>
         </div>
-      )}
-      {warnings.length > 0 && (
+      ) : null}
+      {verificationBlockers.length > 0 && (
         <div className="rounded-xl border border-[#b45309]/20 bg-[#fffbeb] p-4 text-sm">
           <div className="flex items-center gap-2 font-medium text-[#b45309]">
             <TriangleAlert size={15} strokeWidth={1.8} />
-            {warnings.length} warning{warnings.length === 1 ? "" : "s"} — accepted by the Registry, but worth knowing
+            Actual-value handoff blocked pending accredited-verifier evidence
           </div>
           <ul className="mt-2 space-y-1 text-[13px] text-black/60">
-            {warnings.map((w, i) => (
-              <li key={i}><span className="text-black/80">{w.supplierName}</span>: {w.issue}</li>
-            ))}
+            {verificationBlockers.map((blocker, i) => <li key={i}>{blocker}</li>)}
           </ul>
         </div>
       )}
 
       <div className="hairline-grid h-28 rounded-xl border border-black/[0.06]" aria-hidden />
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-[11px] text-black/35"><StatusDot tone={validation.isValid ? "ok" : "err"} /> strict schema validation</div>
-        <Button variant="secondary" size="sm" onClick={handleDownload} disabled={!validation.isValid}><Download size={13} strokeWidth={1.5} /> Download XML</Button>
+        <div className="flex items-center gap-2 text-[11px] text-black/35"><StatusDot tone={issues.length === 0 ? "info" : "err"} /> manual mapping aid · not an O3CI upload</div>
+        <Button variant="secondary" size="sm" onClick={handleDownload} disabled={noApprovedSubmissions || issues.length > 0 || verificationBlockers.length > 0}><Download size={13} strokeWidth={1.5} /> Download manual-entry CSV</Button>
       </div>
     </div>
   );
@@ -1497,7 +1516,7 @@ function SignoffTab({
   const [showAdd, setShowAdd] = React.useState(false);
   React.useEffect(() => setMembers(loadTeam()), []);
 
-  const signoffs = exporter.signoffs ?? [];
+  const signoffs = (exporter.signoffs ?? []).filter((signoff) => signoff.packageHash === exporter.packageHash);
   const requestedIds = new Set(signoffs.map((s) => s.memberId));
   const available = members.filter((m) => !requestedIds.has(m.id));
   const legalCovered = signoffs.some((s) => getTeamMember(s.memberId)?.dept === "Legal");
@@ -1505,16 +1524,22 @@ function SignoffTab({
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
 
-  const send = () => {
+  const assign = () => {
     const names = [...selected].map((id) => getTeamMember(id)?.name).filter(Boolean).join(", ");
-    onChanged(requestReportSignoffs(decl.id, [...selected]));
+    try {
+      onChanged(requestReportSignoffs(decl.id, [...selected]));
+    } catch (error) {
+      toast({ message: "Confirmation assignment blocked", detail: error instanceof Error ? error.message : "Generate the current preview first.", tone: "err" });
+      return;
+    }
     setSelected(new Set());
-    toast({ message: "Preview sent", detail: `${names} emailed a read-only preview of the report — dispatch unlocks when everyone confirms.`, tone: "info" });
+    toast({ message: "Reviewers assigned locally", detail: `${names || "Selected reviewers"} were not emailed; confirmations are demo-only.`, tone: "info" });
   };
 
   return (
@@ -1522,7 +1547,7 @@ function SignoffTab({
       <div>
         <Eyebrow>Internal sign-off</Eyebrow>
         <p className="mt-1 max-w-2xl text-sm text-black/45">
-          Send the report for confirmation before it goes out. Each person gets a read-only preview link, and confirmations are recorded automatically.
+          Model internal confirmation in this browser. No preview link, email, identity verification or automatic confirmation is configured.
         </p>
       </div>
 
@@ -1554,7 +1579,7 @@ function SignoffTab({
                 <div className="min-w-0 flex-1">
                   <div className="text-sm text-black/80">{m?.name ?? "Removed member"}</div>
                   <div className="mt-0.5 text-[11px] text-black/40">
-                    {m?.role ?? "—"} · preview sent {new Date(s.requestedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                    {m?.role ?? "—"} · assigned locally {new Date(s.requestedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
                   </div>
                 </div>
                 {confirmed ? (
@@ -1565,10 +1590,10 @@ function SignoffTab({
                     <Button
                       variant="ghost"
                       size="sm"
-                      title="Demo: records the confirmation that would arrive from their preview link."
+                      title="Demo-only local confirmation; no identity authority is configured."
                       onClick={() => {
                         onChanged(confirmReportSignoff(decl.id, s.memberId));
-                        toast({ message: `${m?.name ?? "Reviewer"} confirmed`, detail: "Their confirmation is on the record and embedded in the package.", tone: "ok" });
+                        toast({ message: `${m?.name ?? "Reviewer"} marked confirmed locally`, detail: "Not identity-verified or externally delivered.", tone: "info" });
                       }}
                     >
                       Mark confirmed
@@ -1590,7 +1615,7 @@ function SignoffTab({
           <Users size={15} strokeWidth={1.5} className="text-black/55" />
           <Eyebrow>{signoffs.length > 0 ? "Ask someone else" : "Who needs to confirm?"}</Eyebrow>
         </div>
-        <p className="mt-1.5 text-[12px] text-black/45">Pick from your team, or add a new person — they'll appear under Team & seats too.</p>
+        <p className="mt-1.5 text-[12px] text-black/45">Pick from your local demo team, or add a person. No invitation is sent.</p>
         <div className="mt-3 flex flex-wrap gap-1.5">
           {available.map((m) => {
             const on = selected.has(m.id);
@@ -1617,8 +1642,8 @@ function SignoffTab({
         </div>
         <div className="mt-4 flex items-center justify-between gap-3 border-t border-black/[0.06] pt-4">
           <span className="text-[11px] text-black/40">{selected.size === 0 ? "Select at least one person" : `${selected.size} selected`}</span>
-          <Button size="sm" disabled={selected.size === 0} onClick={send}>
-            <Send size={14} strokeWidth={1.5} /> Send for confirmation
+          <Button size="sm" disabled={selected.size === 0} onClick={assign}>
+            <ClipboardCheck size={14} strokeWidth={1.5} /> Assign local confirmation
           </Button>
         </div>
       </Card>
@@ -1626,11 +1651,11 @@ function SignoffTab({
       <AddMemberModal
         open={showAdd}
         onClose={() => setShowAdd(false)}
-        note="They join your team list and can be sent this report to confirm — an emailed, read-only preview of exactly what will be dispatched."
+        note="They join the browser-local team list. No invitation, preview link or access grant is sent."
         onAdded={(m) => {
           setMembers(loadTeam());
           setSelected((prev) => new Set(prev).add(m.id));
-          toast({ message: `${m.name} added`, detail: "Selected below — hit “Send for confirmation” when your list is complete.", tone: "ok" });
+          toast({ message: `${m.name} added locally`, detail: "Selected below; no invitation was sent.", tone: "info" });
         }}
       />
     </div>
@@ -1655,54 +1680,53 @@ function DispatchTab({
   onNavigate: (v: View) => void;
   onOpenSubmission: (supplierId: string) => void;
 }) {
-  const reg = getRegulation(decl.regulation)!;
-  const recipients = exporter.recipients;
   const dispatch = exporter.dispatch;
   const allApproved = roll.total > 0 && roll.submissions.every((s) => s.lifecycle === "approved");
-  // The Registry would reject non-conforming data, so dispatch runs the same
-  // pre-flight the XML export does — a hard error here blocks the push.
   const approved = roll.submissions.filter((s) => s.lifecycle === "approved");
-  const validation = React.useMemo(() => validateForRegistry(decl, approved), [decl, approved]);
-  const hardErrors = validation.errors.filter((e) => e.severity === "error");
-  // The generated package must still match the live dataset — a resubmission
-  // after generation makes it stale, and stale data must never be dispatched.
+  const issues = React.useMemo(() => manualEntryIssues(approved), [approved]);
+  const verificationBlockers = React.useMemo(() => actualValueVerificationBlockers(approved), [approved]);
   const packageStale = exporter.packageHash !== null && exporter.packageHash !== datasetHash(roll.submissions);
-  const readyToDispatch = signoffComplete && allApproved && validation.isValid && !packageStale;
-  const dispatched = Boolean(dispatch.o3ciPushedAt || dispatch.templateSentAt);
-
-  const targets: { key: DispatchRecipient; icon: typeof Building2; title: string; to: string; desc: string }[] = [
-    {
-      key: "buyer",
-      icon: Building2,
-      title: decl.buyer?.name ?? "EU buyer / importer",
-      to: decl.buyer ? `${decl.buyer.email} · EORI ${decl.buyer.eori}` : "No buyer on this declaration — add one in the wizard",
-      desc: "The declarant who actually files with the CBAM Registry.",
-    },
-    { key: "authority", icon: Landmark, title: reg.authority, to: "O3CI · CBAM Registry", desc: "Reached via the O3CI push below, not a direct portal login." },
-    { key: "verifier", icon: BadgeCheck, title: "Accredited verifier", to: "TÜV SÜD · auditor portal", desc: "Scoped source-data access — no email attachments." },
+  const mappingReady = signoffComplete && allApproved && issues.length === 0 && verificationBlockers.length === 0 && !packageStale;
+  const checklist: { key: O3ciChecklistKey; label: string; detail: string; blocked?: boolean }[] = [
+    { key: "operator_account", label: "Operator account", detail: "Operator confirms access to its own EU Login and O3CI account." },
+    { key: "installation_registered", label: "Installation registered", detail: "Operator confirms installation identity and boundaries in O3CI." },
+    { key: "values_entered", label: "Values entered", detail: "Operator manually enters and independently checks worksheet values." },
+    { key: "verifier_report_attached", label: "Verifier report attached", detail: "Accredited verifier report is attached in the controlled external workflow.", blocked: verificationBlockers.length > 0 },
   ];
+
+  const downloadWorksheet = () => {
+    if (!mappingReady) {
+      toast({ message: "Manual worksheet blocked", detail: verificationBlockers[0] ?? issues[0]?.issue ?? "Complete current approval and sign-off gates first.", tone: "err" });
+      return;
+    }
+    downloadFile(`certrace-${decl.id}-o3ci-manual-entry.csv`, buildO3ciManualWorksheet(decl, approved), "text/csv");
+    onChanged(recordWorksheetDownload(decl.id));
+    toast({ message: "Manual-entry CSV downloaded", detail: "No O3CI upload, email delivery or external submission occurred.", tone: "info" });
+  };
 
   return (
     <div className="space-y-5">
       <Card warm className="p-5">
-        <Eyebrow>Why this looks different</Eyebrow>
+        <Eyebrow>Manual handoff boundary</Eyebrow>
         <p className="mt-1.5 max-w-2xl text-[12.5px] leading-relaxed text-black/55">
-          Certrace never files with the CBAM authority directly — only the EU buyer's Authorised CBAM Declarant can do that. What actually reaches the regulator is either a push into the CBAM Registry's <span className="text-black/75">O3CI</span> module (so any declarant holding your EORI reference can pull the data straight in) or the official <span className="text-black/75">Communication Template</span> sent to a buyer who isn't on O3CI yet. Filing itself always happens on the buyer's side.
+          Certrace has no official public O3CI write API or upload schema integration. The operator must use its own account and the EU importer or indirect customs representative remains responsible for the annual CBAM declaration. This page records a local checklist only.
         </p>
       </Card>
 
-      {!readyToDispatch && (
+      {!mappingReady && (
         <Card warm className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <StatusDot tone="warn" />
             <p className="text-sm text-black/55">
               {!signoffComplete
-                ? "Internal sign-off isn't complete yet — every requested confirmation must land first."
+                ? "Local sign-off is incomplete."
                 : !allApproved
-                  ? "Every submission must be approved before dispatch."
+                  ? "Every submission must be approved before preparing the worksheet."
+                  : verificationBlockers.length > 0
+                    ? "Actual values require a securely available accredited-verifier report before handoff."
                   : packageStale
-                    ? "The dataset changed after the report was generated — regenerate the package before dispatch."
-                    : "The dataset has blocking Registry issues — fix them before anything is sent."}
+                    ? "The browser dataset changed after the draft preview was generated — regenerate it first."
+                    : "The manual worksheet has blocking data gaps."}
             </p>
           </div>
           {!signoffComplete && (
@@ -1713,15 +1737,14 @@ function DispatchTab({
         </Card>
       )}
 
-      {/* Same pre-flight the Registry runs — a hard error means the push would bounce. */}
-      {signoffComplete && allApproved && hardErrors.length > 0 && (
+      {signoffComplete && allApproved && issues.length > 0 && (
         <Card className="border-[#dc2626]/25 p-5">
           <div className="flex items-center gap-2">
             <CircleX size={15} strokeWidth={1.8} className="text-[#dc2626]" />
-            <Eyebrow>Registry pre-flight failed</Eyebrow>
+            <Eyebrow>Manual mapping incomplete</Eyebrow>
           </div>
           <ul className="mt-2.5 space-y-1.5 text-[13px] text-black/65">
-            {hardErrors.map((err, i) => (
+            {issues.map((err, i) => (
               <li key={i}>
                 <button
                   onClick={() => onOpenSubmission(err.supplierId)}
@@ -1733,82 +1756,56 @@ function DispatchTab({
               </li>
             ))}
           </ul>
-          <p className="mt-2.5 text-[12px] text-black/45">Click an issue to open the submission — request a revision there, and dispatch unlocks once the resubmission passes.</p>
+          <p className="mt-2.5 text-[12px] text-black/45">This is a Certrace completeness check, not a prediction of Registry acceptance.</p>
         </Card>
       )}
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Card className="p-5">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-[#111]">Push to CBAM Registry (O3CI)</div>
-            {dispatch.o3ciPushedAt && <StatusLabel tone="ok" label="pushed" glow />}
-          </div>
-          <p className="mt-1.5 text-[12.5px] text-black/50">Uploads the approved installation + emissions dataset in the Registry's own schema.</p>
-          <Button
-            className="mt-3"
-            size="sm"
-            disabled={!readyToDispatch || Boolean(dispatch.o3ciPushedAt)}
-            onClick={() => {
-              onChanged(pushToO3CI(decl.id));
-              toast({ message: "Pushed to O3CI", detail: "Any declarant with your EORI reference can now pull this in.", tone: "ok" });
-            }}
-          >
-            <Send size={13} strokeWidth={1.5} /> {dispatch.o3ciPushedAt ? `Pushed ${new Date(dispatch.o3ciPushedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : "Push now"}
-          </Button>
+      {verificationBlockers.length > 0 && (
+        <Card className="border-[#b45309]/25 bg-[#fffbeb] p-5">
+          <div className="flex items-center gap-2 text-[#b45309]"><TriangleAlert size={15} strokeWidth={1.8} /><Eyebrow>Actual-value handoff blocked</Eyebrow></div>
+          <ul className="mt-2.5 space-y-1 text-[12.5px] text-black/60">{verificationBlockers.map((blocker, index) => <li key={index}>{blocker}</li>)}</ul>
         </Card>
-        <Card className="p-5">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-[#111]">Send Communication Template</div>
-            {dispatch.templateSentAt && <StatusLabel tone="ok" label="sent" glow />}
+      )}
+
+      <Card className="p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-sm text-[#111]">O3CI manual-entry worksheet</div>
+            <p className="mt-1.5 max-w-xl text-[12.5px] text-black/50">CSV mapping aid for manual re-entry. It is not an O3CI upload, official schema, Communication Template or evidence of delivery.</p>
           </div>
-          <p className="mt-1.5 text-[12.5px] text-black/50">Annex IV-aligned template, for buyers not using O3CI.</p>
-          <Button
-            className="mt-3"
-            size="sm"
-            variant="secondary"
-            disabled={!readyToDispatch || Boolean(dispatch.templateSentAt)}
-            onClick={() => {
-              onChanged(sendCommunicationTemplate(decl.id));
-              toast({ message: "Communication Template sent", detail: "Delivered to the buyer's compliance team.", tone: "ok" });
-            }}
-          >
-            <FileText size={13} strokeWidth={1.5} /> {dispatch.templateSentAt ? `Sent ${new Date(dispatch.templateSentAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}` : "Send now"}
-          </Button>
-        </Card>
-      </div>
+          {dispatch.worksheetDownloadedAt && <StatusLabel tone="info" label="downloaded locally" />}
+        </div>
+        <Button className="mt-3" size="sm" disabled={!mappingReady} onClick={downloadWorksheet}>
+          <Download size={13} strokeWidth={1.5} /> Download manual-entry CSV
+        </Button>
+      </Card>
 
       <div>
-        <Eyebrow>Acknowledgement</Eyebrow>
-        <p className="mt-1 max-w-2xl text-sm text-black/45">The real end state — confirmation a recipient actually received the data, not just that it was sent.</p>
+        <Eyebrow>Operator checklist</Eyebrow>
+        <p className="mt-1 max-w-2xl text-sm text-black/45">Self-attested local notes only. Certrace cannot observe or validate actions in EU Login, O3CI, a verifier system or a buyer&apos;s records.</p>
       </div>
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        {targets.map((t) => {
-          const Icon = t.icon;
-          const on = recipients[t.key];
-          const ack = dispatch.acknowledgedAt[t.key];
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {checklist.map((item) => {
+          const checked = dispatch.checklist[item.key];
           return (
-            <div key={t.key} className={cn("rounded-2xl border p-5", on ? "border-black/20 bg-[#f0eee8]" : "border-black/[0.07] bg-white")}>
-              <div className="flex items-center justify-between">
-                <span className="grid h-10 w-10 place-items-center rounded-xl border border-black/10 text-black/60"><Icon size={18} strokeWidth={1.5} /></span>
+            <Card key={item.key} className={cn("p-5", checked && "border-[#047857]/20 bg-[#ecfdf5]") }>
+              <div className="flex items-start gap-3">
                 <button
-                  onClick={() => onChanged(persistRecipients(decl.id, { ...recipients, [t.key]: !on }))}
-                  className={cn("grid h-5 w-5 place-items-center rounded-full border", on ? "border-transparent bg-[#111] text-white" : "border-black/15")}
+                  type="button"
+                  disabled={!mappingReady || item.blocked}
+                  onClick={() => onChanged(setO3ciChecklistItem(decl.id, item.key, !checked))}
+                  className={cn("mt-0.5 grid h-5 w-5 flex-none place-items-center rounded-md border", checked ? "border-transparent bg-[#111] text-white" : "border-black/20", (!mappingReady || item.blocked) && "opacity-40")}
+                  aria-label={`${checked ? "Clear" : "Mark"} ${item.label}`}
                 >
-                  {on && <Check size={12} strokeWidth={2} />}
+                  {checked && <Check size={12} strokeWidth={2.5} />}
                 </button>
+                <div>
+                  <div className="text-sm text-black/75">{item.label}</div>
+                  <p className="mt-1 text-[12px] leading-relaxed text-black/45">{item.detail}</p>
+                  {item.blocked && <p className="mt-1 text-[11px] text-[#b45309]">Blocked until the accredited report is available through secure evidence storage.</p>}
+                </div>
               </div>
-              <div className="mt-4 text-sm text-[#111]">{t.title}</div>
-              <div className="mt-0.5 font-mono text-[11px] text-black/40">{t.to}</div>
-              <p className="mt-2 text-[12px] leading-relaxed text-black/45">{t.desc}</p>
-              {on &&
-                (ack ? (
-                  <span className="mt-2 block"><StatusLabel tone="ok" label={`acknowledged ${new Date(ack).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`} glow /></span>
-                ) : (
-                  <Button variant="ghost" size="sm" className="mt-2" disabled={!dispatched} onClick={() => onChanged(acknowledgeRecipient(decl.id, t.key))}>
-                    Mark acknowledged
-                  </Button>
-                ))}
-            </div>
+            </Card>
           );
         })}
       </div>
@@ -1816,44 +1813,37 @@ function DispatchTab({
   );
 }
 
-/* ════════════════════════ Audit Trail & Version History ════════════════════════ */
+/* ════════════════════════ Local activity history ════════════════════════ */
 function AuditTrailTab({ roll, exporter }: { roll: ReviewRollup; exporter: ExporterDeclState }) {
   const who = exporterIdentity().contact;
   type Row = { at: number; who: string; text: string };
-  const recipientLabel: Record<DispatchRecipient, string> = { buyer: "EU buyer / importer", authority: "EU CBAM Registry", verifier: "Accredited verifier" };
 
   const supplierName = (id: string) => roll.submissions.find((s) => s.supplier.id === id)?.supplier.name ?? id;
   const rows: Row[] = [
     ...roll.submissions.flatMap((s) => s.events.map((e) => ({ at: e.at, who: s.supplier.name, text: e.text }))),
     ...Object.entries(exporter.remindersSent ?? {}).flatMap(([supplierId, times]) =>
-      times.map((at) => ({ at, who: who, text: `Reminder emailed to ${supplierName(supplierId)} — Smart Link still awaiting submission` })),
+      times.map((at) => ({ at, who: who, text: `Follow-up noted locally for ${supplierName(supplierId)} — no reminder sent` })),
     ),
-    ...(exporter.packageGeneratedAt ? [{ at: exporter.packageGeneratedAt, who: who, text: "Report package generated — audit PDF + Registry XML sealed from the approved dataset" }] : []),
-    ...(exporter.signoffs ?? []).flatMap((s) => {
+    ...(exporter.packageGeneratedAt ? [{ at: exporter.packageGeneratedAt, who: who, text: "Draft calculation preview generated locally" }] : []),
+    ...(exporter.signoffs ?? []).filter((signoff) => signoff.packageHash === exporter.packageHash).flatMap((s) => {
       const m = getTeamMember(s.memberId);
       const name = m?.name ?? "Reviewer";
-      const out: Row[] = [{ at: s.requestedAt, who: who, text: `Report preview sent to ${name}${m ? ` (${m.role})` : ""} for confirmation` }];
-      if (s.confirmedAt) out.push({ at: s.confirmedAt, who: name, text: "Confirmed the report — sign-off recorded in the package" });
+      const out: Row[] = [{ at: s.requestedAt, who: who, text: `Local confirmation assigned to ${name}${m ? ` (${m.role})` : ""}; no invitation sent` }];
+      if (s.confirmedAt) out.push({ at: s.confirmedAt, who: name, text: "Marked the draft preview confirmed locally (not identity-verified)" });
       return out;
     }),
-    ...(exporter.dispatch.o3ciPushedAt ? [{ at: exporter.dispatch.o3ciPushedAt, who: who, text: "Pushed to the CBAM Registry's O3CI module" }] : []),
-    ...(exporter.dispatch.templateSentAt ? [{ at: exporter.dispatch.templateSentAt, who: who, text: "Communication Template sent to the buyer" }] : []),
-    ...Object.entries(exporter.dispatch.acknowledgedAt).map(([key, at]) => ({
-      at: at as number,
-      who: recipientLabel[key as DispatchRecipient],
-      text: "Acknowledged receipt of the declaration data",
-    })),
+    ...(exporter.dispatch.worksheetDownloadedAt ? [{ at: exporter.dispatch.worksheetDownloadedAt, who: who, text: "O3CI manual-entry worksheet downloaded; no external upload occurred" }] : []),
   ].sort((a, b) => b.at - a.at);
 
   if (rows.length === 0) {
-    return <Card className="p-10 text-center text-sm text-black/40">Nothing recorded yet — every engine run, AI pass and human decision will appear here as it happens.</Card>;
+    return <Card className="p-10 text-center text-sm text-black/40">Nothing recorded yet — local engine runs and demo decisions will appear here. This is not an audit ledger.</Card>;
   }
 
   return (
     <div className="space-y-3">
       <div>
-        <Eyebrow>Audit trail</Eyebrow>
-        <p className="mt-1 max-w-2xl text-sm text-black/45">One unified, append-only timeline — supplier submissions, internal sign-offs and every dispatch, newest first.</p>
+        <Eyebrow>Local activity history</Eyebrow>
+        <p className="mt-1 max-w-2xl text-sm text-black/45">Mutable browser-local demo events, newest first. This is not an immutable audit ledger or proof of external delivery.</p>
       </div>
       <Card className="divide-y divide-black/[0.05] p-0">
         {rows.map((r, i) => (

@@ -2,10 +2,11 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Bell, ExternalLink, FileText, Package, Clock, AlertTriangle, Download, ShieldCheck, CheckCircle2 } from "lucide-react";
-import { Card, Button, Chip, Stat, Eyebrow, Progress, StatusLabel, StatusDot, cn } from "./ui";
+import { ArrowLeft, ArrowRight, Bell, ExternalLink, FileText, Package, AlertTriangle, Download } from "lucide-react";
+import { Card, Button, Chip, Stat, Eyebrow, Progress, StatusLabel, StatusDot } from "./ui";
 import { toast } from "./toast";
 import { type SupplierProfile, supplierStatusMeta } from "@/lib/data";
+import { formatDecimal } from "@/lib/workflow-measurements";
 
 export function SupplierDetail({ profile: p }: { profile: SupplierProfile }) {
   const meta = supplierStatusMeta[p.status];
@@ -40,14 +41,14 @@ export function SupplierDetail({ profile: p }: { profile: SupplierProfile }) {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="secondary" size="sm" onClick={() => toast({ message: `Reminder sent to ${p.name}.`, detail: "They get a fresh guided-form link.", tone: "info" })}>
-            <Bell size={14} strokeWidth={1.5} /> Send reminder
+          <Button variant="secondary" size="sm" onClick={() => toast({ message: `Follow-up noted for ${p.name}.`, detail: "No email or guided-form link was delivered.", tone: "info" })}>
+            <Bell size={14} strokeWidth={1.5} /> Note follow-up
           </Button>
-          <Button variant="secondary" size="sm" onClick={() => toast({ message: `Downloading report for ${p.name}...`, tone: "info" })}>
-            <Download size={14} strokeWidth={1.5} /> Report
+          <Button variant="secondary" size="sm" onClick={() => toast({ message: "Draft preview unavailable", detail: "Generate it from a declaration workspace; no verified supplier report exists.", tone: "info" })}>
+            <Download size={14} strokeWidth={1.5} /> Draft preview
           </Button>
-          <Button variant="secondary" size="sm" onClick={() => toast({ message: `Downloading documents for ${p.name}...`, tone: "info" })}>
-            <Download size={14} strokeWidth={1.5} /> Documents
+          <Button variant="secondary" size="sm" onClick={() => toast({ message: "Evidence unavailable", detail: "File bytes are not stored until secure backend storage and scanning exist.", tone: "info" })}>
+            <Download size={14} strokeWidth={1.5} /> Evidence status
           </Button>
           <Link href="/s/demo-token">
             <Button size="sm">
@@ -59,17 +60,17 @@ export function SupplierDetail({ profile: p }: { profile: SupplierProfile }) {
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Card className="p-5"><Stat value={`${p.compliancePct}%`} label="Compliance" /></Card>
+        <Card className="p-5"><Stat value={`${p.compliancePct}%`} label="Form completion" /></Card>
         <Card className="p-5"><Stat value={p.products.length} label="Products supplied" /></Card>
-        <Card className="p-5"><Stat value={p.declarations.length} label="Declarations" /></Card>
-        <Card className="p-5"><Stat value={p.emissions != null ? p.emissions.toFixed(2) : "—"} label="tCO₂e/t latest" /></Card>
+        <Card className="p-5"><Stat value={p.declarations.length} label="Data requests" /></Card>
+        <Card className="p-5"><Stat value={p.emissions != null ? formatDecimal(p.emissions) : "—"} label="tCO₂e/t fixture" /></Card>
       </div>
 
       <div className="grid gap-3 lg:grid-cols-3">
         {/* Left: declarations + reports */}
         <div className="space-y-3 lg:col-span-2">
           <Card className="p-5">
-            <Eyebrow>Declaration status</Eyebrow>
+            <Eyebrow>Data-request status</Eyebrow>
             <div className="mt-3 divide-y divide-black/[0.06]">
               {p.declarations.map((d) => {
                 const m = supplierStatusMeta[d.status];
@@ -77,7 +78,7 @@ export function SupplierDetail({ profile: p }: { profile: SupplierProfile }) {
                   <Link key={d.id + d.period} href={`/declarations/${d.id}`} className="flex items-center gap-3 py-3 transition-colors hover:bg-[#fafaf8]">
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-[13px] text-black/75">{d.name}</span>
-                      <span className="block text-[11px] text-black/40">{d.period} · due {d.due}</span>
+                      <span className="block text-[11px] text-black/40">{d.period} · supplier data due {d.due}</span>
                     </span>
                     <span className="w-24"><Progress value={d.progress} tone={m.tone === "muted" ? "muted" : m.tone} /></span>
                     <StatusLabel tone={m.tone} label={m.label} glow={d.status === "submitted"} />
@@ -90,16 +91,8 @@ export function SupplierDetail({ profile: p }: { profile: SupplierProfile }) {
 
           <Card className="p-5">
             <div className="flex items-center justify-between mb-4">
-              <Eyebrow>Data & Documents</Eyebrow>
-              {p.verificationStatus === "third_party_verified" && (
-                <Chip tone="ok"><ShieldCheck size={12} className="inline mr-1" /> Third-party verified</Chip>
-              )}
-              {p.verificationStatus === "internally_verified" && (
-                <Chip tone="info"><CheckCircle2 size={12} className="inline mr-1" /> Internally verified</Chip>
-              )}
-              {p.verificationStatus === "not_verified" && (
-                <Chip tone="muted">Not verified</Chip>
-              )}
+              <Eyebrow>Local data &amp; file metadata</Eyebrow>
+              <Chip tone="muted">Not verified</Chip>
             </div>
             <div className="grid gap-6 md:grid-cols-2">
               <div>
@@ -111,7 +104,7 @@ export function SupplierDetail({ profile: p }: { profile: SupplierProfile }) {
               </div>
               <div>
                 <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[12px] text-black/70">Documents Uploaded</span>
+                  <span className="text-[12px] text-black/70">File references</span>
                   <span className="font-mono text-[11px] text-black/50">{p.documentsStats.uploaded}/{p.documentsStats.total}</span>
                 </div>
                 <Progress value={(p.documentsStats.uploaded / p.documentsStats.total) * 100} tone={p.documentsStats.uploaded === p.documentsStats.total ? "ok" : "info"} />
@@ -135,11 +128,11 @@ export function SupplierDetail({ profile: p }: { profile: SupplierProfile }) {
 
           <Card className="p-5">
             <div className="flex items-center justify-between">
-              <Eyebrow>Submitted reports</Eyebrow>
+              <Eyebrow>Historical local previews</Eyebrow>
               <span className="font-mono text-[11px] text-black/40">{p.reports.length}</span>
             </div>
             {p.reports.length === 0 ? (
-              <p className="mt-3 text-[12px] text-black/40">No verified reports yet.</p>
+              <p className="mt-3 text-[12px] text-black/40">No local previews recorded.</p>
             ) : (
               <div className="mt-3 divide-y divide-black/[0.06]">
                 {p.reports.map((r) => (
@@ -149,8 +142,8 @@ export function SupplierDetail({ profile: p }: { profile: SupplierProfile }) {
                       <span className="block truncate font-mono text-[12px] text-black/65">{r.id}</span>
                       <span className="block text-[11px] text-black/40">{r.period}</span>
                     </span>
-                    <span className="font-mono text-[12px] text-black/55">{r.emissions != null ? `${r.emissions.toFixed(2)} tCO₂e/t` : "—"}</span>
-                    <Chip tone="ok" pulse={false}>{r.state}</Chip>
+                    <span className="font-mono text-[12px] text-black/55">{r.emissions != null ? `${formatDecimal(r.emissions)} tCO₂e/t` : "—"}</span>
+                    <Chip tone="muted" pulse={false}>{r.state}</Chip>
                   </div>
                 ))}
               </div>
@@ -191,9 +184,9 @@ export function SupplierDetail({ profile: p }: { profile: SupplierProfile }) {
           )}
 
           <Card className="p-5">
-            <Eyebrow>Documents</Eyebrow>
+            <Eyebrow>File references</Eyebrow>
             {p.documents.length === 0 ? (
-              <p className="mt-3 text-[12px] text-black/40">No documents on file yet.</p>
+              <p className="mt-3 text-[12px] text-black/40">No file metadata recorded. Evidence bytes are not stored.</p>
             ) : (
               <div className="mt-3 space-y-2">
                 {p.documents.map((doc) => (

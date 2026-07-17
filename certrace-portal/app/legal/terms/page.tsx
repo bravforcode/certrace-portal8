@@ -6,31 +6,31 @@ import { Eyebrow } from "@/components/ui";
 const SECTIONS = [
   {
     title: "1. What Certrace is",
-    body: "Certrace is a workflow platform that helps exporters collect supplier carbon data, calculate embedded emissions, and prepare audit-ready declarations for regulations such as the EU Carbon Border Adjustment Mechanism (CBAM). Certrace is a filing and workflow tool — it does not submit declarations to authorities on your behalf, and your organisation remains the declarant of record.",
+    body: "This build is a browser-only CBAM readiness demonstration. It prepares draft calculations and a manual data handoff; it does not create a legal filing, audit-ready record, Registry submission, verifier opinion, or production service account.",
   },
   {
     title: "2. Your account",
-    body: "One organisation account is created per company. Your account identity (account ID) is permanent and is not tied to any single email address — you may change the email associated with your account at any time from Settings without losing access to your declarations, suppliers, or history. You're responsible for keeping your password confidential and for activity that happens under your seats.",
+    body: "Displayed users, account IDs, passwords, roles, seats, sessions, and organisations are fixtures. No authentication authority, tenant isolation, account recovery, or server-side access control is configured. Do not treat the demo as an account system.",
   },
   {
     title: "3. Supplier data",
-    body: "Suppliers you invite submit data through a free guided form. That data is shared with your organisation for the purpose of compiling declarations. Certrace does not sell supplier data and does not share it with any third party outside your declared workflow (your buyers, verifiers, and the relevant regulatory authority, only when you choose to submit).",
+    body: "Supplier links and records work only in the same browser storage. No invitation, email, cross-device transfer, buyer delivery, verifier sharing, or authority submission occurs. Use synthetic data only; do not enter personal, confidential, evidentiary, or production emissions data.",
   },
   {
     title: "4. Plans and billing",
-    body: "Paid plans are billed per seat, in advance, monthly or annually as selected at checkout. Supplier access is always free. You can upgrade, downgrade, or cancel from Plan & billing; downgrades take effect at the end of the current billing period.",
+    body: "Pricing, plans, invoices, seats, and billing controls are presentation fixtures. This build does not take payment, create a subscription, or change an entitlement.",
   },
   {
     title: "5. Acceptable use",
-    body: "You agree not to use Certrace to submit knowingly false emissions data, to attempt to access another organisation's account or data, or to reverse-engineer the calculation engine for purposes other than verifying your own results.",
+    body: "Do not enter real credentials, personal data, trade secrets, evidence files, or regulated production data. Do not represent a draft preview or local status as verified, filed, accepted, delivered, immutable, or legally sufficient.",
   },
   {
     title: "6. Liability",
-    body: "Certrace provides tooling to help you assemble accurate declarations, but the accuracy of the underlying data supplied by you and your suppliers remains your responsibility. Certrace is provided \"as is\" during this MVP phase without uptime guarantees.",
+    body: "Calculation fixtures remain subject to review by Certrace's ESG Compliance Specialist. Real actual-value data requires an accredited verifier. The demo is provided as is, without production availability, retention, security, correctness, or legal-compliance guarantees.",
   },
   {
     title: "7. Changes",
-    body: "We may update these terms as the product evolves. Material changes will be notified in-app and by email before they take effect.",
+    body: "These demonstration notices may change with the implementation. A production launch requires separately approved commercial terms, privacy notices, data-processing terms, and security controls.",
   },
 ];
 
@@ -48,7 +48,7 @@ export default function TermsPage() {
       <main className="mx-auto max-w-2xl px-6 py-14">
         <Eyebrow>Legal</Eyebrow>
         <h1 className="mt-3 font-[family-name:var(--font-plex)] text-4xl font-light tracking-tight text-[#111]">Terms &amp; Conditions</h1>
-        <p className="mt-3 text-sm text-black/40">Last updated 1 June 2026 · Certrace, operated for demonstration purposes.</p>
+        <p className="mt-3 text-sm text-black/40">Last updated 15 July 2026 · Readiness demonstration notice.</p>
         <div className="mt-10 space-y-8">
           {SECTIONS.map((s) => (
             <section key={s.title}>

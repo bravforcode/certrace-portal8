@@ -27,7 +27,7 @@ const courier = Courier_Prime({
 export const metadata: Metadata = {
   title: "Certrace — Exporter Portal",
   description:
-    "Collect verified carbon data from suppliers, calculate embedded emissions, and submit audit-ready CBAM declarations to buyers and authorities — without the email chaos.",
+    "Prepare browser-local CBAM calculation drafts and a manual handoff worksheet. No filing, verification, email delivery, immutable audit ledger or production backend is configured.",
   icons: {
     icon: [
       { url: "/brand/favicon-32.png", type: "image/png", sizes: "32x32" },

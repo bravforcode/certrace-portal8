@@ -1,9 +1,10 @@
-/* Mock fixtures. Frontend-only MVP — this is the seam where a real API would slot in.
-   Posture: a Thai steel exporter (Siam Steel Export Co.) filing CBAM for the EU,
-   as of mid-June 2026. CBAM-only, steel-only — matches the launch gating in config.ts. */
+/* Synthetic fixtures. Frontend-only readiness demo — this is the seam where a real API would slot in.
+   Posture: a Thai steel/aluminium exporter preparing operator data for an EU-side declarant,
+   as of mid-June 2026. */
 
 import { getCreatedDeclaration } from "./declarations-store";
 import { getCatalogProduct } from "./config";
+import { decimal, decimalToString, type MeasuredValue } from "./mrv";
 
 export type SupplierStatus = "submitted" | "in_progress" | "overdue" | "not_started";
 
@@ -15,7 +16,7 @@ export type SupplierRow = {
   material: string;
   progress: number; // 0–100
   status: SupplierStatus;
-  emissions: number | null; // tCO₂e/t embedded, once submitted
+  emissions: string | null; // exact TCO2E_PER_TNE fixture string, once submitted
   updated: string;
   critical: boolean;
 };
@@ -37,8 +38,12 @@ export type DeclarationStep =
    re-deriving a single product from a display string. Fixture declarations
    don't carry it; lib/supplier.ts falls back to material-based synthesis. */
 export type RequestLotSpec = {
-  qty: number;
-  unit: string; // as invoiced — lib/supplier.ts converts net mass to tonnes
+  /** Decimal string exactly as entered on the commercial document. */
+  qty: string;
+  /** UN/CEFACT-style mass unit code. */
+  unit: "TNE" | "KGM";
+  /** Entered value/unit plus exact canonical TNE conversion and data version. */
+  measurement: MeasuredValue;
   from: string; // optional production-period start (ISO)
   to: string; // optional production-period end (ISO)
   notes: string;
@@ -52,7 +57,7 @@ export type SupplierRequestSpec = { supplierId: string; products: RequestProduct
 export type DeclarationBuyer = {
   name: string; // legal name of the EU importer
   eori: string; // EORI number the declarant files under
-  email: string; // where the Communication Template is sent
+  email: string; // contact reference only; no email delivery is configured
   contact?: string;
 };
 
@@ -66,10 +71,14 @@ export type Declaration = {
   period: string;
   due: string;
   dueInDays: number;
+  /** Internal supplier-data collection deadline, not the legal filing date. */
+  collectionDeadline?: string;
+  /** Annual declaration deadline for the EU-side authorised CBAM declarant. */
+  cbamDeclarationDue?: string;
   step: DeclarationStep;
   suppliers: SupplierRow[];
-  totalEmbedded: number | null;
-  carbonPricePaid: number | null; // THB/tCO₂e proxy (Thailand has no carbon price yet → 0)
+  totalEmbedded: string | null;
+  carbonPricePaid: string | null; // entered origin-country carbon price; fixture is zero
   /** "cbam" = generated from the CBAM template · "buyer" = custom buyer request */
   kind?: "cbam" | "buyer";
   /** display title for the list (buyer requests carry their own name) */
@@ -158,8 +167,7 @@ export const ORG = {
 
 export const USER = {
   // Permanent, never changes — this is the identity your org access, history and
-  // seats are actually keyed to. Email is just a contact channel on top of it,
-  // so swapping email (e.g. an employee leaving) never orphans the account.
+  // Fixture identifier only; no production identity or tenant authority exists.
   accountId: "CTR-8841-2093",
   username: "wasawat.k",
   name: "Wasawat K.",
@@ -183,10 +191,10 @@ export type Notice = {
 };
 
 export const NOTIFICATIONS: Notice[] = [
-  { id: "n1", category: "event", tone: "err", title: "G J Steel is overdue", meta: "CBAM Q2 2026 · 9 days no response", href: "/declarations/cbam-2026-q2-steel", time: "2h ago" },
-  { id: "n2", category: "credential", tone: "info", title: "Legal sign-off requested", meta: "Krit Legal Partners notified", href: "/declarations/cbam-2026-q1-steel", time: "1d ago" },
-  { id: "n3", category: "credential", tone: "ok", title: "Q1 2026 package accepted", meta: "EU importer confirmed receipt", href: "/reports", time: "3d ago" },
-  { id: "n4", category: "security", tone: "warn", title: "New sign-in from Chrome on macOS", meta: "Bangkok, TH · if this wasn't you, secure your account", href: "/settings?tab=privacy", time: "4d ago" },
+  { id: "n1", category: "event", tone: "warn", title: "G J Steel needs a follow-up", meta: "Annual 2026 working data · no email sent", href: "/declarations/cbam-2026-annual-steel", time: "2h ago" },
+  { id: "n2", category: "credential", tone: "info", title: "Local reviewer assignment added", meta: "Demo roster only · no invite delivered", href: "/declarations/cbam-2026-annual-steel", time: "1d ago" },
+  { id: "n3", category: "credential", tone: "muted", title: "Historical draft preview available", meta: "Local fixture · no receipt or acceptance", href: "/reports", time: "3d ago" },
+  { id: "n4", category: "security", tone: "warn", title: "Authentication backend not configured", meta: "Displayed device sessions are illustrative only", href: "/settings?tab=privacy", time: "4d ago" },
   { id: "n5", category: "event", tone: "ok", title: "Thai Metal Pro submitted their form", meta: "64% → 100% complete · ready to review", href: "/suppliers/d2", time: "5d ago" },
   { id: "n6", category: "offer", tone: "muted", title: "EUDR coverage is opening soon", meta: "Join the waitlist from Coverage", href: "/regulations", time: "1w ago" },
 ];
@@ -194,64 +202,54 @@ export const NOTIFICATIONS: Notice[] = [
 // Steel & iron supply chain only — the precursors and inputs a CBAM steel
 // installation actually has to account for (pig iron, scrap, DRI, coatings, grid power).
 const supplierPool = (): SupplierRow[] => [
-  { id: "s1", name: "Siam Yamato Steel", ref: "#0418", country: "TH", material: "Hot-rolled coil", progress: 100, status: "submitted", emissions: 1.84, updated: "2d ago", critical: true },
+  { id: "s1", name: "Siam Yamato Steel", ref: "#0418", country: "TH", material: "Hot-rolled coil", progress: 100, status: "submitted", emissions: "1.84", updated: "2d ago", critical: true },
   { id: "s2", name: "Thai Metal Pro", ref: "#0231", country: "TH", material: "Steel billet", progress: 64, status: "in_progress", emissions: null, updated: "5h ago", critical: true },
   { id: "s3", name: "G J Steel", ref: "#0107", country: "TH", material: "Hot-rolled coil", progress: 28, status: "overdue", emissions: null, updated: "9d ago", critical: true },
-  { id: "s4", name: "Rayong Steel Co", ref: "#0356", country: "TH", material: "Rebar", progress: 100, status: "submitted", emissions: 2.11, updated: "1d ago", critical: false },
-  { id: "s5", name: "EEC Galvanizing Ltd", ref: "#0289", country: "TH", material: "Zinc coating", progress: 100, status: "submitted", emissions: 0.42, updated: "3d ago", critical: false },
+  { id: "s4", name: "Rayong Steel Co", ref: "#0356", country: "TH", material: "Rebar", progress: 100, status: "submitted", emissions: "2.11", updated: "1d ago", critical: false },
+  { id: "s5", name: "EEC Galvanizing Ltd", ref: "#0289", country: "TH", material: "Zinc coating", progress: 100, status: "submitted", emissions: "0.42", updated: "3d ago", critical: false },
   { id: "s6", name: "Chonburi Foundry", ref: "#0512", country: "TH", material: "Pig iron", progress: 0, status: "not_started", emissions: null, updated: "—", critical: true },
-  { id: "s7", name: "Map Ta Phut Power", ref: "#0044", country: "TH", material: "Grid electricity", progress: 100, status: "submitted", emissions: 0.51, updated: "4d ago", critical: false },
+  { id: "s7", name: "Map Ta Phut Power", ref: "#0044", country: "TH", material: "Grid electricity", progress: 100, status: "submitted", emissions: "0.51", updated: "4d ago", critical: false },
   { id: "s8", name: "Eastern Scrap Trading", ref: "#0623", country: "TH", material: "Steel scrap", progress: 45, status: "in_progress", emissions: null, updated: "1d ago", critical: false },
 ];
 
-/* QA fixture — deliberately malformed/extreme rows for stress-testing the AI
+/* QA fixture — deliberately malformed/extreme rows for stress-testing deterministic
    check (lib/ai-check.ts) and the PDF renderer (lib/download.ts). Not wired
    into any live declaration, dashboard, or reports list — importing this
    into a real Declaration would surface obviously-broken numbers to whoever
    is looking at the demo, so it stays a standalone fixture until there's an
    automated (Phase D) test harness to drive it instead. */
 export const EDGE_CASE_SUPPLIERS: SupplierRow[] = [
-  { id: "qa1", name: "Eastern Seaboard Integrated Steel Manufacturing & Galvanizing Public Company Limited", ref: "#9001", country: "TH", material: "Hot-rolled coil", progress: 100, status: "submitted", emissions: 1.6, updated: "1d ago", critical: true },
-  { id: "qa2", name: "Zero Co", ref: "#9002", country: "TH", material: "Steel billet", progress: 100, status: "submitted", emissions: 0, updated: "1d ago", critical: false },
-  { id: "qa3", name: "Way-Over-Benchmark Mills", ref: "#9003", country: "TH", material: "Rebar", progress: 100, status: "submitted", emissions: 42, updated: "1d ago", critical: true },
+  { id: "qa1", name: "Eastern Seaboard Integrated Steel Manufacturing & Galvanizing Public Company Limited", ref: "#9001", country: "TH", material: "Hot-rolled coil", progress: 100, status: "submitted", emissions: "1.6", updated: "1d ago", critical: true },
+  { id: "qa2", name: "Zero Co", ref: "#9002", country: "TH", material: "Steel billet", progress: 100, status: "submitted", emissions: "0", updated: "1d ago", critical: false },
+  { id: "qa3", name: "Way-Over-Benchmark Mills", ref: "#9003", country: "TH", material: "Rebar", progress: 100, status: "submitted", emissions: "42", updated: "1d ago", critical: true },
   { id: "qa4", name: "No Data Yet Ltd", ref: "#9004", country: "TH", material: "Steel scrap", progress: 0, status: "not_started", emissions: null, updated: "—", critical: false },
-  { id: "qa5", name: "Unmapped Material Co", ref: "#9005", country: "TH", material: "Ferro-alloy additive", progress: 100, status: "submitted", emissions: 0.95, updated: "1d ago", critical: false },
+  { id: "qa5", name: "Unmapped Material Co", ref: "#9005", country: "TH", material: "Ferro-alloy additive", progress: 100, status: "submitted", emissions: "0.95", updated: "1d ago", critical: false },
 ];
 
 export const DECLARATIONS: Declaration[] = [
   {
-    id: "cbam-2026-q2-steel",
-    name: "CBAM · Q2 2026 · Steel",
+    id: "cbam-2026-annual-steel",
+    name: "CBAM operator data · Annual 2026 · Steel",
+    kind: "cbam",
     regulation: "cbam",
     origin: "TH",
     market: "EU",
     sector: "Steel & iron",
-    period: "Q2 2026 (Apr–Jun)",
-    due: "31 Jul 2026",
-    dueInDays: 17,
+    period: "Annual 2026 (Jan–Dec)",
+    due: "31 Jan 2027",
+    dueInDays: 200,
+    collectionDeadline: "2027-01-31",
+    cbamDeclarationDue: "2027-09-30",
+    periodStart: "2026-01-01",
+    periodEnd: "2026-12-31",
     step: "collect",
     suppliers: supplierPool(),
     totalEmbedded: null,
-    carbonPricePaid: 0,
-  },
-  {
-    id: "cbam-2026-q1-steel",
-    name: "CBAM · Q1 2026 · Steel",
-    regulation: "cbam",
-    origin: "TH",
-    market: "EU",
-    sector: "Steel & iron",
-    period: "Q1 2026 (Jan–Mar)",
-    due: "30 Apr 2026",
-    dueInDays: -45,
-    step: "done",
-    suppliers: supplierPool().map((s) => ({ ...s, status: "submitted", progress: 100, emissions: s.emissions ?? Number((1.2 + (parseInt(s.ref.slice(1)) % 9) * 0.13).toFixed(2)) })),
-    totalEmbedded: 4820,
-    carbonPricePaid: 0,
+    carbonPricePaid: "0",
   },
   {
     id: "cbam-2025-q4-steel",
-    name: "CBAM · Q4 2025 · Steel",
+    name: "Transitional CBAM · Q4 2025 · Steel",
     regulation: "cbam",
     origin: "TH",
     market: "EU",
@@ -260,32 +258,36 @@ export const DECLARATIONS: Declaration[] = [
     due: "31 Jan 2026",
     dueInDays: -134,
     step: "done",
-    suppliers: supplierPool().map((s) => ({ ...s, status: "submitted", progress: 100, emissions: s.emissions ?? Number((1.1 + (parseInt(s.ref.slice(1)) % 9) * 0.12).toFixed(2)) })),
-    totalEmbedded: 4615,
-    carbonPricePaid: 0,
+    suppliers: supplierPool().map((s) => ({ ...s, status: "submitted", progress: 100, emissions: s.emissions ?? fixtureEmissions("1.1", s.ref) })),
+    totalEmbedded: "4615",
+    carbonPricePaid: "0",
   },
 ];
 
-/* Historical + custom declarations — give the index a real, scrollable archive.
+/* Historical transitional fixtures + custom buyer requests.
    Kept `done` (except where noted) so the dashboard's "active" view stays focused
-   on the open Q2 cycle. Each links to a working detail page. */
-const closedPool = (base: number) =>
+   on the open annual 2026 data-collection cycle. */
+function fixtureEmissions(base: string, reference: string): string {
+  return decimalToString(decimal(base).plus(decimal(String(parseInt(reference.slice(1), 10) % 9)).times(decimal("0.12"))));
+}
+
+const closedPool = (base: string) =>
   supplierPool().map((s) => ({
     ...s,
     status: "submitted" as SupplierStatus,
     progress: 100,
-    emissions: s.emissions ?? Number((base + (parseInt(s.ref.slice(1)) % 9) * 0.12).toFixed(2)),
+    emissions: s.emissions ?? fixtureEmissions(base, s.ref),
   }));
 
 const ARCHIVE: Declaration[] = [
-  { id: "cbam-2025-q3-steel", name: "CBAM · Q3 2025 · Steel", kind: "cbam", regulation: "cbam", origin: "TH", market: "EU", sector: "Steel & iron", period: "Q3 2025 (Jul–Sep)", due: "31 Oct 2025", dueInDays: -240, step: "done", suppliers: closedPool(1.05), totalEmbedded: 4480, carbonPricePaid: 0, productCount: 11 },
-  { id: "cbam-2025-q2-steel", name: "CBAM · Q2 2025 · Steel", kind: "cbam", regulation: "cbam", origin: "TH", market: "EU", sector: "Steel & iron", period: "Q2 2025 (Apr–Jun)", due: "31 Jul 2025", dueInDays: -332, step: "done", suppliers: closedPool(1.0), totalEmbedded: 4390, carbonPricePaid: 0, productCount: 9 },
-  { id: "cbam-2025-q1-steel", name: "CBAM · Q1 2025 · Steel", kind: "cbam", regulation: "cbam", origin: "TH", market: "EU", sector: "Steel & iron", period: "Q1 2025 (Jan–Mar)", due: "30 Apr 2025", dueInDays: -424, step: "done", suppliers: closedPool(0.98), totalEmbedded: 4205, carbonPricePaid: 0, productCount: 8 },
-  { id: "cbam-2024-annual-steel", name: "CBAM · 2024 Annual · Steel", kind: "cbam", regulation: "cbam", origin: "TH", market: "EU", sector: "Steel & iron", period: "Annual 2024", due: "31 May 2025", dueInDays: -393, step: "done", suppliers: closedPool(0.92), totalEmbedded: 17120, carbonPricePaid: 0, productCount: 14 },
-  { id: "buyer-abc-carbon-2026", name: "ABC Buyer · Carbon Data Request", kind: "buyer", title: "ABC Buyer — Carbon Data Request", regulation: "cbam", origin: "TH", market: "EU", sector: "Steel & iron", period: "Annual 2026 · per PO", due: "30 Sep 2026", dueInDays: 78, step: "collect", suppliers: closedPool(1.1).map((s, i) => (i > 2 ? { ...s, status: "in_progress", progress: 55, emissions: null } : s)), totalEmbedded: null, carbonPricePaid: 0, productCount: 6 },
-  { id: "buyer-meridian-mtc-2026", name: "Meridian GmbH · MTC + EPD", kind: "buyer", title: "Meridian GmbH — MTC + EPD pack", regulation: "cbam", origin: "TH", market: "EU", sector: "Steel & iron", period: "Q2 2026 · per shipment", due: "15 Aug 2026", dueInDays: 48, step: "done", suppliers: closedPool(1.15), totalEmbedded: 3960, carbonPricePaid: 0, productCount: 5 },
-  { id: "cbam-2024-q4-steel", name: "CBAM · Q4 2024 · Steel", kind: "cbam", regulation: "cbam", origin: "TH", market: "EU", sector: "Steel & iron", period: "Q4 2024 (Oct–Dec)", due: "31 Jan 2025", dueInDays: -513, step: "done", suppliers: closedPool(0.9), totalEmbedded: 4310, carbonPricePaid: 0, productCount: 10 },
-  { id: "cbam-2024-q3-steel", name: "CBAM · Q3 2024 · Steel", kind: "cbam", regulation: "cbam", origin: "TH", market: "EU", sector: "Steel & iron", period: "Q3 2024 (Jul–Sep)", due: "31 Oct 2024", dueInDays: -605, step: "done", suppliers: closedPool(0.88), totalEmbedded: 4150, carbonPricePaid: 0, productCount: 8 },
+  { id: "cbam-2025-q3-steel", name: "Transitional CBAM · Q3 2025 · Steel", kind: "cbam", regulation: "cbam", origin: "TH", market: "EU", sector: "Steel & iron", period: "Q3 2025 (Jul–Sep)", due: "31 Oct 2025", dueInDays: -240, step: "done", suppliers: closedPool("1.05"), totalEmbedded: "4480", carbonPricePaid: "0", productCount: 11 },
+  { id: "cbam-2025-q2-steel", name: "Transitional CBAM · Q2 2025 · Steel", kind: "cbam", regulation: "cbam", origin: "TH", market: "EU", sector: "Steel & iron", period: "Q2 2025 (Apr–Jun)", due: "31 Jul 2025", dueInDays: -332, step: "done", suppliers: closedPool("1.0"), totalEmbedded: "4390", carbonPricePaid: "0", productCount: 9 },
+  { id: "cbam-2025-q1-steel", name: "Transitional CBAM · Q1 2025 · Steel", kind: "cbam", regulation: "cbam", origin: "TH", market: "EU", sector: "Steel & iron", period: "Q1 2025 (Jan–Mar)", due: "30 Apr 2025", dueInDays: -424, step: "done", suppliers: closedPool("0.98"), totalEmbedded: "4205", carbonPricePaid: "0", productCount: 8 },
+  { id: "cbam-2024-annual-steel", name: "Transitional CBAM · 2024 working summary · Steel", kind: "cbam", regulation: "cbam", origin: "TH", market: "EU", sector: "Steel & iron", period: "Annual 2024", due: "31 May 2025", dueInDays: -393, step: "done", suppliers: closedPool("0.92"), totalEmbedded: "17120", carbonPricePaid: "0", productCount: 14 },
+  { id: "buyer-abc-carbon-2026", name: "ABC Buyer · Carbon Data Request", kind: "buyer", title: "ABC Buyer — Carbon Data Request", regulation: "cbam", origin: "TH", market: "EU", sector: "Steel & iron", period: "Annual 2026 · per PO", due: "30 Sep 2026", dueInDays: 78, step: "collect", suppliers: closedPool("1.1").map((s, i) => (i > 2 ? { ...s, status: "in_progress", progress: 55, emissions: null } : s)), totalEmbedded: null, carbonPricePaid: "0", productCount: 6 },
+  { id: "buyer-meridian-mtc-2026", name: "Meridian GmbH · MTC + EPD", kind: "buyer", title: "Meridian GmbH — MTC + EPD pack", regulation: "cbam", origin: "TH", market: "EU", sector: "Steel & iron", period: "Q2 2026 · per shipment", due: "15 Aug 2026", dueInDays: 48, step: "done", suppliers: closedPool("1.15"), totalEmbedded: "3960", carbonPricePaid: "0", productCount: 5 },
+  { id: "cbam-2024-q4-steel", name: "CBAM · Q4 2024 · Steel", kind: "cbam", regulation: "cbam", origin: "TH", market: "EU", sector: "Steel & iron", period: "Q4 2024 (Oct–Dec)", due: "31 Jan 2025", dueInDays: -513, step: "done", suppliers: closedPool("0.9"), totalEmbedded: "4310", carbonPricePaid: "0", productCount: 10 },
+  { id: "cbam-2024-q3-steel", name: "CBAM · Q3 2024 · Steel", kind: "cbam", regulation: "cbam", origin: "TH", market: "EU", sector: "Steel & iron", period: "Q3 2024 (Jul–Sep)", due: "31 Oct 2024", dueInDays: -605, step: "done", suppliers: closedPool("0.88"), totalEmbedded: "4150", carbonPricePaid: "0", productCount: 8 },
 ];
 
 DECLARATIONS.push(...ARCHIVE);
@@ -299,31 +301,22 @@ export const SEATS: Seat[] = [
 
 export const REPORTS: ReportRecord[] = [
   {
-    id: "CTR-CBAM-2026-Q1",
-    declaration: "CBAM · Q1 2026 · Steel",
-    regulation: "cbam",
-    period: "Q1 2026",
-    generated: "27 Apr 2026",
-    recipients: { buyer: true, authority: true, verifier: true },
-    state: "accepted",
-  },
-  {
     id: "CTR-CBAM-2025-Q4",
-    declaration: "CBAM · Q4 2025 · Steel",
+    declaration: "Transitional CBAM · Q4 2025 · Steel",
     regulation: "cbam",
     period: "Q4 2025",
     generated: "28 Jan 2026",
-    recipients: { buyer: true, authority: true, verifier: true },
-    state: "accepted",
+    recipients: { buyer: false, authority: false, verifier: false },
+    state: "draft",
   },
   {
     id: "CTR-CBAM-2025-Q3",
-    declaration: "CBAM · Q3 2025 · Steel",
+    declaration: "Transitional CBAM · Q3 2025 · Steel",
     regulation: "cbam",
     period: "Q3 2025",
     generated: "26 Oct 2025",
-    recipients: { buyer: true, authority: true, verifier: true },
-    state: "accepted",
+    recipients: { buyer: false, authority: false, verifier: false },
+    state: "draft",
   },
 ];
 
@@ -360,8 +353,8 @@ const MATERIAL_CN: Record<string, { name: string; cn: string }> = {
   Rebar: { name: "Reinforcing bar (rebar)", cn: "7214 20 00" },
   "Zinc coating": { name: "Hot-dip galvanised sheet", cn: "7210 49 00" },
   "Pig iron": { name: "Pig iron, non-alloy", cn: "7201 10 90" },
-  "Grid electricity": { name: "Electricity (precursor input)", cn: "2716 00 00" },
-  "Steel scrap": { name: "Ferrous waste & scrap", cn: "7204 49 90" },
+  "Grid electricity": { name: "Electricity (energy input; not a mass-threshold good)", cn: "2716 00 00" },
+  "Steel scrap": { name: "Ferrous waste & scrap (input; outside CBAM goods scope)", cn: "7204 49 90" },
 };
 
 export type SupplierProfile = {
@@ -375,7 +368,7 @@ export type SupplierProfile = {
   status: SupplierStatus;
   critical: boolean;
   compliancePct: number;
-  emissions: number | null;
+  emissions: string | null;
   installation: { name: string; id: string } | null;
   requiredFields: { completed: number; total: number };
   documentsStats: { uploaded: number; total: number };
@@ -383,7 +376,7 @@ export type SupplierProfile = {
   verificationStatus: "not_verified" | "internally_verified" | "third_party_verified";
   products: { name: string; cn: string }[];
   declarations: { id: string; name: string; period: string; status: SupplierStatus; progress: number; due: string }[];
-  reports: { id: string; period: string; emissions: number | null; state: "accepted" | "submitted" }[];
+  reports: { id: string; period: string; emissions: string | null; state: "draft" }[];
   documents: { name: string; type: string; date: string }[];
   pending: { label: string; declId: string; due: string }[];
   activity: { when: string; text: string; tone: "ok" | "info" | "warn" | "muted" }[];
@@ -423,7 +416,7 @@ export function getSupplierProfile(slug: string): SupplierProfile | null {
 
   const reports = hits
     .filter((h) => h.decl.step === "done")
-    .map((h) => ({ id: `CTR-${h.decl.id.toUpperCase()}`, period: h.decl.period, emissions: h.row.emissions, state: "accepted" as const }));
+    .map((h) => ({ id: `CTR-${h.decl.id.toUpperCase()}`, period: h.decl.period, emissions: h.row.emissions, state: "draft" as const }));
 
   const pending = hits
     .filter((h) => h.decl.step !== "done" && h.row.status !== "submitted")
@@ -442,12 +435,12 @@ export function getSupplierProfile(slug: string): SupplierProfile | null {
 
   const activity: SupplierProfile["activity"] = [
     submitted
-      ? { when: base.updated, text: "Submitted verified CBAM data", tone: "ok" }
+      ? { when: base.updated, text: "Recorded supplier data locally (not verified)", tone: "info" }
       : base.status === "overdue"
-        ? { when: base.updated, text: "Reminder sent — response overdue", tone: "warn" }
+        ? { when: base.updated, text: "Follow-up due — no reminder sent", tone: "warn" }
         : { when: base.updated, text: "Opened the guided form", tone: "info" },
-    { when: "this cycle", text: `Invited to ${declarations[0]?.name ?? "CBAM declaration"}`, tone: "muted" },
-    ...(reports.length ? [{ when: reports[0].period, text: `${reports[0].period} package accepted by importer`, tone: "ok" as const }] : []),
+    { when: "this cycle", text: `Added to ${declarations[0]?.name ?? "CBAM data request"} in this browser`, tone: "muted" },
+    ...(reports.length ? [{ when: reports[0].period, text: `${reports[0].period} local draft preview available`, tone: "muted" as const }] : []),
   ];
 
   // Generate mock statistics based on the supplier's status
@@ -465,7 +458,7 @@ export function getSupplierProfile(slug: string): SupplierProfile | null {
     missingInfo.push("All mandatory CBAM data");
   }
 
-  const verificationStatus = submitted ? "third_party_verified" : base.status === "in_progress" ? "not_verified" : "not_verified";
+  const verificationStatus = "not_verified" as const;
 
   return {
     id: base.id,
@@ -479,7 +472,7 @@ export function getSupplierProfile(slug: string): SupplierProfile | null {
     critical: base.critical,
     compliancePct: base.progress,
     emissions: base.emissions,
-    installation: { name: `${base.name} Primary Facility`, id: `${base.country}-${Math.floor(1000 + Math.random() * 9000)}` },
+    installation: { name: `${base.name} Primary Facility (fixture)`, id: `${base.country}-${base.ref.replace(/\D/g, "").padStart(4, "0")}` },
     requiredFields: { completed: requiredFieldsCompleted, total: requiredFieldsTotal },
     documentsStats: { uploaded: documentsUploaded, total: documentsTotal },
     missingInfo,

@@ -15,11 +15,11 @@ const STEP_LABEL: Record<string, string> = {
   review: "In review",
   report: "Report",
   submit: "Submitting",
-  done: "Submitted",
+  done: "Closed demo",
 };
 
 export default function DashboardPage() {
-  const active = DECLARATIONS.find((d) => d.id === "cbam-2026-q2-steel")!;
+  const active = DECLARATIONS.find((d) => d.id === "cbam-2026-annual-steel")!;
   const activeCount = DECLARATIONS.filter((d) => d.step !== "done").length;
   const submitted = active.suppliers.filter((s) => s.status === "submitted").length;
   const overdue = active.suppliers.filter((s) => s.status === "overdue").length;
@@ -78,13 +78,13 @@ export default function DashboardPage() {
               {overdue} CBAM-critical supplier{overdue === 1 ? " is" : "s are"} overdue on {active.name}.
             </p>
             <p className="mt-1 text-sm text-black/45">
-              Late = rejected. Send a reminder, or escalate, before the package locks.
+              Follow up before the internal collection deadline. No email or automatic escalation is configured in this demo.
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-none">
-          <Button variant="ghost" size="sm" onClick={() => toast({ message: "Reminder sent to overdue suppliers", tone: "ok", detail: "They will receive an email shortly." })}>
-            <Bell size={14} strokeWidth={1.5} /> Send Reminder
+          <Button variant="ghost" size="sm" onClick={() => toast({ message: "Follow-up noted locally", tone: "info", detail: "No email was sent; a notification provider is not configured." })}>
+            <Bell size={14} strokeWidth={1.5} /> Note follow-up
           </Button>
           <Link href={`/declarations/${active.id}`}>
             <Button variant="secondary" size="sm">

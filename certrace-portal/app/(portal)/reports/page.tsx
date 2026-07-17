@@ -6,20 +6,19 @@ import { toast } from "@/components/toast";
 import { downloadPackage } from "@/lib/download";
 import { REPORTS, DECLARATIONS, ORG } from "@/lib/data";
 import { getRegulation, getJurisdiction, getPlan } from "@/lib/config";
-import { loadExporterState, rollup, exporterIdentity } from "@/lib/exporter-review";
+import { actualValueVerificationBlockers, loadExporterState, rollup, exporterIdentity } from "@/lib/exporter-review";
 import { buildSupplierChapters, buildSignOff, packageSummaryData, packageHistoryData } from "@/lib/package-data";
 
 const stateMeta: Record<string, { label: string; tone: Tone }> = {
   draft: { label: "draft", tone: "muted" },
-  in_review: { label: "in review", tone: "info" },
-  submitted: { label: "submitted", tone: "info" },
-  accepted: { label: "accepted", tone: "ok" },
+  in_review: { label: "local review", tone: "info" },
+  submitted: { label: "preview prepared", tone: "info" },
+  accepted: { label: "historical demo", tone: "muted" },
 };
 
 export default function ReportsPage() {
   const jur = getJurisdiction(ORG.origin)!;
   const plan = getPlan(ORG.plan)!;
-  const multiRegulation = plan.id !== "starter"; // "Multi-regulation templates" ships from Standard up
 
   /* Re-generates the package from the SAME resolved dataset the declaration
      workspace uses (lib/exporter-review.ts + lib/package-data.ts) — this page
@@ -33,63 +32,70 @@ export default function ReportsPage() {
     }
     const exporterState = loadExporterState(decl.id);
     const roll = rollup(decl, exporterState);
-    const submitted = roll.submissions.filter((s) => s.submitted);
+    const approved = roll.submissions.filter((submission) => submission.lifecycle === "approved");
+    const verificationBlockers = actualValueVerificationBlockers(approved);
+    if (!roll.allApproved || approved.length === 0) {
+      toast({ message: "Draft preview blocked", detail: "Every current supplier version must pass deterministic checks and receive local approval first.", tone: "err" });
+      return;
+    }
+    if (verificationBlockers.length > 0) {
+      toast({ message: "Actual-value package blocked", detail: verificationBlockers[0], tone: "err" });
+      return;
+    }
 
     await downloadPackage({
       ref: r.id,
       regulationShort: reg.short,
       regulationFull: reg.full,
       period: decl.period,
+      collectionDeadline: decl.collectionDeadline ?? decl.due,
+      cbamDeclarationDue: decl.cbamDeclarationDue,
       sector: decl.sector,
       origin: jur.name,
       market: decl.market === "EU" ? "European Union" : decl.market,
       org: exporterIdentity().org,
       installationId: exporterIdentity().installationId,
       buyerLine: decl.buyer ? `${decl.buyer.name} · EORI ${decl.buyer.eori}` : undefined,
-      totalEmbedded: decl.totalEmbedded ?? roll.submittedEmissions,
-      supplierCount: submitted.length,
-      carbonPricePaid: decl.carbonPricePaid ?? 0,
+      totalEmbedded: roll.reviewedEmissions,
+      supplierCount: approved.length,
+      carbonPricePaid: decl.carbonPricePaid ?? "0",
       factorSet: jur.factorSet,
-      ...packageSummaryData(submitted),
-      ...packageHistoryData(submitted),
-      chapters: buildSupplierChapters(submitted),
-      signOff: buildSignOff(exporterState.signoffs ?? []),
+      ...packageSummaryData(approved),
+      ...packageHistoryData(approved),
+      chapters: buildSupplierChapters(approved),
+      signOff: buildSignOff((exporterState.signoffs ?? []).filter((signoff) => signoff.packageHash === exporterState.packageHash)),
     });
-    toast({ message: "Package downloaded.", detail: "Regenerated from the sealed dataset — same figures, checkable hash." });
+    toast({ message: "Draft preview downloaded.", detail: "Regenerated locally with a change-detection checksum; it is not sealed, verified, or filed." });
   };
 
   return (
     <div className="space-y-8">
       <PageHeader
         eyebrow="Reports"
-        title="Submission history."
-        lead="Every audit-ready package you've generated and where it went. Timestamped, sealed, and re-downloadable for any audit."
+        title="Draft preview history."
+        lead="Local calculation/report previews for this demo. These records do not prove delivery, acceptance, verification, filing, or an immutable audit trail."
       />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Card className="p-5">
-          <Stat value={REPORTS.length} label="Packages filed" />
+          <Stat value={REPORTS.length} label="Preview records" />
         </Card>
         <Card className="p-5">
-          <Stat value={REPORTS.filter((r) => r.state === "accepted").length} label="Accepted" />
+          <Stat value={REPORTS.length} label="Local previews" />
         </Card>
         <Card className="p-5">
-          <Stat value="0" label="Rejected" />
+          <Stat value="0" label="External receipts" />
         </Card>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.08em] text-black/35">
         <span>{plan.name} plan —</span>
-        <Chip tone="ok">Audit-ready export</Chip>
-        {multiRegulation ? (
-          <Chip tone="ok">Multi-regulation templates</Chip>
-        ) : (
-          <Chip tone="muted">Multi-regulation templates — upgrade to Standard</Chip>
-        )}
+        <Chip tone="muted">Draft PDF preview</Chip>
+        <Chip tone="muted">CBAM steel &amp; aluminium readiness</Chip>
       </div>
 
       <div className="space-y-3">
-        <Eyebrow>Filed packages</Eyebrow>
+        <Eyebrow>Local preview fixtures</Eyebrow>
         {REPORTS.map((r) => {
           const reg = getRegulation(r.regulation);
           const sm = stateMeta[r.state];
@@ -109,17 +115,17 @@ export default function ReportsPage() {
 
               <div className="flex flex-wrap items-center gap-4">
                 <div className="flex items-center gap-2 text-black/45">
-                  <span className="inline-flex items-center gap-1.5" title="Buyer">
-                    <Building2 size={14} strokeWidth={1.5} className={r.recipients.buyer ? "text-[#047857]" : "text-black/20"} />
+                  <span className="inline-flex items-center gap-1.5" title="Buyer mapping only — not delivered">
+                    <Building2 size={14} strokeWidth={1.5} className={r.recipients.buyer ? "text-black/45" : "text-black/20"} />
                   </span>
-                  <span className="inline-flex items-center gap-1.5" title="Authority">
-                    <Landmark size={14} strokeWidth={1.5} className={r.recipients.authority ? "text-[#047857]" : "text-black/20"} />
+                  <span className="inline-flex items-center gap-1.5" title="Authority mapping only — not filed">
+                    <Landmark size={14} strokeWidth={1.5} className={r.recipients.authority ? "text-black/45" : "text-black/20"} />
                   </span>
-                  <span className="inline-flex items-center gap-1.5" title="Verifier">
-                    <BadgeCheck size={14} strokeWidth={1.5} className={r.recipients.verifier ? "text-[#047857]" : "text-black/20"} />
+                  <span className="inline-flex items-center gap-1.5" title="Verifier mapping only — not verified">
+                    <BadgeCheck size={14} strokeWidth={1.5} className={r.recipients.verifier ? "text-black/45" : "text-black/20"} />
                   </span>
                 </div>
-                <StatusLabel tone={sm.tone} label={sm.label} glow={r.state === "accepted"} />
+                <StatusLabel tone={sm.tone} label={sm.label} />
                 <button
                   onClick={() => handleDownload(r)}
                   className="inline-flex items-center gap-1.5 rounded-xl border border-black/10 px-3 py-2 text-[11px] uppercase tracking-[0.08em] text-black/55 transition-colors hover:border-black/25 hover:text-black"

@@ -22,10 +22,14 @@ function MenuItems({ decl, close, afterDelete }: { decl: Declaration; close: () 
   const item = "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[12.5px] text-black/65 transition-colors hover:bg-[#fafaf8] hover:text-black";
 
   const duplicate = () => {
-    const id = duplicateToDraft(decl);
-    toast({ message: "Duplicated as a draft", detail: "Scope and suppliers copied — adjust the period and quantities.", tone: "ok" });
-    close();
-    router.push(`/declarations/new?draft=${id}`);
+    try {
+      const id = duplicateToDraft(decl);
+      toast({ message: "Duplicated as a draft", detail: "Scope and suppliers copied — adjust the period and quantities.", tone: "ok" });
+      close();
+      router.push(`/declarations/new?draft=${id}`);
+    } catch (error) {
+      toast({ message: "Classification required", detail: error instanceof Error ? error.message : "The declaration contains an unmapped product.", tone: "err" });
+    }
   };
 
   const copyLink = () => {

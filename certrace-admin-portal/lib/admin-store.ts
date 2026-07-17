@@ -34,7 +34,6 @@ type Overlay = {
   announcements: Record<string, Partial<Announcement>>;
   announcementsNew: Announcement[];
   flags: Record<string, boolean>;
-  impersonations: { orgId: string; staffId: string; reason: string; startedAt: string }[];
   staffNew: StaffUser[];
   staffEdit: Record<string, Partial<StaffUser>>;
   invoiceStatus: Record<string, Invoice["status"]>;
@@ -49,7 +48,6 @@ const EMPTY: Overlay = {
   announcements: {},
   announcementsNew: [],
   flags: {},
-  impersonations: [],
   staffNew: [],
   staffEdit: {},
   invoiceStatus: {},
@@ -155,11 +153,11 @@ export function setTicketStatus(actor: StaffUser, id: string, status: Ticket["st
   logAudit(actor, "support", `ticket.${status}`, id);
 }
 
-export function replyTicket(actor: StaffUser, id: string, body: string, internal: boolean) {
+export function addTicketNote(actor: StaffUser, id: string, body: string) {
   mutate((o) => {
-    o.ticketReplies[id] = [...(o.ticketReplies[id] ?? []), { from: actor.name, at: nowStamp(), body, internal }];
+    o.ticketReplies[id] = [...(o.ticketReplies[id] ?? []), { from: actor.name, at: nowStamp(), body, internal: true }];
   });
-  logAudit(actor, "support", internal ? "ticket.note" : "ticket.reply", id);
+  logAudit(actor, "support", "ticket.local-note", id, "Browser-local demo note; no customer message sent.");
 }
 
 export function allAnnouncements(): Announcement[] {
@@ -167,13 +165,12 @@ export function allAnnouncements(): Announcement[] {
   return [
     ...o.announcementsNew.map((a) => ({ ...a, ...o.announcements[a.id] })),
     ...ANNOUNCEMENTS.map((a) => ({ ...a, ...o.announcements[a.id] })),
-  ];
+  ].map((announcement) => ({ ...announcement, status: "draft" as const, publishedAt: undefined }));
 }
 
 export function createAnnouncement(
   actor: StaffUser,
   input: { title: string; body: string; audience: string },
-  publish: boolean,
 ) {
   const id = `ann-live-${Date.now()}`;
   mutate((o) => {
@@ -182,20 +179,12 @@ export function createAnnouncement(
       title: input.title,
       body: input.body,
       audience: input.audience,
-      status: publish ? "published" : "draft",
+      status: "draft",
       authorId: actor.id,
-      publishedAt: publish ? nowStamp() : undefined,
     });
   });
-  logAudit(actor, "announcements", publish ? "announcement.publish" : "announcement.draft", id, input.title);
+  logAudit(actor, "announcements", "announcement.local-draft", id, `${input.title}; no audience delivery occurred.`);
   return id;
-}
-
-export function publishAnnouncement(actor: StaffUser, id: string) {
-  mutate((o) => {
-    o.announcements[id] = { status: "published", publishedAt: nowStamp() };
-  });
-  logAudit(actor, "announcements", "announcement.publish", id);
 }
 
 export function allFlags(): FeatureFlag[] {
@@ -225,12 +214,12 @@ export function staffName(id: string) {
   return findStaff(id)?.name ?? id;
 }
 
-export function inviteStaff(actor: StaffUser, input: { name: string; email: string; roleId: string }) {
+export function addStaffFixture(actor: StaffUser, input: { name: string; email: string; roleId: string }) {
   const id = `st-live-${Date.now()}`;
   mutate((o) => {
-    o.staffNew.push({ id, name: input.name, email: input.email, roleId: input.roleId, status: "invited", lastLoginAt: "—" });
+    o.staffNew.push({ id, name: input.name, email: input.email, roleId: input.roleId, status: "active", lastLoginAt: "—" });
   });
-  logAudit(actor, "staff", "staff.invite", id, `Invited ${input.name} as ${getRole(input.roleId).name}.`);
+  logAudit(actor, "staff", "staff.fixture-add", id, `Added browser-local fixture ${input.name} as ${getRole(input.roleId).name}; no account or email was created.`);
   return id;
 }
 
@@ -241,8 +230,8 @@ export function updateStaff(actor: StaffUser, id: string, patch: Partial<StaffUs
   logAudit(actor, "staff", action, id, detail);
 }
 
-/* First sign-in activates an invited account; every sign-in stamps last login.
-   Session bookkeeping, not a staff-management action — so no audit entry. */
+/* Browser-local demo sign-in bookkeeping only. It is not an identity authority,
+   production session, invitation acceptance, or access-control event. */
 export function recordLogin(id: string) {
   mutate((o) => {
     const current = findStaff(id);
@@ -259,24 +248,6 @@ export function recordLogin(id: string) {
 export function allInvoices(): Invoice[] {
   const o = read();
   return INVOICES.map((i) => ({ ...i, status: o.invoiceStatus[i.id] ?? i.status }));
-}
-
-export function markInvoicePaid(actor: StaffUser, id: string) {
-  mutate((o) => {
-    o.invoiceStatus[id] = "paid";
-  });
-  logAudit(actor, "billing", "invoice.mark-paid", id, "Payment recorded manually.");
-}
-
-export function sendInvoiceReminder(actor: StaffUser, id: string, orgName: string) {
-  logAudit(actor, "billing", "invoice.remind", id, `Dunning reminder emailed to ${orgName}.`);
-}
-
-export function startImpersonation(actor: StaffUser, orgId: string, reason: string) {
-  mutate((o) => {
-    o.impersonations.unshift({ orgId, staffId: actor.id, reason, startedAt: nowStamp() });
-  });
-  logAudit(actor, "accounts", "impersonation.start", orgId, `Reason: ${reason}. Time-boxed 30 min.`);
 }
 
 export function resetStore() {

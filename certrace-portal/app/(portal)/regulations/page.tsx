@@ -10,7 +10,7 @@ export default function CoveragePage() {
       <PageHeader
         eyebrow="Coverage"
         title="What's live, and what's next."
-        lead="Certrace launched on the obligation that bites first: CBAM for steel exporters into the EU. Every other regime and market is built on the same engine — we turn them on as their factor libraries and calculation routes are verified."
+        lead="This readiness build covers definitive-period CBAM data for steel and aluminium. Other regimes and sectors remain unavailable until their legal data and calculation routes are implemented and reviewed."
       />
 
       {/* Regulations */}
@@ -33,7 +33,7 @@ export default function CoveragePage() {
                   <Chip tone={meta.tone as Tone}>{meta.label}</Chip>
                 </div>
                 <p className="mt-4 flex-1 text-sm text-black/45">
-                  {live ? `${r.cadence} · filed to ${r.authority}.` : r.soonNote}
+                  {live ? `${r.cadence} · prepared for manual handoff to the responsible EU-side declarant.` : r.soonNote}
                 </p>
                 {live && (
                   <div className="mt-4 flex flex-wrap gap-1.5 border-t border-black/[0.06] pt-4">

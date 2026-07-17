@@ -8,7 +8,7 @@ import { LevelBadge, SectionTitle, StatusChip, Table, Td, Th } from "@/component
 import { ModuleGuard } from "@/components/admin/shell";
 import { toast } from "@/components/toast";
 import { useAdminAuth } from "@/lib/admin-auth";
-import { useAdminStore, allStaff, inviteStaff, updateStaff } from "@/lib/admin-store";
+import { useAdminStore, addStaffFixture, allStaff, updateStaff } from "@/lib/admin-store";
 import { DEPARTMENTS, ROLES, DEPT_ACCESS, getRole, getDepartment, type ModuleId, type StaffUser } from "@/lib/admin-data";
 
 const MATRIX_MODULES: { id: ModuleId; label: string }[] = [
@@ -79,9 +79,9 @@ export default function StaffAndRoles() {
 
   const handleInvite = (v: { name: string; email: string; roleId: string }) => {
     if (!user) return;
-    inviteStaff(user, v);
+    addStaffFixture(user, v);
     setInviting(false);
-    toast({ message: `${v.name} invited as ${getRole(v.roleId).name}`, detail: "They appear on the sign-in screen and activate on first login." });
+    toast({ message: `${v.name} added as a local fixture`, detail: "No account, invitation, email, or production access was created." });
   };
 
   const handleEdit = (v: { name: string; email: string; roleId: string }) => {
@@ -116,8 +116,8 @@ export default function StaffAndRoles() {
     );
     setEditing(null);
     toast({
-      message: status === "deactivated" ? `${person.name} deactivated` : `${person.name} reactivated`,
-      detail: status === "deactivated" ? "All console access revoked; sessions end immediately." : "Console access restored.",
+      message: status === "deactivated" ? `${person.name} fixture deactivated` : `${person.name} fixture reactivated`,
+      detail: "Browser-local demo status changed; no production identity, access, or session was affected.",
       tone: status === "deactivated" ? "warn" : "ok",
     });
   };
@@ -128,11 +128,11 @@ export default function StaffAndRoles() {
         <PageHeader
           eyebrow="Staff & roles"
           title="Certrace staff directory"
-          lead={`${staff.length} staff across ${DEPARTMENTS.length - 1} departments plus a narrowly-held Super Admin tier. Access is granted per department, refined per role.`}
+          lead={`${staff.length} browser-local staff fixtures across ${DEPARTMENTS.length - 1} departments plus a Super Admin demo tier. These roles do not grant production access.`}
           actions={
             canManage ? (
               <Button size="sm" onClick={() => setInviting(true)}>
-                <UserPlus size={14} strokeWidth={1.5} /> Invite staff
+                <UserPlus size={14} strokeWidth={1.5} /> Add staff fixture
               </Button>
             ) : undefined
           }
@@ -228,7 +228,7 @@ export default function StaffAndRoles() {
           <p className="px-5 pb-5 text-xs text-black/35">
             admin = owns the module · act = approve/act within scope · view = read-only. Fine-grained powers (publish,
             impersonate, calibrate…) attach to the role tier, not the department.
-            {canManage ? " You can invite staff and edit role assignments." : " Editing requires the manage-staff power (Exec Admin, Platform Admin or Super Admin)."}
+            {canManage ? " You can add browser-local staff fixtures and edit their demo roles." : " Editing requires the manage-staff demo power."}
           </p>
         </Card>
 
@@ -236,15 +236,15 @@ export default function StaffAndRoles() {
         <Modal open={inviting} onClose={() => setInviting(false)} labelledBy="invite-title">
           <div className="flex items-start justify-between gap-4 p-6 pb-4">
             <div>
-              <h2 id="invite-title" className="font-[family-name:var(--font-plex)] text-xl font-light tracking-tight text-[#111]">Invite staff member</h2>
-              <p className="mt-1 text-xs text-black/45">They appear as “invited” on the sign-in screen and activate on first login. The invite is audited.</p>
+              <h2 id="invite-title" className="font-[family-name:var(--font-plex)] text-xl font-light tracking-tight text-[#111]">Add staff fixture</h2>
+              <p className="mt-1 text-xs text-black/45">Saved in this browser only. No identity account, email invitation, or authenticated access is created.</p>
             </div>
             <button type="button" aria-label="Close" onClick={() => setInviting(false)} className="rounded-lg p-2 text-black/40 transition-colors hover:bg-black/[0.05] hover:text-black">
               <X size={16} strokeWidth={1.5} />
             </button>
           </div>
           <div className="p-6 pt-0">
-            <StaffForm initial={{ name: "", email: "", roleId: "" }} submitLabel="Send invite" onSubmit={handleInvite} />
+            <StaffForm initial={{ name: "", email: "", roleId: "" }} submitLabel="Add local fixture" onSubmit={handleInvite} />
           </div>
         </Modal>
 
@@ -270,7 +270,7 @@ export default function StaffAndRoles() {
                 />
                 <div className="mt-5 flex items-center justify-between gap-3 border-t border-black/[0.06] pt-4">
                   {editing.status === "deactivated" ? (
-                    <Button size="sm" variant="secondary" onClick={() => setStatus(editing, "active")}>Reactivate account</Button>
+                    <Button size="sm" variant="secondary" onClick={() => setStatus(editing, "active")}>Reactivate fixture</Button>
                   ) : (
                     <Button
                       size="sm"
@@ -280,11 +280,11 @@ export default function StaffAndRoles() {
                       className="!text-[#dc2626] hover:!border-[#dc2626]/40 hover:!bg-[#fef2f2]"
                       onClick={() => setStatus(editing, "deactivated")}
                     >
-                      Deactivate account
+                      Deactivate fixture
                     </Button>
                   )}
                   <span className="text-xs text-black/35">
-                    {editing.status === "deactivated" ? "Deactivated accounts cannot sign in." : "Revokes sign-in immediately; audited."}
+                    Browser-local demo status only; no production session is controlled here.
                   </span>
                 </div>
               </div>

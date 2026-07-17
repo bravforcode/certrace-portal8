@@ -46,8 +46,8 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
             Supply-chain carbon compliance. Without the chaos.
           </h1>
           <p className="mt-5 max-w-sm text-sm leading-relaxed text-black/45">
-            Collect verified supplier data, calculate embedded emissions, and submit audit-ready declarations to your
-            buyers and the authorities — from one place.
+            Structure supplier data, calculate traceable draft emissions, and prepare a reviewed handoff for the EU-side
+            declarant and accredited verifier.
           </p>
           <div className="mt-7 flex flex-wrap gap-2">
             <Chip tone="ok">CBAM live</Chip>

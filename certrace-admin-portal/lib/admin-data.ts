@@ -108,8 +108,8 @@ export const ROLES: Role[] = [
   { id: "reg-steward", dept: "compliance", name: "Regulatory Data Steward", tier: 2, powers: ["draft-regdata", "publish-regdata", "publish-announcements"], blurb: "Approve & publish master data (maker-checker), version history." },
   { id: "compliance-ops", dept: "compliance", name: "Compliance Ops Manager", tier: 3, powers: ["draft-regdata", "publish-regdata", "set-reg-live", "publish-announcements"], blurb: "Risk heatmap, regulator inquiries, live-vs-waitlist regulations." },
 
-  { id: "verifier-reviewer", dept: "verification", name: "Verifier Reviewer", tier: 1, powers: ["review-queue"], blurb: "QA queue: AI-check flags, escalations, spot audits." },
-  { id: "qa-lead", dept: "verification", name: "QA Lead", tier: 2, powers: ["review-queue", "assign-queue", "calibrate-ai"], blurb: "Assign reviewers, calibrate AI thresholds, approve resolutions." },
+  { id: "verifier-reviewer", dept: "verification", name: "Verifier Reviewer", tier: 1, powers: ["review-queue"], blurb: "Demo QA queue: deterministic findings, advisory anomalies and spot checks." },
+  { id: "qa-lead", dept: "verification", name: "QA Lead", tier: 2, powers: ["review-queue", "assign-queue", "calibrate-ai"], blurb: "Assign local reviewers and inspect advisory anomaly thresholds; cannot alter deterministic gates." },
   { id: "verification-ops", dept: "verification", name: "Verification Ops Manager", tier: 3, powers: ["review-queue", "assign-queue", "manage-verifiers"], blurb: "SLA tracking, external verifier-partner accounts." },
 
   { id: "sales-rep", dept: "revenue", name: "Sales Rep", tier: 1, powers: [], blurb: "Read-only trials/prospects + usage signals for upsell." },
@@ -244,7 +244,7 @@ export function getOrg(id: string) {
 
 /* ── Cross-tenant declarations monitor ────────────────────── */
 
-export type DeclStatus = "collecting" | "in-review" | "approved" | "dispatched";
+export type DeclStatus = "collecting" | "in-review" | "approved" | "draft-preview";
 
 export type AdminDecl = {
   id: string;
@@ -261,16 +261,16 @@ export type AdminDecl = {
 };
 
 export const DECLARATIONS: AdminDecl[] = [
-  { id: "d-101", orgId: "org-01", title: "Q2 2026 Steel — EU CBAM", regulation: "EU CBAM", period: "2026 Q2", status: "in-review", suppliers: 6, submitted: 5, deadline: "2026-08-31", riskFlags: ["20% default cap near limit"], tco2e: 48210 },
-  { id: "d-102", orgId: "org-01", title: "Q1 2026 Steel — EU CBAM", regulation: "EU CBAM", period: "2026 Q1", status: "dispatched", suppliers: 6, submitted: 6, deadline: "2026-05-31", riskFlags: [], tco2e: 45120 },
-  { id: "d-103", orgId: "org-02", title: "Q2 2026 Aluminium — EU CBAM", regulation: "EU CBAM", period: "2026 Q2", status: "in-review", suppliers: 4, submitted: 4, deadline: "2026-08-31", riskFlags: ["Unverified actuals", "Scope 2 in bill"], tco2e: 30880 },
-  { id: "d-104", orgId: "org-03", title: "Q2 2026 Coil — EU CBAM", regulation: "EU CBAM", period: "2026 Q2", status: "approved", suppliers: 3, submitted: 3, deadline: "2026-08-31", riskFlags: [], tco2e: 12940 },
-  { id: "d-105", orgId: "org-04", title: "Trial declaration — EU CBAM", regulation: "EU CBAM", period: "2026 Q2", status: "collecting", suppliers: 2, submitted: 0, deadline: "2026-08-31", riskFlags: ["No supplier response 14d"], tco2e: 0 },
-  { id: "d-106", orgId: "org-05", title: "Q2 2026 Steel — EU CBAM", regulation: "EU CBAM", period: "2026 Q2", status: "collecting", suppliers: 5, submitted: 1, deadline: "2026-08-31", riskFlags: ["Deadline risk", "Account renewal-risk"], tco2e: 8770 },
-  { id: "d-107", orgId: "org-06", title: "Wire rod pilot — EU CBAM", regulation: "EU CBAM", period: "2026 Q2", status: "collecting", suppliers: 1, submitted: 1, deadline: "2026-08-31", riskFlags: [], tco2e: 1290 },
-  { id: "d-108", orgId: "org-03", title: "Q1 2026 Coil — EU CBAM", regulation: "EU CBAM", period: "2026 Q1", status: "dispatched", suppliers: 3, submitted: 3, deadline: "2026-05-31", riskFlags: [], tco2e: 11830 },
-  { id: "d-109", orgId: "org-02", title: "Q1 2026 Aluminium — EU CBAM", regulation: "EU CBAM", period: "2026 Q1", status: "dispatched", suppliers: 4, submitted: 4, deadline: "2026-05-31", riskFlags: [], tco2e: 29450 },
-  { id: "d-110", orgId: "org-01", title: "Q3 2026 Steel — EU CBAM (draft)", regulation: "EU CBAM", period: "2026 Q3", status: "collecting", suppliers: 6, submitted: 0, deadline: "2026-11-30", riskFlags: [], tco2e: 0 },
+  { id: "d-101", orgId: "org-01", title: "Annual 2026 Steel working data — EU CBAM", regulation: "EU CBAM", period: "Annual 2026", status: "in-review", suppliers: 6, submitted: 5, deadline: "2027-01-31", riskFlags: ["Default-value source review"], tco2e: 48210 },
+  { id: "d-102", orgId: "org-01", title: "Annual 2026 Steel draft preview — EU CBAM", regulation: "EU CBAM", period: "Annual 2026", status: "draft-preview", suppliers: 6, submitted: 6, deadline: "2027-01-31", riskFlags: ["Browser-local preview only"], tco2e: 45120 },
+  { id: "d-103", orgId: "org-02", title: "Annual 2026 Aluminium working data — EU CBAM", regulation: "EU CBAM", period: "Annual 2026", status: "in-review", suppliers: 4, submitted: 4, deadline: "2027-01-31", riskFlags: ["Unverified actuals", "Indirect emissions retained but Annex-II excluded"], tco2e: 30880 },
+  { id: "d-104", orgId: "org-03", title: "Annual 2026 Coil working data — EU CBAM", regulation: "EU CBAM", period: "Annual 2026", status: "approved", suppliers: 3, submitted: 3, deadline: "2027-01-31", riskFlags: ["Local approval only"], tco2e: 12940 },
+  { id: "d-105", orgId: "org-04", title: "Annual 2026 readiness trial — EU CBAM", regulation: "EU CBAM", period: "Annual 2026", status: "collecting", suppliers: 2, submitted: 0, deadline: "2027-01-31", riskFlags: ["No supplier response 14d"], tco2e: 0 },
+  { id: "d-106", orgId: "org-05", title: "Annual 2026 Steel working data — EU CBAM", regulation: "EU CBAM", period: "Annual 2026", status: "collecting", suppliers: 5, submitted: 1, deadline: "2027-01-31", riskFlags: ["Collection risk", "Account renewal-risk"], tco2e: 8770 },
+  { id: "d-107", orgId: "org-06", title: "Annual 2026 Wire rod pilot — EU CBAM", regulation: "EU CBAM", period: "Annual 2026", status: "collecting", suppliers: 1, submitted: 1, deadline: "2027-01-31", riskFlags: [], tco2e: 1290 },
+  { id: "d-108", orgId: "org-03", title: "2025 transitional Coil fixture", regulation: "EU CBAM", period: "2025 Q1 transitional", status: "draft-preview", suppliers: 3, submitted: 3, deadline: "2025-04-30", riskFlags: ["Historical fixture only"], tco2e: 11830 },
+  { id: "d-109", orgId: "org-02", title: "2025 transitional Aluminium fixture", regulation: "EU CBAM", period: "2025 Q1 transitional", status: "draft-preview", suppliers: 4, submitted: 4, deadline: "2025-04-30", riskFlags: ["Historical fixture only"], tco2e: 29450 },
+  { id: "d-110", orgId: "org-01", title: "Annual 2026 Steel second working set", regulation: "EU CBAM", period: "Annual 2026", status: "collecting", suppliers: 6, submitted: 0, deadline: "2027-01-31", riskFlags: ["Duplicate working set"], tco2e: 0 },
 ];
 
 /* ── Verification & QA queue ──────────────────────────────── */
@@ -293,13 +293,13 @@ export type QueueItem = {
 };
 
 export const QUEUE: QueueItem[] = [
-  { id: "q-01", kind: "ai-critical", orgId: "org-02", declId: "d-103", summary: "Electrolysis electricity figure 6.2× sector median", detail: "AI anomaly check flagged al-process electricity at 41.2 MWh/t vs 6.6 median for prebake anodes. Supplier: Rayong Green Metals.", raisedAt: "2026-07-05 14:22", slaHours: 24, status: "open" },
-  { id: "q-02", kind: "ai-critical", orgId: "org-01", declId: "d-101", summary: "Complex good running fully on default values", detail: "Billet (7207) from Thai Metal Pro is 100% defaults — breaches the definitive-period 20% cap if filed as-is.", raisedAt: "2026-07-05 09:10", slaHours: 24, status: "assigned", assigneeId: "st-11" },
+  { id: "q-01", kind: "escalation", orgId: "org-02", declId: "d-103", summary: "Advisory electricity anomaly needs human review", detail: "The advisory anomaly band flagged 41.2 MWh/t versus a 6.6 fixture median for prebake anodes. It cannot override deterministic validation. Supplier: Rayong Green Metals.", raisedAt: "2026-07-05 14:22", slaHours: 24, status: "open" },
+  { id: "q-02", kind: "ai-critical", orgId: "org-01", declId: "d-101", summary: "Default-value provenance needs review", detail: "Billet (7207) uses defaults. Confirm the Regulation 2025/2621 reporting-year column and whether each precursor value is published-marked or an explicitly unmarked base; no obsolete percentage cap applies.", raisedAt: "2026-07-05 09:10", slaHours: 24, status: "assigned", assigneeId: "st-11" },
   { id: "q-03", kind: "escalation", orgId: "org-05", declId: "d-106", summary: "Exporter disputes AI completeness score", detail: "Mekong Steel claims the questionnaire marks precursor fields required that shouldn't apply to their simple goods.", raisedAt: "2026-07-04 16:45", slaHours: 48, status: "open" },
   { id: "q-04", kind: "spot-audit", orgId: "org-03", declId: "d-104", summary: "Routine spot audit — approved declaration", detail: "Quarterly 5% sample. Check evidence linkage on all three supplier chapters before dispatch window.", raisedAt: "2026-07-03 10:00", slaHours: 96, status: "assigned", assigneeId: "st-10" },
   { id: "q-05", kind: "ai-critical", orgId: "org-04", declId: "d-105", summary: "Carbon price claimed with no rebate documentation", detail: "Trial account entered a carbon price due deduction without an attached levy receipt.", raisedAt: "2026-07-05 18:03", slaHours: 24, status: "open" },
-  { id: "q-06", kind: "escalation", orgId: "org-02", declId: "d-103", summary: "Verifier partner requests methodology clarification", detail: "TÜV Rheinland asks whether EU-accepted MRV monitoring plan covers the second rolling line.", raisedAt: "2026-07-02 11:30", slaHours: 72, status: "resolved", assigneeId: "st-09", resolution: "Confirmed monitoring plan scope with the Commission FAQ §4.2; verifier notified." },
-  { id: "q-07", kind: "spot-audit", orgId: "org-01", declId: "d-102", summary: "Post-dispatch audit — Q1 package integrity", detail: "Verify sha-256 dataset hash in the dispatched PDF matches the sealed dataset version.", raisedAt: "2026-06-28 09:00", slaHours: 120, status: "resolved", assigneeId: "st-11", resolution: "Hash verified byte-identical. No findings." },
+  { id: "q-06", kind: "escalation", orgId: "org-02", declId: "d-103", summary: "Monitoring-plan scope needs external review", detail: "The second rolling line needs an accredited verifier to confirm scope; no verifier integration is configured.", raisedAt: "2026-07-02 11:30", slaHours: 72, status: "resolved", assigneeId: "st-09", resolution: "Recorded as an unresolved external-verifier dependency; no notification was sent." },
+  { id: "q-07", kind: "spot-audit", orgId: "org-01", declId: "d-102", summary: "Local preview checksum review", detail: "Check whether the mutable browser dataset still matches the local preview fingerprint. This is not a seal or audit ledger.", raisedAt: "2026-06-28 09:00", slaHours: 120, status: "resolved", assigneeId: "st-11", resolution: "Fixture checksum matched at review time; no external integrity claim was made." },
 ];
 
 /* ── Regulatory master data + maker-checker drafts ────────── */
@@ -337,7 +337,7 @@ export type RegDraft = {
 };
 
 export const REG_DRAFTS: RegDraft[] = [
-  { id: "dr-01", datasetId: "rd-factors", title: "Update pig iron default factor per Commission 2026/1441", diff: "pig-iron.direct: 1.90 → 1.86 tCO₂e/t · source: OJ L 2026/1441 Annex II", status: "awaiting-approval", draftedById: "st-08", draftedAt: "2026-07-04 15:20" },
+  { id: "dr-01", datasetId: "rd-factors", title: "Review pig iron default row against Regulation 2025/2621", diff: "Fixture review only: confirm CN mapping, reporting-year column, included markup and source citation before publication", status: "awaiting-approval", draftedById: "st-08", draftedAt: "2026-07-04 15:20" },
   { id: "dr-02", datasetId: "rd-cn", title: "Add CN 7616 99 90 (other articles of aluminium)", diff: "+ 7616 99 90 · category: Aluminium · complex: yes", status: "awaiting-approval", draftedById: "st-08", draftedAt: "2026-07-05 11:02" },
   { id: "dr-03", datasetId: "rd-markup", title: "2027 default-value markup step (draft, pending OJ)", diff: "markup.2027: — → +30% (placeholder until Official Journal text)", status: "draft", draftedById: "st-08", draftedAt: "2026-07-06 08:41" },
   { id: "dr-04", datasetId: "rd-fields", title: "Split site address into address + UN/LOCODE", diff: "inst-address → inst-address + inst-unlocode (optional)", status: "published", draftedById: "st-08", draftedAt: "2026-06-27 10:15", approvedById: "st-07", decidedAt: "2026-06-29 09:00" },
@@ -373,7 +373,7 @@ export const INVOICES: Invoice[] = [
    for revenue-ops visibility but aren't part of "the three tiers". */
 export const PLANS = [
   { name: "Trial", price: "฿0", blurb: "14-day evaluation, 1 declaration, watermarked outputs.", orgs: ORGS.filter((o) => o.plan === "Trial").length },
-  { name: "Starter", price: "฿180,000/yr", blurb: "Up to 20 suppliers. Smart request builder, live dashboard + reminders, audit-ready export.", orgs: ORGS.filter((o) => o.plan === "Starter").length },
+  { name: "Starter", price: "฿180,000/yr", blurb: "Up to 20 suppliers. Guided request builder, local dashboard and draft previews.", orgs: ORGS.filter((o) => o.plan === "Starter").length },
   { name: "Standard", price: "฿360,000/yr", blurb: "Up to 50 suppliers. Everything in Starter, plus an auditor portal seat and multi-regulation templates.", orgs: ORGS.filter((o) => o.plan === "Standard").length },
   { name: "Enterprise", price: "฿720,000/yr", blurb: "50+ suppliers, custom above ~150. Priority support + onboarding, legal-network sign-off access.", orgs: ORGS.filter((o) => o.plan === "Enterprise").length },
   { name: "Partner", price: "rev-share", blurb: "Verifier partners — scoped portal access, no subscription.", orgs: ORGS.filter((o) => o.plan === "Partner").length },
@@ -438,7 +438,7 @@ export const TICKETS: Ticket[] = [
     thread: [
       { from: "Kanya (Bangkok Aluminium)", at: "2026-07-01 13:05", body: "The default factor shown for prebake anodes doesn't match the June Commission update." },
       { from: "Diego Torres", at: "2026-07-01 13:30", body: "Data-correctness complaint — routing to Regulatory Affairs.", internal: true },
-      { from: "Nok Wattana", at: "2026-07-02 09:15", body: "Confirmed — Commission 2026/1441 changed it. Drafting the master-data update now (dr-01)." , internal: true },
+      { from: "Nok Wattana", at: "2026-07-02 09:15", body: "No new legal act was confirmed. Draft dr-01 now requests a source review against Regulation 2025/2621." , internal: true },
     ],
   },
 ];
@@ -465,10 +465,10 @@ export const AUDIT_FIXTURES: AuditEvent[] = [
   { id: "a-115", at: "2026-07-04 16:50", actorId: "st-21", module: "support", action: "ticket.escalate", target: "T-1041", detail: "Routed to Revenue Ops." },
   { id: "a-114", at: "2026-07-04 11:08", actorId: "st-22", module: "staff", action: "role.grant", target: "st-23", detail: "Invited Greta Lindqvist as Regulatory Analyst.", superFlag: true },
   { id: "a-113", at: "2026-07-03 15:40", actorId: "st-19", module: "legal", action: "dsr.open", target: "DSR-009", detail: "Data-subject access request — former supplier contact." },
-  { id: "a-112", at: "2026-07-02 16:02", actorId: "st-06", module: "announcements", action: "announcement.publish", target: "ann-03", detail: "Audience: all exporter orgs." },
+  { id: "a-112", at: "2026-07-02 16:02", actorId: "st-06", module: "announcements", action: "announcement.fixture", target: "ann-03", detail: "Illustrative browser-local fixture; no audience delivery." },
   { id: "a-111", at: "2026-07-01 10:12", actorId: "st-17", module: "audit", action: "access.review", target: "quarterly-review-2026Q2", detail: "Completed Q2 access recertification." },
   { id: "a-110", at: "2026-06-29 09:00", actorId: "st-07", module: "regulatory", action: "draft.publish", target: "dr-04", detail: "Published rd-fields v2026.1 → v2026.2." },
-  { id: "a-109", at: "2026-06-25 13:30", actorId: "st-15", module: "system", action: "integration.rotate", target: "o3ci-bridge", detail: "Rotated API credentials." },
+  { id: "a-109", at: "2026-06-25 13:30", actorId: "st-15", module: "system", action: "integration.review", target: "o3ci-bridge", detail: "Confirmed that no public write API or credentials are configured." },
   { id: "a-108", at: "2026-06-22 10:40", actorId: "st-04", module: "accounts", action: "account.flag", target: "org-05", detail: "Marked renewal-risk after 14 days inactivity." },
   { id: "a-107", at: "2026-06-20 16:02", actorId: "st-06", module: "regulatory", action: "draft.publish", target: "dr-05", detail: "Emergency factor correction — expedited approval." },
   { id: "a-106", at: "2026-06-16 10:11", actorId: "st-06", module: "regulatory", action: "draft.reject", target: "dr-06", detail: "Hold until VN factor-set QA completes." },
@@ -487,11 +487,11 @@ export type Announcement = {
 };
 
 export const ANNOUNCEMENTS: Announcement[] = [
-  { id: "ann-05", title: "Scheduled maintenance — Sunday 13 Jul 02:00–04:00 UTC", body: "The portal and Smart Links will be read-only during the window. Dispatched packages are unaffected.", audience: "All orgs", status: "draft", authorId: "st-15" },
-  { id: "ann-04", title: "New: default-factor update per Commission 2026/1441", body: "Pig iron default factors will update on publish of draft dr-01. Open declarations recalculate automatically; dispatched packages keep their sealed values.", audience: "Exporters — Iron & Steel", status: "draft", authorId: "st-08" },
-  { id: "ann-03", title: "Definitive-period reminder: verification statements required for actual values", body: "From the 2026 reporting year, actual values must carry an accredited verification statement. The AI check now flags unverified actuals as blocking.", audience: "All exporter orgs", status: "published", authorId: "st-06", publishedAt: "2026-07-02 16:02" },
-  { id: "ann-02", title: "Smart Link questionnaires now support UN/LOCODE", body: "Installation address fields now include an optional UN/LOCODE. Existing submissions are unaffected.", audience: "All orgs", status: "published", authorId: "st-07", publishedAt: "2026-06-29 10:00" },
-  { id: "ann-01", title: "Welcome to the Certrace status feed", body: "Regulation changes, release notes and maintenance windows will be announced here.", audience: "All orgs", status: "published", authorId: "st-06", publishedAt: "2026-06-01 09:00" },
+  { id: "ann-05", title: "Readiness-demo maintenance note", body: "Illustrative notice only; no hosted production service or cross-device Smart Link backend is configured.", audience: "All orgs", status: "draft", authorId: "st-15" },
+  { id: "ann-04", title: "Default-value dataset review — Regulation 2025/2621", body: "Draft fixture note only. Regulatory data changes require sourced, effective-dated publication and review; this demo does not recalculate tenant records or seal prior previews.", audience: "Exporters — Iron & Steel", status: "draft", authorId: "st-08" },
+  { id: "ann-03", title: "Definitive-period reminder: verification statements required for actual values", body: "Draft fixture: from the 2026 reporting year, actual values require accredited verification. No announcement was delivered from this demo.", audience: "All exporter orgs", status: "draft", authorId: "st-06" },
+  { id: "ann-02", title: "Smart Link questionnaire UN/LOCODE note", body: "Draft fixture: installation address fields include optional UN/LOCODE. No customer feed is connected.", audience: "All orgs", status: "draft", authorId: "st-07" },
+  { id: "ann-01", title: "Certrace status-feed concept", body: "Draft fixture only: a future production feed could carry regulation changes, release notes, and maintenance windows.", audience: "All orgs", status: "draft", authorId: "st-06" },
 ];
 
 /* ── System: flags & integrations ─────────────────────────── */
@@ -505,19 +505,19 @@ export type FeatureFlag = {
 
 export const FEATURE_FLAGS: FeatureFlag[] = [
   { key: "smartlink-v2-renderer", description: "New questionnaire renderer (canary).", enabled: true, scope: "org-02 only" },
-  { key: "o3ci-live-push", description: "Real O3CI portal push instead of simulated dispatch.", enabled: false, scope: "global" },
-  { key: "ai-check-strict-mode", description: "Treat anomaly warnings as blocking for Enterprise orgs.", enabled: false, scope: "Enterprise plan" },
+  { key: "o3ci-live-push", description: "Unavailable: no official public O3CI write API/schema is configured.", enabled: false, scope: "global" },
+  { key: "ai-check-strict-mode", description: "Display advisory anomaly flags; this demo flag never changes deterministic approval gates.", enabled: false, scope: "global demo" },
   { key: "supplier-profile-reuse", description: "Reusable supplier company profiles across exporters.", enabled: true, scope: "global" },
   { key: "billing-self-serve", description: "In-portal plan upgrades without a sales call.", enabled: false, scope: "global" },
-  { key: "xml-annex-iv-export", description: "Annex IV communication-template XML in the Output Center.", enabled: true, scope: "global" },
+  { key: "xml-annex-iv-export", description: "Unavailable: no approved public Registry/O3CI XML schema is configured.", enabled: false, scope: "global" },
 ];
 
-export const INTEGRATIONS = [
-  { name: "O3CI Portal bridge", status: "ok" as const, note: "Sandbox credentials · rotated 2026-06-25" },
-  { name: "Email delivery (transactional)", status: "ok" as const, note: "99.7% delivered, 7-day window" },
-  { name: "Payment processor", status: "ok" as const, note: "Webhooks healthy" },
-  { name: "Accredited-verifier registry sync", status: "warn" as const, note: "Last sync 26h ago (daily expected)" },
-  { name: "Commission default-factor feed", status: "ok" as const, note: "v2026.2 mirrored" },
+export const INTEGRATIONS: { name: string; status: "ok" | "warn"; note: string }[] = [
+  { name: "O3CI Portal bridge", status: "warn" as const, note: "Not configured · manual-entry worksheet only" },
+  { name: "Email delivery (transactional)", status: "warn" as const, note: "Provider not selected" },
+  { name: "Payment processor", status: "warn" as const, note: "Not configured in this readiness demo" },
+  { name: "Accredited-verifier integration", status: "warn" as const, note: "Not configured" },
+  { name: "Commission regulatory-data ingestion", status: "warn" as const, note: "Manual sourced snapshot only · no live feed" },
 ];
 
 /* ── Legal & privacy ──────────────────────────────────────── */
@@ -539,8 +539,8 @@ export const DSRS = [
 ];
 
 export const RETENTION = [
-  { dataClass: "Sealed audit packages (dispatched)", schedule: "10 years (CBAM/ETS-style)", enforcement: "on schedule" },
-  { dataClass: "Supplier questionnaire drafts", schedule: "24 months after declaration close", enforcement: "on schedule" },
+  { dataClass: "Draft previews (browser-local)", schedule: "No legal retention schedule configured", enforcement: "not enforced" },
+  { dataClass: "Supplier questionnaire drafts", schedule: "Browser-controlled only", enforcement: "not enforced" },
   { dataClass: "Supplier contact PII", schedule: "36 months after last activity", enforcement: "review due" },
   { dataClass: "Support ticket threads", schedule: "36 months", enforcement: "on schedule" },
   { dataClass: "Impersonation session logs", schedule: "7 years (security)", enforcement: "on schedule" },
@@ -556,7 +556,7 @@ export const KPIS = {
   openQueue: QUEUE.filter((q) => q.status !== "resolved").length,
   openTickets: TICKETS.filter((t) => t.status !== "resolved").length,
   pendingDrafts: REG_DRAFTS.filter((d) => d.status === "awaiting-approval").length,
-  declarationsInFlight: DECLARATIONS.filter((d) => d.status !== "dispatched").length,
+  declarationsInFlight: DECLARATIONS.filter((d) => d.status !== "draft-preview").length,
 };
 
 export const MRR_TREND = [

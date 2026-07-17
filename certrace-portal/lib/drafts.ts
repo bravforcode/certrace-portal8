@@ -5,14 +5,14 @@
    the declarations list surfaces drafts at the top and links back into the
    wizard to resume exactly where the exporter left off. */
 
-import type { Purpose } from "./config";
+import type { ProductUnit, Purpose } from "./config";
 import type { DirectorySupplier } from "./data";
 
 /* A production lot bought from a supplier in the period. */
 export type Lot = {
   id: string;
   qty: string;
-  unit: string;
+  unit: ProductUnit | "";
   from: string; // optional production-period start (ISO)
   to: string; // optional production-period end (ISO)
   notes: string; // optional free-text
@@ -64,7 +64,32 @@ export type Draft = {
   };
 };
 
-const KEY = "certrace:drafts";
+const KEY = "certrace:v2:drafts";
+const LEGACY_KEY = "certrace:drafts";
+const QUARANTINE_KEY = "certrace:legacy_unverified:drafts";
+
+type DraftEnvelope = {
+  schemaVersion: 2;
+  dataClassification: "readiness_demo";
+  records: Draft[];
+};
+
+function quarantineLegacyDrafts(): void {
+  if (typeof window === "undefined") return;
+  try {
+    const raw = window.localStorage.getItem(LEGACY_KEY);
+    if (raw === null) return;
+    window.localStorage.removeItem(LEGACY_KEY);
+    if (window.localStorage.getItem(QUARANTINE_KEY) === null) {
+      window.localStorage.setItem(
+        QUARANTINE_KEY,
+        JSON.stringify({ classification: "legacy_unverified", quarantinedAt: Date.now(), originalKey: LEGACY_KEY, discardedBytes: raw.length, reason: "Unversioned record discarded; payload not retained." }),
+      );
+    }
+  } catch {
+    // Fail closed: an unversioned draft is never read into the current model.
+  }
+}
 
 /* Defends against drafts written by an older schema (or otherwise malformed
    localStorage data) missing fields the current UI assumes are always
@@ -84,11 +109,20 @@ function normaliseDraft(d: Draft & { display: { purposes?: Purpose[] } }): Draft
 
 export function loadDrafts(): Draft[] {
   if (typeof window === "undefined") return [];
+  quarantineLegacyDrafts();
   try {
     const raw = window.localStorage.getItem(KEY);
     if (!raw) return [];
-    const arr = JSON.parse(raw) as Draft[];
-    return Array.isArray(arr) ? arr.map(normaliseDraft).sort((a, b) => b.updatedAt - a.updatedAt) : [];
+    const envelope = JSON.parse(raw) as DraftEnvelope;
+    if (envelope.schemaVersion !== 2 || envelope.dataClassification !== "readiness_demo" || !Array.isArray(envelope.records)) {
+      window.localStorage.removeItem(KEY);
+      window.localStorage.setItem(
+        QUARANTINE_KEY,
+        JSON.stringify({ classification: "legacy_unverified", quarantinedAt: Date.now(), originalKey: KEY, discardedBytes: raw.length, reason: "Invalid schema record discarded; payload not retained." }),
+      );
+      return [];
+    }
+    return envelope.records.map(normaliseDraft).sort((a, b) => b.updatedAt - a.updatedAt);
   } catch {
     return [];
   }
@@ -103,9 +137,10 @@ export function saveDraft(draft: Draft): void {
   const all = loadDrafts().filter((d) => d.id !== draft.id);
   all.unshift(draft);
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(all));
+    const envelope: DraftEnvelope = { schemaVersion: 2, dataClassification: "readiness_demo", records: all };
+    window.localStorage.setItem(KEY, JSON.stringify(envelope));
   } catch {
-    /* ignore quota / serialization errors — a lost draft must never break the flow */
+    throw new Error("Local draft save failed. The draft was not recorded.");
   }
 }
 
@@ -113,9 +148,10 @@ export function deleteDraft(id: string): void {
   if (typeof window === "undefined") return;
   const all = loadDrafts().filter((d) => d.id !== id);
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(all));
+    const envelope: DraftEnvelope = { schemaVersion: 2, dataClassification: "readiness_demo", records: all };
+    window.localStorage.setItem(KEY, JSON.stringify(envelope));
   } catch {
-    /* ignore */
+    throw new Error("Local draft delete failed.");
   }
 }
 

@@ -129,7 +129,7 @@ export default function RegulatoryData() {
         </Card>
 
         <p className="text-xs text-black/35">
-          Publishing recalculates open declarations on every tenant; dispatched packages keep their sealed values. Every
+          This browser-only demo does not publish across tenants or recalculate remote records. A future controlled publication workflow must preserve the exact regulatory-data version used by each draft. Every
           decision lands in the audit log.
         </p>
       </div>

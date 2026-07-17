@@ -131,6 +131,7 @@ export function Select({
   className,
   ariaLabel,
   invalid = false,
+  disabled = false,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -139,6 +140,7 @@ export function Select({
   className?: string;
   ariaLabel?: string;
   invalid?: boolean;
+  disabled?: boolean;
 }) {
   const { open, setOpen, triggerRef, popRef } = usePopover();
   const anchor = useAnchoredStyle(open, triggerRef, popRef, { matchWidth: true });
@@ -179,11 +181,13 @@ export function Select({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={ariaLabel}
-        aria-invalid={invalid || undefined}
-        onClick={() => setOpen((v) => !v)}
+        disabled={disabled}
+        data-invalid={invalid || undefined}
+        onClick={() => !disabled && setOpen((v) => !v)}
         onKeyDown={onKey}
         className={cn(
           triggerBase,
+          disabled && "cursor-not-allowed opacity-60",
           invalid
             ? "border-[#f87171]/60 focus-visible:border-[#f87171]"
             : open
@@ -461,7 +465,7 @@ export function DatePicker({
         type="button"
         aria-label={ariaLabel}
         aria-expanded={open}
-        aria-invalid={invalid || undefined}
+        data-invalid={invalid || undefined}
         onClick={() => setOpen((v) => !v)}
         className={cn(
           triggerBase,

@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { Progress, StatusLabel, cn } from "./ui";
 import { SupplierRow, supplierStatusMeta, supplierSlug } from "@/lib/data";
+import { formatDecimal } from "@/lib/workflow-measurements";
 
 export function SupplierTable({
   rows,
@@ -31,7 +32,7 @@ export function SupplierTable({
         <span>Status</span>
       </div>
 
-      {rows.map((row, i) => {
+      {rows.map((row) => {
         const meta = supplierStatusMeta[row.status];
         return (
           <Link
@@ -53,15 +54,10 @@ export function SupplierTable({
             </span>
             {showEmissions && (
               <span className="font-mono text-[11px] text-black/55">
-                {row.emissions != null ? row.emissions.toFixed(2) : <span className="text-black/25">—</span>}
+                {row.emissions != null ? formatDecimal(row.emissions) : <span className="text-black/25">—</span>}
               </span>
             )}
-            <span className="flex items-center justify-between gap-2" onClick={(e) => {
-              if (actions) {
-                // Prevent navigation if an action was clicked (not perfect without tracking exact target, but actions usually are standalone)
-                // We'll just let the Link handle the click for now unless the user clicks a specific button inside.
-              }
-            }}>
+            <span className="flex items-center justify-between gap-2">
               <StatusLabel
                 tone={meta.tone}
                 label={meta.label}

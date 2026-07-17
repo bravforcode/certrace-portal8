@@ -1,0 +1,250 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - "fix/**"
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: "true"
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  portal:
+    name: Portal checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: certrace-portal
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: Set up Node.js 22 LTS
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: certrace-portal/package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Run unit tests
+        run: npm run test:unit
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Build Next.js application
+        run: npm run build
+
+      - name: Build OpenNext Cloudflare artifact
+        run: npm run build-pages
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright readiness-demo tests
+        run: npm run test:e2e -- --project=chromium
+
+      - name: Upload Playwright diagnostics
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: portal-playwright-results
+          path: |
+            certrace-portal/playwright-report/
+            certrace-portal/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  admin:
+    name: Admin checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: certrace-admin-portal
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: Set up Node.js 22 LTS
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: certrace-admin-portal/package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Build Next.js application
+        run: npm run build
+
+  backend:
+    name: Backend checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: certrace-backend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: |
+            certrace-backend/requirements.txt
+            certrace-backend/requirements-test.txt
+
+      - name: Install runtime and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt -r requirements-test.txt
+          python -m pip install ruff==0.15.8 pip-audit==2.10.1
+
+      - name: Ruff lint
+        run: python -m ruff check .
+
+      - name: Ruff format check
+        run: python -m ruff format --check .
+
+      - name: Run FastAPI tests
+        run: python -m pytest -q
+
+      - name: Compile Python sources
+        run: python -m compileall -q .
+
+      - name: Audit runtime requirements
+        run: python -m pip_audit -r requirements.txt
+
+      - name: Audit runtime and test requirements
+        run: python -m pip_audit -r requirements-test.txt
+
+  security:
+    name: Code and secret scanning
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: Scan tracked source for high-confidence secrets
+        shell: bash
+        run: |
+          if git grep -I -n -E '(AKIA[0-9A-Z]{16}|gh[pousr]_[A-Za-z0-9_]{30,}|sk-[A-Za-z0-9]{32,}|-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----)' -- .; then
+            echo "High-confidence secret pattern found in tracked source."
+            exit 1
+          fi
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v4.37.0
+        with:
+          languages: javascript-typescript,python
+
+      - name: Analyze source
+        uses: github/codeql-action/analyze@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v4.37.0
+        with:
+          output: codeql-results
+          upload: never
+
+      - name: Fail on high-severity CodeQL findings
+        shell: bash
+        run: |
+          python - <<'PY'
+          import glob
+          import json
+          import sys
+
+          sarif_files = glob.glob("codeql-results/**/*.sarif", recursive=True)
+          if not sarif_files:
+              raise SystemExit("CodeQL produced no SARIF output.")
+
+          blocking = []
+          total_results = 0
+          for sarif_file in sarif_files:
+              with open(sarif_file, encoding="utf-8") as handle:
+                  document = json.load(handle)
+              for run in document.get("runs", []):
+                  tool = run.get("tool", {})
+                  components = [tool.get("driver", {}), *tool.get("extensions", [])]
+                  rules = {
+                      rule.get("id"): rule
+                      for component in components
+                      for rule in component.get("rules", [])
+                      if rule.get("id")
+                  }
+                  for result in run.get("results", []):
+                      total_results += 1
+                      rule_id = result.get("ruleId", "unknown-rule")
+                      properties = dict(rules.get(rule_id, {}).get("properties", {}))
+                      properties.update(result.get("properties", {}))
+                      raw_severity = properties.get("security-severity")
+                      try:
+                          security_severity = float(raw_severity)
+                      except (TypeError, ValueError):
+                          security_severity = None
+                      if result.get("level") == "error" or (
+                          security_severity is not None and security_severity >= 7.0
+                      ):
+                          locations = result.get("locations") or [{}]
+                          location = (
+                              locations[0]
+                              .get("physicalLocation", {})
+                              .get("artifactLocation", {})
+                              .get("uri", "unknown-path")
+                          )
+                          blocking.append((rule_id, security_severity, location))
+
+          if blocking:
+              for rule_id, severity, location in blocking:
+                  print(f"Blocking CodeQL finding: {rule_id} severity={severity} path={location}")
+              raise SystemExit(1)
+          print(
+              f"CodeQL analyzed {len(sarif_files)} SARIF file(s); "
+              f"{total_results} result(s), no high/critical security finding."
+          )
+          PY
+
+      - name: Upload CodeQL SARIF diagnostics
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: codeql-sarif
+          path: codeql-results/
+          if-no-files-found: error
+          retention-days: 7

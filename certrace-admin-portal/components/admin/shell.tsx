@@ -125,6 +125,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
+      <div className="border-b border-[#b45309]/20 bg-[#fffbeb] px-4 py-2 text-center text-[11px] text-[#92400e]">
+        Browser-local admin fixture only · no production identity, tenant backend, email, billing, evidence custody, O3CI, verifier sync, or immutable audit ledger
+      </div>
+
       <div className="mx-auto flex max-w-[1400px] gap-8 px-4 py-8 md:px-6">
         {/* Sidebar — modules filtered by the viewer's department access */}
         <aside className="hidden w-52 flex-none md:sticky md:top-[4.5rem] md:block md:h-[calc(100vh-5.5rem)] md:self-start md:overflow-y-auto">

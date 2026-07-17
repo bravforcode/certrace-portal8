@@ -72,7 +72,7 @@ export function AddMemberModal({
             </button>
           </div>
           <p className="mt-2 text-[12.5px] leading-relaxed text-black/50">
-            {note ?? "They join your team list and can be assigned to any check. We email them an invite with scoped, read-only access — they never see anything outside what you share."}
+            {note ?? "They join this browser’s demo roster and can be assigned to a local check. No email, identity, access control, or cross-device sharing is configured."}
           </p>
 
           <div className="mt-5 space-y-3">
@@ -92,7 +92,7 @@ export function AddMemberModal({
               Cancel
             </Button>
             <Button size="sm" disabled={!valid} onClick={submit}>
-              <UserPlus size={14} strokeWidth={1.5} /> Add & invite
+              <UserPlus size={14} strokeWidth={1.5} /> Add locally
             </Button>
           </div>
         </Card>
