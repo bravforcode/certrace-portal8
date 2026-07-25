@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import ipaddress
 import re
-from collections.abc import Sequence
 from urllib.parse import SplitResult, urlsplit
 
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
@@ -25,15 +24,26 @@ def _validated_hostname(parts: SplitResult) -> str:
         raise CorsConfigurationError("CORS origin contains an invalid port.") from exc
     if hostname is None:
         raise CorsConfigurationError("CORS origin must include a host.")
-    if not hostname.isascii() or "%" in hostname or hostname.endswith(".") or "*" in hostname:
+    if (
+        not hostname.isascii()
+        or "%" in hostname
+        or hostname.endswith(".")
+        or "*" in hostname
+    ):
         raise CorsConfigurationError("CORS origin contains an invalid host name.")
     normalized = hostname.lower()
     try:
         address = ipaddress.ip_address(normalized)
     except ValueError:
         labels = normalized.split(".")
-        looks_like_noncanonical_ip = all(label.isdigit() or re.fullmatch(r"0x[0-9a-f]+", label) for label in labels)
-        if len(normalized) > 253 or looks_like_noncanonical_ip or not all(_DNS_LABEL.fullmatch(label) for label in labels):
+        looks_like_noncanonical_ip = all(
+            label.isdigit() or re.fullmatch(r"0x[0-9a-f]+", label) for label in labels
+        )
+        if (
+            len(normalized) > 253
+            or looks_like_noncanonical_ip
+            or not all(_DNS_LABEL.fullmatch(label) for label in labels)
+        ):
             raise CorsConfigurationError("CORS origin contains an invalid host name.")
     else:
         normalized = address.compressed
@@ -43,15 +53,22 @@ def _validated_hostname(parts: SplitResult) -> str:
         except ValueError:
             loopback = False
         if normalized != "localhost" and not loopback:
-            raise CorsConfigurationError("Plain HTTP CORS origins are limited to localhost or loopback addresses.")
+            raise CorsConfigurationError(
+                "Plain HTTP CORS origins are limited to localhost or loopback addresses."
+            )
     host = f"[{normalized}]" if ":" in normalized else normalized
     return f"{host}:{port}" if port is not None else host
 
 
 def validate_cors_origin(origin: str) -> str:
     if not origin or any(character.isspace() for character in origin):
-        raise CorsConfigurationError("CORS origins cannot be empty or contain whitespace.")
-    if any(ord(character) < 32 or ord(character) == 127 for character in origin) or "\\" in origin:
+        raise CorsConfigurationError(
+            "CORS origins cannot be empty or contain whitespace."
+        )
+    if (
+        any(ord(character) < 32 or ord(character) == 127 for character in origin)
+        or "\\" in origin
+    ):
         raise CorsConfigurationError("CORS origin contains invalid characters.")
     try:
         parts = urlsplit(origin)
@@ -63,7 +80,9 @@ def validate_cors_origin(origin: str) -> str:
     if parts.username is not None or parts.password is not None:
         raise CorsConfigurationError("CORS origins cannot include credentials.")
     if parts.path or parts.query or parts.fragment:
-        raise CorsConfigurationError("CORS origins cannot include a path, query, or fragment.")
+        raise CorsConfigurationError(
+            "CORS origins cannot include a path, query, or fragment."
+        )
     return f"{scheme}://{_validated_hostname(parts)}"
 
 
@@ -82,12 +101,18 @@ def parse_cors_origins(raw_value: str | None) -> tuple[str, ...]:
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
         response = await call_next(request)
         response.headers["Cache-Control"] = "no-store"
-        response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
+        )
         response.headers["Referrer-Policy"] = "no-referrer"
-        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=31536000; includeSubDomains; preload"
+        )
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         return response

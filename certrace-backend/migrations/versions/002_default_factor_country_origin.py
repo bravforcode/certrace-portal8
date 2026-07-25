@@ -5,8 +5,8 @@ Revises: 001
 Create Date: 2026-07-25
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision = "002"
 down_revision = "001"
@@ -17,15 +17,21 @@ depends_on = None
 def upgrade() -> None:
     op.add_column(
         "default_emission_factors",
-        sa.Column("country_of_origin", sa.Text(), nullable=False, server_default="UNSPECIFIED"),
+        sa.Column(
+            "country_of_origin", sa.Text(), nullable=False, server_default="UNSPECIFIED"
+        ),
     )
-    op.drop_constraint("default_factors_cn_year_route_key", "default_emission_factors", type_="unique")
+    op.drop_constraint(
+        "default_factors_cn_year_route_key", "default_emission_factors", type_="unique"
+    )
     op.create_unique_constraint(
         "default_factors_cn_year_route_country_key",
         "default_emission_factors",
         ["cn_code", "reporting_year", "route", "country_of_origin"],
     )
-    op.drop_index("default_emission_factors_lookup_idx", table_name="default_emission_factors")
+    op.drop_index(
+        "default_emission_factors_lookup_idx", table_name="default_emission_factors"
+    )
     op.create_index(
         "default_emission_factors_lookup_idx",
         "default_emission_factors",
@@ -34,13 +40,19 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("default_emission_factors_lookup_idx", table_name="default_emission_factors")
+    op.drop_index(
+        "default_emission_factors_lookup_idx", table_name="default_emission_factors"
+    )
     op.create_index(
         "default_emission_factors_lookup_idx",
         "default_emission_factors",
         ["cn_code", "reporting_year"],
     )
-    op.drop_constraint("default_factors_cn_year_route_country_key", "default_emission_factors", type_="unique")
+    op.drop_constraint(
+        "default_factors_cn_year_route_country_key",
+        "default_emission_factors",
+        type_="unique",
+    )
     op.create_unique_constraint(
         "default_factors_cn_year_route_key",
         "default_emission_factors",

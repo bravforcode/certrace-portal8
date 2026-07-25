@@ -39,11 +39,15 @@ def run_backend() -> int:
 
 
 def run_migration() -> int:
-    return subprocess.call([str(backend_python()), "-m", "alembic", "upgrade", "head"], cwd=BACKEND)
+    return subprocess.call(
+        [str(backend_python()), "-m", "alembic", "upgrade", "head"], cwd=BACKEND
+    )
 
 
 def run_downgrade() -> int:
-    return subprocess.call([str(backend_python()), "-m", "alembic", "downgrade", "-1"], cwd=BACKEND)
+    return subprocess.call(
+        [str(backend_python()), "-m", "alembic", "downgrade", "-1"], cwd=BACKEND
+    )
 
 
 def check_readiness() -> int:

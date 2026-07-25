@@ -127,7 +127,9 @@ def parse_default_factor_row(
 ) -> DefaultFactorRow:
     cn_code = require_value(row, "cn_code", row_number).replace(" ", "")
     if len(cn_code) != 8 or not cn_code.isdigit():
-        raise ImportValidationError(f"Row {row_number}: cn_code must be exactly 8 digits.")
+        raise ImportValidationError(
+            f"Row {row_number}: cn_code must be exactly 8 digits."
+        )
     if steel_aluminium_only and not cn_code.startswith(SUPPORTED_CHAPTERS):
         raise ImportValidationError(
             f"Row {row_number}: cn_code {cn_code} is outside chapters 72, 73, and 76."
@@ -136,13 +138,19 @@ def parse_default_factor_row(
     try:
         reporting_year = int(require_value(row, "reporting_year", row_number))
     except ValueError as exc:
-        raise ImportValidationError(f"Row {row_number}: reporting_year must be integer.") from exc
+        raise ImportValidationError(
+            f"Row {row_number}: reporting_year must be integer."
+        ) from exc
     if reporting_year < 2024 or reporting_year > 2030:
-        raise ImportValidationError(f"Row {row_number}: reporting_year is outside 2024-2030.")
+        raise ImportValidationError(
+            f"Row {row_number}: reporting_year is outside 2024-2030."
+        )
 
     sector = require_value(row, "sector", row_number).upper()
     if sector not in VALID_SECTORS:
-        raise ImportValidationError(f"Row {row_number}: sector must be IRON_STEEL or ALUMINIUM.")
+        raise ImportValidationError(
+            f"Row {row_number}: sector must be IRON_STEEL or ALUMINIUM."
+        )
 
     unit = optional_value(row, "unit") or "TCO2E_PER_TNE"
     if unit not in VALID_UNITS:
@@ -151,7 +159,9 @@ def parse_default_factor_row(
     return DefaultFactorRow(
         cn_code=cn_code,
         reporting_year=reporting_year,
-        country_of_origin=normalize_country_of_origin(optional_value(row, "country_of_origin")),
+        country_of_origin=normalize_country_of_origin(
+            optional_value(row, "country_of_origin")
+        ),
         sector=sector,
         route=optional_value(row, "route"),
         specific_embedded_emissions=parse_decimal(
@@ -193,50 +203,49 @@ def read_default_factor_csv(
 def upsert_default_factors(database_url: str, rows: list[DefaultFactorRow]) -> int:
     if psycopg is None:
         raise RuntimeError("psycopg is required to import default factors.")
-    with psycopg.connect(database_url) as connection:
-        with connection.cursor() as cursor:
-            cursor.executemany(
-                """
-                insert into default_emission_factors (
-                  cn_code,
-                  reporting_year,
-                  country_of_origin,
-                  sector,
-                  route,
-                  specific_embedded_emissions,
-                  unit,
-                  source_reference,
-                  regulatory_data_version,
-                  effective_from,
-                  effective_to
-                )
-                values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                on conflict (cn_code, reporting_year, route, country_of_origin) do update set
-                  sector = excluded.sector,
-                  specific_embedded_emissions = excluded.specific_embedded_emissions,
-                  unit = excluded.unit,
-                  source_reference = excluded.source_reference,
-                  regulatory_data_version = excluded.regulatory_data_version,
-                  effective_from = excluded.effective_from,
-                  effective_to = excluded.effective_to
-                """,
-                [
-                    (
-                        row.cn_code,
-                        row.reporting_year,
-                        row.country_of_origin,
-                        row.sector,
-                        row.route,
-                        row.specific_embedded_emissions,
-                        row.unit,
-                        row.source_reference,
-                        row.regulatory_data_version,
-                        row.effective_from,
-                        row.effective_to,
-                    )
-                    for row in rows
-                ],
+    with psycopg.connect(database_url) as connection, connection.cursor() as cursor:
+        cursor.executemany(
+            """
+            insert into default_emission_factors (
+              cn_code,
+              reporting_year,
+              country_of_origin,
+              sector,
+              route,
+              specific_embedded_emissions,
+              unit,
+              source_reference,
+              regulatory_data_version,
+              effective_from,
+              effective_to
             )
+            values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            on conflict (cn_code, reporting_year, route, country_of_origin) do update set
+              sector = excluded.sector,
+              specific_embedded_emissions = excluded.specific_embedded_emissions,
+              unit = excluded.unit,
+              source_reference = excluded.source_reference,
+              regulatory_data_version = excluded.regulatory_data_version,
+              effective_from = excluded.effective_from,
+              effective_to = excluded.effective_to
+            """,
+            [
+                (
+                    row.cn_code,
+                    row.reporting_year,
+                    row.country_of_origin,
+                    row.sector,
+                    row.route,
+                    row.specific_embedded_emissions,
+                    row.unit,
+                    row.source_reference,
+                    row.regulatory_data_version,
+                    row.effective_from,
+                    row.effective_to,
+                )
+                for row in rows
+            ],
+        )
     return len(rows)
 
 
