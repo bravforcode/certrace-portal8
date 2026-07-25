@@ -3,14 +3,13 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from main import (
-    CORS_ALLOWED_ORIGINS_ENV,
+from app.config import CORS_ALLOWED_ORIGINS_ENV
+from app.core.cors import (
     CorsConfigurationError,
-    create_app,
     parse_cors_origins,
     validate_cors_origin,
 )
-
+from app.main import create_app
 
 SECURITY_HEADERS = {
     "cache-control": "no-store",
@@ -254,8 +253,14 @@ def test_calculates_bf_bof_with_precursor_and_scrap(monkeypatch) -> None:
         "scrapInputMass": {"value": "20", "unit": "TNE"},
         "actualPrecursorMass": {"value": "10", "unit": "TNE"},
         "defaultPrecursorMass": {"value": "0", "unit": "TNE"},
-        "scrapRatio": {"value": "0.66666666666666666666666666666666666666666666666666666666666666666666666666666667", "unit": "FRACTION"},
-        "weightedAverageEmbeddedEmission": {"value": "0.33333333333333333333333333333333333333333333333333333333333333333333333333333333", "unit": "TCO2E_PER_TNE"},
+        "scrapRatio": {
+            "value": "0.66666666666666666666666666666666666666666666666666666666666666666666666666666667",
+            "unit": "FRACTION",
+        },
+        "weightedAverageEmbeddedEmission": {
+            "value": "0.33333333333333333333333333333333333333333333333333333333333333333333333333333333",
+            "unit": "TCO2E_PER_TNE",
+        },
         "formula": "weightedAverageEmbeddedEmission = sum(inputMass_i x specificEmbeddedEmission_i) / sum(inputMass_i); scrap specificEmbeddedEmission = 0",
     }
     assert payload["warnings"] == [
@@ -268,7 +273,9 @@ def test_calculates_bf_bof_with_precursor_and_scrap(monkeypatch) -> None:
     assert_security_headers(response)
 
 
-def test_uses_bundled_eu_default_factor_when_actual_precursor_is_absent(monkeypatch) -> None:
+def test_uses_bundled_eu_default_factor_when_actual_precursor_is_absent(
+    monkeypatch,
+) -> None:
     monkeypatch.delenv(CORS_ALLOWED_ORIGINS_ENV, raising=False)
     client = TestClient(create_app())
 

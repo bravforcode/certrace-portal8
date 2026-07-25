@@ -16,7 +16,9 @@ def test_canonical_header_accepts_common_official_export_names() -> None:
     assert canonical_header("CN Code") == "cn_code"
     assert canonical_header("Country of Origin") == "country_of_origin"
     assert canonical_header("Reporting year") == "reporting_year"
-    assert canonical_header("Specific embedded emissions") == "specific_embedded_emissions"
+    assert (
+        canonical_header("Specific embedded emissions") == "specific_embedded_emissions"
+    )
     assert canonical_header("Source Reference") == "source_reference"
 
 

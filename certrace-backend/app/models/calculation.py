@@ -8,12 +8,22 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 UnitCode = Literal[
-    "TNE", "TCO2E", "TCO2E_PER_TNE", "MWH", "TCO2E_PER_MWH", "FRACTION",
-    "KGM_CF4_PER_TNE_AL_PER_AEM", "KGM_CF4_PER_TNE_AL_PER_MILLIVOLT",
-    "TNE_C2F6_PER_TNE_CF4", "AEM_MIN_PER_CELL_DAY", "MILLIVOLT",
+    "TNE",
+    "TCO2E",
+    "TCO2E_PER_TNE",
+    "MWH",
+    "TCO2E_PER_MWH",
+    "FRACTION",
+    "KGM_CF4_PER_TNE_AL_PER_AEM",
+    "KGM_CF4_PER_TNE_AL_PER_MILLIVOLT",
+    "TNE_C2F6_PER_TNE_CF4",
+    "AEM_MIN_PER_CELL_DAY",
+    "MILLIVOLT",
 ]
 Sector = Literal["IRON_STEEL", "ALUMINIUM"]
-Route = Literal["BF_BOF", "EAF", "DRI_EAF", "PRIMARY_HALL_HEROULT", "SECONDARY_ALUMINIUM_REMELT"]
+Route = Literal[
+    "BF_BOF", "EAF", "DRI_EAF", "PRIMARY_HALL_HEROULT", "SECONDARY_ALUMINIUM_REMELT"
+]
 PrecursorMethod = Literal["ACTUAL", "DEFAULT", "SCRAP"]
 
 

@@ -58,6 +58,21 @@ Run tests in a separate terminal:
 .\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider
 ```
 
+Run lint before pushing:
+
+```powershell
+.\.venv\Scripts\python.exe -m ruff check .
+.\.venv\Scripts\python.exe -m ruff format --check .
+```
+
+In Git Bash, the same commands are:
+
+```bash
+./.venv/Scripts/python.exe -m pytest -q -p no:cacheprovider
+./.venv/Scripts/python.exe -m ruff check .
+./.venv/Scripts/python.exe -m ruff format --check .
+```
+
 ## Environment variables
 
 | Variable | Required | Purpose |
