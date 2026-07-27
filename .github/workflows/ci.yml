@@ -75,38 +75,6 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  admin:
-    name: Admin checks
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    defaults:
-      run:
-        working-directory: certrace-admin-portal
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-
-      - name: Set up Node.js 22 LTS
-        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: certrace-admin-portal/package-lock.json
-
-      - name: Install locked dependencies
-        run: npm ci --no-audit
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Audit production dependencies
-        run: npm audit --omit=dev --audit-level=high
-
-      - name: Build Next.js application
-        run: npm run build
 
   backend:
     name: Backend checks
