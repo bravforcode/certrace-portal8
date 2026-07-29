@@ -45,18 +45,18 @@ export default function FinancialsPage() {
         lead="Estimated 2026 CBAM certificate cost for the active declaration — chargeable embedded emissions priced at the published certificate price, minus carbon price already paid. A local estimate, not a filed figure."
       />
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="p-5">
           <Stat value={facts ? formatDecimal(facts.totalChargeableTCO2e) : "—"} label="Chargeable tCO2e" />
         </Card>
         <Card className="p-5">
-          <Stat value={price ? `€${formatDecimal(price)}` : "—"} label={`Certificate price / t (${CERTIFICATE_PRICE_AS_OF})`} />
+          <Stat value={price ? `€${formatDecimal(price)}` : "—"} label="Certificate price €/t" />
         </Card>
         <Card className="p-5">
-          <Stat value={netEUR ? `€${formatDecimal(netEUR)}` : "—"} label="Net exposure (EUR)" />
+          <Stat value={netEUR ? `€${formatDecimal(netEUR)}` : "—"} label="Net exposure EUR" />
         </Card>
         <Card className="p-5">
-          <Stat value={netTHB ? `฿${formatDecimal(netTHB)}` : "—"} label="≈ Net exposure (THB)" />
+          <Stat value={netTHB ? `฿${formatDecimal(netTHB)}` : "—"} label="≈ THB" />
         </Card>
       </div>
 
@@ -64,6 +64,7 @@ export default function FinancialsPage() {
         <span>{active.period} —</span>
         <Chip tone="muted">Estimate</Chip>
         <Chip tone="muted">฿{rate.thbPerEur} / EUR · {rate.asOf}</Chip>
+        <Chip tone="muted">Cert price as of {CERTIFICATE_PRICE_AS_OF}</Chip>
         <Chip tone={rate.stale ? "warn" : "ok"}>{rate.stale ? "ECB rate unavailable — fallback rate" : `ECB reference rate (${rate.source})`}</Chip>
         {facts?.certificatePriceWarning ? <Chip tone="warn">{facts.certificatePriceWarning}</Chip> : null}
       </div>
