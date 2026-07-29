@@ -45,7 +45,7 @@ export default function FinancialsPage() {
         lead="Estimated 2026 CBAM certificate cost for the active declaration — chargeable embedded emissions priced at the published certificate price, minus carbon price already paid. A local estimate, not a filed figure."
       />
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Card className="p-5">
           <Stat value={facts ? formatDecimal(facts.totalChargeableTCO2e) : "—"} label="Chargeable tCO2e" />
         </Card>
