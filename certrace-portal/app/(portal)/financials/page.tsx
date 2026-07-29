@@ -1,114 +1,108 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { TrendingDown } from "lucide-react";
+import * as React from "react";
 import { Card, PageHeader, Stat, Eyebrow, Chip } from "@/components/ui";
-import { DECLARATIONS, ORG } from "@/lib/data";
-import { fetchEcbThbEur, FALLBACK_THB_EUR_RATE } from "@/lib/fx";
-import { loadExporterState, rollup } from "@/lib/exporter-review";
-import { decimalToString, decimal } from "@/lib/mrv";
+import { DECLARATIONS } from "@/lib/data";
+import { loadExporterState, rollup, type ReviewRollup } from "@/lib/exporter-review";
+import { computeComplianceFacts, type ComplianceFacts } from "@/lib/compliance-engine";
+import { fetchEcbThbEur, FALLBACK_THB_EUR_RATE, type ThbEurRate } from "@/lib/fx";
+import { decimal, decimalToString } from "@/lib/mrv";
+import { formatDecimal } from "@/lib/workflow-measurements";
+
+const CERTIFICATE_PRICE_AS_OF = "2026-06-30";
+
+const active = DECLARATIONS.find((d) => d.id === "cbam-2026-annual-steel")!;
 
 export default function FinancialsPage() {
-  const [rate, setRate] = useState(FALLBACK_THB_EUR_RATE);
+  const [rate, setRate] = React.useState<ThbEurRate>(FALLBACK_THB_EUR_RATE);
+  const [roll, setRoll] = React.useState<ReviewRollup | null>(null);
+  const [facts, setFacts] = React.useState<ComplianceFacts | null>(null);
 
-  useEffect(() => {
-    fetchEcbThbEur().then(setRate);
+  React.useEffect(() => {
+    let mounted = true;
+    // localStorage-backed exporter state only exists client-side; compute after mount.
+    fetchEcbThbEur().then((r) => {
+      if (!mounted) return;
+      const rollNow = rollup(active, loadExporterState(active.id));
+      setRate(r);
+      setRoll(rollNow);
+      setFacts(computeComplianceFacts(rollNow, 2026, CERTIFICATE_PRICE_AS_OF, r));
+    });
+    return () => {
+      mounted = false;
+    };
   }, []);
 
-  const decl = DECLARATIONS[0];
-  if (!decl) return null;
-
-  const exporter = loadExporterState(decl.id);
-  const roll = rollup(decl, exporter);
-  const approved = roll.submissions.filter((s) => s.lifecycle === "approved");
-
-  const chargeableTCO2e = roll.reviewedEmissions || "0";
-  const pricePerTonne = "55";
-  const liabilityEUR = decimalToString(
-    decimal(chargeableTCO2e).times(pricePerTonne).div(rate.thbPerEur)
-  );
-
-  const getLiabilityTone = (amount: string) => {
-    const num = parseFloat(amount);
-    if (num < 50000) return "ok";
-    if (num < 150000) return "warn";
-    return "err";
-  };
+  const price = facts?.certificatePriceEURPerTCO2e ?? null;
+  const netEUR = facts?.totalNetExposureEUR ?? null;
+  const netTHB = netEUR ? decimalToString(decimal(netEUR).times(decimal(rate.thbPerEur)).toDecimalPlaces(2)) : null;
 
   return (
     <div className="space-y-8">
       <PageHeader
         eyebrow="Financial"
         title="Carbon liability forecast."
-        lead="Annual CBAM certificate cost estimate for 2026 based on EU ETS reference price."
+        lead="Estimated 2026 CBAM certificate cost for the active declaration — chargeable embedded emissions priced at the published certificate price, minus carbon price already paid. A local estimate, not a filed figure."
       />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Card className="p-5">
-          <Stat value={chargeableTCO2e} label="Chargeable tCO2e" />
+          <Stat value={facts ? formatDecimal(facts.totalChargeableTCO2e) : "—"} label="Chargeable tCO2e" />
         </Card>
         <Card className="p-5">
-          <Stat value={`€${pricePerTonne}`} label="Price per tonne" />
+          <Stat value={price ? `€${formatDecimal(price)}` : "—"} label={`Certificate price / t (${CERTIFICATE_PRICE_AS_OF})`} />
         </Card>
         <Card className="p-5">
-          <Stat value={`€${liabilityEUR}`} label="Estimated exposure" />
+          <Stat value={netEUR ? `€${formatDecimal(netEUR)}` : "—"} label="Net exposure (EUR)" />
         </Card>
         <Card className="p-5">
-          <Stat value={rate.stale ? "STALE" : "LIVE"} label="FX rate status" />
+          <Stat value={netTHB ? `฿${formatDecimal(netTHB)}` : "—"} label="≈ Net exposure (THB)" />
         </Card>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.08em] text-black/35">
-        <span>Annual 2026 —</span>
-        <Chip tone="muted">THB {rate.thbPerEur} / EUR</Chip>
-        <Chip tone={rate.stale ? "warn" : "ok"}>
-          {rate.stale ? "Hardcoded fallback (ECB API pending)" : "Live ECB feed"}
-        </Chip>
+        <span>{active.period} —</span>
+        <Chip tone="muted">Estimate</Chip>
+        <Chip tone="muted">฿{rate.thbPerEur} / EUR · {rate.asOf}</Chip>
+        <Chip tone={rate.stale ? "warn" : "ok"}>{rate.stale ? "ECB rate unavailable — fallback rate" : `ECB reference rate (${rate.source})`}</Chip>
+        {facts?.certificatePriceWarning ? <Chip tone="warn">{facts.certificatePriceWarning}</Chip> : null}
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-3">
         <Eyebrow>Supplier breakdown</Eyebrow>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-black/10">
-                <th className="text-left py-2 px-3 text-black/50 font-normal">Supplier</th>
-                <th className="text-right py-2 px-3 text-black/50 font-normal">tCO2e</th>
-                <th className="text-right py-2 px-3 text-black/50 font-normal">EUR exposure</th>
-                <th className="text-right py-2 px-3 text-black/50 font-normal">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {approved.map((sub) => {
-                const exposure = decimalToString(
-                  decimal(sub.totalTCO2e).times(pricePerTonne).div(rate.thbPerEur)
-                );
-                const tone = getLiabilityTone(exposure);
-                return (
-                  <tr key={sub.supplier.id} className="border-b border-black/5 hover:bg-black/[0.02]">
-                    <td className="py-3 px-3 text-black/70">{sub.supplier.name}</td>
-                    <td className="py-3 px-3 text-right font-mono text-black/60">{sub.totalTCO2e}</td>
-                    <td className="py-3 px-3 text-right font-mono text-black/60">€{exposure}</td>
-                    <td className="py-3 px-3 text-right">
-                      <span
-                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ${
-                          tone === "ok"
-                            ? "bg-green-100 text-green-700"
-                            : tone === "warn"
-                              ? "bg-yellow-100 text-yellow-700"
-                              : "bg-red-100 text-red-700"
-                        }`}
-                      >
-                        <TrendingDown size={12} />
-                        {tone === "ok" ? "Low" : tone === "warn" ? "Medium" : "High"}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        {!roll || roll.submissions.length === 0 ? (
+          <Card className="p-6">
+            <p className="text-sm text-black/45">
+              A breakdown appears once suppliers submit their emissions data for this cycle.
+            </p>
+          </Card>
+        ) : (
+          <Card className="overflow-x-auto p-0">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-black/10 text-left text-[11px] uppercase tracking-[0.08em] text-black/40">
+                  <th className="px-5 py-3 font-normal">Supplier</th>
+                  <th className="px-5 py-3 text-right font-normal">Chargeable tCO2e</th>
+                  <th className="px-5 py-3 text-right font-normal">Carbon price paid (EUR)</th>
+                  <th className="px-5 py-3 text-right font-normal">Net exposure (EUR)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {roll.submissions.map((sub) => {
+                  const f = facts?.perSupplier[sub.supplier.id];
+                  return (
+                    <tr key={sub.supplier.id} className="border-b border-black/5 last:border-0">
+                      <td className="px-5 py-3 text-black/70">{sub.supplier.name}</td>
+                      <td className="px-5 py-3 text-right font-mono text-black/60">{f ? formatDecimal(f.chargeableTCO2e) : "—"}</td>
+                      <td className="px-5 py-3 text-right font-mono text-black/60">{f?.carbonPricePaidEUR ? `€${formatDecimal(f.carbonPricePaidEUR)}` : "—"}</td>
+                      <td className="px-5 py-3 text-right font-mono text-black/60">{f?.netExposureEUR ? `€${formatDecimal(f.netExposureEUR)}` : "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </Card>
+        )}
       </div>
     </div>
   );

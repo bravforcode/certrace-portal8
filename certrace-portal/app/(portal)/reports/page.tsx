@@ -8,7 +8,7 @@ import type { PackageInput } from "@/lib/download";
 import { downloadDeclarationExcel, downloadDeclarationXml, downloadDeclarationJson } from "@/lib/export-formats";
 import { REPORTS, DECLARATIONS, ORG } from "@/lib/data";
 import { getRegulation, getJurisdiction, getPlan } from "@/lib/config";
-import { actualValueVerificationBlockers, loadExporterState, rollup, exporterIdentity, approveSubmission } from "@/lib/exporter-review";
+import { actualValueVerificationBlockers, loadExporterState, rollup, exporterIdentity } from "@/lib/exporter-review";
 import { buildSupplierChapters, buildSignOff, packageSummaryData, packageHistoryData } from "@/lib/package-data";
 
 const stateMeta: Record<string, { label: string; tone: Tone }> = {
@@ -33,26 +33,6 @@ export default function ReportsPage() {
     const roll = rollup(decl, exporterState);
     const approved = roll.submissions.filter((submission) => submission.lifecycle === "approved");
     const verificationBlockers = actualValueVerificationBlockers(approved);
-    
-    if (approved.length === 0 && roll.submissions.length > 0) {
-      const submitted = roll.submissions.filter((s) => s.submitted);
-      if (submitted.length > 0 && submitted[0].check?.passable && submitted[0].check.critical === 0) {
-        submitted.slice(0, 3).forEach((sub) => {
-          try {
-            approveSubmission(decl.id, sub.supplier.id, sub.version);
-          } catch {
-            // skip if approval fails
-          }
-        });
-        const exporterStateRefresh = loadExporterState(decl.id);
-        const rollRefresh = rollup(decl, exporterStateRefresh);
-        const approvedRefresh = rollRefresh.submissions.filter((s) => s.lifecycle === "approved");
-        if (approvedRefresh.length > 0) {
-          return buildPayload(r);
-        }
-      }
-    }
-    
     if (!roll.allApproved || approved.length === 0) {
       toast({ message: "Draft export blocked", detail: "Every current supplier version must pass deterministic checks and receive local approval first.", tone: "err" });
       return null;
