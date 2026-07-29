@@ -11,6 +11,7 @@ import { isComplexGood, type CatalogProduct } from "./config";
 import { parsePrecursors, precursorContributionExact } from "./precursors";
 import type { ReviewSubmission, ReviewRollup } from "./exporter-review";
 import { decimal, decimalToString, lookupCertificatePrice } from "./mrv";
+import { convertThbToEur, FALLBACK_THB_EUR_RATE, type ThbEurRate } from "./fx";
 import {
   addExact,
   embeddedEmissionsPerTonne,
@@ -110,6 +111,7 @@ function supplierFacts(
   submission: ReviewSubmission,
   year: number,
   certificatePriceEUR: string | null,
+  thbEurRate: ThbEurRate,
 ): SupplierFacts {
   const gross: string[] = [];
   const chargeable: string[] = [];
@@ -136,15 +138,20 @@ function supplierFacts(
     required: document.required,
   }));
 
+  // Carbon price is entered per tCO2e, in THB or EUR. Convert the per-tonne
+  // price to EUR first (THB via the ECB rate), then bill it across chargeable
+  // tonnes — the same shape as the native-EUR path, so both currencies produce
+  // a real number instead of the THB path collapsing to null.
   const carbonPriceRaw = submission.values[valueKey("carbon-price")]?.trim() || "0";
   const currency = submission.values[valueKey("carbon-price-currency")] || "THB";
   const carbonPrice = decimal(carbonPriceRaw);
-  const carbonPricePaidEUR = carbonPrice.isZero()
+  const carbonPriceEURPerTonne = carbonPrice.isZero()
     ? "0"
     : currency === "EUR"
-      ? multiplyExact(decimalToString(carbonPrice), totalChargeable)
-      : null;
-  const rawExposure = certificatePriceEUR === null || carbonPricePaidEUR === null
+      ? decimalToString(carbonPrice)
+      : convertThbToEur(decimalToString(carbonPrice), thbEurRate);
+  const carbonPricePaidEUR = multiplyExact(carbonPriceEURPerTonne, totalChargeable);
+  const rawExposure = certificatePriceEUR === null
     ? null
     : decimal(multiplyExact(totalChargeable, certificatePriceEUR)).minus(decimal(carbonPricePaidEUR));
   const netExposureEUR = rawExposure === null
@@ -168,6 +175,7 @@ export function computeComplianceFacts(
   rollup: ReviewRollup,
   year = new Date().getFullYear(),
   certificatePriceAsOf = `${year}-12-31`,
+  thbEurRate: ThbEurRate = FALLBACK_THB_EUR_RATE,
 ): ComplianceFacts {
   const submitted = rollup.submissions.filter((submission) => submission.submitted);
   const perSupplier: Record<string, SupplierFacts> = {};
@@ -181,7 +189,7 @@ export function computeComplianceFacts(
   let anyUnverifiedActual = false;
 
   for (const submission of submitted) {
-    const facts = supplierFacts(submission, year, certificatePriceEUR);
+    const facts = supplierFacts(submission, year, certificatePriceEUR, thbEurRate);
     perSupplier[submission.supplier.id] = facts;
     tonnes.push(...submission.request.products.map((product) => product.commercialQuantityTonnes));
     gross.push(facts.grossTCO2e);
@@ -208,3 +216,4 @@ export function computeComplianceFacts(
     anyUnverifiedActual,
   };
 }
+
