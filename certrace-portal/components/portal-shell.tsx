@@ -22,6 +22,7 @@ import {
   UserCircle2,
   LogOut,
   CheckCheck,
+  TrendingDown,
 } from "lucide-react";
 import { cn, StatusDot } from "./ui";
 import { Dropdown } from "./controls";
@@ -38,6 +39,7 @@ function useNav() {
     { href: "/declarations", label: t("nav_declarations"), icon: Layers },
     { href: "/suppliers", label: t("nav_suppliers"), icon: Building2 },
     { href: "/reports", label: t("nav_reports"), icon: FileCheck2 },
+    { href: "/financials", label: "Financial", icon: TrendingDown },
     { href: "/team", label: t("nav_team"), icon: Users },
     { href: "/billing", label: t("nav_billing"), icon: CreditCard },
     { href: "/settings", label: t("nav_settings"), icon: Settings },

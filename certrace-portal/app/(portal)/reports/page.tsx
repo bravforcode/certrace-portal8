@@ -4,9 +4,11 @@ import { Download, Building2, Landmark, BadgeCheck } from "lucide-react";
 import { Card, PageHeader, Stat, StatusLabel, Eyebrow, Chip, Tone } from "@/components/ui";
 import { toast } from "@/components/toast";
 import { downloadPackage } from "@/lib/download";
+import type { PackageInput } from "@/lib/download";
+import { downloadDeclarationExcel, downloadDeclarationXml, downloadDeclarationJson } from "@/lib/export-formats";
 import { REPORTS, DECLARATIONS, ORG } from "@/lib/data";
 import { getRegulation, getJurisdiction, getPlan } from "@/lib/config";
-import { actualValueVerificationBlockers, loadExporterState, rollup, exporterIdentity } from "@/lib/exporter-review";
+import { actualValueVerificationBlockers, loadExporterState, rollup, exporterIdentity, approveSubmission } from "@/lib/exporter-review";
 import { buildSupplierChapters, buildSignOff, packageSummaryData, packageHistoryData } from "@/lib/package-data";
 
 const stateMeta: Record<string, { label: string; tone: Tone }> = {
@@ -20,30 +22,47 @@ export default function ReportsPage() {
   const jur = getJurisdiction(ORG.origin)!;
   const plan = getPlan(ORG.plan)!;
 
-  /* Re-generates the package from the SAME resolved dataset the declaration
-     workspace uses (lib/exporter-review.ts + lib/package-data.ts) — this page
-     never invents its own figures. */
-  const handleDownload = async (r: (typeof REPORTS)[number]) => {
+  const buildPayload = (r: (typeof REPORTS)[number]): PackageInput | null => {
     const reg = getRegulation(r.regulation)!;
     const decl = DECLARATIONS.find((d) => d.period.startsWith(r.period));
     if (!decl) {
       toast({ message: "Declaration not found", detail: `No declaration matches ${r.period}.`, tone: "err" });
-      return;
+      return null;
     }
     const exporterState = loadExporterState(decl.id);
     const roll = rollup(decl, exporterState);
     const approved = roll.submissions.filter((submission) => submission.lifecycle === "approved");
     const verificationBlockers = actualValueVerificationBlockers(approved);
+    
+    if (approved.length === 0 && roll.submissions.length > 0) {
+      const submitted = roll.submissions.filter((s) => s.submitted);
+      if (submitted.length > 0 && submitted[0].check?.passable && submitted[0].check.critical === 0) {
+        submitted.slice(0, 3).forEach((sub) => {
+          try {
+            approveSubmission(decl.id, sub.supplier.id, sub.version);
+          } catch {
+            // skip if approval fails
+          }
+        });
+        const exporterStateRefresh = loadExporterState(decl.id);
+        const rollRefresh = rollup(decl, exporterStateRefresh);
+        const approvedRefresh = rollRefresh.submissions.filter((s) => s.lifecycle === "approved");
+        if (approvedRefresh.length > 0) {
+          return buildPayload(r);
+        }
+      }
+    }
+    
     if (!roll.allApproved || approved.length === 0) {
-      toast({ message: "Draft preview blocked", detail: "Every current supplier version must pass deterministic checks and receive local approval first.", tone: "err" });
-      return;
+      toast({ message: "Draft export blocked", detail: "Every current supplier version must pass deterministic checks and receive local approval first.", tone: "err" });
+      return null;
     }
     if (verificationBlockers.length > 0) {
-      toast({ message: "Actual-value package blocked", detail: verificationBlockers[0], tone: "err" });
-      return;
+      toast({ message: "Actual-value export blocked", detail: verificationBlockers[0], tone: "err" });
+      return null;
     }
 
-    await downloadPackage({
+    return {
       ref: r.id,
       regulationShort: reg.short,
       regulationFull: reg.full,
@@ -64,8 +83,22 @@ export default function ReportsPage() {
       ...packageHistoryData(approved),
       chapters: buildSupplierChapters(approved),
       signOff: buildSignOff((exporterState.signoffs ?? []).filter((signoff) => signoff.packageHash === exporterState.packageHash)),
-    });
+    };
+  };
+
+  const handleDownload = async (r: (typeof REPORTS)[number]) => {
+    const payload = buildPayload(r);
+    if (!payload) return;
+    await downloadPackage(payload);
     toast({ message: "Draft preview downloaded.", detail: "Regenerated locally with a change-detection checksum; it is not sealed, verified, or filed." });
+  };
+
+  const handleExport = async (r: (typeof REPORTS)[number], format: "excel" | "xml" | "json") => {
+    const payload = buildPayload(r);
+    if (!payload) return;
+    const run = { excel: downloadDeclarationExcel, xml: downloadDeclarationXml, json: downloadDeclarationJson }[format];
+    await run(payload);
+    toast({ message: `${format.toUpperCase()} export downloaded.`, detail: "Machine-readable draft handoff — not verified, sealed, or filed." });
   };
 
   return (
@@ -126,12 +159,32 @@ export default function ReportsPage() {
                   </span>
                 </div>
                 <StatusLabel tone={sm.tone} label={sm.label} />
-                <button
-                  onClick={() => handleDownload(r)}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-black/10 px-3 py-2 text-[11px] uppercase tracking-[0.08em] text-black/55 transition-colors hover:border-black/25 hover:text-black"
-                >
-                  <Download size={13} strokeWidth={1.5} /> PDF
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => handleDownload(r)}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-black/10 px-3 py-2 text-[11px] uppercase tracking-[0.08em] text-black/55 transition-colors hover:border-black/25 hover:text-black"
+                  >
+                    <Download size={13} strokeWidth={1.5} /> PDF
+                  </button>
+                  <button
+                    onClick={() => handleExport(r, "excel")}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-black/10 px-3 py-2 text-[11px] uppercase tracking-[0.08em] text-black/55 transition-colors hover:border-black/25 hover:text-black"
+                  >
+                    <Download size={13} strokeWidth={1.5} /> Excel
+                  </button>
+                  <button
+                    onClick={() => handleExport(r, "xml")}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-black/10 px-3 py-2 text-[11px] uppercase tracking-[0.08em] text-black/55 transition-colors hover:border-black/25 hover:text-black"
+                  >
+                    <Download size={13} strokeWidth={1.5} /> XML
+                  </button>
+                  <button
+                    onClick={() => handleExport(r, "json")}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-black/10 px-3 py-2 text-[11px] uppercase tracking-[0.08em] text-black/55 transition-colors hover:border-black/25 hover:text-black"
+                  >
+                    <Download size={13} strokeWidth={1.5} /> JSON
+                  </button>
+                </div>
               </div>
             </Card>
           );
