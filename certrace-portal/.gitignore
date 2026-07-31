@@ -28,3 +28,6 @@ next-env.d.ts
 .open-next/
 .vercel/
 .wrangler/
+
+# bun (local convenience only; CI uses npm + package-lock.json)
+bun.lock

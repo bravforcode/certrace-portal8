@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowRight, Plus, TriangleAlert, Bell } from "lucide-react";
 import { Card, PageHeader, Button, Stat, Chip, StatusDot, Progress, Eyebrow, StatusLabel, EmptyState } from "@/components/ui";
 import { SupplierTable } from "@/components/supplier-table";
+import { FinancialLiabilityPreview } from "@/components/financial-liability-preview";
 import { toast } from "@/components/toast";
 import { DECLARATIONS, ORG, USER, getUniqueSuppliers } from "@/lib/data";
 import { getRegulation, getPlan } from "@/lib/config";
@@ -93,6 +94,9 @@ export default function DashboardPage() {
           </Link>
         </div>
       </Card>
+
+      {/* Financial liability preview — estimated 2026 CBAM certificate cost */}
+      <FinancialLiabilityPreview declaration={active} />
 
       <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
         {/* Active declarations */}

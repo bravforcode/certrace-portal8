@@ -162,13 +162,20 @@ function requestedDocsFor(products: CatalogProduct[]): RequestDocAsk[] {
   const materialCert: RequestDocAsk =
     hasAluminium && !hasSteel
       ? { id: "mtc", label: "Works / alloy test certificate (EN 10204 3.1)", required: true }
-      : { id: "mtc", label: "Mill Test Certificate (EN 10204 3.1)", required: true };
-  return [
+      : { id: "mtc", label: "Mill Test Certificate (MTC) — EN 10204 3.1, or commercial invoice", required: true };
+  const docs: RequestDocAsk[] = [
     { id: "cbam-sheet", label: "CBAM communication / embedded-emissions sheet", required: true },
     materialCert,
     { id: "coo", label: "Certificate of Origin (COO)", required: true },
     { id: "verif", label: "Verification statement (accredited verifier)", required: false },
   ];
+  if (products.some((p) => p.category === "Iron & Steel" && p.group === "Semi-finished")) {
+    docs.push(
+      { id: "electricity-evidence", label: "Electricity bill or Solar Rooftop PPA (indirect-emissions evidence)", required: false },
+      { id: "carbon-fee-proof", label: "Thai carbon fee / tax payment proof (carbon price paid)", required: false },
+    );
+  }
+  return docs;
 }
 
 const DEFAULT_NOTE =

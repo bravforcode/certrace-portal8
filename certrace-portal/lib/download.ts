@@ -745,7 +745,7 @@ export function downloadFile(filename: string, contents: string, mime = "text/ht
 }
 
 /** Local sha-256 change checksum. This is not a signature or trusted seal. */
-async function datasetHash(p: PackageInput): Promise<string | undefined> {
+export async function datasetHash(p: PackageInput): Promise<string | undefined> {
   try {
     if (typeof crypto === "undefined" || !crypto.subtle) return undefined;
     const data = new TextEncoder().encode(JSON.stringify(p));
