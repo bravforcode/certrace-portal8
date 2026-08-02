@@ -121,7 +121,16 @@ export default function HomePage() {
       {/* ---------------------------------------------------------------- */}
       {/* HERO                                                              */}
       {/* ---------------------------------------------------------------- */}
-      <section className="relative h-screen overflow-hidden">
+      {/* `.hero-shell` = min-height:100svh (globals.css), and the copy below is
+          in flow with `mt-auto` rather than pinned with `absolute bottom-0`.
+          Both are for phones: a fixed 100vh box on a phone is taller than the
+          screen, and a bottom-pinned block spends that difference growing up
+          behind the header — the eyebrow and the first headline line were off
+          the top of the screen on anything shorter than ~850px. In flow the
+          section grows downward instead, so nothing can ever sit under the
+          header. Desktop geometry is unchanged: the copy still bottoms out on
+          the fold. */}
+      <section className="hero-shell relative overflow-hidden flex flex-col">
         <div
           className="absolute inset-0 z-0"
           style={{
@@ -165,9 +174,10 @@ export default function HomePage() {
           }}
         />
 
-        <div className="h-20" />
+        {/* Header clearance: the copy can never rise past this. */}
+        <div className="h-20 shrink-0" />
 
-        <div className="absolute inset-x-0 bottom-0 z-30 flex flex-col px-6 md:px-12 pb-10 md:pb-12 max-w-4xl">
+        <div className="relative z-30 mt-auto flex flex-col px-6 md:px-12 pb-10 md:pb-12 max-w-4xl">
           <div style={heroFade(0)} className="mb-6">
             <TagBadge>{c.hero.badge}</TagBadge>
           </div>

@@ -579,7 +579,10 @@ export function Navbar() {
         <div
           className="xl:hidden overflow-y-auto transition-all duration-300 ease-in-out border-t border-black/[0.05]"
           style={{
-            maxHeight: mobileOpen ? "calc(100vh - 64px)" : "0px",
+            /* Dynamic viewport height, via a variable so a `vh` fallback can
+               exist (globals.css) — `100vh` on a phone is taller than the
+               screen, which put the panel's action block below the fold. */
+            maxHeight: mobileOpen ? "var(--nav-panel-max)" : "0px",
             opacity: mobileOpen ? 1 : 0,
             borderTopColor: mobileOpen ? undefined : "transparent",
           }}
