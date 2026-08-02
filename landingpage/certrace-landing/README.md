@@ -1,112 +1,49 @@
-# Certrace — Pre-launch Landing Page
+# Certrace — Landing Page
 
-A single, self-contained landing page for the Certrace pre-launch / discovery
-phase. Its only job: make a cold-outreach recipient decide, in 30–60 seconds,
-that we're real founders working on a serious problem — and worth 15 minutes.
+Carbon compliance infrastructure for exporters. Built with the design system
+extracted from the `modern-agentic-landing` template: same typography, palette,
+motion language, and component patterns — entirely new product, content, and
+visuals.
 
-Scope is **CBAM only** (EU Carbon Border Adjustment Mechanism), starting with
-Thai steel and aluminum exporters. The page deliberately does not mention any
-other regulation.
+## Stack
 
-Built to the Certrace Design System (bone `#F5F4F0` ground, `#111` ink ramp,
-IBM Plex Sans Light headlines, Courier Prime micro-labels, hairline borders,
-status-dot motif as texture). The brand logo is the real vector mark, inlined
-as SVG.
+- Next.js 15 (App Router) · React 19 · TypeScript
+- Tailwind CSS v4 (PostCSS)
+- Zero runtime dependencies beyond React/Next — all visuals are generative
+  (canvas + CSS), no stock images
 
-## Files
-
-- `index.html` — the entire page. HTML + CSS + JS inline. No build step.
-
-## Run it
-
-Just open `index.html` in a browser, or serve the folder statically:
+## Run
 
 ```bash
-python3 -m http.server 8000   # then visit http://localhost:8000
+npm install
+npm run dev    # http://localhost:3000
+npm run build  # production build
 ```
 
-The only external dependency is Google Fonts (IBM Plex Sans + Courier Prime).
+## Design system (extracted from the template)
 
-## Before going live
+| Token | Value |
+|---|---|
+| Canvas | `#F5F4F0` (bone), cards `#fff` / `#faf9f7`, highlight `#F0EEE8` |
+| Ink | `#111` with opacity steps (`black/45` body, `black/35` captions) |
+| Accent | Emerald (status, success) + amber/red/blue status dots |
+| Display | IBM Plex Sans 300, `tracking-tight leading-[1.05]` |
+| Body | Geist Sans · Mono: Geist Mono · Labels: Courier Prime (`font-pixel`) |
+| Radius | `rounded-2xl` cards, `rounded-xl` buttons/inputs, pill badges |
+| Section | `py-32 px-6 md:px-12 lg:px-20`, `border-t border-black/[0.06]`, `max-w-6xl` |
+| Motion | `cubic-bezier(0.16,1,0.3,1)`, blur+translate entrances, word-stagger headings |
 
-### 1. Waitlist — two-step capture (currently console.log only)
+## Signature components
 
-The waitlist is a **two-step flow**, and there are **two backend capture points**.
-Open `index.html`, find the **WAITLIST — two-step flow** block in the `<script>`:
+- `splash-screen.tsx` — letter-by-letter CERTRACE intro with curtain lift
+- `hero-canvas.tsx` — supplier-network convergence animation (replaces the
+  template's hero video)
+- `ui.tsx` — `TagBadge`, `BlurHeading`, `AnimateCard` + mouse-glow
+- `pixel-icon.tsx` — animated canvas pixel icons (leaf, globe, shield, …)
+- `module-stack.tsx` — sticky 3D card stack with CSS mock-UI product visuals
+- `how-it-works.tsx` — auto-cycling step panel (platform activity log)
+- `live-table.tsx` — live supplier submissions table + completion counter
+- `marquee.tsx` — dual opposing marquee bands (regulations / industries)
+- `faq.tsx` — accordion
 
-1. **Step 1 — email (on the page).** A valid email opens the details popup.
-   This fires **HOOK #1** immediately, *before* the popup, so the email lead is
-   saved even if the visitor abandons step 2.
-2. **Step 2 — qualifying details (popup).** Company name, role, "affected by
-   CBAM?", and biggest CBAM challenge. On submit this fires **HOOK #2** with the
-   full profile, then shows the success state.
-
-Right now both hooks only `console.log` — **nothing is stored anywhere.** Each
-hook has a `TODO` comment with two options:
-
-- **A — Tally / Google Forms:** POST to the form endpoint, or
-- **B — Your own endpoint:** uncomment the `fetch(...)` POST and set the URL.
-
-**Recommended:** have HOOK #2 *upsert on `email`* so the step-2 details enrich
-the same lead created in step 1 rather than creating a duplicate row.
-
-Payload shapes:
-
-```js
-// HOOK #1 (email submitted, before the popup)
-{ email, source: 'landing', step: 'email' }
-
-// HOOK #2 (popup completed)
-{ email, company, role, cbam_status, challenge, source: 'landing', step: 'details' }
-```
-
-The "biggest CBAM challenge" question is currently **required**. To make it
-optional, see the one-line `NOTE` next to its `check(...)` call in the script.
-
-### 2. Config block (top of `<script>`)
-
-```js
-const CONFIG = {
-  CONTACT_EMAIL: 'certrace.co@gmail.com',                         // live
-  LINKEDIN_URL:  'https://www.linkedin.com/company/certrace-co'   // live
-};
-```
-
-- `CONTACT_EMAIL` and `LINKEDIN_URL` are already set to the real values and power
-  the footer (email renders as a `mailto:`). Setting `LINKEDIN_URL` to `''` would
-  hide the LinkedIn link automatically.
-- Nothing else here needs wiring (the old `CALENDLY_URL` placeholder is gone —
-  the "Give us 15 minutes" link was replaced by the step-2 details popup).
-
-### 3. Nothing else
-
-No analytics, no SEO meta, no tracking — intentional for this stage. Add later
-if needed.
-
-## Page structure (and what's intentionally absent)
-
-Hero → **01 What is Certrace** (the clearest, most concrete paragraph) →
-**02 The problem** → **03 What we're building** → CTA (email waitlist, which
-opens a short qualifying-details popup) → footer.
-
-Deliberately excluded: pricing, feature lists, screenshots, logos/customers,
-metrics, testimonials, comparison tables, and any regulation other than CBAM.
-
-## Notes for whoever edits the copy
-
-- Total visible body copy (hero + three sections) is kept under ~150 words on
-  purpose. If you add a sentence, cut one — the restraint is the point.
-- Calm, plain, founder-to-founder. No hype words.
-
-## Accessibility / behavior
-
-- Respects `prefers-reduced-motion` (disables the blur-in reveals, the dot pulse,
-  the hero canvas animation, and the popup's open transition).
-- Visible focus ring on the email input and on the popup controls.
-- The details popup is an accessible dialog: `role="dialog"` + `aria-modal`,
-  focus is trapped inside, `Esc` / overlay-click / the × button close it, the
-  page scroll is locked while it's open, and focus returns to the opener on close.
-- The animated hero dot-field, and the small emerald/amber/red dot trio in the
-  CTA, are decorative (`aria-hidden`) — the brand's status-dot motif used as
-  texture, not functional status indicators.
-- Responsive, mobile-first. Verified at 390px and 1280px.
+See `IMAGE-CONCEPTS.md` for AI-image upgrade prompts per visual slot.

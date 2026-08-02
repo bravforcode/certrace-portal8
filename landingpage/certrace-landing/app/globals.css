@@ -1,0 +1,302 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-pixel: var(--font-courier-prime);
+}
+
+/*
+  Certrace design system — canonical tokens.
+  Source of truth: certrace-portal app/globals.css (design-tokens.json + DESIGN_SYSTEM.md).
+  Ink-on-bone, light mode only. Color = status only.
+*/
+@theme {
+  /* Ground */
+  --color-canvas: #f5f4f0;
+  --color-surface: #ffffff;
+  --color-surface-hover: #fafaf8;
+  --color-surface-warm: #faf9f7;
+  --color-surface-highlight: #f0eee8;
+
+  /* Status */
+  --color-ok: #4ade80;
+  --color-ok-accent: #10b981;
+  --color-ok-text: #16a34a;
+  --color-ok-chip-text: #047857;
+  --color-ok-chip-bg: #ecfdf5;
+  --color-warn: #facc15;
+  --color-warn-text: #b45309;
+  --color-err: #f87171;
+  --color-err-text: #dc2626;
+  --color-info: #60a5fa;
+  --color-info-text: #2563eb;
+}
+
+:root {
+  --ease-signature: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* Thai swaps the whole type stack to the Thai-script cut of the same family.
+
+   The selector has to reach `body`, not `html`: next/font declares each
+   `--font-*` variable in a class on <body>, and a variable set on a closer
+   ancestor wins over one set on <html> — so an `html[lang="th"]` rule alone
+   was silently overridden and Thai rendered in the Latin cut.
+
+   Geist Mono and Courier Prime carry no Thai glyphs, so leaving them mapped
+   would fall back per-glyph and mix a system Thai face into the pixel labels
+   and the console panel. Mapping them to the Thai cut costs the monospace
+   texture on Thai pages, and keeps every glyph inside the brand family. */
+html[lang="th"] body {
+  --font-ibm-plex-sans: var(--font-ibm-plex-sans-thai);
+  --font-geist-sans: var(--font-ibm-plex-sans-thai);
+  --font-geist-mono: var(--font-ibm-plex-sans-thai);
+  --font-courier-prime: var(--font-ibm-plex-sans-thai);
+  font-family: var(--font-ibm-plex-sans-thai), sans-serif;
+}
+
+/* Thai stacks marks above and below the consonant, so the display leading the
+   Latin headings use (1.0–1.05) collides tone marks with the descenders of the
+   line above — and BlurHeading clips the overflow. Element selectors here so
+   they outrank the `leading-*` utilities without needing !important. */
+html[lang="th"] h1,
+html[lang="th"] h2,
+html[lang="th"] h3,
+html[lang="th"] h4,
+html[lang="th"] blockquote {
+  line-height: 1.35;
+}
+
+/* …but 1.35 is body leading, and on display type it is far too much air.
+   It cost the hero 101px of height (a 3-line Thai h1 ran 389px against
+   English's 288px), which pushed the whole bottom-anchored hero block up past
+   the top of the section — on a 720–820px-tall window the eyebrow pill
+   disappeared behind the fixed header and the first headline line went with
+   it. Display sizes get 1.12: enough to clear a tone mark stacked over the
+   descender below it, and close enough to the Latin 1.0 that the two
+   languages lay out the same. The rule matches the responsive class list, so
+   a heading declared `text-4xl md:text-6xl` is tightened at every width —
+   which is correct, since the ratio is what matters, not the pixel size.
+
+   1.12 was picked by rendering the hero headline at 1.00/1.05/1.08/1.12/1.16
+   and reading the marks: below it the `์` on line one starts to crowd, and it
+   is the tightest step where line three's `ไม่` tone mark still clears line
+   two's `อุ` descender. It leaves the Thai hero block 725px against English's
+   706px — near enough that neither language clips before the other.
+
+   The padding/margin pair is load-bearing, not decoration. A Thai tone mark
+   sits above the line box, and `BlurHeading` renders inside `overflow:hidden`
+   (it masks the words rising into place), so tightening the leading alone put
+   the first line's marks outside the box and the mask sliced their tops off —
+   measured at 1352 clipped pixels across the section headings, against 0 at
+   the old 1.35 and 0 in English. The padding grows the box upward so the ink
+   lands inside it; the equal negative margin cancels the growth, so nothing
+   moves. Change one, change the other. */
+html[lang="th"] body :is(
+    [class*="text-4xl"],
+    [class*="text-5xl"],
+    [class*="text-6xl"],
+    [class*="text-7xl"],
+    [class*="text-8xl"]
+  ) {
+  line-height: 1.12;
+  padding-top: 0.26em;
+  margin-top: -0.26em;
+}
+
+/* Thai has no word spaces, so wide letter-spacing pulls syllable clusters
+   apart and hurts more than it styles. The pixel labels keep their face and
+   size; only the track is eased off. */
+html[lang="th"] .font-pixel {
+  letter-spacing: 0.04em;
+}
+
+/* Same problem, everywhere else it shows up. Eyebrows, status chips, stat
+   captions and button labels all carry a wide Latin track (`tracking-widest`
+   is 0.1em, the arbitrary ones go to 0.2em) — at those values a Thai cluster
+   stops reading as one syllable and the vowel drifts away from its consonant.
+   `เร็ว ๆ นี้` and `พร้อมใช้` were the worst of it.
+
+   One rule covers the named utilities and the arbitrary `tracking-[…]` ones;
+   `:is()` takes the specificity of an attribute selector, so with `html body`
+   ahead of it this outranks every Tailwind track without `!important`.
+   Latin-only labels on Thai pages ride along, which is intended — a page
+   shouldn't mix two track values. Headings keep `tracking-tight`: negative
+   tracking crowds nothing, and touching it would reflow every Thai headline. */
+html[lang="th"] body :is([class*="tracking-wide"], [class*="tracking-["]) {
+  letter-spacing: 0.04em;
+}
+
+/* Live supplier table. The four columns are fixed-width so the header labels
+   line up with the rows beneath them — but on a phone the three fixed columns
+   plus their gaps eat 270 of ~310px, leaving 38px for the supplier name and
+   truncating every row to "Northe…". Below 520px the UPDATED column drops out
+   (a relative timestamp is the least load-bearing thing in the mock) and
+   REGULATION tightens, which buys the name column back to ~120px. Desktop is
+   untouched. */
+.live-grid {
+  display: grid;
+  grid-template-columns: 1fr 90px 96px 60px;
+  gap: 8px;
+  align-items: center;
+}
+
+@media (max-width: 520px) {
+  .live-grid {
+    grid-template-columns: 1fr 78px 96px;
+  }
+  .live-grid > .live-updated {
+    display: none;
+  }
+}
+
+/* Anchored sections sit below the fixed 64px header */
+[id] {
+  scroll-margin-top: 88px;
+}
+
+/* Visible focus ring on all interactive elements (DS §2.4) */
+:focus-visible {
+  outline: 2px solid rgba(17, 17, 17, 0.4);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.font-pixel {
+  font-family: var(--font-courier-prime), monospace;
+}
+
+/* Marquee: the track carries its loop distance in `--marquee-distance` (one
+   copy of the items, in whole px, measured at runtime). Pixel-exact and
+   promoted to its own compositor layer, so the wrap is seamless and the loop
+   never restarts — it runs continuously until the page is reloaded. */
+.marquee-track {
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  animation-fill-mode: none;
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+@keyframes marqueeLoop {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(calc(-1 * var(--marquee-distance, 0px)), 0, 0);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes rowSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes navPanelIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+/* Same entrance, mirrored — a drop-up panel should rise into place. */
+@keyframes navPanelUpIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.985);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+/* Booking dialog: the overlay fades, the panel rises into it. Split in two so
+   the backdrop blur doesn't animate along with the panel's transform. */
+@keyframes modalFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes statusPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@keyframes barBreathe {
+  0%,
+  100% {
+    transform: scaleY(1);
+  }
+  50% {
+    transform: scaleY(1.12);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  html {
+    scroll-behavior: auto;
+  }
+  /* Stop the marquee outright rather than letting the blanket rule above
+     fast-forward it to its end position. */
+  .marquee-track {
+    animation: none !important;
+  }
+}
