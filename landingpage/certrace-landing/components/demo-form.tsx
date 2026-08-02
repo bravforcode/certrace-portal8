@@ -559,8 +559,13 @@ export function DemoForm() {
         open={bookingOpen}
         lead={{
           firstName: form.firstName,
-          company: form.company,
+          lastName: form.lastName,
           email: form.email,
+          phone: `${country.dial} ${form.phone}`,
+          company: form.company,
+          jobTitle: form.jobTitle,
+          sector: form.sector,
+          employees: form.employees,
         }}
         onClose={() => setBookingOpen(false)}
         onComplete={setBooking}

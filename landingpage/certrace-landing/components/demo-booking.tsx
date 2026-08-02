@@ -21,7 +21,16 @@ export type Booking = {
   timeZoneLabel: string;
 };
 
-type Lead = { firstName: string; company: string; email: string };
+type Lead = {
+  firstName: string;
+  lastName?: string;
+  email: string;
+  phone?: string;
+  company: string;
+  jobTitle?: string;
+  sector?: string;
+  employees?: string;
+};
 
 /* Half-hour slots across a Bangkok working day. Which of them a given date
    offers is derived from the date itself (see `slotsFor`) so the grid is
@@ -293,8 +302,13 @@ export function DemoBookingModal({
     const scriptUrl = 'https://script.google.com/macros/s/AKfycbyg7GkOopgK_nZqZ8V25HIaGazawP39kphMHUpkVFnAA0mQKeB8_UxDqM2dxp4G3_ckKg/exec';
     const formData = new FormData();
     formData.append('firstName', lead.firstName);
+    formData.append('lastName', lead.lastName || '');
     formData.append('email', lead.email);
+    formData.append('phone', lead.phone || '');
     formData.append('company', lead.company);
+    formData.append('jobTitle', lead.jobTitle || '');
+    formData.append('sector', lead.sector || '');
+    formData.append('employees', lead.employees || '');
     formData.append('bookingDate', selectedDay.toISOString().split('T')[0]);
     formData.append('bookingTime', selectedTime);
     formData.append('decision', decision);
