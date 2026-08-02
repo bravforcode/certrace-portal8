@@ -18,7 +18,8 @@ export function SupplierTable({
   actions?: (row: SupplierRow) => React.ReactNode;
 }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-black/[0.08] bg-white/70">
+    <div className="overflow-x-auto touch-scrollx rounded-2xl border border-black/[0.08] bg-white/70">
+      <div className="min-w-[520px]">
       {/* header */}
       <div
         className={cn(
@@ -69,6 +70,7 @@ export function SupplierTable({
           </Link>
         );
       })}
+      </div>
     </div>
   );
 }

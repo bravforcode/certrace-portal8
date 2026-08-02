@@ -61,7 +61,7 @@ export function AddMemberModal({
           if (e.target === e.currentTarget) onClose();
         }}
       >
-        <Card className="ct-enter w-full max-w-md p-6">
+        <Card className="ct-enter w-full max-w-md max-h-[90vh] overflow-y-auto touch-scrolly p-6">
           <div className="flex items-start justify-between gap-3">
             <div>
               <Eyebrow>Team</Eyebrow>

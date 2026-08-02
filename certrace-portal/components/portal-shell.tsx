@@ -242,14 +242,24 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
 
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && mobileOpen) {
+        setMobileOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [mobileOpen]);
+
   return (
     <div className="min-h-screen bg-[#f5f4f0]">
       {/* Topbar */}
       <header className="sticky top-0 z-50 border-b border-black/[0.06] bg-[rgba(245,244,240,0.8)] backdrop-blur-md">
-        <div className="flex h-16 items-center gap-4 px-4 md:px-6">
+        <div className="flex h-16 items-center gap-2 px-3 sm:gap-4 sm:px-6">
           <button
-            className="md:hidden"
-            aria-label="Open menu"
+            className="grid h-10 w-10 place-items-center rounded-xl border border-black/10 text-black/70 hover:bg-black/5 md:hidden"
+            aria-label={mobileOpen ? "Close menu" : "Open menu"}
             onClick={() => setMobileOpen((v) => !v)}
           >
             {mobileOpen ? <X size={20} strokeWidth={1.5} /> : <Menu size={20} strokeWidth={1.5} />}
@@ -261,7 +271,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
             <Wordmark />
           </div>
 
-          <div className="ml-auto flex items-center gap-2 md:gap-3">
+          <div className="ml-auto flex items-center gap-1.5 sm:gap-3">
             <NotificationsBell />
             <AccountMenu />
           </div>
@@ -272,12 +282,8 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
         {/* Sidebar */}
         <aside
           className={cn(
-            // Fixed-height + self-start keeps `sticky` working: without an explicit
-            // height the flex row stretches the sidebar to the full content height,
-            // which is taller than the viewport and silently breaks sticky so it
-            // scrolls with the page. Pinned here, only the content area scrolls.
-            "fixed inset-y-0 left-0 top-16 z-40 w-[228px] flex-none overflow-y-auto border-r border-black/[0.06] bg-white px-3 py-5 transition-transform md:sticky md:top-16 md:h-[calc(100vh-4rem)] md:translate-x-0 md:self-start",
-            mobileOpen ? "translate-x-0" : "-translate-x-full",
+            "fixed inset-y-0 left-0 top-16 z-40 w-[240px] flex-none overflow-y-auto border-r border-black/[0.06] bg-white px-3 py-5 transition-transform duration-200 ease-in-out touch-scrolly md:sticky md:top-16 md:h-[calc(100vh-4rem)] md:w-[228px] md:translate-x-0 md:self-start",
+            mobileOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full",
           )}
         >
           <nav className="flex flex-col gap-0.5">
@@ -291,7 +297,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
                   onClick={() => setMobileOpen(false)}
                   className={cn(
                     "flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] transition-colors",
-                    active ? "bg-black/[0.05] text-black" : "text-black/50 hover:bg-black/[0.03] hover:text-black/80",
+                    active ? "bg-black/[0.05] font-medium text-black" : "text-black/50 hover:bg-black/[0.03] hover:text-black/80",
                   )}
                 >
                   <Icon size={17} strokeWidth={1.5} />
@@ -321,7 +327,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
 
         {mobileOpen && (
           <div
-            className="fixed inset-0 top-16 z-30 bg-black/10 md:hidden"
+            className="fixed inset-0 top-16 z-30 bg-black/20 backdrop-blur-xs md:hidden"
             onClick={() => setMobileOpen(false)}
             aria-hidden
           />

@@ -146,3 +146,14 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* Responsive touch & table scroll helpers */
+.touch-scrolly {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+.touch-scrollx {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+

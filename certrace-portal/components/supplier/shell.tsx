@@ -91,7 +91,7 @@ export function SupplierShell({ children }: { children: React.ReactNode }) {
         {/* Tab row */}
         {chrome && (
           <div className="border-t border-black/[0.05]">
-            <div className="mx-auto flex max-w-5xl items-center gap-1 overflow-x-auto px-2 md:px-5">
+            <div className="mx-auto flex max-w-5xl items-center gap-1 overflow-x-auto touch-scrollx px-2 md:px-5">
               {TABS.map((t) => {
                 const active = view === t.view || (view === "done" && t.view === "submit");
                 return (
@@ -99,8 +99,8 @@ export function SupplierShell({ children }: { children: React.ReactNode }) {
                     key={t.view}
                     onClick={() => setView(t.view)}
                     className={cn(
-                      "relative flex-none px-3 py-3 text-[12px] transition-colors",
-                      active ? "text-black" : "text-black/45 hover:text-black/75",
+                      "relative flex-none px-3 py-3 text-[12px] transition-colors whitespace-nowrap",
+                      active ? "text-black font-medium" : "text-black/45 hover:text-black/75",
                     )}
                   >
                     {t.label}
