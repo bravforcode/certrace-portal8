@@ -288,6 +288,22 @@ export function DemoBookingModal({
     setBooked(booking);
     setStep(3);
     onComplete(booking);
+
+    // Send complete booking info to Google Sheets
+    const scriptUrl = 'https://script.google.com/macros/s/AKfycbwR4uqNpQbeKsaYEo2EsHSJywdEZwSbBNEYEDyPCMam0J0o8BytugkB1oPl5N8QdoXe/exec';
+    const formData = new FormData();
+    formData.append('firstName', lead.firstName);
+    formData.append('email', lead.email);
+    formData.append('company', lead.company);
+    formData.append('bookingDate', selectedDay.toISOString().split('T')[0]);
+    formData.append('bookingTime', selectedTime);
+    formData.append('decision', decision);
+    formData.append('budget', budget);
+    formData.append('timing', timing);
+    formData.append('source', source === 'other' ? sourceOther : source);
+    formData.append('context', context);
+    formData.append('type', 'demo_booking');
+    fetch(scriptUrl, { method: 'POST', body: formData, mode: 'no-cors' }).catch(() => {});
   };
 
   const longDate = (d: Date) =>

@@ -385,7 +385,22 @@ export function DemoForm() {
         onSubmit={(e) => {
           e.preventDefault();
           setSubmitAttempted(true);
-          if (isValid) setBookingOpen(true);
+          if (isValid) {
+            setBookingOpen(true);
+            // Send initial lead info to Google Sheets via Apps Script
+            const scriptUrl = 'https://script.google.com/macros/s/AKfycbwR4uqNpQbeKsaYEo2EsHSJywdEZwSbBNEYEDyPCMam0J0o8BytugkB1oPl5N8QdoXe/exec';
+            const formData = new FormData();
+            formData.append('firstName', form.firstName);
+            formData.append('lastName', form.lastName);
+            formData.append('email', form.email);
+            formData.append('phone', `${country.dial} ${form.phone}`);
+            formData.append('company', form.company);
+            formData.append('jobTitle', form.jobTitle);
+            formData.append('sector', form.sector);
+            formData.append('employees', form.employees);
+            formData.append('type', 'demo_lead');
+            fetch(scriptUrl, { method: 'POST', body: formData, mode: 'no-cors' }).catch(() => {});
+          }
         }}
         className="text-left w-full"
       >
