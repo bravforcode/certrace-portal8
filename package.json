@@ -1,0 +1,7 @@
+{
+  "name": "certrace-root",
+  "private": true,
+  "scripts": {
+    "build-pages": "cd landingpage/certrace-landing && npm run build-pages"
+  }
+}
