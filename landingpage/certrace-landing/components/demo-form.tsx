@@ -393,7 +393,8 @@ export function DemoForm() {
             formData.append('firstName', form.firstName);
             formData.append('lastName', form.lastName);
             formData.append('email', form.email);
-            formData.append('phone', `${country.dial} ${form.phone}`);
+            formData.append('countryCode', country.dial);
+            formData.append('phone', form.phone);
             formData.append('company', form.company);
             formData.append('jobTitle', form.jobTitle);
             formData.append('sector', form.sector);
@@ -561,7 +562,8 @@ export function DemoForm() {
           firstName: form.firstName,
           lastName: form.lastName,
           email: form.email,
-          phone: `${country.dial} ${form.phone}`,
+          countryCode: country.dial,
+          phone: form.phone,
           company: form.company,
           jobTitle: form.jobTitle,
           sector: form.sector,

@@ -25,6 +25,7 @@ type Lead = {
   firstName: string;
   lastName?: string;
   email: string;
+  countryCode?: string;
   phone?: string;
   company: string;
   jobTitle?: string;
@@ -304,6 +305,7 @@ export function DemoBookingModal({
     formData.append('firstName', lead.firstName);
     formData.append('lastName', lead.lastName || '');
     formData.append('email', lead.email);
+    formData.append('countryCode', lead.countryCode || '');
     formData.append('phone', lead.phone || '');
     formData.append('company', lead.company);
     formData.append('jobTitle', lead.jobTitle || '');
