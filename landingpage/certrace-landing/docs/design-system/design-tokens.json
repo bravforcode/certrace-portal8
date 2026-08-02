@@ -1,0 +1,186 @@
+{
+  "$schema": "https://design-tokens.org/schema.json",
+  "$description": "Certrace design tokens, extracted from the live implementation (app/, components/). Canonical values — where the code deviates, this file wins. Consumable by developers, Figma AI, Canva AI, Cursor, Claude, ChatGPT, and other agents.",
+  "meta": {
+    "brand": "Certrace",
+    "version": "1.0.0",
+    "extractedFrom": "Next.js 15 + Tailwind CSS v4 landing page",
+    "baseUnitPx": 4,
+    "themeMode": "light-only"
+  },
+  "color": {
+    "ground": {
+      "canvas": { "value": "#F5F4F0", "rgb": "245 244 240", "usage": "Page and asset background. Never pure white." },
+      "surface": { "value": "#FFFFFF", "usage": "Default card background" },
+      "surfaceHover": { "value": "#FAFAF8", "usage": "Card hover background" },
+      "surfaceWarm": { "value": "#FAF9F7", "usage": "Stacked module cards" },
+      "surfaceHighlight": { "value": "#F0EEE8", "usage": "Featured/emphasized card. Max one per group." },
+      "surfaceGlass": { "value": "rgba(255,255,255,0.70)", "usage": "Translucent data panels" },
+      "navGlass": { "value": "rgba(245,244,240,0.30)", "usage": "Navbar fill, requires backdrop-blur 16px" }
+    },
+    "ink": {
+      "default": { "value": "#111111", "rgb": "17 17 17", "usage": "Headlines, primary button fill, key numerals" },
+      "strong": { "value": "rgba(17,17,17,0.70)", "usage": "Wordmark, active nav" },
+      "bodyStrong": { "value": "rgba(17,17,17,0.55)", "usage": "Feature list text; minimum for functional UI text" },
+      "body": { "value": "rgba(17,17,17,0.45)", "usage": "Default body copy (marketing)" },
+      "muted": { "value": "rgba(17,17,17,0.40)", "usage": "Lead paragraphs, stat labels" },
+      "caption": { "value": "rgba(17,17,17,0.35)", "usage": "Captions, footer links" },
+      "faint": { "value": "rgba(17,17,17,0.28)", "usage": "Mono metadata, index numbers" },
+      "ghost": { "value": "rgba(17,17,17,0.20)", "usage": "Copyright, watermarks" },
+      "onDark": { "value": "#FFFFFF", "usage": "Text on #111 buttons" },
+      "buttonHover": { "value": "#333333", "usage": "Primary button hover fill" }
+    },
+    "border": {
+      "hairline": { "value": "rgba(0,0,0,0.06)", "usage": "Section dividers, table rows" },
+      "card": { "value": "rgba(0,0,0,0.07)", "usage": "Card outlines" },
+      "control": { "value": "rgba(0,0,0,0.10)", "usage": "Buttons, inputs, icon boxes" },
+      "hover": { "value": "rgba(0,0,0,0.15)", "usage": "Card hover border" },
+      "active": { "value": "rgba(0,0,0,0.20)", "usage": "Highlighted card border" }
+    },
+    "status": {
+      "success": {
+        "dot": { "value": "#4ADE80" },
+        "accent": { "value": "#10B981", "usage": "Progress fills, canvas pulses; max alpha 0.55 decorative" },
+        "text": { "value": "#16A34A" },
+        "chipText": { "value": "#047857" },
+        "chipBg": { "value": "#ECFDF5" },
+        "chipBorder": { "value": "rgba(5,150,105,0.15)" },
+        "glow": { "value": "0 0 6px #4ADE80" }
+      },
+      "warning": {
+        "dot": { "value": "#FACC15" },
+        "text": { "value": "#B45309" }
+      },
+      "error": {
+        "dot": { "value": "#F87171" },
+        "text": { "value": "rgba(220,38,38,0.70)" }
+      },
+      "info": {
+        "dot": { "value": "#60A5FA" },
+        "text": { "value": "#2563EB" }
+      },
+      "neutralMuted": { "value": "#9CA3AF", "usage": "Mono comments" },
+      "neutralOutput": { "value": "#6B7280", "usage": "Mono output lines" }
+    }
+  },
+  "typography": {
+    "fontFamily": {
+      "display": { "value": "'IBM Plex Sans', sans-serif", "weights": [300, 400, 500, 600], "usage": "Hero H1, big numerals. Always weight 300 for display." },
+      "sans": { "value": "'Geist', 'Inter', system-ui, sans-serif", "usage": "Default body and headings" },
+      "mono": { "value": "'Geist Mono', monospace", "usage": "Data surfaces, logs, tables" },
+      "pixel": { "value": "'Courier Prime', monospace", "weights": [400, 700], "usage": "Wordmark, eyebrow labels, plan names. Always uppercase + wide tracking." }
+    },
+    "scale": {
+      "displayHero": { "size": "clamp(48px, 8vw, 96px)", "weight": 300, "lineHeight": 1.0, "letterSpacing": "-0.025em", "family": "display" },
+      "h2Section": { "size": "36px", "sizeMd": "48px", "sizeLgOptional": "60px", "weight": 300, "lineHeight": 1.05, "letterSpacing": "-0.025em" },
+      "h3Card": { "size": "20px", "sizeLarge": "24px", "weight": 300, "lineHeight": 1.3 },
+      "h3Small": { "size": "18px", "weight": 300 },
+      "numeralStat": { "size": "30px", "sizeSm": "36px", "weight": 300, "family": "display" },
+      "numeralBig": { "size": "clamp(48px, 6vw, 80px)", "weight": 300, "family": "mono", "letterSpacing": "-0.02em" },
+      "bodyLead": { "size": "16px", "lineHeight": 1.625, "color": "{color.ink.muted}" },
+      "body": { "size": "14px", "lineHeight": 1.625, "color": "{color.ink.body}" },
+      "caption": { "size": "12px", "letterSpacing": "0.025em", "color": "{color.ink.caption}" },
+      "label": { "size": "11px", "letterSpacing": "0.1em", "transform": "uppercase" },
+      "labelPixel": { "size": "11px", "letterSpacing": "0.1em", "family": "pixel", "transform": "uppercase" },
+      "wordmark": { "size": "12px", "letterSpacing": "0.25em", "family": "pixel", "transform": "uppercase" },
+      "button": { "size": "14px", "letterSpacing": "0.1em", "transform": "uppercase" },
+      "buttonCompact": { "size": "11px", "letterSpacing": "0.025em", "transform": "uppercase" },
+      "monoData": { "size": "8px-12px", "family": "mono", "headerLetterSpacing": "0.16em" }
+    }
+  },
+  "spacing": {
+    "sectionY": { "value": "128px", "tailwind": "py-32" },
+    "sectionX": { "value": { "base": "24px", "md": "48px", "lg": "80px" }, "tailwind": "px-6 md:px-12 lg:px-20" },
+    "headingGap": { "value": "64px", "tailwind": "mb-16" },
+    "cardPadding": { "value": "32px", "tailwind": "p-8" },
+    "panelPadding": { "value": "24px", "tailwind": "p-6" },
+    "miniPadding": { "value": "12px", "tailwind": "p-3" },
+    "cardGap": { "value": "12px", "tailwind": "gap-3" },
+    "columnGap": { "values": ["32px", "48px", "80px"], "tailwind": "gap-8 | gap-12 | gap-20" },
+    "footerY": { "value": "64px 40px", "tailwind": "pt-16 pb-10" },
+    "eyebrowStack": { "value": "icon → 16px → badge → 20px → heading → 24px → body" }
+  },
+  "layout": {
+    "container": {
+      "section": { "value": "1152px", "tailwind": "max-w-6xl" },
+      "pricing": { "value": "1024px", "tailwind": "max-w-5xl" },
+      "narrow": { "value": "768px", "tailwind": "max-w-3xl", "usage": "Navbar width, pull quotes" },
+      "ctaText": { "value": "672px", "tailwind": "max-w-2xl" },
+      "bodyParagraph": { "value": "448px", "tailwind": "max-w-md" },
+      "sideCopy": { "value": "320px", "tailwind": "max-w-xs" }
+    },
+    "grid": {
+      "cardGrids": "grid-cols-1 md:grid-cols-{2|3|4} gap-3, or grid-cols-12 with col-span-12 md:col-span-4",
+      "editorialSplit": "lg:grid-cols-2 gap-20 | lg:grid-cols-3 with col-span-2 panel"
+    },
+    "breakpoints": { "sm": "640px", "md": "768px", "lg": "1024px", "xl": "1280px" },
+    "stickyStack": { "top": "80px + 16px * index", "scalePerDepth": 0.04, "dropPerDepthPx": 8 }
+  },
+  "radius": {
+    "sm": { "value": "8px", "tailwind": "rounded-lg", "usage": "Micro elements: log rows, inner chips" },
+    "md": { "value": "12px", "tailwind": "rounded-xl", "usage": "Buttons, inputs, icon boxes, code wells" },
+    "lg": { "value": "16px", "tailwind": "rounded-2xl", "usage": "Cards, navbar, table frames" },
+    "full": { "value": "9999px", "tailwind": "rounded-full", "usage": "Pills, dots, progress bars" }
+  },
+  "shadow": {
+    "nav": { "value": "0 8px 32px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.06)", "usage": "Floating navbar; future modals/dropdowns" },
+    "float": { "value": "0 8px 24px rgba(0,0,0,0.05)", "usage": "Floating mini cards" },
+    "panel": { "value": "0 1px 3px rgba(0,0,0,0.05)", "usage": "Active panels" },
+    "rest": { "value": "0 1px 2px rgba(0,0,0,0.03)", "usage": "Resting panels" },
+    "glowSuccess": { "value": "0 0 6px #4ADE80", "usage": "Live status dots only" },
+    "rule": "Elevation = border + background shift first; shadows are subtle reinforcement only"
+  },
+  "motion": {
+    "easing": {
+      "signature": { "value": "cubic-bezier(0.16, 1, 0.3, 1)", "usage": "ALL entrances, reveals, panel swaps" },
+      "exit": { "value": "cubic-bezier(0.4, 0, 1, 1)" },
+      "curtain": { "value": "cubic-bezier(0.76, 0, 0.24, 1)" },
+      "linear": { "value": "linear", "usage": "Marquees, progress" }
+    },
+    "duration": {
+      "micro": { "value": "200ms", "usage": "Hover color/border" },
+      "swap": { "value": "220ms", "usage": "Panel content swap" },
+      "accordion": { "value": "400ms" },
+      "exit": { "value": "450ms" },
+      "enter": { "value": "700ms", "usage": "Card/word entrances" },
+      "hero": { "value": "900ms" },
+      "cinematic": { "value": "1300ms-2000ms", "usage": "Splash curtain, hero scale" }
+    },
+    "stagger": {
+      "words": { "value": "80ms" },
+      "cards": { "value": "0/80/140/200ms" },
+      "splashIn": { "value": "90ms" },
+      "splashOut": { "value": "55ms" }
+    },
+    "entrance": {
+      "blurIn": { "value": "opacity 0→1, blur 8-16px→0, translateY 12-28px→0", "usage": "Signature brand move" }
+    },
+    "keyframes": {
+      "marqueeLeft": { "duration": "28s", "transform": "translateX(0 → -33.333%)" },
+      "marqueeRight": { "duration": "22s" },
+      "fadeInUp": { "duration": "500ms" },
+      "rowSlideIn": { "duration": "400ms" },
+      "statusPulse": { "duration": "2s", "value": "opacity 1→0.4→1" },
+      "barBreathe": { "duration": "5-8s", "value": "scaleY 1→1.12→1" }
+    },
+    "scrollReveal": { "observerThresholdCards": 0.1, "observerThresholdHeadings": 0.2, "once": true },
+    "reducedMotion": "All animation/transition forced to 0.01ms under prefers-reduced-motion (global CSS)"
+  },
+  "zIndex": {
+    "splash": 100,
+    "modal": 90,
+    "dropdown": 60,
+    "nav": 50,
+    "heroContent": 30,
+    "overlayScrim": 10,
+    "stickyStackBase": 10,
+    "background": 0
+  },
+  "effects": {
+    "backdropBlurNav": { "value": "16px" },
+    "progressiveBlurMask": { "value": "backdrop-blur 2-18px masked with linear-gradient(to top, black 0%, transparent 100%)", "usage": "Dissolving visuals into the canvas" },
+    "mouseGlow": { "value": "radial-gradient(400px circle at var(--mouse-x) var(--mouse-y), rgba(0,0,0,0.03), transparent 60%)" },
+    "dottedGrid": { "dotColor": "rgba(17,17,17,0.045)", "spacing": "56px", "dotSize": "1.5px" },
+    "hairlineGrid": { "lineColor": "rgba(0,0,0,0.035)", "cell": "24px" }
+  }
+}

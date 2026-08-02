@@ -1,0 +1,696 @@
+import { CONTACT_EMAIL } from "./content";
+import type { LegalDoc } from "./legal";
+
+export const TERMS_EN: LegalDoc = {
+  eyebrow: "LEGAL",
+  title: "Certrace Terms of Service",
+  effectiveLabel: "Effective Date",
+  effective: "30 July 2026",
+  updatedLabel: "Last Updated",
+  updated: "30 July 2026",
+  lede: "These Terms govern your access to and use of the Certrace platform. Please read them carefully — they form a binding agreement between your organisation and Certrace.",
+  contentsLabel: "ON THIS PAGE",
+  sections: [
+    {
+      id: "introduction",
+      heading: "1. Introduction and Acceptance of Terms",
+      blocks: [
+        {
+          p: "These Terms of Service (the “Terms”) constitute a legally binding agreement between Certrace, a company operating in Bangkok, Thailand (the “Company,” “Certrace,” “we,” “us,” or “our”), and the business entity, organization, or individual acting on behalf of a business entity that registers for, accesses, or uses the Certrace platform (the “Customer,” “you,” or “your”).",
+        },
+        {
+          p: "The Company provides a business-to-business (“B2B”) software-as-a-service platform for environmental, social, and governance (“ESG”) data management and Carbon Border Adjustment Mechanism (“CBAM”) compliance support (the “Platform” or “Services”), as further described in Section 4.",
+        },
+        {
+          p: "By (a) creating an account, (b) executing an Order Form (as defined below) that references these Terms, (c) clicking “I Agree” or a similar affirmation, or (d) otherwise accessing or using the Platform, the Customer — and the individual accepting on the Customer’s behalf — represent that they have the authority to bind the Customer to these Terms, and the Customer agrees to be bound by these Terms and the Certrace Privacy Policy, which is incorporated herein by reference. If the Customer does not agree to these Terms, the Customer must not access or use the Platform.",
+        },
+        {
+          p: "The Platform is designed for business use by corporate personnel and is not intended for use by consumers or by individuals under eighteen (18) years of age. Each individual accessing the Platform on Customer’s behalf represents that they are at least eighteen (18) years old and are acting within the scope of their employment or engagement with Customer.",
+        },
+        {
+          p: "The Company reserves the right to modify these Terms at any time, provided that for Customers under an active paid Subscription Term, material changes adverse to Customer will not take effect until Customer’s next renewal, unless required sooner to comply with applicable law. The Company will provide notice of material changes by updating the “Last Updated” date and, where reasonably practicable, by direct notice (e.g., email or in-Platform notice). Continued use of the Platform after the effective date of such modifications constitutes acceptance of the revised Terms.",
+        },
+        {
+          p: "Where Certrace and Customer have executed a separate signed master subscription agreement, order form, or enterprise agreement that expressly references and is intended to supersede these Terms, that signed agreement governs to the extent of any conflict.",
+        },
+      ],
+    },
+    {
+      id: "definitions",
+      heading: "2. Definitions",
+      blocks: [
+        {
+          ul: [
+            "**“Authorized User”** means an individual employee, contractor, or agent of Customer who is authorized by Customer to access and use the Platform under Customer’s account, and to whom a unique login credential has been issued.",
+            "**“CBAM”** means the Carbon Border Adjustment Mechanism established under EU Regulation 2023/956, as amended, and any equivalent, successor, or related carbon border or emissions-reporting regime.",
+            "**“Customer Data”** means all data, files, records, and information — including production data, activity data, emissions data, energy data, supply chain and supplier information, and procurement records — that Customer or its Authorized Users submit, upload, or transmit to the Platform, excluding Certrace’s own Platform-generated calculations, models, and Reports.",
+            "**“Order Form”** means an ordering document, subscription agreement, quotation, or online checkout flow specifying the subscription plan, fees, Subscription Term, and other commercial terms agreed between Certrace and Customer, which incorporates these Terms by reference.",
+            "**“Platform” or “Services”** means Certrace’s proprietary software-as-a-service platform, including web applications, dashboards, calculation engines, application programming interfaces (“APIs”), and related documentation and support, made available to Customer.",
+            "**“Report” or “Output”** means any calculation, declaration draft, dashboard, ESG scorecard, CBAM emissions report, or other output generated by the Platform based on Customer Data.",
+            "**“Subscription Term”** means the period during which Customer is entitled to access the Platform, as specified in the applicable Order Form.",
+            "**“Sub-processor”** means a third party engaged by Certrace to process Customer Data or Personal Data on Certrace’s behalf in connection with providing the Services.",
+            "**“Confidential Information”** has the meaning given in Section 10.",
+            "**“Personal Data”** has the meaning given under the Personal Data Protection Act B.E. 2562 (2019) of Thailand (“Thai PDPA”).",
+            "**“Material Breach”** means a severe violation of these Terms, explicitly including fraudulent activity, non-payment, intellectual property infringement, unauthorized disclosure of Confidential Information, or violation of the Acceptable Use Policy in Section 8.",
+          ],
+        },
+      ],
+    },
+    {
+      id: "eligibility",
+      heading: "3. Eligibility and Account Registration",
+      blocks: [
+        {
+          p: "**3.1 Business Use Only.** The Platform is offered solely for business-to-business use. Customer must be a duly organized and validly existing business entity (or a natural person acting in a business capacity, such as a sole proprietor) with the authority to enter into these Terms.",
+        },
+        {
+          p: "**3.2 Account Creation.** Customer will designate one or more Authorized Users, including at least one account administrator, and agrees to provide accurate, current, and complete registration information and to keep it up to date.",
+        },
+        {
+          p: `**3.3 Account Security.** Customer is responsible for maintaining the confidentiality of all Authorized User login credentials and for all activities occurring under its account, whether or not authorized by Customer. Customer must notify Certrace promptly at ${CONTACT_EMAIL} upon becoming aware of any unauthorized access to or use of its account.`,
+        },
+        {
+          p: "**3.4 Responsibility for Authorized Users.** Customer is responsible for its Authorized Users’ compliance with these Terms and shall ensure that each Authorized User’s access is revoked promptly once that individual no longer requires it (e.g., upon termination of employment).",
+        },
+      ],
+    },
+    {
+      id: "services",
+      heading: "4. Description of the Services",
+      blocks: [
+        {
+          p: "**4.1 Overview.** The Platform provides tools to help Customer collect, organize, and calculate ESG- and emissions-related data relevant to CBAM and related sustainability reporting obligations, including embedded-emissions estimation tools, supplier data-collection workflows, dashboards, and draft-report generation for products within the iron, steel, and aluminum sectors and related CBAM goods categories.",
+        },
+        {
+          p: "**4.2 Not an Accredited Verifier.** CBAM and related regulatory frameworks generally require certain emissions data to be verified by an independent, accredited verification body before submission to a competent regulatory authority. Certrace is a software provider, not an accredited verifier under CBAM or any other regulatory scheme. Reports and Outputs generated by the Platform are preparatory and informational tools only, and do not substitute for independent verification, customs declaration, or regulatory filing. Customer remains solely responsible for engaging any accredited verifier or customs representative required by applicable law and for the accuracy, completeness, and timely submission of any official filing.",
+        },
+        {
+          p: "**4.3 Beta and Early Access Features.** Certrace may make available features labeled “beta,” “early access,” “preview,” or similar (each, a “Beta Feature”). Beta Features are provided “as is,” without warranty of any kind, may be modified or discontinued at any time, and are excluded from any uptime or support commitments otherwise applicable to the Platform.",
+        },
+        {
+          p: "**4.4 Changes to the Services.** Certrace may modify, update, or discontinue features of the Platform from time to time, provided that Certrace will not materially reduce the core functionality of the Services purchased under an active Order Form during the applicable Subscription Term without reasonable notice or a comparable replacement feature.",
+        },
+      ],
+    },
+    {
+      id: "fees",
+      heading: "5. Subscription Plans, Orders, and Fees",
+      blocks: [
+        {
+          p: "**5.1 Order Forms.** Customer’s access to the Platform is governed by the applicable Order Form, which specifies the subscription tier, number of Authorized User seats, fees, billing frequency, and Subscription Term.",
+        },
+        {
+          p: "**5.2 Fees and Payment.** Customer agrees to pay all fees specified in the applicable Order Form. Unless otherwise stated, fees are quoted and payable in Thai Baht (THB), exclusive of applicable value-added tax (“VAT”) and withholding tax, which shall be borne by Customer in addition to the stated fees unless a valid exemption applies.",
+        },
+        {
+          p: "**5.3 Invoicing and Late Payment.** Unless otherwise agreed in an Order Form, invoices are due within thirty (30) days of the invoice date. Certrace may charge interest on overdue amounts at the maximum rate permitted by applicable law, and may suspend Customer’s access for undisputed amounts unpaid more than fifteen (15) days after written notice of non-payment.",
+        },
+        {
+          p: "**5.4 Auto-Renewal.** Unless otherwise specified in the applicable Order Form, Subscription Terms automatically renew for successive periods equal to the expiring term, at Certrace’s then-current fees, unless either party gives written notice of non-renewal at least thirty (30) days before the end of the then-current term.",
+        },
+        {
+          p: "**5.5 Taxes.** Each party is responsible for its own income, franchise, and similar taxes based on its own net income. Fees are exclusive of VAT and other applicable indirect taxes, which Certrace will invoice where required by law.",
+        },
+        {
+          p: "**5.6 Refunds.** Except as expressly stated in an Order Form or required by applicable consumer or commercial protection law, fees are non-refundable and non-creditable.",
+        },
+      ],
+    },
+    {
+      id: "customer-data",
+      heading: "6. Customer Data; License and Ownership",
+      blocks: [
+        {
+          p: "**6.1 Ownership.** As between the parties, Customer retains all right, title, and interest in and to Customer Data. Nothing in these Terms transfers ownership of Customer Data to Certrace.",
+        },
+        {
+          p: "**6.2 License to Certrace.** Customer grants Certrace a worldwide, non-exclusive, royalty-free license to host, store, process, transmit, and use Customer Data solely to (a) provide, maintain, secure, and improve the Platform and Services for Customer, and (b) generate Reports and Outputs on Customer’s behalf. Certrace will not use Customer Data to train foundational or third-party machine-learning models made available to any party other than Customer, and will not sell Customer Data.",
+        },
+        {
+          p: "**6.3 Aggregated and De-Identified Data.** Certrace may generate aggregated or de-identified statistics derived from Customer Data (e.g., industry benchmarks) that do not identify Customer or any individual, and may use and share such aggregated data for research, product improvement, and industry benchmarking purposes.",
+        },
+        {
+          p: "**6.4 Customer Data Warranty.** Customer represents and warrants that (a) it has all necessary rights, consents, and authority to submit Customer Data to the Platform and to grant the license in Section 6.2, and (b) Customer Data does not infringe any third-party right or violate applicable law. Certrace does not independently verify the accuracy or completeness of Customer Data, and Customer is solely responsible for its accuracy.",
+        },
+        {
+          p: "**6.5 Data Export and Deletion.** During the Subscription Term, Customer may export Customer Data through the Platform’s standard export functionality. Upon termination or expiration of the Subscription Term, Certrace will make Customer Data available for export for thirty (30) days, after which Certrace may delete or anonymize Customer Data in accordance with its data retention practices and the Certrace Privacy Policy.",
+        },
+      ],
+    },
+    {
+      id: "reports",
+      heading: "7. Reports, Outputs, and Disclaimer of Regulatory Advice",
+      blocks: [
+        {
+          p: "**7.1 Informational Purpose Only.** All Reports and Outputs, and all recommendations, benchmarks, or scoring generated by the Platform, are provided on an “as-is” basis for informational purposes only. They do not constitute legal, customs, tax, accounting, engineering, or other professional or regulatory advice.",
+        },
+        {
+          p: "**7.2 No Guarantee of Regulatory Acceptance.** The Company does not warrant that any Report or Output will be accepted by the European Commission, any EU member state customs authority, the Thai government, or any other regulatory or governmental body, nor that use of the Platform will result in CBAM compliance, avoidance of penalties, or any other specific regulatory outcome. Applicable CBAM rules, implementing acts, and default emissions values are subject to change by EU authorities; Certrace endeavors to update its calculation methodologies accordingly but does not guarantee the Platform reflects the most current regulatory requirements at all times.",
+        },
+        {
+          p: "**7.3 Customer’s Responsibility to Verify.** Customer is solely responsible for reviewing, verifying, and, where required, obtaining independent accredited verification of all Reports and Outputs prior to submission to any regulator, customs authority, business partner, or other third party, and for the ultimate content of any official filing.",
+        },
+      ],
+    },
+    {
+      id: "acceptable-use",
+      heading: "8. Acceptable Use Policy",
+      blocks: [
+        { p: "Customer shall not, and shall ensure its Authorized Users do not:" },
+        {
+          ul: [
+            "(a) submit data, credentials, or information that Customer does not have the right to submit, or that is knowingly false, fraudulent, or misleading;",
+            "(b) use the Platform to build or offer a competing product or service, or to benchmark the Platform for competitive purposes, without Certrace’s prior written consent;",
+            "(c) use automated means (bots, scrapers, or similar) to access or extract data from the Platform other than through Certrace’s supported APIs;",
+            "(d) attempt to reverse engineer, decompile, or discover the source code, algorithms, or underlying models of the Platform, except to the extent such restriction is prohibited by applicable law;",
+            "(e) upload or transmit malicious code, viruses, or content that is unlawful, defamatory, or infringes third-party intellectual property or privacy rights;",
+            "(f) share Authorized User login credentials with any individual not authorized to hold that credential, or resell, sublicense, or provide third-party access to the Platform without Certrace’s prior written consent; or",
+            "(g) use the Platform in a manner that violates applicable export control, sanctions, anti-bribery, or anti-corruption laws.",
+          ],
+        },
+        {
+          p: "Certrace reserves the right to investigate suspected violations and to suspend or terminate access in accordance with Section 14.",
+        },
+      ],
+    },
+    {
+      id: "ip",
+      heading: "9. Intellectual Property Rights",
+      blocks: [
+        {
+          p: "**9.1 Certrace IP.** As between the parties, Certrace and its licensors retain all right, title, and interest in and to the Platform, including its software, calculation methodologies, emissions factor libraries, algorithms, user interface, and all related intellectual property rights. These Terms grant Customer no ownership interest in the Platform.",
+        },
+        {
+          p: "**9.2 License to Customer.** Subject to Customer’s compliance with these Terms and payment of applicable fees, Certrace grants Customer a limited, non-exclusive, non-transferable, revocable license, during the Subscription Term, to access and use the Platform and to download, display, and internally distribute Reports and Outputs for Customer’s own business and regulatory-compliance purposes, including sharing them with Customer’s own customers, verifiers, and regulators as necessary.",
+        },
+        {
+          p: "**9.3 Feedback.** If Customer provides suggestions, feature requests, or other feedback regarding the Platform, Certrace may use and incorporate such feedback into the Platform without restriction or compensation to Customer.",
+        },
+      ],
+    },
+    {
+      id: "confidentiality",
+      heading: "10. Confidentiality",
+      blocks: [
+        {
+          p: "**10.1 Definition.** “Confidential Information” means non-public information disclosed by one party (“Discloser”) to the other (“Recipient”), whether orally or in writing, that is designated as confidential or that a reasonable person would understand to be confidential given the nature of the information and circumstances of disclosure, including Customer Data, business and financial information, pricing, and product roadmaps — but excluding information that (a) is or becomes publicly available through no fault of the Recipient, (b) was rightfully known to the Recipient prior to disclosure, (c) is rightfully obtained from a third party without breach of confidentiality, or (d) is independently developed without use of the Discloser’s Confidential Information.",
+        },
+        {
+          p: "**10.2 Obligations.** Recipient will (a) use Confidential Information solely to perform its obligations or exercise its rights under these Terms, (b) protect it using at least the same degree of care it uses for its own confidential information of similar nature, and no less than reasonable care, and (c) not disclose it to any third party except to employees, contractors, and professional advisors with a need to know who are bound by confidentiality obligations at least as protective as those herein.",
+        },
+        {
+          p: "**10.3 Compelled Disclosure.** Recipient may disclose Confidential Information to the extent required by law, regulation, or court order, provided that, where legally permitted, Recipient gives Discloser reasonable advance notice to seek a protective order.",
+        },
+      ],
+    },
+    {
+      id: "data-protection",
+      heading: "11. Data Protection and Privacy",
+      blocks: [
+        {
+          p: "Certrace processes Personal Data in accordance with the Certrace Privacy Policy, which forms part of these Terms by reference. Where Certrace processes Personal Data contained within Customer Data on Customer’s behalf and at Customer’s instruction, Certrace acts as a data processor and Customer acts as data controller, as those terms are understood under the Thai PDPA. Certrace will implement appropriate technical and organizational measures to protect Personal Data as further described in the Privacy Policy, and, upon Customer’s written request, the parties will enter into a separate data processing addendum reflecting these arrangements in more detail.",
+        },
+      ],
+    },
+    {
+      id: "availability",
+      heading: "12. Service Availability, Support, and Maintenance",
+      blocks: [
+        {
+          p: "**12.1 Commercially Reasonable Efforts.** Certrace will use commercially reasonable efforts to make the Platform available on a continuous basis, excluding scheduled maintenance (for which Certrace will provide advance notice where reasonably practicable) and circumstances beyond Certrace’s reasonable control.",
+        },
+        {
+          p: "**12.2 Support.** Certrace will provide customer support in accordance with the support terms specified in the applicable Order Form or, absent such terms, its then-current standard support practices.",
+        },
+        {
+          p: "**12.3 Specific Service Levels.** Any specific uptime commitments, credits, or service-level terms apply only if expressly set out in a signed Order Form or separate service-level agreement, which will govern over this Section 12 to the extent of any conflict.",
+        },
+      ],
+    },
+    {
+      id: "sub-processors",
+      heading: "13. Third-Party Services and Sub-processors",
+      blocks: [
+        {
+          p: "The Platform may integrate with or rely on third-party services and cloud infrastructure providers (each, a “Sub-processor”) to deliver the Services, such as cloud hosting and data-analytics providers. Certrace remains responsible for Sub-processors’ performance of the obligations they undertake on Certrace’s behalf. Certrace will maintain a list of material Sub-processors and provide notice of the addition of any new material Sub-processor, as further described in the Privacy Policy.",
+        },
+      ],
+    },
+    {
+      id: "term",
+      heading: "14. Term, Suspension, and Termination",
+      blocks: [
+        {
+          p: "**14.1 Term.** These Terms remain in effect for as long as Customer maintains an account or an active Order Form with Certrace.",
+        },
+        {
+          p: "**14.2 Termination for Convenience.** Either party may decline to renew a Subscription Term by providing notice in accordance with Section 5.4.",
+        },
+        {
+          p: "**14.3 Termination for Cause.** Either party may terminate these Terms or the applicable Order Form if the other party commits a Material Breach that remains uncured thirty (30) days after written notice describing the breach (or immediately, in the case of Customer’s non-payment following the notice period in Section 5.3, or Customer’s violation of Section 8).",
+        },
+        {
+          p: "**14.4 Suspension.** Certrace may suspend Customer’s access to the Platform, with notice where reasonably practicable, if Certrace reasonably believes continued access poses a security risk, may expose Certrace or a third party to liability, or violates Section 8.",
+        },
+        {
+          p: "**14.5 Effect of Termination.** Upon termination or expiration, Customer’s right to access the Platform ceases, and Customer remains liable for all fees accrued prior to the effective date of termination. Sections 6.1, 6.5, 9.1, 10, 11, 15, 16, 17, and 19 survive termination.",
+        },
+      ],
+    },
+    {
+      id: "warranties",
+      heading: "15. Warranties and Disclaimers",
+      blocks: [
+        {
+          p: "EXCEPT AS EXPRESSLY STATED IN THESE TERMS, THE PLATFORM AND ALL REPORTS AND OUTPUTS ARE PROVIDED “AS IS” AND “AS AVAILABLE,” WITHOUT WARRANTIES OF ANY KIND, WHETHER EXPRESS, IMPLIED, OR STATUTORY, INCLUDING WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, OR THAT THE PLATFORM WILL BE UNINTERRUPTED, ERROR-FREE, OR SECURE, TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW.",
+        },
+      ],
+    },
+    {
+      id: "indemnification",
+      heading: "16. Indemnification",
+      blocks: [
+        {
+          p: "**16.1 By Certrace.** Certrace will defend Customer against any third-party claim alleging that the Platform, as provided by Certrace and used in accordance with these Terms, infringes that third party’s intellectual property rights, and will indemnify Customer for damages finally awarded as a result, provided Customer promptly notifies Certrace of the claim, gives Certrace sole control of the defense and settlement, and provides reasonable cooperation. This obligation does not apply to claims arising from (a) Customer Data, (b) modification of the Platform not made by Certrace, or (c) use of the Platform in combination with products not provided by Certrace, where the infringement would not have occurred but for such combination.",
+        },
+        {
+          p: "**16.2 By Customer.** Customer will defend and indemnify Certrace against any third-party claim arising from (a) Customer Data, (b) Customer’s or its Authorized Users’ violation of these Terms or applicable law, or (c) Customer’s use of a Report or Output in a manner inconsistent with Section 7.",
+        },
+      ],
+    },
+    {
+      id: "liability",
+      heading: "17. Limitation of Liability",
+      blocks: [
+        {
+          p: "**17.1 Exclusion of Indirect Damages.** TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, NEITHER PARTY WILL BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, OR ANY LOSS OF PROFITS, REVENUE, GOODWILL, OR DATA, ARISING OUT OF OR RELATED TO THESE TERMS OR THE PLATFORM, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.",
+        },
+        {
+          p: "**17.2 Liability Cap.** EXCEPT FOR (A) A PARTY’S INDEMNIFICATION OBLIGATIONS UNDER SECTION 16, (B) A PARTY’S BREACH OF SECTION 10 (CONFIDENTIALITY), (C) CUSTOMER’S PAYMENT OBLIGATIONS, OR (D) A PARTY’S GROSS NEGLIGENCE OR WILLFUL MISCONDUCT, EACH PARTY’S TOTAL AGGREGATE LIABILITY ARISING OUT OF OR RELATED TO THESE TERMS SHALL NOT EXCEED THE TOTAL FEES PAID OR PAYABLE BY CUSTOMER TO CERTRACE IN THE TWELVE (12) MONTHS IMMEDIATELY PRECEDING THE EVENT GIVING RISE TO THE CLAIM.",
+        },
+        {
+          p: "**17.3 Basis of the Bargain.** The parties acknowledge that the limitations in this Section 17 are an essential basis of the bargain and that fees have been set in reliance on these limitations.",
+        },
+      ],
+    },
+    {
+      id: "force-majeure",
+      heading: "18. Force Majeure",
+      blocks: [
+        {
+          p: "Neither party will be liable for any delay or failure to perform its obligations (other than payment obligations) resulting from causes beyond its reasonable control, including acts of God, natural disaster, pandemic, war, civil unrest, governmental action, labor disputes, internet or utility failures, or failures of third-party hosting or Sub-processor infrastructure.",
+        },
+      ],
+    },
+    {
+      id: "general",
+      heading: "19. General Provisions",
+      blocks: [
+        {
+          p: "**19.1 Governing Law and Jurisdiction.** These Terms are governed by the laws of the Kingdom of Thailand, without regard to conflict-of-law principles. The parties submit to the exclusive jurisdiction of the competent courts of Bangkok, Thailand for any dispute arising out of or relating to these Terms, except that either party may seek interim injunctive relief in any court of competent jurisdiction to protect its intellectual property or Confidential Information.",
+        },
+        {
+          p: "**19.2 Assignment.** Customer may not assign these Terms without Certrace’s prior written consent, except to a successor of substantially all its business or assets. Certrace may assign these Terms in connection with a merger, acquisition, reorganization, or sale of assets, or to an affiliate, without Customer’s consent.",
+        },
+        {
+          p: "**19.3 Relationship of the Parties.** The parties are independent contractors. Nothing in these Terms creates a partnership, joint venture, agency, or employment relationship.",
+        },
+        {
+          p: "**19.4 Compliance with Laws; Anti-Corruption.** Each party will comply with applicable laws in connection with these Terms, including applicable anti-bribery, anti-corruption, export control, and trade sanctions laws.",
+        },
+        {
+          p: `**19.5 Notices.** Notices under these Terms must be in writing and delivered by email to ${CONTACT_EMAIL} (for Certrace) or to the primary account contact designated by Customer, and are deemed given upon confirmed receipt.`,
+        },
+        {
+          p: "**19.6 Severability.** If any provision of these Terms is held invalid or unenforceable, the remaining provisions will remain in full force and effect, and the invalid provision will be modified to the minimum extent necessary to make it enforceable.",
+        },
+        {
+          p: "**19.7 Non-Waiver.** No failure or delay by either party in exercising any right under these Terms will operate as a waiver of that right.",
+        },
+        {
+          p: "**19.8 Entire Agreement.** These Terms, together with all Order Forms and the Privacy Policy, constitute the entire agreement between the parties regarding the Platform and supersede all prior agreements and understandings, written or oral, regarding the subject matter herein. In the event of conflict between these Terms and an Order Form, the Order Form controls with respect to the specific commercial terms it addresses.",
+        },
+        {
+          p: "**19.9 Survival.** Provisions that by their nature should survive termination (including Sections 6.1, 9.1, 10, 15, 16, 17, and 19) will survive any termination or expiration of these Terms.",
+        },
+      ],
+    },
+    {
+      id: "contact",
+      heading: "20. Contact Information",
+      blocks: [
+        {
+          p: `Questions or legal notices regarding these Terms should be directed to: **${CONTACT_EMAIL}**.`,
+        },
+      ],
+    },
+  ],
+};
+
+export const TERMS_TH: LegalDoc = {
+  eyebrow: "ข้อกำหนดและกฎหมาย",
+  title: "ข้อกำหนดการใช้งาน Certrace",
+  effectiveLabel: "วันที่มีผลบังคับใช้",
+  effective: "30 กรกฎาคม 2026",
+  updatedLabel: "อัปเดตล่าสุด",
+  updated: "30 กรกฎาคม 2026",
+  lede: "ข้อกำหนดฉบับนี้ควบคุมการเข้าถึงและการใช้งานแพลตฟอร์ม Certrace โปรดอ่านอย่างละเอียด เพราะถือเป็นข้อตกลงที่มีผลผูกพันระหว่างองค์กรของคุณกับ Certrace",
+  contentsLabel: "หัวข้อในหน้านี้",
+  languageNote:
+    "ฉบับแปลภาษาไทยนี้จัดทำขึ้นเพื่อความสะดวกในการอ่าน หากมีข้อความใดขัดหรือแย้งกัน ให้ยึดฉบับภาษาอังกฤษเป็นหลัก",
+  sections: [
+    {
+      id: "introduction",
+      heading: "1. บทนำและการยอมรับข้อกำหนด",
+      blocks: [
+        {
+          p: "ข้อกำหนดการใช้งานฉบับนี้ (“ข้อกำหนด”) เป็นข้อตกลงที่มีผลผูกพันทางกฎหมายระหว่าง Certrace ซึ่งเป็นบริษัทที่ดำเนินกิจการในกรุงเทพมหานคร ประเทศไทย (“บริษัท” “Certrace” “เรา” หรือ “ของเรา”) กับนิติบุคคล องค์กร หรือบุคคลที่กระทำการในนามของนิติบุคคล ซึ่งลงทะเบียน เข้าถึง หรือใช้งานแพลตฟอร์ม Certrace (“ลูกค้า” หรือ “คุณ”)",
+        },
+        {
+          p: "บริษัทให้บริการแพลตฟอร์มซอฟต์แวร์แบบบริการ (“SaaS”) สำหรับธุรกิจถึงธุรกิจ (“B2B”) เพื่อการจัดการข้อมูลด้านสิ่งแวดล้อม สังคม และธรรมาภิบาล (“ESG”) และสนับสนุนการปฏิบัติตามกลไกการปรับคาร์บอนก่อนข้ามพรมแดน (“CBAM”) (“แพลตฟอร์ม” หรือ “บริการ”) ตามที่อธิบายเพิ่มเติมในข้อ 4",
+        },
+        {
+          p: "การที่ลูกค้า (ก) สร้างบัญชี (ข) ลงนามในเอกสารสั่งซื้อ (ตามนิยามด้านล่าง) ที่อ้างถึงข้อกำหนดฉบับนี้ (ค) คลิก “ฉันยอมรับ” หรือข้อความยืนยันในลักษณะเดียวกัน หรือ (ง) เข้าถึงหรือใช้งานแพลตฟอร์มด้วยประการอื่นใด ถือว่าลูกค้าและบุคคลที่ยอมรับในนามของลูกค้ารับรองว่าตนมีอำนาจผูกพันลูกค้าตามข้อกำหนดฉบับนี้ และลูกค้าตกลงผูกพันตามข้อกำหนดฉบับนี้และนโยบายความเป็นส่วนตัวของ Certrace ซึ่งถือเป็นส่วนหนึ่งของข้อกำหนดนี้โดยการอ้างอิง หากลูกค้าไม่ยอมรับข้อกำหนดฉบับนี้ ลูกค้าต้องไม่เข้าถึงหรือใช้งานแพลตฟอร์ม",
+        },
+        {
+          p: "แพลตฟอร์มออกแบบมาเพื่อการใช้งานเชิงธุรกิจโดยบุคลากรขององค์กร ไม่ได้มีไว้สำหรับผู้บริโภคทั่วไปหรือบุคคลที่มีอายุต่ำกว่าสิบแปด (18) ปี บุคคลทุกรายที่เข้าถึงแพลตฟอร์มในนามของลูกค้ารับรองว่าตนมีอายุอย่างน้อยสิบแปด (18) ปี และกระทำการภายในขอบเขตการจ้างงานหรือการว่าจ้างกับลูกค้า",
+        },
+        {
+          p: "บริษัทสงวนสิทธิ์ในการแก้ไขข้อกำหนดฉบับนี้ได้ตลอดเวลา ทั้งนี้ สำหรับลูกค้าที่อยู่ในระยะเวลาการสมัครสมาชิกแบบชำระเงินที่ยังมีผลอยู่ การเปลี่ยนแปลงในสาระสำคัญที่ส่งผลเสียต่อลูกค้าจะยังไม่มีผลจนกว่าจะถึงรอบต่ออายุถัดไป เว้นแต่จำเป็นต้องมีผลเร็วกว่านั้นเพื่อให้เป็นไปตามกฎหมายที่ใช้บังคับ บริษัทจะแจ้งการเปลี่ยนแปลงในสาระสำคัญโดยปรับวันที่ “อัปเดตล่าสุด” และแจ้งโดยตรงเท่าที่ทำได้ตามสมควร (เช่น ทางอีเมลหรือการแจ้งเตือนในแพลตฟอร์ม) การใช้งานแพลตฟอร์มต่อไปหลังวันที่การแก้ไขมีผล ถือเป็นการยอมรับข้อกำหนดฉบับแก้ไข",
+        },
+        {
+          p: "ในกรณีที่ Certrace และลูกค้าได้ลงนามในสัญญาการสมัครสมาชิกหลัก เอกสารสั่งซื้อ หรือข้อตกลงระดับองค์กรแยกต่างหาก ซึ่งอ้างถึงและมีเจตนาให้แทนที่ข้อกำหนดฉบับนี้อย่างชัดแจ้ง ให้ข้อตกลงที่ลงนามนั้นมีผลเหนือกว่าเท่าที่ขัดแย้งกัน",
+        },
+      ],
+    },
+    {
+      id: "definitions",
+      heading: "2. คำนิยาม",
+      blocks: [
+        {
+          ul: [
+            "**“ผู้ใช้ที่ได้รับอนุญาต”** หมายถึง พนักงาน ผู้รับจ้าง หรือตัวแทนของลูกค้า ซึ่งลูกค้าอนุญาตให้เข้าถึงและใช้งานแพลตฟอร์มภายใต้บัญชีของลูกค้า และได้รับข้อมูลเข้าสู่ระบบเฉพาะรายไปแล้ว",
+            "**“CBAM”** หมายถึง กลไกการปรับคาร์บอนก่อนข้ามพรมแดนที่จัดตั้งขึ้นตามระเบียบสหภาพยุโรป 2023/956 รวมถึงที่แก้ไขเพิ่มเติม และระบบรายงานคาร์บอนข้ามพรมแดนหรือการปล่อยก๊าซเรือนกระจกใด ๆ ที่เทียบเท่า สืบเนื่อง หรือเกี่ยวข้อง",
+            "**“ข้อมูลลูกค้า”** หมายถึง ข้อมูล ไฟล์ บันทึก และสารสนเทศทั้งหมด รวมถึงข้อมูลการผลิต ข้อมูลกิจกรรม ข้อมูลการปล่อยคาร์บอน ข้อมูลพลังงาน ข้อมูลห่วงโซ่อุปทานและซัพพลายเออร์ และบันทึกการจัดซื้อ ที่ลูกค้าหรือผู้ใช้ที่ได้รับอนุญาตส่ง อัปโหลด หรือถ่ายโอนเข้าสู่แพลตฟอร์ม โดยไม่รวมการคำนวณ แบบจำลอง และรายงานที่แพลตฟอร์มของ Certrace สร้างขึ้นเอง",
+            "**“เอกสารสั่งซื้อ”** หมายถึง เอกสารสั่งซื้อ สัญญาการสมัครสมาชิก ใบเสนอราคา หรือขั้นตอนการสั่งซื้อออนไลน์ ซึ่งระบุแพ็กเกจการสมัครสมาชิก ค่าธรรมเนียม ระยะเวลาการสมัครสมาชิก และเงื่อนไขทางการค้าอื่น ๆ ที่ตกลงกันระหว่าง Certrace กับลูกค้า และอ้างอิงข้อกำหนดฉบับนี้",
+            "**“แพลตฟอร์ม” หรือ “บริการ”** หมายถึง แพลตฟอร์มซอฟต์แวร์แบบบริการอันเป็นกรรมสิทธิ์ของ Certrace รวมถึงเว็บแอปพลิเคชัน แดชบอร์ด ระบบคำนวณ ส่วนต่อประสานโปรแกรมประยุกต์ (“API”) และเอกสารประกอบและการสนับสนุนที่เกี่ยวข้องซึ่งจัดให้แก่ลูกค้า",
+            "**“รายงาน” หรือ “ผลลัพธ์”** หมายถึง การคำนวณ ร่างการยื่นรายงาน แดชบอร์ด คะแนน ESG รายงานการปล่อยคาร์บอนตาม CBAM หรือผลลัพธ์อื่นใดที่แพลตฟอร์มสร้างขึ้นจากข้อมูลลูกค้า",
+            "**“ระยะเวลาการสมัครสมาชิก”** หมายถึง ระยะเวลาที่ลูกค้ามีสิทธิ์เข้าถึงแพลตฟอร์มตามที่ระบุในเอกสารสั่งซื้อที่เกี่ยวข้อง",
+            "**“ผู้ประมวลผลช่วง”** หมายถึง บุคคลภายนอกที่ Certrace ว่าจ้างให้ประมวลผลข้อมูลลูกค้าหรือข้อมูลส่วนบุคคลในนามของ Certrace เพื่อการให้บริการ",
+            "**“ข้อมูลที่เป็นความลับ”** ให้มีความหมายตามที่กำหนดไว้ในข้อ 10",
+            "**“ข้อมูลส่วนบุคคล”** ให้มีความหมายตามพระราชบัญญัติคุ้มครองข้อมูลส่วนบุคคล พ.ศ. 2562 ของประเทศไทย (“PDPA”)",
+            "**“การผิดสัญญาในสาระสำคัญ”** หมายถึง การละเมิดข้อกำหนดฉบับนี้อย่างร้ายแรง ซึ่งรวมถึงการฉ้อฉล การไม่ชำระเงิน การละเมิดทรัพย์สินทางปัญญา การเปิดเผยข้อมูลที่เป็นความลับโดยไม่ได้รับอนุญาต หรือการละเมิดนโยบายการใช้งานที่ยอมรับได้ในข้อ 8",
+          ],
+        },
+      ],
+    },
+    {
+      id: "eligibility",
+      heading: "3. คุณสมบัติและการลงทะเบียนบัญชี",
+      blocks: [
+        {
+          p: "**3.1 ใช้เพื่อธุรกิจเท่านั้น** แพลตฟอร์มนี้ให้บริการเพื่อการใช้งานระหว่างธุรกิจเท่านั้น ลูกค้าต้องเป็นนิติบุคคลที่จัดตั้งและดำรงอยู่โดยชอบด้วยกฎหมาย (หรือบุคคลธรรมดาที่กระทำการในฐานะทางธุรกิจ เช่น เจ้าของกิจการรายเดียว) และมีอำนาจเข้าทำข้อกำหนดฉบับนี้",
+        },
+        {
+          p: "**3.2 การสร้างบัญชี** ลูกค้าจะกำหนดผู้ใช้ที่ได้รับอนุญาตอย่างน้อยหนึ่งราย รวมถึงผู้ดูแลบัญชีอย่างน้อยหนึ่งคน และตกลงให้ข้อมูลการลงทะเบียนที่ถูกต้อง เป็นปัจจุบัน และครบถ้วน พร้อมปรับปรุงให้ทันสมัยอยู่เสมอ",
+        },
+        {
+          p: `**3.3 ความปลอดภัยของบัญชี** ลูกค้ามีหน้าที่รักษาความลับของข้อมูลเข้าสู่ระบบของผู้ใช้ที่ได้รับอนุญาตทุกราย และรับผิดชอบต่อกิจกรรมทั้งหมดที่เกิดขึ้นภายใต้บัญชีของตน ไม่ว่าลูกค้าจะอนุญาตหรือไม่ก็ตาม ลูกค้าต้องแจ้ง Certrace โดยทันทีที่ ${CONTACT_EMAIL} เมื่อทราบถึงการเข้าถึงหรือการใช้งานบัญชีโดยไม่ได้รับอนุญาต`,
+        },
+        {
+          p: "**3.4 ความรับผิดชอบต่อผู้ใช้ที่ได้รับอนุญาต** ลูกค้ารับผิดชอบให้ผู้ใช้ที่ได้รับอนุญาตปฏิบัติตามข้อกำหนดฉบับนี้ และต้องเพิกถอนสิทธิ์การเข้าถึงของผู้ใช้แต่ละรายโดยทันทีเมื่อบุคคลนั้นไม่จำเป็นต้องใช้งานอีกต่อไป (เช่น เมื่อสิ้นสุดการจ้างงาน)",
+        },
+      ],
+    },
+    {
+      id: "services",
+      heading: "4. รายละเอียดของบริการ",
+      blocks: [
+        {
+          p: "**4.1 ภาพรวม** แพลตฟอร์มให้เครื่องมือที่ช่วยลูกค้ารวบรวม จัดระเบียบ และคำนวณข้อมูลด้าน ESG และการปล่อยคาร์บอนที่เกี่ยวข้องกับ CBAM และภาระการรายงานความยั่งยืนที่เกี่ยวข้อง รวมถึงเครื่องมือประมาณการการปล่อยคาร์บอนที่ฝังอยู่ในสินค้า ขั้นตอนการเก็บข้อมูลจากซัพพลายเออร์ แดชบอร์ด และการสร้างร่างรายงานสำหรับสินค้าในกลุ่มเหล็ก เหล็กกล้า อะลูมิเนียม และหมวดสินค้า CBAM ที่เกี่ยวข้อง",
+        },
+        {
+          p: "**4.2 ไม่ใช่ผู้ทวนสอบที่ได้รับการรับรอง** CBAM และกรอบกฎระเบียบที่เกี่ยวข้องโดยทั่วไปกำหนดให้ข้อมูลการปล่อยคาร์บอนบางส่วนต้องผ่านการทวนสอบโดยหน่วยงานอิสระที่ได้รับการรับรองก่อนยื่นต่อหน่วยงานกำกับดูแลที่มีอำนาจ Certrace เป็นผู้ให้บริการซอฟต์แวร์ ไม่ใช่ผู้ทวนสอบที่ได้รับการรับรองภายใต้ CBAM หรือระบบกำกับดูแลใด ๆ รายงานและผลลัพธ์ที่แพลตฟอร์มสร้างขึ้นเป็นเพียงเครื่องมือเตรียมการและให้ข้อมูลเท่านั้น ไม่อาจใช้แทนการทวนสอบโดยอิสระ การสำแดงต่อศุลกากร หรือการยื่นต่อหน่วยงานกำกับดูแล ลูกค้ายังคงรับผิดชอบแต่เพียงผู้เดียวในการว่าจ้างผู้ทวนสอบที่ได้รับการรับรองหรือตัวแทนออกของตามที่กฎหมายกำหนด และรับผิดชอบต่อความถูกต้อง ความครบถ้วน และความตรงเวลาของการยื่นเอกสารทางการใด ๆ",
+        },
+        {
+          p: "**4.3 ฟีเจอร์รุ่นทดลองและการเข้าถึงก่อนใคร** Certrace อาจเปิดให้ใช้ฟีเจอร์ที่ระบุว่าเป็น “เบต้า” “early access” “พรีวิว” หรือคำในลักษณะเดียวกัน (แต่ละรายการเรียกว่า “ฟีเจอร์เบต้า”) ฟีเจอร์เบต้าให้บริการ “ตามสภาพที่เป็นอยู่” โดยไม่มีการรับประกันใด ๆ อาจถูกแก้ไขหรือยกเลิกเมื่อใดก็ได้ และไม่อยู่ภายใต้ข้อผูกพันด้านความพร้อมใช้งานหรือการสนับสนุนที่ใช้กับแพลตฟอร์ม",
+        },
+        {
+          p: "**4.4 การเปลี่ยนแปลงบริการ** Certrace อาจแก้ไข ปรับปรุง หรือยกเลิกฟีเจอร์ของแพลตฟอร์มเป็นครั้งคราว ทั้งนี้ Certrace จะไม่ลดทอนฟังก์ชันหลักของบริการที่ลูกค้าซื้อไว้ภายใต้เอกสารสั่งซื้อที่ยังมีผลในระหว่างระยะเวลาการสมัครสมาชิกอย่างมีนัยสำคัญ โดยไม่มีการแจ้งล่วงหน้าตามสมควรหรือไม่มีฟีเจอร์ทดแทนที่เทียบเท่า",
+        },
+      ],
+    },
+    {
+      id: "fees",
+      heading: "5. แพ็กเกจ การสั่งซื้อ และค่าธรรมเนียม",
+      blocks: [
+        {
+          p: "**5.1 เอกสารสั่งซื้อ** การเข้าถึงแพลตฟอร์มของลูกค้าอยู่ภายใต้เอกสารสั่งซื้อที่เกี่ยวข้อง ซึ่งระบุระดับแพ็กเกจ จำนวนสิทธิ์ผู้ใช้ที่ได้รับอนุญาต ค่าธรรมเนียม รอบการวางบิล และระยะเวลาการสมัครสมาชิก",
+        },
+        {
+          p: "**5.2 ค่าธรรมเนียมและการชำระเงิน** ลูกค้าตกลงชำระค่าธรรมเนียมทั้งหมดตามที่ระบุในเอกสารสั่งซื้อ เว้นแต่ระบุไว้เป็นอย่างอื่น ค่าธรรมเนียมเสนอและชำระเป็นเงินบาทไทย (THB) โดยไม่รวมภาษีมูลค่าเพิ่ม (“VAT”) และภาษีหัก ณ ที่จ่ายที่เกี่ยวข้อง ซึ่งลูกค้าเป็นผู้รับภาระเพิ่มเติมจากค่าธรรมเนียมที่ระบุ เว้นแต่มีสิทธิ์ได้รับยกเว้นโดยชอบ",
+        },
+        {
+          p: "**5.3 การวางบิลและการชำระล่าช้า** เว้นแต่ตกลงเป็นอย่างอื่นในเอกสารสั่งซื้อ ใบแจ้งหนี้ครบกำหนดชำระภายในสามสิบ (30) วันนับจากวันที่ในใบแจ้งหนี้ Certrace อาจคิดดอกเบี้ยจากยอดค้างชำระในอัตราสูงสุดที่กฎหมายอนุญาต และอาจระงับการเข้าถึงของลูกค้าสำหรับยอดที่ไม่มีข้อโต้แย้งซึ่งค้างชำระเกินสิบห้า (15) วันนับจากวันที่แจ้งเป็นลายลักษณ์อักษร",
+        },
+        {
+          p: "**5.4 การต่ออายุอัตโนมัติ** เว้นแต่ระบุไว้เป็นอย่างอื่นในเอกสารสั่งซื้อ ระยะเวลาการสมัครสมาชิกจะต่ออายุอัตโนมัติเป็นระยะเวลาเท่ากับรอบที่กำลังจะสิ้นสุด ในอัตราค่าธรรมเนียมปัจจุบันของ Certrace เว้นแต่ฝ่ายใดฝ่ายหนึ่งแจ้งไม่ต่ออายุเป็นลายลักษณ์อักษรอย่างน้อยสามสิบ (30) วันก่อนสิ้นสุดรอบปัจจุบัน",
+        },
+        {
+          p: "**5.5 ภาษี** แต่ละฝ่ายรับผิดชอบภาษีเงินได้ ภาษีธุรกิจ และภาษีในลักษณะเดียวกันที่คำนวณจากรายได้สุทธิของตนเอง ค่าธรรมเนียมไม่รวมภาษีมูลค่าเพิ่มและภาษีทางอ้อมอื่นที่เกี่ยวข้อง ซึ่ง Certrace จะออกใบแจ้งหนี้เมื่อกฎหมายกำหนด",
+        },
+        {
+          p: "**5.6 การคืนเงิน** เว้นแต่ระบุไว้อย่างชัดแจ้งในเอกสารสั่งซื้อ หรือกฎหมายคุ้มครองผู้บริโภคหรือกฎหมายพาณิชย์ที่ใช้บังคับกำหนดไว้ ค่าธรรมเนียมไม่สามารถขอคืนหรือนำไปหักเป็นเครดิตได้",
+        },
+      ],
+    },
+    {
+      id: "customer-data",
+      heading: "6. ข้อมูลลูกค้า สิทธิการใช้งาน และความเป็นเจ้าของ",
+      blocks: [
+        {
+          p: "**6.1 ความเป็นเจ้าของ** ระหว่างคู่สัญญา ลูกค้ายังคงไว้ซึ่งสิทธิ กรรมสิทธิ์ และผลประโยชน์ทั้งหมดในข้อมูลลูกค้า ไม่มีข้อความใดในข้อกำหนดฉบับนี้ที่โอนความเป็นเจ้าของข้อมูลลูกค้าให้แก่ Certrace",
+        },
+        {
+          p: "**6.2 สิทธิการใช้งานที่ให้แก่ Certrace** ลูกค้าอนุญาตให้ Certrace มีสิทธิใช้งานทั่วโลก แบบไม่จำกัดแต่เพียงผู้เดียว และไม่มีค่าตอบแทน ในการจัดเก็บ ประมวลผล ส่งผ่าน และใช้ข้อมูลลูกค้า เพียงเพื่อ (ก) ให้บริการ ดูแลรักษา รักษาความปลอดภัย และปรับปรุงแพลตฟอร์มและบริการสำหรับลูกค้า และ (ข) สร้างรายงานและผลลัพธ์ในนามของลูกค้า Certrace จะไม่ใช้ข้อมูลลูกค้าเพื่อฝึกโมเดลแมชชีนเลิร์นนิงพื้นฐานหรือของบุคคลภายนอกที่เปิดให้ผู้อื่นนอกเหนือจากลูกค้าใช้งาน และจะไม่ขายข้อมูลลูกค้า",
+        },
+        {
+          p: "**6.3 ข้อมูลรวมและข้อมูลที่ไม่ระบุตัวตน** Certrace อาจสร้างสถิติแบบรวมหรือแบบไม่ระบุตัวตนจากข้อมูลลูกค้า (เช่น ค่าเปรียบเทียบในอุตสาหกรรม) ซึ่งไม่ระบุตัวลูกค้าหรือบุคคลใด และอาจใช้และเปิดเผยข้อมูลรวมดังกล่าวเพื่อการวิจัย การปรับปรุงผลิตภัณฑ์ และการเปรียบเทียบในอุตสาหกรรม",
+        },
+        {
+          p: "**6.4 การรับรองเกี่ยวกับข้อมูลลูกค้า** ลูกค้ารับรองและรับประกันว่า (ก) ตนมีสิทธิ ความยินยอม และอำนาจที่จำเป็นทั้งหมดในการส่งข้อมูลลูกค้าเข้าสู่แพลตฟอร์มและให้สิทธิตามข้อ 6.2 และ (ข) ข้อมูลลูกค้าไม่ละเมิดสิทธิของบุคคลภายนอกหรือกฎหมายที่ใช้บังคับ Certrace ไม่ได้ตรวจสอบความถูกต้องหรือความครบถ้วนของข้อมูลลูกค้าโดยอิสระ และลูกค้ารับผิดชอบต่อความถูกต้องแต่เพียงผู้เดียว",
+        },
+        {
+          p: "**6.5 การส่งออกและการลบข้อมูล** ในระหว่างระยะเวลาการสมัครสมาชิก ลูกค้าสามารถส่งออกข้อมูลลูกค้าผ่านฟังก์ชันการส่งออกมาตรฐานของแพลตฟอร์ม เมื่อสิ้นสุดหรือหมดอายุระยะเวลาการสมัครสมาชิก Certrace จะเปิดให้ส่งออกข้อมูลลูกค้าได้เป็นเวลาสามสิบ (30) วัน หลังจากนั้น Certrace อาจลบหรือทำให้ข้อมูลลูกค้าไม่ระบุตัวตนตามแนวปฏิบัติการเก็บรักษาข้อมูลและนโยบายความเป็นส่วนตัวของ Certrace",
+        },
+      ],
+    },
+    {
+      id: "reports",
+      heading: "7. รายงาน ผลลัพธ์ และข้อจำกัดความรับผิดด้านคำแนะนำทางกฎระเบียบ",
+      blocks: [
+        {
+          p: "**7.1 เพื่อเป็นข้อมูลเท่านั้น** รายงานและผลลัพธ์ทั้งหมด รวมถึงคำแนะนำ ค่าเปรียบเทียบ หรือคะแนนที่แพลตฟอร์มสร้างขึ้น ให้บริการ “ตามสภาพที่เป็นอยู่” เพื่อเป็นข้อมูลเท่านั้น ไม่ถือเป็นคำแนะนำทางกฎหมาย ศุลกากร ภาษี บัญชี วิศวกรรม หรือคำแนะนำเชิงวิชาชีพหรือกฎระเบียบอื่นใด",
+        },
+        {
+          p: "**7.2 ไม่รับประกันการยอมรับจากหน่วยงานกำกับดูแล** บริษัทไม่รับประกันว่ารายงานหรือผลลัพธ์ใดจะได้รับการยอมรับจากคณะกรรมาธิการยุโรป หน่วยงานศุลกากรของรัฐสมาชิกสหภาพยุโรป รัฐบาลไทย หรือหน่วยงานกำกับดูแลหรือหน่วยงานรัฐอื่นใด และไม่รับประกันว่าการใช้แพลตฟอร์มจะส่งผลให้ปฏิบัติตาม CBAM ได้ หลีกเลี่ยงบทลงโทษ หรือได้ผลลัพธ์ทางกฎระเบียบใดโดยเฉพาะ กฎ CBAM ระเบียบปฏิบัติ และค่าตั้งต้นของการปล่อยคาร์บอนอาจเปลี่ยนแปลงโดยหน่วยงานของสหภาพยุโรป Certrace พยายามปรับปรุงวิธีการคำนวณให้สอดคล้อง แต่ไม่รับประกันว่าแพลตฟอร์มสะท้อนข้อกำหนดล่าสุดตลอดเวลา",
+        },
+        {
+          p: "**7.3 หน้าที่ตรวจสอบของลูกค้า** ลูกค้ารับผิดชอบแต่เพียงผู้เดียวในการตรวจทาน ตรวจสอบ และจัดให้มีการทวนสอบโดยผู้ได้รับการรับรองอิสระเมื่อจำเป็น สำหรับรายงานและผลลัพธ์ทั้งหมดก่อนยื่นต่อหน่วยงานกำกับดูแล หน่วยงานศุลกากร คู่ค้า หรือบุคคลภายนอกใด ๆ และรับผิดชอบต่อเนื้อหาสุดท้ายของการยื่นเอกสารทางการ",
+        },
+      ],
+    },
+    {
+      id: "acceptable-use",
+      heading: "8. นโยบายการใช้งานที่ยอมรับได้",
+      blocks: [
+        { p: "ลูกค้าจะต้องไม่ และต้องกำกับดูแลให้ผู้ใช้ที่ได้รับอนุญาตไม่:" },
+        {
+          ul: [
+            "(ก) ส่งข้อมูล ข้อมูลรับรอง หรือสารสนเทศที่ลูกค้าไม่มีสิทธิ์ส่ง หรือที่รู้อยู่แล้วว่าเป็นเท็จ ฉ้อฉล หรือทำให้เข้าใจผิด",
+            "(ข) ใช้แพลตฟอร์มเพื่อสร้างหรือเสนอผลิตภัณฑ์หรือบริการที่แข่งขันกัน หรือเพื่อเปรียบเทียบแพลตฟอร์มในเชิงการแข่งขัน โดยไม่ได้รับความยินยอมเป็นลายลักษณ์อักษรล่วงหน้าจาก Certrace",
+            "(ค) ใช้วิธีอัตโนมัติ (บอต โปรแกรมดึงข้อมูล หรือในลักษณะเดียวกัน) เพื่อเข้าถึงหรือดึงข้อมูลจากแพลตฟอร์ม นอกเหนือจากผ่าน API ที่ Certrace รองรับ",
+            "(ง) พยายามทำวิศวกรรมย้อนกลับ ถอดรหัส หรือค้นหาซอร์สโค้ด อัลกอริทึม หรือแบบจำลองเบื้องหลังของแพลตฟอร์ม เว้นแต่ในขอบเขตที่กฎหมายที่ใช้บังคับห้ามมิให้จำกัดเช่นนั้น",
+            "(จ) อัปโหลดหรือส่งโค้ดที่เป็นอันตราย ไวรัส หรือเนื้อหาที่ผิดกฎหมาย หมิ่นประมาท หรือละเมิดทรัพย์สินทางปัญญาหรือสิทธิความเป็นส่วนตัวของบุคคลภายนอก",
+            "(ฉ) แบ่งปันข้อมูลเข้าสู่ระบบของผู้ใช้ที่ได้รับอนุญาตให้แก่บุคคลที่ไม่มีสิทธิ์ถือครอง หรือขายต่อ ให้สิทธิช่วง หรือเปิดให้บุคคลภายนอกเข้าถึงแพลตฟอร์มโดยไม่ได้รับความยินยอมเป็นลายลักษณ์อักษรล่วงหน้าจาก Certrace หรือ",
+            "(ช) ใช้แพลตฟอร์มในลักษณะที่ละเมิดกฎหมายควบคุมการส่งออก มาตรการคว่ำบาตร กฎหมายต่อต้านการให้สินบน หรือกฎหมายต่อต้านการทุจริตที่ใช้บังคับ",
+          ],
+        },
+        {
+          p: "Certrace สงวนสิทธิ์ในการตรวจสอบกรณีที่สงสัยว่ามีการละเมิด และระงับหรือยุติการเข้าถึงตามข้อ 14",
+        },
+      ],
+    },
+    {
+      id: "ip",
+      heading: "9. สิทธิในทรัพย์สินทางปัญญา",
+      blocks: [
+        {
+          p: "**9.1 ทรัพย์สินทางปัญญาของ Certrace** ระหว่างคู่สัญญา Certrace และผู้ให้สิทธิของ Certrace ยังคงไว้ซึ่งสิทธิ กรรมสิทธิ์ และผลประโยชน์ทั้งหมดในแพลตฟอร์ม รวมถึงซอฟต์แวร์ วิธีการคำนวณ คลังค่าสัมประสิทธิ์การปล่อยคาร์บอน อัลกอริทึม ส่วนต่อประสานผู้ใช้ และสิทธิในทรัพย์สินทางปัญญาที่เกี่ยวข้องทั้งหมด ข้อกำหนดฉบับนี้ไม่ได้ให้ความเป็นเจ้าของใด ๆ ในแพลตฟอร์มแก่ลูกค้า",
+        },
+        {
+          p: "**9.2 สิทธิการใช้งานที่ให้แก่ลูกค้า** ภายใต้เงื่อนไขว่าลูกค้าปฏิบัติตามข้อกำหนดฉบับนี้และชำระค่าธรรมเนียมที่เกี่ยวข้อง Certrace ให้สิทธิลูกค้าแบบจำกัด ไม่จำกัดแต่เพียงผู้เดียว โอนไม่ได้ และเพิกถอนได้ ในระหว่างระยะเวลาการสมัครสมาชิก เพื่อเข้าถึงและใช้งานแพลตฟอร์ม และเพื่อดาวน์โหลด แสดง และเผยแพร่ภายในองค์กรซึ่งรายงานและผลลัพธ์ เพื่อวัตถุประสงค์ทางธุรกิจและการปฏิบัติตามกฎระเบียบของลูกค้าเอง รวมถึงการแบ่งปันให้ลูกค้าของลูกค้า ผู้ทวนสอบ และหน่วยงานกำกับดูแลเท่าที่จำเป็น",
+        },
+        {
+          p: "**9.3 ข้อเสนอแนะ** หากลูกค้าให้ข้อเสนอแนะ คำขอฟีเจอร์ หรือความคิดเห็นอื่นเกี่ยวกับแพลตฟอร์ม Certrace อาจนำข้อเสนอแนะดังกล่าวไปใช้และรวมเข้ากับแพลตฟอร์มได้โดยไม่มีข้อจำกัดและไม่มีค่าตอบแทนแก่ลูกค้า",
+        },
+      ],
+    },
+    {
+      id: "confidentiality",
+      heading: "10. การรักษาความลับ",
+      blocks: [
+        {
+          p: "**10.1 คำนิยาม** “ข้อมูลที่เป็นความลับ” หมายถึง ข้อมูลที่ไม่เปิดเผยต่อสาธารณะซึ่งฝ่ายหนึ่ง (“ผู้เปิดเผย”) เปิดเผยแก่อีกฝ่ายหนึ่ง (“ผู้รับ”) ไม่ว่าด้วยวาจาหรือลายลักษณ์อักษร ซึ่งระบุว่าเป็นความลับ หรือที่วิญญูชนพึงเข้าใจได้ว่าเป็นความลับโดยพิจารณาจากลักษณะของข้อมูลและพฤติการณ์ในการเปิดเผย รวมถึงข้อมูลลูกค้า ข้อมูลธุรกิจและการเงิน ราคา และแผนพัฒนาผลิตภัณฑ์ แต่ไม่รวมข้อมูลที่ (ก) เปิดเผยต่อสาธารณะโดยไม่ใช่ความผิดของผู้รับ (ข) ผู้รับทราบอยู่แล้วโดยชอบก่อนการเปิดเผย (ค) ได้รับมาโดยชอบจากบุคคลภายนอกโดยไม่มีการผิดหน้าที่รักษาความลับ หรือ (ง) พัฒนาขึ้นเองโดยไม่ได้ใช้ข้อมูลที่เป็นความลับของผู้เปิดเผย",
+        },
+        {
+          p: "**10.2 หน้าที่** ผู้รับจะ (ก) ใช้ข้อมูลที่เป็นความลับเพียงเพื่อปฏิบัติหน้าที่หรือใช้สิทธิของตนตามข้อกำหนดฉบับนี้ (ข) ปกป้องข้อมูลดังกล่าวด้วยความระมัดระวังไม่น้อยกว่าที่ใช้กับข้อมูลที่เป็นความลับของตนเองในลักษณะเดียวกัน และไม่น้อยกว่าความระมัดระวังตามสมควร และ (ค) ไม่เปิดเผยแก่บุคคลภายนอก เว้นแต่แก่พนักงาน ผู้รับจ้าง และที่ปรึกษาวิชาชีพที่จำเป็นต้องทราบ และผูกพันด้วยหน้าที่รักษาความลับที่คุ้มครองไม่น้อยกว่าที่กำหนดไว้ในที่นี้",
+        },
+        {
+          p: "**10.3 การเปิดเผยตามคำสั่ง** ผู้รับอาจเปิดเผยข้อมูลที่เป็นความลับเท่าที่กฎหมาย กฎระเบียบ หรือคำสั่งศาลกำหนด โดยหากกฎหมายอนุญาต ผู้รับจะแจ้งผู้เปิดเผยล่วงหน้าตามสมควรเพื่อให้ขอคำสั่งคุ้มครองได้",
+        },
+      ],
+    },
+    {
+      id: "data-protection",
+      heading: "11. การคุ้มครองข้อมูลและความเป็นส่วนตัว",
+      blocks: [
+        {
+          p: "Certrace ประมวลผลข้อมูลส่วนบุคคลตามนโยบายความเป็นส่วนตัวของ Certrace ซึ่งถือเป็นส่วนหนึ่งของข้อกำหนดฉบับนี้โดยการอ้างอิง ในกรณีที่ Certrace ประมวลผลข้อมูลส่วนบุคคลที่อยู่ในข้อมูลลูกค้าในนามและตามคำสั่งของลูกค้า Certrace ทำหน้าที่เป็นผู้ประมวลผลข้อมูลส่วนบุคคล และลูกค้าทำหน้าที่เป็นผู้ควบคุมข้อมูลส่วนบุคคลตามความหมายใน PDPA Certrace จะจัดให้มีมาตรการทางเทคนิคและองค์กรที่เหมาะสมเพื่อคุ้มครองข้อมูลส่วนบุคคลตามที่อธิบายเพิ่มเติมในนโยบายความเป็นส่วนตัว และเมื่อลูกค้าร้องขอเป็นลายลักษณ์อักษร คู่สัญญาจะจัดทำข้อตกลงการประมวลผลข้อมูลแยกต่างหากที่ระบุรายละเอียดเพิ่มเติม",
+        },
+      ],
+    },
+    {
+      id: "availability",
+      heading: "12. ความพร้อมใช้งาน การสนับสนุน และการบำรุงรักษา",
+      blocks: [
+        {
+          p: "**12.1 ความพยายามตามสมควรทางการค้า** Certrace จะใช้ความพยายามตามสมควรทางการค้าเพื่อให้แพลตฟอร์มพร้อมใช้งานอย่างต่อเนื่อง โดยไม่รวมช่วงบำรุงรักษาตามกำหนด (ซึ่ง Certrace จะแจ้งล่วงหน้าเท่าที่ทำได้ตามสมควร) และเหตุการณ์ที่อยู่นอกเหนือการควบคุมตามสมควรของ Certrace",
+        },
+        {
+          p: "**12.2 การสนับสนุน** Certrace จะให้การสนับสนุนลูกค้าตามเงื่อนไขที่ระบุในเอกสารสั่งซื้อที่เกี่ยวข้อง หรือหากไม่มีเงื่อนไขดังกล่าว ให้เป็นไปตามแนวปฏิบัติการสนับสนุนมาตรฐานที่ใช้อยู่ในขณะนั้น",
+        },
+        {
+          p: "**12.3 ระดับการให้บริการเฉพาะ** ข้อผูกพันด้านความพร้อมใช้งาน เครดิต หรือเงื่อนไขระดับการให้บริการเฉพาะใด ๆ จะมีผลก็ต่อเมื่อระบุไว้อย่างชัดแจ้งในเอกสารสั่งซื้อที่ลงนามแล้วหรือข้อตกลงระดับการให้บริการแยกต่างหาก ซึ่งจะมีผลเหนือข้อ 12 นี้เท่าที่ขัดแย้งกัน",
+        },
+      ],
+    },
+    {
+      id: "sub-processors",
+      heading: "13. บริการของบุคคลภายนอกและผู้ประมวลผลช่วง",
+      blocks: [
+        {
+          p: "แพลตฟอร์มอาจเชื่อมต่อกับหรืออาศัยบริการของบุคคลภายนอกและผู้ให้บริการโครงสร้างพื้นฐานคลาวด์ (แต่ละรายเรียกว่า “ผู้ประมวลผลช่วง”) เพื่อให้บริการ เช่น ผู้ให้บริการโฮสติ้งบนคลาวด์และผู้ให้บริการวิเคราะห์ข้อมูล Certrace ยังคงรับผิดชอบต่อการปฏิบัติหน้าที่ของผู้ประมวลผลช่วงที่ดำเนินการในนามของ Certrace Certrace จะจัดทำรายชื่อผู้ประมวลผลช่วงที่มีนัยสำคัญ และแจ้งเมื่อมีการเพิ่มผู้ประมวลผลช่วงรายใหม่ที่มีนัยสำคัญ ตามที่อธิบายเพิ่มเติมในนโยบายความเป็นส่วนตัว",
+        },
+      ],
+    },
+    {
+      id: "term",
+      heading: "14. ระยะเวลา การระงับ และการยุติ",
+      blocks: [
+        {
+          p: "**14.1 ระยะเวลา** ข้อกำหนดฉบับนี้มีผลบังคับตราบเท่าที่ลูกค้ายังมีบัญชีหรือเอกสารสั่งซื้อที่ยังมีผลกับ Certrace",
+        },
+        {
+          p: "**14.2 การไม่ต่ออายุ** ฝ่ายใดฝ่ายหนึ่งอาจเลือกไม่ต่ออายุระยะเวลาการสมัครสมาชิกได้โดยแจ้งตามข้อ 5.4",
+        },
+        {
+          p: "**14.3 การยุติเพราะมีเหตุ** ฝ่ายใดฝ่ายหนึ่งอาจยุติข้อกำหนดฉบับนี้หรือเอกสารสั่งซื้อที่เกี่ยวข้องได้ หากอีกฝ่ายกระทำการผิดสัญญาในสาระสำคัญและไม่แก้ไขภายในสามสิบ (30) วันนับจากได้รับหนังสือแจ้งที่ระบุการผิดสัญญา (หรือยุติได้ทันที ในกรณีที่ลูกค้าไม่ชำระเงินหลังพ้นระยะเวลาแจ้งตามข้อ 5.3 หรือลูกค้าละเมิดข้อ 8)",
+        },
+        {
+          p: "**14.4 การระงับ** Certrace อาจระงับการเข้าถึงแพลตฟอร์มของลูกค้า พร้อมแจ้งเท่าที่ทำได้ตามสมควร หาก Certrace เห็นตามสมควรว่าการเข้าถึงต่อไปก่อให้เกิดความเสี่ยงด้านความปลอดภัย อาจทำให้ Certrace หรือบุคคลภายนอกต้องรับผิด หรือเป็นการละเมิดข้อ 8",
+        },
+        {
+          p: "**14.5 ผลของการยุติ** เมื่อยุติหรือหมดอายุ สิทธิ์ในการเข้าถึงแพลตฟอร์มของลูกค้าสิ้นสุดลง และลูกค้ายังคงต้องรับผิดต่อค่าธรรมเนียมทั้งหมดที่เกิดขึ้นก่อนวันที่การยุติมีผล ข้อ 6.1, 6.5, 9.1, 10, 11, 15, 16, 17 และ 19 ยังคงมีผลต่อไปหลังการยุติ",
+        },
+      ],
+    },
+    {
+      id: "warranties",
+      heading: "15. การรับประกันและข้อจำกัดความรับผิด",
+      blocks: [
+        {
+          p: "เว้นแต่ที่ระบุไว้อย่างชัดแจ้งในข้อกำหนดฉบับนี้ แพลตฟอร์มและรายงานและผลลัพธ์ทั้งหมดให้บริการ “ตามสภาพที่เป็นอยู่” และ “ตามที่มีอยู่” โดยไม่มีการรับประกันใด ๆ ไม่ว่าโดยชัดแจ้ง โดยปริยาย หรือโดยผลของกฎหมาย รวมถึงการรับประกันด้านความสามารถในการซื้อขาย ความเหมาะสมกับวัตถุประสงค์เฉพาะ การไม่ละเมิดสิทธิ หรือการรับประกันว่าแพลตฟอร์มจะไม่หยุดชะงัก ปราศจากข้อผิดพลาด หรือปลอดภัย ทั้งนี้ ในขอบเขตสูงสุดที่กฎหมายที่ใช้บังคับอนุญาต",
+        },
+      ],
+    },
+    {
+      id: "indemnification",
+      heading: "16. การชดใช้ค่าเสียหาย",
+      blocks: [
+        {
+          p: "**16.1 โดย Certrace** Certrace จะแก้ต่างให้ลูกค้าในข้อเรียกร้องของบุคคลภายนอกที่กล่าวหาว่าแพลตฟอร์มตามที่ Certrace จัดให้และใช้งานตามข้อกำหนดฉบับนี้ ละเมิดสิทธิในทรัพย์สินทางปัญญาของบุคคลภายนอกนั้น และจะชดใช้ค่าเสียหายที่ศาลตัดสินให้ชำระในที่สุด โดยลูกค้าต้องแจ้ง Certrace โดยพลัน ให้ Certrace ควบคุมการต่อสู้คดีและการประนีประนอมแต่เพียงผู้เดียว และให้ความร่วมมือตามสมควร หน้าที่นี้ไม่ใช้กับข้อเรียกร้องที่เกิดจาก (ก) ข้อมูลลูกค้า (ข) การดัดแปลงแพลตฟอร์มที่ Certrace ไม่ได้ทำ หรือ (ค) การใช้แพลตฟอร์มร่วมกับผลิตภัณฑ์ที่ Certrace ไม่ได้จัดให้ ซึ่งการละเมิดจะไม่เกิดขึ้นหากไม่มีการใช้ร่วมกันเช่นนั้น",
+        },
+        {
+          p: "**16.2 โดยลูกค้า** ลูกค้าจะแก้ต่างและชดใช้ค่าเสียหายให้ Certrace ในข้อเรียกร้องของบุคคลภายนอกที่เกิดจาก (ก) ข้อมูลลูกค้า (ข) การที่ลูกค้าหรือผู้ใช้ที่ได้รับอนุญาตละเมิดข้อกำหนดฉบับนี้หรือกฎหมายที่ใช้บังคับ หรือ (ค) การที่ลูกค้าใช้รายงานหรือผลลัพธ์ในลักษณะที่ไม่สอดคล้องกับข้อ 7",
+        },
+      ],
+    },
+    {
+      id: "liability",
+      heading: "17. การจำกัดความรับผิด",
+      blocks: [
+        {
+          p: "**17.1 การยกเว้นความเสียหายทางอ้อม** ในขอบเขตสูงสุดที่กฎหมายที่ใช้บังคับอนุญาต คู่สัญญาฝ่ายใดจะไม่รับผิดต่อความเสียหายทางอ้อม ความเสียหายโดยบังเอิญ ความเสียหายพิเศษ ความเสียหายอันเป็นผลสืบเนื่อง หรือค่าเสียหายเชิงลงโทษ หรือการสูญเสียกำไร รายได้ ชื่อเสียง หรือข้อมูล อันเกิดจากหรือเกี่ยวข้องกับข้อกำหนดฉบับนี้หรือแพลตฟอร์ม แม้จะได้รับแจ้งถึงความเป็นไปได้ของความเสียหายดังกล่าวแล้วก็ตาม",
+        },
+        {
+          p: "**17.2 เพดานความรับผิด** ยกเว้น (ก) หน้าที่ชดใช้ค่าเสียหายตามข้อ 16 (ข) การผิดข้อ 10 (การรักษาความลับ) (ค) หน้าที่ชำระเงินของลูกค้า หรือ (ง) ความประมาทเลินเล่ออย่างร้ายแรงหรือการจงใจกระทำผิดของคู่สัญญาฝ่ายใด ความรับผิดรวมสูงสุดของแต่ละฝ่ายอันเกิดจากหรือเกี่ยวข้องกับข้อกำหนดฉบับนี้จะไม่เกินค่าธรรมเนียมรวมที่ลูกค้าได้ชำระหรือต้องชำระแก่ Certrace ในระยะเวลาสิบสอง (12) เดือนก่อนเหตุการณ์ที่ก่อให้เกิดข้อเรียกร้อง",
+        },
+        {
+          p: "**17.3 พื้นฐานของข้อตกลง** คู่สัญญารับทราบว่าข้อจำกัดในข้อ 17 นี้เป็นพื้นฐานสำคัญของข้อตกลง และค่าธรรมเนียมถูกกำหนดขึ้นโดยอาศัยข้อจำกัดเหล่านี้",
+        },
+      ],
+    },
+    {
+      id: "force-majeure",
+      heading: "18. เหตุสุดวิสัย",
+      blocks: [
+        {
+          p: "คู่สัญญาฝ่ายใดจะไม่รับผิดต่อความล่าช้าหรือการไม่ปฏิบัติตามหน้าที่ของตน (นอกเหนือจากหน้าที่ชำระเงิน) อันเกิดจากเหตุที่อยู่นอกเหนือการควบคุมตามสมควร รวมถึงเหตุสุดวิสัยทางธรรมชาติ ภัยพิบัติ โรคระบาด สงคราม ความไม่สงบทางการเมือง การกระทำของรัฐ ข้อพิพาทแรงงาน ความขัดข้องของอินเทอร์เน็ตหรือสาธารณูปโภค หรือความขัดข้องของโครงสร้างพื้นฐานของผู้ให้บริการโฮสติ้งหรือผู้ประมวลผลช่วง",
+        },
+      ],
+    },
+    {
+      id: "general",
+      heading: "19. บททั่วไป",
+      blocks: [
+        {
+          p: "**19.1 กฎหมายที่ใช้บังคับและเขตอำนาจศาล** ข้อกำหนดฉบับนี้อยู่ภายใต้กฎหมายแห่งราชอาณาจักรไทย โดยไม่คำนึงถึงหลักการขัดกันแห่งกฎหมาย คู่สัญญาตกลงให้ศาลที่มีเขตอำนาจในกรุงเทพมหานคร ประเทศไทย เป็นศาลที่มีเขตอำนาจแต่เพียงผู้เดียวสำหรับข้อพิพาทที่เกิดจากหรือเกี่ยวข้องกับข้อกำหนดฉบับนี้ เว้นแต่คู่สัญญาฝ่ายใดอาจขอมาตรการคุ้มครองชั่วคราวจากศาลที่มีเขตอำนาจใดก็ได้เพื่อคุ้มครองทรัพย์สินทางปัญญาหรือข้อมูลที่เป็นความลับของตน",
+        },
+        {
+          p: "**19.2 การโอนสิทธิ** ลูกค้าไม่อาจโอนข้อกำหนดฉบับนี้โดยไม่ได้รับความยินยอมเป็นลายลักษณ์อักษรล่วงหน้าจาก Certrace เว้นแต่โอนให้ผู้รับโอนกิจการหรือทรัพย์สินเกือบทั้งหมดของตน Certrace อาจโอนข้อกำหนดฉบับนี้อันเนื่องมาจากการควบรวมกิจการ การซื้อกิจการ การปรับโครงสร้าง หรือการขายทรัพย์สิน หรือโอนให้บริษัทในเครือ โดยไม่ต้องได้รับความยินยอมจากลูกค้า",
+        },
+        {
+          p: "**19.3 ความสัมพันธ์ของคู่สัญญา** คู่สัญญาเป็นผู้ประกอบการอิสระ ไม่มีข้อความใดในข้อกำหนดฉบับนี้ที่ก่อให้เกิดห้างหุ้นส่วน กิจการร่วมค้า ตัวแทน หรือความสัมพันธ์แบบนายจ้างลูกจ้าง",
+        },
+        {
+          p: "**19.4 การปฏิบัติตามกฎหมายและการต่อต้านการทุจริต** แต่ละฝ่ายจะปฏิบัติตามกฎหมายที่ใช้บังคับเกี่ยวกับข้อกำหนดฉบับนี้ รวมถึงกฎหมายต่อต้านการให้สินบน กฎหมายต่อต้านการทุจริต กฎหมายควบคุมการส่งออก และมาตรการคว่ำบาตรทางการค้า",
+        },
+        {
+          p: `**19.5 การแจ้ง** การแจ้งภายใต้ข้อกำหนดฉบับนี้ต้องทำเป็นลายลักษณ์อักษรและส่งทางอีเมลไปที่ ${CONTACT_EMAIL} (สำหรับ Certrace) หรือไปยังผู้ติดต่อหลักของบัญชีที่ลูกค้ากำหนด และถือว่าได้แจ้งแล้วเมื่อได้รับการยืนยันการรับ`,
+        },
+        {
+          p: "**19.6 ความเป็นโมฆะบางส่วน** หากข้อกำหนดใดในฉบับนี้ถูกวินิจฉัยว่าไม่สมบูรณ์หรือบังคับใช้ไม่ได้ ข้อกำหนดที่เหลือจะยังคงมีผลสมบูรณ์ และข้อกำหนดที่ไม่สมบูรณ์นั้นจะถูกปรับแก้เท่าที่จำเป็นน้อยที่สุดเพื่อให้บังคับใช้ได้",
+        },
+        {
+          p: "**19.7 การไม่สละสิทธิ** การที่ฝ่ายใดไม่ใช้สิทธิหรือใช้สิทธิล่าช้าภายใต้ข้อกำหนดฉบับนี้ ไม่ถือเป็นการสละสิทธิดังกล่าว",
+        },
+        {
+          p: "**19.8 ข้อตกลงทั้งหมด** ข้อกำหนดฉบับนี้ ร่วมกับเอกสารสั่งซื้อทั้งหมดและนโยบายความเป็นส่วนตัว ถือเป็นข้อตกลงทั้งหมดระหว่างคู่สัญญาเกี่ยวกับแพลตฟอร์ม และแทนที่ข้อตกลงและความเข้าใจก่อนหน้าทั้งหมด ไม่ว่าเป็นลายลักษณ์อักษรหรือด้วยวาจา ในกรณีที่ข้อกำหนดฉบับนี้ขัดแย้งกับเอกสารสั่งซื้อ ให้เอกสารสั่งซื้อมีผลเหนือกว่าเฉพาะในส่วนเงื่อนไขทางการค้าที่ระบุไว้",
+        },
+        {
+          p: "**19.9 ข้อกำหนดที่ยังมีผลต่อไป** ข้อกำหนดที่โดยสภาพควรมีผลต่อไปหลังการยุติ (รวมถึงข้อ 6.1, 9.1, 10, 15, 16, 17 และ 19) จะยังคงมีผลหลังการยุติหรือหมดอายุของข้อกำหนดฉบับนี้",
+        },
+      ],
+    },
+    {
+      id: "contact",
+      heading: "20. ข้อมูลการติดต่อ",
+      blocks: [
+        {
+          p: `คำถามหรือหนังสือแจ้งทางกฎหมายเกี่ยวกับข้อกำหนดฉบับนี้ กรุณาติดต่อ **${CONTACT_EMAIL}**`,
+        },
+      ],
+    },
+  ],
+};
