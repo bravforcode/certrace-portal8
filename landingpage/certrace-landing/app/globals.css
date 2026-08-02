@@ -155,6 +155,51 @@ html[lang="th"] body :is([class*="tracking-wide"], [class*="tracking-["]) {
   }
 }
 
+/* Horizontally scrollable region — the comparison table is the only one.
+   `contain: paint` is load-bearing on phones, not decoration. Chrome and
+   Samsung Internet size the *layout viewport* to the widest min-content in the
+   document, and a scroll container's own `min-width` still counts towards it
+   even though the container scrolls. The 680px table therefore stretched the
+   layout viewport to 556px on a 390px phone: the browser zoomed the whole page
+   out to fit (bone column on the left, white gutter on the right), and every
+   fixed element — the header, the scrim, the splash — was laid out against 556
+   instead of 390, which is what threw the splash lockup off-screen right.
+   Containment scopes the min-content contribution to this box, so the table
+   still swipes sideways and the page stays exactly one screen wide. */
+.scroll-x {
+  overflow-x: auto;
+  contain: paint;
+}
+
+/* The hero is bottom-anchored: its copy hangs off the bottom edge, so any
+   height it can't fit grows *upward*, behind the fixed 64px header. `100vh` on
+   a phone is the large viewport (URL bar hidden), which is 60-120px more than
+   is actually on screen — the eyebrow pill and the first headline line were
+   being pushed out of frame on every phone shorter than ~850px. `svh` is the
+   viewport with the browser chrome showing, and `min-height` (not `height`)
+   lets the section grow instead of clipping when the copy needs more room.
+   `vh` first, for anything that predates the small-viewport units. */
+.hero-shell {
+  min-height: 100vh;
+  min-height: 100svh;
+}
+
+/* Mobile nav panel, same viewport-unit problem: sized against the large
+   viewport it ran past the bottom of the screen and the LOG IN / GET STARTED
+   block sat below the fold with nothing to scroll. `dvh` tracks the browser
+   chrome as it hides and shows. Defined as a variable because the panel's
+   max-height is animated from an inline style, where a `vh` fallback line
+   would have nothing to fall back to. */
+:root {
+  --nav-panel-max: calc(100vh - 64px);
+}
+
+@supports (height: 100dvh) {
+  :root {
+    --nav-panel-max: calc(100dvh - 64px);
+  }
+}
+
 /* Anchored sections sit below the fixed 64px header */
 [id] {
   scroll-margin-top: 88px;
