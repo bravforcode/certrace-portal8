@@ -388,7 +388,7 @@ export function DemoForm() {
           if (isValid) {
             setBookingOpen(true);
             // Send initial lead info to Google Sheets via Apps Script
-            const scriptUrl = 'https://script.google.com/macros/s/AKfycbwR4uqNpQbeKsaYEo2EsHSJywdEZwSbBNEYEDyPCMam0J0o8BytugkB1oPl5N8QdoXe/exec';
+            const scriptUrl = 'https://script.google.com/macros/s/AKfycbyg7GkOopgK_nZqZ8V25HIaGazawP39kphMHUpkVFnAA0mQKeB8_UxDqM2dxp4G3_ckKg/exec';
             const formData = new FormData();
             formData.append('firstName', form.firstName);
             formData.append('lastName', form.lastName);
