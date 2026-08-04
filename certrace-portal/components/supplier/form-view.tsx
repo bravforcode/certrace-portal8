@@ -457,7 +457,7 @@ function SectionCard({ section, productId }: { section: SupplierSection; product
       </div>
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         {shown.map((f) => (
-          <div key={f.id} className={f.id === "inst-address" || f.id === "precursors" ? "sm:col-span-2" : ""}>
+          <div key={f.id} className={f.id === "inst-address" || f.id === "precursors" || f.id === "plant-mrv" ? "sm:col-span-2" : ""}>
             <FieldControl field={f} productId={productId} />
           </div>
         ))}

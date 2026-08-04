@@ -271,7 +271,7 @@ export default function DeclarationsPage() {
           <Empty onClear={() => { setQ(""); setKind("all"); setStatus("all"); }} />
         ) : (
           <Card className="overflow-hidden p-0">
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto touch-scrollx">
               <table className="w-full min-w-[760px] border-collapse text-left">
                 <thead>
                   <tr className="border-b border-black/[0.07] bg-[#fafaf8]">

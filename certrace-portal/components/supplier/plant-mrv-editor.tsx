@@ -64,7 +64,7 @@ function Measure({
   onChange: (next: MeasurementDraft) => void;
 }) {
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_minmax(116px,0.7fr)] gap-1.5">
+    <div className="grid grid-cols-[minmax(0,1fr)_minmax(132px,0.8fr)] gap-1.5">
       <input
         aria-label={`${label} value`}
         inputMode="decimal"
