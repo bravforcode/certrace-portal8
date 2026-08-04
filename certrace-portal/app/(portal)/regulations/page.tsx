@@ -54,13 +54,14 @@ export default function CoveragePage() {
       <section className="space-y-4">
         <Eyebrow>CBAM goods coverage</Eyebrow>
         <Card className="overflow-hidden p-0">
-          <div className="grid grid-cols-[1.4fr_0.8fr_1fr] gap-3 border-b border-black/[0.06] bg-black/[0.02] px-5 py-2.5 font-mono text-[8px] uppercase tracking-[0.16em] text-black/30">
+         <div className="overflow-x-auto touch-scrollx">
+          <div className="grid min-w-[420px] grid-cols-[1.4fr_0.8fr_1fr] gap-3 border-b border-black/[0.06] bg-black/[0.02] px-5 py-2.5 font-mono text-[8px] uppercase tracking-[0.16em] text-black/30">
             <span>Sector</span>
             <span>CN codes</span>
             <span>Status</span>
           </div>
           {PRODUCT_SECTORS.map((p) => (
-            <div key={p.id} className="grid grid-cols-[1.4fr_0.8fr_1fr] items-center gap-3 border-b border-black/[0.04] px-5 py-4 last:border-0">
+            <div key={p.id} className="grid min-w-[420px] grid-cols-[1.4fr_0.8fr_1fr] items-center gap-3 border-b border-black/[0.04] px-5 py-4 last:border-0">
               <span className="flex items-center gap-2 text-sm text-black/70">
                 {!p.available && <Lock size={13} strokeWidth={1.5} className="text-black/30" />}
                 {p.name}
@@ -72,6 +73,7 @@ export default function CoveragePage() {
               </span>
             </div>
           ))}
+         </div>
         </Card>
         <p className="text-center text-xs text-black/35">Steel &amp; iron covers CN chapters 72–73 — the bulk of Thai CBAM exports. Other goods open next.</p>
       </section>
@@ -80,7 +82,8 @@ export default function CoveragePage() {
       <section className="space-y-4">
         <Eyebrow>Markets</Eyebrow>
         <Card className="overflow-hidden p-0">
-          <div className="grid grid-cols-[1.2fr_1.4fr_0.8fr] gap-3 border-b border-black/[0.06] bg-black/[0.02] px-5 py-2.5 font-mono text-[8px] uppercase tracking-[0.16em] text-black/30">
+         <div className="overflow-x-auto touch-scrollx">
+          <div className="grid min-w-[440px] grid-cols-[1.2fr_1.4fr_0.8fr] gap-3 border-b border-black/[0.06] bg-black/[0.02] px-5 py-2.5 font-mono text-[8px] uppercase tracking-[0.16em] text-black/30">
             <span>Market</span>
             <span>Emission-factor library</span>
             <span>Status</span>
@@ -88,7 +91,7 @@ export default function CoveragePage() {
           {JURISDICTIONS.map((j) => {
             const meta = STATUS_META[j.status];
             return (
-              <div key={j.code} className="grid grid-cols-[1.2fr_1.4fr_0.8fr] items-center gap-3 border-b border-black/[0.04] px-5 py-4 last:border-0">
+              <div key={j.code} className="grid min-w-[440px] grid-cols-[1.2fr_1.4fr_0.8fr] items-center gap-3 border-b border-black/[0.04] px-5 py-4 last:border-0">
                 <span className="flex items-center gap-2.5">
                   <span className="grid h-8 w-8 flex-none place-items-center rounded-lg bg-black/[0.04] font-mono text-[10px] text-black/45">
                     {j.flag}
@@ -106,6 +109,7 @@ export default function CoveragePage() {
               </div>
             );
           })}
+         </div>
         </Card>
       </section>
     </div>

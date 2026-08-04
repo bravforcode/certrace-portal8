@@ -158,7 +158,7 @@ export default function DashboardPage() {
         </section>
 
         {/* Live supplier feed */}
-        <section className="space-y-3">
+        <section className="min-w-0 space-y-3">
           <div className="flex items-center justify-between">
             <Eyebrow>Latest activity</Eyebrow>
             <StatusLabel tone="ok" label="live" pulse glow />

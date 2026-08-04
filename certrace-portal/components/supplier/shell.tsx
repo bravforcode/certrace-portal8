@@ -25,7 +25,7 @@ function SaveIndicator({ status }: { status: SaveStatus }) {
   };
   const m = map[status];
   return (
-    <span className="hidden flex-none items-center gap-1.5 whitespace-nowrap rounded-full border border-black/10 bg-white px-2.5 py-1 text-[10px] uppercase tracking-[0.1em] text-black/55 sm:inline-flex">
+    <span className="hidden flex-none items-center gap-1.5 whitespace-nowrap rounded-full border border-black/10 bg-white px-2.5 py-1 text-[10px] uppercase tracking-[0.1em] text-black/55 lg:inline-flex">
       <StatusDot tone={m.tone} pulse={m.pulse} glow={m.glow} />
       {m.label}
     </span>
@@ -81,9 +81,9 @@ export function SupplierShell({ children }: { children: React.ReactNode }) {
               <StatusDot tone={meta.tone} pulse={meta.tone === "info"} glow={meta.tone === "ok"} />
               {meta.label}
             </span>
-            <span className="hidden text-right leading-tight md:block">
+            <span className="hidden max-w-[180px] text-right leading-tight lg:block">
               <span className="block text-[11px] text-black/40">Requested by</span>
-              <span className="block text-[12px] text-black/70">{req.exporterName}</span>
+              <span className="block truncate text-[12px] text-black/70">{req.exporterName}</span>
             </span>
           </div>
         </div>

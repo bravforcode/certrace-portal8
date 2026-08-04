@@ -113,7 +113,8 @@ export default function SuppliersPage() {
       </div>
 
       <Card className="overflow-hidden p-0">
-        <div className="grid grid-cols-[1.6fr_1fr_1fr_0.9fr_auto] gap-3 border-b border-black/[0.06] bg-black/[0.02] px-5 py-2.5 font-mono text-[8px] uppercase tracking-[0.16em] text-black/30">
+       <div className="overflow-x-auto touch-scrollx">
+        <div className="grid min-w-[560px] grid-cols-[1.6fr_1fr_1fr_0.9fr_auto] gap-3 border-b border-black/[0.06] bg-black/[0.02] px-5 py-2.5 font-mono text-[8px] uppercase tracking-[0.16em] text-black/30">
           <span>Supplier</span>
           <span>Material</span>
           <span>Last data</span>
@@ -126,7 +127,7 @@ export default function SuppliersPage() {
             <Link
               key={s.id}
               href={`/suppliers/${supplierSlug(s.name)}`}
-              className="grid grid-cols-[1.6fr_1fr_1fr_0.9fr_auto] items-center gap-3 border-b border-black/[0.04] px-5 py-4 transition-colors last:border-0 hover:bg-[#fafaf8]"
+              className="grid min-w-[560px] grid-cols-[1.6fr_1fr_1fr_0.9fr_auto] items-center gap-3 border-b border-black/[0.04] px-5 py-4 transition-colors last:border-0 hover:bg-[#fafaf8]"
             >
               <span className="flex items-center gap-2.5">
                 <span className="grid h-8 w-8 flex-none place-items-center rounded-lg bg-black/[0.04] font-mono text-[10px] text-black/45">
@@ -160,6 +161,7 @@ export default function SuppliersPage() {
             />
           </div>
         )}
+       </div>
       </Card>
 
       {pageCount > 1 && (

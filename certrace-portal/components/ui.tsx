@@ -70,7 +70,7 @@ type BtnProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 export function Button({ variant = "primary", size = "md", className, children, ...props }: BtnProps) {
   const base =
     "inline-flex items-center justify-center gap-2 rounded-xl uppercase tracking-[0.1em] transition-colors disabled:opacity-40 disabled:pointer-events-none";
-  const sizing = size === "sm" ? "px-4 py-2 text-[11px]" : "px-6 py-3 text-[13px]";
+  const sizing = size === "sm" ? "min-h-[40px] px-4 py-2 text-[11px]" : "px-6 py-3 text-[13px]";
   const variants = {
     primary: "bg-[#111] text-white hover:bg-[#333]",
     secondary: "border border-black/10 text-black/60 hover:border-black/25 hover:text-black hover:bg-black/[0.04]",
