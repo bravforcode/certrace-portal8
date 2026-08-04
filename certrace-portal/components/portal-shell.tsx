@@ -282,7 +282,10 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
         {/* Sidebar */}
         <aside
           className={cn(
-            "fixed inset-y-0 left-0 top-16 z-40 w-[240px] flex-none overflow-y-auto border-r border-black/[0.06] bg-white px-3 py-5 transition-transform duration-200 ease-in-out touch-scrolly md:sticky md:top-16 md:h-[calc(100vh-4rem)] md:w-[228px] md:translate-x-0 md:self-start",
+            /* `portal-sidebar-h` (globals.css) replaces md:h-[calc(100vh-4rem)]:
+               same height, but `dvh` where supported so the panel tracks the
+               browser chrome instead of the taller large viewport. */
+            "fixed inset-y-0 left-0 top-16 z-40 w-[240px] flex-none overflow-y-auto border-r border-black/[0.06] bg-white px-3 py-5 transition-transform duration-200 ease-in-out touch-scrolly md:sticky md:top-16 portal-sidebar-h md:w-[228px] md:translate-x-0 md:self-start",
             mobileOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full",
           )}
         >
