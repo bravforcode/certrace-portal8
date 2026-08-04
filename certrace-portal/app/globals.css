@@ -157,3 +157,46 @@ body {
   overscroll-behavior-x: contain;
 }
 
+/* For a horizontal scroller that has a *width floor* — a `min-w-[…]` table.
+   `contain: paint` is load-bearing on phones here, not decoration. A scroll
+   container's own min-content width still counts towards the document's
+   min-content width, and Chrome and Samsung Internet size the *layout
+   viewport* to that. supplier-table's min-w-[520px] therefore stretched the
+   layout viewport to 520px on a 390px phone: the browser zoomed the whole
+   page out to fit, and every fixed element — the 64px header, the sidebar,
+   its backdrop — was laid out against 520 instead of 390. Containment scopes
+   the min-content contribution to this box, so the table still swipes
+   sideways and the page stays exactly one screen wide.
+
+   Deliberately a separate class from `.touch-scrollx`, not a property added
+   to it: `.touch-scrollx` is also worn by the supplier tab strip, whose
+   active-tab underline sits at `-bottom-px`, i.e. outside the padding box.
+   Paint containment clips strictly to that box and would swallow it. Only
+   put this on scrollers whose children stay inside. */
+.scroll-x-contain {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  contain: paint;
+}
+
+/* Sidebar height. `100vh` on a phone or tablet is the *large* viewport — the
+   one with the browser chrome hidden — so a sidebar sized to it runs past the
+   bottom of the screen and its last nav items sit below the fold with nothing
+   to scroll. `dvh` tracks the chrome as it hides and shows. Written as a class
+   rather than a Tailwind arbitrary value so the `vh` fallback has somewhere to
+   live, for anything predating the dynamic viewport units. Applies from `md`
+   only, matching the utility it replaces. */
+@media (min-width: 768px) {
+  .portal-sidebar-h {
+    height: calc(100vh - 4rem);
+  }
+}
+
+@supports (height: 100dvh) {
+  @media (min-width: 768px) {
+    .portal-sidebar-h {
+      height: calc(100dvh - 4rem);
+    }
+  }
+}
+
