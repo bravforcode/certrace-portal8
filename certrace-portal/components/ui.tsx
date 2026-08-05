@@ -271,7 +271,7 @@ export function Switch({
 }
 
 export const inputClass =
-  "w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-black/70 placeholder:text-black/25 focus:border-black/25 focus:outline-none transition-colors";
+  "w-full rounded-xl border border-black/10 bg-white px-4 py-3 text-base sm:text-sm text-black/70 placeholder:text-black/25 focus:border-black/25 focus:outline-none transition-colors";
 
 /* ── Empty state ────────────────────────────────────────── */
 export function EmptyState({

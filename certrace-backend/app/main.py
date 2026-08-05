@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import os
 from collections.abc import Sequence
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.config import CORS_ALLOWED_ORIGINS_ENV
+from app.config import CORS_ALLOWED_ORIGINS_ENV, load_env_file_value
 from app.core.cors import (
     SecurityHeadersMiddleware,
     parse_cors_origins,
@@ -24,7 +23,7 @@ def create_app(
     configured_origins = (
         tuple(validate_cors_origin(origin) for origin in cors_origins)
         if cors_origins is not None
-        else parse_cors_origins(os.getenv(CORS_ALLOWED_ORIGINS_ENV))
+        else parse_cors_origins(load_env_file_value(CORS_ALLOWED_ORIGINS_ENV))
     )
     application = FastAPI(
         title="Certrace API",

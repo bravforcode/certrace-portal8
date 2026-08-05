@@ -72,7 +72,7 @@ function Measure({
         value={value.value}
         onChange={(event) => onChange({ ...value, value: event.target.value })}
         placeholder="0"
-        className={cn(inputClass, "px-2.5 py-2 font-mono text-[12px]", disabled && "cursor-not-allowed opacity-60")}
+        className={cn(inputClass, "px-2.5 py-2 font-mono sm:text-[12px]", disabled && "cursor-not-allowed opacity-60")}
       />
       <Select
         value={value.unit}
@@ -94,7 +94,7 @@ function TextInput({ label, value, disabled, placeholder, onChange }: { label: s
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
-      className={cn(inputClass, "px-2.5 py-2 text-[12px]", disabled && "cursor-not-allowed opacity-60")}
+      className={cn(inputClass, "px-2.5 py-2 sm:text-[12px]", disabled && "cursor-not-allowed opacity-60")}
     />
   );
 }

@@ -34,6 +34,7 @@ import { type SupplierSection, type RequestDocAsk, valueKey } from "@/lib/suppli
 import { type InstallationProfile, type SupplierProfile, loadProfiles } from "@/lib/supplier-store";
 import { runQualityCheck, CATEGORIES, CATEGORY_BLURB, type CheckResult, type Severity } from "@/lib/ai-check";
 import { formatDecimal, isPositiveMass } from "@/lib/workflow-measurements";
+import { buildCalculationRequest, calculateMrv, emissionsMatch } from "@/lib/calc-api";
 
 const DEPARTMENTS = [
   "Operations / EHS",
@@ -873,6 +874,43 @@ export function SubmitView() {
   const mandatoryDocs = req.documents.filter((d) => d.required);
   const mandatoryDocsDone = mandatoryDocs.filter((d) => state.docs[d.id]?.status === "uploaded").length;
 
+  // Optional cross-check against the calculation API; the browser-local result
+  // stays the one that gets recorded — this only surfaces disagreement.
+  type ServerRow = { status: "ok" | "mismatch" | "skipped" | "error"; server?: string; message?: string };
+  const [serverRows, setServerRows] = React.useState<Record<string, ServerRow> | null>(null);
+  const [verifying, setVerifying] = React.useState(false);
+
+  async function runServerVerify() {
+    setVerifying(true);
+    const next: Record<string, ServerRow> = {};
+    for (const rp of req.products) {
+      const pid = rp.product.id;
+      const plan = buildCalculationRequest(req, state.values, pid);
+      if (!plan.ok) {
+        next[pid] = { status: "skipped", message: plan.reason };
+        continue;
+      }
+      try {
+        const res = await calculateMrv(plan.request);
+        const server = res.specificEmbeddedEmissions.value;
+        const local = getValue("total-emissions", pid);
+        next[pid] = { status: local && emissionsMatch(local, server) ? "ok" : "mismatch", server };
+      } catch (error) {
+        next[pid] = {
+          status: "error",
+          message:
+            error instanceof TypeError
+              ? "Could not reach the calculation server."
+              : error instanceof Error
+                ? error.message
+                : "Verification failed",
+        };
+      }
+    }
+    setServerRows(next);
+    setVerifying(false);
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -940,6 +978,44 @@ export function SubmitView() {
           <span>File references recorded: {req.documents.filter((d) => state.docs[d.id]?.status === "uploaded").length}/{req.documents.length}</span>
           <span>Quality score: <span style={{ color: result.score >= 85 ? "#047857" : result.score >= 60 ? "#b45309" : "#dc2626" }}>{result.score}</span></span>
           <span>{warnings} warning{warnings === 1 ? "" : "s"} flagged</span>
+        </div>
+      </Card>
+
+      {/* Optional recompute on the calculation API, shown next to the local preview. */}
+      <Card className="p-5">
+        <div className="flex items-center gap-2">
+          <ShieldCheck size={15} strokeWidth={1.5} className="text-black/55" />
+          <Eyebrow>Server verification</Eyebrow>
+        </div>
+        <p className="mt-2 max-w-2xl text-[12px] text-black/50">
+          Recompute the embedded emissions on the CERTrace calculation service and compare with the browser preview. Optional — requires the API server to be reachable.
+        </p>
+        {serverRows && (
+          <div className="mt-3 space-y-1.5 text-[13px]">
+            {req.products.map((rp) => {
+              const row = serverRows[rp.product.id];
+              if (!row) return null;
+              const local = getValue("total-emissions", rp.product.id) || "—";
+              return (
+                <div key={rp.product.id} className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                  <StatusDot tone={row.status === "ok" ? "ok" : row.status === "mismatch" ? "warn" : row.status === "error" ? "err" : "muted"} />
+                  <span className="text-black/70">{rp.product.name}</span>
+                  {row.server !== undefined ? (
+                    <span className="font-mono text-[12px] text-black/55">
+                      local {local} · server {row.server} tCO₂e/t{row.status === "mismatch" ? " — differs" : ""}
+                    </span>
+                  ) : (
+                    <span className="text-[12px] text-black/45">{row.message}</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <div className="mt-3">
+          <Button variant="secondary" size="sm" onClick={runServerVerify} disabled={verifying}>
+            {verifying ? "Verifying…" : "Verify with server"}
+          </Button>
         </div>
       </Card>
 

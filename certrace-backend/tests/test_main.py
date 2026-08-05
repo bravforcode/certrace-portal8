@@ -79,6 +79,8 @@ def test_openapi_contract_advertises_calculation_success(monkeypatch) -> None:
 
 def test_cors_is_absent_by_default(monkeypatch) -> None:
     monkeypatch.delenv(CORS_ALLOWED_ORIGINS_ENV, raising=False)
+    # create_app falls back to the developer's local .env; neutralize it here.
+    monkeypatch.setattr("app.main.load_env_file_value", lambda name: None)
     client = TestClient(create_app())
 
     response = client.get("/healthz", headers={"Origin": "https://attacker.example"})
