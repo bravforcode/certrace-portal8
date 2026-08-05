@@ -17,8 +17,11 @@ export function SupplierTable({
   showEmissions?: boolean;
   actions?: (row: SupplierRow) => React.ReactNode;
 }) {
+  // `scroll-x-contain` (globals.css): the min-w-[520px] below is a width
+  // floor, and without paint containment it stretches the mobile layout
+  // viewport and zooms the whole page out.
   return (
-    <div className="overflow-x-auto touch-scrollx rounded-2xl border border-black/[0.08] bg-white/70">
+    <div className="overflow-x-auto scroll-x-contain rounded-2xl border border-black/[0.08] bg-white/70">
       <div className="min-w-[520px]">
       {/* header */}
       <div
