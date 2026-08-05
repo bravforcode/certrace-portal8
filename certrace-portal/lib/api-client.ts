@@ -47,7 +47,13 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     let errMsg = "API Request failed";
     try {
       const errData = await response.json();
-      errMsg = errData.detail || errData.message || errMsg;
+      const detail = errData.detail;
+      errMsg =
+        (typeof detail === "string" && detail) ||
+        (typeof detail?.message === "string" && detail.message) ||
+        (Array.isArray(detail) && typeof detail[0]?.msg === "string" && detail[0].msg) ||
+        errData.message ||
+        errMsg;
     } catch {
       /* ignore */
     }

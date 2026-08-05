@@ -315,7 +315,7 @@ function PrecursorEditor({ value, editable, reportingPeriod, onChange }: { value
     onChange(next.length ? serializePrecursors(next) : "");
   };
 
-  const cell = cn(inputClass, "px-2.5 py-2 text-[12.5px]", !editable && "cursor-not-allowed opacity-60");
+  const cell = cn(inputClass, "px-2.5 py-2 sm:text-[12.5px]", !editable && "cursor-not-allowed opacity-60");
 
   return (
     <div className="space-y-2">

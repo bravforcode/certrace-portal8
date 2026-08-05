@@ -1,12 +1,14 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { ArrowRight, Plus, TriangleAlert, Bell } from "lucide-react";
 import { Card, PageHeader, Button, Stat, Chip, StatusDot, Progress, Eyebrow, StatusLabel, EmptyState } from "@/components/ui";
 import { SupplierTable } from "@/components/supplier-table";
 import { FinancialLiabilityPreview } from "@/components/financial-liability-preview";
 import { toast } from "@/components/toast";
-import { DECLARATIONS, ORG, USER, getUniqueSuppliers } from "@/lib/data";
+import { DECLARATIONS, ORG, USER, getUniqueSuppliers, type Declaration } from "@/lib/data";
+import { loadCreatedDeclarations, loadHiddenDeclarationIds } from "@/lib/declarations-store";
 import { getRegulation, getPlan } from "@/lib/config";
 
 const STEP_LABEL: Record<string, string> = {
@@ -20,8 +22,34 @@ const STEP_LABEL: Record<string, string> = {
 };
 
 export default function DashboardPage() {
-  const active = DECLARATIONS.find((d) => d.id === "cbam-2026-annual-steel")!;
-  const activeCount = DECLARATIONS.filter((d) => d.step !== "done").length;
+  const [created, setCreated] = React.useState<Declaration[]>([]);
+  const [hidden, setHidden] = React.useState<string[]>([]);
+  React.useEffect(() => {
+    setCreated(loadCreatedDeclarations());
+    setHidden(loadHiddenDeclarationIds());
+  }, []);
+  const declarations = React.useMemo(
+    () => [...created, ...DECLARATIONS].filter((d) => !hidden.includes(d.id)),
+    [created, hidden],
+  );
+
+  const active = declarations.find((d) => d.id === "cbam-2026-annual-steel") ?? declarations.find((d) => d.step !== "done") ?? declarations[0];
+  const activeCount = declarations.filter((d) => d.step !== "done").length;
+  if (!active) {
+    return (
+      <EmptyState
+        title="No declarations"
+        body="Start a new declaration when you're ready."
+        action={
+          <Link href="/declarations/new">
+            <Button size="sm">
+              <Plus size={14} /> New declaration
+            </Button>
+          </Link>
+        }
+      />
+    );
+  }
   const submitted = active.suppliers.filter((s) => s.status === "submitted").length;
   const overdue = active.suppliers.filter((s) => s.status === "overdue").length;
   const completion = Math.round(
@@ -108,7 +136,7 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          {DECLARATIONS.filter((d) => d.step !== "done").length === 0 ? (
+          {declarations.filter((d) => d.step !== "done").length === 0 ? (
             <EmptyState
               title="No active declarations"
               body="You're all caught up. Start a new declaration when you're ready."
@@ -121,7 +149,7 @@ export default function DashboardPage() {
               }
             />
           ) : (
-            DECLARATIONS.filter((d) => d.step !== "done").map((d) => {
+            declarations.filter((d) => d.step !== "done").map((d) => {
               const reg = getRegulation(d.regulation);
               const done = d.suppliers.filter((s) => s.status === "submitted").length;
               const pct = Math.round((done / d.suppliers.length) * 100);
