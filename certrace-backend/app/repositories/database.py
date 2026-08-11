@@ -10,7 +10,13 @@ from sqlalchemy import case, create_engine, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
 
-from app.config import REGULATORY_DATA_VERSION
+from app.config import (
+    DATABASE_MAX_OVERFLOW_ENV,
+    DATABASE_POOL_SIZE_ENV,
+    REGULATORY_DATA_VERSION,
+    load_nonnegative_int,
+    load_positive_int,
+)
 from app.models.calculation import DeclarationInput
 from app.models.database import (
     CalculationRun,
@@ -52,7 +58,11 @@ def normalize_country_of_origin(value: str | None) -> str:
 class DatabaseRepository:
     def __init__(self, database_url: str) -> None:
         self.engine = create_engine(
-            normalize_database_url(database_url), pool_pre_ping=True
+            normalize_database_url(database_url),
+            pool_pre_ping=True,
+            pool_size=load_positive_int(DATABASE_POOL_SIZE_ENV, 2),
+            max_overflow=load_nonnegative_int(DATABASE_MAX_OVERFLOW_ENV, 0),
+            pool_recycle=300,
         )
         self.session_factory = sessionmaker(self.engine, expire_on_commit=False)
 

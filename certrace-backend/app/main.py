@@ -18,7 +18,10 @@ from app.routers import calculations, declarations, health
 
 
 def create_app(
-    *, cors_origins: Sequence[str] | None = None, database_url: str | None = None
+    *,
+    cors_origins: Sequence[str] | None = None,
+    database_url: str | None = None,
+    enable_api_docs: bool = True,
 ) -> FastAPI:
     configured_origins = (
         tuple(validate_cors_origin(origin) for origin in cors_origins)
@@ -30,6 +33,9 @@ def create_app(
         description="CBAM calculation and declarations API for Certrace.",
         version="0.2.0",
         debug=False,
+        docs_url="/docs" if enable_api_docs else None,
+        redoc_url="/redoc" if enable_api_docs else None,
+        openapi_url="/openapi.json" if enable_api_docs else None,
     )
     application.state.backend_configured = True
     application.state.cors_origins = configured_origins
@@ -43,7 +49,7 @@ def create_app(
             allow_origins=list(configured_origins),
             allow_credentials=True,
             allow_methods=["GET", "POST", "OPTIONS"],
-            allow_headers=["Accept", "Content-Type"],
+            allow_headers=["Accept", "Authorization", "Content-Type"],
             max_age=600,
         )
     application.add_middleware(SecurityHeadersMiddleware)
