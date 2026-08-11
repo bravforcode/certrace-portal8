@@ -77,6 +77,15 @@ def test_openapi_contract_advertises_calculation_success(monkeypatch) -> None:
     assert "200" in responses
 
 
+def test_api_documentation_can_be_disabled(monkeypatch) -> None:
+    monkeypatch.delenv(CORS_ALLOWED_ORIGINS_ENV, raising=False)
+    client = TestClient(create_app(enable_api_docs=False))
+
+    assert client.get("/docs").status_code == 404
+    assert client.get("/redoc").status_code == 404
+    assert client.get("/openapi.json").status_code == 404
+
+
 def test_cors_is_absent_by_default(monkeypatch) -> None:
     monkeypatch.delenv(CORS_ALLOWED_ORIGINS_ENV, raising=False)
     # create_app falls back to the developer's local .env; neutralize it here.
@@ -122,6 +131,22 @@ def test_only_configured_cors_origin_receives_credentials() -> None:
     assert allowed.headers["access-control-allow-credentials"] == "true"
     assert_security_headers(allowed)
     assert "access-control-allow-origin" not in denied.headers
+
+
+def test_cors_preflight_allows_bearer_authorization_header() -> None:
+    client = TestClient(create_app(cors_origins=["https://portal.certrace.com"]))
+
+    response = client.options(
+        "/api/v1/declarations",
+        headers={
+            "Origin": "https://portal.certrace.com",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "authorization",
+        },
+    )
+
+    assert response.status_code == 200
+    assert "Authorization" in response.headers["access-control-allow-headers"]
 
 
 def test_environment_allowlist_is_trimmed_deduplicated_and_canonicalized(
