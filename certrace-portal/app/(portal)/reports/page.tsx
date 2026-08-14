@@ -9,6 +9,7 @@ import { downloadDeclarationExcel, downloadDeclarationXml, downloadDeclarationJs
 import { REPORTS, DECLARATIONS, ORG } from "@/lib/data";
 import { getRegulation, getJurisdiction, getPlan } from "@/lib/config";
 import { actualValueVerificationBlockers, loadExporterState, rollup, exporterIdentity } from "@/lib/exporter-review";
+import { loadLiabilityView } from "@/lib/financial-liability";
 import { buildSupplierChapters, buildSignOff, packageSummaryData, packageHistoryData } from "@/lib/package-data";
 
 const stateMeta: Record<string, { label: string; tone: Tone }> = {
@@ -22,7 +23,7 @@ export default function ReportsPage() {
   const jur = getJurisdiction(ORG.origin)!;
   const plan = getPlan(ORG.plan)!;
 
-  const buildPayload = (r: (typeof REPORTS)[number]): PackageInput | null => {
+  const buildPayload = async (r: (typeof REPORTS)[number]): Promise<PackageInput | null> => {
     const reg = getRegulation(r.regulation)!;
     const decl = DECLARATIONS.find((d) => d.period.startsWith(r.period));
     if (!decl) {
@@ -59,6 +60,9 @@ export default function ReportsPage() {
       supplierCount: approved.length,
       carbonPricePaid: decl.carbonPricePaid ?? "0",
       factorSet: jur.factorSet,
+      // Same resolver the Financials page and dashboard card read from, so the
+      // exported money figure cannot disagree with the on-screen one.
+      costOutcome: (await loadLiabilityView(decl)).cost,
       ...packageSummaryData(approved),
       ...packageHistoryData(approved),
       chapters: buildSupplierChapters(approved),
@@ -67,14 +71,14 @@ export default function ReportsPage() {
   };
 
   const handleDownload = async (r: (typeof REPORTS)[number]) => {
-    const payload = buildPayload(r);
+    const payload = await buildPayload(r);
     if (!payload) return;
     await downloadPackage(payload);
     toast({ message: "Draft preview downloaded.", detail: "Regenerated locally with a change-detection checksum; it is not sealed, verified, or filed." });
   };
 
   const handleExport = async (r: (typeof REPORTS)[number], format: "excel" | "xml" | "json") => {
-    const payload = buildPayload(r);
+    const payload = await buildPayload(r);
     if (!payload) return;
     const run = { excel: downloadDeclarationExcel, xml: downloadDeclarationXml, json: downloadDeclarationJson }[format];
     await run(payload);

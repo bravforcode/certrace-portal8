@@ -27,6 +27,7 @@
    ════════════════════════════════════════════════════════════ */
 
 import type { jsPDF } from "jspdf";
+import type { CostOutcome } from "./financial-liability";
 import { decimal } from "./mrv";
 import type { CalculationTrace } from "./mrv";
 import { formatDecimal } from "./workflow-measurements";
@@ -112,6 +113,11 @@ export type PackageInput = {
   supplierCount: number;
   carbonPricePaid: string;
   factorSet: string;
+  /** Estimated CBAM certificate cost, resolved by lib/financial-liability.ts.
+      Carries its own availability flag: when no official certificate price is
+      published for the period, every amount is null and the reason is stated
+      rather than filled in with a previous quarter's price. */
+  costOutcome?: CostOutcome;
   suppliers?: {
     name: string;
     material: string;
@@ -393,6 +399,35 @@ export async function buildPackagePdf(p: PackageInput): Promise<jsPDF> {
   kv("Total embedded emissions (locally approved drafts)", `${fmtN(p.totalEmbedded)} tCO2e`);
   kv("Carbon price paid in country of origin", decimal(p.carbonPricePaid).isZero() ? "None reported" : fmtN(p.carbonPricePaid));
   y += 8;
+
+  if (p.costOutcome) {
+    const c = p.costOutcome;
+    kv("Chargeable embedded emissions (Annex II)", `${fmtN(c.chargeableTCO2e)} tCO2e`);
+    if (c.available && c.netExposureEUR && c.certificatePriceEURPerTCO2e && c.grossCostEUR) {
+      kv("CBAM certificate price applied", `EUR ${fmtN(c.certificatePriceEURPerTCO2e)} / tCO2e (as of ${c.asOf})`);
+      kv("Gross certificate cost", `EUR ${fmtN(c.grossCostEUR)}`);
+      kv("Carbon price already paid (converted)", `EUR ${fmtN(c.carbonPricePaidEUR)}`);
+      kv(
+        "Estimated net certificate cost",
+        `EUR ${fmtN(c.netExposureEUR)}${c.netExposureTHB ? ` (approx. THB ${fmtN(c.netExposureTHB)})` : ""}`,
+      );
+      kv(
+        "THB/EUR reference rate",
+        `${c.fx.thbPerEur} as of ${c.fx.asOf}${c.fx.stale ? " (fallback - ECB unavailable)" : ` (ECB, ${c.fx.source})`}`,
+      );
+    } else {
+      // Stated, not silently omitted — a blank cost line would read as zero.
+      kv(
+        "Estimated net certificate cost",
+        `Unavailable - ${c.unavailableReason ?? `no officially published certificate price covers ${c.asOf}`}`,
+      );
+    }
+    y += 6;
+    bullet(
+      "Estimate only. Chargeable tonnes are the Annex-II direct embedded result, net of declared carbon price paid and floored at zero per supplier. Free allocation, verification and deductible-carbon-price evidence remain separate gates, and no proxy price is ever substituted for an unpublished quarter.",
+    );
+    y += 8;
+  }
 
   table(
     "Consolidated per-supplier embedded emissions (tCO2e per tonne)",

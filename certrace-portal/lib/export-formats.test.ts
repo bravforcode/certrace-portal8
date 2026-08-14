@@ -101,7 +101,88 @@ describe("JSON export", () => {
 
   it("emits stable top-level key order", () => {
     const json = serializeHandoffJson(buildDeclarationHandoff(payload));
-    const order = ["meta", "operator", "totals", "suppliers"].map((k) => json.indexOf(`"${k}"`));
+    const order = ["meta", "operator", "totals", "costOutcome", "suppliers"].map((k) => json.indexOf(`"${k}"`));
     expect(order).toEqual([...order].sort((a, b) => a - b));
+  });
+});
+
+/* The money block travels with the dataset. A consumer reading only the file
+   must be able to tell a real zero from an unpublished price. */
+describe("cost outcome export", () => {
+  const priced: PackageInput["costOutcome"] = {
+    available: true,
+    unavailableReason: null,
+    asOf: "2026-05-15",
+    year: 2026,
+    chargeableTCO2e: "200",
+    certificatePriceEURPerTCO2e: "75.28",
+    grossCostEUR: "15056",
+    carbonPricePaidEUR: "510",
+    netExposureEUR: "14546",
+    netExposureTHB: "570203.2",
+    fx: { thbPerEur: "39.20", asOf: "2026-06-30", source: "ecb", stale: false },
+  };
+
+  const unpriced: PackageInput["costOutcome"] = {
+    ...priced,
+    available: false,
+    unavailableReason: "No officially published certificate price is configured for 2026-08-14; no proxy was substituted.",
+    asOf: "2026-08-14",
+    certificatePriceEURPerTCO2e: null,
+    grossCostEUR: null,
+    netExposureEUR: null,
+    netExposureTHB: null,
+  };
+
+  it("carries every amount into JSON as a decimal string", () => {
+    const parsed = JSON.parse(serializeHandoffJson(buildDeclarationHandoff({ ...payload, costOutcome: priced })));
+
+    expect(parsed.costOutcome.available).toBe(true);
+    expect(parsed.costOutcome.netExposureEUR).toBe("14546");
+    expect(parsed.costOutcome.grossCostEUR).toBe("15056");
+    expect(parsed.costOutcome.certificatePriceEURPerTCO2e).toBe("75.28");
+    expect(parsed.costOutcome.pricedAsOf).toBe("2026-05-15");
+    expect(typeof parsed.costOutcome.netExposureEUR).toBe("string");
+  });
+
+  it("carries the FX provenance the converted figure depends on", () => {
+    const parsed = JSON.parse(serializeHandoffJson(buildDeclarationHandoff({ ...payload, costOutcome: priced })));
+
+    expect(parsed.costOutcome.fxThbPerEur).toBe("39.20");
+    expect(parsed.costOutcome.fxAsOf).toBe("2026-06-30");
+    expect(parsed.costOutcome.fxStale).toBe(false);
+  });
+
+  it("nulls every amount and states the reason when no price is published", () => {
+    const parsed = JSON.parse(serializeHandoffJson(buildDeclarationHandoff({ ...payload, costOutcome: unpriced })));
+
+    expect(parsed.costOutcome.available).toBe(false);
+    expect(parsed.costOutcome.netExposureEUR).toBeNull();
+    expect(parsed.costOutcome.grossCostEUR).toBeNull();
+    expect(parsed.costOutcome.certificatePriceEURPerTCO2e).toBeNull();
+    expect(parsed.costOutcome.unavailableReason).toContain("2026-08-14");
+    // An unavailable outcome must never read as a zero liability.
+    expect(parsed.costOutcome.netExposureEUR).not.toBe("0");
+  });
+
+  it("reaches XML with the same values", () => {
+    const xml = serializeHandoffXml(buildDeclarationHandoff({ ...payload, costOutcome: priced }));
+
+    expect(xml).toContain("<NetExposureEUR>14546</NetExposureEUR>");
+    expect(xml).toContain("<CertificatePriceEURPerTCO2e>75.28</CertificatePriceEURPerTCO2e>");
+    expect(xml).toContain("<Available>true</Available>");
+  });
+
+  it("emits an empty element rather than a number when unavailable", () => {
+    const xml = serializeHandoffXml(buildDeclarationHandoff({ ...payload, costOutcome: unpriced }));
+
+    expect(xml).toContain("<NetExposureEUR />");
+    expect(xml).toContain("<Available>false</Available>");
+  });
+
+  it("stays absent — not zero — when no cost outcome was resolved", () => {
+    const parsed = JSON.parse(serializeHandoffJson(buildDeclarationHandoff(payload)));
+
+    expect(parsed.costOutcome).toBeNull();
   });
 });
