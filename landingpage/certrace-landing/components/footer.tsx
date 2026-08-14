@@ -108,10 +108,12 @@ export function Footer() {
     {
       title: c.footer.columns.platform,
       links: [
-        { label: l.smartLink, href: "/#platform-collect" },
+        { label: l.smartLink, href: "/#platform-invite" },
+        { label: l.profile, href: "/#platform-profile" },
         { label: l.aiCheck, href: "/#platform-quality" },
         { label: l.engine, href: "/#platform-engine" },
-        { label: l.reports, href: "/#platform-handoff" },
+        { label: l.benchmark, href: "/#platform-benchmark" },
+        { label: l.reports, href: "/#platform-report" },
       ],
     },
     {

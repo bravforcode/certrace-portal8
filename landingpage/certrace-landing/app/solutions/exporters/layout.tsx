@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "For Exporters — Certrace",
   description:
-    "Run your whole CBAM declaration from one guided workspace, from supplier invite to audit-ready export.",
+    "Prove your carbon data before the buyer has to ask. One workspace: Smart Link supplier invites, a CBAM calculation engine, a carbon benchmark, and an always-ready report package.",
 };
 
 export default function ExportersLayout({

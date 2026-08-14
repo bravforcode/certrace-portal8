@@ -7,6 +7,7 @@
    comes from lib/content.ts; only the figures, icons and stagger delays —
    which are the same in every language — live here. */
 
+import React from "react";
 import { AnimatedNumber } from "@/components/animated-number";
 import { CbamTimeline } from "@/components/cbam-timeline";
 import { ComparisonTable } from "@/components/comparison-table";
@@ -25,83 +26,25 @@ import {
 } from "@/components/ui";
 import { useLang } from "@/lib/i18n";
 
-/* Count-up figures for the hero and the comparison strip. `from` is the
-   "before Certrace" number the counter starts on; `to` is where it lands. */
+/* Count-up figures for the hero and the comparison strip. Three of the four
+   roll "before → after", because they *are* comparisons — the status quo
+   landing on what Certrace costs you instead. Only the coverage figure rolls
+   up from zero: it is a fact, and a fact reads best arriving from nothing.
+
+   All four are outcomes for the exporter reading them. Market-sizing and
+   competitor counts used to sit here; they described our research rather than
+   the visitor's return, and they handed the same research to anyone who
+   scrolled. Captions live in the content dictionary, in this order. */
 export const HERO_STATS: {
   from: number;
   to: number;
   prefix?: string;
   suffix?: string;
 }[] = [
-  { from: 250, to: 67 },
   { from: 95, to: 64, prefix: "-", suffix: "%" },
   { from: 95, to: 73, prefix: "-", suffix: "%" },
+  { from: 0, to: 67 },
   { from: 40, to: 6, suffix: "×" },
-];
-
-const PROBLEM_STATS: {
-  from: number;
-  to: number;
-  prefix?: string;
-  delay: number;
-  icon: React.ReactNode;
-}[] = [
-  {
-    from: 52,
-    to: 16,
-    delay: 0,
-    icon: (
-      <svg
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      >
-        <circle cx="12" cy="12" r="9" />
-        <path d="M12 7v5l3 3" />
-      </svg>
-    ),
-  },
-  {
-    from: 990,
-    to: 570,
-    prefix: "฿",
-    delay: 80,
-    icon: (
-      <svg
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      >
-        <rect x="2" y="6" width="20" height="12" rx="2" />
-        <circle cx="12" cy="12" r="2.5" />
-        <path d="M5 9h.01M19 15h.01" />
-      </svg>
-    ),
-  },
-  {
-    from: 68,
-    to: 38,
-    delay: 140,
-    icon: (
-      <svg
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      >
-        <path d="M12 3 2.5 19.5h19L12 3z" />
-        <path d="M12 10v4M12 17.2v.3" />
-      </svg>
-    ),
-  },
 ];
 
 /* Supplier-facing form languages. Thai and English are in the product today;
@@ -121,6 +64,79 @@ const CERTIFICATE_SALES_OPEN = "2027-02-01T00:00:00Z";
 
 const SECTION = "py-32 px-6 md:px-12 lg:px-20 border-t border-black/[0.06]";
 const PLEX = { fontFamily: "var(--font-ibm-plex-sans), sans-serif" } as const;
+
+/* ------------------------------------------------------------------ */
+/* PAIN CHAIN — ask → delay → alternative → switch                     */
+/* ------------------------------------------------------------------ */
+
+/* Ink darkens step by step and the last beat turns to the error tone: the
+   sequence itself is the argument, so it has to *look* like something going
+   wrong rather than four equal-weight cards. Status colour only on the final
+   step, per the DS — one red in the whole section. */
+const CHAIN_TONE = [
+  "text-black/25",
+  "text-black/35",
+  "text-black/50",
+  "text-err-text",
+];
+
+function ChainArrow() {
+  return (
+    <div
+      aria-hidden="true"
+      className="flex items-center justify-center shrink-0 py-1.5 lg:py-0 lg:px-1 text-black/15"
+    >
+      {/* Points down while the cards are stacked, right once they sit in a
+          row — same glyph, rotated by the breakpoint. */}
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 14 14"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className="rotate-90 lg:rotate-0"
+      >
+        <path d="M2 7h10M8.5 3.5 12 7l-3.5 3.5" />
+      </svg>
+    </div>
+  );
+}
+
+function PainChain() {
+  const { c } = useLang();
+
+  return (
+    <div
+      className="flex flex-col lg:flex-row lg:items-stretch"
+      onMouseMove={handleMouseGlow}
+    >
+      {c.problem.chain.map((link, i) => (
+        <React.Fragment key={link.step}>
+          {i > 0 && <ChainArrow />}
+          <AnimateCard
+            className="flex-1 p-6 flex flex-col min-h-[180px]"
+            delay={i * 90}
+          >
+            <span
+              className={`font-pixel text-[11px] tracking-[0.18em] uppercase ${CHAIN_TONE[i]}`}
+            >
+              {String(i + 1).padStart(2, "0")} · {link.step}
+            </span>
+            <h3 className="mt-4 text-lg font-light leading-snug">
+              {link.title}
+            </h3>
+            <p className="mt-2.5 text-sm text-black/45 leading-relaxed">
+              {link.desc}
+            </p>
+          </AnimateCard>
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
 
 /* ------------------------------------------------------------------ */
 /* PROBLEM                                                             */
@@ -148,62 +164,58 @@ export function ProblemSection({ topBorder = false }: { topBorder?: boolean }) {
           </p>
         </div>
 
-        <div className="grid grid-cols-12 gap-3" onMouseMove={handleMouseGlow}>
-          {c.problem.cards.map((card, i) => {
-            const stat = PROBLEM_STATS[i];
-            return (
-              <AnimateCard
-                key={card.eyebrow}
-                className="col-span-12 md:col-span-4 p-8 min-h-[240px] flex flex-col"
-                delay={stat.delay}
-              >
-                <div className="flex items-center justify-between mb-6">
-                  <div className="w-10 h-10 rounded-xl border border-black/10 flex items-center justify-center">
-                    {stat.icon}
-                  </div>
-                  <span className="font-pixel text-[11px] text-black/25 tracking-widest">
-                    {card.eyebrow}
-                  </span>
-                </div>
-                <h3 className="text-2xl font-light mb-6">{card.title}</h3>
-                <div className="mt-auto pt-4 border-t border-black/[0.06]">
-                  <div
-                    className="text-3xl font-light tracking-tight text-[#111]"
-                    style={PLEX}
-                  >
-                    <AnimatedNumber
-                      from={stat.from}
-                      to={stat.to}
-                      prefix={stat.prefix}
-                      suffix={card.unit}
-                    />
-                  </div>
-                  <div className="text-xs text-black/40 tracking-wide mt-1">
-                    {card.caption}
-                  </div>
-                </div>
-              </AnimateCard>
-            );
-          })}
+        <PainChain />
 
-          <AnimateCard
-            className="col-span-12 p-8 md:p-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6"
-            delay={220}
-          >
-            <div className="text-xs text-black/35 tracking-widest uppercase max-w-xs leading-relaxed">
-              {c.problem.costLabel}
-            </div>
-            <div className="flex items-baseline gap-3">
+        {/* The stakes, in one strip rather than the four cards this replaced.
+            Left is a real loss on a single order — the largest figure in the
+            section, because it is the only one that already happened to
+            somebody. Right is the recurring cost of carrying it by hand. */}
+        <AnimateCard
+          className="mt-3 p-8 md:p-10 flex flex-col lg:flex-row lg:items-center gap-8 lg:gap-12"
+          delay={360}
+          hover={false}
+        >
+          <div className="lg:w-[42%] shrink-0">
+            <span className="font-pixel text-[11px] tracking-[0.18em] uppercase text-black/30">
+              {c.problem.stakes.riskLabel}
+            </span>
+            <div className="mt-3 flex items-baseline gap-3 flex-wrap">
               <span
                 className="text-4xl md:text-5xl font-light tracking-tight"
                 style={PLEX}
               >
-                ฿1.1M – ฿2.7M
+                {c.problem.stakes.riskFigure}
               </span>
-              <span className="text-sm text-black/35">{c.problem.costPer}</span>
+              <span className="text-sm text-black/40">
+                {c.problem.stakes.riskTitle}
+              </span>
             </div>
-          </AnimateCard>
-        </div>
+            <p className="mt-2.5 text-sm text-black/45 leading-relaxed max-w-xs">
+              {c.problem.stakes.riskCaption.before}
+              <span className="text-[#111]">
+                {c.problem.stakes.riskCaption.highlight}
+              </span>
+            </p>
+          </div>
+
+          {/* The rule is the divider between "what one order costs" and "what
+              every year costs" — horizontal while the card is stacked. */}
+          <div className="h-px w-full lg:h-20 lg:w-px bg-black/[0.08] shrink-0" />
+
+          <div className="flex-1">
+            <span className="font-pixel text-[11px] tracking-[0.18em] uppercase text-black/30">
+              {c.problem.stakes.manualLabel}
+            </span>
+            <ul className="mt-3 flex flex-col gap-2">
+              {c.problem.stakes.manual.map((fact) => (
+                <li key={fact.lead} className="text-sm leading-relaxed">
+                  <span className="text-[#111]">{fact.lead}</span>{" "}
+                  <span className="text-black/45">{fact.rest}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </AnimateCard>
       </div>
     </section>
   );
@@ -233,6 +245,10 @@ export function WhyNowSection() {
           </p>
         </div>
 
+        {/* Dates, then the timer, then the line. Three blocks, three different
+            kinds of thing — the "three forces" card row that used to open here
+            summarised the problem rail, this timeline, and the comparison
+            section, so it was the third telling of all three. */}
         <CbamTimeline />
 
         {/* The point of the timer is the zero it lands on: the window for

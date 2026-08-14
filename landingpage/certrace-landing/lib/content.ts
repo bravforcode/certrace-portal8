@@ -1,12 +1,26 @@
-/* Bilingual copy for the whole marketing site.
-   `th` is typed as `Content` (= the shape of `en`), so a missing or renamed key
-   in either language is a build error rather than a silent English fallback on
-   a Thai page.
+import { buildHi } from "./content-hi";
+import { buildTr } from "./content-tr";
+import { buildVi } from "./content-vi";
+import type { Lang } from "./i18n";
+
+/* Copy for the whole marketing site, in the five languages the site is
+   published in: English, Thai, Vietnamese, Turkish and Hindi.
+
+   Every dictionary is typed as `Content` (= the shape of `en`), so a missing or
+   renamed key in any language is a build error rather than a silent English
+   fallback on a translated page.
 
    Scope note: prose, labels and headings are translated. The mock product UI
    inside the module visuals and the live supplier table stays in English — it
    depicts console/table output, and Thai script at 8px monospace is unreadable.
-   Thai dates use the Buddhist Era, matching how Thai business copy is written. */
+
+   The English left inside a translated dictionary is deliberate and marked
+   where it sits, and is the same list in all four: `marquee.rowTwo`
+   (regulations and standards under their registered titles),
+   `howItWorks.steps[].view` / `.lines` (mock console output), the live table's
+   own rows and headers, and `footer.copyright` (the registered entity name).
+   Geographic names in the booking dialog's time-zone list are English for the
+   same reason — see lib/timezones.ts. */
 
 /* One published contact address for the whole site. Every "email us" route —
    footer, nav, booking dialog, backlog, legal pages — resolves here, so there
@@ -29,6 +43,7 @@ const en = {
     seeHowItWorks: "SEE HOW IT WORKS",
     requestPricing: "REQUEST PRICING",
     allSolutions: "ALL SOLUTIONS",
+    joinWaitlist: "JOIN THE WAITLIST",
     live: "LIVE",
     soon: "SOON",
     /* Solution pages spell it out; the nav badge has no room and uses `soon`. */
@@ -50,20 +65,28 @@ const en = {
       label: "Platform",
       items: [
         {
-          label: "Smart Link Collection",
-          desc: "One secure link per supplier. No accounts, no training.",
+          label: "Smart Link Supplier Invite",
+          desc: "One link per supplier. No emails, no accounts, no chasing.",
         },
         {
-          label: "AI Quality Check",
-          desc: "Trust scores and plain-English summaries on every submission.",
+          label: "Fill-Once Supplier Profile",
+          desc: "Supplier data saves once and reuses itself on every request after.",
         },
         {
-          label: "Compliance Engine",
-          desc: "Definitive-period CBAM rules, computed deterministically.",
+          label: "Automatic Quality Check",
+          desc: "Missing fields, wrong units and impossible numbers caught on arrival.",
         },
         {
-          label: "Reports & Handoff",
-          desc: "Sealed audit package, Annex IV XML, O3CI dispatch.",
+          label: "CBAM Calculation Engine",
+          desc: "Raw supplier data converted into the EU's required emissions format.",
+        },
+        {
+          label: "Carbon Benchmark Dashboard",
+          desc: "Where you stand against CBAM penalty rates, in plain English.",
+        },
+        {
+          label: "Always-Ready Report Package",
+          desc: "Buyer- and auditor-ready in the EU format, current without being rebuilt.",
         },
       ],
       footer: "See all features",
@@ -73,11 +96,11 @@ const en = {
       items: [
         {
           label: "For Exporters",
-          desc: "Run the whole declaration from one guided workspace.",
+          desc: "Prove your carbon data before the buyer has to ask for it.",
         },
         {
           label: "For Suppliers",
-          desc: "A free guided form, in Thai or English, from any device.",
+          desc: "A free guided form, in your own language, from any device.",
         },
         {
           label: "For Legal & Compliance",
@@ -96,10 +119,6 @@ const en = {
         {
           label: "EU CBAM",
           desc: "Iron, steel and aluminium — 67 CN-coded goods with definitive-period rules built in.",
-        },
-        {
-          label: "Buyer Data Requests",
-          desc: "Scope 3 and CSRD questionnaires from your EU buyers, answered from the same data.",
         },
       ],
       footer: "See what's new",
@@ -139,8 +158,11 @@ const en = {
           desc: "Who we are and why we built this. Coming shortly.",
         },
         {
+          /* Live, not SOON: there is no careers page to wait for — the row
+             opens a pre-addressed email, which is how hiring actually runs
+             here today. */
           label: "Careers",
-          desc: "Roles will be posted here as the team grows.",
+          desc: "Tell us what you'd want to build. We read every one.",
         },
       ],
       footer: "Book a demo",
@@ -149,72 +171,109 @@ const en = {
 
   hero: {
     badge: "CARBON COMPLIANCE INFRASTRUCTURE",
-    headline: "Supply chain\ncarbon compliance.\nWithout the chaos.",
+    headline: "Buyers don't wait.\nThey pick whoever\nproves it first.",
     intro:
-      "An AI workflow platform connecting exporters and suppliers to automate CBAM carbon data collection — from request to audit-ready reports.",
+      "An AI workflow platform connecting buyers, exporters, and suppliers to automate CBAM carbon data collection — from request to audit-ready reports.",
+    /* Four returns, not four facts about the market: cost, effort, coverage,
+       speed. Kept to four or five words each — they sit under the fold line on
+       a laptop, and anything longer wraps to a third line and gets cut. */
     stats: [
-      "Real CN-coded CBAM goods covered",
       "Lower compliance cost per filing",
       "Fewer staff hours chasing suppliers",
-      "Faster carbon accounting turnaround",
+      "CBAM goods covered today",
+      "Faster from buyer request to proof",
     ],
     videoTitle: "Certrace product walkthrough",
   },
 
+  /* One idea, stated once: the order is lost on proof, not on price. The
+     three cost cards and the standalone lost-order card that used to follow
+     this rail each restated it — but cutting them outright took the stakes
+     out with them, and the section stopped naming what any of this costs.
+     `stakes` puts both numbers back in a single strip: the deck's "real risk"
+     figure on the left, the deck's "doing it manually today" line on the
+     right, one card instead of four. */
   problem: {
     badge: "THE PROBLEM",
-    headline: "CBAM compliance today\nis slow, costly, and fragile.",
+    headline: "Four steps.\nThat's all it takes\nto lose the order.",
     intro:
-      "Every quarter, exporters spend months chasing suppliers over email, paying consultants to consolidate inconsistent data, and still submitting reports that get rejected.",
-    cards: [
+      "Your buyer asks for verified carbon data. You start chasing. Someone else already has it ready — so the order is never rejected. It just moves.",
+    /* The pain framework, as a four-step rail: the sequence is the argument —
+       nothing here is a failure of price or quality, only of proof arriving
+       late. One beat each, so the copy has to stay short. */
+    chain: [
       {
-        eyebrow: "TIME",
-        title: "Filing takes months, not days.",
-        unit: " wks",
-        caption: "per filing, start to dispatch",
+        step: "ASK",
+        title: "The buyer asks",
+        desc: "Your EU importer needs verified emissions data before the next order.",
       },
       {
-        eyebrow: "MONEY",
-        title: "Every quarter costs more than it should.",
-        unit: "K",
-        caption: "spent per filing, all-in",
+        step: "DELAY",
+        title: "You start chasing",
+        desc: "Every supplier, one email at a time. Weeks pass, still incomplete.",
       },
       {
-        eyebrow: "RISK",
-        title: "One mistake, and the report bounces.",
-        unit: "%",
-        caption: "of manual filings get sent back",
+        step: "ALTERNATIVE",
+        title: "They find someone else",
+        desc: "Another exporter already has clean numbers sitting ready to send.",
+      },
+      {
+        step: "SWITCH",
+        title: "The order moves",
+        desc: "Not on price. Not on quality. The proof simply arrived second.",
       },
     ],
-    costLabel: "The true annual cost of CBAM compliance without Certrace",
-    costPer: "per year",
+    /* The two costs, side by side in one strip: what a single order is worth,
+       and what carrying this by hand costs every year. `riskFigure` is a real
+       loss, not a projection — that is why it is the larger of the two. */
+    stakes: {
+      riskLabel: "ARE YOU WILLING TO RISK IT?",
+      riskTitle: "One order, gone.",
+      riskFigure: "$670,000",
+      /* Split so the cause carries the same ink weight as the two figures in
+         the right-hand column — the caption is 45% black, the highlight is
+         `text-[#111]`, exactly like "9–15 weeks" and "$9K–24K". */
+      riskCaption: {
+        before: "Not to price. Not to quality. To ",
+        highlight: "missing carbon data.",
+      },
+      manualLabel: "DOING IT MANUALLY TODAY",
+      manual: [
+        { lead: "9–15 weeks", rest: "of manual work, every reporting year" },
+        { lead: "$9K–24K", rest: "spent per year — and still often wrong" },
+      ],
+    },
   },
 
+  /* Dates, a timer, a line. Three blocks, each a different kind of thing.
+     The "three forces" cards that used to open this section restated the
+     problem rail, the timeline directly below them, and the comparison
+     section — three summaries of copy the visitor reads anyway. */
   whyNow: {
     badge: "WHY NOW",
-    headline: "Get ready.\nCBAM is already here.",
+    headline: "CBAM isn't coming.\nIt's already counting.",
     intro:
-      "The definitive period began in January 2026 — every shipment now counts. From February 2027, certificates are priced on exactly what you report.",
+      "Since January 2026, every shipment carries a real cost — and you can only prove what you measured at the time.",
     milestones: [
       {
         date: "OCT 2023",
         label: "Transitional period begins",
-        desc: "Reporting only — no certificates required yet.",
+        desc: "Reporting only. No certificates yet.",
       },
       {
         date: "JAN 2026",
         label: "Definitive period begins",
-        desc: "Full CBAM obligations apply to every shipment.",
+        desc: "Full obligations on every shipment.",
       },
       {
         date: "FEB 2027",
         label: "Certificate sales open",
-        desc: "Importers start buying CBAM certificates for 2026 emissions.",
+        desc: "Importers start buying for 2026 emissions.",
       },
       {
         date: "SEP 2027",
         label: "First annual declaration due",
-        desc: "Deadline to declare and surrender certificates for 2026.",
+        desc: "Declare and surrender for 2026.",
       },
     ],
     /* The timer is decorative and rests on 00:00:00:00, so the label has to
@@ -232,9 +291,9 @@ const en = {
 
   live: {
     badge: "LIVE PLATFORM",
-    headline: "Everything in one place.\nAlways up to date.",
+    headline: "Your proof, standing by.\nBefore they ask for it.",
     intro:
-      "Every supplier, every submission, every deadline — visible the moment it changes. No status-update meetings. No version confusion.",
+      "Every supplier, every submission, every deadline — visible the moment it changes. So when the request lands, the answer already exists.",
     suppliersSubmitted: "suppliers submitted\nthis quarter",
     stats: [
       "24 / 30 suppliers approved",
@@ -245,100 +304,132 @@ const en = {
 
   platform: {
     badge: "THE PLATFORM",
-    headline: "Four modules.\nOne seamless system.",
+    headline: "Six features.\nOne unbroken chain.",
     intro:
-      "No spreadsheets to stitch together, no separate tools to reconcile. Every step — collect, check, approve, dispatch — is built to pass verification the first time.",
+      "No spreadsheets to stitch together, no second tool to reconcile. Invite, reuse, check, calculate, benchmark, report — built so the proof is finished before anyone asks for it.",
     modules: [
       {
-        label: "01 / SMART LINK COLLECTION",
-        title: "One link per supplier. Zero chasing.",
-        desc: "Each supplier receives a secure Smart Link — a guided, bilingual questionnaire covering exactly the CBAM data points their products require. No supplier accounts, no training, automatic reminders. When something needs fixing, only those fields reopen.",
+        label: "01 / SMART LINK SUPPLIER INVITE",
+        title: "No emails, no chasing, no accounts needed.",
+        desc: "Send one link. Your supplier fills in only what their product requires, in their own language. Nothing to install, nobody to train.",
         tags: [
-          "Guided questionnaire",
-          "Per-product data points",
+          "One link per supplier",
+          "No accounts",
+          "Their own language",
           "Auto-reminders",
-          "No supplier accounts",
         ],
       },
       {
-        label: "02 / AI QUALITY CHECK",
-        title: "Every submission screened before it reaches you.",
-        desc: "As suppliers submit, Certrace runs an AI quality check — completeness against the required CBAM fields, unit and range anomalies, weak evidence — and writes a plain-English executive summary with a trust score. Advisory only: your filed figures stay deterministic.",
+        label: "02 / FILL-ONCE SUPPLIER PROFILE",
+        title: "Suppliers never enter the same data twice.",
+        desc: "Answers save once and fill themselves in on every request after — across products, periods and buyers. The first takes an afternoon. The next takes minutes.",
         tags: [
-          "Trust score",
-          "Executive summary",
-          "Anomaly flags",
-          "Evidence review",
+          "Saved once",
+          "Reused everywhere",
+          "Works across buyers",
+          "Minutes, not weeks",
         ],
       },
       {
-        label: "03 / COMPLIANCE ENGINE",
-        title: "Definitive-period rules, enforced before anything leaves.",
-        desc: "Deterministic checks aligned to the 2026 definitive period: default-value caps for complex goods, Scope 2 treatment by category, verification gating, and a CBAM cost-exposure estimate. A registry pre-flight blocks dispatch until every hard error is resolved.",
+        label: "03 / AUTOMATIC QUALITY CHECK",
+        title: "Bad data gets caught before it reaches you.",
+        desc: "Missing fields, wrong units, impossible numbers — flagged the moment a supplier submits. You review a clean submission with a plain-English summary, not a spreadsheet of unknowns.",
         tags: [
+          "Missing fields",
+          "Wrong units",
+          "Impossible values",
+          "Plain-English summary",
+        ],
+      },
+      {
+        label: "04 / CBAM CALCULATION ENGINE",
+        title: "No manual math. No spreadsheet errors.",
+        desc: "Raw supplier data becomes the EU's required emissions format automatically, under definitive-period rules — with the calculation trail attached to every figure you file.",
+        tags: [
+          "EU emissions format",
           "20% default cap",
           "Scope 2 rules",
-          "€ exposure",
-          "Registry pre-flight",
+          "Full calculation trail",
         ],
       },
       {
-        label: "04 / REPORTS & HANDOFF",
-        title: "An audit package your buyer's declarant can file on.",
-        desc: "Generate the full CBAM Communication & Audit Package — sealed with a SHA-256 hash, a chapter per supplier — plus Annex IV-structured XML. Push installation data to the EU's O3CI portal and send the communication template to your buyer's declarant, straight from the platform.",
+        label: "05 / CARBON BENCHMARK DASHBOARD",
+        title: "See where you stand, and what it's costing you.",
+        desc: "Your carbon numbers against CBAM penalty rates, in plain English: where you're exposed, which product lines are dragging, and what to fix. No expertise required.",
         tags: [
-          "24-page audit package",
-          "Annex IV template",
-          "O3CI push",
-          "SHA-256 sealed",
+          "Against penalty rates",
+          "Exposure by product",
+          "Plain English",
+          "No expertise needed",
+        ],
+      },
+      {
+        label: "06 / ALWAYS-READY REPORT PACKAGE",
+        title: "Ready before your buyer even asks.",
+        desc: "One click turns supplier data into a sealed, buyer- and auditor-ready report in the EU's format. It stays current as data changes, so you never rebuild it.",
+        tags: [
+          "Buyer-ready",
+          "Auditor-ready",
+          "Annex IV XML",
+          "Stays current",
         ],
       },
     ],
   },
 
+  /* No competitor named, and no count of them. Naming rivals on your own
+     comparison table advertises them, dates the copy every time the market
+     moves, and publishes which players we benchmark against. The claim is
+     about whose side the software is on — that stands without a roll call. */
   comparison: {
     badge: "WHY CERTRACE",
-    headline: "Same deadline. Three very\ndifferent ways to get there.",
+    headline: "Carbon platforms are\nsold to your buyer.\nThis one is yours.",
     intro:
-      "However you handle compliance today, here's how it stacks up against a platform built for exactly this job.",
+      "The tools in this space are bought by the EU importer — you are the data source they collect from. Certrace sits on your side: your suppliers, your data, your proof, ready before the request.",
     colDiy: "Internally managed",
-    colConsultant: "Consultant",
+    colConsultant: "Consultant / buyer-side tool",
     rows: [
       {
-        label: "Time per filing",
-        diy: "10–19 weeks",
+        label: "Whose side it's built for",
+        diy: "Nobody's — it runs on spare hours",
+        consultant: "The buyer's. You're the data source.",
+        certrace: "Yours. The exporter's.",
+      },
+      {
+        label: "Time per reporting year",
+        diy: "9–15 weeks",
         consultant: "6–10 weeks",
         certrace: "Days, not weeks",
       },
       {
-        label: "Cost per filing",
+        label: "Cost per year",
         diy: "Hidden internal hours",
-        consultant: "฿370K–770K",
-        certrace: "A fraction of consultant fees",
+        consultant: "$9K–24K, or $50K–250K enterprise",
+        certrace: "A fraction of either",
       },
       {
         label: "Supplier data",
         diy: "200+ inconsistent formats",
-        consultant: "Manually reconciled by hand",
-        certrace: "One guided form, every supplier",
+        consultant: "Reconciled by hand, once",
+        certrace: "One guided form, filled once, reused",
       },
       {
         label: "Quality checks",
         diy: "Manual, easy to miss",
         consultant: "Caught after the fact",
-        certrace: "AI-checked the moment it arrives",
+        certrace: "Checked the moment it arrives",
       },
       {
-        label: "Audit-readiness",
-        diy: "Assembled last minute",
-        consultant: "Delivered as a static report",
-        certrace: "Sealed, versioned, always ready",
+        label: "When the buyer asks",
+        diy: "You start chasing suppliers",
+        consultant: "You commission the next report",
+        certrace: "The answer already exists",
       },
       {
-        label: "Scales with suppliers",
-        diy: "Breaks down past a handful",
-        consultant: "Re-billed every quarter",
-        certrace: "Built to grow with your network",
+        label: "Knowing where you stand",
+        diy: "No benchmark at all",
+        consultant: "A number, with no context",
+        certrace: "Benchmarked against penalty rates",
       },
     ],
   },
@@ -349,7 +440,7 @@ const en = {
     steps: [
       {
         title: "Create",
-        desc: "Pick your products. The wizard handles the rest.",
+        desc: "Pick your products. The wizard handles the regulation.",
         view: "declarations / new",
         lines: [
           "# CBAM · Thailand → EU · Q2 2026",
@@ -365,7 +456,7 @@ const en = {
       },
       {
         title: "Collect",
-        desc: "Suppliers fill one simple form. No training needed.",
+        desc: "Suppliers fill one form — and only ever once.",
         view: "smart links / collection",
         lines: [
           "# One secure link per supplier — no accounts",
@@ -373,39 +464,39 @@ const en = {
           "● thai-metal-pro opened their form",
           "✓ chonburi-fab submitted via mobile",
           "",
-          "→ AI quality check · trust score 87/100",
-          "● changes requested → 2 fields reopened",
+          "✓ 4/6 prefilled from saved supplier profile",
+          "→ quality check · 2 unit errors caught",
           "✓ resubmitted · v2 · in review",
         ],
       },
       {
         title: "Review",
-        desc: "Approve with confidence — errors get caught automatically.",
-        view: "workspace / review & sign-off",
+        desc: "See what it's costing you, and where you're exposed.",
+        view: "workspace / review & benchmark",
         lines: [
           "# Deterministic engine · definitive-period rules",
           "✓ default-value cap (20%) — passed",
           "✓ verification records — 6/6",
           "→ CBAM exposure estimate · €41,200",
           "",
-          "✓ all suppliers approved → report generated",
+          "→ benchmark · 1 product line above penalty rate",
           "● sign-off requested — legal · management",
           "✓ 2/2 confirmed",
         ],
       },
       {
-        title: "Send & export",
-        desc: "One click sends everything, everywhere it needs to go.",
-        view: "workspace / send & export",
+        title: "Always ready",
+        desc: "The report is finished before the buyer asks.",
+        view: "workspace / report package",
         lines: [
           "# Registry pre-flight — 0 errors",
           "✓ 24-page package sealed · sha256 9f3a…c21d",
           "✓ Annex IV communication template (XML)",
           "",
-          "→ pushed to O3CI portal",
-          "→ template sent to buyer's declarant",
+          "→ package refreshed on every data change",
+          "→ sent to buyer's declarant · O3CI pushed",
           "✓ acknowledgements received",
-          "You never chase the registry. Your buyer files.",
+          "They never had to ask. You proved it first.",
         ],
       },
     ],
@@ -413,27 +504,29 @@ const en = {
 
   stakeholders: {
     badge: "WHO IT'S FOR",
-    headline: "Built for every stakeholder\nin the compliance chain.",
+    headline: "One chain. Every side of it.\nStarting with yours.",
+    intro:
+      "One dataset, shared by buyers, exporters and suppliers. The exporter and supplier sides are live today — the rest open in order.",
     audiences: [
       {
         title: "Exporters",
-        desc: "Run the whole declaration from one workspace — guided wizard, live Smart Link tracking, approvals, and dispatch.",
+        desc: "Prove your carbon data before the buyer asks — collection, benchmark and an always-ready report in one workspace.",
         cta: "See the exporter solution",
       },
       {
         title: "Suppliers",
-        desc: "One guided form in Thai or English, from any device. No account, no fee, and AI feedback before you submit.",
+        desc: "One guided form in your own language, on any device. No account, no fee, and never the same question twice.",
         cta: "See the supplier solution",
       },
       {
         title: "Legal & Compliance",
-        desc: "Nothing dispatches without a named sign-off, and anomalies escalate automatically. Every decision lands in the audit trail.",
-        cta: "See the legal solution",
+        desc: "Nothing goes out without a named sign-off. Every decision lands in the audit trail.",
+        cta: "Join waitlist",
       },
       {
         title: "Importers",
-        desc: "Aggregate your exporters' verified data, calculate certificates, and file the annual CBAM declaration from the EU side.",
-        cta: "See the importer solution",
+        desc: "Aggregate verified exporter data, calculate certificates, and file the annual declaration from the EU side.",
+        cta: "Join waitlist",
       },
     ],
   },
@@ -497,16 +590,24 @@ const en = {
     headline: "Common questions.\nStraight answers.",
     items: [
       {
+        q: "Everyone else sells to the importer. Why build for the exporter?",
+        a: "Because the exporter is the one who loses the order. Buyer-side platforms treat you as a data source to chase; we treat your data as the thing that wins you the next contract. Same regulation, opposite end of the table.",
+      },
+      {
         q: "Does Certrace file CBAM with the EU for us?",
         a: "No — no vendor can. Only your EU buyer's Authorised CBAM Declarant may file with the Registry. Certrace gives them everything they need: the Annex IV template, a sealed audit package, and your installation data pushed to O3CI.",
       },
       {
         q: "Do my suppliers need to pay or create an account?",
-        a: "No. Each supplier gets one Smart Link — a guided form in Thai or English, on any device. No account, no fee. If something needs fixing, only the flagged fields reopen.",
+        a: "No. Each supplier gets one Smart Link — a guided form in Thai or English, on any device. No account, no fee. Their answers are saved to a profile, so the next request is prefilled.",
       },
       {
         q: "What does the AI actually do? Can it change our numbers?",
-        a: "It reviews, it never edits. The AI flags gaps, anomalies and weak evidence, then writes a trust score and a plain-English summary so your team reviews faster. Every filed figure comes from the deterministic engine, with its calculation trail attached.",
+        a: "It reviews, it never edits. The AI flags gaps, anomalies and weak evidence, then writes a trust score and a plain-English summary so your team reviews faster. Every filed figure comes from the deterministic calculation engine, with its trail attached.",
+      },
+      {
+        q: "What does the benchmark actually tell me?",
+        a: "Where your numbers sit against CBAM penalty rates, in plain English — which product lines carry the most exposure, and what a change would be worth. It's the difference between reporting your carbon data and being able to act on it.",
       },
       {
         q: "Is the output really audit-ready?",
@@ -514,7 +615,7 @@ const en = {
       },
       {
         q: "Which regulations does Certrace support today?",
-        a: "EU CBAM for iron, steel and aluminium is live, with real CN-coded goods and definitive-period rules built in. Buyer data requests (Scope 3 / CSRD) are live too. UK CBAM, EUDR and full CSRD are in development.",
+        a: "EU CBAM, and only EU CBAM — iron, steel and aluminium, with 67 real CN-coded goods and the definitive-period rules built in. UK CBAM, EUDR and CSRD are on the roadmap; we would rather do one regulation properly than four of them halfway.",
       },
       {
         q: "What happens when the rules change?",
@@ -528,9 +629,9 @@ const en = {
   },
 
   cta: {
-    headline: "Your next filing,\nwithout the chaos.",
+    headline: "Be the one who\nproves it first.",
     intro:
-      "See Certrace running on your own supply chain. A 30-minute demo — from supplier invite to audit-ready export.",
+      "See Certrace running on your own supply chain. A 30-minute demo — from supplier invite to a report your buyer can act on.",
     note: "Suppliers are always free · No setup required to start",
   },
 
@@ -633,7 +734,19 @@ const en = {
       "Your first deadline, the buyer asking for data, the tool you use today, who else should join…",
     chooseTime: "CHOOSE A TIME",
     step2Title: "Pick a time that suits you.",
-    step2Intro: "30 minutes, online. All times in",
+    step2Intro: "30 minutes, online.",
+    /* The zone is a control rather than the tail of this sentence: it starts on
+       whatever the browser reports, and someone booking around a colleague's
+       or a buyer's working day has to be able to change it. */
+    timeZoneLabel: "TIMES SHOWN IN",
+    timeZoneHint:
+      "Detected from your browser. Change it if you're booking around another region's hours.",
+    timeZoneRegions: {
+      asiaPacific: "Asia-Pacific",
+      europe: "Europe",
+      middleEastAfrica: "Middle East & Africa",
+      americas: "Americas",
+    },
     chooseDay: "CHOOSE A DAY",
     chooseSlot: "CHOOSE A TIME",
     prevWeek: "Previous week",
@@ -652,12 +765,12 @@ const en = {
 
   marquee: {
     rowOne: [
-      "Built for Thailand → EU Exporters",
+      "The Only Platform Built for the Exporter",
       "67 Real CN-Coded CBAM Goods Mapped",
       "Iron, Steel & Aluminium — Definitive-Period Ready",
-      "SHA-256 Sealed Audit Packages",
-      "Annex IV & O3CI-Ready Exports",
-      "Bilingual Supplier Workflow — Thai & English",
+      "Suppliers Fill It Once, Never Again",
+      "Benchmarked Against CBAM Penalty Rates",
+      "Proof Ready Before the Buyer Asks",
     ],
     rowTwo: [
       "EU CBAM Regulation 2023/956",
@@ -671,7 +784,7 @@ const en = {
       "Book a Demo",
       "30-Minute Guided Walkthrough",
       "Your Own Supply Chain, Live",
-      "From Supplier Invite to Audit-Ready Export",
+      "From Supplier Invite to Audit-Ready Report",
       "Suppliers Always Free",
       "No Setup Required to Start",
     ],
@@ -679,14 +792,14 @@ const en = {
       "See It Live",
       "Book Your Slot",
       "Talk to the Team",
-      "Get Your Filing Timeline",
+      "Prove It First",
       "Start Today",
       "Book a Demo",
     ],
   },
 
   footer: {
-    desc: "An AI workflow platform connecting exporters and suppliers to automate CBAM carbon data collection — from request to audit-ready reports.",
+    desc: "An AI workflow platform connecting buyers, exporters, and suppliers to automate CBAM carbon data collection — from request to audit-ready reports.",
     location: "Bangkok, Thailand",
     columns: {
       platform: "PLATFORM",
@@ -695,13 +808,15 @@ const en = {
       company: "COMPANY",
     },
     links: {
-      smartLink: "Smart Link Collection",
-      aiCheck: "AI Quality Check",
-      engine: "Compliance Engine",
-      reports: "Reports & Handoff",
+      smartLink: "Smart Link Invite",
+      profile: "Fill-Once Profile",
+      aiCheck: "Automatic Quality Check",
+      engine: "CBAM Calculation Engine",
+      benchmark: "Carbon Benchmark",
+      reports: "Always-Ready Reports",
       exporters: "Exporters",
       suppliers: "Suppliers",
-      legalCompliance: "Legal & Compliance",
+      legalCompliance: "Legal & Compliance — soon",
       importers: "Importers — soon",
       howItWorks: "How It Works",
       faq: "FAQ",
@@ -718,6 +833,7 @@ const en = {
     copyright: "© 2026 Certrace Co., Ltd. All rights reserved.",
     contactSubject: "Hello Certrace",
     issueSubject: "Report an issue",
+    careersSubject: "Careers at Certrace",
   },
 
   backlog: {
@@ -824,55 +940,117 @@ const en = {
   },
 
   solutionPage: {
+    /* Suppliers is the only persona page with a feature grid now, so this is
+       the only label it needs. The "WHAT'S COMING" variant went with the legal
+       and importer grids. */
     whatYouGet: "WHAT YOU GET",
     closingHeadline: "See it on your own supply chain.",
     closingIntro:
-      "A 30-minute walkthrough — from supplier invite to audit-ready export. Suppliers are always free.",
+      "A 30-minute walkthrough — from supplier invite to a report your buyer can act on. Suppliers are always free.",
+    closingHeadlineSoon: "Want this the day it opens?",
+    closingIntroSoon:
+      "Join the waitlist and we'll get in touch before it goes live. In the meantime, the exporter side is running today.",
+    /* Frontend-only capture on the two portals that aren't open yet. Wording
+       must never imply a stored record or a scheduled date — "we'll email you"
+       is the whole promise. */
+    waitlist: {
+      badge: "EARLY ACCESS",
+      headline: "Not open yet.\nGet in line for it.",
+      intro:
+        "Leave your details and we'll reach out before this side of the platform opens — no newsletter, no drip campaign.",
+      /* Field labels come from `form.*`, which the demo form already owns —
+         they are the same six questions, so they must not drift apart. */
+      submit: "JOIN THE WAITLIST",
+      note: "One email when it opens. Nothing else, and never shared.",
+      confirmedBadge: "YOU'RE ON THE LIST",
+      confirmedTitle: "You're on the list.",
+      confirmedBody: "We'll write to",
+      confirmedTail:
+        "before this opens. If you'd rather see the exporter side running today, book a demo instead.",
+      /* Same five rules the demo form enforces — the waitlist now asks for the
+         same details, so a mismatch in wording between the two would read as
+         two different products. */
+      errors: {
+        required: "Required",
+        emailFormat: "Enter a valid email address",
+        emailPersonal: "Use your company email address",
+        phoneDigits: "Enter your phone number",
+        phoneLength: "Check the number of digits for this country",
+      },
+    },
     exporters: {
       eyebrow: "FOR EXPORTERS",
-      headline: "Run the whole declaration\nfrom one guided workspace.",
+      headline: "Prove it first.\nBefore they have to ask.",
       intro:
-        "Create the declaration in a guided wizard, watch Smart Links fill in real time, approve each submission, and dispatch — one workspace that always shows your next action, from first request to buyer acknowledgement.",
-      benefits: [
-        {
-          title: "Guided declaration wizard",
-          desc: "Step through CN codes, installations, and reporting periods without needing to know the regulation by heart — the wizard encodes the definitive-period rules.",
-        },
-        {
-          title: "Smart Links, tracked live",
-          desc: "Send one link per supplier and watch submissions, revisions, and AI quality checks land in real time — no more chasing status by email.",
-        },
-        {
-          title: "Approve and dispatch in one place",
-          desc: "Review AI-flagged anomalies, request revisions on just the affected fields, and sign off — all from the same workspace.",
-        },
-        {
-          title: "Audit-ready output",
-          desc: "A sealed, SHA-256-hashed package plus Annex IV XML, ready for your buyer's Authorised CBAM Declarant to file on.",
-        },
-      ],
+        "Every competitor in this space sells to your buyer. Certrace is built on your side: collect supplier data once, calculate it into the EU's format, see what it's costing you, and keep a buyer-ready report standing by — so the answer exists before the request does.",
     },
     suppliers: {
       eyebrow: "FOR SUPPLIERS",
-      headline: "A free guided form.\nNo account, no fee.",
+      headline: "Fill it once.\nNever fill it again.",
       intro:
-        "Receive a Smart Link, fill one guided form in Thai or English from any device, and get AI feedback before submitting. If a revision is requested, only those fields reopen — everything else stays locked.",
+        "Receive a Smart Link, fill one guided form in your own language from any device, and get feedback before you submit. Your answers save to a profile and prefill every request after — including requests from a different buyer.",
+      /* The supplier is the one person in this chain who never chose to be
+         here: their customer sent them a form. So this grid has to answer
+         "what does this cost me, and how long will it take" before it sells
+         anything — hence the three short guarantees under each card, and
+         hence "free, always" being a card of its own rather than fine print. */
+      benefitsHeadline: "What you actually have to do.",
+      benefitsIntro:
+        "One form, once. Everything below is what happens around it so you never fill the same box twice.",
       benefits: [
         {
-          title: "One Smart Link, any device",
-          desc: "No login, no software to install. Open the link on your phone or desktop and fill in your data at your own pace.",
+          title: "One link, any device",
+          desc: "Your customer sends a link. Open it on the phone in your pocket and fill it in when you have a moment — there is nothing to download and no account to create.",
+          points: [
+            "No login, no password",
+            "Works on mobile",
+            "Stop and come back later",
+          ],
         },
         {
-          title: "Bilingual, Thai or English",
-          desc: "Every question and instruction is written in plain language in both Thai and English — switch anytime.",
+          title: "Written in your language",
+          desc: "Thai and English today, with more following the markets we open. Every question is asked in plain words, with a note explaining what it means and where to find the answer.",
+          points: [
+            "Thai and English now",
+            "Plain words, not regulation",
+            "A hint on every question",
+          ],
         },
         {
-          title: "AI feedback before you submit",
-          desc: "Catch missing evidence or inconsistent figures before your exporter even sees them, with plain-English guidance.",
+          title: "Filled once, reused after",
+          desc: "What you enter saves to your own profile and fills itself in on the next request — the next reporting period, and every other customer who asks you the same thing.",
+          points: [
+            "Carries across periods",
+            "Carries across customers",
+            "Minutes instead of an afternoon",
+          ],
         },
         {
-          title: "Only the flagged fields reopen",
-          desc: "If your exporter requests a revision, the rest of your submission stays locked — you only touch what changed.",
+          title: "Checked before you send",
+          desc: "Missing evidence, the wrong unit, a figure that doesn't line up with the others — caught while you are still filling the form, and explained rather than just flagged.",
+          points: [
+            "Caught as you type",
+            "Told what to fix",
+            "No email back-and-forth",
+          ],
+        },
+        {
+          title: "Only what changed reopens",
+          desc: "If your customer asks for a revision, everything you already got right stays locked. You see exactly which boxes are open and you touch nothing else.",
+          points: [
+            "The rest stays submitted",
+            "One place to see the ask",
+            "Never start over",
+          ],
+        },
+        {
+          title: "Free, and only theirs to see",
+          desc: "Suppliers never pay for Certrace, on any plan. What you submit is visible to the customer who asked for it — and stays yours to reuse with anyone else.",
+          points: [
+            "No cost, ever",
+            "Visible to the requester only",
+            "Yours to reuse",
+          ],
         },
       ],
     },
@@ -880,50 +1058,13 @@ const en = {
       eyebrow: "FOR LEGAL & COMPLIANCE",
       headline: "Named sign-offs.\nA complete audit trail.",
       intro:
-        "Reports go out only after named sign-offs — and legal review is auto-suggested whenever the engine flags a default-value cap breach or anomaly. Every decision lands in the audit trail.",
-      benefits: [
-        {
-          title: "Sign-off, not rubber-stamping",
-          desc: "Every declaration requires a named reviewer before it dispatches — no report leaves without accountability attached.",
-        },
-        {
-          title: "Anomalies auto-escalate",
-          desc: "When the compliance engine flags a default-value cap breach or an outlier submission, legal review is suggested automatically.",
-        },
-        {
-          title: "Definitive-period rules, encoded",
-          desc: "Default-value caps, Scope 2 treatment by category, and verification requirements are built into the engine — not left to interpretation.",
-        },
-        {
-          title: "A sealed, versioned record",
-          desc: "The full calculation trail, evidence register, and sign-off history ship in a SHA-256-hashed package — provable, not just filed.",
-        },
-      ],
+        "The dedicated legal and compliance workspace is being built. When it opens, reports will go out only after named sign-offs — with legal review auto-suggested whenever the engine flags a default-value cap breach or an anomaly, and every decision landing in the audit trail.",
     },
     importers: {
       eyebrow: "FOR IMPORTERS",
       headline: "The EU-side declarant\nworkspace. Coming soon.",
       intro:
         "Aggregate the emissions data your exporters already submitted, run the certificate calculation, and file the annual CBAM declaration — the Authorised CBAM Declarant's side of the workflow, built on the same verified dataset your suppliers filled in.",
-      ctaLabel: "JOIN THE WAITLIST",
-      benefits: [
-        {
-          title: "One dataset, both sides",
-          desc: "No re-entering data your exporters already collected — the importer workspace reads from the same verified Smart Link submissions.",
-        },
-        {
-          title: "Certificate calculation",
-          desc: "Turn aggregated embedded emissions into the certificate volumes and cost exposure you need to plan for, before the annual deadline.",
-        },
-        {
-          title: "Annual declaration filing",
-          desc: "Prepare and submit the CBAM annual declaration with the same audit-ready discipline as the exporter side.",
-        },
-        {
-          title: "Built, not hypothetical",
-          desc: "The importer workspace already exists as a standalone product — this is a landing page ahead of its public launch, not a roadmap promise.",
-        },
-      ],
     },
   },
 };
@@ -937,6 +1078,7 @@ const th: Content = {
     seeHowItWorks: "ดูวิธีการทำงาน",
     requestPricing: "ขอใบเสนอราคา",
     allSolutions: "ดูโซลูชันทั้งหมด",
+    joinWaitlist: "ลงชื่อรอใช้งาน",
     live: "พร้อมใช้",
     soon: "เร็ว ๆ นี้",
     comingSoon: "เร็ว ๆ นี้",
@@ -950,27 +1092,35 @@ const th: Content = {
     selectLanguage: "เลือกภาษา",
     openMenu: "เปิดเมนู",
     closeMenu: "ปิดเมนู",
-    backToTop: "Certrace — กลับสู่ด้านบน",
+    backToTop: "Certrace — กลับขึ้นด้านบน",
     primary: "เมนูหลัก",
     mobile: "เมนูมือถือ",
     platform: {
       label: "แพลตฟอร์ม",
       items: [
         {
-          label: "Smart Link Collection",
-          desc: "ลิงก์ปลอดภัยหนึ่งลิงก์ต่อซัพพลายเออร์หนึ่งราย ไม่ต้องสมัครบัญชี ไม่ต้องอบรม",
+          label: "คำเชิญซัพพลายเออร์ผ่าน Smart Link",
+          desc: "หนึ่งลิงก์ต่อซัพพลายเออร์หนึ่งราย ไม่ต้องส่งอีเมล ไม่ต้องสมัครบัญชี ไม่ต้องตามงาน",
         },
         {
-          label: "AI Quality Check",
-          desc: "คะแนนความน่าเชื่อถือและบทสรุปที่อ่านเข้าใจง่ายในทุกการส่งข้อมูล",
+          label: "โปรไฟล์ซัพพลายเออร์ กรอกครั้งเดียว",
+          desc: "ข้อมูลซัพพลายเออร์บันทึกครั้งเดียว แล้วนำกลับมาใช้เองในทุกคำขอถัดไป",
         },
         {
-          label: "Compliance Engine",
-          desc: "กฎ CBAM ช่วงบังคับใช้จริง คำนวณอย่างแม่นยำและตรวจสอบย้อนกลับได้",
+          label: "ตรวจคุณภาพข้อมูลอัตโนมัติ",
+          desc: "ข้อมูลที่ขาด หน่วยที่ผิด และตัวเลขที่เป็นไปไม่ได้ ถูกจับได้ตั้งแต่ตอนส่ง",
         },
         {
-          label: "Reports & Handoff",
-          desc: "ชุดเอกสารตรวจสอบที่ผนึกแล้ว ไฟล์ XML ตาม Annex IV และการส่งเข้า O3CI",
+          label: "ระบบคำนวณ CBAM",
+          desc: "แปลงข้อมูลดิบจากซัพพลายเออร์เป็นรูปแบบการปล่อยคาร์บอนที่สหภาพยุโรปกำหนด",
+        },
+        {
+          label: "แดชบอร์ดเทียบมาตรฐานคาร์บอน",
+          desc: "คุณอยู่ตรงไหนเมื่อเทียบกับอัตราค่าปรับ CBAM ด้วยภาษาที่เข้าใจง่าย",
+        },
+        {
+          label: "ชุดรายงานที่พร้อมเสมอ",
+          desc: "พร้อมส่งผู้ซื้อและผู้ตรวจสอบในรูปแบบของสหภาพยุโรป อัปเดตเองโดยไม่ต้องทำใหม่",
         },
       ],
       footer: "ดูฟีเจอร์ทั้งหมด",
@@ -980,19 +1130,19 @@ const th: Content = {
       items: [
         {
           label: "สำหรับผู้ส่งออก",
-          desc: "จัดการการยื่นรายงานทั้งหมดจากพื้นที่ทำงานเดียวที่มีคำแนะนำทุกขั้นตอน",
+          desc: "พิสูจน์ข้อมูลคาร์บอนของคุณก่อนที่ผู้ซื้อจะต้องเอ่ยปากขอ",
         },
         {
           label: "สำหรับซัพพลายเออร์",
-          desc: "แบบฟอร์มพร้อมคำแนะนำ ใช้ฟรี ทั้งภาษาไทยและอังกฤษ จากอุปกรณ์ใดก็ได้",
+          desc: "แบบฟอร์มพร้อมคำแนะนำ ใช้ฟรี ในภาษาของคุณเอง จากอุปกรณ์ใดก็ได้",
         },
         {
           label: "สำหรับฝ่ายกฎหมายและกำกับดูแล",
-          desc: "การอนุมัติที่ระบุชื่อผู้รับผิดชอบ พร้อมร่องรอยการตรวจสอบครบถ้วน",
+          desc: "การรับรองที่ระบุชื่อผู้อนุมัติ พร้อมร่องรอยการตรวจสอบที่ครบถ้วน",
         },
         {
           label: "สำหรับผู้นำเข้า",
-          desc: "พื้นที่ทำงานฝั่งผู้ยื่นรายงานในสหภาพยุโรปสำหรับการยื่น CBAM",
+          desc: "พื้นที่ทำงานฝั่งสหภาพยุโรปสำหรับผู้ยื่นรายงาน CBAM",
         },
       ],
       footer: "Certrace สร้างมาเพื่อใคร",
@@ -1002,14 +1152,10 @@ const th: Content = {
       items: [
         {
           label: "EU CBAM",
-          desc: "เหล็ก เหล็กกล้า และอะลูมิเนียม — สินค้า 67 รายการตามรหัส CN พร้อมกฎช่วงบังคับใช้จริง",
-        },
-        {
-          label: "คำขอข้อมูลจากผู้ซื้อ",
-          desc: "แบบสอบถาม Scope 3 และ CSRD จากผู้ซื้อในสหภาพยุโรป ตอบได้จากชุดข้อมูลเดียวกัน",
+          desc: "เหล็ก เหล็กกล้า และอะลูมิเนียม — สินค้า 67 รายการตามรหัส CN พร้อมกฎช่วงบังคับใช้จริงในระบบ",
         },
       ],
-      footer: "ดูสิ่งที่เพิ่งอัปเดต",
+      footer: "ดูสิ่งที่อัปเดตล่าสุด",
     },
     pricing: "ราคา",
     resources: {
@@ -1017,15 +1163,15 @@ const th: Content = {
       items: [
         {
           label: "วิธีการทำงาน",
-          desc: "สี่ขั้นตอน ตั้งแต่เชิญซัพพลายเออร์จนถึงไฟล์ที่พร้อมตรวจสอบ",
+          desc: "สี่ขั้นตอน ตั้งแต่เชิญซัพพลายเออร์จนถึงไฟล์ส่งออกที่พร้อมตรวจสอบ",
         },
         {
           label: "คำถามที่พบบ่อย",
-          desc: "ใครเป็นผู้ยื่นจริง AI ทำอะไรบ้าง และข้อมูลถูกปกป้องอย่างไร",
+          desc: "ใครเป็นผู้ยื่นจริง AI ทำอะไร และข้อมูลถูกดูแลอย่างไร",
         },
         {
           label: "ไทม์ไลน์ CBAM",
-          desc: "ทุกกำหนดเวลา ตั้งแต่ช่วงเปลี่ยนผ่านจนถึงการยื่นรายงานประจำปีครั้งแรก",
+          desc: "ทุกกำหนดเวลา ตั้งแต่ช่วงเปลี่ยนผ่านจนถึงการยื่นรายงานครั้งแรก",
         },
         {
           label: "แผนพัฒนา",
@@ -1043,11 +1189,11 @@ const th: Content = {
         },
         {
           label: "เกี่ยวกับ Certrace",
-          desc: "เราคือใคร และทำไมเราจึงสร้างสิ่งนี้ เร็ว ๆ นี้",
+          desc: "เราคือใคร และทำไมถึงสร้างสิ่งนี้ขึ้นมา เร็ว ๆ นี้",
         },
         {
           label: "ร่วมงานกับเรา",
-          desc: "ตำแหน่งงานจะประกาศที่นี่เมื่อทีมเติบโตขึ้น",
+          desc: "บอกเราว่าคุณอยากสร้างอะไร เราอ่านทุกฉบับ",
         },
       ],
       footer: "จองการสาธิต",
@@ -1055,145 +1201,189 @@ const th: Content = {
   },
 
   hero: {
-    badge: "โครงสร้างพื้นฐานด้านการปฏิบัติตามกฎคาร์บอน",
-    headline: "การจัดการคาร์บอน\nตลอดห่วงโซ่อุปทาน\nโดยไม่วุ่นวาย",
+    badge: "โครงสร้างพื้นฐานด้านข้อมูลคาร์บอน",
+    headline: "ผู้ซื้อไม่รอ\nเขาเลือกคนที่\nพิสูจน์ได้ก่อน",
     intro:
-      "แพลตฟอร์ม AI ที่เชื่อมผู้ส่งออกกับซัพพลายเออร์ เพื่อรวบรวมข้อมูลคาร์บอนตามข้อกำหนด CBAM แบบอัตโนมัติ ตั้งแต่การร้องขอจนถึงรายงานที่พร้อมตรวจสอบ",
+      "แพลตฟอร์ม AI ที่เชื่อมผู้ซื้อ ผู้ส่งออก และซัพพลายเออร์เข้าด้วยกัน เพื่อเก็บข้อมูลคาร์บอนตาม CBAM แบบอัตโนมัติ ตั้งแต่คำขอจนถึงรายงานที่พร้อมตรวจสอบ",
     stats: [
-      "รายการสินค้า CBAM ตามรหัส CN จริง",
-      "ต้นทุนการปฏิบัติตามกฎต่อการยื่นหนึ่งครั้ง",
+      /* The comparison section reuses these captions in a 109px box at 768px;
+         anything past ~15 characters splits ลดลง into ลด / ลง there. */
+      "ต้นทุนต่อการยื่น",
       "ชั่วโมงทำงานที่ต้องตามซัพพลายเออร์",
-      "ความเร็วในการจัดทำบัญชีคาร์บอน",
+      "รายการสินค้า CBAM ที่รองรับแล้ว",
+      /* Has to fit the 140px caption box on one line — anything longer and
+         Chrome splits หลักฐาน into หลัก / ฐาน, or เร็วขึ้น into เร็ว / ขึ้น. */
+      "พิสูจน์ได้เร็วขึ้น",
     ],
-    videoTitle: "แนะนำการใช้งาน Certrace",
+    videoTitle: "วิดีโอแนะนำผลิตภัณฑ์ Certrace",
   },
 
   problem: {
-    badge: "ปัญหาที่เกิดขึ้น",
-    headline: "วันนี้การทำ CBAM\nช้า แพง และเปราะบาง",
+    badge: "ปัญหา",
+    headline: "สี่ขั้นตอน\nแค่นั้นก็พอ\nที่จะเสียออร์เดอร์",
     intro:
-      "ทุกไตรมาส ผู้ส่งออกต้องใช้เวลาหลายเดือนไล่ตามซัพพลายเออร์ทางอีเมล จ่ายค่าที่ปรึกษาเพื่อรวบรวมข้อมูลที่ไม่สอดคล้องกัน และสุดท้ายรายงานก็ยังถูกตีกลับ",
-    cards: [
+      "ผู้ซื้อขอข้อมูลคาร์บอนที่ผ่านการตรวจสอบ คุณเริ่มไล่ตาม อีกรายมีข้อมูลพร้อมอยู่แล้ว ออร์เดอร์จึงไม่ถูกปฏิเสธ แต่ย้ายไปหาเขาแทน",
+    chain: [
       {
-        eyebrow: "เวลา",
-        title: "การยื่นรายงานใช้เวลาเป็นเดือน ไม่ใช่เป็นวัน",
-        unit: " สัปดาห์",
-        caption: "ต่อการยื่นหนึ่งครั้ง ตั้งแต่เริ่มจนส่ง",
+        step: "คำขอ",
+        title: "ผู้ซื้อเอ่ยขอ",
+        desc: "ผู้นำเข้าในสหภาพยุโรปต้องการข้อมูลการปล่อยคาร์บอนที่ผ่านการตรวจสอบก่อนออร์เดอร์ถัดไป",
       },
       {
-        eyebrow: "ต้นทุน",
-        title: "ทุกไตรมาสมีค่าใช้จ่ายสูงเกินความจำเป็น",
-        unit: "K",
-        caption: "ต่อการยื่นหนึ่งครั้ง รวมทุกค่าใช้จ่าย",
+        step: "ความล่าช้า",
+        title: "คุณเริ่มไล่ตาม",
+        desc: "ไล่ทีละราย ทีละอีเมล ผ่านไปหลายสัปดาห์ก็ยังไม่ครบ",
       },
       {
-        eyebrow: "ความเสี่ยง",
-        title: "พลาดเพียงจุดเดียว รายงานก็ถูกตีกลับ",
-        unit: "%",
-        caption: "ของการยื่นที่ทำด้วยมือถูกตีกลับ",
+        step: "ทางเลือกอื่น",
+        title: "เขาไปเจอรายอื่น",
+        desc: "ผู้ส่งออกอีกรายมีตัวเลขที่สะอาดพร้อมส่งอยู่แล้ว",
+      },
+      {
+        step: "การเปลี่ยนมือ",
+        title: "ออร์เดอร์ย้ายมือ",
+        desc: "ไม่ใช่เพราะราคา ไม่ใช่เพราะคุณภาพ แต่เพราะหลักฐานมาถึงเป็นรายที่สอง",
       },
     ],
-    costLabel: "ต้นทุนที่แท้จริงต่อปีของการทำ CBAM โดยไม่มี Certrace",
-    costPer: "ต่อปี",
+    stakes: {
+      riskLabel: "คุณพร้อมเสี่ยงกับเรื่องนี้ไหม",
+      riskTitle: "หนึ่งออร์เดอร์ที่หายไป",
+      riskFigure: "$670,000",
+      riskCaption: {
+        before: "ไม่ใช่เพราะราคา ไม่ใช่เพราะคุณภาพ แต่เพราะ",
+        highlight: "ข้อมูลคาร์บอนที่หายไป",
+      },
+      manualLabel: "ถ้ายังทำด้วยมือแบบทุกวันนี้",
+      manual: [
+        { lead: "9–15 สัปดาห์", rest: "ของงานที่ต้องทำเอง ในทุกปีรายงาน" },
+        { lead: "$9K–24K", rest: "ต่อปี และยังผิดพลาดอยู่บ่อยครั้ง" },
+      ],
+    },
   },
 
   whyNow: {
     badge: "ทำไมต้องตอนนี้",
-    headline: "เตรียมพร้อมไว้\nCBAM มาถึงแล้ว",
+    headline: "CBAM ไม่ได้กำลังจะมา\nแต่เริ่มนับแล้ว",
     intro:
-      "ช่วงบังคับใช้จริงเริ่มตั้งแต่มกราคม 2026 ทุกการส่งออกมีผลแล้ว และตั้งแต่กุมภาพันธ์ 2027 ใบรับรองจะคิดราคาจากสิ่งที่คุณรายงาน",
+      "ตั้งแต่มกราคม 2026 ทุกการส่งออกมีต้นทุนจริง และคุณพิสูจน์ได้เฉพาะสิ่งที่วัดไว้ตอนนั้น",
     milestones: [
       {
         date: "ต.ค. 2023",
         label: "เริ่มช่วงเปลี่ยนผ่าน",
-        desc: "รายงานอย่างเดียว ยังไม่ต้องใช้ใบรับรอง",
+        desc: "รายงานอย่างเดียว ยังไม่ต้องมีใบรับรอง",
       },
       {
         date: "ม.ค. 2026",
         label: "เริ่มช่วงบังคับใช้จริง",
-        desc: "ภาระผูกพัน CBAM มีผลเต็มรูปแบบกับทุกการส่งออก",
+        desc: "ทุกการส่งออกมีภาระผูกพันเต็มรูปแบบ",
       },
       {
         date: "ก.พ. 2027",
-        label: "เริ่มขายใบรับรอง",
-        desc: "ผู้นำเข้าเริ่มซื้อใบรับรอง CBAM สำหรับการปล่อยคาร์บอนปี 2026",
+        label: "เปิดขายใบรับรอง",
+        desc: "ผู้นำเข้าเริ่มซื้อสำหรับการปล่อยคาร์บอนปี 2026",
       },
       {
         date: "ก.ย. 2027",
         label: "กำหนดยื่นรายงานประจำปีครั้งแรก",
-        desc: "เส้นตายในการยื่นรายงานและส่งมอบใบรับรองของปี 2026",
+        desc: "ยื่นรายงานและส่งคืนใบรับรองของปี 2026",
       },
     ],
     countdown: {
       eyebrow: "ย้อนเวลากลับไม่ได้",
-      title: "การปล่อยคาร์บอนของเดือนที่ผ่านมา วัดย้อนหลังไม่ได้อีกแล้ว",
+      title: "การปล่อยคาร์บอนของเดือนที่แล้ว วัดย้อนหลังไม่ได้อีกแล้ว",
       units: ["วัน", "ชม.", "นาที", "วินาที"],
     },
     quote:
-      "“ผู้ส่งออกที่ไม่สามารถจัดทำรายงานคาร์บอนที่ผ่านการตรวจสอบได้ เสี่ยงต่อการสูญเสียการเข้าถึงตลาดยุโรปอย่างถาวร”",
+      "“ผู้ส่งออกที่ไม่สามารถแสดงรายงานคาร์บอนที่ผ่านการตรวจสอบ เสี่ยงต่อการสูญเสียการเข้าถึงตลาดสหภาพยุโรปอย่างถาวร”",
   },
 
   live: {
-    badge: "แพลตฟอร์มที่ทำงานจริง",
-    headline: "ทุกอย่างอยู่ในที่เดียว\nอัปเดตตลอดเวลา",
+    badge: "แพลตฟอร์มที่ใช้งานจริง",
+    /* Three lines, not two: at 60px a 20-character Thai line overruns the
+       520px column and wraps itself into a fourth. */
+    headline: "หลักฐานของคุณ\nพร้อมรออยู่แล้ว\nก่อนเขาจะเอ่ยขอ",
     intro:
-      "ทุกซัพพลายเออร์ ทุกการส่งข้อมูล ทุกเส้นตาย มองเห็นได้ทันทีที่มีการเปลี่ยนแปลง ไม่ต้องประชุมอัปเดตสถานะ ไม่ต้องสับสนเรื่องเวอร์ชัน",
+      "ทุกซัพพลายเออร์ ทุกการส่งข้อมูล ทุกกำหนดเวลา เห็นได้ทันทีที่เปลี่ยน เมื่อคำขอมาถึง คำตอบจึงมีอยู่แล้ว",
     suppliersSubmitted: "ซัพพลายเออร์ส่งข้อมูลแล้ว\nในไตรมาสนี้",
     stats: [
-      "อนุมัติแล้ว 24 จาก 30 ซัพพลายเออร์",
-      "ข้อมูลครบถ้วน 94%",
-      "เหลืออีก 6 วันถึงเส้นตาย",
+      "อนุมัติแล้ว 24 / 30 ราย",
+      "ข้อมูลครบ 94%",
+      "เหลืออีก 6 วันถึงกำหนด",
     ],
   },
 
   platform: {
     badge: "แพลตฟอร์ม",
-    headline: "สี่โมดูล\nทำงานร่วมกันอย่างไร้รอยต่อ",
+    /* Three lines: "ร้อยเป็นสายเดียวไม่ขาดตอน" is 21 characters, which
+       overruns the 342px column at 390px and drops "ขาดตอน" onto a widow. */
+    headline: "หกฟีเจอร์\nร้อยเป็นสายเดียว\nไม่ขาดตอน",
     intro:
-      "ไม่ต้องนำสเปรดชีตมาต่อกันเอง ไม่ต้องกระทบยอดข้ามเครื่องมือ ทุกขั้นตอน ทั้งการเก็บ ตรวจ อนุมัติ และส่ง ถูกออกแบบให้ผ่านการตรวจสอบตั้งแต่ครั้งแรก",
+      "ไม่ต้องต่อสเปรดชีต ไม่ต้องกระทบยอดกับอีกเครื่องมือ เชิญ ใช้ซ้ำ ตรวจ คำนวณ เทียบมาตรฐาน และออกรายงาน ออกแบบมาให้หลักฐานเสร็จก่อนที่ใครจะเอ่ยขอ",
     modules: [
       {
-        label: "01 / SMART LINK COLLECTION",
-        title: "หนึ่งลิงก์ต่อซัพพลายเออร์ ไม่ต้องตามงาน",
-        desc: "ซัพพลายเออร์แต่ละรายจะได้รับ Smart Link ที่ปลอดภัย เป็นแบบสอบถามสองภาษาพร้อมคำแนะนำ ครอบคลุมข้อมูล CBAM ที่สินค้าของเขาต้องใช้พอดี ไม่ต้องสมัครบัญชี ไม่ต้องอบรม พร้อมระบบเตือนอัตโนมัติ และเมื่อมีจุดต้องแก้ ระบบจะเปิดเฉพาะช่องนั้นให้แก้เท่านั้น",
+        label: "01 / คำเชิญซัพพลายเออร์ผ่าน SMART LINK",
+        title: "ไม่ต้องส่งอีเมล ไม่ต้องตามงาน ไม่ต้องสมัครบัญชี",
+        desc: "ส่งลิงก์เดียว ซัพพลายเออร์กรอกเฉพาะข้อมูลที่สินค้าของเขาต้องใช้ ในภาษาของเขาเอง ไม่ต้องติดตั้งอะไร ไม่ต้องอบรมใคร",
         tags: [
-          "แบบสอบถามพร้อมคำแนะนำ",
-          "ข้อมูลแยกตามสินค้า",
-          "เตือนอัตโนมัติ",
+          "หนึ่งลิงก์ต่อหนึ่งราย",
           "ไม่ต้องสมัครบัญชี",
+          "ภาษาของเขาเอง",
+          "เตือนอัตโนมัติ",
         ],
       },
       {
-        label: "02 / AI QUALITY CHECK",
-        title: "ทุกการส่งข้อมูลถูกคัดกรองก่อนถึงมือคุณ",
-        desc: "เมื่อซัพพลายเออร์ส่งข้อมูลเข้ามา Certrace จะตรวจคุณภาพด้วย AI ทั้งความครบถ้วนตามช่องข้อมูล CBAM ที่กำหนด ความผิดปกติของหน่วยและช่วงค่า รวมถึงหลักฐานที่อ่อน แล้วสรุปเป็นภาษาที่เข้าใจง่ายพร้อมคะแนนความน่าเชื่อถือ ทั้งหมดนี้เป็นเพียงคำแนะนำ ตัวเลขที่ยื่นจริงยังคำนวณด้วยระบบที่ตรวจสอบย้อนกลับได้",
+        label: "02 / โปรไฟล์ซัพพลายเออร์ กรอกครั้งเดียว",
+        title: "ซัพพลายเออร์ไม่ต้องกรอกข้อมูลเดิมซ้ำอีก",
+        desc: "คำตอบบันทึกครั้งเดียวแล้วเติมให้เองในทุกคำขอถัดไป ทั้งข้ามสินค้า ข้ามรอบรายงาน และข้ามผู้ซื้อ ครั้งแรกใช้เวลาหนึ่งบ่าย ครั้งต่อไปใช้เวลาไม่กี่นาที",
         tags: [
-          "คะแนนความน่าเชื่อถือ",
-          "บทสรุปผู้บริหาร",
-          "แจ้งเตือนความผิดปกติ",
-          "ตรวจทานหลักฐาน",
+          "บันทึกครั้งเดียว",
+          "ใช้ซ้ำได้ทุกที่",
+          "ข้ามผู้ซื้อได้",
+          "ไม่กี่นาที ไม่ใช่หลายสัปดาห์",
         ],
       },
       {
-        label: "03 / COMPLIANCE ENGINE",
-        title: "กฎช่วงบังคับใช้จริง ตรวจให้ครบก่อนส่งออกไป",
-        desc: "การตรวจสอบที่แม่นยำและทำซ้ำได้ ตามกฎช่วงบังคับใช้จริงปี 2026 ทั้งเพดานค่าตั้งต้นสำหรับสินค้าเชิงซ้อน การจัดการ Scope 2 ตามหมวดสินค้า เงื่อนไขการทวนสอบ และการประเมินภาระต้นทุน CBAM พร้อมการตรวจก่อนยื่นที่จะระงับการส่งไว้จนกว่าจะแก้ข้อผิดพลาดร้ายแรงครบทุกจุด",
+        label: "03 / ตรวจคุณภาพข้อมูลอัตโนมัติ",
+        title: "ข้อมูลที่ผิดถูกจับได้ก่อนถึงมือคุณ",
+        desc: "ข้อมูลที่ขาด หน่วยที่ผิด ตัวเลขที่เป็นไปไม่ได้ ถูกทำเครื่องหมายทันทีที่ซัพพลายเออร์ส่ง คุณจึงตรวจข้อมูลที่สะอาดพร้อมสรุปที่อ่านเข้าใจง่าย ไม่ใช่สเปรดชีตที่เต็มไปด้วยคำถาม",
         tags: [
+          "ข้อมูลที่ขาด",
+          "หน่วยที่ผิด",
+          "ค่าที่เป็นไปไม่ได้",
+          "สรุปที่อ่านเข้าใจง่าย",
+        ],
+      },
+      {
+        label: "04 / ระบบคำนวณ CBAM",
+        title: "ไม่ต้องคำนวณเอง ไม่มีสูตรในสเปรดชีตที่ผิด",
+        desc: "ข้อมูลดิบจากซัพพลายเออร์ถูกแปลงเป็นรูปแบบการปล่อยคาร์บอนที่สหภาพยุโรปกำหนดโดยอัตโนมัติ ตามกฎช่วงบังคับใช้จริง พร้อมร่องรอยการคำนวณแนบไปกับทุกตัวเลขที่คุณยื่น",
+        tags: [
+          "รูปแบบของสหภาพยุโรป",
           "เพดานค่าตั้งต้น 20%",
           "กฎ Scope 2",
-          "ภาระต้นทุนเป็นยูโร",
-          "ตรวจก่อนยื่นทะเบียน",
+          "ร่องรอยการคำนวณครบถ้วน",
         ],
       },
       {
-        label: "04 / REPORTS & HANDOFF",
-        title: "ชุดเอกสารที่ผู้ยื่นของลูกค้าคุณใช้ยื่นได้ทันที",
-        desc: "สร้างชุดเอกสารสื่อสารและตรวจสอบ CBAM ฉบับเต็ม ผนึกด้วยแฮช SHA-256 แยกเป็นบทต่อซัพพลายเออร์หนึ่งราย พร้อมไฟล์ XML ตามโครงสร้าง Annex IV ส่งข้อมูลโรงงานเข้าพอร์ทัล O3CI ของสหภาพยุโรป และส่งแบบฟอร์มสื่อสารให้ผู้ยื่นของลูกค้าคุณได้จากในระบบโดยตรง",
+        label: "05 / แดชบอร์ดเทียบมาตรฐานคาร์บอน",
+        title: "เห็นว่าคุณอยู่ตรงไหน และมันทำให้คุณเสียเท่าไหร่",
+        desc: "ตัวเลขคาร์บอนของคุณเทียบกับอัตราค่าปรับ CBAM ด้วยภาษาที่เข้าใจง่าย ทั้งจุดที่มีความเสี่ยง สายผลิตภัณฑ์ที่ฉุดคุณอยู่ และสิ่งที่ต้องแก้ ไม่ต้องมีความเชี่ยวชาญ",
         tags: [
-          "ชุดเอกสารตรวจสอบ 24 หน้า",
-          "แบบฟอร์ม Annex IV",
-          "ส่งเข้า O3CI",
-          "ผนึกด้วย SHA-256",
+          "เทียบอัตราค่าปรับ",
+          "ความเสี่ยงรายสินค้า",
+          "ภาษาที่เข้าใจง่าย",
+          "ไม่ต้องมีความเชี่ยวชาญ",
+        ],
+      },
+      {
+        label: "06 / ชุดรายงานที่พร้อมเสมอ",
+        title: "พร้อมก่อนที่ผู้ซื้อจะเอ่ยขอด้วยซ้ำ",
+        desc: "คลิกเดียวเปลี่ยนข้อมูลซัพพลายเออร์เป็นรายงานที่ผนึกแล้ว พร้อมส่งผู้ซื้อและผู้ตรวจสอบในรูปแบบของสหภาพยุโรป และอัปเดตตามข้อมูลที่เปลี่ยน คุณจึงไม่ต้องทำใหม่",
+        tags: [
+          "พร้อมส่งผู้ซื้อ",
+          "พร้อมให้ตรวจสอบ",
+          "ไฟล์ XML ตาม Annex IV",
+          "อัปเดตอยู่เสมอ",
         ],
       },
     ],
@@ -1201,142 +1391,105 @@ const th: Content = {
 
   comparison: {
     badge: "ทำไมต้อง CERTRACE",
-    headline: "เส้นตายเดียวกัน\nแต่มีสามเส้นทางที่ต่างกันมาก",
+    headline: "แพลตฟอร์มคาร์บอนอื่น\nขายให้ผู้ซื้อของคุณ\nแต่ตัวนี้เป็นของคุณ",
     intro:
-      "ไม่ว่าวันนี้คุณจัดการเรื่องนี้อย่างไร นี่คือการเปรียบเทียบกับแพลตฟอร์มที่สร้างมาเพื่องานนี้โดยเฉพาะ",
+      "เครื่องมือในตลาดนี้ถูกซื้อโดยผู้นำเข้าในสหภาพยุโรป คุณเป็นเพียงแหล่งข้อมูลที่เขามาเก็บ Certrace อยู่ข้างคุณ ทั้งซัพพลายเออร์ ข้อมูล และหลักฐานของคุณ พร้อมก่อนคำขอจะมาถึง",
     colDiy: "ทำเองภายในองค์กร",
-    colConsultant: "จ้างที่ปรึกษา",
+    colConsultant: "ที่ปรึกษา / เครื่องมือฝั่งผู้ซื้อ",
     rows: [
       {
-        label: "เวลาต่อการยื่นหนึ่งครั้ง",
-        diy: "10–19 สัปดาห์",
+        label: "สร้างมาเพื่อฝั่งไหน",
+        diy: "ไม่ใช่ของใคร อาศัยเวลาว่างของคนในทีม",
+        consultant: "ฝั่งผู้ซื้อ คุณเป็นแหล่งข้อมูล",
+        certrace: "ฝั่งคุณ ฝั่งผู้ส่งออก",
+      },
+      {
+        label: "เวลาที่ใช้ต่อปีรายงาน",
+        diy: "9–15 สัปดาห์",
         consultant: "6–10 สัปดาห์",
-        certrace: "นับเป็นวัน ไม่ใช่สัปดาห์",
+        certrace: "เป็นวัน ไม่ใช่เป็นสัปดาห์",
       },
       {
-        label: "ต้นทุนต่อการยื่นหนึ่งครั้ง",
-        diy: "ต้นทุนแฝงจากเวลาพนักงาน",
-        consultant: "฿370K–770K",
-        certrace: "เพียงเศษเสี้ยวของค่าที่ปรึกษา",
+        label: "ต้นทุนต่อปี",
+        diy: "ชั่วโมงทำงานภายในที่ซ่อนอยู่",
+        consultant: "$9K–24K หรือ $50K–250K ระดับองค์กร",
+        certrace: "เพียงเศษเสี้ยวของทั้งสองแบบ",
       },
       {
-        label: "ข้อมูลจากซัพพลายเออร์",
-        diy: "กว่า 200 รูปแบบที่ไม่ตรงกัน",
-        consultant: "กระทบยอดด้วยมือทีละรายการ",
-        certrace: "แบบฟอร์มเดียว ใช้กับทุกซัพพลายเออร์",
+        label: "ข้อมูลซัพพลายเออร์",
+        diy: "รูปแบบที่ไม่ตรงกันกว่า 200 แบบ",
+        consultant: "กระทบยอดด้วยมือ ครั้งเดียว",
+        certrace: "แบบฟอร์มเดียว กรอกครั้งเดียว ใช้ซ้ำได้",
       },
       {
         label: "การตรวจคุณภาพ",
-        diy: "ตรวจด้วยมือ พลาดได้ง่าย",
-        consultant: "มักพบหลังเกิดปัญหาแล้ว",
-        certrace: "AI ตรวจทันทีที่ข้อมูลเข้ามา",
+        diy: "ทำเอง พลาดได้ง่าย",
+        consultant: "เจอหลังจากเกิดเรื่องแล้ว",
+        certrace: "ตรวจทันทีที่ข้อมูลเข้ามา",
       },
       {
-        label: "ความพร้อมต่อการตรวจสอบ",
-        diy: "รวบรวมกันในนาทีสุดท้าย",
-        consultant: "ได้เป็นรายงานที่แก้ไขต่อไม่ได้",
-        certrace: "ผนึก มีเวอร์ชัน และพร้อมเสมอ",
+        label: "เมื่อผู้ซื้อเอ่ยขอ",
+        /* Short enough for the 144px cell at 390px — one character more and
+           Chrome breaks ซัพพลายเออร์ into ซัพพลายเอ / อร์. */
+        diy: "ไล่ตามซัพพลายเออร์",
+        consultant: "คุณสั่งทำรายงานฉบับถัดไป",
+        certrace: "คำตอบมีอยู่แล้ว",
       },
       {
-        label: "รองรับซัพพลายเออร์ที่เพิ่มขึ้น",
-        diy: "เกินไม่กี่รายก็เริ่มรับไม่ไหว",
-        consultant: "ถูกเรียกเก็บเงินใหม่ทุกไตรมาส",
-        certrace: "ออกแบบมาให้โตไปพร้อมเครือข่ายคุณ",
+        label: "รู้ว่าคุณอยู่ตรงไหน",
+        diy: "ไม่มีเกณฑ์เทียบเลย",
+        consultant: "ได้ตัวเลข แต่ไม่มีบริบท",
+        certrace: "เทียบกับอัตราค่าปรับโดยตรง",
       },
     ],
   },
 
+  /* `view` and `lines` stay English on purpose — they depict the product's
+     console output, which the scope note keeps untranslated. */
   howItWorks: {
     badge: "วิธีการทำงาน",
     headline: "สี่ขั้นตอนง่าย ๆ\nไม่ต้องเรียนรู้ใหม่",
-    steps: [
-      {
-        title: "สร้าง",
-        desc: "เลือกสินค้าของคุณ แล้วให้ระบบจัดการที่เหลือ",
-        view: "การยื่นรายงาน / สร้างใหม่",
-        lines: [
-          "# CBAM · ไทย → สหภาพยุโรป · ไตรมาส 2/2026",
-          "→ วัตถุประสงค์: ชุดข้อมูลสำหรับหน่วยงาน CBAM",
-          "",
-          "✓ เลือกสินค้า 3 รายการจากแคตตาล็อก CN · 7208 39 00 …",
-          "✓ scope 2: รายงานอย่างเดียว (เหล็กและเหล็กกล้า)",
-          "✓ จับคู่ซัพพลายเออร์กับสินค้าแล้ว — 6 คำขอ",
-          "",
-          "→ ตั้งเส้นตาย · 31 ก.ค.",
-          "รหัส CN จริง ข้อมูล CBAM จริง",
-        ],
-      },
-      {
-        title: "เก็บข้อมูล",
-        desc: "ซัพพลายเออร์กรอกแบบฟอร์มเดียว ไม่ต้องอบรม",
-        view: "smart links / การเก็บข้อมูล",
-        lines: [
-          "# ลิงก์ปลอดภัยหนึ่งลิงก์ต่อหนึ่งราย — ไม่ต้องสมัครบัญชี",
-          "✓ ออก Smart Link แล้ว 6 ลิงก์ · ไทย + อังกฤษ",
-          "● thai-metal-pro เปิดแบบฟอร์มแล้ว",
-          "✓ chonburi-fab ส่งข้อมูลผ่านมือถือ",
-          "",
-          "→ AI ตรวจคุณภาพ · คะแนนความน่าเชื่อถือ 87/100",
-          "● ขอให้แก้ไข → เปิดให้แก้ 2 ช่อง",
-          "✓ ส่งใหม่แล้ว · เวอร์ชัน 2 · อยู่ระหว่างตรวจ",
-        ],
-      },
-      {
-        title: "ตรวจทาน",
-        desc: "อนุมัติได้อย่างมั่นใจ เพราะระบบจับข้อผิดพลาดให้อัตโนมัติ",
-        view: "พื้นที่ทำงาน / ตรวจทานและอนุมัติ",
-        lines: [
-          "# ระบบคำนวณที่ตรวจสอบย้อนกลับได้ · กฎช่วงบังคับใช้จริง",
-          "✓ เพดานค่าตั้งต้น (20%) — ผ่าน",
-          "✓ บันทึกการทวนสอบ — 6/6",
-          "→ ประเมินภาระต้นทุน CBAM · €41,200",
-          "",
-          "✓ อนุมัติครบทุกซัพพลายเออร์ → สร้างรายงานแล้ว",
-          "● ขออนุมัติ — ฝ่ายกฎหมาย · ผู้บริหาร",
-          "✓ ยืนยันแล้ว 2/2",
-        ],
-      },
-      {
-        title: "ส่งและส่งออก",
-        desc: "คลิกเดียว ส่งครบทุกอย่างไปยังทุกปลายทางที่ต้องไป",
-        view: "พื้นที่ทำงาน / ส่งและส่งออก",
-        lines: [
-          "# ตรวจก่อนยื่นทะเบียน — ไม่พบข้อผิดพลาด",
-          "✓ ผนึกชุดเอกสาร 24 หน้าแล้ว · sha256 9f3a…c21d",
-          "✓ แบบฟอร์มสื่อสารตาม Annex IV (XML)",
-          "",
-          "→ ส่งเข้าพอร์ทัล O3CI แล้ว",
-          "→ ส่งแบบฟอร์มให้ผู้ยื่นของผู้ซื้อแล้ว",
-          "✓ ได้รับการตอบรับแล้ว",
-          "คุณไม่ต้องตามทะเบียนเอง ผู้ซื้อของคุณเป็นผู้ยื่น",
-        ],
-      },
-    ],
+    steps: en.howItWorks.steps.map((s, i) => ({
+      ...s,
+      title: ["สร้าง", "เก็บข้อมูล", "ตรวจสอบ", "พร้อมเสมอ"][i]!,
+      desc: [
+        /* Both kept short enough to hold one line: the step caption box drops
+           กฎ|ระเบียบ and ครั้ง|เดียว onto a widow as soon as they wrap. */
+        "เลือกสินค้าของคุณ ตัวช่วยจัดการกฎระเบียบให้",
+        "ซัพพลายเออร์กรอกแบบฟอร์มเดียว เพียงครั้งเดียว",
+        "ดูว่ามันทำให้คุณเสียเท่าไหร่ และคุณเสี่ยงตรงไหน",
+        "รายงานเสร็จก่อนที่ผู้ซื้อจะเอ่ยขอ",
+      ][i]!,
+    })),
   },
 
   stakeholders: {
     badge: "เหมาะกับใคร",
-    headline: "สร้างมาเพื่อทุกฝ่าย\nในห่วงโซ่การปฏิบัติตามกฎ",
+    headline: "ห่วงโซ่เดียว ครบทุกฝั่ง\nเริ่มจากฝั่งของคุณ",
+    intro:
+      "ชุดข้อมูลเดียว ใช้ร่วมกันระหว่างผู้ซื้อ ผู้ส่งออก และซัพพลายเออร์ ฝั่งผู้ส่งออกและซัพพลายเออร์เปิดใช้แล้ววันนี้ ส่วนที่เหลือจะทยอยเปิดตามลำดับ",
     audiences: [
       {
         title: "ผู้ส่งออก",
-        desc: "จัดการการยื่นรายงานทั้งหมดจากพื้นที่ทำงานเดียว ทั้งระบบช่วยสร้าง ติดตาม Smart Link แบบเรียลไทม์ อนุมัติ และส่ง",
+        desc: "พิสูจน์ข้อมูลคาร์บอนก่อนผู้ซื้อจะขอ ทั้งการเก็บข้อมูล การเทียบมาตรฐาน และรายงานที่พร้อมเสมอ ในพื้นที่ทำงานเดียว",
         cta: "ดูโซลูชันสำหรับผู้ส่งออก",
       },
       {
         title: "ซัพพลายเออร์",
-        desc: "แบบฟอร์มเดียวพร้อมคำแนะนำ ทั้งไทยและอังกฤษ จากอุปกรณ์ใดก็ได้ ไม่ต้องสมัครบัญชี ไม่มีค่าใช้จ่าย พร้อมคำแนะนำจาก AI ก่อนส่ง",
+        desc: "แบบฟอร์มเดียวพร้อมคำแนะนำ ในภาษาของคุณเอง บนอุปกรณ์ใดก็ได้ ไม่ต้องสมัครบัญชี ไม่มีค่าใช้จ่าย และไม่ต้องตอบคำถามเดิมซ้ำ",
         cta: "ดูโซลูชันสำหรับซัพพลายเออร์",
       },
       {
         title: "ฝ่ายกฎหมายและกำกับดูแล",
-        desc: "ไม่มีรายงานใดถูกส่งออกไปโดยไม่มีผู้อนุมัติที่ระบุชื่อ ความผิดปกติถูกยกระดับอัตโนมัติ และทุกการตัดสินใจถูกบันทึกไว้",
-        cta: "ดูโซลูชันสำหรับฝ่ายกฎหมาย",
+        desc: "ไม่มีอะไรถูกส่งออกไปโดยไม่มีการรับรองที่ระบุชื่อ ทุกการตัดสินใจถูกบันทึกไว้ในร่องรอยการตรวจสอบ",
+        cta: "ลงชื่อรอใช้งาน",
       },
       {
         title: "ผู้นำเข้า",
-        desc: "รวบรวมข้อมูลที่ผ่านการตรวจสอบจากผู้ส่งออก คำนวณใบรับรอง และยื่นรายงาน CBAM ประจำปีจากฝั่งสหภาพยุโรป",
-        cta: "ดูโซลูชันสำหรับผู้นำเข้า",
+        /* Ends on ฝั่งยุโรป, not ฝั่งสหภาพยุโรป: at this card width the latter
+           lands on the wrap and leaves ยุโรป alone on a fourth line. */
+        desc: "รวบรวมข้อมูลที่ผ่านการตรวจสอบจากผู้ส่งออก คำนวณใบรับรอง และยื่นรายงาน CBAM ประจำปีในฝั่งยุโรป",
+        cta: "ลงชื่อรอใช้งาน",
       },
     ],
   },
@@ -1394,54 +1547,56 @@ const th: Content = {
     ],
   },
 
+  /* The heading avoids ตรงไปตรงมา — real Chrome breaks that compound in half
+     at this size (see the 2026-07-31 line-break pass). */
   faq: {
     badge: "คำถามที่พบบ่อย",
-    /* Not "คำถามที่พบบ่อย" again — the badge directly above already says it,
-       and the repeat read as a mistake. Line two is kept short enough to hold
-       one line: Chrome's Thai line-breaker splits "ตรงไปตรงมา" down the
-       middle, which is a legal break and a bad-looking one. */
     headline: "ข้อสงสัยที่พบบ่อย\nคำตอบที่ชัดเจน",
     items: [
       {
-        q: "Certrace ยื่น CBAM กับสหภาพยุโรปแทนเราได้หรือไม่",
-        a: "ไม่ได้ และไม่มีผู้ให้บริการรายใดทำแทนได้ มีเพียงผู้ยื่นรายงาน CBAM ที่ได้รับอนุญาต (Authorised CBAM Declarant) ซึ่งเป็นผู้ซื้อของคุณในสหภาพยุโรปเท่านั้นที่ยื่นต่อทะเบียนได้ Certrace จัดเตรียมทุกอย่างที่เขาต้องใช้ ทั้งแบบฟอร์มตาม Annex IV ชุดเอกสารตรวจสอบที่ผนึกแล้ว และการส่งข้อมูลโรงงานของคุณเข้าพอร์ทัล O3CI",
+        q: "ทำไมเจ้าอื่นขายให้ผู้นำเข้า แต่ Certrace สร้างเพื่อผู้ส่งออก",
+        a: "เพราะผู้ส่งออกคือคนที่เสียออร์เดอร์ แพลตฟอร์มฝั่งผู้ซื้อมองคุณเป็นแหล่งข้อมูลที่ต้องตามเก็บ ส่วนเรามองข้อมูลของคุณเป็นสิ่งที่ทำให้คุณได้สัญญาฉบับถัดไป กฎเดียวกัน แต่คนละฝั่งของโต๊ะ",
       },
       {
-        q: "ซัพพลายเออร์ของเราต้องจ่ายเงินหรือสมัครบัญชีหรือไม่",
-        a: "ไม่ต้อง ซัพพลายเออร์แต่ละรายจะได้รับ Smart Link หนึ่งลิงก์ เป็นแบบฟอร์มพร้อมคำแนะนำทั้งภาษาไทยและอังกฤษ ใช้ได้ทุกอุปกรณ์ ไม่ต้องสมัครบัญชี ไม่มีค่าใช้จ่าย และหากมีจุดที่ต้องแก้ ระบบจะเปิดเฉพาะช่องที่ถูกทำเครื่องหมายไว้",
+        q: "Certrace ยื่นรายงาน CBAM กับสหภาพยุโรปแทนเราได้ไหม",
+        a: "ไม่ได้ และไม่มีผู้ให้บริการรายใดทำได้ มีเพียงผู้ยื่นรายงาน CBAM ที่ได้รับอนุญาต (Authorised CBAM Declarant) ของผู้ซื้อในสหภาพยุโรปเท่านั้นที่ยื่นกับ Registry ได้ Certrace เตรียมทุกอย่างที่เขาต้องใช้ให้ครบ ทั้งเทมเพลตตาม Annex IV ชุดเอกสารตรวจสอบที่ผนึกแล้ว และข้อมูลโรงงานของคุณที่ส่งเข้า O3CI",
       },
       {
-        q: "AI ทำอะไรบ้าง และเปลี่ยนตัวเลขของเราได้หรือไม่",
-        a: "AI ทำหน้าที่ตรวจทาน ไม่แก้ไขข้อมูล โดยจะชี้จุดที่ขาด ความผิดปกติ และหลักฐานที่อ่อน แล้วให้คะแนนความน่าเชื่อถือพร้อมบทสรุปที่อ่านเข้าใจง่าย เพื่อให้ทีมของคุณตรวจได้เร็วขึ้น ส่วนตัวเลขที่ยื่นจริงทุกตัวมาจากระบบคำนวณที่ตรวจสอบย้อนกลับได้ พร้อมแนบร่องรอยการคำนวณทั้งหมด",
+        q: "ซัพพลายเออร์ของเราต้องจ่ายเงินหรือสมัครบัญชีไหม",
+        a: "ไม่ต้อง ซัพพลายเออร์แต่ละรายจะได้รับ Smart Link หนึ่งลิงก์ เป็นแบบฟอร์มพร้อมคำแนะนำทั้งภาษาไทยและอังกฤษ ใช้ได้บนทุกอุปกรณ์ ไม่ต้องสมัครบัญชี ไม่มีค่าใช้จ่าย คำตอบจะถูกบันทึกไว้ในโปรไฟล์ คำขอครั้งถัดไปจึงถูกเติมให้ล่วงหน้า",
       },
       {
-        q: "ผลลัพธ์ที่ได้พร้อมสำหรับการตรวจสอบจริงหรือไม่",
-        a: "ใช่ ไฟล์ที่ได้คือชุดเอกสารสื่อสารและตรวจสอบ CBAM ประมาณ 24 หน้า ประกอบด้วยบทสรุปการยื่น วิธีการคำนวณ บทแยกต่อซัพพลายเออร์หนึ่งราย ทะเบียนหลักฐาน บันทึกการอนุมัติ และร่องรอยการตรวจสอบทั้งหมด ผนึกด้วยแฮช SHA-256 พร้อมไฟล์ XML ตาม Annex IV แนบไปด้วย",
+        q: "AI ทำอะไรบ้าง แล้วมันแก้ตัวเลขของเราได้ไหม",
+        a: "AI ตรวจอย่างเดียว ไม่แก้ไขอะไรทั้งสิ้น หน้าที่ของมันคือชี้จุดที่ข้อมูลขาด จุดที่ผิดปกติ และหลักฐานที่อ่อน แล้วให้คะแนนความน่าเชื่อถือพร้อมคำสรุปที่อ่านเข้าใจง่าย เพื่อให้ทีมของคุณตรวจได้เร็วขึ้น ทุกตัวเลขที่ยื่นมาจากระบบคำนวณที่ให้ผลแน่นอน พร้อมร่องรอยการคำนวณแนบไว้",
       },
       {
-        q: "ปัจจุบัน Certrace รองรับกฎระเบียบใดบ้าง",
-        a: "EU CBAM สำหรับกลุ่มเหล็ก เหล็กกล้า และอะลูมิเนียม พร้อมใช้งานแล้ว มีแคตตาล็อกสินค้าตามรหัส CN จริงและกฎช่วงบังคับใช้จริงฝังอยู่ในระบบ ส่วนคำขอข้อมูลจากผู้ซื้อ (Scope 3 / CSRD) ก็พร้อมใช้แล้วเช่นกัน สำหรับ UK CBAM, EUDR และ CSRD เต็มรูปแบบอยู่ระหว่างพัฒนา",
+        q: "การเทียบมาตรฐานบอกอะไรกับเราจริง ๆ",
+        a: "บอกว่าตัวเลขของคุณอยู่ตรงไหนเมื่อเทียบกับอัตราค่าปรับ CBAM ด้วยภาษาที่เข้าใจง่าย ทั้งสายผลิตภัณฑ์ที่มีความเสี่ยงสูงสุด และการเปลี่ยนแปลงหนึ่งอย่างจะมีค่าเท่าไหร่ นี่คือความต่างระหว่างการรายงานข้อมูลคาร์บอน กับการนำมันไปใช้ตัดสินใจได้จริง",
       },
       {
-        q: "ถ้ากฎเปลี่ยน จะเกิดอะไรขึ้น",
-        a: "เราอัปเดตแบบฟอร์ม กฎในระบบคำนวณ และเทมเพลตการส่งออกจากส่วนกลาง โดยกฎช่วงบังคับใช้จริงปี 2026 ถูกเข้ารหัสไว้แล้ว คุณไม่ต้องสร้างอะไรขึ้นมาใหม่",
+        q: "ผลลัพธ์พร้อมให้ตรวจสอบได้จริงหรือไม่",
+        a: "จริง เป็นชุดเอกสาร CBAM Communication & Audit Package ราว 24 หน้า ประกอบด้วยสรุปการยื่นรายงาน วิธีการคำนวณ บทแยกรายซัพพลายเออร์ ทะเบียนหลักฐาน การรับรอง และร่องรอยการตรวจสอบทั้งหมด ผนึกด้วยแฮช SHA-256 พร้อมไฟล์ XML ตาม Annex IV แนบไปด้วย",
+      },
+      {
+        q: "วันนี้ Certrace รองรับกฎระเบียบใดบ้าง",
+        a: "EU CBAM และเฉพาะ EU CBAM เท่านั้น ครอบคลุมเหล็ก เหล็กกล้า และอะลูมิเนียม ด้วยสินค้าตามรหัส CN จริง 67 รายการ พร้อมกฎช่วงบังคับใช้จริงในระบบ ส่วน UK CBAM, EUDR และ CSRD อยู่ในแผน เราเลือกทำกฎเดียวให้ดีจริง ดีกว่าทำสี่กฎแบบครึ่ง ๆ กลาง ๆ",
+      },
+      {
+        q: "ถ้ากฎเปลี่ยนจะเกิดอะไรขึ้น",
+        a: "เราอัปเดตแบบฟอร์ม กฎในระบบคำนวณ และเทมเพลตไฟล์ส่งออกจากส่วนกลาง กฎช่วงบังคับใช้จริงปี 2026 อยู่ในระบบเรียบร้อยแล้ว คุณไม่ต้องสร้างอะไรใหม่เลย",
       },
       {
         q: "ข้อมูลซัพพลายเออร์ของเราปลอดภัยแค่ไหน",
-        a: "ข้อมูลถูกเข้ารหัสทั้งระหว่างส่งและขณะจัดเก็บ Smart Link แต่ละลิงก์จำกัดขอบเขตอยู่ที่ซัพพลายเออร์รายเดียว ซัพพลายเออร์จึงไม่เห็นข้อมูลของกันและกัน ส่วนทีมของคุณเห็นได้เท่าที่สิทธิ์อนุญาต ทุกการกระทำถูกบันทึกไว้ และชุดเอกสารสุดท้ายถูกผนึกด้วยแฮช ทำให้ตรวจพบได้ทันทีหากมีการแก้ไข",
+        a: "เข้ารหัสทั้งระหว่างส่งและขณะจัดเก็บ Smart Link แต่ละลิงก์จำกัดอยู่ที่ซัพพลายเออร์รายเดียว ซัพพลายเออร์จึงไม่เห็นข้อมูลของกันและกัน และทีมของคุณเห็นเท่าที่สิทธิ์ของแต่ละคนอนุญาต ทุกการกระทำถูกบันทึกไว้ และชุดเอกสารฉบับสุดท้ายถูกผนึกด้วยแฮช การแก้ไขใด ๆ จึงตรวจพบได้",
       },
     ],
   },
 
   cta: {
-    /* Three lines, not two. On one line "การยื่นรายงานครั้งถัดไป" overruns the
-       column and Chrome breaks it after "ถัด", stranding "ไป" on a line of its
-       own — a legal dictionary break that splits a compound word. Breaking it
-       ourselves keeps every line on a real word boundary. */
-    headline: "การยื่นรายงาน\nครั้งถัดไป\nโดยไม่วุ่นวาย",
+    headline: "เป็นคนที่\nพิสูจน์ได้ก่อน",
     intro:
-      "ดู Certrace ทำงานจริงกับห่วงโซ่อุปทานของคุณ การสาธิต 30 นาที ตั้งแต่การเชิญซัพพลายเออร์จนถึงไฟล์ที่พร้อมตรวจสอบ",
-    note: "ซัพพลายเออร์ใช้ฟรีเสมอ · เริ่มได้ทันทีโดยไม่ต้องติดตั้ง",
+      "ดู Certrace ทำงานจริงกับซัพพลายเชนของคุณเอง การสาธิต 30 นาที ตั้งแต่การเชิญซัพพลายเออร์จนถึงรายงานที่ผู้ซื้อนำไปใช้ได้จริง",
+    note: "ซัพพลายเออร์ใช้ฟรีเสมอ · เริ่มได้โดยไม่ต้องตั้งค่าอะไร",
   },
 
   form: {
@@ -1543,7 +1698,16 @@ const th: Content = {
       "เส้นตายแรกของคุณ ผู้ซื้อที่กำลังขอข้อมูล เครื่องมือที่ใช้อยู่ หรือใครที่ควรเข้าร่วมด้วย…",
     chooseTime: "เลือกเวลา",
     step2Title: "เลือกเวลาที่คุณสะดวก",
-    step2Intro: "30 นาที ผ่านออนไลน์ เวลาทั้งหมดอ้างอิงตาม",
+    step2Intro: "30 นาที ผ่านออนไลน์",
+    timeZoneLabel: "เวลาที่แสดงอ้างอิงตาม",
+    timeZoneHint:
+      "ตรวจจับจากเบราว์เซอร์ของคุณ เปลี่ยนได้หากคุณนัดตามเวลาทำการของภูมิภาคอื่น",
+    timeZoneRegions: {
+      asiaPacific: "เอเชีย–แปซิฟิก",
+      europe: "ยุโรป",
+      middleEastAfrica: "ตะวันออกกลางและแอฟริกา",
+      americas: "อเมริกา",
+    },
     chooseDay: "เลือกวัน",
     chooseSlot: "เลือกเวลา",
     prevWeek: "สัปดาห์ก่อนหน้า",
@@ -1560,43 +1724,38 @@ const th: Content = {
     rescheduleTail: "ไม่ต้องกรอกแบบฟอร์มใด ๆ",
   },
 
+  /* `rowTwo` stays English — those are the regulations' and standards' own
+     registered titles, not prose. */
   marquee: {
     rowOne: [
-      "สร้างมาเพื่อผู้ส่งออกไทยสู่สหภาพยุโรป",
-      "จับคู่สินค้า CBAM ตามรหัส CN จริง 67 รายการ",
+      "แพลตฟอร์มเดียวที่สร้างเพื่อผู้ส่งออก",
+      "สินค้า CBAM 67 รายการ ตามรหัส CN จริง",
       "เหล็ก เหล็กกล้า และอะลูมิเนียม พร้อมสำหรับช่วงบังคับใช้จริง",
-      "ชุดเอกสารตรวจสอบผนึกด้วย SHA-256",
-      "ไฟล์ส่งออกพร้อมสำหรับ Annex IV และ O3CI",
-      "ขั้นตอนซัพพลายเออร์สองภาษา ไทยและอังกฤษ",
+      "ซัพพลายเออร์กรอกครั้งเดียว ไม่ต้องกรอกซ้ำ",
+      "เทียบกับอัตราค่าปรับ CBAM โดยตรง",
+      "หลักฐานพร้อมก่อนผู้ซื้อเอ่ยขอ",
     ],
-    rowTwo: [
-      "ระเบียบ EU CBAM 2023/956",
-      "ระเบียบปฏิบัติ CBAM (EU) 2023/1773",
-      "GHG Protocol",
-      "ISO 14064-1",
-      "ISO 14067",
-      "GDPR",
-    ],
+    rowTwo: en.marquee.rowTwo,
     ctaRowOne: [
       "จองการสาธิต",
-      "เดินชมระบบพร้อมคำแนะนำ 30 นาที",
-      "ดูกับห่วงโซ่อุปทานของคุณเอง",
-      "ตั้งแต่เชิญซัพพลายเออร์จนถึงไฟล์พร้อมตรวจสอบ",
+      "พาชมแบบมีผู้แนะนำ 30 นาที",
+      "ซัพพลายเชนของคุณเอง แบบสด",
+      "ตั้งแต่เชิญซัพพลายเออร์จนถึงรายงานที่พร้อมตรวจสอบ",
       "ซัพพลายเออร์ใช้ฟรีเสมอ",
-      "เริ่มได้ทันทีโดยไม่ต้องติดตั้ง",
+      "เริ่มได้โดยไม่ต้องตั้งค่า",
     ],
     ctaRowTwo: [
-      "ดูการใช้งานจริง",
-      "จองรอบของคุณ",
-      "พูดคุยกับทีมงาน",
-      "รับไทม์ไลน์การยื่นของคุณ",
+      "ดูของจริง",
+      "จองเวลาของคุณ",
+      "คุยกับทีมงาน",
+      "พิสูจน์ให้ได้ก่อน",
       "เริ่มวันนี้",
       "จองการสาธิต",
     ],
   },
 
   footer: {
-    desc: "แพลตฟอร์ม AI ที่เชื่อมผู้ส่งออกกับซัพพลายเออร์ เพื่อรวบรวมข้อมูลคาร์บอนตามข้อกำหนด CBAM แบบอัตโนมัติ ตั้งแต่การร้องขอจนถึงรายงานที่พร้อมตรวจสอบ",
+    desc: "แพลตฟอร์ม AI ที่เชื่อมผู้ซื้อ ผู้ส่งออก และซัพพลายเออร์เข้าด้วยกัน เพื่อเก็บข้อมูลคาร์บอนตาม CBAM แบบอัตโนมัติ ตั้งแต่คำขอจนถึงรายงานที่พร้อมตรวจสอบ",
     location: "กรุงเทพมหานคร ประเทศไทย",
     columns: {
       platform: "แพลตฟอร์ม",
@@ -1605,13 +1764,15 @@ const th: Content = {
       company: "บริษัท",
     },
     links: {
-      smartLink: "Smart Link Collection",
-      aiCheck: "AI Quality Check",
-      engine: "Compliance Engine",
-      reports: "Reports & Handoff",
+      smartLink: "คำเชิญผ่าน Smart Link",
+      profile: "โปรไฟล์กรอกครั้งเดียว",
+      aiCheck: "ตรวจคุณภาพอัตโนมัติ",
+      engine: "ระบบคำนวณ CBAM",
+      benchmark: "เทียบมาตรฐานคาร์บอน",
+      reports: "รายงานที่พร้อมเสมอ",
       exporters: "ผู้ส่งออก",
       suppliers: "ซัพพลายเออร์",
-      legalCompliance: "ฝ่ายกฎหมายและกำกับดูแล",
+      legalCompliance: "ฝ่ายกฎหมายและกำกับดูแล — เร็ว ๆ นี้",
       importers: "ผู้นำเข้า — เร็ว ๆ นี้",
       howItWorks: "วิธีการทำงาน",
       faq: "คำถามที่พบบ่อย",
@@ -1631,6 +1792,7 @@ const th: Content = {
     copyright: "© 2026 Certrace Co., Ltd. All rights reserved.",
     contactSubject: "สวัสดี Certrace",
     issueSubject: "แจ้งปัญหาการใช้งาน",
+    careersSubject: "ร่วมงานกับ Certrace",
   },
 
   backlog: {
@@ -1737,108 +1899,129 @@ const th: Content = {
   },
 
   solutionPage: {
-    whatYouGet: "สิ่งที่คุณจะได้รับ",
-    closingHeadline: "ดูการทำงานจริงกับห่วงโซ่อุปทานของคุณ",
+    whatYouGet: "สิ่งที่คุณจะได้",
+    closingHeadline: "ดูมันทำงานกับซัพพลายเชนของคุณเอง",
     closingIntro:
-      "เดินชมระบบพร้อมคำแนะนำ 30 นาที ตั้งแต่การเชิญซัพพลายเออร์จนถึงไฟล์ที่พร้อมตรวจสอบ และซัพพลายเออร์ใช้ฟรีเสมอ",
+      "พาชม 30 นาที ตั้งแต่การเชิญซัพพลายเออร์จนถึงรายงานที่ผู้ซื้อนำไปใช้ได้จริง ซัพพลายเออร์ใช้ฟรีเสมอ",
+    closingHeadlineSoon: "อยากใช้ตั้งแต่วันแรกที่เปิดไหม",
+    closingIntroSoon:
+      "ลงชื่อไว้ แล้วเราจะติดต่อกลับก่อนเปิดใช้งานจริง ระหว่างนี้ ฝั่งผู้ส่งออกใช้งานได้แล้ววันนี้",
+    waitlist: {
+      badge: "สิทธิ์เข้าใช้ก่อนใคร",
+      headline: "ยังไม่เปิดใช้งาน\nแต่จองคิวไว้ได้",
+      intro:
+        "ทิ้งข้อมูลติดต่อไว้ แล้วเราจะติดต่อกลับก่อนที่ส่วนนี้ของแพลตฟอร์มจะเปิด ไม่มีจดหมายข่าว ไม่มีอีเมลตามรบกวน",
+      submit: "ลงชื่อรอใช้งาน",
+      note: "อีเมลฉบับเดียวตอนเปิดใช้งาน ไม่มีอย่างอื่น และไม่เปิดเผยให้ใคร",
+      confirmedBadge: "คุณอยู่ในรายชื่อแล้ว",
+      confirmedTitle: "คุณอยู่ในรายชื่อแล้ว",
+      confirmedBody: "เราจะเขียนถึง",
+      confirmedTail:
+        "ก่อนที่ส่วนนี้จะเปิดใช้งาน หากอยากเห็นฝั่งผู้ส่งออกที่ใช้งานได้แล้ววันนี้ จองการสาธิตได้เลย",
+      errors: {
+        required: "กรุณากรอกข้อมูล",
+        emailFormat: "กรุณากรอกอีเมลให้ถูกต้อง",
+        emailPersonal: "กรุณาใช้อีเมลของบริษัท",
+        phoneDigits: "กรุณากรอกเบอร์โทรศัพท์",
+        phoneLength: "กรุณาตรวจสอบจำนวนหลักของเบอร์โทรในประเทศนี้",
+      },
+    },
     exporters: {
       eyebrow: "สำหรับผู้ส่งออก",
-      headline: "จัดการการยื่นรายงานทั้งหมด\nจากพื้นที่ทำงานเดียว",
+      headline: "พิสูจน์ให้ได้ก่อน\nก่อนที่เขาจะต้องเอ่ยขอ",
       intro:
-        "สร้างการยื่นรายงานผ่านระบบที่มีคำแนะนำทุกขั้นตอน ติดตาม Smart Link ที่ทยอยเข้ามาแบบเรียลไทม์ อนุมัติทีละรายการ แล้วส่งออกไป พื้นที่ทำงานเดียวที่บอกคุณเสมอว่าต้องทำอะไรต่อ ตั้งแต่คำขอแรกจนถึงการตอบรับจากผู้ซื้อ",
-      benefits: [
-        {
-          title: "ระบบช่วยสร้างการยื่นรายงาน",
-          desc: "ไล่ไปทีละขั้นตอน ทั้งรหัส CN โรงงาน และรอบการรายงาน โดยไม่ต้องจำกฎระเบียบให้ขึ้นใจ เพราะระบบเข้ารหัสกฎช่วงบังคับใช้จริงไว้แล้ว",
-        },
-        {
-          title: "ติดตาม Smart Link แบบเรียลไทม์",
-          desc: "ส่งลิงก์เดียวต่อซัพพลายเออร์หนึ่งราย แล้วดูข้อมูลที่ส่งเข้ามา การแก้ไข และผลตรวจจาก AI แบบเรียลไทม์ ไม่ต้องตามสถานะทางอีเมลอีก",
-        },
-        {
-          title: "อนุมัติและส่งได้จากที่เดียว",
-          desc: "ตรวจความผิดปกติที่ AI แจ้งไว้ ขอให้แก้เฉพาะช่องที่มีปัญหา แล้วอนุมัติ ทั้งหมดทำได้จากพื้นที่ทำงานเดียวกัน",
-        },
-        {
-          title: "ไฟล์ผลลัพธ์ที่พร้อมตรวจสอบ",
-          desc: "ชุดเอกสารที่ผนึกด้วยแฮช SHA-256 พร้อมไฟล์ XML ตาม Annex IV พร้อมให้ผู้ยื่นรายงานที่ได้รับอนุญาตของผู้ซื้อคุณนำไปยื่นได้ทันที",
-        },
-      ],
+        "คู่แข่งทุกรายในตลาดนี้ขายให้ผู้ซื้อของคุณ แต่ Certrace สร้างขึ้นเพื่อฝั่งคุณ เก็บข้อมูลซัพพลายเออร์ครั้งเดียว คำนวณให้เป็นรูปแบบของสหภาพยุโรป เห็นว่ามันทำให้คุณเสียเท่าไหร่ และมีรายงานที่พร้อมส่งผู้ซื้อรออยู่เสมอ คำตอบจึงมีอยู่ก่อนที่คำขอจะมาถึง",
     },
     suppliers: {
       eyebrow: "สำหรับซัพพลายเออร์",
-      headline: "แบบฟอร์มพร้อมคำแนะนำ ใช้ฟรี\nไม่ต้องสมัครบัญชี",
+      headline: "กรอกครั้งเดียว\nไม่ต้องกรอกอีก",
       intro:
-        "รับ Smart Link แล้วกรอกแบบฟอร์มเดียวที่มีคำแนะนำ ทั้งภาษาไทยและอังกฤษ จากอุปกรณ์ใดก็ได้ พร้อมรับคำแนะนำจาก AI ก่อนส่ง หากมีจุดต้องแก้ ระบบจะเปิดเฉพาะช่องนั้น ส่วนที่เหลือยังล็อกอยู่",
+        "รับ Smart Link กรอกแบบฟอร์มเดียวที่มีคำแนะนำในภาษาของคุณเอง จากอุปกรณ์ใดก็ได้ และเห็นผลตรวจก่อนกดส่ง คำตอบของคุณถูกบันทึกไว้ในโปรไฟล์ และเติมให้เองในทุกคำขอถัดไป รวมถึงคำขอจากผู้ซื้อรายอื่น",
+      benefitsHeadline: "สิ่งที่คุณต้องทำจริง ๆ",
+      benefitsIntro:
+        "แบบฟอร์มเดียว ครั้งเดียว ทุกอย่างข้างล่างนี้คือสิ่งที่เกิดขึ้นรอบ ๆ มัน เพื่อให้คุณไม่ต้องกรอกช่องเดิมซ้ำสองครั้ง",
       benefits: [
         {
-          title: "ลิงก์เดียว ใช้ได้ทุกอุปกรณ์",
-          desc: "ไม่ต้องเข้าสู่ระบบ ไม่ต้องติดตั้งโปรแกรม เปิดลิงก์บนมือถือหรือคอมพิวเตอร์แล้วกรอกข้อมูลได้ตามจังหวะของคุณ",
+          title: "ลิงก์เดียว ทุกอุปกรณ์",
+          desc: "ลูกค้าส่งลิงก์มาให้ เปิดบนมือถือในกระเป๋าแล้วกรอกตอนที่คุณว่างได้เลย ไม่มีอะไรต้องดาวน์โหลด และไม่ต้องสมัครบัญชี",
+          points: [
+            "ไม่ต้องเข้าสู่ระบบ ไม่ต้องมีรหัสผ่าน",
+            "ใช้บนมือถือได้",
+            "หยุดไว้แล้วกลับมาทำต่อได้",
+          ],
         },
         {
-          title: "สองภาษา ไทยหรืออังกฤษ",
-          desc: "ทุกคำถามและคำแนะนำเขียนด้วยภาษาที่เข้าใจง่ายทั้งภาษาไทยและอังกฤษ สลับได้ตลอดเวลา",
+          title: "เขียนในภาษาของคุณ",
+          desc: "วันนี้มีไทยและอังกฤษ และจะเพิ่มตามตลาดที่เราเปิด ทุกคำถามใช้คำง่าย ๆ พร้อมคำอธิบายว่าหมายถึงอะไร และหาคำตอบได้จากที่ไหน",
+          points: [
+            "ไทยและอังกฤษแล้ววันนี้",
+            "คำง่าย ๆ ไม่ใช่ภาษากฎหมาย",
+            "มีคำใบ้ในทุกคำถาม",
+          ],
         },
         {
-          title: "AI ช่วยตรวจก่อนส่ง",
-          desc: "พบหลักฐานที่ขาดหรือตัวเลขที่ไม่สอดคล้องกันก่อนที่ผู้ส่งออกจะเห็น พร้อมคำแนะนำที่อ่านเข้าใจง่าย",
+          title: "กรอกครั้งเดียว ใช้ซ้ำได้",
+          desc: "สิ่งที่คุณกรอกจะถูกบันทึกไว้ในโปรไฟล์ของคุณเอง และเติมให้เองในคำขอครั้งถัดไป ทั้งรอบรายงานถัดไป และลูกค้ารายอื่นที่ถามเรื่องเดียวกัน",
+          points: [
+            "ใช้ต่อได้ข้ามรอบรายงาน",
+            "ใช้ต่อได้ข้ามลูกค้า",
+            "ไม่กี่นาที แทนที่จะเป็นทั้งบ่าย",
+          ],
         },
         {
-          title: "เปิดให้แก้เฉพาะช่องที่มีปัญหา",
-          desc: "หากผู้ส่งออกขอให้แก้ไข ส่วนที่เหลือของข้อมูลจะยังล็อกอยู่ คุณแก้เฉพาะสิ่งที่เปลี่ยนเท่านั้น",
+          title: "ตรวจให้ก่อนคุณกดส่ง",
+          desc: "หลักฐานที่ขาด หน่วยที่ผิด ตัวเลขที่ไม่สอดคล้องกับข้ออื่น ถูกจับได้ตั้งแต่ตอนที่คุณยังกรอกอยู่ และอธิบายให้ฟัง ไม่ใช่แค่ขึ้นเตือน",
+          points: [
+            "จับได้ตั้งแต่ตอนกรอก",
+            "บอกว่าต้องแก้อะไร",
+            "ไม่ต้องส่งอีเมลไปมา",
+          ],
+        },
+        {
+          title: "เปิดให้แก้เฉพาะจุดที่เปลี่ยน",
+          desc: "ถ้าลูกค้าขอให้แก้ไข ส่วนที่คุณกรอกถูกแล้วจะถูกล็อกไว้ คุณจะเห็นชัดว่าช่องไหนเปิดให้แก้ และไม่ต้องไปยุ่งกับส่วนอื่นเลย",
+          points: [
+            "ส่วนที่เหลือยังส่งไว้เหมือนเดิม",
+            "ดูสิ่งที่ถูกขอได้ในที่เดียว",
+            "ไม่ต้องเริ่มใหม่ทั้งหมด",
+          ],
+        },
+        {
+          title: "ใช้ฟรี และเห็นเฉพาะคนที่ขอ",
+          desc: "ซัพพลายเออร์ไม่ต้องจ่ายค่า Certrace ในทุกแพ็กเกจ สิ่งที่คุณส่งจะเห็นได้เฉพาะลูกค้าที่เป็นคนขอ และยังเป็นของคุณที่จะนำไปใช้กับรายอื่นได้",
+          points: [
+            "ไม่มีค่าใช้จ่าย ตลอดไป",
+            "เห็นได้เฉพาะผู้ที่ขอ",
+            "เป็นของคุณ นำไปใช้ซ้ำได้",
+          ],
         },
       ],
     },
     legal: {
       eyebrow: "สำหรับฝ่ายกฎหมายและกำกับดูแล",
-      headline: "การอนุมัติที่ระบุชื่อผู้รับผิดชอบ\nพร้อมร่องรอยการตรวจสอบครบถ้วน",
+      headline: "การรับรองที่ระบุชื่อ\nร่องรอยตรวจสอบที่ครบถ้วน",
       intro:
-        "รายงานจะถูกส่งออกก็ต่อเมื่อมีการอนุมัติที่ระบุชื่อผู้รับผิดชอบแล้วเท่านั้น และระบบจะเสนอให้ฝ่ายกฎหมายตรวจทานโดยอัตโนมัติทุกครั้งที่พบการเกินเพดานค่าตั้งต้นหรือความผิดปกติ ทุกการตัดสินใจถูกบันทึกไว้ในร่องรอยการตรวจสอบ",
-      benefits: [
-        {
-          title: "อนุมัติจริง ไม่ใช่แค่ประทับตรา",
-          desc: "ทุกการยื่นรายงานต้องมีผู้ตรวจทานที่ระบุชื่อก่อนส่งออกไป ไม่มีรายงานใดออกไปโดยไม่มีผู้รับผิดชอบ",
-        },
-        {
-          title: "ความผิดปกติถูกยกระดับอัตโนมัติ",
-          desc: "เมื่อระบบพบการเกินเพดานค่าตั้งต้นหรือข้อมูลที่ผิดปกติ ระบบจะเสนอให้ฝ่ายกฎหมายตรวจทานทันทีโดยอัตโนมัติ",
-        },
-        {
-          title: "กฎช่วงบังคับใช้จริงถูกเข้ารหัสไว้",
-          desc: "เพดานค่าตั้งต้น การจัดการ Scope 2 ตามหมวดสินค้า และข้อกำหนดการทวนสอบ ถูกฝังไว้ในระบบแล้ว ไม่ปล่อยให้ตีความกันเอง",
-        },
-        {
-          title: "บันทึกที่ผนึกและมีเวอร์ชัน",
-          desc: "ร่องรอยการคำนวณทั้งหมด ทะเบียนหลักฐาน และประวัติการอนุมัติ ถูกรวมไว้ในชุดเอกสารที่ผนึกด้วยแฮช SHA-256 พิสูจน์ได้ ไม่ใช่แค่ยื่นไป",
-        },
-      ],
+        "พื้นที่ทำงานเฉพาะสำหรับฝ่ายกฎหมายและกำกับดูแลกำลังถูกสร้างอยู่ เมื่อเปิดใช้งาน รายงานจะถูกส่งออกก็ต่อเมื่อมีการรับรองที่ระบุชื่อผู้อนุมัติแล้วเท่านั้น พร้อมการเสนอให้ฝ่ายกฎหมายตรวจโดยอัตโนมัติทุกครั้งที่ระบบพบการเกินเพดานค่าตั้งต้นหรือความผิดปกติ และทุกการตัดสินใจจะถูกบันทึกไว้ในร่องรอยการตรวจสอบ",
     },
     importers: {
       eyebrow: "สำหรับผู้นำเข้า",
-      headline: "พื้นที่ทำงานฝั่งผู้ยื่นรายงาน\nในสหภาพยุโรป เร็ว ๆ นี้",
+      headline: "พื้นที่ทำงานของผู้ยื่นรายงาน\nฝั่งสหภาพยุโรป เร็ว ๆ นี้",
       intro:
-        "รวบรวมข้อมูลการปล่อยคาร์บอนที่ผู้ส่งออกของคุณส่งไว้แล้ว คำนวณจำนวนใบรับรอง และยื่นรายงาน CBAM ประจำปี ฝั่งของผู้ยื่นรายงานที่ได้รับอนุญาต สร้างบนชุดข้อมูลเดียวกันที่ซัพพลายเออร์ของคุณกรอกไว้",
-      ctaLabel: "ลงชื่อในรายชื่อรอ",
-      benefits: [
-        {
-          title: "ชุดข้อมูลเดียว ใช้ได้ทั้งสองฝั่ง",
-          desc: "ไม่ต้องกรอกข้อมูลที่ผู้ส่งออกเก็บไว้แล้วซ้ำอีก เพราะพื้นที่ทำงานฝั่งผู้นำเข้าอ่านจากข้อมูล Smart Link ชุดเดียวกันที่ผ่านการตรวจสอบแล้ว",
-        },
-        {
-          title: "คำนวณใบรับรอง",
-          desc: "แปลงข้อมูลการปล่อยคาร์บอนที่รวบรวมไว้ ให้เป็นจำนวนใบรับรองและภาระต้นทุนที่คุณต้องวางแผนล่วงหน้า ก่อนถึงเส้นตายประจำปี",
-        },
-        {
-          title: "ยื่นรายงานประจำปี",
-          desc: "จัดเตรียมและยื่นรายงาน CBAM ประจำปี ด้วยมาตรฐานความพร้อมต่อการตรวจสอบเดียวกับฝั่งผู้ส่งออก",
-        },
-        {
-          title: "สร้างเสร็จแล้ว ไม่ใช่แค่แผน",
-          desc: "พื้นที่ทำงานฝั่งผู้นำเข้ามีอยู่จริงแล้วในฐานะผลิตภัณฑ์แยกต่างหาก หน้านี้คือหน้าแนะนำก่อนเปิดใช้งานสาธารณะ ไม่ใช่คำสัญญาในแผนงาน",
-        },
-      ],
+        "รวบรวมข้อมูลการปล่อยคาร์บอนที่ผู้ส่งออกของคุณส่งไว้แล้ว คำนวณใบรับรอง และยื่นรายงาน CBAM ประจำปี นี่คือฝั่งของผู้ยื่นรายงาน CBAM ที่ได้รับอนุญาต สร้างบนชุดข้อมูลที่ผ่านการตรวจสอบชุดเดียวกับที่ซัพพลายเออร์กรอกไว้",
     },
   },
 };
 
-export const CONTENT: Record<"en" | "th", Content> = { en, th };
+/* The three newest languages live in their own modules — five dictionaries in
+   one file would be about five thousand lines, and each language is edited on
+   its own. They are built from a function taking `en` rather than importing it,
+   which is what keeps this from being an initialisation cycle: see the note at
+   the top of content-vi.ts. `en` and `th` stay here, where they have always
+   been. */
+export const CONTENT: Record<Lang, Content> = {
+  en,
+  th,
+  vi: buildVi(en),
+  tr: buildTr(en),
+  hi: buildHi(en),
+};

@@ -4,6 +4,7 @@ import { Footer } from "@/components/footer";
 import { Navbar } from "@/components/navbar";
 import { PixelIcon, type PixelType } from "@/components/pixel-icon";
 import { AnimateCard, BlurHeading, TagBadge, handleMouseGlow } from "@/components/ui";
+import { WaitlistSection } from "@/components/waitlist-form";
 import { useLang } from "@/lib/i18n";
 
 export type Persona = "exporters" | "suppliers" | "legal" | "importers";
@@ -15,26 +16,65 @@ const ICONS: Record<Persona, PixelType> = {
   importers: "globe",
 };
 
+/* Which sides of the chain are open today. The two that aren't still get a
+   full page — the ask was that a SOON entry lead somewhere real rather than
+   dead-ending — but the page ends on a waitlist instead of a demo booking,
+   and its benefit cards are labelled "what's coming", not "what you get". */
+const LIVE: Record<Persona, boolean> = {
+  exporters: true,
+  suppliers: true,
+  legal: false,
+  importers: false,
+};
+
+/* Confirmation mark for the guarantee lists. Emerald is the DS "good" tone and
+   the only status colour in this section — 4×3 of them is already a lot of it,
+   so nothing else here is allowed to carry a status colour. */
+function Tick() {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 12 12"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className="mt-[3px] shrink-0 text-emerald-600/70"
+    >
+      <path d="M2.5 6.5 5 9l4.5-6" />
+    </svg>
+  );
+}
+
 /* `children` is dropped in between the benefits grid and the closing CTA. The
    exporter page uses it to carry the full landing-page story — problem, why
    now, the platform, pricing, FAQ — while the other three stay short. */
 export function SolutionPage({
   persona,
-  benefits = true,
   children,
 }: {
   persona: Persona;
-  /* The exporter page opts out: with the whole landing story running below it,
-     a four-card summary of the same ground read as a table of contents for
-     the page you were already on. The short persona pages keep it. */
-  benefits?: boolean;
   children?: React.ReactNode;
 }) {
   const { c } = useLang();
   const page = c.solutionPage[persona];
-  const live = persona !== "importers";
-  const ctaLabel =
-    persona === "importers" ? c.solutionPage.importers.ctaLabel : c.common.bookDemo;
+  const live = LIVE[persona];
+
+  /* Suppliers is the only page that still carries a feature grid.
+     Exporters run the whole landing story below instead, so a card summary of
+     it read as a table of contents for the page you were already on; legal and
+     importers had theirs taken down on purpose — describing features of
+     software nobody can open yet is a spec sheet with no product behind it,
+     and their pages now go straight from the pitch to the waitlist. */
+  const benefits =
+    persona === "suppliers" ? c.solutionPage.suppliers : null;
+  const ctaLabel = live ? c.common.bookDemo : c.common.joinWaitlist;
+  /* A page with no product behind it sends people to the waitlist further down
+     its own page; a live one sends them to the booking form on the home page. */
+  const ctaHref = live ? "/#demo" : "#waitlist";
 
   return (
     <div className="bg-[#F5F4F0] text-[#111] min-h-screen font-sans antialiased">
@@ -64,7 +104,7 @@ export function SolutionPage({
           </p>
           <div className="mt-9 flex flex-wrap gap-3">
             <a
-              href="/#demo"
+              href={ctaHref}
               className="px-7 py-3 bg-[#111] text-white text-sm rounded-[10px] hover:bg-[#333] transition-colors tracking-widest"
             >
               {ctaLabel}
@@ -82,23 +122,47 @@ export function SolutionPage({
       {benefits && (
         <section className="py-24 px-6 md:px-12 lg:px-20 border-t border-black/[0.06]">
           <div className="max-w-6xl mx-auto">
-            <div className="mb-12">
-              <TagBadge>{c.solutionPage.whatYouGet}</TagBadge>
+            {/* A bare badge over a grid of four one-liners was the whole
+                section, and it read as a placeholder. It now opens like every
+                other section on the site — heading on the left, the promise
+                opposite — and each card carries the three guarantees that
+                answer the only question a supplier actually has. */}
+            <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-8 mb-12">
+              <div>
+                <TagBadge>{c.solutionPage.whatYouGet}</TagBadge>
+                <BlurHeading className="mt-5 text-3xl md:text-4xl lg:text-5xl font-light tracking-tight leading-[1.05]">
+                  {benefits.benefitsHeadline}
+                </BlurHeading>
+              </div>
+              <p className="text-sm text-black/45 leading-relaxed max-w-xs">
+                {benefits.benefitsIntro}
+              </p>
             </div>
             <div
-              className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
               onMouseMove={handleMouseGlow}
             >
-              {page.benefits.map((benefit, i) => (
+              {benefits.benefits.map((benefit, i) => (
                 <AnimateCard
                   key={benefit.title}
-                  className="p-8 flex flex-col min-h-[170px]"
-                  delay={i * 80}
+                  className="p-8 flex flex-col"
+                  delay={i * 70}
                 >
-                  <h3 className="text-lg font-light mb-2">{benefit.title}</h3>
+                  <h3 className="text-lg font-light mb-2.5">{benefit.title}</h3>
                   <p className="text-sm text-black/45 leading-relaxed">
                     {benefit.desc}
                   </p>
+                  <ul className="mt-auto pt-6 flex flex-col gap-2">
+                    {benefit.points.map((point) => (
+                      <li
+                        key={point}
+                        className="flex items-start gap-2.5 text-xs text-black/50 leading-relaxed"
+                      >
+                        <Tick />
+                        {point}
+                      </li>
+                    ))}
+                  </ul>
                 </AnimateCard>
               ))}
             </div>
@@ -108,19 +172,29 @@ export function SolutionPage({
 
       {children}
 
+      {!live && <WaitlistSection />}
+
+      {/* The closing block asks for the one thing this page can actually give.
+          On a page with no product yet, that's a demo of the side that *is*
+          running — so the copy and the button both change, rather than
+          repeating the waitlist ask directly above it. */}
       <section className="py-28 px-6 md:px-12 lg:px-20 border-t border-black/[0.06]">
         <div className="max-w-3xl mx-auto text-center">
           <h2 className="text-3xl md:text-4xl font-light tracking-tight leading-[1.05]">
-            {c.solutionPage.closingHeadline}
+            {live
+              ? c.solutionPage.closingHeadline
+              : c.solutionPage.closingHeadlineSoon}
           </h2>
           <p className="mt-5 text-sm text-black/45 leading-relaxed max-w-md mx-auto">
-            {c.solutionPage.closingIntro}
+            {live
+              ? c.solutionPage.closingIntro
+              : c.solutionPage.closingIntroSoon}
           </p>
           <a
             href="/#demo"
             className="mt-8 inline-flex px-7 py-3 bg-[#111] text-white text-sm rounded-[10px] hover:bg-[#333] transition-colors tracking-widest"
           >
-            {ctaLabel}
+            {c.common.bookDemo}
           </a>
         </div>
       </section>
