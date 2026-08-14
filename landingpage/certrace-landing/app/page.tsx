@@ -258,7 +258,7 @@ export default function HomePage() {
           <div className="w-full rounded-2xl overflow-hidden bg-black aspect-video">
             <iframe
               className="w-full h-full"
-              src="https://www.youtube.com/embed/_OHf61dbt4Y"
+              src="https://www.youtube.com/embed/l4ZdQq5KA7Q"
               title={c.hero.videoTitle}
               loading="lazy"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
