@@ -42,15 +42,20 @@ function buildNav(c: Content): NavEntry[] {
       label: c.nav.platform.label,
       menu: {
         items: [
-          { ...c.nav.platform.items[0], href: "/#platform-collect" },
-          { ...c.nav.platform.items[1], href: "/#platform-quality" },
-          { ...c.nav.platform.items[2], href: "/#platform-engine" },
-          { ...c.nav.platform.items[3], href: "/#platform-handoff" },
+          { ...c.nav.platform.items[0], href: "/#platform-invite" },
+          { ...c.nav.platform.items[1], href: "/#platform-profile" },
+          { ...c.nav.platform.items[2], href: "/#platform-quality" },
+          { ...c.nav.platform.items[3], href: "/#platform-engine" },
+          { ...c.nav.platform.items[4], href: "/#platform-benchmark" },
+          { ...c.nav.platform.items[5], href: "/#platform-report" },
         ],
         footer: { label: c.nav.platform.footer, href: "/#platform" },
       },
     },
     {
+      /* Exporters and suppliers are the two sides that exist today; legal and
+         importers each have a page, but it opens on a waitlist rather than a
+         product. The badges have to say which is which before the click. */
       label: c.nav.solutions.label,
       menu: {
         items: [
@@ -67,7 +72,7 @@ function buildNav(c: Content): NavEntry[] {
           {
             ...c.nav.solutions.items[2],
             href: "/solutions/legal-compliance",
-            badge: live,
+            badge: soon,
           },
           {
             ...c.nav.solutions.items[3],
@@ -79,14 +84,14 @@ function buildNav(c: Content): NavEntry[] {
       },
     },
     {
-      /* Both regulation rows land on the live-platform section — it's the one
-         place on the page that shows CBAM and buyer requests actually running,
-         which is what someone clicking a regulation name wants to see. */
+      /* One regulation, deliberately: EU CBAM is what the product covers, and
+         listing anything else here would promise coverage that isn't built.
+         It lands on the live-platform section — the one place on the page
+         that shows CBAM actually running. */
       label: c.nav.regulations.label,
       menu: {
         items: [
           { ...c.nav.regulations.items[0], href: "/#live", badge: live },
-          { ...c.nav.regulations.items[1], href: "/#live", badge: live },
         ],
         footer: { label: c.nav.regulations.footer, href: "/backlog" },
       },
@@ -114,7 +119,14 @@ function buildNav(c: Content): NavEntry[] {
             external: true,
           },
           { ...c.nav.company.items[1], href: "#", badge: soon, soon: true },
-          { ...c.nav.company.items[2], href: "#", badge: soon, soon: true },
+          /* Careers is live: no page to build, it opens a pre-addressed email
+             to the same inbox Contact uses. A SOON badge on a row that already
+             works would just stop people clicking it. */
+          {
+            ...c.nav.company.items[2],
+            href: composeHref(c.footer.careersSubject),
+            external: true,
+          },
         ],
         footer: { label: c.nav.company.footer, href: "/#demo" },
       },
@@ -416,22 +428,36 @@ export function Navbar() {
                           band read as a seam. */}
                       <div
                         style={{
-                          /* Near-opaque, with a wider blur: at 0.94/28px the
-                             hero headline ghosted through and fought with the
-                             menu copy. Still glass, just not see-through.
-                             Tinted to the header's own bone rather than white —
-                             a white sheet hanging off a bone-coloured bar read
-                             as a different surface, and it's the white hover
-                             plates that should be the light thing here. */
-                          background: "rgba(242,240,235,0.98)",
-                          backdropFilter: "blur(40px) saturate(180%)",
-                          WebkitBackdropFilter: "blur(40px) saturate(180%)",
+                          /* Fully opaque, not 0.98 + blur. The Platform menu
+                             now carries six features, which makes the panel
+                             ~400px tall — deep enough to sit over the hero
+                             headline, and at 98% a headline that large still
+                             ghosted through in real Chrome and fought with the
+                             menu copy. There is no perceptible glass at 2%
+                             anyway; the translucent header above it is what
+                             carries that quality. Tinted to the header's own
+                             bone rather than white — a white sheet hanging off
+                             a bone-coloured bar read as a different surface,
+                             and it's the white hover plates that should be the
+                             light thing here. */
+                          background: "#f2f0eb",
                           boxShadow:
                             "0 32px 64px rgba(0,0,0,0.10), 0 4px 16px rgba(0,0,0,0.05)",
                           animation: "navPanelIn 0.35s var(--ease-signature) both",
                         }}
                       >
-                        <div className="w-full px-6 md:px-12 py-7 grid grid-cols-2 gap-3">
+                        {/* Regulations carries a single row. In a two-column
+                            grid that leaves an empty right half beside it, so
+                            a one-item menu spans the full width instead — the
+                            copy is still capped at max-w-md, so nothing
+                            stretches into a long line. */}
+                        <div
+                          className={`w-full px-6 md:px-12 py-7 grid gap-3 ${
+                            entry.menu.items.length === 1
+                              ? "grid-cols-1"
+                              : "grid-cols-2"
+                          }`}
+                        >
                           {entry.menu.items.map((item) =>
                             item.soon ? (
                               <div
@@ -604,10 +630,15 @@ export function Navbar() {
                     {entry.label}
                     <Chevron open={mobileGroup === entry.label} />
                   </button>
+                  {/* 540, not 460: Platform carries six features now, and its
+                      panel measures 486px at 390px wide and 505px at 320px —
+                      the old cap sliced the last feature off. Measured at the
+                      narrowest phone, plus headroom. Every other group is well
+                      under (Resources is the next tallest at 321px). */}
                   <div
                     className="overflow-hidden transition-all duration-300"
                     style={{
-                      maxHeight: mobileGroup === entry.label ? "460px" : "0px",
+                      maxHeight: mobileGroup === entry.label ? "540px" : "0px",
                       opacity: mobileGroup === entry.label ? 1 : 0,
                     }}
                   >
@@ -685,8 +716,11 @@ export function Navbar() {
               </button>
               <div
                 className="overflow-hidden transition-all duration-300"
+                /* 260px, not 200: five languages measure 218px of rows at
+                   375px wide, so the old cap sliced हिन्दी off the bottom with
+                   nothing to scroll. Re-measure if a sixth is ever added. */
                 style={{
-                  maxHeight: mobileGroup === "Language" ? "200px" : "0px",
+                  maxHeight: mobileGroup === "Language" ? "260px" : "0px",
                   opacity: mobileGroup === "Language" ? 1 : 0,
                 }}
               >

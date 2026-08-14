@@ -1,53 +1,79 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { IBM_Plex_Sans, IBM_Plex_Sans_Thai, Courier_Prime } from "next/font/google";
+import {
+  IBM_Plex_Sans,
+  IBM_Plex_Sans_Devanagari,
+  IBM_Plex_Sans_Thai,
+  Courier_Prime,
+} from "next/font/google";
 import { LanguageProvider } from "@/lib/i18n";
 import "./globals.css";
 
+/* `latin-ext` carries the Turkish letters — ğ, ş, ı and the dotted capital İ
+   are Latin Extended-A, outside the base `latin` subset, so without it a
+   Turkish page would fall back per glyph and mix a system face into the brand
+   one. Google serves each subset as its own unicode-range @font-face, so an
+   English page still fetches only the Latin file. */
 const geistSans = Geist({
   variable: "--font-geist-sans",
-  subsets: ["latin"],
+  subsets: ["latin", "latin-ext"],
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
-  subsets: ["latin"],
+  subsets: ["latin", "latin-ext"],
 });
 
+/* The display face, and the only one of the four Latin families that covers
+   Vietnamese: its stacked tone marks (ế, ữ, ộ) live in Latin Extended
+   Additional, which Google publishes as the `vietnamese` subset. Geist and
+   Courier Prime don't carry it at all, which is why `html[lang="vi"]` in
+   globals.css routes the whole stack through this one. */
 const ibmPlexSans = IBM_Plex_Sans({
   variable: "--font-ibm-plex-sans",
-  subsets: ["latin"],
+  subsets: ["latin", "latin-ext", "vietnamese"],
   weight: ["300", "400", "500", "600"],
 });
 
-/* Thai companion cut of the same type family, loaded ahead of the Thai copy
-   pass so `html[lang="th"]` (see globals.css) has a design-system-correct
-   typeface the moment translated content lands — no separate font decision
-   needed later. */
+/* Script-specific cuts of the same family, one per non-Latin language.
+
+   `preload: false` on both: they are reachable only through an
+   `html[lang="th"]` / `html[lang="hi"]` rule, so a preload link would push two
+   script fonts down the wire for every visitor who will never see either. The
+   @font-face still resolves normally the moment the rule matches. */
 const ibmPlexSansThai = IBM_Plex_Sans_Thai({
   variable: "--font-ibm-plex-sans-thai",
   subsets: ["thai", "latin"],
   weight: ["300", "400", "500", "600"],
+  preload: false,
+});
+
+const ibmPlexSansDevanagari = IBM_Plex_Sans_Devanagari({
+  variable: "--font-ibm-plex-sans-devanagari",
+  subsets: ["devanagari", "latin", "latin-ext"],
+  weight: ["300", "400", "500", "600"],
+  preload: false,
 });
 
 const courierPrime = Courier_Prime({
   variable: "--font-courier-prime",
-  subsets: ["latin"],
+  subsets: ["latin", "latin-ext"],
   weight: ["400", "700"],
 });
 
 export const metadata: Metadata = {
-  title: "Certrace — Carbon Compliance Infrastructure for Exporters",
+  title: "Certrace — CBAM Proof Infrastructure for Exporters",
   description:
-    "Certrace runs your CBAM declaration end to end — Smart Link supplier collection, AI quality checks, a definitive-period compliance engine, and an audit-ready package your EU buyer's declarant can file on.",
+    "Buyers don't wait for the best supplier — they pick whoever proves it first. Certrace is the AI workflow platform built on the exporter's side: Smart Link supplier invites, fill-once profiles, automatic quality checks, the CBAM calculation engine, a carbon benchmark, and a report package that's ready before your buyer asks.",
   keywords: [
     "CBAM compliance",
+    "CBAM for exporters",
     "CBAM definitive period",
     "Annex IV communication template",
     "O3CI portal",
     "carbon data collection",
     "supply chain emissions",
-    "Scope 3 buyer requests",
+    "carbon benchmark",
     "Thai exporters",
     "carbon border adjustment",
   ],
@@ -56,18 +82,18 @@ export const metadata: Metadata = {
   },
   authors: [{ name: "Certrace" }],
   openGraph: {
-    title: "Certrace — Carbon Compliance Infrastructure for Exporters",
+    title: "Certrace — CBAM Proof Infrastructure for Exporters",
     description:
-      "Collect verified emissions data from your supply chain, meet CBAM, EUDR, and CSRD requirements, and file audit-ready compliance reports.",
+      "Every other platform in this space sells to the EU importer. Certrace is built for the exporter: collect supplier carbon data once, calculate it into the EU's format, and keep an audit-ready report standing by.",
     url: "https://certrace.com",
     siteName: "Certrace",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Certrace — Carbon Compliance Infrastructure for Exporters",
+    title: "Certrace — CBAM Proof Infrastructure for Exporters",
     description:
-      "Supply chain carbon compliance. Without the chaos. CBAM, EUDR, and CSRD in one structured platform.",
+      "Buyers don't wait for the best supplier. They pick whoever proves it first.",
   },
 };
 
@@ -82,7 +108,7 @@ export default function RootLayout({
        as a server/client attribute mismatch on this element. */
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} ${ibmPlexSans.variable} ${ibmPlexSansThai.variable} ${courierPrime.variable} font-sans antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${ibmPlexSans.variable} ${ibmPlexSansThai.variable} ${ibmPlexSansDevanagari.variable} ${courierPrime.variable} font-sans antialiased`}
       >
         <LanguageProvider>{children}</LanguageProvider>
       </body>

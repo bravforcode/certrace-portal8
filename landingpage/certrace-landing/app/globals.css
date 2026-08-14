@@ -60,6 +60,33 @@ html[lang="th"] body {
   font-family: var(--font-ibm-plex-sans-thai), sans-serif;
 }
 
+/* Hindi, same swap against the Devanagari cut of the family, and for the same
+   reason: none of the Latin faces carry a single Devanagari glyph. */
+html[lang="hi"] body {
+  --font-ibm-plex-sans: var(--font-ibm-plex-sans-devanagari);
+  --font-geist-sans: var(--font-ibm-plex-sans-devanagari);
+  --font-geist-mono: var(--font-ibm-plex-sans-devanagari);
+  --font-courier-prime: var(--font-ibm-plex-sans-devanagari);
+  font-family: var(--font-ibm-plex-sans-devanagari), sans-serif;
+}
+
+/* Vietnamese is Latin, so the display face already fits — but Geist and
+   Courier Prime stop at Latin Extended-A and Vietnamese needs Latin Extended
+   Additional (ế, ữ, ộ and the rest of the tone-marked vowels). Left alone they
+   fall back per glyph, which drops a system face into the middle of a word.
+   IBM Plex Sans covers all of it, so the stack routes through it: the pixel
+   labels lose their monospace texture on Vietnamese pages, the same trade the
+   Thai rule above makes, and every glyph stays inside the brand family.
+
+   Turkish needs none of this — `latin-ext` is loaded on all four families, so
+   it keeps the full type stack, Courier Prime included. */
+html[lang="vi"] body {
+  --font-geist-sans: var(--font-ibm-plex-sans);
+  --font-geist-mono: var(--font-ibm-plex-sans);
+  --font-courier-prime: var(--font-ibm-plex-sans);
+  font-family: var(--font-ibm-plex-sans), sans-serif;
+}
+
 /* Thai stacks marks above and below the consonant, so the display leading the
    Latin headings use (1.0–1.05) collides tone marks with the descenders of the
    line above — and BlurHeading clips the overflow. Element selectors here so
@@ -129,6 +156,50 @@ html[lang="th"] .font-pixel {
    shouldn't mix two track values. Headings keep `tracking-tight`: negative
    tracking crowds nothing, and touching it would reflow every Thai headline. */
 html[lang="th"] body :is([class*="tracking-wide"], [class*="tracking-["]) {
+  letter-spacing: 0.04em;
+}
+
+/* Devanagari has the same three problems Thai does, one step further along.
+
+   Leading: matras hang above the shirorekha (ि े ै ों) and below the baseline
+   (ु ू ृ), so a Latin body leading closes the gap between two lines to nothing.
+   1.4 for body-sized headings, against Thai's 1.35 — the vertical stack is
+   taller.
+
+   Display sizes get 1.18 (Thai takes 1.12) with the same load-bearing
+   padding/margin pair: `BlurHeading` masks its words behind `overflow:hidden`,
+   an ि or a ें sits outside the line box, and tightening the leading alone
+   slices the tops off. The padding grows the box upward, the equal negative
+   margin cancels the growth so nothing moves. Change one, change the other.
+
+   Tracking: a Devanagari word is joined along its top bar, and letter-spacing
+   cuts that bar into pieces — worse than the Thai case, where the syllable
+   only drifts apart. Same 0.04em floor. */
+html[lang="hi"] h1,
+html[lang="hi"] h2,
+html[lang="hi"] h3,
+html[lang="hi"] h4,
+html[lang="hi"] blockquote {
+  line-height: 1.4;
+}
+
+html[lang="hi"] body :is(
+    [class*="text-4xl"],
+    [class*="text-5xl"],
+    [class*="text-6xl"],
+    [class*="text-7xl"],
+    [class*="text-8xl"]
+  ) {
+  line-height: 1.18;
+  padding-top: 0.26em;
+  margin-top: -0.26em;
+}
+
+html[lang="hi"] .font-pixel {
+  letter-spacing: 0.04em;
+}
+
+html[lang="hi"] body :is([class*="tracking-wide"], [class*="tracking-["]) {
   letter-spacing: 0.04em;
 }
 
