@@ -896,6 +896,53 @@ l0 14 -4 4 -3 4 -113 0 -112 0 -3 3 c-2 1 -3 4 -4 7 -1 2 -1 28 -1 80 0 82 0
   })();
 
   /* ============================================================
+     LEAD LOCALE — the visitor's own time zone, for the sheet.
+
+     Leads arrive from every zone but the sheet is read from one. A UTC
+     timestamp alone can't tell you whether a signup at 03:00 was the middle
+     of someone's night or the middle of their workday, so every row carries
+     the visitor's IANA zone, their UTC offset, and the same moment written
+     in their local time — enough to know when it is polite to call them.
+
+     Sent alongside the existing `timestamp`, never instead of it: UTC stays
+     the column you sort on.
+     ============================================================ */
+  function leadLocale() {
+    var now = new Date();
+
+    var zone = '';
+    try {
+      zone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+    } catch (err) {
+      zone = ''; // pre-Intl engines — the offset below still works
+    }
+
+    // getTimezoneOffset() counts minutes WEST of UTC, so Bangkok reports -420.
+    // Flip the sign so the string reads the way people write it: UTC+07:00.
+    var offsetMinutes = -now.getTimezoneOffset();
+    var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+    var abs = Math.abs(offsetMinutes);
+    var offset = 'UTC' + (offsetMinutes < 0 ? '-' : '+') + pad(Math.floor(abs / 60)) + ':' + pad(abs % 60);
+
+    var localTime = '';
+    try {
+      localTime = now.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
+    } catch (err) {
+      localTime = now.toString();
+    }
+
+    return { timezone: zone, utc_offset: offset, local_time: localTime };
+  }
+
+  /* Append the locale columns to an outgoing FormData. */
+  function appendLeadLocale(formData) {
+    var locale = leadLocale();
+    formData.append('timezone', locale.timezone);
+    formData.append('utc_offset', locale.utc_offset);
+    formData.append('local_time', locale.local_time);
+  }
+
+  /* ============================================================
      WAITLIST FORM
      ============================================================ */
   (function waitlist() {
@@ -941,6 +988,7 @@ l0 14 -4 4 -3 4 -113 0 -112 0 -3 3 c-2 1 -3 4 -4 7 -1 2 -1 28 -1 80 0 82 0
       formData.append('email', email);
       formData.append('source', 'landing_page');
       formData.append('timestamp', new Date().toISOString());
+      appendLeadLocale(formData);
 
       fetch(SCRIPT_URL, {
         method: 'POST',
