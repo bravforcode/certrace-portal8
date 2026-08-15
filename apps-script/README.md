@@ -85,10 +85,9 @@ A booking is recorded four ways, because a slot time on its own is not a time:
 visitor saw, and reading them without `bookingTimeZone` will book the call at
 the wrong hour.
 
-`bookingTimeZoneLabel` is decoration (`Berlin, Germany (GMT+2)`). On the one
-day a year a zone changes offset, it is read at that day's midnight, so it can
-name the pre-switch offset while the slot itself falls after the switch —
-`bookingStartUtc` is unaffected.
+`bookingTimeZoneLabel` is the human form (`Berlin, Germany (GMT+1)`), read at
+the slot's own instant — so on a day a zone changes offset it names the offset
+that actually applies to the call, not the one that ended overnight.
 
 The endpoint the Next landing posts to is set in
 `landingpage/certrace-landing/lib/sheet-sync.ts`; the static pages have their

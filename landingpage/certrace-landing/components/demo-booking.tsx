@@ -323,13 +323,38 @@ export function DemoBookingModal({
     [selectedDay, now, zone],
   );
 
-  /* Labelled for the day being booked, not for today: a call in late March
-     may fall on the other side of a daylight-saving change from the day the
-     visitor is looking at it. */
-  const tzLabel = useMemo(
-    () => (zone ? zoneLabel(zone, selectedDay ?? now ?? new Date()) : ""),
-    [zone, selectedDay, now],
-  );
+  /* Labelled at the instant being booked, not at the day it falls on.
+     Two separate reasons the offset can differ from today's:
+
+     the day — a call in late March may sit on the other side of a
+     daylight-saving change from the day the visitor is looking at it; and
+
+     the hour — a zone switches overnight, around 02:00-03:00, so reading the
+     label at the day's midnight names the offset that is about to end while
+     every bookable slot sits after the switch. On 25 October a Berlin 14:00
+     slot is GMT+1, but that day's midnight is still GMT+2.
+
+     Before a slot is picked there is no single instant to read, so midday
+     stands in for the day: the grid runs 09:00-16:30 and all of it lands on
+     the same side of any overnight transition. */
+  const tzLabel = useMemo(() => {
+    if (!zone) return "";
+    if (!selectedDay) return zoneLabel(zone, now ?? new Date());
+    const [hour, minute] = selectedTime ? selectedTime.split(":").map(Number) : [12, 0];
+    return zoneLabel(
+      zone,
+      new Date(
+        wallTimeInstant(
+          zone,
+          selectedDay.getFullYear(),
+          selectedDay.getMonth(),
+          selectedDay.getDate(),
+          hour,
+          minute,
+        ),
+      ),
+    );
+  }, [zone, selectedDay, selectedTime, now]);
 
   const zoneOptions = useMemo(() => (zone ? withDetectedZone(zone) : []), [zone]);
 
