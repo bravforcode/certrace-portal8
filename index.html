@@ -906,19 +906,108 @@ l0 14 -4 4 -3 4 -113 0 -112 0 -3 3 c-2 1 -3 4 -4 7 -1 2 -1 28 -1 80 0 82 0
 
      Sent alongside the existing `timestamp`, never instead of it: UTC stays
      the column you sort on.
+
+     The zone table mirrors ZONE_ALIASES / detectZone in
+     landingpage/certrace-landing/lib/timezones.ts. Keep the two in step: a
+     lead should not be filed under a different city name depending on which
+     page they arrived through.
      ============================================================ */
+
+  var FALLBACK_ZONE = 'Asia/Bangkok';
+
+  /* Browsers do not all report the current name for a zone. Chromium answers
+     `Asia/Calcutta` for India, not `Asia/Kolkata` — the IANA database keeps
+     the old names as links forever and the ICU build decides which one comes
+     back. Left unmapped, the sheet fills up with city names that were retired
+     fifty years ago, and the same lead sorts under two different rows. */
+  var ZONE_ALIASES = {
+    'Asia/Calcutta': 'Asia/Kolkata',
+    'Asia/Saigon': 'Asia/Ho_Chi_Minh',
+    'Asia/Rangoon': 'Asia/Yangon',
+    'Asia/Katmandu': 'Asia/Kathmandu',
+    'Asia/Dacca': 'Asia/Dhaka',
+    'Asia/Chongqing': 'Asia/Shanghai',
+    'Asia/Chungking': 'Asia/Shanghai',
+    'Asia/Harbin': 'Asia/Shanghai',
+    'Asia/Tel_Aviv': 'Asia/Jerusalem',
+    'Asia/Istanbul': 'Europe/Istanbul',
+    'Europe/Kiev': 'Europe/Kyiv',
+    'Europe/Uzhgorod': 'Europe/Kyiv',
+    'Europe/Zaporozhye': 'Europe/Kyiv',
+    'Europe/Belfast': 'Europe/London',
+    'America/Buenos_Aires': 'America/Argentina/Buenos_Aires',
+    'Australia/Canberra': 'Australia/Sydney',
+    'Australia/NSW': 'Australia/Sydney',
+    'Australia/ACT': 'Australia/Sydney',
+    'Australia/West': 'Australia/Perth',
+    /* Country- and region-style links, still emitted by some environments. */
+    'GB': 'Europe/London',
+    'Eire': 'Europe/Dublin',
+    'Poland': 'Europe/Warsaw',
+    'Portugal': 'Europe/Lisbon',
+    'Turkey': 'Europe/Istanbul',
+    'Egypt': 'Africa/Cairo',
+    'Israel': 'Asia/Jerusalem',
+    'Japan': 'Asia/Tokyo',
+    'Singapore': 'Asia/Singapore',
+    'Hongkong': 'Asia/Hong_Kong',
+    'PRC': 'Asia/Shanghai',
+    'ROC': 'Asia/Taipei',
+    'ROK': 'Asia/Seoul',
+    'NZ': 'Pacific/Auckland',
+    'US/Eastern': 'America/New_York',
+    'US/Central': 'America/Chicago',
+    'US/Mountain': 'America/Denver',
+    'US/Pacific': 'America/Los_Angeles',
+    'Canada/Eastern': 'America/Toronto',
+    'Canada/Pacific': 'America/Vancouver',
+    'Mexico/General': 'America/Mexico_City',
+    'Brazil/East': 'America/Sao_Paulo'
+  };
+
+  /* hasOwnProperty rather than a bare lookup: the key comes from the browser,
+     and inherited Object members must not resolve as if they were zones. */
+  function canonicalZone(id) {
+    return Object.prototype.hasOwnProperty.call(ZONE_ALIASES, id) ? ZONE_ALIASES[id] : id;
+  }
+
+  /* Every zone a browser reports is in the IANA database, but a stale browser
+     can report one this runtime won't accept. Anything that doesn't format is
+     not a zone. */
+  function isValidZone(id) {
+    if (!id) return false;
+    try {
+      new Intl.DateTimeFormat('en-US', { timeZone: id }).format();
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  /* Canonicalise first, then validate: the modern name is the one to file
+     under, and both names point at the same rules either way. */
+  function detectZone() {
+    try {
+      var detected = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (detected) {
+        var canonical = canonicalZone(detected);
+        if (isValidZone(canonical)) return { id: canonical, detected: true };
+        if (isValidZone(detected)) return { id: detected, detected: true };
+      }
+    } catch (err) {
+      /* pre-Intl engine — falls through to the fallback */
+    }
+    return { id: FALLBACK_ZONE, detected: false };
+  }
+
   function leadLocale() {
     var now = new Date();
-
-    var zone = '';
-    try {
-      zone = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
-    } catch (err) {
-      zone = ''; // pre-Intl engines — the offset below still works
-    }
+    var zone = detectZone();
 
     // getTimezoneOffset() counts minutes WEST of UTC, so Bangkok reports -420.
     // Flip the sign so the string reads the way people write it: UTC+07:00.
+    // Read from the machine rather than derived from the zone name, so it is
+    // right through DST and still right when the zone name fell back.
     var offsetMinutes = -now.getTimezoneOffset();
     var pad = function (n) { return (n < 10 ? '0' : '') + n; };
     var abs = Math.abs(offsetMinutes);
@@ -931,13 +1020,22 @@ l0 14 -4 4 -3 4 -113 0 -112 0 -3 3 c-2 1 -3 4 -4 7 -1 2 -1 28 -1 80 0 82 0
       localTime = now.toString();
     }
 
-    return { timezone: zone, utc_offset: offset, local_time: localTime };
+    return {
+      timezone: zone.id,
+      /* Whether the city name can be trusted. On 'fallback' the zone is a
+         default, not a reading — trust utc_offset, which is measured either
+         way, and never read the city as the lead's location. */
+      zone_source: zone.detected ? 'detected' : 'fallback',
+      utc_offset: offset,
+      local_time: localTime
+    };
   }
 
   /* Append the locale columns to an outgoing FormData. */
   function appendLeadLocale(formData) {
     var locale = leadLocale();
     formData.append('timezone', locale.timezone);
+    formData.append('zone_source', locale.zone_source);
     formData.append('utc_offset', locale.utc_offset);
     formData.append('local_time', locale.local_time);
   }
