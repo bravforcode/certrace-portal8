@@ -54,7 +54,33 @@ export function buildDeclarationHandoff(p: PackageInput) {
       carbonPricePaid: p.carbonPricePaid, // decimal string
       factorSet: p.factorSet,
     },
+    costOutcome: costOutcomeHandoff(p.costOutcome),
     suppliers: chapters.map(supplierHandoff),
+  };
+}
+
+/* The money block is self-describing on purpose: a consumer must be able to
+   tell "no liability" from "the price for this period is not published yet"
+   without reading our source. `available: false` means every amount is null. */
+function costOutcomeHandoff(cost: PackageInput["costOutcome"]) {
+  if (!cost) return null;
+  return {
+    available: cost.available,
+    unavailableReason: cost.unavailableReason,
+    pricedAsOf: cost.asOf,
+    reportingYear: cost.year,
+    chargeableTCO2e: cost.chargeableTCO2e, // decimal string
+    certificatePriceEURPerTCO2e: cost.certificatePriceEURPerTCO2e, // decimal string | null
+    grossCostEUR: cost.grossCostEUR, // decimal string | null
+    carbonPricePaidEUR: cost.carbonPricePaidEUR, // decimal string
+    netExposureEUR: cost.netExposureEUR, // decimal string | null
+    netExposureTHB: cost.netExposureTHB, // decimal string | null
+    fxThbPerEur: cost.fx.thbPerEur,
+    fxAsOf: cost.fx.asOf,
+    fxSource: cost.fx.source,
+    fxStale: cost.fx.stale,
+    basis:
+      "Annex-II direct embedded emissions priced at the officially published CBAM certificate price, net of declared carbon price paid, floored at zero per supplier. Estimate only; no proxy price is substituted for an unpublished period.",
   };
 }
 
@@ -217,6 +243,20 @@ export async function buildDeclarationWorkbook(p: PackageInput): Promise<Workboo
   kv("Carbon price paid (origin)", p.carbonPricePaid);
   kv("Emission factor set", p.factorSet);
   kv("Supplier submissions", p.supplierCount);
+  if (p.costOutcome) {
+    const c = p.costOutcome;
+    kv("Chargeable embedded emissions (tCO2e)", c.chargeableTCO2e);
+    kv("Certificate price applied (EUR/tCO2e)", c.certificatePriceEURPerTCO2e ?? "Not published");
+    kv("Certificate price as of", c.asOf);
+    kv("Gross certificate cost (EUR)", c.grossCostEUR ?? "Unavailable");
+    kv("Carbon price already paid (EUR)", c.carbonPricePaidEUR);
+    kv("Estimated net certificate cost (EUR)", c.netExposureEUR ?? "Unavailable");
+    kv("Estimated net certificate cost (THB)", c.netExposureTHB ?? "Unavailable");
+    kv("THB/EUR reference rate", `${c.fx.thbPerEur} as of ${c.fx.asOf} (${c.fx.stale ? "fallback" : c.fx.source})`);
+    if (!c.available) {
+      kv("Cost outcome unavailable because", c.unavailableReason ?? `No published price covers ${c.asOf}.`);
+    }
+  }
   kv("Generated (UTC)", new Date().toUTCString());
   if (p.contentHash) kv("Local dataset sha-256", p.contentHash);
   summary.getColumn(1).font = { bold: true };

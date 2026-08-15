@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CONTACT_EMAIL } from "@/lib/content";
 import { DATE_LOCALE, useLang } from "@/lib/i18n";
+import { calendarDayString, leadLocaleFields, postToSheet } from "@/lib/sheet-sync";
 import { SelectChevron } from "./form-fields";
 import {
   TIME_ZONE_REGIONS,
@@ -17,9 +18,10 @@ import {
 /* Three-step booking dialog that opens once the demo form is submitted:
    (1) a short qualification pass, (2) day + time selection, (3) confirmation.
 
-   Frontend-only, like the rest of this site — nothing is sent anywhere and no
-   real calendar is touched, so every string here has to stay honest about
-   being a booking *request*: "invite on its way", never "meeting created". */
+   The completed booking is posted to the lead sheet (lib/sheet-sync.ts), but
+   no real calendar is touched and no invite is issued, so every string here
+   has to stay honest about being a booking *request*: "invite on its way",
+   never "meeting created". */
 
 export type Booking = {
   /* Midnight of the chosen day, as a floating calendar date in the selected
@@ -31,7 +33,19 @@ export type Booking = {
   timeZoneLabel: string;
 };
 
-type Lead = { firstName: string; company: string; email: string };
+/* The full record the demo form collected, carried through so the booking
+   post describes the same person rather than a three-field subset of them. */
+type Lead = {
+  firstName: string;
+  lastName?: string;
+  email: string;
+  countryCode?: string;
+  phone?: string;
+  company: string;
+  jobTitle?: string;
+  sector?: string;
+  employees?: string;
+};
 
 /* Half-hour slots across a working day, read in whichever zone the visitor has
    selected: the grid is the shape of *their* day, so someone booking from
@@ -309,13 +323,38 @@ export function DemoBookingModal({
     [selectedDay, now, zone],
   );
 
-  /* Labelled for the day being booked, not for today: a call in late March
-     may fall on the other side of a daylight-saving change from the day the
-     visitor is looking at it. */
-  const tzLabel = useMemo(
-    () => (zone ? zoneLabel(zone, selectedDay ?? now ?? new Date()) : ""),
-    [zone, selectedDay, now],
-  );
+  /* Labelled at the instant being booked, not at the day it falls on.
+     Two separate reasons the offset can differ from today's:
+
+     the day — a call in late March may sit on the other side of a
+     daylight-saving change from the day the visitor is looking at it; and
+
+     the hour — a zone switches overnight, around 02:00-03:00, so reading the
+     label at the day's midnight names the offset that is about to end while
+     every bookable slot sits after the switch. On 25 October a Berlin 14:00
+     slot is GMT+1, but that day's midnight is still GMT+2.
+
+     Before a slot is picked there is no single instant to read, so midday
+     stands in for the day: the grid runs 09:00-16:30 and all of it lands on
+     the same side of any overnight transition. */
+  const tzLabel = useMemo(() => {
+    if (!zone) return "";
+    if (!selectedDay) return zoneLabel(zone, now ?? new Date());
+    const [hour, minute] = selectedTime ? selectedTime.split(":").map(Number) : [12, 0];
+    return zoneLabel(
+      zone,
+      new Date(
+        wallTimeInstant(
+          zone,
+          selectedDay.getFullYear(),
+          selectedDay.getMonth(),
+          selectedDay.getDate(),
+          hour,
+          minute,
+        ),
+      ),
+    );
+  }, [zone, selectedDay, selectedTime, now]);
 
   const zoneOptions = useMemo(() => (zone ? withDetectedZone(zone) : []), [zone]);
 
@@ -344,6 +383,39 @@ export function DemoBookingModal({
     setBooked(booking);
     setStep(3);
     onComplete(booking);
+
+    /* "14:00" is not a time until you know whose 14:00 it is. The slot was
+       picked in the visitor's zone, so the record carries that zone three
+       ways: the IANA id to compute with, the label as they saw it, and the
+       resolved UTC instant — the only field that survives being read from
+       another zone without reconstruction. */
+    const [hour, minute] = selectedTime.split(":").map(Number);
+    const startUtc = new Date(
+      wallTimeInstant(
+        zone,
+        selectedDay.getFullYear(),
+        selectedDay.getMonth(),
+        selectedDay.getDate(),
+        hour,
+        minute,
+      ),
+    ).toISOString();
+
+    postToSheet({
+      ...lead,
+      ...leadLocaleFields(),
+      type: "demo_booking",
+      bookingDate: calendarDayString(selectedDay),
+      bookingTime: selectedTime,
+      bookingTimeZone: zone,
+      bookingTimeZoneLabel: tzLabel,
+      bookingStartUtc: startUtc,
+      decision,
+      budget,
+      timing,
+      source: source === "other" ? sourceOther : source,
+      context,
+    });
   };
 
   /* Dates follow the language the site is being read in, not the browser's —
