@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CONTACT_EMAIL } from "@/lib/content";
 import { DATE_LOCALE, useLang } from "@/lib/i18n";
+import { calendarDayString, leadLocaleFields, postToSheet } from "@/lib/sheet-sync";
 import { SelectChevron } from "./form-fields";
 import {
   TIME_ZONE_REGIONS,
@@ -17,9 +18,10 @@ import {
 /* Three-step booking dialog that opens once the demo form is submitted:
    (1) a short qualification pass, (2) day + time selection, (3) confirmation.
 
-   Frontend-only, like the rest of this site — nothing is sent anywhere and no
-   real calendar is touched, so every string here has to stay honest about
-   being a booking *request*: "invite on its way", never "meeting created". */
+   The completed booking is posted to the lead sheet (lib/sheet-sync.ts), but
+   no real calendar is touched and no invite is issued, so every string here
+   has to stay honest about being a booking *request*: "invite on its way",
+   never "meeting created". */
 
 export type Booking = {
   /* Midnight of the chosen day, as a floating calendar date in the selected
@@ -31,7 +33,19 @@ export type Booking = {
   timeZoneLabel: string;
 };
 
-type Lead = { firstName: string; company: string; email: string };
+/* The full record the demo form collected, carried through so the booking
+   post describes the same person rather than a three-field subset of them. */
+type Lead = {
+  firstName: string;
+  lastName?: string;
+  email: string;
+  countryCode?: string;
+  phone?: string;
+  company: string;
+  jobTitle?: string;
+  sector?: string;
+  employees?: string;
+};
 
 /* Half-hour slots across a working day, read in whichever zone the visitor has
    selected: the grid is the shape of *their* day, so someone booking from
@@ -344,6 +358,39 @@ export function DemoBookingModal({
     setBooked(booking);
     setStep(3);
     onComplete(booking);
+
+    /* "14:00" is not a time until you know whose 14:00 it is. The slot was
+       picked in the visitor's zone, so the record carries that zone three
+       ways: the IANA id to compute with, the label as they saw it, and the
+       resolved UTC instant — the only field that survives being read from
+       another zone without reconstruction. */
+    const [hour, minute] = selectedTime.split(":").map(Number);
+    const startUtc = new Date(
+      wallTimeInstant(
+        zone,
+        selectedDay.getFullYear(),
+        selectedDay.getMonth(),
+        selectedDay.getDate(),
+        hour,
+        minute,
+      ),
+    ).toISOString();
+
+    postToSheet({
+      ...lead,
+      ...leadLocaleFields(),
+      type: "demo_booking",
+      bookingDate: calendarDayString(selectedDay),
+      bookingTime: selectedTime,
+      bookingTimeZone: zone,
+      bookingTimeZoneLabel: tzLabel,
+      bookingStartUtc: startUtc,
+      decision,
+      budget,
+      timing,
+      source: source === "other" ? sourceOther : source,
+      context,
+    });
   };
 
   /* Dates follow the language the site is being read in, not the browser's —

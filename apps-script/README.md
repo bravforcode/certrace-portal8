@@ -70,15 +70,26 @@ the row rather than blanking fields it does not carry.
 
 Set it to `false` to keep every submission as its own row.
 
-## Known gap
+## Reading a booking
 
-The Next.js landing (`landingpage/certrace-landing`) used to post here too —
-`demo_lead` on form submit and `demo_booking` on slot selection. That sync was
-removed in `1b2d2b1` and has not been restored, so demo bookings currently go
-nowhere.
+A booking is recorded four ways, because a slot time on its own is not a time:
 
-The booking columns (`bookingDate`, `bookingTime`, `bookingTimeZone`,
-`decision`, `budget`, `timing`, `context`) are already in the header for when
-it is wired back up. Note that the old version never sent the booking's time
-zone even though the dialog collects one — a slot time without its zone is not
-a time.
+| column | example | use |
+| :-- | :-- | :-- |
+| `bookingDate` | `2026-08-20` | the day, in the visitor's zone |
+| `bookingTime` | `14:00` | the slot, in the visitor's zone |
+| `bookingTimeZone` | `Europe/Berlin` | which zone those two are in |
+| `bookingStartUtc` | `2026-08-20T12:00:00.000Z` | the actual instant |
+
+`bookingStartUtc` is the one to put in a calendar. The other three are what the
+visitor saw, and reading them without `bookingTimeZone` will book the call at
+the wrong hour.
+
+`bookingTimeZoneLabel` is decoration (`Berlin, Germany (GMT+2)`). On the one
+day a year a zone changes offset, it is read at that day's midnight, so it can
+name the pre-switch offset while the slot itself falls after the switch —
+`bookingStartUtc` is unaffected.
+
+The endpoint the Next landing posts to is set in
+`landingpage/certrace-landing/lib/sheet-sync.ts`; the static pages have their
+own, and the two may point at different sheets.

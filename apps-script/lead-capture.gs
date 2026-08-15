@@ -17,9 +17,10 @@
  *   static-landing/index.html · HOOK #2 (full profile)
  *     + company, role, cbam_status, challenge, step=details
  *
- *   Next landing · demo_lead / demo_booking (currently unwired — see README)
+ *   Next landing · demo_lead (on form submit) / demo_booking (on slot pick)
  *     firstName, lastName, countryCode, phone, company, jobTitle, sector,
- *     employees, bookingDate, bookingTime, decision, budget, timing, context
+ *     employees, bookingDate, bookingTime, bookingTimeZone,
+ *     bookingTimeZoneLabel, bookingStartUtc, decision, budget, timing, context
  *
  * Three things this script is careful about:
  *
@@ -81,9 +82,11 @@ var BASE_COLUMNS = [
   'employees',
   'cbam_status',
   'challenge',
-  'bookingDate',
-  'bookingTime',
-  'bookingTimeZone',
+  'bookingDate',       // calendar day in the visitor's zone
+  'bookingTime',       // "HH:MM" as they picked it, in their zone
+  'bookingTimeZone',   // IANA id the two above are expressed in
+  'bookingTimeZoneLabel',
+  'bookingStartUtc',   // the resolved instant — the unambiguous one
   'decision',
   'budget',
   'timing',
@@ -94,7 +97,9 @@ var BASE_COLUMNS = [
  * Columns whose contents are identifiers rather than numbers. Forced to plain
  * text so "+66" stays "+66" and a phone number keeps its leading zero.
  */
-var TEXT_COLUMNS = ['countryCode', 'phone', 'utc_offset', 'timestamp', 'bookingTime'];
+var TEXT_COLUMNS = [
+  'countryCode', 'phone', 'utc_offset', 'timestamp', 'bookingTime', 'bookingStartUtc'
+];
 
 /** Never write these to the sheet even if a client sends them. */
 var IGNORED_FIELDS = ['first_seen', 'last_seen'];

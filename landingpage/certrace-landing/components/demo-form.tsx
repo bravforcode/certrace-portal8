@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CONTACT_EMAIL } from "@/lib/content";
 import { useLang } from "@/lib/i18n";
+import { leadLocaleFields, postToSheet } from "@/lib/sheet-sync";
 import { type Booking, DemoBookingModal } from "./demo-booking";
 import {
   DEFAULT_LEN,
@@ -78,6 +79,23 @@ export function DemoForm() {
 
   const country =
     DIAL_CODES.find((entry) => entry.iso === form.dialIso) ?? DIAL_CODES[0];
+
+  /* The lead as the sheet names it. Built once and handed to both the
+     demo_lead post and the booking dialog, so the two records describe the
+     same person with the same keys instead of two hand-copied field lists.
+     Dial code stays its own column — glued onto the number it is neither
+     searchable nor dialable. */
+  const leadFields = {
+    firstName: form.firstName,
+    lastName: form.lastName,
+    email: form.email,
+    countryCode: country.dial,
+    phone: form.phone,
+    company: form.company,
+    jobTitle: form.jobTitle,
+    sector: form.sector,
+    employees: form.employees,
+  };
 
   const errors: Partial<Record<FieldKey, string>> = {};
 
@@ -212,7 +230,12 @@ export function DemoForm() {
         onSubmit={(e) => {
           e.preventDefault();
           setSubmitAttempted(true);
-          if (isValid) setBookingOpen(true);
+          if (!isValid) return;
+          setBookingOpen(true);
+          /* Captured here, before the booking dialog, so a visitor who fills
+             the form and then abandons the slot picker is still a lead. The
+             booking post that follows merges into this same row on email. */
+          postToSheet({ ...leadFields, ...leadLocaleFields(), type: "demo_lead" });
         }}
         className="text-left w-full"
       >
@@ -369,11 +392,7 @@ export function DemoForm() {
 
       <DemoBookingModal
         open={bookingOpen}
-        lead={{
-          firstName: form.firstName,
-          company: form.company,
-          email: form.email,
-        }}
+        lead={leadFields}
         onClose={() => setBookingOpen(false)}
         onComplete={setBooking}
       />
