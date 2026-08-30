@@ -1362,7 +1362,7 @@ function ReviewerPicker({ decl, sub, onChanged }: { decl: Declaration; sub: Revi
       </div>
       {sub.review.reviewers.length > 0 && (
         <p className="mt-2.5 text-[11px] text-[#047857]">
-          Shared with {sub.review.reviewers.map((id) => getTeamMember(id)?.name).filter(Boolean).join(", ")} — they'll be notified by email.
+          Shared with {sub.review.reviewers.map((id) => getTeamMember(id)?.name).filter(Boolean).join(", ")} — they&apos;ll be notified by email.
         </p>
       )}
       <AddMemberModal

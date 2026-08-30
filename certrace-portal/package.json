@@ -8,9 +8,11 @@
     "build": "next build",
     "build-pages": "next-on-pages && echo _worker.js > .vercel/output/static/.assetsignore",
     "start": "next start",
-    "lint": "next lint",
-    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/test-resolver.mjs --test \"lib/**/__tests__/**/*.test.ts\"",
-    "stress-test:pdf": "tsx scripts/stress-test-pdf.ts"
+    "lint": "eslint .",
+    "test": "npm run test:unit",
+    "stress-test:pdf": "tsx scripts/stress-test-pdf.ts",
+    "typecheck": "tsc --noEmit",
+    "test:unit": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/test-resolver.mjs --test \"lib/**/__tests__/**/*.test.ts\""
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.116.0",
@@ -24,10 +26,13 @@
   },
   "devDependencies": {
     "@cloudflare/next-on-pages": "^1.13.16",
+    "@eslint/eslintrc": "^3.3.6",
     "@tailwindcss/postcss": "^4.0.0",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^15.5.22",
     "tailwindcss": "^4.0.0",
     "tsx": "^4.22.4",
     "typescript": "^5.0.0"

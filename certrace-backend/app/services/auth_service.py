@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import select, text
+from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.security import generate_reset_token, hash_password, verify_password
@@ -37,7 +37,9 @@ def change_user_password(
         try:
             with db.session_factory() as session:
                 result = session.execute(
-                    text("SELECT password_hash FROM public.users WHERE LOWER(email) = :email"),
+                    text(
+                        "SELECT password_hash FROM public.users WHERE LOWER(email) = :email"
+                    ),
                     {"email": email_clean},
                 ).first()
 
@@ -47,7 +49,9 @@ def change_user_password(
                         return False, "Current password is incorrect."
 
                     session.execute(
-                        text("UPDATE public.users SET password_hash = :new_hash WHERE LOWER(email) = :email"),
+                        text(
+                            "UPDATE public.users SET password_hash = :new_hash WHERE LOWER(email) = :email"
+                        ),
                         {"new_hash": new_hash, "email": email_clean},
                     )
                     session.commit()
@@ -76,7 +80,9 @@ def request_password_reset(
     """Generate a password reset token for the specified user email."""
     email_clean = email.strip().lower()
     token = generate_reset_token()
-    expires_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=15)
+    expires_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(
+        minutes=15
+    )
 
     if db is not None:
         try:
@@ -133,11 +139,15 @@ def reset_user_password(
                     if rec_expires > now and not rec_used:
                         token_valid = True
                         session.execute(
-                            text("UPDATE public.password_resets SET used = TRUE WHERE id = :id"),
+                            text(
+                                "UPDATE public.password_resets SET used = TRUE WHERE id = :id"
+                            ),
                             {"id": rec_id},
                         )
                         session.execute(
-                            text("UPDATE public.users SET password_hash = :new_hash WHERE LOWER(email) = :email"),
+                            text(
+                                "UPDATE public.users SET password_hash = :new_hash WHERE LOWER(email) = :email"
+                            ),
                             {"new_hash": new_hash, "email": email_clean},
                         )
                         session.commit()

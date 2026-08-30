@@ -35,10 +35,10 @@ function deadlineLabel(days: number | null): string {
 }
 
 function GateChips({ readiness }: { readiness: WorkspaceReadiness }) {
+  const t = useT();
   return (
     <div className="flex flex-wrap gap-1.5">
       {GATE_TABS.map((tab) => {
-        const t = useT();
         /* NOT `t` — that is the translator in every other component in this
            codebase, and shadowing it here made `title={t(TAB_LABEL[tab])}` call
            a readiness row. */
