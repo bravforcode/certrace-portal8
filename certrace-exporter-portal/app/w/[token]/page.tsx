@@ -1,7 +1,5 @@
 "use client";
 
-export const runtime = "edge";
-
 /* ════════════════════════════════════════════════════════════
    THE SUPPLIER'S MONTH — what the workspace link opens
 

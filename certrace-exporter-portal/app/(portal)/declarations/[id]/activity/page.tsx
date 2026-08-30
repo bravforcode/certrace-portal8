@@ -755,7 +755,6 @@ function AssumptionsSummary({ dataset }: { dataset: ActivityDataset }) {
     rows.push({ label: "Annual production quantity", reference: dataset.annualProductionProvenance.reference });
   }
   for (const f of dataset.fuels) {
-    const t = useT();
     if (isAssumption(f.provenance)) rows.push({ label: `${t(FUEL_LABEL[f.fuel])} — quantity`, reference: f.provenance.reference });
     if (isAssumption(f.efProvenance)) rows.push({ label: `${t(FUEL_LABEL[f.fuel])} — emission factor`, reference: f.efProvenance.reference });
     if (f.ncvProvenance && isAssumption(f.ncvProvenance)) rows.push({ label: `${t(FUEL_LABEL[f.fuel])} — net calorific value`, reference: f.ncvProvenance.reference });

@@ -86,6 +86,52 @@ jobs:
           retention-days: 7
 
 
+  exporter-portal:
+    name: Exporter portal checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: certrace-exporter-portal
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: Set up Node.js 22 LTS
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: certrace-exporter-portal/package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit
+
+      - name: Lint
+        # Errors block; the tree still carries a backlog of ~55 warnings
+        # (unused bindings, exhaustive-deps). Tighten to --max-warnings=0
+        # in package.json once that backlog is cleared.
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Run unit tests
+        run: npm run test:unit
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=critical
+
+      - name: Audit report (non-blocking, all levels)
+        run: npm audit --omit=dev || true
+
+      - name: Build Next.js application
+        run: npm run build
+
+      - name: Build OpenNext Cloudflare artifact
+        run: npm run build-pages
+
+
   backend:
     name: Backend checks
     runs-on: ubuntu-latest

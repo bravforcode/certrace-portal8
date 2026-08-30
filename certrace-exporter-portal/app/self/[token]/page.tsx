@@ -1,7 +1,5 @@
 "use client";
 
-export const runtime = "edge";
-
 /* SELF-SUPPLY — the exporter filling in their OWN installation's data.
 
    When the exporter owns the mill there is nobody to send a Smart Link to, so
