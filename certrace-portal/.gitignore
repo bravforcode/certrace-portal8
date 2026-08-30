@@ -4,6 +4,9 @@ node_modules/
 # next.js
 .next/
 out/
+.vercel/
+.wrangler/
+.open-next/
 
 # production
 build/
@@ -19,16 +22,7 @@ yarn-error.log*
 
 # env
 .env*.local
-.env
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-
-# cloudflare
-.open-next/
-.vercel/
-.wrangler/
-
-# bun (local convenience only; CI uses npm + package-lock.json)
-bun.lock

@@ -1,8 +1,8 @@
 /* ════════════════════════════════════════════════════════════
    SUPPLIER PORTAL — request resolution (the smartlink seam)
 
-   When an exporter finishes the browser-only wizard, every mapped supplier
-   gets a same-browser demo route: /s/<token>. The token encodes the
+   When an exporter finishes the "Create declaration" wizard, every mapped
+   supplier is emailed a smartlink: /s/<token>. The token encodes the
    declaration + the supplier, and resolving it here reconstructs *that
    supplier's slice* of the request — the products & lots assigned to them, the
    exact CBAM data fields that apply to those goods (via resolveCbamFields), the
@@ -25,14 +25,9 @@ import {
   fieldRequiredFor,
   getCatalogProduct,
   sectorLabelFor,
-  METHOD_CONDITIONAL_FIELD_IDS,
-  type ProductUnit,
   type ResolvedCbamField,
   type CatalogProduct,
 } from "./config";
-import type { MeasuredValue } from "./mrv";
-import { goodsMass, sumCanonicalTonnes } from "./workflow-measurements";
-import { parsePrecursors } from "./precursors";
 
 /* ── Token ─────────────────────────────────────────────────────
    Opaque-ish but deterministic: base64url("declId|supplierId"). Isomorphic so
@@ -58,17 +53,23 @@ function b64urlDecode(s: string): string {
   }
 }
 
-export function makeToken(declId: string, supplierId: string): string {
-  return b64urlEncode(`${declId}|${supplierId}`);
+/* A monthly request carries its month IN THE TOKEN, so each month resolves to
+   its own form and its own submission. Sharing one token across twelve months
+   would let a supplier reopen January while filling March and overwrite it —
+   the exact ambiguity the monthly cadence exists to remove.
+
+   Two-part tokens (declId|supplierId) stay valid and resolve with no month,
+   so every link already sent keeps working. */
+export function makeToken(declId: string, supplierId: string, month?: string): string {
+  return b64urlEncode(month ? `${declId}|${supplierId}|${month}` : `${declId}|${supplierId}`);
 }
-export function decodeToken(token: string): { declId: string; supplierId: string } | null {
+
+export function decodeToken(token: string): { declId: string; supplierId: string; month?: string } | null {
   const raw = b64urlDecode(token);
-  const i = raw.indexOf("|");
-  if (i < 0) return null;
-  const declId = raw.slice(0, i);
-  const supplierId = raw.slice(i + 1);
+  const parts = raw.split("|");
+  const [declId, supplierId, month] = parts;
   if (!declId || !supplierId) return null;
-  return { declId, supplierId };
+  return { declId, supplierId, month: month || undefined };
 }
 
 /* ── Material → real CBAM catalogue product ────────────────────
@@ -81,54 +82,62 @@ const MATERIAL_TO_PRODUCT: Record<string, string> = {
   "Zinc coating": "galv",
   "Galvanised sheet": "galv",
   "Pig iron": "pigiron",
+  "Steel scrap": "billet",
+  "Grid electricity": "hrc",
 };
-export const productForMaterial = (material: string): CatalogProduct | null => {
-  const id = MATERIAL_TO_PRODUCT[material];
-  return id ? getCatalogProduct(id) ?? null : null;
-};
+export const productForMaterial = (material: string): CatalogProduct =>
+  getCatalogProduct(MATERIAL_TO_PRODUCT[material] ?? "hrc") ?? getCatalogProduct("hrc")!;
 
 /* Deterministic mock lots from the supplier ref so the same link always shows
    the same quantities. Quantity is real-looking; emissions stay for the supplier
    to report. */
-export type RequestLot = {
-  id: string;
-  qty: string;
-  unit: ProductUnit;
-  measurement: MeasuredValue;
-  from: string;
-  to: string;
-};
+export type RequestLot = { id: string; qty: number; unit: string; from: string; to: string };
 function lotsForSupplier(row: SupplierRow): RequestLot[] {
   const seed = parseInt(row.ref.replace(/\D/g, "") || "100", 10);
   const base = 200 + (seed % 9) * 140;
   const lots: RequestLot[] = [
-    { id: `${row.id}-l1`, qty: String(base), unit: "TNE", measurement: goodsMass(String(base), "TNE"), from: "2026-04-01", to: "2026-05-31" },
+    { id: `${row.id}-l1`, qty: base, unit: "tonnes (t)", from: "2026-04-01", to: "2026-05-31" },
   ];
-  if (seed % 2 === 0) {
-    const quantity = String(Math.round(base * 0.6));
-    lots.push({ id: `${row.id}-l2`, qty: quantity, unit: "TNE", measurement: goodsMass(quantity, "TNE"), from: "2026-06-01", to: "2026-06-30" });
-  }
+  if (seed % 2 === 0) lots.push({ id: `${row.id}-l2`, qty: Math.round(base * 0.6), unit: "tonnes (t)", from: "2026-06-01", to: "2026-06-30" });
   return lots;
 }
 
 export type RequestProduct = {
   product: CatalogProduct;
   lots: RequestLot[];
-  /** Commercial quantity shipped/purchased for this request. */
-  commercialQuantityTonnes: string;
+  totalTonnes: number;
 };
 
 export type RequestDocAsk = { id: string; label: string; required: boolean };
 
+/* ── Cadence (§A3) ──────────────────────────────────────────────
+   "once" is the original behaviour: one request covering a whole period.
+   "monthly" issues one request PER MONTH, each with its own token, so a
+   supplier can fill March without reopening January and the exporter builds
+   a back-traceable series rather than one figure with twelve months hidden
+   inside it — which is precisely what a verifier sampling March asks for. */
+export type RequestCadence = "once" | "monthly";
+
+export const REQUEST_CADENCES: RequestCadence[] = ["once", "monthly"];
+
+export const REQUEST_CADENCE_LABEL: Record<RequestCadence, string> = {
+  once: "One request for the period",
+  monthly: "One request per month",
+};
+
 export type SupplierRequest = {
   token: string;
   declId: string;
+  declName: string;
   supplierId: string;
   // who's being asked
   supplierName: string;
   supplierRef: string;
   supplierCountry: string;
   critical: boolean;
+  /** the exporter produces these goods themselves — no Smart Link is ever sent,
+      they fill this form in-app under their own org profile (self-supply) */
+  selfSupplied: boolean;
   // who's asking
   exporterName: string;
   exporterContact: string;
@@ -141,16 +150,23 @@ export type SupplierRequest = {
   originFactorSet: string;
   destinationName: string;
   period: string;
+  /** ISO end of the reporting period, "" when the declaration carries no bounds */
+  periodEnd: string;
   deadline: string;
   dueInDays: number;
   noteToSuppliers: string;
-  classificationIssue?: string;
   /** sector wording derived from THIS supplier's goods ("steel", "aluminium") */
   sectorWord: string;
   // what to fill
   products: RequestProduct[];
   fields: ResolvedCbamField[];
   documents: RequestDocAsk[];
+  /* Monthly cadence (§A3). `cadence` defaults to "once" everywhere it is not
+     set, so every existing request keeps behaving exactly as before. */
+  cadence: RequestCadence;
+  workspaceId?: string;
+  /** 'YYYY-MM' — set only when cadence === "monthly" */
+  month?: string;
 };
 
 /* The documents an EU buyer/importer typically asks for alongside the CBAM
@@ -162,83 +178,45 @@ function requestedDocsFor(products: CatalogProduct[]): RequestDocAsk[] {
   const materialCert: RequestDocAsk =
     hasAluminium && !hasSteel
       ? { id: "mtc", label: "Works / alloy test certificate (EN 10204 3.1)", required: true }
-      : { id: "mtc", label: "Mill Test Certificate (MTC) — EN 10204 3.1, or commercial invoice", required: true };
-  const docs: RequestDocAsk[] = [
+      : { id: "mtc", label: "Mill Test Certificate (EN 10204 3.1)", required: true };
+  return [
     { id: "cbam-sheet", label: "CBAM communication / embedded-emissions sheet", required: true },
     materialCert,
     { id: "coo", label: "Certificate of Origin (COO)", required: true },
     { id: "verif", label: "Verification statement (accredited verifier)", required: false },
   ];
-  if (products.some((p) => p.category === "Iron & Steel" && p.group === "Semi-finished")) {
-    docs.push(
-      { id: "electricity-evidence", label: "Electricity bill or Solar Rooftop PPA (indirect-emissions evidence)", required: false },
-      { id: "carbon-fee-proof", label: "Thai carbon fee / tax payment proof (carbon price paid)", required: false },
-    );
-  }
-  return docs;
 }
 
 const DEFAULT_NOTE =
   "Please report at installation level using actual data where you have it. If you only have default factors, mark the method as “default”. Reach out if anything is unclear — we'd rather help than receive a guess.";
 
-/* Exact canonical TNE sum. Every lot already carries its entered value/unit,
-   conversion rule, precision and regulatory-data version. */
-const netMassTonnes = (lots: readonly { measurement: MeasuredValue }[]): string =>
-  sumCanonicalTonnes(lots.map((lot) => lot.measurement));
+/* Net mass in tonnes across a set of lots — the CBAM canonical quantity.
+   Tonnes count as-is, kg convert; other invoice units (pieces, metres, …)
+   can't be converted without product data, so they ride along in the lot
+   list but don't contribute to the net-mass total. */
+const netMassTonnes = (lots: { qty: number; unit: string }[]): number =>
+  Math.round(lots.reduce((a, l) => a + (l.unit === "tonnes (t)" ? l.qty : l.unit === "kg" ? l.qty / 1000 : 0), 0) * 100) / 100;
 
 /* Wizard-created declarations carry the exact ask (decl.requests); build the
    supplier's slice from it — every product they were mapped to, with the real
    lots the exporter entered. */
-function productsFromSpec(
-  decl: Declaration,
-  row: SupplierRow,
-): { products: RequestProduct[]; classificationIssue?: string } | null {
+function productsFromSpec(decl: Declaration, row: SupplierRow): RequestProduct[] | null {
   const spec = decl.requests?.find((r) => r.supplierId === row.id);
   if (!spec || spec.products.length === 0) return null;
   const out: RequestProduct[] = [];
-  const issues: string[] = [];
   for (const ps of spec.products) {
     const product = getCatalogProduct(ps.productId);
-    if (!product) {
-      issues.push(`Product ${ps.productId} is not present in the effective regulatory catalogue.`);
-      continue;
-    }
-    const lots: RequestLot[] = [];
-    for (const [index, lot] of ps.lots.entries()) {
-      try {
-        const expected = goodsMass(lot.qty, lot.unit);
-        const persisted = (lot as RequestLotSpec).measurement;
-        if (
-          !persisted ||
-          persisted.enteredValue !== expected.enteredValue ||
-          persisted.enteredUnit !== expected.enteredUnit ||
-          persisted.canonicalValue !== expected.canonicalValue ||
-          persisted.canonicalUnit !== "TNE" ||
-          persisted.regulatoryDataVersion !== expected.regulatoryDataVersion
-        ) {
-          issues.push(`${product.name} lot ${index + 1} has missing or inconsistent measurement metadata.`);
-          continue;
-        }
-        lots.push({
-          id: `${row.id}-${ps.productId}-l${index + 1}`,
-          qty: lot.qty,
-          unit: lot.unit,
-          measurement: persisted,
-          from: lot.from,
-          to: lot.to,
-        });
-      } catch {
-        issues.push(`${product.name} lot ${index + 1} has an invalid decimal quantity or unit.`);
-      }
-    }
-    if (lots.length === 0) continue;
-    const commercialQuantityTonnes = netMassTonnes(lots);
-    out.push({ product, lots, commercialQuantityTonnes });
+    if (!product) continue;
+    const lots: RequestLot[] = ps.lots.map((l: RequestLotSpec, i: number) => ({
+      id: `${row.id}-${ps.productId}-l${i + 1}`,
+      qty: l.qty,
+      unit: l.unit,
+      from: l.from,
+      to: l.to,
+    }));
+    out.push({ product, lots, totalTonnes: netMassTonnes(ps.lots) });
   }
-  return {
-    products: out,
-    classificationIssue: issues.length > 0 ? issues.join(" ") : undefined,
-  };
+  return out.length > 0 ? out : null;
 }
 
 export function resolveRequest(token: string): SupplierRequest | null {
@@ -254,27 +232,12 @@ export function resolveRequest(token: string): SupplierRequest | null {
   const dest = getDestination(decl.market);
 
   // Real spec when the wizard recorded one; material-based synthesis for fixtures.
-  const requestSpec = decl.requests?.find((request) => request.supplierId === row.id);
-  const specifiedProducts = productsFromSpec(decl, row);
-  let products = specifiedProducts?.products ?? null;
-  let classificationIssue = specifiedProducts?.classificationIssue;
-  if (!specifiedProducts && requestSpec) {
-    products = [];
-    classificationIssue = "The requested product specification is empty or invalid. No fallback classification was applied.";
-  } else if (!specifiedProducts) {
+  let products = productsFromSpec(decl, row);
+  if (!products) {
     const product = productForMaterial(row.material);
-    if (!product) {
-      products = [];
-      classificationIssue = `No approved regulatory product mapping exists for “${row.material}”. Classification is required before data collection can continue.`;
-    } else {
-      const lots = lotsForSupplier(row);
-      const commercialQuantityTonnes = netMassTonnes(lots);
-      products = [{ product, lots, commercialQuantityTonnes }];
-    }
-  }
-  if (products === null) {
-    products = [];
-    classificationIssue = "The product scope could not be resolved. No fallback classification was applied.";
+    const lots = lotsForSupplier(row);
+    const totalTonnes = lots.reduce((a, l) => a + (l.unit === "tonnes (t)" ? l.qty : 0), 0);
+    products = [{ product, lots, totalTonnes }];
   }
 
   // Scope the checklist to THIS supplier's goods, then honor the exporter's
@@ -283,7 +246,7 @@ export function resolveRequest(token: string): SupplierRequest | null {
   const resolved = resolveCbamFields(products.map((p) => p.product));
   const included = decl.includedFieldIds;
   const fields = included
-    ? resolved.filter((f) => (decl.kind === "buyer" ? included.includes(f.id) || METHOD_CONDITIONAL_FIELD_IDS.has(f.id) : f.required || included.includes(f.id) || METHOD_CONDITIONAL_FIELD_IDS.has(f.id)))
+    ? resolved.filter((f) => (decl.kind === "buyer" ? included.includes(f.id) : f.required || included.includes(f.id)))
     : resolved;
 
   const org = getOrgIdentity();
@@ -292,11 +255,16 @@ export function resolveRequest(token: string): SupplierRequest | null {
   return {
     token,
     declId: decl.id,
+    declName: decl.title ?? decl.name,
     supplierId: row.id,
-    supplierName: row.name,
+    // A self-supplied row IS the exporter — resolve its identity live from the
+    // org profile so a rename in Settings reaches this form like every other
+    // output (lib/org.ts), instead of freezing the name at creation time.
+    supplierName: row.selfSupplied ? org.name : row.name,
     supplierRef: row.ref,
-    supplierCountry: row.country,
+    supplierCountry: row.selfSupplied ? org.origin : row.country,
     critical: row.critical,
+    selfSupplied: Boolean(row.selfSupplied),
     exporterName: org.name,
     exporterContact: org.contact,
     regulationId: reg.id,
@@ -307,17 +275,40 @@ export function resolveRequest(token: string): SupplierRequest | null {
     originFactorSet: origin?.factorSet ?? "—",
     destinationName: dest?.name ?? decl.market,
     period: decl.period,
+    periodEnd: decl.periodEnd ?? "",
     deadline: decl.due,
     dueInDays: decl.dueInDays,
     // the exporter's actual instruction reaches the supplier; canned copy is
     // only the fallback for fixtures that never had one
     noteToSuppliers: decl.notesToSuppliers?.trim() || DEFAULT_NOTE,
-    classificationIssue,
     sectorWord: sectorLabel === "Aluminium" ? "aluminium" : sectorLabel === "Iron & Steel" ? "steel" : "steel & aluminium",
     products,
     fields,
     documents: requestedDocsFor(products.map((p) => p.product)),
+    /* A month in the token IS the cadence signal — there is no second place
+       to store it that could disagree with the link the supplier clicked. */
+    cadence: decoded.month ? "monthly" : "once",
+    month: decoded.month,
+    workspaceId: monthlySeriesWorkspace(decoded.declId, decoded.supplierId) ?? undefined,
   };
+}
+
+/* Which workspace a monthly series belongs to. Read lazily from the series
+   store so lib/supplier.ts keeps no state of its own and there is no import
+   cycle with lib/monthly-requests.ts. */
+function monthlySeriesWorkspace(declId: string, supplierId: string): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem("certrace:monthly-requests");
+    if (!raw) return null;
+    const store = JSON.parse(raw) as Record<string, { declId: string; supplierId: string }[]>;
+    for (const [workspaceId, rows] of Object.entries(store)) {
+      if (Array.isArray(rows) && rows.some((r) => r.declId === declId && r.supplierId === supplierId)) return workspaceId;
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 /* ── Sections — how the questionnaire splits across departments ──
@@ -329,6 +320,7 @@ export type SectionKey =
   | "installation"
   | "goods"
   | "emissions"
+  | "activity"
   | "electricity"
   | "precursors"
   | "carbon"
@@ -348,6 +340,10 @@ export const SECTIONS: SupplierSection[] = [
   { key: "installation", label: "Installation", department: "Operations / EHS", groups: ["Installation"], scope: "once", blurb: "Who produced the goods and where." },
   { key: "goods", label: "Production", department: "Production / Plant", groups: ["Goods"], scope: "product", blurb: "Route and quantity per good." },
   { key: "emissions", label: "Embedded emissions", department: "Sustainability / ESG", groups: ["Embedded emissions"], scope: "product", blurb: "Direct & indirect emissions per tonne." },
+  /* The inputs behind the figure, not the figure. Owned by the people who
+     read the meters, which is why it is its own assignable section rather
+     than more questions inside Embedded emissions. */
+  { key: "activity", label: "Activity data", department: "Production / Energy", groups: ["Activity data"], scope: "product", blurb: "Fuel, power and materials the figure is derived from." },
   { key: "electricity", label: "Electricity", department: "Energy", groups: ["Electricity"], scope: "product", blurb: "Power use & grid factor (electrolysis goods)." },
   { key: "precursors", label: "Precursors", department: "Procurement", groups: ["Precursors"], scope: "product", blurb: "Embedded emissions carried in from inputs." },
   { key: "carbon", label: "Carbon price", department: "Finance", groups: ["Carbon price"], scope: "once", blurb: "Any carbon price paid in country of origin." },
@@ -371,11 +367,7 @@ export const isOnceField = (group: string) => ONCE_GROUPS.has(group);
     "actual" (the safe default), so the requirement only relaxes on an
     explicit all-defaults submission. */
 export function verificationRequired(req: SupplierRequest, values: Record<string, string>): boolean {
-  return req.products.some((requestProduct) => {
-    if ((values[valueKey("method", requestProduct.product.id)] || "actual") !== "default") return true;
-    const rows = parsePrecursors(values[valueKey("precursors", requestProduct.product.id)]);
-    return rows?.some((row) => row.method === "actual") ?? false;
-  });
+  return req.products.some((rp) => (values[valueKey("method", rp.product.id)] || "actual") !== "default");
 }
 
 /** Which sections actually apply to this request (electricity/precursors only

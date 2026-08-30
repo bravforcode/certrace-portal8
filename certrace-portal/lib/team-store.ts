@@ -25,21 +25,43 @@ export type TeamMember = {
   builtin?: boolean; // seeded fixture — cannot be removed
 };
 
-/* Positions offered when adding a person — each maps to a department. */
-export const POSITION_OPTIONS: { value: string; dept: string; kind: "internal" | "external" }[] = [
-  { value: "ESG / Sustainability", dept: "Sustainability", kind: "internal" },
-  { value: "Compliance", dept: "Compliance", kind: "internal" },
-  { value: "Legal counsel", dept: "Legal", kind: "external" },
-  { value: "Finance", dept: "Finance", kind: "internal" },
-  { value: "Management", dept: "Management", kind: "internal" },
-  { value: "Verifier / auditor", dept: "Assurance", kind: "external" },
+/* ── The roles you can hand somebody ────────────────────────────
+   THE ACCOUNT HAS EXACTLY THREE ROLES: Owner, Member, and Legal /
+   compliance. Two of them can be given to somebody new, and those two are
+   what this list is.
+
+   IT USED TO OFFER FIVE JOB TITLES — ESG / Sustainability, Compliance, Legal
+   counsel, Finance, Management — and that was a list of DEPARTMENTS wearing
+   the clothes of a permission model. Four of the five resolved to the same
+   seat role ("member"), so an exporter who carefully picked "Finance" for
+   their accountant and "Management" for their MD gave both of them precisely
+   the same access, and the Team page then described the account in terms of
+   three roles the picker had never mentioned. A control that appears to
+   decide something and does not is worse than no control: it is a decision
+   the reader believes they have made.
+
+   So the picker now offers the roles that actually exist, named exactly as
+   the Team page names them, and each carries the one sentence that says what
+   it can do.
+
+   NO VERIFIER. Certrace has no verifier portal in this build: nothing an
+   invited verifier is granted is reachable by them. Offering the role creates
+   a seat that describes access which does not exist, and an exporter who
+   invites their accredited body here would reasonably believe the body had
+   been given something. It comes back when there is a portal behind it. */
+export const POSITION_OPTIONS: { value: string; dept: string; kind: "internal" | "external"; hint: string }[] = [
+  { value: "Member", dept: "Operations", kind: "internal", hint: "builds workspaces and fills months in" },
+  { value: "Legal / compliance", dept: "Legal", kind: "internal", hint: "reviews and signs off before it leaves" },
 ];
+
+/** The role a seat is granted when nothing else is chosen. */
+export const DEFAULT_POSITION = POSITION_OPTIONS[0].value;
 
 const SEED_EMAILS: Record<string, string> = {
   esg: "ananya@siamsteel.co.th",
   compliance: "wasawat@siamsteel.co.th",
   legal: "krit@kritlegal.co.th",
-  verifier: "audit@tuv-sud.example",
+  verifier: "verification@tuv-sud.example",
 };
 
 const SEED: TeamMember[] = REVIEWERS.map((r) => ({

@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { Progress, StatusLabel, cn } from "./ui";
 import { SupplierRow, supplierStatusMeta, supplierSlug } from "@/lib/data";
-import { formatDecimal } from "@/lib/workflow-measurements";
+import { useT } from "@/lib/i18n";
 
 export function SupplierTable({
   rows,
@@ -17,12 +17,9 @@ export function SupplierTable({
   showEmissions?: boolean;
   actions?: (row: SupplierRow) => React.ReactNode;
 }) {
-  // `scroll-x-contain` (globals.css): the min-w-[520px] below is a width
-  // floor, and without paint containment it stretches the mobile layout
-  // viewport and zooms the whole page out.
+  const t = useT();
   return (
-    <div className="overflow-x-auto scroll-x-contain rounded-2xl border border-black/[0.08] bg-white/70">
-      <div className="min-w-[520px]">
+    <div className="overflow-hidden rounded-2xl border border-black/[0.08] bg-white/70">
       {/* header */}
       <div
         className={cn(
@@ -30,13 +27,13 @@ export function SupplierTable({
           showEmissions ? "grid-cols-[1.6fr_1fr_0.8fr_0.8fr]" : "grid-cols-[1.6fr_1fr_0.9fr]",
         )}
       >
-        <span>Supplier</span>
-        <span>Progress</span>
-        {showEmissions && <span>tCO₂e/t</span>}
-        <span>Status</span>
+        <span>{t("Supplier")}</span>
+        <span>{t("Progress")}</span>
+        {showEmissions && <span>{t("tCO₂e/t")}</span>}
+        <span>{t("Status")}</span>
       </div>
 
-      {rows.map((row) => {
+      {rows.map((row, i) => {
         const meta = supplierStatusMeta[row.status];
         return (
           <Link
@@ -49,7 +46,7 @@ export function SupplierTable({
             )}
           >
             <span className="flex min-w-0 items-center gap-2">
-              {row.critical && <span className="h-1 w-1 flex-none rounded-full bg-black/40" title="CBAM-critical" />}
+              {row.critical && <span className="h-1 w-1 flex-none rounded-full bg-black/40" title={t("CBAM-critical")} />}
               <span className="truncate font-mono text-[12px] text-black/60 hover:text-black">{row.name}</span>
               <span className="font-mono text-[11px] text-black/25">{row.ref}</span>
             </span>
@@ -58,13 +55,18 @@ export function SupplierTable({
             </span>
             {showEmissions && (
               <span className="font-mono text-[11px] text-black/55">
-                {row.emissions != null ? formatDecimal(row.emissions) : <span className="text-black/25">—</span>}
+                {row.emissions != null ? row.emissions.toFixed(2) : <span className="text-black/25">—</span>}
               </span>
             )}
-            <span className="flex items-center justify-between gap-2">
+            <span className="flex items-center justify-between gap-2" onClick={(e) => {
+              if (actions) {
+                // Prevent navigation if an action was clicked (not perfect without tracking exact target, but actions usually are standalone)
+                // We'll just let the Link handle the click for now unless the user clicks a specific button inside.
+              }
+            }}>
               <StatusLabel
                 tone={meta.tone}
-                label={meta.label}
+                label={t(meta.label)}
                 pulse={row.status === "in_progress"}
                 glow={row.status === "submitted"}
               />
@@ -73,7 +75,6 @@ export function SupplierTable({
           </Link>
         );
       })}
-      </div>
     </div>
   );
 }

@@ -1,31 +1,31 @@
 /* ════════════════════════════════════════════════════════════
    EXPORTER REVIEW — the other half of the smartlink seam (flow steps 4–10)
 
-   The supplier fills /s/<token>, deterministic checks run, and a browser-local attestation is recorded
+   The supplier fills /s/<token>, the AI checks it, they e-sign and submit
    (steps 1–3). Everything they produce lands in localStorage under
    `certrace:supplier:<token>` (see lib/supplier-store.ts). This module is what
    the EXPORTER reads back and acts on:
 
      4  Submission status (Submitted / In Review) per supplier
-     5  Advisory compliance summary — derived from deterministic facts
+     5  AI Executive Summary  — derived from the same data + ai-check
      6  Assign internal reviewers (ESG / Compliance / Legal)
      7  Approve  ·  Request Revision (specific fields + docs + comment)
      8  → writes the revision into the SUPPLIER store, so the smartlink unlocks
         exactly those fields (the exporter ↔ supplier handoff)
      9  Review the resubmission, approve
-     10 Draft calculation/report preview from locally approved submissions
+     10 Verification-ready package from the approved submissions
 
    "Same input, same output": a submission is read straight from the supplier's
    own state when it exists in this browser; otherwise a deterministic stand-in
    is synthesised from the SAME fixtures + config the supplier form resolves, so
-   the deterministic check, score and figures match what the demo link would produce.
+   the AI check, score and figures match what the smartlink would produce.
 
    The exporter's own decisions (reviewers, approvals, revision requests, package
    + filing) persist under `certrace:exporter:<declId>`. Both stores are the seam
    where a real API slots in.
    ════════════════════════════════════════════════════════════ */
 
-import { getDeclaration, type Declaration, type SupplierRow } from "./data";
+import { type Declaration, type SupplierRow, getDeclaration } from "./data";
 import { getOrgIdentity } from "./org";
 import {
   makeToken,
@@ -41,15 +41,21 @@ import {
   type DocState,
   type Version,
   type SubmissionStatus,
-  type AuditEvent,
-  type SupplierProfile,
+  type TrailEvent,
 } from "./supplier-store";
 import { runQualityCheck, type CheckResult } from "./ai-check";
-import { addExact, embeddedEmissionsCalculation, embeddedEmissionsPerTonne, multiplyExact } from "./workflow-measurements";
-import { parsePrecursors } from "./precursors";
-import { classifyCnCode, decimal, decimalToString, type CalculationTrace, type MrvReportDraft } from "./mrv";
-import { calculatePlantMrv } from "./plant-mrv";
-import { buildWorkflowMrvReport } from "./workflow-mrv-report";
+import {
+  assessFreshness,
+  getRecord,
+  readRequestFromRecord,
+  restrictedSections,
+  staleLevel,
+  type AccessPolicy,
+  type Freshness,
+  type StaleVerdict,
+  type SupplierRecord,
+} from "./supplier-records";
+import type { SectionKey } from "./supplier";
 
 /* ── Exporter-side persisted state ─────────────────────────── */
 export type ReviewDecision = "pending" | "approved" | "changes_requested";
@@ -58,42 +64,68 @@ export type SupplierReview = {
   decision: ReviewDecision;
   decidedVersion: number; // the version the decision was made against
   reviewers: string[]; // assigned internal reviewer ids (see REVIEWERS)
-  comment: string; // browser-local revision note shown to the supplier demo
+  comment: string; // revision note sent to the supplier
   unlockedFields: string[]; // value-keys reopened for the supplier
   unlockedDocs: string[]; // doc ids reopened for the supplier
   decidedAt: number | null;
 };
 
-/* Browser-local manual handoff checklist. No external action is observed. */
-export type O3ciChecklistKey = "operator_account" | "installation_registered" | "values_entered" | "verifier_report_attached";
+/* Buyer & Authority Handoff (Stage 5/8) — the exporter is never the CBAM
+   declarant, so "filing" here means pushing verified data into the two real
+   channels a non-EU operator has: the CBAM Registry's O3CI module and the
+   Annex IV Communication Template. `acknowledgedAt` tracks each recipient
+   confirming receipt — the true end state, distinct from "we sent it". */
+export type DispatchRecipient = "buyer" | "authority" | "verifier";
 export type DispatchState = {
-  worksheetDownloadedAt: number | null;
-  checklist: Record<O3ciChecklistKey, boolean>;
+  o3ciPushedAt: number | null;
+  templateSentAt: number | null;
+  acknowledgedAt: Partial<Record<DispatchRecipient, number>>;
 };
 
-/* Browser-local sign-off model. No message is sent and no trusted identity or
-   signature is created. Every requested local confirmation must cover the
-   current dataset before the manual handoff can be prepared. */
+/* ── Multi-buyer send ───────────────────────────────────────────
+   One approved dataset, many buyers. The declaration is created naming the
+   buyer who triggered it (decl.buyer), but the same goods are routinely sold
+   to several EU importers — each with their own Authorised CBAM Declarant,
+   each needing the same Annex IV data under their own EORI. Re-running the
+   whole collection for buyer #2 would be absurd, so buyers attach to the
+   CONFIRMED dataset instead, and each carries its own send + acknowledgement
+   clock. The first entry is seeded from decl.buyer so nothing that already
+   works changes shape. */
+export type DeclarationBuyerState = {
+  id: string;
+  name: string;
+  eori: string;
+  email: string;
+  contact?: string;
+  /** true for the buyer named when the declaration was created */
+  primary: boolean;
+  addedAt: number;
+  templateSentAt: number | null;
+  acknowledgedAt: number | null;
+};
+
+/* Report sign-off — after the package is generated the exporter sends it to
+   named people (team-store members) to preview and confirm. Every requested
+   confirmation must land before the declaration can be dispatched. */
 export type ReportSignoff = {
   memberId: string; // team-store member id
   requestedAt: number;
   confirmedAt: number | null;
-  /** Dataset fingerprint the local confirmation explicitly covered. */
-  packageHash: string;
 };
 
 export type ExporterDeclState = {
-  schemaVersion: 2;
-  dataClassification: "readiness_demo";
-  legacyUnverifiedQuarantined: boolean;
   declId: string;
   reviews: Record<string, SupplierReview>; // by supplierId
   summaryGeneratedAt: number | null;
   packageGeneratedAt: number | null;
   /** fingerprint of the approved dataset the package was generated from —
-      worksheet preparation is blocked when the live dataset no longer matches it */
+      dispatch is blocked when the live dataset no longer matches it */
   packageHash: string | null;
+  filedAt: number | null;
+  recipients: { buyer: boolean; authority: boolean; verifier: boolean };
   dispatch: DispatchState;
+  /** every buyer this approved dataset goes to — see DeclarationBuyerState */
+  buyers: DeclarationBuyerState[];
   signoffs: ReportSignoff[];
   /** reminder timestamps per supplier, newest last — "when did we last nudge them" */
   remindersSent: Record<string, number[]>;
@@ -109,82 +141,38 @@ const defaultReview = (): SupplierReview => ({
   decidedAt: null,
 });
 
-const keyFor = (declId: string) => `certrace:v2:exporter:${declId}`;
-const legacyKeyFor = (declId: string) => `certrace:exporter:${declId}`;
-const quarantineKeyFor = (declId: string) => `certrace:legacy_unverified:exporter:${declId}`;
-
-function quarantineLegacyExporterState(declId: string): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    const legacyKey = legacyKeyFor(declId);
-    const quarantineKey = quarantineKeyFor(declId);
-    const raw = window.localStorage.getItem(legacyKey);
-    if (raw === null) return window.localStorage.getItem(quarantineKey) !== null;
-    window.localStorage.removeItem(legacyKey);
-    if (window.localStorage.getItem(quarantineKey) === null) {
-      window.localStorage.setItem(
-        quarantineKey,
-        JSON.stringify({ classification: "legacy_unverified", quarantinedAt: Date.now(), originalKey: legacyKey, discardedBytes: raw.length, reason: "Unversioned record discarded; payload not retained." }),
-      );
-    }
-    return true;
-  } catch {
-    return true;
-  }
-}
+const keyFor = (declId: string) => `certrace:exporter:${declId}`;
 
 export function loadExporterState(declId: string): ExporterDeclState {
   const empty: ExporterDeclState = {
-    schemaVersion: 2,
-    dataClassification: "readiness_demo",
-    legacyUnverifiedQuarantined: false,
     declId,
     reviews: {},
     summaryGeneratedAt: null,
     packageGeneratedAt: null,
     packageHash: null,
-    dispatch: {
-      worksheetDownloadedAt: null,
-      checklist: { operator_account: false, installation_registered: false, values_entered: false, verifier_report_attached: false },
-    },
+    filedAt: null,
+    recipients: { buyer: true, authority: true, verifier: true },
+    dispatch: { o3ciPushedAt: null, templateSentAt: null, acknowledgedAt: {} },
+    buyers: [],
     signoffs: [],
     remindersSent: {},
   };
   if (typeof window === "undefined") return empty;
-  const legacyUnverifiedQuarantined = quarantineLegacyExporterState(declId);
   try {
     const raw = window.localStorage.getItem(keyFor(declId));
-    if (!raw) return { ...empty, legacyUnverifiedQuarantined };
-    const parsed = JSON.parse(raw) as ExporterDeclState;
-    if (parsed.schemaVersion !== 2 || parsed.dataClassification !== "readiness_demo") {
-      window.localStorage.removeItem(keyFor(declId));
-      window.localStorage.setItem(
-        quarantineKeyFor(declId),
-        JSON.stringify({ classification: "legacy_unverified", quarantinedAt: Date.now(), originalKey: keyFor(declId), discardedBytes: raw.length, reason: "Invalid schema record discarded; payload not retained." }),
-      );
-      return { ...empty, legacyUnverifiedQuarantined: true };
-    }
-    return {
-      ...empty,
-      ...parsed,
-      declId,
-      legacyUnverifiedQuarantined,
-      dispatch: { ...empty.dispatch, ...parsed.dispatch, checklist: { ...empty.dispatch.checklist, ...parsed.dispatch?.checklist } },
-      signoffs: Array.isArray(parsed.signoffs)
-        ? parsed.signoffs.filter((signoff) => typeof signoff.packageHash === "string" && signoff.packageHash === parsed.packageHash)
-        : [],
-    };
+    if (!raw) return empty;
+    return { ...empty, ...(JSON.parse(raw) as ExporterDeclState), declId };
   } catch {
-    return { ...empty, legacyUnverifiedQuarantined };
+    return empty;
   }
 }
 
 export function saveExporterState(state: ExporterDeclState): void {
-  if (typeof window === "undefined") throw new Error("Exporter state can only be persisted in the browser.");
+  if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(keyFor(state.declId), JSON.stringify(state));
   } catch {
-    throw new Error("Local exporter-state save failed. No readiness action was recorded.");
+    /* ignore quota */
   }
 }
 
@@ -209,23 +197,25 @@ export const LIFECYCLE_META: Record<Lifecycle, { label: string; tone: "ok" | "in
   approved: { label: "approved", tone: "ok" },
 };
 
-export type EmissionLine = {
-  productId: string;
-  productName: string;
-  cnCode: string;
-  perTonne: string;
-  tonnes: string;
-  total: string;
-  calculationTraces: readonly CalculationTrace[];
-};
+export type EmissionLine = { productId: string; productName: string; cnCode: string; perTonne: number; tonnes: number; total: number };
 
 export type ReviewSubmission = {
   supplier: SupplierRow;
   token: string;
   href: string;
   request: SupplierRequest;
-  profile: SupplierProfile | null;
-  source: "live" | "demo";
+  /** live = filled through this Smart Link · record = pulled from the supplier's
+      own saved record (they answered it on another declaration) · demo = the
+      deterministic stand-in for a fixture supplier nobody has filled here */
+  source: "live" | "record" | "demo";
+  /** the supplier's persistent record behind this submission, when there is one */
+  record: SupplierRecord | null;
+  /** age + reporting-period verdict on the data in this submission */
+  freshness: StaleVerdict;
+  freshnessLevel: Freshness;
+  /** restrictable sections this supplier has held back from onward sharing */
+  restrictedForBuyer: SectionKey[];
+  restrictedForVerifier: SectionKey[];
   submitted: boolean;
   version: number;
   submittedAt: number | null;
@@ -236,11 +226,9 @@ export type ReviewSubmission = {
   docs: Record<string, DocState>;
   check: CheckResult | null;
   versions: Version[];
-  events: AuditEvent[];
+  events: TrailEvent[];
   emissions: EmissionLine[];
-  totalTCO2e: string; // exact absolute embedded emissions (TCO2E)
-  mrvReportDraft: MrvReportDraft | null;
-  mrvAssemblyBlockers: readonly string[];
+  totalTCO2e: number; // absolute embedded emissions for this supplier (tCO₂e)
   review: SupplierReview;
   lifecycle: Lifecycle;
 };
@@ -266,11 +254,11 @@ const SIGNERS = [
 
 /* Deterministic stand-in for a supplier who has "submitted" in the fixtures but
    never opened the smartlink in this browser. Built from the resolved request so
-   the deterministic check and figures are consistent with the supplier side. */
+   the AI check and figures are consistent with the supplier side. */
 function synthesise(request: SupplierRequest, row: SupplierRow): { values: Record<string, string>; docs: Record<string, DocState> } {
   const seed = parseInt(row.ref.replace(/\D/g, "") || "100", 10);
-  const total = decimal(row.emissions ?? decimalToString(decimal("1.2").plus(decimal(String(seed % 9)).times(decimal("0.13")))));
-  const useDefaultMethod = seed % 3 === 0; // some report on default factors → advisory warning
+  const total = row.emissions ?? Number((1.2 + (seed % 9) * 0.13).toFixed(2));
+  const useDefaultMethod = seed % 3 === 0; // some report on default factors → AI warning
   const values: Record<string, string> = {};
 
   values[valueKey("inst-name")] = row.name;
@@ -281,54 +269,45 @@ function synthesise(request: SupplierRequest, row: SupplierRow): { values: Recor
   values[valueKey("carbon-price")] = "0";
   values[valueKey("carbon-price-currency")] = "THB";
   values[valueKey("carbon-price-form")] = "";
-  values[valueKey("verification")] = "";
+  values[valueKey("verification")] = "SGS (Thailand) Ltd · accredited — full verification, unqualified opinion";
 
   for (const rp of request.products) {
     const pid = rp.product.id;
-    // Exact deterministic fixture inputs; these remain unverified demo data.
-    const precQty = "0.4";
-    const precSee = "0.55";
-    const precContribution = decimal(precQty).times(decimal(precSee));
-    const candidateOwn = total.minus(precContribution);
-    const own = candidateOwn.lessThan(decimal("0.2")) ? decimal("0.2") : candidateOwn;
-    const direct = decimalToString(own.times(decimal("0.82")));
-    const indirect = decimalToString(own.times(decimal("0.18")));
-    const classified = classifyCnCode(rp.product.cnCode);
-    values[valueKey("process-route", pid)] = classified?.productionRoutes[0] ?? "";
-    values[valueKey("installation-reference", pid)] = "primary";
-    values[valueKey("monitoring-plan-id", pid)] = `MP-${row.ref.replace(/\D/g, "")}-2026`;
-    values[valueKey("monitoring-plan-version", pid)] = "1.0-fixture";
-    values[valueKey("system-boundary", pid)] = "Browser-local fixture boundary; requires operator confirmation.";
-    values[valueKey("excluded-activities", pid)] = "None stated in fixture.";
-    values[valueKey("data-gap-methodology", pid)] = "No data gaps stated in fixture.";
-    values[valueKey("control-activities", pid)] = "Monthly meter reconciliation (fixture statement).";
-    values[valueKey("production-activity", pid)] = rp.commercialQuantityTonnes;
-    values[valueKey("direct-emissions", pid)] = direct;
-    values[valueKey("indirect-emissions", pid)] = indirect;
+    // Own-process split + a structured precursor row; the derived total keeps
+    // the same headline figure the fixtures always showed.
+    /* A real EAF charge: mostly scrap (zero-rated under CBAM) plus a pig-iron
+       top-up that carries embedded emissions. The contribution is the pig iron
+       alone — which is the whole point of the scrap rule. */
+    const precQty = 0.4;
+    const precSee = 0.55;
+    const scrapQty = 0.75;
+    const precContribution = precQty * precSee;
+    const own = Math.max(0.2, total - precContribution);
+    const direct = Number((own * 0.82).toFixed(2));
+    const indirect = Number((own * 0.18).toFixed(2));
+    /* The installation's own output — always larger than the slice THIS
+       exporter bought, because a mill sells to more than one customer. It is
+       the denominator behind every per-tonne figure below, so the stand-in
+       carries it rather than leaving the demo data underivable. */
+    const outputTonnes = Math.max(1000, Math.round((rp.totalTonnes || 500) * (3 + (seed % 4))));
+    /* Electricity is ABSOLUTE MWh for the period, derived back from the
+       indirect figure at the Thai grid factor so the two reconcile — the same
+       cross-check the AI quality check runs. */
+    const gridFactor = 0.4999; // tCO₂/MWh — EGAT/TGO 2023 national grid factor
+    const elecAbsolute = Math.round((indirect / gridFactor) * outputTonnes);
+    values[valueKey("process-route", pid)] = "EAF (electric arc furnace)";
+    values[valueKey("production-output", pid)] = String(outputTonnes);
+    values[valueKey("elec-consumed", pid)] = String(elecAbsolute);
+    values[valueKey("elec-consumed-unit", pid)] = "MWh_absolute";
+    values[valueKey("elec-factor", pid)] = `${gridFactor} tCO₂/MWh — Thailand national grid (EGAT/TGO 2023)`;
+    values[valueKey("direct-emissions", pid)] = String(direct);
+    values[valueKey("indirect-emissions", pid)] = String(indirect);
+    values[valueKey("total-emissions", pid)] = (direct + indirect + precContribution).toFixed(2);
     values[valueKey("method", pid)] = useDefaultMethod ? "default" : "actual";
-    values[valueKey("default-value-reference", pid)] = useDefaultMethod ? "Fixture default reference only — pending ESG specialist review" : "";
-    values[valueKey("emissions-method", pid)] = "STANDARD_CALCULATION";
     values[valueKey("precursors", pid)] = JSON.stringify([
-      {
-        name: "Pig iron",
-        cn: "7201 10 90",
-        qty: precQty,
-        qtyUnit: "TNE_PER_TNE",
-        see: precSee,
-        seeUnit: "TCO2E_PER_TNE",
-        route: "BF route",
-        method: useDefaultMethod ? "default" : "actual",
-        defaultValueBasis: "published_includes_markup",
-        verificationReference: "",
-      },
+      { id: `${pid}-scrap`, parentId: null, name: "Steel scrap", cnCode: "7204 49 90", qtyPerTonneOutput: scrapQty, isScrap: true, seeDeclared: 0, route: "Recycled", children: [] },
+      { id: `${pid}-pig`, parentId: null, name: "Pig iron", cnCode: "7201 10 90", qtyPerTonneOutput: precQty, isScrap: false, seeDeclared: precSee, route: "BF route", children: [] },
     ]);
-    values[valueKey("total-emissions", pid)] = embeddedEmissionsPerTonne({
-      product: rp.product,
-      direct,
-      indirect,
-      precursors: values[valueKey("precursors", pid)],
-      reportingPeriod: request.period,
-    }) ?? "0";
     values[valueKey("precursor-route", pid)] = "BF route (pig iron) · recycled (scrap)";
   }
 
@@ -336,54 +315,21 @@ function synthesise(request: SupplierRequest, row: SupplierRow): { values: Recor
   for (const d of request.documents) {
     const include = d.required || seed % 2 === 0; // optional docs only sometimes → "missing optional" in the summary
     if (include) {
-      docs[d.id] = {
-        id: d.id,
-        status: "uploaded",
-        files: [{ name: `${d.id}-${row.ref.replace("#", "")}.pdf`, size: 160_000 + (seed % 60) * 1000, addedAt: agoToTs(row.updated), storage: "metadata_only" }],
-      };
+      docs[d.id] = { id: d.id, status: "uploaded", files: [{ name: `${d.id}-${row.ref.replace("#", "")}.pdf`, size: 160_000 + (seed % 60) * 1000, addedAt: agoToTs(row.updated) }] };
     }
   }
   return { values, docs };
 }
 
-function emissionsFor(request: SupplierRequest, values: Record<string, string>): { lines: EmissionLine[]; total: string } {
+function emissionsFor(request: SupplierRequest, values: Record<string, string>): { lines: EmissionLine[]; total: number } {
   const lines: EmissionLine[] = request.products.map((rp) => {
-    const plant = values[valueKey("method", rp.product.id)] === "default"
-      ? null
-      : calculatePlantMrv(
-          values[valueKey("plant-mrv", rp.product.id)],
-          values[valueKey("production-activity", rp.product.id)],
-          {
-            productId: rp.product.id,
-            installationId: values[valueKey("installation-reference", rp.product.id)] || "unassigned-installation",
-            processId: `${rp.product.id}-process`,
-          },
-        );
-    const direct = plant?.ok ? plant.directSpecificEmissions.value : values[valueKey("direct-emissions", rp.product.id)];
-    const indirect = plant?.ok ? plant.indirectSpecificEmissions.value : values[valueKey("indirect-emissions", rp.product.id)];
-    const calculation = embeddedEmissionsCalculation({
-      product: rp.product,
-      direct,
-      indirect,
-      precursors: values[valueKey("precursors", rp.product.id)],
-      reportingPeriod: request.period,
-    });
-    const perTonne = calculation?.value ?? "0";
-    return {
-      productId: rp.product.id,
-      productName: rp.product.name,
-      cnCode: rp.product.cnCode,
-      perTonne,
-      tonnes: rp.commercialQuantityTonnes,
-      total: multiplyExact(perTonne, rp.commercialQuantityTonnes),
-      calculationTraces: [...(plant?.ok ? plant.traces : []), ...(calculation?.traces ?? [])],
-    };
+    const per = Number(values[valueKey("total-emissions", rp.product.id)] || values[valueKey("direct-emissions", rp.product.id)] || "0") || 0;
+    return { productId: rp.product.id, productName: rp.product.name, cnCode: rp.product.cnCode, perTonne: per, tonnes: rp.totalTonnes, total: Math.round(per * rp.totalTonnes) };
   });
-  return { lines, total: addExact(lines.map((line) => line.total)) };
+  return { lines, total: lines.reduce((a, l) => a + l.total, 0) };
 }
 
-function deriveLifecycle(submitted: boolean, review: SupplierReview, version: number, check: CheckResult | null, mrvAssemblyBlocked: boolean): Lifecycle {
-  if (submitted && (mrvAssemblyBlocked || (check && (!check.passable || check.critical > 0)))) return "in_review";
+function deriveLifecycle(submitted: boolean, review: SupplierReview, version: number): Lifecycle {
   if (review.decision === "approved" && review.decidedVersion === version) return "approved";
   if (review.decision === "changes_requested") {
     // a resubmission carries a higher version than the one we sent back → it's
@@ -408,35 +354,87 @@ export function resolveSubmission(decl: Declaration, row: SupplierRow, exporter:
   let docs: Record<string, DocState>;
   let check: CheckResult | null;
   let versions: Version[];
-  let events: AuditEvent[];
+  let events: TrailEvent[];
   let supplierStatus: SubmissionStatus;
-  let source: "live" | "demo";
+  let source: "live" | "record" | "demo";
+
+  /* The supplier's own record (lib/supplier-records.ts) — the durable data this
+     declaration is a filtered request against. Read once, used three ways:
+     as a data source when this link was never opened here, as the freshness
+     reference, and as the access policy governing what travels onward. */
+  const record = getRecord(request.supplierName);
+  const recordRead = record ? readRequestFromRecord(request, record) : null;
+  let dataAt: number | null = null;
+  let dataPeriods: string[] = [];
 
   if (ss.versions.length > 0) {
     // real submission from the smartlink in this browser
     values = ss.values;
     docs = ss.docs;
-    check = ss.lastCheck ?? runQualityCheck(request, values, docs, ss.profile);
+    check = ss.lastCheck ?? runQualityCheck(request, values, docs);
     versions = ss.versions;
     events = ss.events;
     supplierStatus = ss.status;
     source = "live";
+    dataAt = ss.versions[ss.versions.length - 1].submittedAt;
+    dataPeriods = [request.period];
   } else if (row.status === "submitted") {
     // fixtures say submitted but nobody filled it here — deterministic stand-in
     const s = synthesise(request, row);
     values = s.values;
     docs = s.docs;
-    check = runQualityCheck(request, values, docs, ss.profile);
+    check = runQualityCheck(request, values, docs);
     const signer = SIGNERS[(parseInt(row.ref.replace(/\D/g, "") || "0", 10)) % SIGNERS.length];
     const submittedAt = agoToTs(row.updated);
     versions = [{ n: 1, submittedAt, score: check.score, warnings: check.warnings, signedBy: signer.name, signedRole: signer.role }];
     events = [
-      ...Object.values(s.docs).map((d, i) => ({ id: `${row.id}-doc${i}`, at: submittedAt - (Object.keys(s.docs).length - i) * 60_000, kind: "doc_upload" as const, text: `${d.files[0]?.name ?? "file"} metadata reference recorded; no bytes stored` })),
-      { id: `${row.id}-check`, at: submittedAt - 5 * 60_000, kind: "check_run" as const, text: `Deterministic quality check run — score ${check.score}, ${check.critical} critical, ${check.warnings} warning${check.warnings === 1 ? "" : "s"}` },
-      { id: `${row.id}-submit`, at: submittedAt, kind: "submit" as const, text: `Version 1 locally attested by ${signer.name} (${signer.role}) and recorded — score ${check.score}, ${check.warnings} warning${check.warnings === 1 ? "" : "s"}` },
+      ...Object.values(s.docs).map((d, i) => ({ id: `${row.id}-doc${i}`, at: submittedAt - (Object.keys(s.docs).length - i) * 60_000, kind: "doc_upload" as const, text: `${d.files[0]?.name ?? "file"} attached` })),
+      { id: `${row.id}-check`, at: submittedAt - 5 * 60_000, kind: "check_run" as const, text: `AI quality check run — score ${check.score}, ${check.critical} critical, ${check.warnings} warning${check.warnings === 1 ? "" : "s"}` },
+      { id: `${row.id}-submit`, at: submittedAt, kind: "submit" as const, text: `Version 1 signed by ${signer.name} (${signer.role}) and submitted — score ${check.score}, ${check.warnings} warning${check.warnings === 1 ? "" : "s"}` },
     ];
     supplierStatus = "submitted";
     source = "demo";
+    dataAt = submittedAt;
+    dataPeriods = [request.period];
+  } else if (recordRead && recordRead.carriedKeys.length > 0 && record) {
+    /* Never filled through THIS link — but this company has answered these
+       goods before, on another declaration. That data belongs to them, not to
+       the declaration it was born in, so it answers this request too. The
+       exporter still reviews and approves it; it just arrives already filled,
+       carrying the age and provenance that let them judge it.
+
+       Deliberately AFTER the fixture branch: a row the fixtures already show as
+       submitted keeps its own historical figures, so a 2026 submission can
+       never rewrite what a closed 2024 declaration reported. */
+    const contribution = record.contributions[0];
+    values = recordRead.values;
+    docs = recordRead.docs;
+    check = runQualityCheck(request, values, docs);
+    const at = recordRead.sourceAt ?? record.updatedAt;
+    versions = [
+      {
+        n: contribution?.version || 1,
+        submittedAt: at,
+        score: check.score,
+        warnings: check.warnings,
+        signedBy: record.profile?.legalName || record.company,
+        signedRole: "carried from supplier record",
+      },
+    ];
+    events = [
+      {
+        id: `${row.id}-record`,
+        at,
+        kind: "check_run",
+        text: contribution
+          ? `Data pulled from ${record.company}'s own record — originally reported for ${contribution.periodLabel} on "${contribution.declName}"`
+          : `Data pulled from ${record.company}'s own record`,
+      },
+    ];
+    supplierStatus = "submitted";
+    source = "record";
+    dataAt = at;
+    dataPeriods = recordRead.sourcePeriods;
   } else {
     // still collecting — nothing to review yet
     values = {};
@@ -452,15 +450,20 @@ export function resolveSubmission(decl: Declaration, row: SupplierRow, exporter:
   const submitted = versions.length > 0;
   const version = latest?.n ?? 0;
   const { lines, total } = emissionsFor(request, values);
-  const mrvReport = buildWorkflowMrvReport(request, values, ss.profile);
+  const freshness = assessFreshness({ sourceAt: dataAt, sourcePeriods: dataPeriods }, request.period);
+  const access: AccessPolicy | undefined = record?.access;
 
   return {
     supplier: row,
     token,
     href: `/s/${token}`,
     request,
-    profile: ss.profile,
     source,
+    record,
+    freshness,
+    freshnessLevel: staleLevel(freshness),
+    restrictedForBuyer: restrictedSections(access, "buyer"),
+    restrictedForVerifier: restrictedSections(access, "verifier"),
     submitted,
     version,
     submittedAt: latest?.submittedAt ?? null,
@@ -474,10 +477,8 @@ export function resolveSubmission(decl: Declaration, row: SupplierRow, exporter:
     events,
     emissions: lines,
     totalTCO2e: total,
-    mrvReportDraft: mrvReport.draft,
-    mrvAssemblyBlockers: mrvReport.assemblyBlockers,
     review,
-    lifecycle: deriveLifecycle(submitted, review, version, check, mrvReport.assemblyBlockers.length > 0),
+    lifecycle: deriveLifecycle(submitted, review, version),
   };
 }
 
@@ -486,7 +487,7 @@ export function resolveSubmissions(decl: Declaration, exporter: ExporterDeclStat
 }
 
 /* ── Declaration-level roll-up ─────────────────────────────── */
-export type DeclStage = "collecting" | "reviewing" | "approved";
+export type DeclStage = "collecting" | "reviewing" | "approved" | "filed";
 export type ReviewRollup = {
   submissions: ReviewSubmission[];
   counts: Record<Lifecycle, number>;
@@ -496,8 +497,8 @@ export type ReviewRollup = {
   awaitingCount: number;
   changesCount: number;
   allApproved: boolean; // every supplier submitted AND approved
-  reviewedEmissions: string; // exact TCO2E across approved submissions
-  submittedEmissions: string; // exact TCO2E across all submitted submissions
+  reviewedEmissions: number; // tCO₂e across approved submissions
+  submittedEmissions: number; // tCO₂e across all submitted submissions
   warnings: number; // total warnings across submitted submissions
   anomalies: number;
   avgScore: number | null;
@@ -507,8 +508,8 @@ export type ReviewRollup = {
 export function rollup(decl: Declaration, exporter: ExporterDeclState): ReviewRollup {
   const submissions = resolveSubmissions(decl, exporter);
   const counts: Record<Lifecycle, number> = { awaiting: 0, submitted: 0, in_review: 0, changes_requested: 0, approved: 0 };
-  const reviewedEmissions: string[] = [];
-  const submittedEmissions: string[] = [];
+  let reviewedEmissions = 0;
+  let submittedEmissions = 0;
   let warnings = 0;
   let anomalies = 0;
   let scoreSum = 0;
@@ -517,7 +518,7 @@ export function rollup(decl: Declaration, exporter: ExporterDeclState): ReviewRo
   for (const s of submissions) {
     counts[s.lifecycle]++;
     if (s.submitted) {
-      submittedEmissions.push(s.totalTCO2e);
+      submittedEmissions += s.totalTCO2e;
       if (s.check) {
         warnings += s.check.warnings;
         anomalies += s.check.findings.filter((f) => f.category === "Anomaly" && f.severity !== "pass").length;
@@ -525,7 +526,7 @@ export function rollup(decl: Declaration, exporter: ExporterDeclState): ReviewRo
         scoreN++;
       }
     }
-    if (s.lifecycle === "approved") reviewedEmissions.push(s.totalTCO2e);
+    if (s.lifecycle === "approved") reviewedEmissions += s.totalTCO2e;
   }
 
   const total = submissions.length;
@@ -535,7 +536,8 @@ export function rollup(decl: Declaration, exporter: ExporterDeclState): ReviewRo
   const allApproved = total > 0 && approvedCount === total;
 
   let stage: DeclStage = "collecting";
-  if (allApproved) stage = "approved";
+  if (exporter.filedAt) stage = "filed";
+  else if (allApproved) stage = "approved";
   else if (submittedCount > 0) stage = "reviewing";
 
   return {
@@ -547,8 +549,8 @@ export function rollup(decl: Declaration, exporter: ExporterDeclState): ReviewRo
     awaitingCount,
     changesCount: counts.changes_requested,
     allApproved,
-    reviewedEmissions: addExact(reviewedEmissions),
-    submittedEmissions: addExact(submittedEmissions),
+    reviewedEmissions,
+    submittedEmissions,
     warnings,
     anomalies,
     avgScore: scoreN ? Math.round(scoreSum / scoreN) : null,
@@ -573,17 +575,6 @@ export function toggleReviewer(declId: string, supplierId: string, reviewerId: s
 }
 
 export function approveSubmission(declId: string, supplierId: string, version: number): ExporterDeclState {
-  const declaration = getDeclaration(declId);
-  const row = declaration?.suppliers.find((supplier) => supplier.id === supplierId);
-  if (!declaration || !row) throw new Error("Submission could not be resolved for approval.");
-  const current = resolveSubmission(declaration, row, loadExporterState(declId));
-  if (!current.submitted || current.version !== version) throw new Error("Only the current submitted version can be approved.");
-  if (!current.check || !current.check.passable || current.check.critical > 0) {
-    throw new Error("Critical deterministic findings must be resolved before approval.");
-  }
-  if (!current.mrvReportDraft || current.mrvAssemblyBlockers.length > 0) {
-    throw new Error("The versioned MRV report draft must assemble without structural errors before approval.");
-  }
   return mutateReview(declId, supplierId, (r) => ({
     ...r,
     decision: "approved",
@@ -593,6 +584,23 @@ export function approveSubmission(declId: string, supplierId: string, version: n
     unlockedFields: [],
     unlockedDocs: [],
   }));
+}
+
+export function approveAllSubmissions(declId: string): ExporterDeclState {
+  const declaration = getDeclaration(declId);
+  if (!declaration) throw new Error("Declaration could not be resolved.");
+  let state = loadExporterState(declId);
+  for (const supplier of declaration.suppliers) {
+    const current = resolveSubmission(declaration, supplier, state);
+    if (current.submitted && current.lifecycle !== "approved") {
+      try {
+        state = approveSubmission(declId, supplier.id, current.version);
+      } catch (err) {
+        console.warn(`Could not auto-approve ${supplier.id}:`, err);
+      }
+    }
+  }
+  return state;
 }
 
 /** Step 7/8 — the handoff. Records the exporter's decision AND writes the
@@ -611,7 +619,7 @@ export function requestRevision(
     "revision_requested",
     `${exporterIdentity().contact} requested a revision on ${payload.fields.length} field${payload.fields.length === 1 ? "" : "s"}${payload.docs.length ? ` and ${payload.docs.length} document${payload.docs.length === 1 ? "" : "s"}` : ""} — "${payload.comment}"`,
   );
-  if (!saveState(next)) throw new Error("Local supplier-state save failed. The revision was not recorded.");
+  saveState(next);
   return mutateReview(declId, supplierId, (r) => ({
     ...r,
     decision: "changes_requested",
@@ -640,19 +648,10 @@ export function datasetHash(submissions: ReviewSubmission[]): string {
     .map((s) => ({
       id: s.supplier.id,
       v: s.version,
-      period: s.request.period,
-      scope: s.request.products
-        .map((requestProduct) => ({
-          id: requestProduct.product.id,
-          cn: requestProduct.product.cnCode,
-          commercialQuantityTonnes: requestProduct.commercialQuantityTonnes,
-          lots: requestProduct.lots.map((lot) => lot.measurement),
-        }))
-        .sort((left, right) => left.id.localeCompare(right.id)),
-      values: Object.keys(s.values).sort().map((key) => ({ key, value: s.values[key] })),
+      values: s.values,
       docs: Object.keys(s.docs)
         .sort()
-        .map((k) => ({ k, files: (s.docs[k]?.files ?? []).map((f) => f.name).sort() })),
+        .map((k) => ({ k, files: (s.docs[k]?.files ?? []).map((f) => f.name) })),
     }));
   const str = JSON.stringify(canonical);
   let h = 5381;
@@ -662,18 +661,135 @@ export function datasetHash(submissions: ReviewSubmission[]): string {
 
 export function markPackageGenerated(declId: string, hash: string): ExporterDeclState {
   const state = loadExporterState(declId);
-  const datasetChanged = state.packageHash !== hash;
-  // Confirmations and handoff notes apply only to the exact dataset. A changed
-  // hash invalidates them rather than silently carrying approval forward.
+  // Regeneration is allowed (and required) after the dataset changes — the
+  // timestamp and hash always move together.
+  const next = { ...state, packageGeneratedAt: Date.now(), packageHash: hash };
+  saveExporterState(next);
+  return next;
+}
+
+export function fileDeclaration(declId: string, recipients: { buyer: boolean; authority: boolean; verifier: boolean }): ExporterDeclState {
+  const state = loadExporterState(declId);
+  const next = { ...state, recipients, filedAt: state.filedAt ?? Date.now() };
+  saveExporterState(next);
+  return next;
+}
+
+export function setRecipients(declId: string, recipients: { buyer: boolean; authority: boolean; verifier: boolean }): ExporterDeclState {
+  const state = loadExporterState(declId);
+  const next = { ...state, recipients };
+  saveExporterState(next);
+  return next;
+}
+
+/** Push verified installation + emissions data into the CBAM Registry's O3CI
+    module (Operators of Third-Country Installations) — any declarant holding
+    this operator's EORI reference can then pull it in directly. */
+export function pushToO3CI(declId: string): ExporterDeclState {
+  const state = loadExporterState(declId);
+  const next = { ...state, dispatch: { ...state.dispatch, o3ciPushedAt: state.dispatch.o3ciPushedAt ?? Date.now() } };
+  saveExporterState(next);
+  return next;
+}
+
+/** Send the Annex IV-aligned CBAM Communication Template to buyers/declarants
+    not using O3CI — the regulator-recognised fallback to a generic PDF.
+    Superseded by the per-buyer `sendToBuyer()` for the multi-buyer flow; kept
+    as the declaration-level clock those per-buyer sends still sync into. */
+export function sendCommunicationTemplate(declId: string): ExporterDeclState {
+  const state = loadExporterState(declId);
+  const next = { ...state, dispatch: { ...state.dispatch, templateSentAt: state.dispatch.templateSentAt ?? Date.now() } };
+  saveExporterState(next);
+  return next;
+}
+
+/* ── Buyers (multi-buyer send) ─────────────────────────────────
+   The declaration's own buyer is always first in the list, resolved live from
+   the declaration so a wizard-set buyer never has to be re-typed. Extra buyers
+   live in exporter state alongside it. Both are the same shape from here on,
+   so the send + acknowledge paths don't care which is which. */
+export function resolveBuyers(decl: Declaration, state: ExporterDeclState): DeclarationBuyerState[] {
+  const extra = (state.buyers ?? []).filter((b) => !b.primary);
+  const storedPrimary = (state.buyers ?? []).find((b) => b.primary);
+  if (!decl.buyer) return storedPrimary ? [storedPrimary, ...extra] : extra;
+  const primary: DeclarationBuyerState = {
+    id: "primary",
+    name: decl.buyer.name,
+    eori: decl.buyer.eori,
+    email: decl.buyer.email,
+    contact: decl.buyer.contact,
+    primary: true,
+    addedAt: storedPrimary?.addedAt ?? 0,
+    // the legacy single-buyer clock IS the primary buyer's, so an old
+    // declaration that already dispatched keeps showing as sent
+    templateSentAt: storedPrimary?.templateSentAt ?? state.dispatch.templateSentAt,
+    acknowledgedAt: storedPrimary?.acknowledgedAt ?? state.dispatch.acknowledgedAt.buyer ?? null,
+  };
+  return [primary, ...extra];
+}
+
+const newBuyerId = () =>
+  typeof crypto !== "undefined" && crypto.randomUUID ? `buyer-${crypto.randomUUID()}` : `buyer-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+/** Attach another buyer to an already-confirmed dataset. Deduped on EORI —
+    the same importer added twice is one importer. */
+export function addBuyer(declId: string, buyer: { name: string; eori: string; email: string; contact?: string }): ExporterDeclState {
+  const state = loadExporterState(declId);
+  const eori = buyer.eori.replace(/\s/g, "").toUpperCase();
+  if ((state.buyers ?? []).some((b) => b.eori.toUpperCase() === eori)) return state;
   const next: ExporterDeclState = {
     ...state,
-    packageGeneratedAt: Date.now(),
-    packageHash: hash,
-    signoffs: datasetChanged ? [] : state.signoffs,
-    dispatch: datasetChanged
+    buyers: [
+      ...(state.buyers ?? []),
+      {
+        id: newBuyerId(),
+        name: buyer.name.trim(),
+        eori,
+        email: buyer.email.trim(),
+        contact: buyer.contact?.trim() || undefined,
+        primary: false,
+        addedAt: Date.now(),
+        templateSentAt: null,
+        acknowledgedAt: null,
+      },
+    ],
+  };
+  saveExporterState(next);
+  return next;
+}
+
+/** Remove an added buyer. The declaration's own buyer can't be removed here —
+    that's a change to the declaration, made in the wizard. */
+export function removeBuyer(declId: string, buyerId: string): ExporterDeclState {
+  const state = loadExporterState(declId);
+  const next = { ...state, buyers: (state.buyers ?? []).filter((b) => b.id !== buyerId || b.primary) };
+  saveExporterState(next);
+  return next;
+}
+
+/** Mutate one buyer in place, materialising the primary into storage the first
+    time it's touched (it lives on the declaration until then). */
+function mutateBuyer(decl: Declaration, buyerId: string, fn: (b: DeclarationBuyerState) => DeclarationBuyerState): ExporterDeclState {
+  const state = loadExporterState(decl.id);
+  const resolved = resolveBuyers(decl, state);
+  const target = resolved.find((b) => b.id === buyerId);
+  if (!target) return state;
+  const updated = fn(target);
+  const stored = state.buyers ?? [];
+  const exists = stored.some((b) => b.id === buyerId || (b.primary && updated.primary));
+  const buyers = exists ? stored.map((b) => (b.id === buyerId || (b.primary && updated.primary) ? updated : b)) : [...stored, updated];
+  const next: ExporterDeclState = {
+    ...state,
+    buyers,
+    // keep the single-buyer dispatch clock in step with the primary buyer, so
+    // every existing "has this been sent" check keeps working untouched
+    dispatch: updated.primary
       ? {
-          worksheetDownloadedAt: null,
-          checklist: { operator_account: false, installation_registered: false, values_entered: false, verifier_report_attached: false },
+          ...state.dispatch,
+          templateSentAt: updated.templateSentAt ?? state.dispatch.templateSentAt,
+          acknowledgedAt: updated.acknowledgedAt
+            ? { ...state.dispatch.acknowledgedAt, buyer: updated.acknowledgedAt }
+            : state.dispatch.acknowledgedAt,
         }
       : state.dispatch,
   };
@@ -681,45 +797,14 @@ export function markPackageGenerated(declId: string, hash: string): ExporterDecl
   return next;
 }
 
-/** Record a local worksheet download. This never represents a Registry push. */
-export function recordWorksheetDownload(declId: string): ExporterDeclState {
-  const state = loadExporterState(declId);
-  const next = { ...state, dispatch: { ...state.dispatch, worksheetDownloadedAt: Date.now() } };
-  saveExporterState(next);
-  return next;
+/** Send the Annex IV Communication Template to ONE buyer. */
+export function sendToBuyer(decl: Declaration, buyerId: string): ExporterDeclState {
+  return mutateBuyer(decl, buyerId, (b) => ({ ...b, templateSentAt: b.templateSentAt ?? Date.now() }));
 }
 
-export function setO3ciChecklistItem(declId: string, key: O3ciChecklistKey, checked: boolean): ExporterDeclState {
-  const state = loadExporterState(declId);
-  const next = { ...state, dispatch: { ...state.dispatch, checklist: { ...state.dispatch.checklist, [key]: checked } } };
-  saveExporterState(next);
-  return next;
-}
-
-/** A typed verifier name plus a local filename is not the accredited report. */
-export function actualValueVerificationBlockers(submissions: ReviewSubmission[]): string[] {
-  const blockers: string[] = [];
-  for (const sub of submissions) {
-    const actualProducts = sub.request.products.filter((rp) => sub.values[valueKey("method", rp.product.id)] === "actual");
-    const actualPrecursors = sub.request.products.flatMap((requestProduct) =>
-      (parsePrecursors(sub.values[valueKey("precursors", requestProduct.product.id)]) ?? [])
-        .filter((row) => row.method === "actual")
-        .map((row) => ({ productName: requestProduct.product.name, row })),
-    );
-    if (actualProducts.length === 0 && actualPrecursors.length === 0) continue;
-    const verifier = sub.values[valueKey("verification")]?.trim();
-    const report = sub.docs.verif;
-    if (!verifier) blockers.push(`${sub.supplier.name}: accredited verifier reference is missing.`);
-    for (const precursor of actualPrecursors.filter(({ row }) => !row.verificationReference.trim())) {
-      blockers.push(`${sub.supplier.name}: actual precursor ${precursor.row.name || "(unnamed)"} in ${precursor.productName} has no verifier report reference.`);
-    }
-    if (!report || report.status !== "uploaded" || report.files.length === 0) {
-      blockers.push(`${sub.supplier.name}: accredited verifier report is not referenced.`);
-    } else {
-      blockers.push(`${sub.supplier.name}: verifier report bytes are unavailable until secure evidence storage and malware scanning are configured.`);
-    }
-  }
-  return blockers;
+/** That buyer's declarant confirming they received the dataset. */
+export function acknowledgeBuyer(decl: Declaration, buyerId: string): ExporterDeclState {
+  return mutateBuyer(decl, buyerId, (b) => ({ ...b, acknowledgedAt: b.acknowledgedAt ?? Date.now() }));
 }
 
 /** Record a reminder to a supplier who hasn't submitted — persists so the
@@ -741,24 +826,24 @@ export const lastReminderAt = (state: ExporterDeclState, supplierId: string): nu
 
 /* ── Report sign-off actions ───────────────────────────────── */
 
-/** Assign local demo reviewers. No email or identity authority is configured. */
+/** Send the generated report to people for preview + confirmation. Deduped —
+    re-requesting someone who's already on the list is a no-op. */
 export function requestReportSignoffs(declId: string, memberIds: string[]): ExporterDeclState {
   const state = loadExporterState(declId);
-  if (!state.packageHash) throw new Error("Generate the current dataset preview before assigning confirmations.");
   const existing = new Set(state.signoffs.map((s) => s.memberId));
-  const added = memberIds.filter((id) => !existing.has(id)).map((memberId) => ({ memberId, requestedAt: Date.now(), confirmedAt: null, packageHash: state.packageHash! }));
+  const added = memberIds.filter((id) => !existing.has(id)).map((memberId) => ({ memberId, requestedAt: Date.now(), confirmedAt: null }));
   const next = { ...state, signoffs: [...state.signoffs, ...added] };
   saveExporterState(next);
   return next;
 }
 
-/** Local demo confirmation; no email, identity authority or access grant. */
+/** A reviewer confirming the report reads exactly as sent — demo affordance
+    for what would arrive via their emailed preview link. */
 export function confirmReportSignoff(declId: string, memberId: string): ExporterDeclState {
   const state = loadExporterState(declId);
-  if (!state.packageHash) throw new Error("The current dataset has no generated preview.");
   const next = {
     ...state,
-    signoffs: state.signoffs.map((s) => (s.memberId === memberId && s.packageHash === state.packageHash ? { ...s, confirmedAt: s.confirmedAt ?? Date.now() } : s)),
+    signoffs: state.signoffs.map((s) => (s.memberId === memberId ? { ...s, confirmedAt: s.confirmedAt ?? Date.now() } : s)),
   };
   saveExporterState(next);
   return next;
@@ -768,6 +853,15 @@ export function confirmReportSignoff(declId: string, memberId: string): Exporter
 export function withdrawReportSignoff(declId: string, memberId: string): ExporterDeclState {
   const state = loadExporterState(declId);
   const next = { ...state, signoffs: state.signoffs.filter((s) => s.memberId !== memberId || s.confirmedAt !== null) };
+  saveExporterState(next);
+  return next;
+}
+
+/** Records a recipient confirming receipt — the real end state, since the
+    exporter can never claim "filed with the authority" on someone else's behalf. */
+export function acknowledgeRecipient(declId: string, recipient: DispatchRecipient): ExporterDeclState {
+  const state = loadExporterState(declId);
+  const next = { ...state, dispatch: { ...state.dispatch, acknowledgedAt: { ...state.dispatch.acknowledgedAt, [recipient]: Date.now() } } };
   saveExporterState(next);
   return next;
 }

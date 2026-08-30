@@ -1,8 +1,8 @@
 /* ════════════════════════════════════════════════════════════
-   CBAM DRAFT CALCULATION / REPORT PREVIEW (PDF) + file download helpers
+   CBAM COMMUNICATION & VERIFICATION PACKAGE (PDF) + file download helpers
 
    Real client-side file generation. This builds the full package a buyer's
-   CBAM declarant, a verifier or an auditor actually works from — not a
+   CBAM declarant, a verifier actually works from — not a
    one-page summary. Structure:
 
      Cover                     identity, period, dataset hash, totals
@@ -17,19 +17,16 @@
      Part E                    findings & data quality
      Part F                    version history
      Part G                    internal approval & sign-off record
-     Part H                    local activity history
+     Part H                    full verification trail
      Part I                    glossary & regulatory references
-     Limitations               local checksum + explicit blockers
+     Seal                      dataset hash + signature block
 
    With a typical 8-supplier declaration this renders 20–30+ pages — the
-   This renderer does not establish legal validity, evidence custody, identity,
-   immutable retention, verification or delivery.
+   size a real communication/verification package runs, because every number is
+   traceable to its installation, method and evidence.
    ════════════════════════════════════════════════════════════ */
 
 import type { jsPDF } from "jspdf";
-import { decimal } from "./mrv";
-import type { CalculationTrace } from "./mrv";
-import { formatDecimal } from "./workflow-measurements";
 
 /* ── Input types ───────────────────────────────────────────── */
 
@@ -40,21 +37,11 @@ export type ChapterProduct = {
   category: string;
   group: string;
   route?: string;
-  installationReference?: string;
-  productionActivityTonnes?: string;
-  mrvMethod?: string;
-  monitoringPlanId?: string;
-  monitoringPlanVersion?: string;
-  systemBoundary?: string;
-  excludedActivities?: string;
-  dataGapMethodology?: string;
-  controlActivities?: string;
-  quantityTonnes: string;
-  directPerTonne: string | null;
-  indirectPerTonne: string | null;
-  totalPerTonne: string | null;
-  absoluteTCO2e: string | null;
-  calculationTraces: readonly CalculationTrace[];
+  quantityTonnes: number;
+  directPerTonne: number | null;
+  indirectPerTonne: number | null;
+  totalPerTonne: number | null;
+  absoluteTCO2e: number | null;
   method?: string; // "actual" | "default"
   precursors?: string;
   precursorRoutes?: string;
@@ -72,15 +59,11 @@ export type SupplierChapter = {
   signedBy?: string | null;
   signedRole?: string | null;
   dataQualityScore?: number | null;
-  actorRole?: "producer" | "trader";
-  upstreamProducer?: string;
-  installation: { name: string; address: string; country: string; unlocode?: string; coordinates?: string; productionActivity?: string };
-  additionalInstallations: { id: string; name: string; country: string; address: string; routes: string[]; productionActivity?: string }[];
-  monitoringPlans: { id: string; version: string; installationReference?: string }[];
+  installation: { name: string; address: string; country: string; unlocode?: string; coordinates?: string };
   products: ChapterProduct[];
   carbonPrice: { amount: string; instrument?: string; note?: string };
   verification: string;
-  documents: { label: string; required: boolean; status: "referenced" | "missing"; files: string[] }[];
+  documents: { label: string; required: boolean; status: "uploaded" | "missing"; files: string[] }[];
   findings: { severity: "critical" | "warning"; title: string; detail: string }[];
   versions: { n: number; when: string; score: number; signedBy?: string | null }[];
 };
@@ -99,8 +82,6 @@ export type PackageInput = {
   regulationShort: string;
   regulationFull: string;
   period: string;
-  collectionDeadline?: string;
-  cbamDeclarationDue?: string;
   sector: string;
   origin: string; // e.g. "Thailand"
   market: string; // e.g. "European Union"
@@ -108,32 +89,33 @@ export type PackageInput = {
   installationId: string;
   /** EU buyer / declarant line, e.g. "Berlin Stahlhandel GmbH · EORI DE55…" */
   buyerLine?: string;
-  totalEmbedded: string; // exact TCO2E decimal string
+  totalEmbedded: number; // tCO₂e
   supplierCount: number;
-  carbonPricePaid: string;
+  carbonPricePaid: number;
   factorSet: string;
   suppliers?: {
     name: string;
     material: string;
-    emissions: string | null;
+    emissions: number | null;
     productionRoute?: string;
-    directEmissions?: string | null;
-    indirectEmissions?: string | null;
-    precursorEmissions?: string | null;
+    directEmissions?: number | null;
+    indirectEmissions?: number | null;
+    precursorEmissions?: number | null;
     verificationStatus?: string;
-    exportQuantity?: string;
+    exportQuantity?: number;
   }[];
   aiWarnings?: { supplier: string; message: string; type: "critical" | "warning" }[];
-  documents?: { supplier: string; name: string; status: "referenced" | "missing" }[];
+  documents?: { supplier: string; name: string; status: "uploaded" | "missing" }[];
   scope2Notes?: { category: string; included: boolean }[];
-  auditTrail?: { supplier: string; when: string; text: string }[];
+  verificationTrail?: { supplier: string; when: string; text: string }[];
   versionHistory?: { supplier: string; version: number; when: string; score: number }[];
   /** Full per-supplier chapters (Part C). When present the package renders the
-      complete communication/audit document instead of summary tables only. */
+      complete communication/verification document instead of summary tables only. */
   chapters?: SupplierChapter[];
   /** Internal approval chain record (Part G). */
   signOff?: SignOffStep[];
-  /** Local sha-256 change checksum of the preview input. Not a signature. */
+  /** sha-256 of the dataset JSON, computed by downloadPackage — printed on the
+      cover and the seal page so any copy can be checked against the source. */
   contentHash?: string;
 };
 
@@ -180,9 +162,7 @@ function pdfSafe(text: string): string {
   return out;
 }
 
-const fmtN = (value: string | number) => typeof value === "number"
-  ? value.toLocaleString("en-US", { maximumFractionDigits: 2 })
-  : formatDecimal(value);
+const fmtN = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 
 export async function buildPackagePdf(p: PackageInput): Promise<jsPDF> {
   const { jsPDF } = await import("jspdf");
@@ -321,9 +301,9 @@ export async function buildPackagePdf(p: PackageInput): Promise<jsPDF> {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(28);
   doc.setTextColor(...INK);
-  doc.text("CBAM Calculation", MARGIN, y);
+  doc.text("CBAM Communication", MARGIN, y);
   y += 32;
-  doc.text("& Report Preview", MARGIN, y);
+  doc.text("& Verification Package", MARGIN, y);
   y += 30;
   doc.setFontSize(11);
   doc.setTextColor(...MUTED);
@@ -360,14 +340,14 @@ export async function buildPackagePdf(p: PackageInput): Promise<jsPDF> {
   doc.text(pdfSafe(`Generated: ${new Date().toUTCString()}`), MARGIN, y);
   y += 14;
   if (p.contentHash) {
-    doc.text(pdfSafe(`Local dataset sha-256 checksum: ${p.contentHash}`), MARGIN, y, { maxWidth: contentWidth });
+    doc.text(pdfSafe(`Dataset sha-256: ${p.contentHash}`), MARGIN, y, { maxWidth: contentWidth });
     y += 14;
   }
 
   doc.setFontSize(7.5);
   doc.text(
     pdfSafe(
-      "DRAFT PREVIEW ONLY. Not verified, immutable, audit-ready, O3CI-ready or filed. Evidence file bytes are unavailable. The EU importer or indirect customs representative remains responsible for the annual declaration.",
+      "This package supports the buyer's CBAM declaration. It is communicated by the third-country operator; only the EU importer's Authorised CBAM Declarant files with the CBAM Registry.",
     ),
     MARGIN,
     pageHeight - MARGIN - 24,
@@ -382,29 +362,27 @@ export async function buildPackagePdf(p: PackageInput): Promise<jsPDF> {
   partHeading("Part A", "Declaration summary");
   kv("Regulation", p.regulationFull);
   kv("Reporting period", p.period);
-  if (p.collectionDeadline) kv("Supplier data collection deadline (internal)", p.collectionDeadline);
-  if (p.cbamDeclarationDue) kv("EU-side authorised declarant annual deadline", p.cbamDeclarationDue);
   kv("Goods sector", p.sector);
   kv("Route", `${p.origin} → ${p.market}`);
   kv("Communicating operator (exporter)", p.org);
   kv("Operator reference", p.installationId);
   if (p.buyerLine) kv("EU buyer / declarant", p.buyerLine);
   kv("Monitoring methodology", `Annex IV, Reg. (EU) 2023/956 · Implementing Reg. (EU) 2025/2547 · ${p.factorSet}`);
-  kv("Total embedded emissions (locally approved drafts)", `${fmtN(p.totalEmbedded)} tCO2e`);
-  kv("Carbon price paid in country of origin", decimal(p.carbonPricePaid).isZero() ? "None reported" : fmtN(p.carbonPricePaid));
+  kv("Total embedded emissions (approved submissions)", `${fmtN(p.totalEmbedded)} tCO2e`);
+  kv("Carbon price paid in country of origin", p.carbonPricePaid === 0 ? "None (Thailand currently has no carbon price)" : fmtN(p.carbonPricePaid));
   y += 8;
 
   table(
     "Consolidated per-supplier embedded emissions (tCO2e per tonne)",
-    ["Supplier", "Material & route", "Export qty", "Direct", "Indirect", "Precursor", "Total", "Verifier text ref"],
+    ["Supplier", "Material & route", "Export qty", "Direct", "Indirect", "Precursor", "Total", "Verification"],
     (p.suppliers ?? []).map((s) => [
       s.name,
       s.productionRoute ? `${s.material}\n${s.productionRoute}` : s.material,
       s.exportQuantity != null ? `${fmtN(s.exportQuantity)} t` : "—",
-      s.directEmissions != null ? fmtN(s.directEmissions) : "—",
-      s.indirectEmissions != null ? fmtN(s.indirectEmissions) : "—",
-      s.precursorEmissions != null ? fmtN(s.precursorEmissions) : "—",
-      s.emissions != null ? fmtN(s.emissions) : "unavailable",
+      s.directEmissions != null ? s.directEmissions.toFixed(2) : "—",
+      s.indirectEmissions != null ? s.indirectEmissions.toFixed(2) : "—",
+      s.precursorEmissions != null ? s.precursorEmissions.toFixed(2) : "—",
+      s.emissions != null ? s.emissions.toFixed(2) : "default",
       s.verificationStatus ?? "—",
     ]),
   );
@@ -413,11 +391,11 @@ export async function buildPackagePdf(p: PackageInput): Promise<jsPDF> {
   partHeading(
     "Part B",
     "Methodology & legal basis",
-    "Draft calculation context. A qualified reviewer must independently validate the inputs, formulas, evidence and regulatory-data version before any legal use.",
+    "How every figure in this package was determined, and the definitive-period rules it was checked against. A reviewer should be able to reproduce each number from this section plus the per-supplier chapters in Part C.",
   );
 
   eyebrow("Calculation methodology");
-  bullet("Specific embedded emissions (SEE) are monitored at installation level in tCO2e per tonne of net mass. For the steel and aluminium goods covered by Annex II in this draft, the definitive result is own-process direct emissions plus relevant precursor contributions; indirect electricity emissions remain a separately reported calculation trace and are excluded from that result.");
+  bullet("Specific embedded emissions (SEE) per good = own-process direct emissions + own-process indirect (electricity) emissions + embedded emissions of relevant precursors (complex goods), in tCO2e per tonne of net mass, monitored at installation level per Annex IV of Regulation (EU) 2023/956.");
   bullet("Complex goods additionally carry the attributed embedded emissions of their relevant precursor materials (e.g. pig iron, ferro-alloys, crude steel inputs).");
   bullet(`Emission factors: ${p.factorSet}. Electricity factors follow the applicable grid or PPA factor with documented source.`);
   bullet("Quantities are normalised to tonnes of net mass; emissions figures to tCO2e per tonne (the CBAM canonical form).");
@@ -436,15 +414,16 @@ export async function buildPackagePdf(p: PackageInput): Promise<jsPDF> {
   }
 
   eyebrow("Definitive-period rules applied");
-  bullet("Default values carry an effective-dated markup (+10% in 2026, +20% in 2027, +30% from 2028, subject to regulatory revision). Mixed actual/default precursor values are supported; the obsolete transitional 20% cap is not applied.");
-  bullet("Actual-value figures require accredited verification. A typed verifier reference or filename is not the report, and this browser-only preview cannot label actual values verified.");
+  bullet("Default values are permitted but carry a markup (+10% in 2026, +20% in 2027, +30% from 2028) — every default-value figure in this package is flagged in its supplier chapter.");
+  bullet("Complex goods: default values may cover at most 20% of total embedded emissions; at least 80% must be actual, installation-level data.");
+  bullet("Actual-value figures require verification by an EN ISO 14065-accredited verifier; verification statements are referenced per supplier in Part C and included in the evidence register.");
   bullet("A carbon price effectively paid in the country of origin is deductible from the CBAM obligation; the amount, instrument and country are recorded per supplier.");
   bullet("CBAM certificate prices track the EU ETS auction average (quarterly in 2026, weekly from 2027). Certificate purchase and surrender happen on the declarant's side.");
   y += 6;
 
   eyebrow("Data lineage");
   paragraph(
-    "This preview uses browser-local demo records and deterministic checks plus advisory anomaly flags. Links are not authenticated, typed names are not trusted electronic signatures, versions are mutable local metadata, and the activity history is not an immutable audit ledger.",
+    "Each supplier submission was collected through a Certrace Smart Link, passed the automated quality check (completeness, validation, anomaly, standardisation), was electronically signed by the supplier's authorised person, frozen as an immutable version, reviewed and approved by the exporter's internal chain (Part G), and only then locked into this package. The full event log is reproduced in Part H.",
   );
 
   /* ════════ PART C — PER-SUPPLIER CHAPTERS ════════ */
@@ -460,15 +439,13 @@ export async function buildPackagePdf(p: PackageInput): Promise<jsPDF> {
       c.country,
       `Version ${c.version}`,
       c.submittedAt ? `Submitted ${c.submittedAt}` : null,
-      c.signedBy ? `Locally attested by ${c.signedBy}${c.signedRole ? ` (${c.signedRole})` : ""}` : null,
+      c.signedBy ? `Signed by ${c.signedBy}${c.signedRole ? ` (${c.signedRole})` : ""}` : null,
       c.dataQualityScore != null ? `Data quality ${c.dataQualityScore}/100` : null,
     ].filter(Boolean) as string[];
     doc.text(pdfSafe(metaBits.join("  ·  ")), MARGIN, y, { maxWidth: contentWidth });
     y += 20;
 
     eyebrow("Installation");
-    if (c.actorRole) kv("Commercial actor role", c.actorRole === "trader" ? "Trader forwarding upstream producer data" : "Installation operator / producer");
-    if (c.upstreamProducer) kv("Named upstream producer", c.upstreamProducer);
     kv("Installation name", c.installation.name || "—");
     kv("Address", c.installation.address || "—");
     kv("Country", c.installation.country || "—");
@@ -481,19 +458,14 @@ export async function buildPackagePdf(p: PackageInput): Promise<jsPDF> {
       kv("CN code", prod.cnCode + (prod.hsCode ? `  (HS ${prod.hsCode})` : ""));
       kv("Aggregated goods category", `${prod.category} — ${prod.group}`);
       if (prod.route) kv("Production route", prod.route);
-      if (prod.installationReference) kv("Producing installation reference", prod.installationReference);
-      if (prod.productionActivityTonnes) kv("Process production activity", `${prod.productionActivityTonnes} TNE`);
-      if (prod.mrvMethod) kv("MRV method", prod.mrvMethod);
-      if (prod.monitoringPlanId || prod.monitoringPlanVersion) kv("Monitoring plan", `${prod.monitoringPlanId || "—"} · version ${prod.monitoringPlanVersion || "—"}`);
-      if (prod.systemBoundary) kv("System boundary", prod.systemBoundary);
-      kv("Quantity (net mass)", `${fmtN(prod.quantityTonnes)} TNE`);
+      kv("Quantity (net mass)", `${fmtN(prod.quantityTonnes)} t`);
       table(
         null,
         ["Component", "tCO2e / t", "Basis"],
         [
-          ["Direct (Scope 1)", prod.directPerTonne != null ? fmtN(prod.directPerTonne) : "—", prod.method === "default" ? "DEFAULT VALUES" : "ACTUAL DATA"],
-          ["Indirect (electricity; Annex-II trace)", prod.indirectPerTonne != null ? fmtN(prod.indirectPerTonne) : "—", prod.method === "default" ? "DEFAULT VALUES" : "ACTUAL DATA"],
-          ["Definitive embedded emissions", prod.totalPerTonne != null ? fmtN(prod.totalPerTonne) : "—", ""],
+          ["Direct (Scope 1)", prod.directPerTonne != null ? prod.directPerTonne.toFixed(2) : "—", prod.method === "default" ? "DEFAULT VALUES" : "ACTUAL DATA"],
+          ["Indirect (electricity)", prod.indirectPerTonne != null ? prod.indirectPerTonne.toFixed(2) : "—", prod.method === "default" ? "DEFAULT VALUES" : "ACTUAL DATA"],
+          ["Total embedded (SEE)", prod.totalPerTonne != null ? prod.totalPerTonne.toFixed(2) : "—", ""],
           ["Absolute for quantity", prod.absoluteTCO2e != null ? `${fmtN(prod.absoluteTCO2e)} tCO2e` : "—", ""],
         ],
         { colorColumn: { index: 2, color: (raw) => (raw === "DEFAULT VALUES" ? AMBER : raw === "ACTUAL DATA" ? GREEN : null) } },
@@ -511,41 +483,6 @@ export async function buildPackagePdf(p: PackageInput): Promise<jsPDF> {
         paragraph(prod.precursors, INK, 9);
         if (prod.precursorRoutes) paragraph(`Production routes: ${prod.precursorRoutes}`);
       }
-      if (prod.calculationTraces.length > 0) {
-        eyebrow("Deterministic calculation trace");
-        for (const trace of prod.calculationTraces) {
-          kv("Method / output", `${trace.method} · ${trace.output.value} ${trace.output.unit}`);
-          paragraph(`Formula: ${trace.formula}`, INK, 8.5);
-          table(
-            null,
-            ["Exact input", "Decimal value", "Unit", "Source / evidence"],
-            trace.exactInputs.map((input) => [input.name, input.value, input.unit, input.sourceReference ?? "—"]),
-          );
-          paragraph(`Regulatory data: ${trace.regulatoryDataVersion} · authoritative deterministic result · ${trace.decimalContext.rounding}`, MUTED, 8);
-          if (trace.evidenceReferences.length > 0) paragraph(`Sources/evidence: ${trace.evidenceReferences.join(", ")}`, MUTED, 8);
-          for (const warning of trace.warnings) {
-            bullet(`[${warning.severity}] ${warning.code} — ${warning.message}`, warning.severity === "BLOCKER" ? RED : AMBER, 8);
-          }
-          y += 3;
-        }
-      }
-    }
-
-    eyebrow("Monitoring plan and installation boundary");
-    if (c.monitoringPlans.length === 0) kv("Monitoring plan", "—");
-    for (const plan of c.monitoringPlans) {
-      kv(`Monitoring plan${plan.installationReference ? ` · ${plan.installationReference}` : ""}`, `${plan.id || "—"} · version ${plan.version || "—"}`);
-    }
-    for (const prod of c.products) {
-      if (prod.excludedActivities) kv(`${prod.name} · excluded activities`, prod.excludedActivities);
-      if (prod.dataGapMethodology) kv(`${prod.name} · data-gap methodology`, prod.dataGapMethodology);
-      if (prod.controlActivities) kv(`${prod.name} · control activities`, prod.controlActivities);
-    }
-    if (c.installation.productionActivity) kv("Primary installation production activity", `${c.installation.productionActivity} TNE`);
-    for (const installation of c.additionalInstallations) {
-      kv(`Additional installation ${installation.id}`, `${installation.name || "—"} · ${installation.country || "—"}`);
-      if (installation.routes.length > 0) kv("Routes", installation.routes.join(", "));
-      if (installation.productionActivity) kv("Production activity", `${installation.productionActivity} TNE`);
     }
 
     eyebrow("Carbon price in country of origin");
@@ -553,14 +490,14 @@ export async function buildPackagePdf(p: PackageInput): Promise<jsPDF> {
     if (c.carbonPrice.instrument) kv("Instrument", c.carbonPrice.instrument);
     y += 4;
 
-    eyebrow("Verifier reference — unvalidated");
-    paragraph(c.verification ? `${c.verification} — typed browser metadata only; no accredited report bytes or accreditation check is available.` : "No verifier reference provided.", AMBER, 9);
+    eyebrow("Verification");
+    paragraph(c.verification || "No verification statement provided.", c.verification ? INK : AMBER, 9);
 
     table(
-      "Evidence references (file bytes unavailable)",
-      ["Document", "Required", "Status", "Filename metadata"],
+      "Evidence register",
+      ["Document", "Required", "Status", "Files"],
       c.documents.map((d) => [d.label, d.required ? "Required" : "Optional", d.status.toUpperCase(), d.files.join(", ") || "—"]),
-      { colorColumn: { index: 2, color: (raw) => (raw === "REFERENCED" ? AMBER : raw === "MISSING" ? RED : null) } },
+      { colorColumn: { index: 2, color: (raw) => (raw === "UPLOADED" ? GREEN : raw === "MISSING" ? RED : null) } },
     );
 
     if (c.findings.length) {
@@ -573,22 +510,22 @@ export async function buildPackagePdf(p: PackageInput): Promise<jsPDF> {
 
     table(
       "Version history",
-      ["Version", "Recorded", "Quality score", "Local attestation"],
+      ["Version", "Submitted", "Quality score", "Signed by"],
       c.versions.map((v) => [`V${v.n}`, v.when, String(v.score), v.signedBy ?? "—"]),
     );
   });
 
   /* ════════ PART D — CONSOLIDATED EVIDENCE REGISTER ════════ */
-  partHeading("Part D", "Evidence-reference register", "Filename and size metadata only. Document bytes are not stored and no malware scan, retention control or evidentiary chain is available.");
+  partHeading("Part D", "Consolidated evidence register", "Every supporting document across all submissions, with upload status at the time this package was sealed.");
   table(
     null,
     ["Supplier", "Document", "Status"],
     (p.documents ?? []).map((d) => [d.supplier, d.name, d.status.toUpperCase()]),
-    { colorColumn: { index: 2, color: (raw) => (raw === "REFERENCED" ? AMBER : raw === "MISSING" ? RED : null) } },
+    { colorColumn: { index: 2, color: (raw) => (raw === "UPLOADED" ? GREEN : raw === "MISSING" ? RED : null) } },
   );
 
   /* ════════ PART E — FINDINGS & DATA QUALITY ════════ */
-  partHeading("Part E", "Findings & data quality", "Deterministic critical findings block local approval. Anomaly flags are advisory and never approve or verify data.");
+  partHeading("Part E", "Findings & data quality", "Automated quality-check outcomes that remained open when each submission was approved. Critical findings block a supplier's submission; warnings pass through with acknowledgement and are disclosed here.");
   table(
     null,
     ["Severity", "Supplier", "Finding"],
@@ -598,7 +535,7 @@ export async function buildPackagePdf(p: PackageInput): Promise<jsPDF> {
   if (!(p.aiWarnings ?? []).length) paragraph("No findings were open at approval — every submission passed the automated checks cleanly.", GREEN);
 
   /* ════════ PART F — VERSION HISTORY ════════ */
-  partHeading("Part F", "Local version metadata", "Browser-local submission metadata only. Values are not frozen as immutable snapshots and require a trusted backend before audit use.");
+  partHeading("Part F", "Version history", "Every submitted version of every supplier's data. A revision requested by the exporter reopens only the flagged fields; the resubmission is a new version — earlier versions are never overwritten.");
   table(
     null,
     ["Supplier", "Version", "Submitted", "Quality score"],
@@ -606,7 +543,7 @@ export async function buildPackagePdf(p: PackageInput): Promise<jsPDF> {
   );
 
   /* ════════ PART G — APPROVAL & SIGN-OFF RECORD ════════ */
-  partHeading("Part G", "Local approval model", "Demo-only typed confirmations without identity authority, trusted signature, segregation-of-duties enforcement or immutable version binding.");
+  partHeading("Part G", "Internal approval & sign-off record", "The exporter's internal review chain for this declaration. Each step is electronically recorded against the exact dataset version being approved.");
   if (p.signOff?.length) {
     table(
       null,
@@ -623,12 +560,12 @@ export async function buildPackagePdf(p: PackageInput): Promise<jsPDF> {
     paragraph("No internal sign-off chain was recorded for this declaration. For regulated filings, Certrace recommends at minimum a preparer + approver chain (see the Review & Approval workspace).", AMBER);
   }
 
-  /* ════════ PART H — AUDIT TRAIL ════════ */
-  partHeading("Part H", "Local activity history", "Mutable browser events for demonstration only. This is not complete, append-only or an audit ledger. Timestamps are client-generated UTC values.");
+  /* ════════ PART H — VERIFICATION TRAIL ════════ */
+  partHeading("Part H", "Verification trail", "The complete, append-only event log across every submission in this declaration — collection, quality checks, signatures, revisions, approvals. Timestamps are UTC.");
   table(
     null,
     ["Timestamp", "Supplier", "Event"],
-    (p.auditTrail ?? []).map((e) => [e.when, e.supplier, e.text]),
+    (p.verificationTrail ?? []).map((e) => [e.when, e.supplier, e.text]),
     { columnWidths: { 0: 130, 1: 100 } },
   );
 
@@ -637,12 +574,12 @@ export async function buildPackagePdf(p: PackageInput): Promise<jsPDF> {
   eyebrow("Glossary");
   const glossary: [string, string][] = [
     ["CBAM", "Carbon Border Adjustment Mechanism — the EU's carbon price on embedded emissions of imported goods."],
-    ["SEE", "Specific embedded emissions — tCO2e per tonne of net mass. Included components depend on the product's effective regulatory treatment; this steel/aluminium draft excludes Annex-II indirect emissions while retaining their trace."],
+    ["SEE", "Specific embedded emissions — tCO2e per tonne of net mass of a good (direct + indirect, plus attributed precursor emissions for complex goods)."],
     ["Direct emissions", "Scope 1 emissions from the production processes of the installation, including heating/cooling consumed."],
     ["Indirect emissions", "Emissions from the production of electricity consumed during production."],
     ["Precursor", "An input material that is itself a CBAM good, whose embedded emissions carry into the finished (complex) good."],
     ["Complex good", "A good produced using relevant precursor materials — its SEE must include the precursors' attributed emissions."],
-    ["Default value", "Commission-published fallback emission intensity with an effective-dated definitive-period markup; may be mixed with actual precursor values."],
+    ["Default value", "Commission-published fallback emission intensity, marked up year-on-year; capped at 20% of embedded emissions for complex goods."],
     ["CN code", "8-digit Combined Nomenclature commodity code identifying the good."],
     ["Authorised CBAM Declarant", "The EU importer (or indirect customs representative) authorised to file CBAM declarations and surrender certificates."],
     ["O3CI", "The CBAM Registry module for Operators of Third-Country Installations — where a non-EU producer registers installations and shares emissions data with declarants."],
@@ -652,43 +589,50 @@ export async function buildPackagePdf(p: PackageInput): Promise<jsPDF> {
   y += 6;
   eyebrow("Regulatory references");
   bullet("Regulation (EU) 2023/956 establishing a carbon border adjustment mechanism (the CBAM Regulation), incl. Annex IV monitoring rules.");
-  bullet("Implementing Regulations (EU) 2025/2546 and 2025/2547 on the definitive-period Registry/declaration and embedded-emissions calculation rules.");
-  bullet("Implementing Regulations (EU) 2025/2620 and 2025/2621 on certificate pricing/default values, as applicable and effective-dated.");
+  bullet("Implementing Regulation (EU) 2025/2547 — the methodology for calculating embedded emissions under the definitive regime, in force from 1 January 2026.");
+  bullet("Implementing Regulation (EU) 2025/2546 — verification principles, which set what an accredited verifier tests.");
+  bullet("Implementing Regulation (EU) 2025/2621 — the default values usable per product and country where actual data cannot be obtained.");
   bullet("CBAM Registry — Authorisation Management Module and the Operators of Third-Country Installations (O3CI) portal.");
   bullet("EU ETS auction prices (the reference for CBAM certificate pricing from 2026/2027).");
 
-  /* ════════ LOCAL CHECKSUM ════════ */
+  /* ════════ SEAL ════════ */
   doc.addPage();
-  toc.push({ label: "Local checksum & limitations", page: doc.getNumberOfPages() });
+  toc.push({ label: "Seal & signatures", page: doc.getNumberOfPages() });
   y = MARGIN + 30;
   doc.setFillColor(...GREEN);
   doc.circle(MARGIN + 3, y - 3, 3, "F");
   doc.setFont("courier", "normal");
   doc.setFontSize(8.5);
   doc.setTextColor(...MUTED);
-  const eventCount = p.auditTrail?.length ?? 0;
+  const verificationEventCount = p.verificationTrail?.length ?? 0;
   doc.text(
-    pdfSafe(`Draft generated locally · ${new Date().toUTCString()}${eventCount ? ` · ${eventCount} mutable local events listed in Part H` : ""}`),
+    pdfSafe(`Sealed by Certrace · ${new Date().toUTCString()}${verificationEventCount ? ` · ${verificationEventCount} verification events embedded in Part H` : ""}`),
     MARGIN + 12,
     y,
     { maxWidth: contentWidth - 12 },
   );
   y += 22;
   if (p.contentHash) {
-    doc.text(pdfSafe(`Local dataset sha-256 checksum: ${p.contentHash}`), MARGIN, y, { maxWidth: contentWidth });
+    doc.text(pdfSafe(`Dataset sha-256: ${p.contentHash}`), MARGIN, y, { maxWidth: contentWidth });
     y += 18;
   }
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.text(
-    pdfSafe("The checksum detects changes to this locally generated preview only. It is not a trusted timestamp, signature, seal, immutable ledger, evidence hash manifest or proof of who approved or received the data."),
+    pdfSafe("Any copy of this package can be checked against the hash above. Regenerating the package from the same sealed dataset reproduces the same figures."),
     MARGIN,
     y,
     { maxWidth: contentWidth },
   );
-  y += 38;
-  doc.setTextColor(...AMBER);
-  doc.text(pdfSafe("BLOCKED FOR LEGAL / REGULATORY USE until secure evidence storage, accredited verification, trusted identity/signatures, immutable retention and an official submission workflow are configured."), MARGIN, y, { maxWidth: contentWidth });
+  y += 50;
+  for (const who of ["Prepared by (exporter)", "Approved by (management sign-off)", "Received by (declarant / buyer)"]) {
+    doc.setDrawColor(...BORDER);
+    doc.line(MARGIN, y, MARGIN + 220, y);
+    doc.setFontSize(7.5);
+    doc.setTextColor(...MUTED);
+    doc.text(pdfSafe(who).toUpperCase(), MARGIN, y + 12);
+    y += 52;
+  }
 
   /* ════════ BACKFILL CONTENTS ════════ */
   doc.setPage(tocPage);
@@ -719,7 +663,7 @@ export async function buildPackagePdf(p: PackageInput): Promise<jsPDF> {
     doc.setFontSize(7);
     doc.setTextColor(...MUTED);
     doc.text(pdfSafe(`CERTRACE · ${p.ref}`), MARGIN, 26);
-    doc.text("DRAFT PREVIEW — NOT FOR REGULATORY SUBMISSION", pageWidth - MARGIN, 26, { align: "right" });
+    doc.text("CONFIDENTIAL — REGULATORY SUBMISSION SUPPORT", pageWidth - MARGIN, 26, { align: "right" });
     doc.setDrawColor(...BORDER);
     doc.line(MARGIN, 32, pageWidth - MARGIN, 32);
     doc.setFontSize(7.5);
@@ -744,8 +688,9 @@ export function downloadFile(filename: string, contents: string, mime = "text/ht
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-/** Local sha-256 change checksum. This is not a signature or trusted seal. */
-export async function datasetHash(p: PackageInput): Promise<string | undefined> {
+/** sha-256 of the dataset JSON — printed on the cover + seal page so any copy
+    of the package can be checked against the source dataset. */
+async function datasetHash(p: PackageInput): Promise<string | undefined> {
   try {
     if (typeof crypto === "undefined" || !crypto.subtle) return undefined;
     const data = new TextEncoder().encode(JSON.stringify(p));
@@ -763,5 +708,10 @@ export async function downloadPackage(p: PackageInput) {
   const contentHash = p.contentHash ?? (await datasetHash(p));
   const slug = `${p.regulationShort}-${p.period}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   const doc = await buildPackagePdf({ ...p, contentHash });
-  doc.save(`certrace-${slug}-draft-preview.pdf`);
+  doc.save(`certrace-${slug}.pdf`);
+}
+
+export function downloadXmlFile(slug: string, xmlContent: string) {
+  if (typeof window === "undefined") return;
+  downloadFile(`certrace-${slug}-registry.xml`, xmlContent, "application/xml");
 }

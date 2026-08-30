@@ -14,6 +14,7 @@ import {
   Trash2,
   Plus,
   Users,
+  Building2,
   Sparkles,
   CircleCheck,
   TriangleAlert,
@@ -26,15 +27,16 @@ import {
   Lock,
   X,
 } from "lucide-react";
-import { Card, Button, Eyebrow, StatusDot, Field, inputClass, cn } from "@/components/ui";
+import { Card, Button, Eyebrow, StatusDot, Field, HelpTip, OptionalTag, Switch, inputClass, cn } from "@/components/ui";
+import { UnlocodeHelp } from "@/components/workspace/installation-form";
 import { Select } from "@/components/controls";
 import { toast } from "@/components/toast";
 import { useSupplier } from "./context";
 import { type SupplierSection, type RequestDocAsk, valueKey } from "@/lib/supplier";
-import { type InstallationProfile, type SupplierProfile, loadProfiles } from "@/lib/supplier-store";
+import { type SupplierProfile, loadProfiles } from "@/lib/supplier-store";
+import { SECTION_ACCESS, isShared, type Audience } from "@/lib/supplier-records";
 import { runQualityCheck, CATEGORIES, CATEGORY_BLURB, type CheckResult, type Severity } from "@/lib/ai-check";
-import { formatDecimal, isPositiveMass } from "@/lib/workflow-measurements";
-import { buildCalculationRequest, calculateMrv, emissionsMatch } from "@/lib/calc-api";
+import { useT } from "@/lib/i18n";
 
 const DEPARTMENTS = [
   "Operations / EHS",
@@ -49,29 +51,54 @@ const DEPARTMENTS = [
 
 /* ════════════════════════ Landing ════════════════════════ */
 export function LandingView() {
-  const { req, state, setView } = useSupplier();
+  const t = useT();
+  const { req, setView } = useSupplier();
   const groups = Array.from(new Set(req.fields.map((f) => f.group)));
+  const self = req.selfSupplied;
   return (
     <div className="mx-auto max-w-2xl py-6">
       <Eyebrow>
-        {req.regulationShort} · {req.period} data request
+        {req.regulationShort} · {req.period} {self ? t("· our own installation") : t("data request")}
       </Eyebrow>
       <h1 className="mt-3 font-[family-name:var(--font-plex)] text-4xl font-light leading-tight tracking-tight text-[#111]">
-        {req.exporterName} needs your carbon data.
+        {self ? t("You produce these goods yourself.") : t("{exporter} needs your carbon data.", { exporter: req.exporterName })}
       </h1>
+      {/* ONE SENTENCE, ONE KEY. Both of these were assembled from six or seven
+          JSX fragments with the supplier's name, the destination and the
+          regulation interleaved — which reads correctly in English and cannot
+          be translated at all, because Thai puts every one of those pieces
+          somewhere else in the sentence. Each is now a single string with
+          named placeholders, so a translator moves them freely. */}
       <p className="mt-3 text-[15px] leading-relaxed text-black/55">
-        You’re <span className="text-black/80">{req.supplierName}</span>. To keep shipping {req.originName} {req.sectorWord} into the {req.destinationName}, {req.exporterName} has
-        to report the embedded emissions of the goods they buy from you — under {req.regulationFull}. This takes about 10 minutes, it’s free, and you don’t need an account.
+        {self
+          ? t(
+              "No Smart Link goes out for these — {supplier} is you. Report the embedded emissions of your own installation the same way an external supplier would, and the declaration treats it identically: same {regulation} checklist, same AI check, same verification trail.",
+              { supplier: req.supplierName, regulation: req.regulationShort },
+            )
+          : t(
+              "You’re {supplier}. To keep shipping {origin} {sector} into the {destination}, {exporter} has to report the embedded emissions of the goods they buy from you — under {regulation}. This takes about 10 minutes, it’s free, and you don’t need an account.",
+              {
+                supplier: req.supplierName,
+                origin: req.originName,
+                sector: req.sectorWord,
+                destination: req.destinationName,
+                exporter: req.exporterName,
+                regulation: req.regulationFull,
+              },
+            )}
       </p>
 
       <Card className="mt-7 divide-y divide-black/[0.06] p-0">
         {[
-          ["Requested by", `${req.exporterName} · ${req.exporterContact}`],
-          ["Regulation", `${req.regulationShort} — ${req.regulationFull}`],
-          ["Goods in scope", req.products.map((p) => p.product.name).join(", ")],
-          ["Reporting period", req.period],
-          ["Documents requested", `${req.documents.length} (${req.documents.filter((d) => d.required).length} required)`],
-          ["Deadline", req.deadline],
+          [self ? t("Reporting as") : t("Requested by"), `${req.exporterName} · ${req.exporterContact}`],
+          [t("Regulation"), `${req.regulationShort} — ${req.regulationFull}`],
+          [t("Goods in scope"), req.products.map((p) => p.product.name).join(", ")],
+          [t("Reporting period"), req.period],
+          [
+            t("Documents requested"),
+            t("{total} ({required} required)", { total: req.documents.length, required: req.documents.filter((d) => d.required).length }),
+          ],
+          [t("Deadline"), req.deadline],
         ].map(([k, v]) => (
           <div key={k} className="flex items-center justify-between gap-4 px-5 py-3">
             <span className="text-[11px] uppercase tracking-[0.1em] text-black/35">{k}</span>
@@ -81,14 +108,14 @@ export function LandingView() {
       </Card>
 
       <div className="mt-6">
-        <Eyebrow>What you’ll be asked for</Eyebrow>
+        <Eyebrow>{t("What you’ll be asked for")}</Eyebrow>
         <div className="mt-2 flex flex-wrap gap-1.5">
           {groups.map((g) => (
             <span key={g} className="rounded-full border border-black/[0.08] bg-white px-2.5 py-1 text-[11px] text-black/55">
-              {g}
+              {t(g)}
             </span>
           ))}
-          <span className="rounded-full border border-black/[0.08] bg-white px-2.5 py-1 text-[11px] text-black/55">Supporting documents</span>
+          <span className="rounded-full border border-black/[0.08] bg-white px-2.5 py-1 text-[11px] text-black/55">{t("Supporting documents")}</span>
         </div>
       </div>
 
@@ -97,25 +124,20 @@ export function LandingView() {
           <ShieldCheck size={15} strokeWidth={1.5} />
         </span>
         <p className="text-[13px] leading-relaxed text-black/55">
-          This readiness demo stores progress only in this browser. It does not encrypt or transmit data to {req.exporterName}, send email, or work across devices. Use sample data only.
+          {self
+            ? t(
+                "Your figures are checked automatically before you submit and land in your own supplier record, so the next declaration starts pre-filled instead of blank. Colleagues can be assigned the sections that belong to their department.",
+              )
+            : t(
+                "Your figures are checked automatically before you submit, encrypted, and shared only with {exporter} for this declaration. You can invite colleagues to fill the parts that belong to their department.",
+                { exporter: req.exporterName },
+              )}
         </p>
       </Card>
 
-      {req.classificationIssue && (
-        <Card className="mt-3 border-[#dc2626]/20 bg-[#fef2f2] p-4 text-[12.5px] leading-relaxed text-[#991b1b]">
-          {req.classificationIssue} No hot-rolled-coil or other fallback was applied.
-        </Card>
-      )}
-
-      {state.legacyUnverifiedQuarantined && (
-        <Card className="mt-3 border-[#b45309]/20 bg-[#fffbeb] p-4 text-[12.5px] leading-relaxed text-black/60">
-          An older browser record was quarantined as <span className="font-mono text-[11px]">legacy_unverified</span>. It was not migrated into this MRV draft.
-        </Card>
-      )}
-
       <div className="mt-7">
         <Button onClick={() => setView("overview")}>
-          Start <ArrowRight size={15} strokeWidth={1.5} />
+          {t("Start")} <ArrowRight size={15} strokeWidth={1.5} />
         </Button>
       </div>
     </div>
@@ -123,149 +145,77 @@ export function LandingView() {
 }
 
 /* ════════════════════════ Profile (optional onboarding) ════════════════════════ */
-const emptyProfile: SupplierProfile = {
-  legalName: "",
-  actorRole: "producer",
-  upstreamProducer: "",
-  installationName: "",
-  country: "",
-  address: "",
-  unlocode: "",
-  coordinates: "",
-  route: "",
-  productionActivityTonnes: "",
-  additionalInstallations: [],
-};
-
-const newInstallation = (): InstallationProfile => ({
-  id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `installation-${Date.now()}`,
-  name: "",
-  country: "",
-  address: "",
-  unlocode: "",
-  coordinates: "",
-  routes: [],
-  productionActivityTonnes: "",
-});
+const emptyProfile: SupplierProfile = { legalName: "", installationName: "", country: "", address: "", unlocode: "", coordinates: "", route: "" };
 
 export function ProfileView() {
+  const t = useT();
   const { req, saveProfile, setView, state } = useSupplier();
   const [p, setP] = React.useState<SupplierProfile>(() => state.profile ?? loadProfiles()[req.supplierName] ?? { ...emptyProfile, legalName: req.supplierName, country: req.originName });
-  type TextProfileKey = Exclude<keyof SupplierProfile, "actorRole" | "additionalInstallations" | "productionActivityMeasurement">;
-  const set = (k: TextProfileKey, v: string) => setP((s) => ({ ...s, [k]: v }));
-  const valid = Boolean(
-    p.legalName.trim() &&
-    p.installationName.trim() &&
-    p.country.trim() &&
-    isPositiveMass(p.productionActivityTonnes, "TNE") &&
-    (p.actorRole === "producer" || p.upstreamProducer.trim()) &&
-    p.additionalInstallations.every((installation) =>
-      installation.name.trim() && installation.country.trim() && isPositiveMass(installation.productionActivityTonnes, "TNE"),
-    ),
-  );
-  const updateInstallation = (id: string, patch: Partial<InstallationProfile>) =>
-    setP((current) => ({
-      ...current,
-      additionalInstallations: current.additionalInstallations.map((installation) => (installation.id === id ? { ...installation, ...patch } : installation)),
-    }));
+  const set = (k: keyof SupplierProfile, v: string) => setP((s) => ({ ...s, [k]: v }));
+  const valid = p.legalName.trim() && p.installationName.trim() && p.country.trim();
 
   return (
     <div className="mx-auto max-w-2xl py-4">
       <button onClick={() => setView("landing")} className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.1em] text-black/40 hover:text-black">
-        <ArrowLeft size={13} strokeWidth={1.5} /> Back
+        <ArrowLeft size={13} strokeWidth={1.5} /> {t("Back")}
       </button>
-      <h1 className="mt-4 font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111]">Company & installation profile</h1>
+      <h1 className="mt-4 font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111]">{t("Company & installation profile")}</h1>
       <p className="mt-2 text-sm text-black/50">
-        Optional and stored only in this browser. Identify whether you operate the installation or are a trader forwarding the producer&apos;s data.
+        {t("Optional, and reusable. We save this securely so your installation identity pre-fills the questionnaire now and skips re-typing on every future request from any buyer.")}
       </p>
 
       <Card className="mt-6 space-y-4 p-5">
-        <Field label="Your role in this request">
-          <Select
-            value={p.actorRole}
-            onChange={(value) => setP((current) => ({ ...current, actorRole: value as SupplierProfile["actorRole"] }))}
-            options={[
-              { value: "producer", label: "Producer / installation operator" },
-              { value: "trader", label: "Trader forwarding producer data" },
-            ]}
-            className="w-full"
-            ariaLabel="Supplier role"
-          />
-        </Field>
-        {p.actorRole === "trader" && (
-          <Field label="Upstream producer" hint="The installation operator whose data you are forwarding. A trader cannot verify installation-level actual values on the producer's behalf.">
-            <input className={inputClass} value={p.upstreamProducer} onChange={(e) => set("upstreamProducer", e.target.value)} placeholder="Producer legal name" />
-          </Field>
-        )}
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Legal company name">
-            <input className={inputClass} value={p.legalName} onChange={(e) => set("legalName", e.target.value)} placeholder="Thai Metal Pro Co., Ltd" />
+          <Field label={t("Legal company name")}>
+            <input className={inputClass} value={p.legalName} onChange={(e) => set("legalName", e.target.value)} placeholder={t("Thai Metal Pro Co., Ltd")} />
           </Field>
-          <Field label="Production installation">
-            <input className={inputClass} value={p.installationName} onChange={(e) => set("installationName", e.target.value)} placeholder="Rayong Plant 2" />
+          <Field label={t("Production installation")}>
+            <input className={inputClass} value={p.installationName} onChange={(e) => set("installationName", e.target.value)} placeholder={t("Rayong Plant 2")} />
           </Field>
-          <Field label="Country">
-            <input className={inputClass} value={p.country} onChange={(e) => set("country", e.target.value)} placeholder="Thailand" />
+          <Field label={t("Country")}>
+            <input className={inputClass} value={p.country} onChange={(e) => set("country", e.target.value)} placeholder={t("Thailand")} />
           </Field>
-          <Field label="UN/LOCODE" hint="UN location code of the site.">
-            <input className={inputClass} value={p.unlocode} onChange={(e) => set("unlocode", e.target.value)} placeholder="THRYG" />
-          </Field>
+          {/* Not a <Field>: the help has to sit on the label, because "I do not
+              have a UNLOCODE" is the single most common reason this box is
+              left blank and the answer is not obvious. `UnlocodeHelp` is the
+              one copy of that answer — see installation-form.tsx. */}
+          <label className="block">
+            <span className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-[0.1em] text-black/55">
+              {t("UN/LOCODE")}
+              <HelpTip title={t("UNLOCODE")}>
+                <UnlocodeHelp />
+              </HelpTip>
+            </span>
+            <input className={cn(inputClass, "font-mono")} value={p.unlocode} onChange={(e) => set("unlocode", e.target.value.toUpperCase())} placeholder={t("THRYG")} />
+          </label>
         </div>
-        <Field label="Site address">
-          <textarea className={cn(inputClass, "min-h-[64px] resize-y")} value={p.address} onChange={(e) => set("address", e.target.value)} placeholder="123 Industrial Estate Rd, Rayong 21150" />
+        <Field label={t("Site address")}>
+          <textarea className={cn(inputClass, "min-h-[64px] resize-y")} value={p.address} onChange={(e) => set("address", e.target.value)} placeholder={t("123 Industrial Estate Rd, Rayong 21150")} />
         </Field>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Geographic coordinates" hint="Lat, long of the main emission source.">
+          <Field label={t("Geographic coordinates")} hint={t("Lat, long of the main emission source.")}>
             <input className={inputClass} value={p.coordinates} onChange={(e) => set("coordinates", e.target.value)} placeholder="12.6802, 101.2810" />
           </Field>
-          <Field label="Main production route" hint="e.g. EAF, BF-BOF, DRI-EAF.">
-            <input className={inputClass} value={p.route} onChange={(e) => set("route", e.target.value)} placeholder="EAF (electric arc furnace)" />
-          </Field>
-          <Field label="Installation production activity (TNE)" hint="Exact total produced at this installation in the reporting period; separate from commercial shipment quantity.">
-            <input className={inputClass} inputMode="decimal" value={p.productionActivityTonnes} onChange={(e) => set("productionActivityTonnes", e.target.value)} placeholder="e.g. 125000" />
+          <Field label={t("Main production route")} hint={t("e.g. EAF, BF-BOF, DRI-EAF.")}>
+            <input className={inputClass} value={p.route} onChange={(e) => set("route", e.target.value)} placeholder={t("EAF (electric arc furnace)")} />
           </Field>
         </div>
-
-        {p.additionalInstallations.map((installation, index) => (
-          <div key={installation.id} className="space-y-3 rounded-xl border border-black/[0.06] bg-[#fafaf8] p-4">
-            <div className="flex items-center justify-between">
-              <Eyebrow>Additional installation {index + 2}</Eyebrow>
-              <button
-                className="text-black/35 hover:text-[#dc2626]"
-                onClick={() => setP((current) => ({ ...current, additionalInstallations: current.additionalInstallations.filter((item) => item.id !== installation.id) }))}
-                aria-label={`Remove installation ${index + 2}`}
-              >
-                <Trash2 size={14} strokeWidth={1.5} />
-              </button>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Installation name"><input className={inputClass} value={installation.name} onChange={(e) => updateInstallation(installation.id, { name: e.target.value })} /></Field>
-              <Field label="Country"><input className={inputClass} value={installation.country} onChange={(e) => updateInstallation(installation.id, { country: e.target.value })} /></Field>
-              <Field label="Production routes"><input className={inputClass} value={installation.routes.join(", ")} onChange={(e) => updateInstallation(installation.id, { routes: e.target.value.split(",").map((route) => route.trim()).filter(Boolean) })} placeholder="EAF, rolling" /></Field>
-              <Field label="Production activity (TNE)"><input className={inputClass} inputMode="decimal" value={installation.productionActivityTonnes} onChange={(e) => updateInstallation(installation.id, { productionActivityTonnes: e.target.value, productionActivityMeasurement: undefined })} /></Field>
-            </div>
-            <Field label="Site address"><input className={inputClass} value={installation.address} onChange={(e) => updateInstallation(installation.id, { address: e.target.value })} /></Field>
-          </div>
-        ))}
-        <Button variant="ghost" size="sm" onClick={() => setP((current) => ({ ...current, additionalInstallations: [...current.additionalInstallations, newInstallation()] }))}>
-          <Plus size={13} strokeWidth={1.5} /> Add installation
-        </Button>
       </Card>
 
       <div className="mt-6 flex items-center justify-between">
         <Button variant="ghost" size="sm" onClick={() => setView("overview")}>
-          Skip for now
+          {t("Skip for now")}
         </Button>
         <Button
           size="sm"
           disabled={!valid}
           onClick={() => {
             saveProfile(p);
-            toast({ message: "Profile saved locally", detail: "The primary installation now pre-fills this browser's questionnaire.", tone: "ok" });
+            toast({ message: "Profile saved", detail: "Your installation details now pre-fill the questionnaire.", tone: "ok" });
             setView("overview");
           }}
         >
-          Save & continue <ArrowRight size={14} strokeWidth={1.5} />
+          {t("Save & continue")} <ArrowRight size={14} strokeWidth={1.5} />
         </Button>
       </div>
     </div>
@@ -274,7 +224,23 @@ export function ProfileView() {
 
 /* ════════════════════════ Overview (hub) ════════════════════════ */
 export function OverviewView() {
-  const { req, state, sections, sectionProgress, overall, setView, focusRevision, goToCheck, hasAnyInput, requiredComplete, missingRequiredCount } = useSupplier();
+  const t = useT();
+  const {
+    req,
+    state,
+    sections,
+    sectionProgress,
+    overall,
+    setView,
+    focusRevision,
+    goToCheck,
+    hasAnyInput,
+    requiredComplete,
+    missingRequiredCount,
+    carriedVerdict,
+    carriedPending,
+    confirmCarried,
+  } = useSupplier();
   const latest = state.versions[state.versions.length - 1];
   const revFields = state.unlocked.length;
   const revDocs = state.unlockedDocs.length;
@@ -285,16 +251,16 @@ export function OverviewView() {
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <Eyebrow>Your request workspace</Eyebrow>
+          <Eyebrow>{t("Your request workspace")}</Eyebrow>
           <h1 className="mt-2 font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111]">
             {req.regulationShort} · {req.period}
           </h1>
-          <p className="mt-2 text-sm text-black/50">For {req.exporterName} — fill each section, reference documents, run the check, then record a local attestation.</p>
+          <p className="mt-2 text-sm text-black/50">{t("For {exporter} — fill each section, attach documents, run the check, then sign and submit.", { exporter: req.exporterName })}</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="text-right">
             <div className="font-[family-name:var(--font-plex)] text-3xl font-light text-[#111]">{overall.pct}%</div>
-            <div className="text-[10px] uppercase tracking-[0.1em] text-black/40">complete</div>
+            <div className="text-[10px] uppercase tracking-[0.1em] text-black/40">{t("complete")}</div>
           </div>
         </div>
       </div>
@@ -316,20 +282,64 @@ export function OverviewView() {
         </Card>
       )}
 
+      {/* Carried forward from this company's own record — the reuse story's
+          other half: it saves them typing, so it has to be honest about age. */}
+      {state.carried && carriedVerdict && (
+        <Card
+          className={cn(
+            "p-4",
+            carriedPending && (carriedVerdict.level === "stale" || carriedVerdict.periodMismatch)
+              ? "border-[#dc2626]/25 bg-[#fef2f2]"
+              : carriedPending && carriedVerdict.level === "aging"
+                ? "border-[#b45309]/25 bg-[#fffbeb]"
+                : "border-[#047857]/20 bg-[#ecfdf5]",
+          )}
+        >
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 grid h-8 w-8 flex-none place-items-center rounded-lg bg-white/70 text-black/55">
+              <History size={15} strokeWidth={1.5} />
+            </span>
+            <div className="min-w-0 text-[13px] leading-relaxed text-black/65">
+              <span className="text-black/80">
+                {state.carried.keys.length} answer{state.carried.keys.length === 1 ? "" : "s"} filled in from your last submission.
+              </span>{" "}
+              {carriedVerdict.message ??
+                "Nothing here is submitted until you sign — check each figure still matches this period, update what's changed, and the rest you can leave."}
+              {carriedPending ? (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <Button size="sm" variant="secondary" onClick={() => setView("form")}>
+                    {t("Review the figures")} <ArrowRight size={13} strokeWidth={1.5} />
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={confirmCarried}>
+                    <Check size={13} strokeWidth={1.5} /> {t("They're all still correct")}
+                  </Button>
+                </div>
+              ) : (
+                <span className="mt-1.5 block text-[12px] text-black/45">Confirmed for {req.period}.</span>
+              )}
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* Exporter note */}
       <Card warm className="flex items-start gap-3 p-4">
         <span className="mt-0.5 grid h-8 w-8 flex-none place-items-center rounded-lg border border-black/[0.08] bg-white text-black/55">
           <Mail size={15} strokeWidth={1.5} />
         </span>
         <div>
-          <div className="text-[11px] uppercase tracking-[0.1em] text-black/40">Note from {req.exporterName}</div>
-          <p className="mt-1 text-[13px] leading-relaxed text-black/60">{req.noteToSuppliers}</p>
+          <div className="text-[11px] uppercase tracking-[0.1em] text-black/40">{t("Note from {exporter}", { exporter: req.exporterName })}</div>
+          {/* The exporter's own note. It is DATA, so it passes through t()
+              rather than being wrapped as a literal: the seeded default resolves
+              to its Thai pair, and anything an exporter typed themselves comes
+              back unchanged. */}
+          <p className="mt-1 text-[13px] leading-relaxed text-black/60">{t(req.noteToSuppliers)}</p>
         </div>
       </Card>
 
       {/* Section matrix */}
       <div>
-        <Eyebrow>Sections</Eyebrow>
+        <Eyebrow>{t("Sections")}</Eyebrow>
         <div className="mt-3 overflow-hidden rounded-2xl border border-black/[0.08] bg-white">
           {sections.map((s) => {
             const prog = sectionProgress(s);
@@ -349,9 +359,9 @@ export function OverviewView() {
                   {prog.complete ? <Check size={14} strokeWidth={2.5} /> : prog.total === 0 ? <span className="text-[11px] text-black/25">–</span> : <span className="font-mono text-[10px]">{prog.done}/{prog.total}</span>}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-sm text-black/75">{s.label}</span>
+                  <span className="block text-sm text-black/75">{t(s.label)}</span>
                   <span className="block truncate text-[11px] text-black/40">
-                    {s.blurb} · <span className="text-black/35">{seat ? `${seat.name.split(" ")[0]} (${seat.department})` : s.department}</span>
+                    {t(s.blurb)} · <span className="text-black/35">{seat ? `${seat.name.split(" ")[0]} (${t(seat.department)})` : t(s.department)}</span>
                   </span>
                 </span>
                 <ChevronRight size={15} strokeWidth={1.5} className="flex-none text-black/25" />
@@ -368,12 +378,12 @@ export function OverviewView() {
               <CircleCheck size={16} strokeWidth={1.5} />
             </span>
             <div className="text-[13px] text-black/65">
-              Submitted as <span className="text-black/85">Version {latest.n}</span> · quality score {latest.score}
-              <div className="text-[11px] text-black/40">View the receipt and audit trail.</div>
+              {t("Submitted as")} <span className="text-black/85">Version {latest.n}</span> · quality score {latest.score}
+              <div className="text-[11px] text-black/40">{t("View the receipt and verification trail.")}</div>
             </div>
           </div>
           <Button variant="secondary" size="sm" onClick={() => setView("done")}>
-            View submission
+            {t("View submission")}
           </Button>
         </Card>
       )}
@@ -381,15 +391,15 @@ export function OverviewView() {
       <div className="border-t border-black/[0.06] pt-5">
         <div className="flex flex-wrap items-center gap-3">
           <Button onClick={() => setView("form")}>
-            {overall.pct > 0 ? "Continue questionnaire" : "Start questionnaire"} <ArrowRight size={15} strokeWidth={1.5} />
+            {overall.pct > 0 ? t("Continue questionnaire") : t("Start questionnaire")} <ArrowRight size={15} strokeWidth={1.5} />
           </Button>
           <Button variant="secondary" size="md" onClick={goToCheck} disabled={!hasAnyInput}>
-            <Sparkles size={14} strokeWidth={1.5} /> Run quality check
+            <Sparkles size={14} strokeWidth={1.5} /> {t("Run quality check")}
           </Button>
         </div>
         <p className="mt-2.5 text-[11px] text-black/40">
           {!hasAnyInput
-            ? "Start filling in the questionnaire to enable the quality check."
+            ? t("Start filling in the questionnaire to enable the quality check.")
             : !requiredComplete
               ? `${missingRequiredCount} required field${missingRequiredCount === 1 ? "" : "s"} left — we'll take you to them before running the check.`
               : "All required fields are in. The check is ready to run."}
@@ -407,6 +417,7 @@ const DOC_FLAG: Record<"warning" | "revision", { ring: string; ringStrong: strin
 const fmtSize = (b: number) => (b < 1024 ? `${b} B` : b < 1024 * 1024 ? `${(b / 1024).toFixed(0)} KB` : `${(b / 1024 / 1024).toFixed(1)} MB`);
 
 function DocRow({ d }: { d: RequestDocAsk }) {
+  const t = useT();
   const { state, addFiles, removeFile, isDocEditable, flaggedDocs, focusDocId, clearDocFocus } = useSupplier();
   const files = state.docs[d.id]?.files ?? [];
   const uploaded = files.length > 0;
@@ -430,12 +441,25 @@ function DocRow({ d }: { d: RequestDocAsk }) {
   }, [isTarget, clearDocFocus]);
 
   const ring = fs ? cn("transition-shadow duration-700", pulse ? fs.ringStrong : fs.ring) : "";
-  const onPick = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const list = Array.from(e.target.files ?? []);
     e.target.value = ""; // let the same file be re-picked later
-    // Never read or persist document bytes in localStorage. The filename and
-    // size are a demo reference only until secure storage + scanning exist.
-    addFiles(d.id, list.map((file) => ({ name: file.name, size: file.size })));
+    // Keep the real bytes for files up to 1.5 MB so the exporter can retrieve
+    // the evidence; bigger files record name + size only (storage quota).
+    const MAX_INLINE = 1_500_000;
+    const picked = await Promise.all(
+      list.map(
+        (f) =>
+          new Promise<{ name: string; size: number; dataUrl?: string }>((resolve) => {
+            if (f.size > MAX_INLINE) return resolve({ name: f.name, size: f.size });
+            const reader = new FileReader();
+            reader.onload = () => resolve({ name: f.name, size: f.size, dataUrl: typeof reader.result === "string" ? reader.result : undefined });
+            reader.onerror = () => resolve({ name: f.name, size: f.size });
+            reader.readAsDataURL(f);
+          }),
+      ),
+    );
+    addFiles(d.id, picked);
   };
 
   return (
@@ -447,11 +471,11 @@ function DocRow({ d }: { d: RequestDocAsk }) {
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm text-black/75">{d.label}</span>
+              <span className="text-sm text-black/75">{t(d.label)}</span>
               {d.required ? (
-                <span className="rounded-full border border-black/10 px-2 py-0.5 text-[9px] uppercase tracking-[0.1em] text-black/45">required</span>
+                <span className="rounded-full border border-black/10 px-2 py-0.5 text-[9px] uppercase tracking-[0.1em] text-black/45">{t("required")}</span>
               ) : (
-                <span className="text-[9px] uppercase tracking-[0.1em] text-black/30">optional</span>
+                <OptionalTag />
               )}
               {!editable && <Lock size={11} strokeWidth={1.5} className="text-black/30" />}
               {uploaded && <span className="font-mono text-[10px] text-black/35">{files.length} file{files.length === 1 ? "" : "s"}</span>}
@@ -476,23 +500,23 @@ function DocRow({ d }: { d: RequestDocAsk }) {
 
             {editable ? (
               <>
-                <input ref={inputRef} type="file" multiple onChange={onPick} className="hidden" aria-label={`Upload ${d.label}`} />
+                <input ref={inputRef} type="file" multiple onChange={onPick} className="hidden" aria-label={t("Upload {document}", { document: t(d.label) })} />
                 <button
                   onClick={() => inputRef.current?.click()}
                   className="mt-2 inline-flex items-center gap-1.5 rounded-xl border border-dashed border-black/15 px-3.5 py-2 text-[12px] text-black/55 hover:border-black/30 hover:text-black"
                 >
-                  <Upload size={13} strokeWidth={1.5} /> {uploaded ? "Add file reference" : "Choose file reference(s)"}
+                  <Upload size={13} strokeWidth={1.5} /> {uploaded ? "Add more files" : "Upload file(s)"}
                 </button>
               </>
             ) : (
-              <p className="mt-2 text-[11px] text-black/40">Locked — not part of this revision.</p>
+              <p className="mt-2 text-[11px] text-black/40">{t("Locked — not part of this revision.")}</p>
             )}
 
             {flag && (
               <p className={cn("mt-2 flex items-start gap-1.5 text-[11.5px] leading-relaxed", fs!.text)}>
                 {flag.severity === "revision" ? <PenLine size={12} strokeWidth={1.8} className="mt-[2px] flex-none" /> : <TriangleAlert size={12} strokeWidth={1.8} className="mt-[2px] flex-none" />}
                 <span>
-                  <span className="font-pixel text-[9px] uppercase tracking-[0.14em] opacity-70">{flag.severity === "revision" ? "Exporter" : "Quality check"} · </span>
+                  <span className="font-pixel text-[9px] uppercase tracking-[0.14em] opacity-70">{flag.severity === "revision" ? "Exporter" : "AI check"} · </span>
                   {flag.message}
                 </span>
               </p>
@@ -505,14 +529,15 @@ function DocRow({ d }: { d: RequestDocAsk }) {
 }
 
 export function DocumentsView() {
+  const t = useT();
   const { req, state, setView, focusDoc } = useSupplier();
   const docRevision = state.status === "revision_requested" && state.unlockedDocs.length > 0;
   return (
     <div className="space-y-6">
       <div>
-        <Eyebrow>Supporting documents</Eyebrow>
-        <h1 className="mt-2 font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111]">Attach your certificates</h1>
-        <p className="mt-2 max-w-2xl text-sm text-black/50">{req.exporterName} asked for these alongside the carbon data. This demo records only filenames and sizes; it does not retain or transmit document bytes.</p>
+        <Eyebrow>{t("Supporting documents")}</Eyebrow>
+        <h1 className="mt-2 font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111]">{t("Attach your certificates")}</h1>
+        <p className="mt-2 max-w-2xl text-sm text-black/50">{req.exporterName} asked for these alongside the carbon data. Required ones are flagged; optional ones help but won’t block you. You can attach several files to each.</p>
       </div>
 
       {docRevision && (
@@ -524,7 +549,7 @@ export function DocumentsView() {
             <div className="min-w-0 flex-1 text-[13px] leading-relaxed text-black/65">
               <span className="text-black/80">{req.exporterName} asked you to update {state.unlockedDocs.length} document{state.unlockedDocs.length === 1 ? "" : "s"}.</span> {state.unlockedDocs.length === 1 ? "It's" : "They're"} outlined in blue below — add or remove files there. Everything else stays locked.
               <Button size="sm" className="mt-3" onClick={() => focusDoc(state.unlockedDocs[0])}>
-                Take me to the document <ArrowRight size={13} strokeWidth={1.5} />
+                {t("Take me to the document")} <ArrowRight size={13} strokeWidth={1.5} />
               </Button>
             </div>
           </div>
@@ -536,15 +561,119 @@ export function DocumentsView() {
           <DocRow key={d.id} d={d} />
         ))}
       </div>
-      <p className="text-[12px] text-[#b45309]">Evidence is unavailable for regulatory readiness until private backend storage, malware scanning and retention controls are configured. File bytes are not stored.</p>
+      <p className="text-[12px] text-black/35">{t("Files stay in your browser for this demo — names and sizes are recorded so you can see the flow; nothing is uploaded to a server.")}</p>
 
       <div className="flex items-center justify-between border-t border-black/[0.06] pt-5">
         <Button variant="ghost" size="sm" onClick={() => setView("form")}>
-          <ArrowLeft size={14} strokeWidth={1.5} /> Questionnaire
+          <ArrowLeft size={14} strokeWidth={1.5} /> {t("Questionnaire")}
         </Button>
         <Button size="sm" onClick={() => setView("team")}>
-          Continue to team <ArrowRight size={14} strokeWidth={1.5} />
+          {t("Continue to team")} <ArrowRight size={14} strokeWidth={1.5} />
         </Button>
+      </div>
+    </div>
+  );
+}
+
+/* ════════════════════════ Data sharing (who sees what) ════════════════════════
+   Your data answers the exporter who asked — that was never in question. What
+   IS in question, now that one dataset can be forwarded to several EU buyers,
+   is how far it travels. Anything CBAM legally requires in their filing can't
+   be held back (withholding it just makes the filing impossible), so those
+   rows are locked on and say why. Everything else — your site address, the
+   precursor rows that name your own upstream, your certificates — is yours to
+   keep between you and the exporter. */
+export function SharingView() {
+  const t = useT();
+  const { req, access, setAccess, reuseAllowed, setReuse, sections } = useSupplier();
+  const active = sections.filter((s) => s.key !== "documents");
+  const shown: SupplierSection[] = [...active, ...sections.filter((s) => s.key === "documents")];
+
+  const audiences: { key: Audience; label: string; blurb: string }[] = [
+    { key: "buyer", label: t("EU buyers"), blurb: t("The importers your exporter sells to — their declarant files the CBAM declaration.") },
+    { key: "verifier", label: t("Verifier"), blurb: t("The accredited verifier checking the dataset before it's filed.") },
+  ];
+
+  const restrictedCount = shown.filter((s) => SECTION_ACCESS[s.key]?.restrictable && audiences.some((a) => !isShared(access, s.key, a.key))).length;
+
+  return (
+    <div className="mx-auto max-w-3xl space-y-6 py-2">
+      <div>
+        <Eyebrow>{t("Data sharing")}</Eyebrow>
+        <h2 className="mt-2 font-[family-name:var(--font-plex)] text-2xl font-light tracking-tight text-[#111]">{t("Who sees what.")}</h2>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-black/50">
+          {req.exporterName} sees everything they asked you for — that&apos;s the request you&apos;re answering. These settings control how far it goes after that, and they apply to your
+          whole record, not just this one request.
+        </p>
+      </div>
+
+      <Card warm className="flex items-start gap-3 p-4">
+        <span className="mt-0.5 grid h-8 w-8 flex-none place-items-center rounded-lg border border-black/[0.08] bg-white text-black/55">
+          <Lock size={15} strokeWidth={1.5} />
+        </span>
+        <p className="text-[12.5px] leading-relaxed text-black/55">
+          {t("Rows marked")} <span className="text-black/75">{t("required")}</span> {t("can't be withheld from buyers — they're what the CBAM declaration is made of, and holding them back would only mean your goods can't clear. The rest is genuinely optional, and turning it off costs you nothing.")}
+        </p>
+      </Card>
+
+      <Card className="overflow-hidden p-0">
+        <div className="grid grid-cols-[1fr_auto_auto] gap-4 border-b border-black/[0.06] bg-black/[0.02] px-5 py-2.5 font-mono text-[8px] uppercase tracking-[0.16em] text-black/30">
+          <span>{t("Section")}</span>
+          <span className="w-16 text-center">{t("Buyers")}</span>
+          <span className="w-16 text-center">{t("Verifier")}</span>
+        </div>
+        {shown.map((section) => {
+          const meta = SECTION_ACCESS[section.key];
+          const locked = !meta?.restrictable;
+          return (
+            <div key={section.key} className="grid grid-cols-[1fr_auto_auto] items-center gap-4 border-b border-black/[0.04] px-5 py-3.5 last:border-0">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[13px] text-black/75">{t(section.label)}</span>
+                  {locked && (
+                    <span className="inline-flex flex-none items-center gap-1 rounded-full border border-black/10 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.1em] text-black/45">
+                      <Lock size={8} strokeWidth={1.5} /> {t("required")}
+                    </span>
+                  )}
+                </div>
+                <p className="mt-0.5 text-[11.5px] leading-relaxed text-black/40">{t(meta?.note ?? section.blurb)}</p>
+              </div>
+              {audiences.map((a) => (
+                <span key={a.key} className="flex w-16 justify-center">
+                  <Switch
+                    checked={isShared(access, section.key, a.key)}
+                    disabled={locked}
+                    ariaLabel={t("Share {section} with {audience}", { section: t(section.label), audience: a.label })}
+                    onChange={(v) => setAccess(section.key, a.key, v)}
+                  />
+                </span>
+              ))}
+            </div>
+          );
+        })}
+      </Card>
+
+      {restrictedCount > 0 && (
+        <Card className="flex items-start gap-3 border-[#b45309]/25 bg-[#fffbeb] p-4">
+          <TriangleAlert size={15} strokeWidth={1.5} className="mt-0.5 flex-none text-[#b45309]" />
+          <p className="text-[12.5px] leading-relaxed text-black/60">
+            {restrictedCount} section{restrictedCount === 1 ? "" : "s"} won&apos;t travel past {req.exporterName.replace(/\.$/, "")}. They&apos;ll see that you restricted it, and buyers
+            who need the detail may come back and ask — but every figure their filing legally needs still reaches them.
+          </p>
+        </Card>
+      )}
+
+      <div>
+        <Eyebrow>{t("Re-using your data")}</Eyebrow>
+        <Card className="mt-2 flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-sm text-black/70">Let {req.exporterName} start their next request from what you&apos;ve already submitted</p>
+            <p className="mt-1 text-[12.5px] leading-relaxed text-black/45">
+              {t("On — their next request opens pre-filled and you confirm or update the figures instead of retyping them. Off — every request starts blank. Either way, data you've already submitted stays with them; this only governs what gets carried forward.")}
+            </p>
+          </div>
+          <Switch checked={reuseAllowed} onChange={setReuse} ariaLabel={t("Allow this exporter to reuse my saved data")} />
+        </Card>
       </div>
     </div>
   );
@@ -552,7 +681,8 @@ export function DocumentsView() {
 
 /* ════════════════════════ Team / seats ════════════════════════ */
 export function TeamView() {
-  const { state, sections, addSeat, removeSeat, toggleAssign, setView, goToCheck, hasAnyInput } = useSupplier();
+  const t = useT();
+  const { req, state, sections, addSeat, removeSeat, toggleAssign, setView, goToCheck, hasAnyInput } = useSupplier();
   const [form, setForm] = React.useState({ name: "", email: "", department: DEPARTMENTS[0] });
   const [copiedId, setCopiedId] = React.useState<string | null>(null);
   const copyTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -564,7 +694,7 @@ export function TeamView() {
     setCopiedId(seatId);
     if (copyTimer.current) clearTimeout(copyTimer.current);
     copyTimer.current = setTimeout(() => setCopiedId(null), 1900);
-    toast({ message: "Same-browser demo link copied", detail: "No access control, email delivery or cross-device state is configured.", tone: "info" });
+    toast({ message: "Scoped link copied", detail: "Send it to your colleague — it opens only their assigned sections.", tone: "ok" });
   };
 
   React.useEffect(() => () => { if (copyTimer.current) clearTimeout(copyTimer.current); }, []);
@@ -572,37 +702,37 @@ export function TeamView() {
   return (
     <div className="space-y-6">
       <div>
-        <Eyebrow>Team & departments</Eyebrow>
-        <h1 className="mt-2 font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111]">Split the work by department</h1>
+        <Eyebrow>{t("Team & departments")}</Eyebrow>
+        <h1 className="mt-2 font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111]">{t("Split the work by department")}</h1>
         <p className="mt-2 max-w-2xl text-sm text-black/50">
-          Model who owns each section. Collaborators and assignments are saved in this browser only; links do not provide access control or cross-device sharing.
+          {t("This data lives in different teams — emissions with ESG, carbon price with finance, certificates with QA. Invite a colleague and assign the sections that are theirs. They get a link to just their part; you stay in control and sign at the end.")}
         </p>
       </div>
 
-      {/* local collaborator model */}
+      {/* invite */}
       <Card className="p-5">
-        <Eyebrow>Add a demo collaborator</Eyebrow>
+        <Eyebrow>{t("Invite a colleague")}</Eyebrow>
         <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
-          <Field label="Name">
-            <input className={inputClass} value={form.name} onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))} placeholder="Full name" />
+          <Field label={t("Name")}>
+            <input className={inputClass} value={form.name} onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))} placeholder={t("Full name")} />
           </Field>
-          <Field label="Email">
-            <input className={inputClass} value={form.email} onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))} placeholder="name@company.com" />
+          <Field label={t("Email")}>
+            <input className={inputClass} value={form.email} onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))} placeholder={t("name@company.com")} />
           </Field>
           <label className="block">
-            <span className="mb-2 block text-[11px] uppercase tracking-[0.1em] text-black/55">Department</span>
-            <Select value={form.department} onChange={(v) => setForm((s) => ({ ...s, department: v }))} options={DEPARTMENTS.map((d) => ({ value: d, label: d }))} className="w-full" ariaLabel="Department" />
+            <span className="mb-2 block text-[11px] uppercase tracking-[0.1em] text-black/55">{t("Department")}</span>
+            <Select value={form.department} onChange={(v) => setForm((s) => ({ ...s, department: v }))} options={DEPARTMENTS.map((d) => ({ value: d, label: d }))} className="w-full" ariaLabel={t("Department")} />
           </label>
           <Button
             size="sm"
             disabled={!valid}
             onClick={() => {
               addSeat(form);
-              toast({ message: `${form.name} added locally`, detail: "Assign their sections below; no invitation was sent.", tone: "info" });
+              toast({ message: `${form.name} invited`, detail: "Assign their sections below.", tone: "ok" });
               setForm({ name: "", email: "", department: DEPARTMENTS[0] });
             }}
           >
-            <Plus size={13} strokeWidth={1.5} /> Add locally
+            <Plus size={13} strokeWidth={1.5} /> {t("Invite")}
           </Button>
         </div>
       </Card>
@@ -611,7 +741,7 @@ export function TeamView() {
       {state.seats.length === 0 ? (
         <Card warm className="flex items-center gap-3 p-5 text-sm text-black/50">
           <Users size={18} strokeWidth={1.5} className="text-black/35" />
-          No demo collaborators yet — you can fill everything yourself or model section ownership above.
+          {t("No colleagues yet — you can fill everything yourself, or invite the right people above.")}
         </Card>
       ) : (
         <div className="space-y-3">
@@ -642,15 +772,15 @@ export function TeamView() {
                       <Link2 size={12} strokeWidth={1.5} className={cn("absolute transition-all duration-300", copiedId === seat.id ? "scale-50 opacity-0" : "scale-100 opacity-100")} />
                       <Check size={12} strokeWidth={2.5} className={cn("absolute transition-all duration-300", copiedId === seat.id ? "scale-100 opacity-100" : "scale-50 opacity-0")} />
                     </span>
-                    {copiedId === seat.id ? "Copied!" : "Copy demo link"}
+                    {copiedId === seat.id ? "Copied!" : "Copy link"}
                   </button>
-                  <button onClick={() => removeSeat(seat.id)} className="text-black/30 hover:text-[#dc2626]" aria-label="Remove colleague">
+                  <button onClick={() => removeSeat(seat.id)} className="text-black/30 hover:text-[#dc2626]" aria-label={t("Remove colleague")}>
                     <Trash2 size={15} strokeWidth={1.5} />
                   </button>
                 </div>
               </div>
               <div className="mt-3 border-t border-black/[0.05] pt-3">
-                <div className="mb-2 font-pixel text-[10px] uppercase tracking-[0.16em] text-black/40">Assigned sections</div>
+                <div className="mb-2 font-pixel text-[10px] uppercase tracking-[0.16em] text-black/40">{t("Assigned sections")}</div>
                 <div className="flex flex-wrap gap-1.5">
                   {sections.map((s: SupplierSection) => {
                     const on = seat.sections.includes(s.key);
@@ -677,17 +807,17 @@ export function TeamView() {
 
       <div className="flex items-center justify-between border-t border-black/[0.06] pt-5">
         <Button variant="ghost" size="sm" onClick={() => setView("documents")}>
-          <ArrowLeft size={14} strokeWidth={1.5} /> Documents
+          <ArrowLeft size={14} strokeWidth={1.5} /> {t("Documents")}
         </Button>
         <Button size="sm" onClick={goToCheck} disabled={!hasAnyInput}>
-          Run quality check <ArrowRight size={14} strokeWidth={1.5} />
+          {t("Run quality check")} <ArrowRight size={14} strokeWidth={1.5} />
         </Button>
       </div>
     </div>
   );
 }
 
-/* ════════════════════════ Deterministic quality check ════════════════════════ */
+/* ════════════════════════ AI quality check ════════════════════════ */
 const SEV_META: Record<Severity, { tone: "ok" | "warn" | "err"; icon: React.ElementType; label: string }> = {
   pass: { tone: "ok", icon: CircleCheck, label: "Passed" },
   warning: { tone: "warn", icon: TriangleAlert, label: "Warning" },
@@ -695,6 +825,7 @@ const SEV_META: Record<Severity, { tone: "ok" | "warn" | "err"; icon: React.Elem
 };
 
 export function CheckView() {
+  const t = useT();
   const { runCheck, setView, state, focusField, focusDoc, goToCheck, requiredComplete, missingRequiredCount } = useSupplier();
   const [result, setResult] = React.useState<CheckResult | null>(state.lastCheck);
   const [running, setRunning] = React.useState(false);
@@ -709,7 +840,7 @@ export function CheckView() {
   }, [runCheck]);
 
   React.useEffect(() => {
-    // Do not run the deterministic suite while required fields are still empty.
+    // Never spend an AI run while required fields are still empty.
     if (requiredComplete && !state.lastCheck) run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -717,24 +848,24 @@ export function CheckView() {
   const scoreTone = (s: number) => (s >= 85 ? "#047857" : s >= 60 ? "#b45309" : "#dc2626");
 
   // Gate: incomplete required data — lead the supplier back to fill it in rather
-  // than running the deterministic suite on data that cannot pass anyway.
+  // than running (and charging for) the AI check on data that can't pass anyway.
   if (!requiredComplete) {
     return (
       <div className="mx-auto max-w-xl py-8 text-center">
         <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl border border-black/10 bg-white text-black/45">
           <Sparkles size={24} strokeWidth={1.5} />
         </span>
-        <h1 className="mt-5 font-[family-name:var(--font-plex)] text-2xl font-light tracking-tight text-[#111]">Finish the required fields first</h1>
+        <h1 className="mt-5 font-[family-name:var(--font-plex)] text-2xl font-light tracking-tight text-[#111]">{t("Finish the required fields first")}</h1>
         <p className="mt-2 text-sm text-black/50">
-          Deterministic validation runs once every required field has a value. Advisory anomaly flags are shown separately and never approve data. You have{" "}
-          <span className="text-[#b45309]">{missingRequiredCount} required field{missingRequiredCount === 1 ? "" : "s"}</span> left.
+          The AI quality check runs once every required field has a value — that way it never burns a run on data that isn’t ready yet. You have{" "}
+          <span className="text-[#b45309]">{missingRequiredCount} required field{missingRequiredCount === 1 ? "" : "s"}</span> {t("left.")}
         </p>
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
           <Button onClick={goToCheck}>
-            Take me to the first one <ArrowRight size={15} strokeWidth={1.5} />
+            {t("Take me to the first one")} <ArrowRight size={15} strokeWidth={1.5} />
           </Button>
           <Button variant="secondary" size="md" onClick={() => setView("form")}>
-            Back to questionnaire
+            {t("Back to questionnaire")}
           </Button>
         </div>
       </div>
@@ -745,10 +876,10 @@ export function CheckView() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <Eyebrow>Automatic quality check</Eyebrow>
-          <h1 className="mt-2 font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111]">Deterministic checks before local attestation</h1>
+          <Eyebrow>{t("Automatic quality check")}</Eyebrow>
+          <h1 className="mt-2 font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111]">{t("AI checks your data before you sign")}</h1>
           <p className="mt-2 max-w-2xl text-sm text-black/50">
-            Completeness, validation, anomaly detection and standardization run automatically. Critical issues must be fixed; warnings you can acknowledge and proceed.
+            {t("Completeness, validation, anomaly detection and standardization run automatically. Critical issues must be fixed; warnings you can acknowledge and proceed.")}
           </p>
         </div>
         <Button variant="secondary" size="sm" onClick={run} disabled={running}>
@@ -771,7 +902,7 @@ export function CheckView() {
               <div className="font-[family-name:var(--font-plex)] text-5xl font-light" style={{ color: scoreTone(result.score) }}>
                 {result.score}
               </div>
-              <div className="mt-1 text-[10px] uppercase tracking-[0.1em] text-black/40">data quality score</div>
+              <div className="mt-1 text-[10px] uppercase tracking-[0.1em] text-black/40">{t("data quality score")}</div>
               <div className="mt-3 flex items-center gap-2 text-[11px]">
                 <span className="text-[#dc2626]">{result.critical} critical</span>
                 <span className="text-black/20">·</span>
@@ -790,7 +921,7 @@ export function CheckView() {
                       <StatusDot tone={tone} />
                       <span className="text-[13px] text-black/75">{cat}</span>
                     </div>
-                    <p className="mt-1.5 text-[11px] leading-relaxed text-black/45">{CATEGORY_BLURB[cat]}</p>
+                    <p className="mt-1.5 text-[11px] leading-relaxed text-black/45">{t(CATEGORY_BLURB[cat])}</p>
                     <div className="mt-2 font-mono text-[10px] text-black/40">{crit ? `${crit} critical` : warn ? `${warn} to review` : "clear"}</div>
                   </div>
                 );
@@ -838,11 +969,11 @@ export function CheckView() {
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-black/[0.06] pt-5">
             <Button variant="ghost" size="sm" onClick={() => setView("form")}>
-              <ArrowLeft size={14} strokeWidth={1.5} /> Back to questionnaire
+              <ArrowLeft size={14} strokeWidth={1.5} /> {t("Back to questionnaire")}
             </Button>
             {result.passable ? (
               <Button onClick={() => setView("submit")}>
-                Continue to local attestation <ArrowRight size={15} strokeWidth={1.5} />
+                {t("Continue to sign & submit")} <ArrowRight size={15} strokeWidth={1.5} />
               </Button>
             ) : (
               <span className="inline-flex items-center gap-2 rounded-xl border border-[#dc2626]/20 bg-[#fef2f2] px-4 py-2.5 text-[12px] text-[#dc2626]">
@@ -856,8 +987,9 @@ export function CheckView() {
   );
 }
 
-/* ════════════════════════ Review + browser-local attestation ════════════════════════ */
+/* ════════════════════════ Review + e-sign + submit ════════════════════════ */
 export function SubmitView() {
+  const t = useT();
   const { req, state, submit, setView, getValue, totalRequiredCount } = useSupplier();
   const [name, setName] = React.useState("");
   const [role, setRole] = React.useState("");
@@ -874,80 +1006,43 @@ export function SubmitView() {
   const mandatoryDocs = req.documents.filter((d) => d.required);
   const mandatoryDocsDone = mandatoryDocs.filter((d) => state.docs[d.id]?.status === "uploaded").length;
 
-  // Optional cross-check against the calculation API; the browser-local result
-  // stays the one that gets recorded — this only surfaces disagreement.
-  type ServerRow = { status: "ok" | "mismatch" | "skipped" | "error"; server?: string; message?: string };
-  const [serverRows, setServerRows] = React.useState<Record<string, ServerRow> | null>(null);
-  const [verifying, setVerifying] = React.useState(false);
-
-  async function runServerVerify() {
-    setVerifying(true);
-    const next: Record<string, ServerRow> = {};
-    for (const rp of req.products) {
-      const pid = rp.product.id;
-      const plan = buildCalculationRequest(req, state.values, pid);
-      if (!plan.ok) {
-        next[pid] = { status: "skipped", message: plan.reason };
-        continue;
-      }
-      try {
-        const res = await calculateMrv(plan.request);
-        const server = res.specificEmbeddedEmissions.value;
-        const local = getValue("total-emissions", pid);
-        next[pid] = { status: local && emissionsMatch(local, server) ? "ok" : "mismatch", server };
-      } catch (error) {
-        next[pid] = {
-          status: "error",
-          message:
-            error instanceof TypeError
-              ? "Could not reach the calculation server."
-              : error instanceof Error
-                ? error.message
-                : "Verification failed",
-        };
-      }
-    }
-    setServerRows(next);
-    setVerifying(false);
-  }
-
   return (
     <div className="space-y-6">
       <div>
-        <Eyebrow>Review & submit</Eyebrow>
-        <h1 className="mt-2 font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111]">One last look, then record locally</h1>
-        <p className="mt-2 max-w-2xl text-sm text-black/50">This local demo records a version in this browser. It is not transmitted, immutable, identity-verified or an audit record.</p>
+        <Eyebrow>{t("Review & submit")}</Eyebrow>
+        <h1 className="mt-2 font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111]">{t("One last look, then sign")}</h1>
+        <p className="mt-2 max-w-2xl text-sm text-black/50">This is what {req.exporterName} receives. Submitting locks it as a version with a timestamped verification trail.</p>
       </div>
 
       {!result.passable && (
         <Card className="flex items-center justify-between gap-3 border-[#dc2626]/20 bg-[#fef2f2] p-4">
           <span className="text-[13px] text-[#dc2626]">{result.critical} critical issue{result.critical === 1 ? "" : "s"} must be fixed before you can submit.</span>
           <Button variant="secondary" size="sm" onClick={() => setView("check")}>
-            View issues
+            {t("View issues")}
           </Button>
         </Card>
       )}
 
-      {/* Deterministic validation summary — the checklist the exporter's spec calls for right
+      {/* AI validation summary — the checklist the exporter's spec calls for right
           before the final submit button: what's complete, and what's flagged. */}
       {result.passable && (
         <Card className="p-5">
           <div className="flex items-center gap-2">
             <Sparkles size={15} strokeWidth={1.5} className="text-black/55" />
-            <Eyebrow>Deterministic validation summary</Eyebrow>
+            <Eyebrow>{t("AI validation summary")}</Eyebrow>
           </div>
           <div className="mt-3 space-y-1.5 text-[13px]">
             <div className="flex items-center gap-2 text-[#047857]"><CircleCheck size={14} strokeWidth={1.5} /> {totalRequiredCount}/{totalRequiredCount} required fields completed</div>
             {mandatoryDocsDone === mandatoryDocs.length ? (
-              <div className="flex items-center gap-2 text-[#047857]"><CircleCheck size={14} strokeWidth={1.5} /> {mandatoryDocsDone}/{mandatoryDocs.length} mandatory file references recorded</div>
+              <div className="flex items-center gap-2 text-[#047857]"><CircleCheck size={14} strokeWidth={1.5} /> {mandatoryDocsDone}/{mandatoryDocs.length} mandatory documents uploaded</div>
             ) : (
-              <div className="flex items-center gap-2 text-[#b45309]"><TriangleAlert size={14} strokeWidth={1.5} /> {mandatoryDocsDone}/{mandatoryDocs.length} mandatory file references recorded</div>
+              <div className="flex items-center gap-2 text-[#b45309]"><TriangleAlert size={14} strokeWidth={1.5} /> {mandatoryDocsDone}/{mandatoryDocs.length} mandatory documents uploaded</div>
             )}
-            <div className="flex items-center gap-2 text-[#047857]"><CircleCheck size={14} strokeWidth={1.5} /> Units validated</div>
+            <div className="flex items-center gap-2 text-[#047857]"><CircleCheck size={14} strokeWidth={1.5} /> {t("Units validated")}</div>
             {warnings > 0 ? (
               <div className="flex items-center gap-2 text-[#b45309]"><TriangleAlert size={14} strokeWidth={1.5} /> {warnings} warning{warnings === 1 ? "" : "s"} detected</div>
             ) : (
-              <div className="flex items-center gap-2 text-[#047857]"><CircleCheck size={14} strokeWidth={1.5} /> No warnings</div>
+              <div className="flex items-center gap-2 text-[#047857]"><CircleCheck size={14} strokeWidth={1.5} /> {t("No warnings")}</div>
             )}
           </div>
         </Card>
@@ -955,7 +1050,7 @@ export function SubmitView() {
 
       {/* data summary */}
       <Card className="p-5">
-        <Eyebrow>Emissions summary</Eyebrow>
+        <Eyebrow>{t("Emissions summary")}</Eyebrow>
         <div className="mt-3 space-y-2.5">
           {req.products.map((rp) => {
             const total = getValue("total-emissions", rp.product.id) || "—";
@@ -964,10 +1059,10 @@ export function SubmitView() {
               <div key={rp.product.id} className="flex items-center justify-between rounded-xl border border-black/[0.06] bg-[#fafaf8] px-4 py-3">
                 <div>
                   <div className="text-[14px] text-black/80">{rp.product.name}</div>
-                  <div className="font-mono text-[11px] text-black/40">CN {rp.product.cnCode} · {formatDecimal(rp.commercialQuantityTonnes)} TNE</div>
+                  <div className="font-mono text-[11px] text-black/40">CN {rp.product.cnCode} · {rp.totalTonnes.toLocaleString("en-US")} t</div>
                 </div>
                 <div className="text-right">
-                  <div className="font-[family-name:var(--font-plex)] text-xl font-light text-[#111]">{total} <span className="text-sm text-black/40">tCO₂e/t</span></div>
+                  <div className="font-[family-name:var(--font-plex)] text-xl font-light text-[#111]">{total} <span className="text-sm text-black/40">{t("tCO₂e/t")}</span></div>
                   <div className="text-[10px] uppercase tracking-[0.1em] text-black/40">{method === "default" ? "default factors" : method === "actual" ? "actual data" : "method —"}</div>
                 </div>
               </div>
@@ -975,79 +1070,42 @@ export function SubmitView() {
           })}
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-[12px] text-black/50">
-          <span>File references recorded: {req.documents.filter((d) => state.docs[d.id]?.status === "uploaded").length}/{req.documents.length}</span>
-          <span>Quality score: <span style={{ color: result.score >= 85 ? "#047857" : result.score >= 60 ? "#b45309" : "#dc2626" }}>{result.score}</span></span>
+          <span>Documents attached: {req.documents.filter((d) => state.docs[d.id]?.status === "uploaded").length}/{req.documents.length}</span>
+          <span>{t("Quality score:")} <span style={{ color: result.score >= 85 ? "#047857" : result.score >= 60 ? "#b45309" : "#dc2626" }}>{result.score}</span></span>
           <span>{warnings} warning{warnings === 1 ? "" : "s"} flagged</span>
         </div>
       </Card>
 
-      {/* Optional recompute on the calculation API, shown next to the local preview. */}
-      <Card className="p-5">
-        <div className="flex items-center gap-2">
-          <ShieldCheck size={15} strokeWidth={1.5} className="text-black/55" />
-          <Eyebrow>Server verification</Eyebrow>
-        </div>
-        <p className="mt-2 max-w-2xl text-[12px] text-black/50">
-          Recompute the embedded emissions on the CERTrace calculation service and compare with the browser preview. Optional — requires the API server to be reachable.
-        </p>
-        {serverRows && (
-          <div className="mt-3 space-y-1.5 text-[13px]">
-            {req.products.map((rp) => {
-              const row = serverRows[rp.product.id];
-              if (!row) return null;
-              const local = getValue("total-emissions", rp.product.id) || "—";
-              return (
-                <div key={rp.product.id} className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                  <StatusDot tone={row.status === "ok" ? "ok" : row.status === "mismatch" ? "warn" : row.status === "error" ? "err" : "muted"} />
-                  <span className="text-black/70">{rp.product.name}</span>
-                  {row.server !== undefined ? (
-                    <span className="font-mono text-[12px] text-black/55">
-                      local {local} · server {row.server} tCO₂e/t{row.status === "mismatch" ? " — differs" : ""}
-                    </span>
-                  ) : (
-                    <span className="text-[12px] text-black/45">{row.message}</span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-        <div className="mt-3">
-          <Button variant="secondary" size="sm" onClick={runServerVerify} disabled={verifying}>
-            {verifying ? "Verifying…" : "Verify with server"}
-          </Button>
-        </div>
-      </Card>
-
-      {/* Browser-local attestation; not an electronic signature or identity proof. */}
+      {/* e-signature */}
       <Card className="p-5">
         <div className="flex items-center gap-2">
           <PenLine size={15} strokeWidth={1.5} className="text-black/55" />
-          <Eyebrow>Local attestation</Eyebrow>
+          <Eyebrow>{t("Electronic signature")}</Eyebrow>
         </div>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <Field label="Full name">
-            <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} placeholder="Your full name" />
+          <Field label={t("Full name")}>
+            <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} placeholder={t("Your full name")} />
           </Field>
-          <Field label="Role / title">
-            <input className={inputClass} value={role} onChange={(e) => setRole(e.target.value)} placeholder="e.g. Sustainability Manager" />
+          <Field label={t("Role / title")}>
+            <input className={inputClass} value={role} onChange={(e) => setRole(e.target.value)} placeholder={t("e.g. Sustainability Manager")} />
           </Field>
         </div>
         <label className="mt-3 flex cursor-pointer items-start gap-2.5">
-          <span className={cn("mt-0.5 grid h-5 w-5 flex-none place-items-center rounded-md border", attest ? "border-transparent bg-[#111] text-white" : "border-black/20")} onClick={() => setAttest((v) => !v)}>
+          <input type="checkbox" className="sr-only" checked={attest} onChange={(e) => setAttest(e.target.checked)} />
+          <span className={cn("mt-0.5 grid h-5 w-5 flex-none place-items-center rounded-md border", attest ? "border-transparent bg-[#111] text-white" : "border-black/20")}>
             {attest && <Check size={12} strokeWidth={2.5} />}
           </span>
-          <span className="text-[13px] leading-relaxed text-black/60" onClick={() => setAttest((v) => !v)}>
+          <span className="text-[13px] leading-relaxed text-black/60">
             I confirm the information is accurate and complete to the best of my knowledge, and I’m authorised to submit it on behalf of {req.supplierName}.
           </span>
         </label>
-        <p className="mt-2 text-[11px] text-black/40">A typed name is browser-local demo metadata, not an authenticated electronic signature or verifier opinion.</p>
         {warnings > 0 && (
           <label className="mt-2.5 flex cursor-pointer items-start gap-2.5">
-            <span className={cn("mt-0.5 grid h-5 w-5 flex-none place-items-center rounded-md border", ackWarnings ? "border-transparent bg-[#111] text-white" : "border-black/20")} onClick={() => setAckWarnings((v) => !v)}>
+            <input type="checkbox" className="sr-only" checked={ackWarnings} onChange={(e) => setAckWarnings(e.target.checked)} />
+            <span className={cn("mt-0.5 grid h-5 w-5 flex-none place-items-center rounded-md border", ackWarnings ? "border-transparent bg-[#111] text-white" : "border-black/20")}>
               {ackWarnings && <Check size={12} strokeWidth={2.5} />}
             </span>
-            <span className="text-[13px] leading-relaxed text-black/60" onClick={() => setAckWarnings((v) => !v)}>
+            <span className="text-[13px] leading-relaxed text-black/60">
               I’ve reviewed the {warnings} warning{warnings === 1 ? "" : "s"} from the quality check and confirm the data is correct as entered.
             </span>
           </label>
@@ -1062,11 +1120,11 @@ export function SubmitView() {
           disabled={!canSign}
           onClick={() => {
             submit(name.trim(), role.trim());
-            toast({ message: "Demo version recorded", detail: `Available to ${req.exporterName}'s demo view only in this browser.`, tone: "ok" });
+            toast({ message: "Submitted", detail: `Sent to ${req.exporterName} with a timestamped verification trail.`, tone: "ok" });
             setView("done");
           }}
         >
-          <ShieldCheck size={15} strokeWidth={1.5} /> {warnings > 0 ? "Record with warnings" : "Record local attestation"}
+          <ShieldCheck size={15} strokeWidth={1.5} /> {warnings > 0 ? "Submit anyway" : "Sign & submit"}
         </Button>
       </div>
     </div>
@@ -1075,14 +1133,15 @@ export function SubmitView() {
 
 /* ════════════════════════ Done / versions / revision ════════════════════════ */
 export function DoneView() {
+  const t = useT();
   const { req, state, setView, simulateRevision } = useSupplier();
   const latest = state.versions[state.versions.length - 1];
   if (!latest) {
     return (
       <div className="py-16 text-center text-sm text-black/45">
-        Nothing submitted yet.
+        {t("Nothing submitted yet.")}
         <div className="mt-4">
-          <Button size="sm" onClick={() => setView("overview")}>Back to overview</Button>
+          <Button size="sm" onClick={() => setView("overview")}>{t("Back to overview")}</Button>
         </div>
       </div>
     );
@@ -1097,9 +1156,12 @@ export function DoneView() {
     submit: "ok",
     revision_requested: "warn",
   };
-  // Real, persisted events (lib/supplier-store.ts AuditEvent) — every edit, upload,
-  // check run, local attestation and revision is logged as it happens, not derived here.
-  const trail = state.events.map((e) => ({ when: new Date(e.at), text: e.text, tone: EVENT_TONE[e.kind] ?? "muted" }));
+  // Real, persisted events (lib/supplier-store.ts TrailEvent) — every edit, upload,
+  // check run, signature and revision is logged as it happens, not derived here.
+  const trail = [
+    ...state.events.map((e) => ({ when: new Date(e.at), text: e.text, tone: EVENT_TONE[e.kind] ?? "muted" })),
+    { when: submittedAt, text: `${req.exporterName} notified`, tone: "muted" as const },
+  ];
 
   return (
     <div className="space-y-6">
@@ -1109,7 +1171,7 @@ export function DoneView() {
         </span>
         <h1 className="mt-4 font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111]">Submitted as Version {latest.n}</h1>
         <p className="mt-2 text-sm text-black/55">
-          Recorded locally for {req.exporterName}&apos;s same-browser demo view. No email, backend delivery, cross-device sharing or legal submission occurred.
+          Sent to {req.exporterName} — they’ll review it and only contact you if something needs a quick fix. Nothing to pay, no account to manage.
         </p>
         <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-3 py-1.5 font-mono text-[11px] text-black/55">
           receipt {receiptId}
@@ -1129,11 +1191,11 @@ export function DoneView() {
         ))}
       </div>
 
-      {/* audit trail */}
+      {/* verification trail */}
       <Card className="p-5">
         <div className="flex items-center gap-2">
           <History size={15} strokeWidth={1.5} className="text-black/55" />
-          <Eyebrow>Audit trail</Eyebrow>
+          <Eyebrow>{t("Verification trail")}</Eyebrow>
         </div>
         <div className="mt-3 space-y-2.5">
           {trail.map((t, i) => (
@@ -1149,7 +1211,7 @@ export function DoneView() {
       {/* version history */}
       {state.versions.length > 1 && (
         <Card className="p-5">
-          <Eyebrow>Version history</Eyebrow>
+          <Eyebrow>{t("Version history")}</Eyebrow>
           <div className="mt-3 divide-y divide-black/[0.05]">
             {state.versions.map((v) => (
               <div key={v.n} className="flex items-center justify-between py-2.5 text-[13px]">
@@ -1164,18 +1226,18 @@ export function DoneView() {
 
       {/* what's next + demo revision */}
       <Card warm className="p-5">
-        <Eyebrow>What happens next</Eyebrow>
+        <Eyebrow>{t("What happens next")}</Eyebrow>
         <ol className="mt-3 space-y-2 text-[13px] text-black/55">
-          <li className="flex gap-2"><span className="font-mono text-black/30">1</span> {req.exporterName} reviews the deterministic findings and advisory anomaly flags in this browser.</li>
-          <li className="flex gap-2"><span className="font-mono text-black/30">2</span> They approve it, or request a revision on specific fields.</li>
-          <li className="flex gap-2"><span className="font-mono text-black/30">3</span> A demo revision appears only in this browser; no email is sent and cross-device links are unavailable.</li>
+          <li className="flex gap-2"><span className="font-mono text-black/30">1</span> {req.exporterName} reviews your submission and the AI summary.</li>
+          <li className="flex gap-2"><span className="font-mono text-black/30">2</span> {t("They approve it, or request a revision on specific fields.")}</li>
+          <li className="flex gap-2"><span className="font-mono text-black/30">3</span> {t("If a revision is needed, you’ll get an email — only the flagged fields unlock.")}</li>
         </ol>
         <div className="mt-4 rounded-xl border border-dashed border-black/15 p-3">
-          <div className="text-[11px] uppercase tracking-[0.1em] text-black/35">Demo</div>
+          <div className="text-[11px] uppercase tracking-[0.1em] text-black/35">{t("Demo")}</div>
           <div className="mt-1 flex items-center justify-between gap-3">
-            <span className="text-[12px] text-black/50">Simulate the exporter requesting a revision to see the resubmission loop.</span>
+            <span className="text-[12px] text-black/50">{t("Simulate the exporter requesting a revision to see the resubmission loop.")}</span>
             <Button variant="secondary" size="sm" onClick={simulateRevision}>
-              Request revision
+              {t("Request revision")}
             </Button>
           </div>
         </div>

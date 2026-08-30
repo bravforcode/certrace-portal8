@@ -1,8 +1,40 @@
 "use client";
 
 import * as React from "react";
-import { Chip, StatusDot, cn } from "./ui";
+import { StatusDot, cn } from "./ui";
 import { CertraceLogo } from "./logo";
+import { useT } from "@/lib/i18n";
+import { MARKETING_SITE_URL } from "@/lib/links";
+
+/* ── The brand-panel sub-line ───────────────────────────────────
+   The default is the copy /register and /forgot-password carry, and it stays
+   exactly as it was — the create-account flow is signed off and nothing here
+   may move it. /login passes its own line instead: sign-in is the screen a
+   returning exporter reads, and the positioning solution line ("an AI workflow
+   platform connecting buyers, exporters, and suppliers") is what the public
+   site says to that reader. One prop, one override, no shared copy edited. */
+const DEFAULT_DESCRIPTION =
+  "Carbon compliance infrastructure for exporters — collect supplier data through one link, have it checked automatically, calculate CBAM emissions, and keep an audit-ready report package your buyer can act on.";
+
+/* ── The wordmark is the way back out ───────────────────────────
+   Top-left on every auth screen, and it goes to the PUBLIC SITE, not to a
+   route inside the portal: someone sitting on /login has no session yet, so
+   the only "home" that exists for them is certrace.co. A logo that looks
+   clickable and isn't is the reason people close the tab rather than read the
+   form, so it is a real anchor with a real destination. `target` is
+   deliberately absent — this is a way out of the app, not a side trip. */
+function HomeLogo({ className }: { className?: string }) {
+  const t = useT();
+  return (
+    <a
+      href={MARKETING_SITE_URL}
+      aria-label={t("Certrace — go to certrace.co")}
+      className="inline-block rounded-sm transition-opacity hover:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/20"
+    >
+      <CertraceLogo className={className} />
+    </a>
+  );
+}
 
 /* Shared shell for /login, /register and /forgot-password — same decorative
    brand panel + form frame, so the three auth screens read as one flow.
@@ -16,7 +48,8 @@ import { CertraceLogo } from "./logo";
    content clips symmetrically off both ends, and since scrollTop can't go
    negative, that clipped top (the logo) becomes permanently unreachable —
    `safe center` is the standard fix. */
-export function AuthLayout({ children }: { children: React.ReactNode }) {
+export function AuthLayout({ children, description }: { children: React.ReactNode; description?: string }) {
+  const t = useT();
   return (
     <div className="relative grid h-dvh overflow-hidden lg:grid-cols-2">
       <div className="relative hidden flex-col justify-between overflow-hidden border-r border-black/[0.06] p-12 lg:flex">
@@ -39,33 +72,33 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
           </g>
         </svg>
 
-        <div className="relative"><CertraceLogo className="h-6 w-auto" /></div>
+        <div className="relative"><HomeLogo className="h-6 w-auto" /></div>
 
+        {/* Positioning copy, kept in step with the public site: category is
+            "carbon compliance infrastructure", the hook is that the order is
+            lost on proof arriving second, and the regulation story is EU CBAM
+            ONLY — which is why the old "CBAM live / EUDR · CSRD soon" chips
+            are gone rather than restyled. One regulation, done properly. */}
         <div className="relative">
           <h1 className="max-w-md font-[family-name:var(--font-plex)] text-4xl font-light leading-[1.05] tracking-tight text-[#111]">
-            Supply-chain carbon compliance. Without the chaos.
+            {t("Buyers don't wait. They pick whoever proves it first.")}
           </h1>
           <p className="mt-5 max-w-sm text-sm leading-relaxed text-black/45">
-            Structure supplier data, calculate traceable draft emissions, and prepare a reviewed handoff for the EU-side
-            declarant and accredited verifier.
+            {t(description ?? DEFAULT_DESCRIPTION)}
           </p>
-          <div className="mt-7 flex flex-wrap gap-2">
-            <Chip tone="ok">CBAM live</Chip>
-            <Chip>EUDR · CSRD soon</Chip>
-          </div>
         </div>
 
         <div className="relative flex items-center gap-6 text-[11px] uppercase tracking-[0.1em] text-black/35">
           <span className="inline-flex items-center gap-2">
-            <StatusDot tone="ok" pulse glow /> 94% avg completion
+            <StatusDot tone="ok" pulse glow /> {t("94% avg completion")}
           </span>
-          <span>6× faster filing</span>
+          <span>{t("6× faster filing")}</span>
         </div>
       </div>
 
       <div className="flex justify-center overflow-y-auto px-6 py-8 [align-items:safe_center] lg:py-16">
         <div className="w-full max-w-sm">
-          <div className="lg:hidden"><CertraceLogo className="h-5 w-auto" /></div>
+          <div className="lg:hidden"><HomeLogo className="h-5 w-auto" /></div>
           {children}
         </div>
       </div>
@@ -76,6 +109,7 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
 /* "G" glyph drawn in brand-neutral strokes — no imported logo asset, just the
    universally-recognised four-colour mark so the button reads instantly. */
 export function GoogleButton({ onClick, loading, label = "Continue with Google" }: { onClick: () => void; loading?: boolean; label?: string }) {
+  const t = useT();
   return (
     <button
       type="button"
@@ -93,22 +127,24 @@ export function GoogleButton({ onClick, loading, label = "Continue with Google" 
           <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
         </svg>
       )}
-      {loading ? "Connecting…" : label}
+      {loading ? t("Connecting…") : t(label)}
     </button>
   );
 }
 
 export function Divider({ label = "or" }: { label?: string }) {
+  const t = useT();
   return (
     <div className="flex items-center gap-3 text-[11px] uppercase tracking-[0.1em] text-black/30">
       <span className="h-px flex-1 bg-black/[0.08]" />
-      {label}
+      {t(label)}
       <span className="h-px flex-1 bg-black/[0.08]" />
     </div>
   );
 }
 
 export function PasswordStrength({ value }: { value: string }) {
+  const t = useT();
   const score = React.useMemo(() => {
     let s = 0;
     if (value.length >= 8) s++;
@@ -127,7 +163,7 @@ export function PasswordStrength({ value }: { value: string }) {
           <span key={i} className={cn("h-[3px] flex-1 rounded-full transition-colors")} style={{ background: i < score ? colors[score] : "rgba(0,0,0,0.08)" }} />
         ))}
       </div>
-      <span className="mt-1.5 block text-[11px] text-black/35">{labels[score]}</span>
+      <span className="mt-1.5 block text-[11px] text-black/35">{t(labels[score])}</span>
     </div>
   );
 }
