@@ -1,5 +1,7 @@
 "use client";
 
+export const runtime = "edge";
+
 /* ════════════════════════════════════════════════════════════
    MONTHLY DATA — the whole year, and everything that hangs off a month
 

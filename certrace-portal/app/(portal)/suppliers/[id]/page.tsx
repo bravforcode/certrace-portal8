@@ -1,5 +1,7 @@
 "use client";
 
+export const runtime = "edge";
+
 /* ════════════════════════════════════════════════════════════
    ONE SUPPLIER — their plants, their goods, and what has been asked
 

@@ -1,5 +1,7 @@
 "use client";
 
+export const runtime = "edge";
+
 /* ════════════════════════════════════════════════════════════
    ONE ENTITY IN THE CHAIN — where its four tabs actually live
 

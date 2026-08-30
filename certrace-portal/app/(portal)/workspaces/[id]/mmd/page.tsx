@@ -1,5 +1,7 @@
 "use client";
 
+export const runtime = "edge";
+
 /* ════════════════════════════════════════════════════════════
    THE MMD, ON ONE PAGE
 

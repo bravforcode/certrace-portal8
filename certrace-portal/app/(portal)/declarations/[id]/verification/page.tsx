@@ -1,5 +1,7 @@
 "use client";
 
+export const runtime = "edge";
+
 /* ════════════════════════════════════════════════════════════
    VERIFICATION DOSSIER — what the verifier actually opens
 

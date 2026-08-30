@@ -1,5 +1,7 @@
 "use client";
 
+export const runtime = "edge";
+
 /* ════════════════════════════════════════════════════════════
    WORKSPACE SETTINGS — the deadline, and how to put the workspace away
 

@@ -1,5 +1,7 @@
 "use client";
 
+export const runtime = "edge";
+
 /* ════════════════════════════════════════════════════════════
    ACTIVITY DATA — the screen that makes the filing re-derivable
 

@@ -1,5 +1,7 @@
 "use client";
 
+export const runtime = "edge";
+
 /* The spec (§A2) names `/workspaces/[id]/months/[month]` as the month editor's
    address. The editor itself lives under the Monthly Data tab's own route so
    the tab strip, its deep links and the browser's back button all agree about

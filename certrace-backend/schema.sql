@@ -240,7 +240,7 @@ ON CONFLICT (id) DO NOTHING;
 
 -- SEED DEFAULT USER (password: demo-password)
 INSERT INTO public.users (id, email, password_hash) VALUES
-('00000000-0000-0000-0000-000000000000', 'wasawat@siamsteel.co.th', '934a364177b856b3e85e49bbff4d207f2df29fe470ef718c8bfaef28bd3c2fe0')
+('00000000-0000-0000-0000-000000000000', 'wasawat@siamsteel.co.th', 'pbkdf2_sha256$600000$44ae927ac01ea34dcfdcefeb2cb15920$64a11203c123bb10bbcd329f6aaed2a721b244b26e2f61cf49078e5dac30daa7')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.profiles (id, first_name, last_name, job_title, company_name, sector, installation_id, jurisdiction, currency, unit, onboarded) VALUES

@@ -1,5 +1,7 @@
 "use client";
 
+export const runtime = "edge";
+
 /* The Evidence tab is retired.
 
    Its per-month machinery already lived inside the month editor; its annual

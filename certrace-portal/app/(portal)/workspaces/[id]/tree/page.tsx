@@ -1,5 +1,7 @@
 "use client";
 
+export const runtime = "edge";
+
 /* ════════════════════════════════════════════════════════════
    SUPPLY CHAIN — one product's chain, and the first page its card opens
 
