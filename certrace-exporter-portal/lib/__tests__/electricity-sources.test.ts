@@ -42,7 +42,7 @@ test("Bug 4 — weighted average across two sources with different factors", () 
       { id: "a", sourceType: "ppa" as const, mwh: 1000, factorTco2PerMwh: 0.4 },
       { id: "b", sourceType: "direct_technical_link" as const, mwh: 500, factorTco2PerMwh: 0.1 },
     ],
-  } as Parameters<typeof resolveElectricitySources>[0];
+  } as unknown as Parameters<typeof resolveElectricitySources>[0];
 
   const { totalMwh, weightedFactor } = resolveElectricitySources(entry);
   assert.equal(totalMwh, 1500);
@@ -54,7 +54,7 @@ test("Bug 4 — a grid row's factor is always re-derived, never trusted from sto
   const entry = {
     fuels: [],
     electricitySources: [{ id: "a", sourceType: "grid_default" as const, mwh: 100, factorTco2PerMwh: 0.4999 }],
-  } as Parameters<typeof resolveElectricitySources>[0];
+  } as unknown as Parameters<typeof resolveElectricitySources>[0];
 
   // A stale 0.4999 sitting in storage — the exact residual-sync bug — must
   // not survive resolution. With no published TH default, the resolved

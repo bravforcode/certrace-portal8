@@ -309,6 +309,7 @@ export function DocumentsCardGrid({
   scope: AnnualScope;
   onChange: () => void;
 }) {
+  const t = useT();
   const [busy, setBusy] = React.useState<string | null>(null);
   const [tick, setTick] = React.useState(0);
   const [showOnboarding, setShowOnboarding] = React.useState(false);
@@ -401,7 +402,6 @@ export function DocumentsCardGrid({
 
       <div className="space-y-3">
         {EVIDENCE_CATEGORY_ORDER.map((dept) => {
-          const t = useT();
           const rows = byDept.get(dept) ?? [];
           if (rows.length === 0) return null;
           const coveredHere = rows.filter((r) => r.covered).length;

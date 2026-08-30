@@ -1,7 +1,5 @@
 "use client";
 
-export const runtime = "edge";
-
 /* ════════════════════════════════════════════════════════════
    THE PRECURSOR SUPPLIER'S FORM — what opens from a /p/<token> link
 
