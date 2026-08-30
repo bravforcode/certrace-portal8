@@ -14,7 +14,7 @@ from app.core.cors import (
     validate_cors_origin,
 )
 from app.repositories.database import DatabaseRepository
-from app.routers import calculations, declarations, health
+from app.routers import auth, calculations, declarations, health
 
 
 def create_app(
@@ -54,6 +54,7 @@ def create_app(
         )
     application.add_middleware(SecurityHeadersMiddleware)
     application.include_router(health.router)
+    application.include_router(auth.router)
     application.include_router(calculations.router)
     application.include_router(declarations.router)
     return application

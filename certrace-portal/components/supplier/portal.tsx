@@ -10,7 +10,7 @@ import type { SupplierRequest } from "@/lib/supplier";
 import { SupplierProvider, useSupplier } from "./context";
 import { SupplierShell } from "./shell";
 import { FormView } from "./form-view";
-import { LandingView, ProfileView, OverviewView, DocumentsView, TeamView, CheckView, SubmitView, DoneView } from "./views";
+import { LandingView, ProfileView, OverviewView, DocumentsView, SharingView, TeamView, CheckView, SubmitView, DoneView } from "./views";
 
 function CurrentView() {
   const { view } = useSupplier();
@@ -25,6 +25,8 @@ function CurrentView() {
       return <FormView />;
     case "documents":
       return <DocumentsView />;
+    case "sharing":
+      return <SharingView />;
     case "team":
       return <TeamView />;
     case "check":

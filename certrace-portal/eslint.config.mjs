@@ -10,10 +10,9 @@ const config = [
     ignores: [
       ".next/**",
       ".open-next/**",
+      ".vercel/**",
       ".wrangler/**",
       "node_modules/**",
-      "playwright-report/**",
-      "test-results/**",
       "public/**",
       "next-env.d.ts",
     ],

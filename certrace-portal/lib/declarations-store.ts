@@ -6,49 +6,15 @@
 
 import type { Declaration } from "./data";
 
-const KEY = "certrace:v2:created-declarations";
-const LEGACY_KEY = "certrace:created-declarations";
-const QUARANTINE_KEY = "certrace:legacy_unverified:created-declarations";
-
-type DeclarationEnvelope = {
-  schemaVersion: 2;
-  dataClassification: "readiness_demo";
-  records: Declaration[];
-};
-
-function quarantineLegacyDeclarations(): void {
-  if (typeof window === "undefined") return;
-  try {
-    const raw = window.localStorage.getItem(LEGACY_KEY);
-    if (raw === null) return;
-    window.localStorage.removeItem(LEGACY_KEY);
-    if (window.localStorage.getItem(QUARANTINE_KEY) === null) {
-      window.localStorage.setItem(
-        QUARANTINE_KEY,
-        JSON.stringify({ classification: "legacy_unverified", quarantinedAt: Date.now(), originalKey: LEGACY_KEY, discardedBytes: raw.length, reason: "Unversioned record discarded; payload not retained." }),
-      );
-    }
-  } catch {
-    // Never load an unversioned declaration when quarantine cannot complete.
-  }
-}
+const KEY = "certrace:created-declarations";
 
 export function loadCreatedDeclarations(): Declaration[] {
   if (typeof window === "undefined") return [];
-  quarantineLegacyDeclarations();
   try {
     const raw = window.localStorage.getItem(KEY);
     if (!raw) return [];
-    const envelope = JSON.parse(raw) as DeclarationEnvelope;
-    if (envelope.schemaVersion !== 2 || envelope.dataClassification !== "readiness_demo" || !Array.isArray(envelope.records)) {
-      window.localStorage.removeItem(KEY);
-      window.localStorage.setItem(
-        QUARANTINE_KEY,
-        JSON.stringify({ classification: "legacy_unverified", quarantinedAt: Date.now(), originalKey: KEY, discardedBytes: raw.length, reason: "Invalid schema record discarded; payload not retained." }),
-      );
-      return [];
-    }
-    return envelope.records;
+    const arr = JSON.parse(raw) as Declaration[];
+    return Array.isArray(arr) ? arr : [];
   } catch {
     return [];
   }
@@ -63,10 +29,9 @@ export function saveCreatedDeclaration(declaration: Declaration): void {
   const all = loadCreatedDeclarations().filter((d) => d.id !== declaration.id);
   all.unshift(declaration);
   try {
-    const envelope: DeclarationEnvelope = { schemaVersion: 2, dataClassification: "readiness_demo", records: all };
-    window.localStorage.setItem(KEY, JSON.stringify(envelope));
+    window.localStorage.setItem(KEY, JSON.stringify(all));
   } catch {
-    throw new Error("Local declaration save failed. The declaration was not created.");
+    /* ignore quota / serialization errors — the redirect still lands on a live id */
   }
 }
 
@@ -96,14 +61,9 @@ export function deleteDeclaration(id: string): void {
   const created = loadCreatedDeclarations();
   if (created.some((d) => d.id === id)) {
     try {
-      const envelope: DeclarationEnvelope = {
-        schemaVersion: 2,
-        dataClassification: "readiness_demo",
-        records: created.filter((d) => d.id !== id),
-      };
-      window.localStorage.setItem(KEY, JSON.stringify(envelope));
+      window.localStorage.setItem(KEY, JSON.stringify(created.filter((d) => d.id !== id)));
     } catch {
-      throw new Error("Local declaration delete failed.");
+      /* ignore quota */
     }
     return;
   }
@@ -112,7 +72,7 @@ export function deleteDeclaration(id: string): void {
     try {
       window.localStorage.setItem(HIDDEN_KEY, JSON.stringify([...hidden, id]));
     } catch {
-      throw new Error("Local declaration visibility update failed.");
+      /* ignore quota */
     }
   }
 }

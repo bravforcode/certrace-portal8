@@ -19,7 +19,11 @@ export type Profile = {
   installationId: string;
   jurisdiction: string; // JURISDICTIONS code
   currency: string;
-  unit: string; // "tCO₂e" | "kgCO₂e"
+  /** Always "tCO₂e". CBAM reports in tonnes, so this is no longer a choice
+   *  the exporter is asked to make — neither Settings nor the sign-in setup
+   *  offers a picker for it. Kept as a field so stored profiles still load
+   *  and so a formatter has one place to read the unit from. */
+  unit: string;
   /** Has this account been through the /onboarding wizard? Existing/demo
    *  accounts start true; a fresh /register signup flips this to false so
    *  it's routed to onboarding instead of straight to the dashboard. */
@@ -27,13 +31,25 @@ export type Profile = {
   // Product/marketing/research context captured during onboarding — not
   // displayed anywhere in the UI today; kept for future personalization,
   // segmentation and roadmap prioritization.
-  goalAchieve?: string;
-  currentManagement?: string;
-  biggestChallenge?: string;
+  /** The three "your needs" questions are MULTI-select: an exporter is
+   *  usually escaping spreadsheets *and* chasing suppliers *and* preparing for
+   *  verification, and forcing one answer records the tidiest of the three
+   *  rather than the true picture. Stored as arrays for that reason — a
+   *  comma-joined string cannot be filtered or counted later. */
+  goalAchieve?: string[];
+  currentManagement?: string[];
+  biggestChallenge?: string[];
+  // Scale of the operation — how much CBAM there is to do, and for whom.
+  cbamProductCount?: string;
   supplierCount?: string;
+  installationCount?: string;
+  customerCount?: string;
   hearAbout?: string;
-  /** Multi-select, always optional — never blocks onboarding completion. */
-  shapeCertrace?: string[];
+  /** Contact channels. The phone is stored joined with its dialling code
+   *  ("+66 38 123 456") — see lib/dial-codes.ts. LINE is where Thai customers
+   *  actually reach support, so it is asked for rather than hoped for. */
+  phone?: string;
+  lineId?: string;
 };
 
 export function splitName(name: string): { firstName: string; lastName: string } {

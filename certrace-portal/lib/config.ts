@@ -5,11 +5,10 @@
   expands from CBAM → EUDR/CSRD/Scope 3 and from steel → aluminium/cement, and
   from Thailand → SE Asia, by flipping `available` here — no new UI is required.
 
-  Readiness posture (July 2026): CBAM is the only live regulation. Steel and
-  aluminium are enabled; other sectors remain explicitly unavailable.
+  MVP launch posture (June 2026): CBAM is the only LIVE regulation, and within
+  CBAM only Steel & iron is open. Everything else renders as "coming soon" with
+  a real waitlist path — nothing is a dead end.
 */
-
-import { classifyCnCode } from "./mrv";
 
 export type Status = "live" | "soon" | "rollout" | "planned";
 
@@ -66,7 +65,7 @@ export const REGULATIONS: Regulation[] = [
     authority: "EU CBAM Registry · via importer / declarant",
     status: "live",
     available: true,
-    cadence: "Annual operator data · annual declaration",
+    cadence: "Quarterly data · annual declaration",
     dataPoints: [
       "Production route & process",
       "Direct (Scope 1) emissions",
@@ -77,7 +76,7 @@ export const REGULATIONS: Regulation[] = [
     requirements: [
       "Installation identification",
       "Embedded emissions per tonne (tCO₂e/t)",
-      "Accredited verification for actual values",
+      "Verified emission factors or actual data",
       "Carbon price evidence",
     ],
   },
@@ -201,68 +200,421 @@ export const PRODUCT_SECTORS: ProductSector[] = [
 
 export const STATUS_META: Record<Status, { label: string; tone: "ok" | "info" | "warn" | "muted" }> = {
   live: { label: "live", tone: "ok" },
-  soon: { label: "coming soon", tone: "muted" },
+  soon: { label: "soon", tone: "muted" },
   rollout: { label: "rollout", tone: "info" },
   planned: { label: "planned", tone: "muted" },
 };
 
+/* ── Countries (ISO 3166-1 alpha-2) ────────────────────────────
+   Master data, so it's the real list — a supplier can sit anywhere in the
+   world, unlike JURISDICTIONS above which is only the origins Certrace has a
+   verified emission-factor library for. Stored as the alpha-2 code because
+   that's what every downstream artefact wants: the Annex IV communication
+   template, the Registry XML, and the 2-letter badge on a supplier row. */
+export type Country = { code: string; name: string };
+export const COUNTRIES: Country[] = [
+  { code: "AF", name: "Afghanistan" }, { code: "AL", name: "Albania" }, { code: "DZ", name: "Algeria" },
+  { code: "AD", name: "Andorra" }, { code: "AO", name: "Angola" }, { code: "AG", name: "Antigua and Barbuda" },
+  { code: "AR", name: "Argentina" }, { code: "AM", name: "Armenia" }, { code: "AU", name: "Australia" },
+  { code: "AT", name: "Austria" }, { code: "AZ", name: "Azerbaijan" }, { code: "BS", name: "Bahamas" },
+  { code: "BH", name: "Bahrain" }, { code: "BD", name: "Bangladesh" }, { code: "BB", name: "Barbados" },
+  { code: "BY", name: "Belarus" }, { code: "BE", name: "Belgium" }, { code: "BZ", name: "Belize" },
+  { code: "BJ", name: "Benin" }, { code: "BT", name: "Bhutan" }, { code: "BO", name: "Bolivia" },
+  { code: "BA", name: "Bosnia and Herzegovina" }, { code: "BW", name: "Botswana" }, { code: "BR", name: "Brazil" },
+  { code: "BN", name: "Brunei Darussalam" }, { code: "BG", name: "Bulgaria" }, { code: "BF", name: "Burkina Faso" },
+  { code: "BI", name: "Burundi" }, { code: "CV", name: "Cabo Verde" }, { code: "KH", name: "Cambodia" },
+  { code: "CM", name: "Cameroon" }, { code: "CA", name: "Canada" }, { code: "CF", name: "Central African Republic" },
+  { code: "TD", name: "Chad" }, { code: "CL", name: "Chile" }, { code: "CN", name: "China" },
+  { code: "CO", name: "Colombia" }, { code: "KM", name: "Comoros" }, { code: "CG", name: "Congo" },
+  { code: "CD", name: "Congo (Democratic Republic)" }, { code: "CR", name: "Costa Rica" }, { code: "CI", name: "Côte d'Ivoire" },
+  { code: "HR", name: "Croatia" }, { code: "CU", name: "Cuba" }, { code: "CY", name: "Cyprus" },
+  { code: "CZ", name: "Czechia" }, { code: "DK", name: "Denmark" }, { code: "DJ", name: "Djibouti" },
+  { code: "DM", name: "Dominica" }, { code: "DO", name: "Dominican Republic" }, { code: "EC", name: "Ecuador" },
+  { code: "EG", name: "Egypt" }, { code: "SV", name: "El Salvador" }, { code: "GQ", name: "Equatorial Guinea" },
+  { code: "ER", name: "Eritrea" }, { code: "EE", name: "Estonia" }, { code: "SZ", name: "Eswatini" },
+  { code: "ET", name: "Ethiopia" }, { code: "FJ", name: "Fiji" }, { code: "FI", name: "Finland" },
+  { code: "FR", name: "France" }, { code: "GA", name: "Gabon" }, { code: "GM", name: "Gambia" },
+  { code: "GE", name: "Georgia" }, { code: "DE", name: "Germany" }, { code: "GH", name: "Ghana" },
+  { code: "GR", name: "Greece" }, { code: "GD", name: "Grenada" }, { code: "GT", name: "Guatemala" },
+  { code: "GN", name: "Guinea" }, { code: "GW", name: "Guinea-Bissau" }, { code: "GY", name: "Guyana" },
+  { code: "HT", name: "Haiti" }, { code: "HN", name: "Honduras" }, { code: "HK", name: "Hong Kong" },
+  { code: "HU", name: "Hungary" }, { code: "IS", name: "Iceland" }, { code: "IN", name: "India" },
+  { code: "ID", name: "Indonesia" }, { code: "IR", name: "Iran" }, { code: "IQ", name: "Iraq" },
+  { code: "IE", name: "Ireland" }, { code: "IL", name: "Israel" }, { code: "IT", name: "Italy" },
+  { code: "JM", name: "Jamaica" }, { code: "JP", name: "Japan" }, { code: "JO", name: "Jordan" },
+  { code: "KZ", name: "Kazakhstan" }, { code: "KE", name: "Kenya" }, { code: "KI", name: "Kiribati" },
+  { code: "KW", name: "Kuwait" }, { code: "KG", name: "Kyrgyzstan" }, { code: "LA", name: "Laos" },
+  { code: "LV", name: "Latvia" }, { code: "LB", name: "Lebanon" }, { code: "LS", name: "Lesotho" },
+  { code: "LR", name: "Liberia" }, { code: "LY", name: "Libya" }, { code: "LI", name: "Liechtenstein" },
+  { code: "LT", name: "Lithuania" }, { code: "LU", name: "Luxembourg" }, { code: "MO", name: "Macao" },
+  { code: "MG", name: "Madagascar" }, { code: "MW", name: "Malawi" }, { code: "MY", name: "Malaysia" },
+  { code: "MV", name: "Maldives" }, { code: "ML", name: "Mali" }, { code: "MT", name: "Malta" },
+  { code: "MH", name: "Marshall Islands" }, { code: "MR", name: "Mauritania" }, { code: "MU", name: "Mauritius" },
+  { code: "MX", name: "Mexico" }, { code: "FM", name: "Micronesia" }, { code: "MD", name: "Moldova" },
+  { code: "MC", name: "Monaco" }, { code: "MN", name: "Mongolia" }, { code: "ME", name: "Montenegro" },
+  { code: "MA", name: "Morocco" }, { code: "MZ", name: "Mozambique" }, { code: "MM", name: "Myanmar" },
+  { code: "NA", name: "Namibia" }, { code: "NR", name: "Nauru" }, { code: "NP", name: "Nepal" },
+  { code: "NL", name: "Netherlands" }, { code: "NZ", name: "New Zealand" }, { code: "NI", name: "Nicaragua" },
+  { code: "NE", name: "Niger" }, { code: "NG", name: "Nigeria" }, { code: "KP", name: "North Korea" },
+  { code: "MK", name: "North Macedonia" }, { code: "NO", name: "Norway" }, { code: "OM", name: "Oman" },
+  { code: "PK", name: "Pakistan" }, { code: "PW", name: "Palau" }, { code: "PS", name: "Palestine" },
+  { code: "PA", name: "Panama" }, { code: "PG", name: "Papua New Guinea" }, { code: "PY", name: "Paraguay" },
+  { code: "PE", name: "Peru" }, { code: "PH", name: "Philippines" }, { code: "PL", name: "Poland" },
+  { code: "PT", name: "Portugal" }, { code: "QA", name: "Qatar" }, { code: "RO", name: "Romania" },
+  { code: "RU", name: "Russian Federation" }, { code: "RW", name: "Rwanda" }, { code: "KN", name: "Saint Kitts and Nevis" },
+  { code: "LC", name: "Saint Lucia" }, { code: "VC", name: "Saint Vincent and the Grenadines" }, { code: "WS", name: "Samoa" },
+  { code: "SM", name: "San Marino" }, { code: "ST", name: "Sao Tome and Principe" }, { code: "SA", name: "Saudi Arabia" },
+  { code: "SN", name: "Senegal" }, { code: "RS", name: "Serbia" }, { code: "SC", name: "Seychelles" },
+  { code: "SL", name: "Sierra Leone" }, { code: "SG", name: "Singapore" }, { code: "SK", name: "Slovakia" },
+  { code: "SI", name: "Slovenia" }, { code: "SB", name: "Solomon Islands" }, { code: "SO", name: "Somalia" },
+  { code: "ZA", name: "South Africa" }, { code: "KR", name: "South Korea" }, { code: "SS", name: "South Sudan" },
+  { code: "ES", name: "Spain" }, { code: "LK", name: "Sri Lanka" }, { code: "SD", name: "Sudan" },
+  { code: "SR", name: "Suriname" }, { code: "SE", name: "Sweden" }, { code: "CH", name: "Switzerland" },
+  { code: "SY", name: "Syria" }, { code: "TW", name: "Taiwan" }, { code: "TJ", name: "Tajikistan" },
+  { code: "TZ", name: "Tanzania" }, { code: "TH", name: "Thailand" }, { code: "TL", name: "Timor-Leste" },
+  { code: "TG", name: "Togo" }, { code: "TO", name: "Tonga" }, { code: "TT", name: "Trinidad and Tobago" },
+  { code: "TN", name: "Tunisia" }, { code: "TR", name: "Türkiye" }, { code: "TM", name: "Turkmenistan" },
+  { code: "TV", name: "Tuvalu" }, { code: "UG", name: "Uganda" }, { code: "UA", name: "Ukraine" },
+  { code: "AE", name: "United Arab Emirates" }, { code: "GB", name: "United Kingdom" }, { code: "US", name: "United States" },
+  { code: "UY", name: "Uruguay" }, { code: "UZ", name: "Uzbekistan" }, { code: "VU", name: "Vanuatu" },
+  { code: "VA", name: "Vatican City" }, { code: "VE", name: "Venezuela" }, { code: "VN", name: "Viet Nam" },
+  { code: "YE", name: "Yemen" }, { code: "ZM", name: "Zambia" }, { code: "ZW", name: "Zimbabwe" },
+];
+
+export const getCountry = (code: string) => COUNTRIES.find((c) => c.code === code.trim().toUpperCase());
+/** Display a stored country value — code if we know it, raw string otherwise. */
+export const countryName = (code: string) => getCountry(code)?.name ?? code;
+
+/** The 27 EU member states plus the CBAM-exempted EEA/EFTA territories
+    (Iceland, Liechtenstein, Norway) and Switzerland (linked ETS, treated as
+    exempt under CBAM Art. 2). A precursor produced inside this set carries no
+    CBAM liability, so its specific embedded emissions are 0 by construction —
+    not "unknown", not "default" — and no verification report is required to
+    say so. */
+export const EU_AND_EXEMPT_COUNTRY_CODES: string[] = [
+  "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE", "IT", "LV", "LT", "LU",
+  "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE",
+  "IS", "LI", "NO", "CH",
+];
+
+export const isEuOrExempt = (countryCode: string): boolean => EU_AND_EXEMPT_COUNTRY_CODES.includes(countryCode.trim().toUpperCase());
+
 /* ── Pricing ────────────────────────────────────────────────
-   Three tiers, annual only, supplier-scaled. Suppliers themselves never
-   pay and never take a seat — that's the wedge — but the number of
-   suppliers an org can actively collect data from is what the plan caps,
-   and what an upgrade buys more of. Priced in THB (exporters budget this
-   as a Thai cost centre). */
+   THE METER IS CN CODES, NOT SUPPLIERS. It used to be suppliers, and that was
+   the wrong thing to charge for: a Thai steel chain is two to four tiers deep
+   whether the exporter sells one CN code or twenty, so a supplier cap taxed
+   the exporter for the shape of their supply chain rather than the size of
+   their filing. Suppliers are unlimited and free on every tier, at any chain
+   depth — that is the wedge, and nothing in the product may cap them.
+
+   WHAT A TIER GATES: scale (codes, sites, open years, seats), assurance and
+   workload. NEVER correctness. Starter gets the whole engine, the full
+   six-tier precursor depth, the methodology document and the verifier pack,
+   because a depth-limited Starter would produce a WRONG number, and a wrong
+   number is not a cheaper product — it is a liability.
+
+   Standard's gates are structural rather than artificial: year-on-year trend
+   needs more than one open year, and AI extraction carries a real marginal
+   cost per document.
+
+   NO FIGURES LIVE HERE. Starter and Standard are quoted, not listed — the
+   card and the comparison column both say so, and every CTA goes to sales. */
+
+/* CONTACT SALES IS A LINE CONVERSATION, NOT A WEB FORM. It used to open
+   certrace.co and leave the reader to find a contact route on it. The price
+   is quoted, so every CTA on this page is asking for a person — and in
+   Thailand that person is reached on LINE, which is also where the CBAM
+   specialists already answer support. One tap from the button to a chat
+   window, on the phone the exporter is holding. */
+export const CONTACT_SALES_URL = "https://line.me/R/ti/p/@104lkswh?ts=07300003&oat_content=url";
+
+/** How deep the precursor chain may run. The same on every tier, on purpose —
+    see the note above. Mirrors MAX_SUPPLIER_DEPTH in lib/precursor-suppliers.ts. */
+export const MAX_CHAIN_TIERS = 6;
+
+/* `trial` is a REAL plan id but NOT a sellable tier — see TRIAL_PLAN below.
+   Keeping it in the union is what lets every `planAllows` / cap read in the
+   product answer for a trial account without a second code path. */
+export type PlanId = "starter" | "standard" | "enterprise" | "trial";
+
+/** null means "not capped on this tier" — unlimited, or negotiated on Enterprise. */
+export type PlanCaps = {
+  /** CN codes covered by the plan. */
+  cnCodes: number | null;
+  /** Production sites the exporter may register. */
+  sites: number | null;
+  /** Reporting years that may be open at the same time. */
+  years: number | null;
+  /** Team seats. Suppliers never take one, on any tier. */
+  seats: number | null;
+  /** Chain depth. Same everywhere; carried per-plan so the table can print it. */
+  chainTiers: number;
+};
+
+/** Everything a tier switches on rather than counts. */
+export type PlanFeatures = {
+  /** AI reads an uploaded document and proposes values a human then accepts. */
+  aiExtraction: boolean;
+  /** The Monitoring Methodology Documentation download on a workspace's
+      Readiness tab — the file a verifier reads first. Every PAID tier has it;
+      the free trial does not, which is the one thing the trial holds back.
+      See TRIAL_PLAN for why that is the right thing to hold back. */
+  methodologyDoc: boolean;
+};
 
 export type Plan = {
-  id: "starter" | "standard" | "enterprise";
+  id: PlanId;
   name: string;
-  tagline: string;
-  annual: number; // THB / year, billed annually — the only cadence
+  /** the pill in the top-right corner of the card */
+  tag: string;
+  /** the one-line promise under the name */
+  line: string;
+  /** the headline in the price block — a sentence, never a figure */
+  amount: string;
+  /** the small line under the headline */
+  unit: string;
+  /** what the comparison column prints where a price would go */
+  columnPrice: string;
+  builtFor: string;
   highlight?: boolean;
-  ctaKind: "downgrade" | "current" | "upgrade" | "contact";
-  supplierCap: number | null; // max suppliers included; null = talk to sales above ~150
-  limits: { suppliers: string };
-  features: string[];
+  caps: PlanCaps;
+  /** the cap rows at the foot of the card, in display order */
+  capRows: { label: string; value: string }[];
+  features: PlanFeatures;
 };
 
 export const PLANS: Plan[] = [
   {
     id: "starter",
     name: "Starter",
-    tagline: "One exporter, one regime. Prepare a clean CBAM data handoff.",
-    annual: 180_000,
-    ctaKind: "downgrade",
-    supplierCap: 20,
-    limits: { suppliers: "Up to 20 suppliers" },
-    features: ["Guided request builder", "Local readiness dashboard", "Draft calculation preview"],
+    tag: "One site",
+    line: "Everything you need, for one plant.",
+    amount: "Request the price",
+    unit: "5 CN codes · annual term",
+    columnPrice: "Price on request",
+    builtFor: "Your first CBAM year. A single production site, a focused export range, one or two people doing the work.",
+    caps: { cnCodes: 5, sites: 1, years: 1, seats: 3, chainTiers: MAX_CHAIN_TIERS },
+    capRows: [
+      { label: "CN codes", value: "5" },
+      { label: "Production sites", value: "1" },
+      { label: "Team seats", value: "3" },
+      { label: "Suppliers", value: "Unlimited" },
+    ],
+    features: { aiExtraction: false, methodologyDoc: true },
   },
   {
     id: "standard",
     name: "Standard",
-    tagline: "Most fit — for exporters with a real supplier base and a buyer or verifier watching.",
-    annual: 360_000,
+    tag: "Most chosen",
+    line: "More plants, more products, more years.",
+    amount: "Request the price",
+    unit: "20 CN codes · annual term",
+    columnPrice: "Price on request",
+    builtFor: "Several plants, complex goods with real precursor chains, and more than one reporting year in flight.",
     highlight: true,
-    ctaKind: "current",
-    supplierCap: 50,
-    limits: { suppliers: "Up to 50 suppliers" },
-    features: ["Everything in Starter", "Local reviewer workflow", "Steel & aluminium readiness templates"],
+    caps: { cnCodes: 20, sites: 5, years: 3, seats: 10, chainTiers: MAX_CHAIN_TIERS },
+    capRows: [
+      { label: "CN codes", value: "20" },
+      { label: "Production sites", value: "Up to 5" },
+      { label: "Team seats", value: "10" },
+      { label: "Suppliers", value: "Unlimited" },
+    ],
+    features: { aiExtraction: true, methodologyDoc: true },
   },
   {
     id: "enterprise",
     name: "Enterprise",
-    tagline: "Trading houses and multi-entity groups running supplier bases past 50.",
-    annual: 720_000,
-    ctaKind: "contact",
-    supplierCap: null,
-    limits: { suppliers: "50+ suppliers · custom above ~150" },
-    features: ["Everything in Standard", "Priority implementation support", "Planned verifier integration support"],
+    tag: "Custom",
+    line: "No limits, and we run the year with you.",
+    amount: "Priced on scope",
+    unit: "From 20+ CN codes",
+    columnPrice: "Custom",
+    builtFor: "Exporters and traders past 20 CN codes, or past five plants, who need the reporting year run with them.",
+    caps: { cnCodes: null, sites: null, years: null, seats: null, chainTiers: MAX_CHAIN_TIERS },
+    capRows: [
+      { label: "CN codes", value: "20+ custom" },
+      { label: "Production sites", value: "Unlimited" },
+      { label: "Team seats", value: "Unlimited" },
+      { label: "Suppliers", value: "Unlimited" },
+    ],
+    features: { aiExtraction: true, methodologyDoc: true },
   },
 ];
+
+/* ── The free trial ─────────────────────────────────────────
+   ONE MONTH, ENTERPRISE-SHAPED, AND IT ENDS.
+
+   IT IS NOT A FOURTH COLUMN. The trial is a state an account passes through,
+   not a tier anyone chooses between — putting it in PLANS would add a fifth
+   column to a comparison table that is already the widest thing in the
+   product, to sell something nobody buys. It lives on the billing page as the
+   account's own status strip, above the three tiers that are for sale.
+
+   THE CAPS ARE ENTERPRISE'S — every one of them null. A trial that caps CN
+   codes at five teaches the exporter that Certrace is small; a trial that
+   runs their whole estate for a month teaches them what the year feels like,
+   and that is the only thing a trial is for. Nothing is metered.
+
+   ONE THING IS HELD BACK: the Monitoring Methodology Documentation download.
+   It is the correct thing to hold back precisely because everything else is
+   open — the trial computes the real figures, shows the real readiness and
+   collects from real suppliers, and then the FILE a verifier reads first is
+   the thing that needs a plan. Nothing is watered down; the work is real and
+   it is still there when they buy. Holding back the calculation instead would
+   mean a month spent on a number nobody can trust.
+
+   AND THEN IT STOPS. At the end of the month the account goes read-only —
+   every screen still opens, every figure is still there, and nothing can be
+   changed. See lib/plan.ts (accountLocked) and components/account-lock.tsx.
+   The work is preserved, not deleted: what the exporter built is the thing
+   they are buying back. */
+
+/** How long a free trial runs, in days. */
+export const TRIAL_DAYS = 30;
+
+export const TRIAL_PLAN: Plan = {
+  id: "trial",
+  name: "Free trial",
+  tag: "1 month",
+  line: "The whole product, for one reporting month.",
+  amount: "Free for 30 days",
+  unit: "no limits · no card",
+  columnPrice: "Free · 30 days",
+  builtFor: "Seeing what a real CBAM year looks like on your own estate before you commit to a tier.",
+  caps: { cnCodes: null, sites: null, years: null, seats: null, chainTiers: MAX_CHAIN_TIERS },
+  capRows: [
+    { label: "CN codes", value: "Unlimited" },
+    { label: "Production sites", value: "Unlimited" },
+    { label: "Team seats", value: "Unlimited" },
+    { label: "Suppliers", value: "Unlimited" },
+  ],
+  features: { aiExtraction: true, methodologyDoc: false },
+};
+
+/* ── The comparison ─────────────────────────────────────────
+   DATA, not markup, so the table renders once and the same rows can be read
+   by anything else that needs to know what a tier includes.
+
+   A cell is either a mark (`true` / `false`) or a short value string. Every
+   row names an OUTCOME and a LIMIT, never a mechanism — deliberately. */
+
+export type CompareCell = boolean | string;
+
+export type CompareRow = {
+  label: string;
+  /** [starter, standard, enterprise] */
+  cells: [CompareCell, CompareCell, CompareCell];
+};
+
+export type CompareGroup = {
+  title: string;
+  /* A LIMIT and a SENTENCE are set in different type, and which is which is
+     declared rather than guessed from the string. A limit ("Up to 5") reads
+     in the pixel face, uppercased, so a column of them scans as a column of
+     numbers; prose ("Priority · 1 business day") stays in the body face,
+     because uppercased prose is unreadable at 12px — and a regex sniffing for
+     the difference would get the first Thai translation wrong. */
+  prose?: boolean;
+  rows: CompareRow[];
+};
+
+const yes: [CompareCell, CompareCell, CompareCell] = [true, true, true];
+
+export const PLAN_COMPARISON: CompareGroup[] = [
+  {
+    title: "Scope & limits",
+    rows: [
+      { label: "CN codes included", cells: ["5", "20", "20+ · priced on scope"] },
+      { label: "Production sites", cells: ["1", "Up to 5", "Unlimited"] },
+      { label: "Reporting years open at once", cells: ["1", "3", "Unlimited"] },
+      { label: "Team seats", cells: ["3", "10", "Unlimited"] },
+      { label: "Suppliers — always free for them", cells: ["Unlimited", "Unlimited", "Unlimited"] },
+      { label: "Supply-chain tiers", cells: ["Up to 6", "Up to 6", "Up to 6"] },
+    ],
+  },
+  {
+    title: "Collecting from your suppliers",
+    rows: [
+      { label: "Suppliers answer by link — no account needed", cells: yes },
+      { label: "Step-by-step monthly form", cells: yes },
+      { label: "Copy last month's answers", cells: yes },
+      { label: "Thai and English everywhere", cells: yes },
+      { label: "Incomplete months are blocked", cells: yes },
+      { label: "All open requests on one board", cells: yes },
+      { label: "Send, resend and chase, with a record", cells: yes },
+      { label: "Set your own due day", cells: yes },
+    ],
+  },
+  {
+    title: "The calculation",
+    rows: [
+      { label: "Direct, indirect and precursor emissions", cells: yes },
+      { label: "Sector rules applied automatically", cells: yes },
+      { label: "Every supplier in the chain, with its own figure", cells: yes },
+      { label: "Chain graded by its weakest link", cells: yes },
+      { label: "Scrap counted as zero, automatically", cells: yes },
+      { label: "20% default-value cap watched for you", cells: yes },
+    ],
+  },
+  {
+    title: "Verification readiness",
+    rows: [
+      { label: "Shows exactly what is still missing", cells: yes },
+      { label: "Methodology document written for you", cells: yes },
+      { label: "Every version kept when you edit", cells: yes },
+      { label: "Documents attached to the right month", cells: yes },
+      { label: "Materiality check", cells: yes },
+      { label: "AI reads your documents, you approve", cells: [false, true, true] },
+    ],
+  },
+  {
+    title: "Sign-off & record",
+    rows: [
+      { label: "Everything saves as you type", cells: yes },
+      { label: "Sign off each month", cells: yes },
+      { label: "Signature voids if the figures change", cells: yes },
+      { label: "Send a month back for correction", cells: yes },
+      { label: "Activity feed across all reports", cells: yes },
+    ],
+  },
+  {
+    title: "What CBAM is costing you",
+    rows: [
+      { label: "Your figure against the EU default", cells: yes },
+      { label: "Estimated certificate cost, and what you save", cells: yes },
+      { label: "Full-year projection", cells: yes },
+      { label: "Trend and sector comparison", cells: yes },
+      { label: "What each precursor adds", cells: yes },
+    ],
+  },
+  {
+    title: "What you hand over",
+    rows: [
+      { label: "One PDF, with every document inside it", cells: yes },
+      { label: "Verifier pack showing the workings", cells: yes },
+      { label: "Incomplete work stamped DRAFT", cells: yes },
+    ],
+  },
+  {
+    title: "Onboarding & support",
+    prose: true,
+    rows: [
+      { label: "Onboarding", cells: ["Self-serve, guided in-app", "Guided setup + data migration", "Dedicated implementation"] },
+      { label: "Support", cells: ["Email & LINE · 2 business days", "Priority · 1 business day", "Named manager · agreed SLA"] },
+      { label: "Training", cells: ["Help centre and videos", "One workshop for your team", "Team and supplier training, ongoing"] },
+    ],
+  },
+];
+
+/** The three facts printed under the table. */
+export const PLAN_COLOPHON = ["Certrace · EU CBAM compliance for exporters", "Prices exclude VAT", "Annual term"];
 
 export const getRegulation = (id: string) => REGULATIONS.find((r) => r.id === id);
 export const getJurisdiction = (code: string) => JURISDICTIONS.find((j) => j.code === code);
 export const getSector = (id: string) => PRODUCT_SECTORS.find((p) => p.id === id);
-export const getPlan = (id: string) => PLANS.find((p) => p.id === id);
+/** Any plan an account can be ON, including the trial — which is why this
+    does not just search PLANS. PLANS is what is for SALE. */
+export const getPlan = (id: string) => (id === TRIAL_PLAN.id ? TRIAL_PLAN : PLANS.find((p) => p.id === id));
 
 /* ════════════════════════════════════════════════════════════
    CREATE-DECLARATION REFERENCE DATA
@@ -307,11 +659,11 @@ export type PeriodOption = {
   /** which sub-picker the period needs */
   picker: "year" | "quarter" | "half" | "month" | "none" | "range";
 };
-// Definitive-period CBAM operator reporting and the declaration are annual.
-// Commercial teams may collect working data more often, but a partial period
-// must not be represented as the regulatory reporting period.
+// Official CBAM is annual; quarterly is offered because many exporters collect
+// supplier data each quarter even though the filing is yearly.
 export const CBAM_PERIODS: PeriodOption[] = [
-  { id: "annual", label: "Annual", hint: "Definitive-period CBAM reporting period (calendar year).", picker: "year" },
+  { id: "annual", label: "Annual", hint: "Official CBAM cadence — recommended. Suppliers can report at year-end.", picker: "year" },
+  { id: "quarterly", label: "Quarterly", hint: "Collect supplier data each quarter (one quarter at a time).", picker: "quarter" },
 ];
 // Buyer requests are flexible — the buyer decides the rhythm.
 export const BUYER_PERIODS: PeriodOption[] = [
@@ -323,12 +675,15 @@ export const BUYER_PERIODS: PeriodOption[] = [
   { id: "custom", label: "Custom range", hint: "Choose your own start and end dates.", picker: "range" },
 ];
 
-/* ── Product search shortcuts ──────────────────────────────────
-   These common commercial descriptions are a UI convenience, not the legal
-   master-data boundary. Every exact CN8 code must also match the effective,
-   versioned rules in lib/mrv/regulatory-data.ts. An unmatched code stays
-   unclassified; callers must never substitute hot-rolled coil or another
-   catalogue row. */
+/* ── Product catalogue (real CBAM master data) ────────────────
+   CN codes are real Combined-Nomenclature codes that fall inside the CBAM
+   scope of Annex I to Regulation (EU) 2023/956 (iron & steel — ch. 72/73 +
+   precursor 2601 12; aluminium — ch. 76). The exporter searches; Certrace
+   fills in category, sub-group, CN/HS and the CBAM template automatically.
+   None of this is editable — master data is read-only by design.
+
+   ⚠️ Master data is REAL. Only transactional values (quantities, suppliers,
+   emissions) elsewhere in the app are mock. */
 export type ProductCategory = "Iron & Steel" | "Aluminium";
 export type CatalogProduct = {
   id: string;
@@ -420,9 +775,10 @@ export const PRODUCT_CATALOG: CatalogProduct[] = [
   { id: "al-articles", name: "Other articles of aluminium", category: "Aluminium", group: "Articles", cnCode: "7616 99 90", hsCode: "7616", keywords: ["article", "other"] },
 ];
 
-/* ── CBAM data fields ─────────────────────────────────────────
+/* ── CBAM data fields (real reporting requirements) ───────────
    The data points an installation reports per good under the CBAM definitive
-   regime (Reg. (EU) 2023/956 and Implementing Reg. (EU) 2025/2547).
+   regime (Reg. (EU) 2023/956, Annex IV + Implementing Reg. (EU) 2025/2547,
+   which replaced the transitional 2023/1773 from 1 January 2026).
 
    Not every good carries the same obligation, so each field declares:
    • `scope`     — which selected goods bring it into play
@@ -441,6 +797,22 @@ export type CbamField = {
   label: string;
   group: string;
   hint: string;
+  /* A SPECIMEN ANSWER, for the placeholder — never a restatement of the hint.
+
+     The supplier questionnaire used to pass `hint` straight into the
+     placeholder as well as printing it under the box, so every field said the
+     same sentence twice: "Legal name of the producing installation" greyed
+     inside the input and again immediately below it. Two identical lines read
+     as two different instructions, and the reader stops to work out what the
+     difference is — on a form where the whole point is to be answerable
+     without a phone call.
+
+     They also do different jobs. The hint EXPLAINS and has to survive typing;
+     the placeholder SHOWS WHAT THE ANSWER LOOKS LIKE and disappears the moment
+     a key is pressed, so it can never be the only copy of anything that
+     matters. `example` is what belongs in a placeholder: the shape of a right
+     answer, in the format a Thai mill would actually write it. */
+  example?: string;
   scope: FieldScope;
   mandatory: boolean | "complex" | "aluminium" | "electrolysis";
   buyerRecommended?: boolean;
@@ -448,48 +820,54 @@ export type CbamField = {
 
 export const CBAM_FIELDS: CbamField[] = [
   // Installation — identifies who produced the goods
-  { id: "inst-name", label: "Installation name", group: "Installation", scope: "all", mandatory: true, buyerRecommended: true, hint: "Legal name of the producing installation" },
-  { id: "inst-country", label: "Installation country", group: "Installation", scope: "all", mandatory: true, buyerRecommended: true, hint: "Country of production" },
-  { id: "inst-address", label: "Site address", group: "Installation", scope: "all", mandatory: true, hint: "Full street address of the production site" },
-  { id: "inst-unlocode", label: "UN/LOCODE", group: "Installation", scope: "all", mandatory: false, hint: "UN location code of the site, e.g. THRYG" },
-  { id: "inst-coords", label: "Geographic coordinates", group: "Installation", scope: "all", mandatory: true, hint: "Latitude / longitude of the main emission source" },
+  { id: "inst-name", label: "Installation name", group: "Installation", scope: "all", mandatory: true, buyerRecommended: true, hint: "Legal name of the producing installation", example: "Siam Steel Industry Co., Ltd. — Rayong Works" },
+  { id: "inst-country", label: "Installation country", group: "Installation", scope: "all", mandatory: true, buyerRecommended: true, hint: "Country of production", example: "Thailand" },
+  { id: "inst-address", label: "Site address", group: "Installation", scope: "all", mandatory: true, hint: "Full street address of the production site", example: "88/9 Moo 4, Map Ta Phut Industrial Estate, Huai Pong, Mueang Rayong, Rayong 21150" },
+  { id: "inst-unlocode", label: "UN/LOCODE", group: "Installation", scope: "all", mandatory: false, hint: "The UN code for the town or port this site is in — five letters, country code first. No code yet? Apply directly through UNECE (ยื่นขอรหัสใหม่ ผ่านระบบ UNECE โดยตรง); until then use the nearest listed town.", example: "THRYG" },
+  { id: "inst-coords", label: "Geographic coordinates", group: "Installation", scope: "all", mandatory: true, hint: "Latitude / longitude of the main emission source, in decimal degrees", example: "12.7031, 101.1543" },
   // Goods — what was produced
-  { id: "goods-category", label: "Aggregated goods category", group: "Goods", scope: "all", mandatory: true, buyerRecommended: true, hint: "CBAM aggregated category for the CN code" },
-  { id: "cn-code", label: "CN code", group: "Goods", scope: "all", mandatory: true, buyerRecommended: true, hint: "8-digit Combined Nomenclature code" },
-  { id: "process-route", label: "Production process / route", group: "Goods", scope: "all", mandatory: true, buyerRecommended: true, hint: "Steel: e.g. BF-BOF, EAF, DRI-EAF · Aluminium: e.g. electrolysis (Hall-Héroult), remelt, extrusion" },
-  { id: "installation-reference", label: "Producing installation", group: "Goods", scope: "all", mandatory: true, buyerRecommended: true, hint: "Installation profile assigned to this product and process" },
-  { id: "monitoring-plan-id", label: "Monitoring plan reference", group: "Goods", scope: "all", mandatory: true, hint: "Operator-controlled monitoring plan identifier for this installation and reporting period" },
-  { id: "monitoring-plan-version", label: "Monitoring plan version", group: "Goods", scope: "all", mandatory: true, hint: "Version that governed this installation/process data" },
-  { id: "system-boundary", label: "Process and installation boundary", group: "Goods", scope: "all", mandatory: true, hint: "Included process units, emission sources and transfers for this production process" },
-  { id: "excluded-activities", label: "Excluded activities", group: "Goods", scope: "all", mandatory: true, hint: "Activities outside this boundary, or explicitly state none" },
-  { id: "data-gap-methodology", label: "Data-gap methodology", group: "Goods", scope: "all", mandatory: true, hint: "Method used for missing periods/readings, or explicitly state that no data gaps occurred" },
-  { id: "control-activities", label: "Monitoring control activities", group: "Goods", scope: "all", mandatory: true, hint: "Meter reconciliation, calibration, review and other controls, one per line" },
-  { id: "production-activity", label: "Process production activity (TNE)", group: "Goods", scope: "all", mandatory: true, buyerRecommended: true, hint: "Exact installation/process output for the reporting period — not the commercial shipment quantity" },
-  { id: "quantity", label: "Commercial quantity covered (net mass, TNE)", group: "Goods", scope: "all", mandatory: true, buyerRecommended: true, hint: "Canonical net mass the exporter bought from you in the period — separate from installation production activity" },
+  { id: "goods-category", label: "Aggregated goods category", group: "Goods", scope: "all", mandatory: true, buyerRecommended: true, hint: "CBAM aggregated category for the CN code", example: "Crude steel" },
+  { id: "cn-code", label: "CN code", group: "Goods", scope: "all", mandatory: true, buyerRecommended: true, hint: "8-digit Combined Nomenclature code", example: "7207 11 90" },
+  { id: "process-route", label: "Production process / route", group: "Goods", scope: "all", mandatory: true, buyerRecommended: true, hint: "The route this good was actually made by. Steel: BF-BOF, EAF or DRI-EAF · Aluminium: electrolysis (Hall-Héroult), remelt or extrusion", example: "Electric arc furnace (EAF)" },
+  { id: "quantity", label: "Quantity covered by this request (net mass, t)", group: "Goods", scope: "all", mandatory: true, buyerRecommended: true, hint: "Net mass the exporter bought from you in the period — not your installation's total production", example: "1,250" },
+  /* The denominator. Every per-tonne figure in a CBAM filing is a division, and
+     this is what it divides by — the installation's own output of this good in
+     the period, which is a different (larger) number than `quantity` above.
+     Without it an absolute electricity or fuel figure cannot become tCO₂e/t at
+     all, so it is required, not optional. */
+  { id: "production-output", label: "Your output of this good in the period (net mass, t)", group: "Goods", scope: "all", mandatory: true, buyerRecommended: true, hint: "Everything your installation produced of this good in the reporting period — including what you sold to others. This is the denominator behind every per-tonne figure.", example: "48,600" },
   // Embedded emissions — the heart of CBAM. Direct/indirect cover the good's
   // OWN production process; precursor embedded emissions are entered as
   // structured rows below and the total is DERIVED (own + precursors).
   { id: "direct-emissions", label: "Direct specific emissions — own process (tCO₂e/t)", group: "Embedded emissions", scope: "all", mandatory: true, buyerRecommended: true, hint: "Direct emissions of YOUR production step only — precursors are added separately below" },
   { id: "indirect-emissions", label: "Indirect specific emissions — own process (tCO₂e/t)", group: "Embedded emissions", scope: "all", mandatory: true, buyerRecommended: true, hint: "Electricity-related emissions of YOUR production step only" },
-  { id: "total-emissions", label: "Definitive embedded emissions (TCO2E_PER_TNE)", group: "Embedded emissions", scope: "all", mandatory: true, buyerRecommended: true, hint: "Derived exactly from direct emissions and precursors; indirect emissions are retained separately but excluded for Annex-II steel/aluminium" },
+  { id: "total-emissions", label: "Total embedded emissions (tCO₂e/t)", group: "Embedded emissions", scope: "all", mandatory: true, buyerRecommended: true, hint: "Derived automatically: own direct + own indirect + precursor contribution", example: "Calculated for you" },
   { id: "method", label: "Determination method (actual / default)", group: "Embedded emissions", scope: "all", mandatory: true, buyerRecommended: true, hint: "Whether actual data or default values were used" },
-  { id: "emissions-method", label: "MRV method", group: "Embedded emissions", scope: "all", mandatory: true, buyerRecommended: true, hint: "Calculation-based, mass balance or CEMS method used for the production process" },
-  { id: "plant-mrv", label: "Plant MRV calculation inputs", group: "Embedded emissions", scope: "all", mandatory: false, buyerRecommended: true, hint: "Required for actual values: source streams, mass balance or CEMS plus energy, allocation and aluminium PFC inputs, with evidence references" },
-  { id: "default-value-reference", label: "Commission default-value reference", group: "Embedded emissions", scope: "all", mandatory: false, buyerRecommended: true, hint: "Required when default is selected: effective dataset/version and exact default-value row used" },
   // Electricity — required where indirect emissions dominate (aluminium electrolysis)
-  { id: "elec-consumed", label: "Electricity consumed (MWh/t)", group: "Electricity", scope: "all", mandatory: "aluminium", hint: "Electricity used per tonne of output — drives indirect emissions" },
-  { id: "elec-factor", label: "Electricity emission factor (TCO2E_PER_MWH)", group: "Electricity", scope: "all", mandatory: "aluminium", hint: "Exact grid, PPA or supplier-specific emission factor" },
-  { id: "elec-factor-source", label: "Electricity factor source", group: "Electricity", scope: "all", mandatory: "aluminium", hint: "Documented factor publication, PPA or calculation reference" },
+  /* ABSOLUTE MWh for the whole reporting period — never per tonne. A per-tonne
+     value entered here used to be divided by output a second time inside the
+     calculation, understating indirect emissions by the tonnage (gap G1). The
+     division now happens once, in the engine, against `production-output`.
+     lib/cbam/electricity-migration.ts converts values stored the old way. */
+  { id: "elec-consumed", label: "Electricity consumed (MWh, total for the period)", group: "Electricity", scope: "all", mandatory: "aluminium", hint: "Total MWh drawn across the whole reporting period — NOT per tonne. Certrace divides by your output to get the per-tonne figure." },
+  { id: "elec-factor", label: "Electricity emission factor & source", group: "Electricity", scope: "all", mandatory: "aluminium", hint: "Grid / PPA factor and its documented source", example: "0.4999 tCO₂/MWh — TGO national grid factor 2023" },
   { id: "al-process", label: "Electrolysis technology (prebake / Søderberg)", group: "Electricity", scope: "electrolysis", mandatory: "electrolysis", hint: "Smelting route — only for primary (unwrought) aluminium from electrolysis" },
+  /* Activity data — the inputs BEHIND the emissions figure, not the figure.
+     A supplier who fills this in is submitting something a verifier can
+     re-derive rather than a number they have to take on trust, so it is the
+     single most valuable optional field in the set. Off by default because a
+     first-time mill cannot produce it; the exporter turns it on for the
+     suppliers who can, on the Classification step. */
+  { id: "activity-data", label: "Activity data behind the figure (fuel, electricity, process materials)", group: "Activity data", scope: "all", mandatory: false, hint: "Optional but decisive: enter the fuel burned, power drawn and process materials consumed, and Certrace computes the emissions instead of taking your figure on trust." },
   // Precursors — only complex (downstream) goods embed upstream emissions
   { id: "precursors", label: "Relevant precursors & their embedded emissions", group: "Precursors", scope: "complex", mandatory: "complex", hint: "One row per input material: quantity consumed per tonne of this good × its embedded emissions" },
-  { id: "precursor-route", label: "Precursor production routes", group: "Precursors", scope: "complex", mandatory: false, hint: "How each precursor was produced, where known" },
+  { id: "precursor-route", label: "Precursor production routes", group: "Precursors", scope: "complex", mandatory: false, hint: "How each precursor was produced, where known", example: "Billet from Thai Metal Pro — scrap-fed EAF, Chonburi. Pig iron from Siam Iron — blast furnace route." },
   // Carbon price — offsets the CBAM liability
   { id: "carbon-price", label: "Carbon price due in country of origin", group: "Carbon price", scope: "all", mandatory: true, buyerRecommended: true, hint: "Carbon price actually paid per tonne of CO₂e, if any" },
   { id: "carbon-price-currency", label: "Carbon price currency", group: "Carbon price", scope: "all", mandatory: false, hint: "Currency the carbon price was paid in (THB or EUR)" },
   { id: "carbon-price-form", label: "Form of carbon price (ETS / tax / levy)", group: "Carbon price", scope: "all", mandatory: false, hint: "Instrument under which the price was paid" },
   // Verification — accredited assurance of the figures
-  { id: "verification", label: "Verification & verifier details", group: "Verification", scope: "all", mandatory: true, buyerRecommended: true, hint: "Accredited verifier and verification outcome" },
+  { id: "verification", label: "Verification & verifier details", group: "Verification", scope: "all", mandatory: true, buyerRecommended: true, hint: "Accredited verifier and verification outcome", example: "TUV SUD (Thailand) Ltd. — unqualified opinion, 14 Feb 2026" },
 ];
 
 /* Goods made from precursors ("complex goods") must carry their precursors'
@@ -500,8 +878,6 @@ export const isComplexGood = (p: CatalogProduct) => !PRIMARY_GROUPS.has(p.group)
    smelting-technology question makes sense. A downstream extruder must never
    be forced to answer prebake/Søderberg. */
 export const isElectrolysisGood = (p: CatalogProduct) => p.category === "Aluminium" && p.group === "Unwrought";
-/** Always shown because the supplier's actual/default choice is made after the request is created. */
-export const METHOD_CONDITIONAL_FIELD_IDS = new Set(["plant-mrv", "default-value-reference"]);
 
 export type ResolvedCbamField = CbamField & { required: boolean };
 
@@ -575,23 +951,129 @@ export function scope2Treatment(selected: CatalogProduct[]): Scope2Treatment[] {
    without per-product conversion data, and a silent zero would understate
    emissions (exactly the failure the 2026-07-13 test demonstrated). Exporters
    invoicing in other units convert to net mass before entering the lot. */
-export const PRODUCT_UNITS = ["TNE", "KGM"] as const;
+export const PRODUCT_UNITS = ["tonnes (t)", "kg"] as const;
 export type ProductUnit = (typeof PRODUCT_UNITS)[number];
-export const PRODUCT_UNIT_LABELS: Record<ProductUnit, string> = {
-  TNE: "TNE — tonnes",
-  KGM: "KGM — kilograms",
-};
 /* No default unit — the exporter must pick the unit their goods were invoiced
    in, so a quantity is never silently mis-typed as tonnes. */
 export const DEFAULT_UNIT = "";
 
-export const getCatalogProduct = (id: string) => {
-  const product = PRODUCT_CATALOG.find((candidate) => candidate.id === id);
-  if (!product) return undefined;
-  const regulatoryProduct = classifyCnCode(product.cnCode);
-  if (!regulatoryProduct) return undefined;
-  const expectedSector = product.category === "Iron & Steel" ? "IRON_STEEL" : "ALUMINIUM";
-  return regulatoryProduct.sector === expectedSector ? product : undefined;
-};
+export const getCatalogProduct = (id: string) => PRODUCT_CATALOG.find((p) => p.id === id);
 export const productTemplate = (p: CatalogProduct) => `CBAM · ${p.category} · ${p.group}`;
 export const PRODUCT_CATEGORIES: ProductCategory[] = ["Iron & Steel", "Aluminium"];
+
+/* ── Aggregated goods categories ───────────────────────────────
+   The EU's own grouping, from Annex II of Implementing Regulation (EU)
+   2023/1773. It is not our sub-group by another name and it is not cosmetic:
+   the aggregated category is the level at which embedded emissions are
+   reported and at which the indirect-emissions rule bites, so it is the label
+   a verifier and a customs authority both read.
+
+   It is DERIVED from the CN code rather than typed on each row. A category
+   that can disagree with the CN code beside it is a category nobody can trust,
+   and 67 hand-entered copies of the same eight strings is 67 chances to
+   mistype one. */
+export type AggregatedGoodsCategory =
+  | "Sintered ore"
+  | "Pig iron"
+  | "Ferro-alloys"
+  | "Direct reduced iron"
+  | "Crude steel"
+  | "Iron or steel products"
+  | "Unwrought aluminium"
+  | "Aluminium products";
+
+/** CN heading → aggregated goods category. Longest prefix wins, so a heading
+    rule can be narrowed by a subheading rule without reordering the table. */
+const AGGREGATED_BY_CN: [prefix: string, category: AggregatedGoodsCategory][] = [
+  ["2601", "Sintered ore"],
+  ["7201", "Pig iron"],
+  ["7205", "Pig iron"],
+  ["7202", "Ferro-alloys"],
+  ["7203", "Direct reduced iron"],
+  ["7206", "Crude steel"],
+  ["7207", "Crude steel"],
+  ["7218", "Crude steel"],
+  ["7224", "Crude steel"],
+  ["7601", "Unwrought aluminium"],
+];
+
+const digitsOf = (cn: string) => cn.replace(/\D/g, "");
+
+export function aggregatedGoodsCategory(p: Pick<CatalogProduct, "cnCode" | "category">): AggregatedGoodsCategory {
+  const d = digitsOf(p.cnCode);
+  let best: AggregatedGoodsCategory | null = null;
+  let bestLen = 0;
+  for (const [prefix, cat] of AGGREGATED_BY_CN) {
+    if (d.startsWith(prefix) && prefix.length > bestLen) {
+      best = cat;
+      bestLen = prefix.length;
+    }
+  }
+  // Everything else in scope is a downstream good of its sector: chapters 72
+  // and 73 beyond the precursor headings, and chapters 7603–7616.
+  return best ?? (p.category === "Aluminium" ? "Aluminium products" : "Iron or steel products");
+}
+
+/* ── Product type ──────────────────────────────────────────────
+   The tag shown on every catalogue row. It answers the one question that
+   changes what the exporter has to do next — is this thing an INPUT to
+   somebody else's process, a SEMI-FINISHED good, or a FINISHED article —
+   because that is what decides whether the workspace will ask for precursors
+   and how much of the SEE arrives already embedded. */
+export type ProductType = "Precursor" | "Semi-finished" | "Finished product";
+
+export const PRODUCT_TYPES: ProductType[] = ["Precursor", "Semi-finished", "Finished product"];
+
+export const PRODUCT_TYPE_HINT: Record<ProductType, string> = {
+  Precursor:
+    "A CBAM good that is normally consumed to make another CBAM good. It has no precursors of its own in scope, so its emissions are almost all direct.",
+  "Semi-finished":
+    "Cast or hot-worked but not yet a final shape. Carries the emissions of the precursors above it plus its own melting and casting.",
+  "Finished product":
+    "Rolled, coated, formed or assembled. Most of the embedded emissions arrive with the input material, so the precursor chain matters more than the site's own fuel.",
+};
+
+const PRECURSOR_GROUPS = new Set(["Primary inputs", "Unwrought"]);
+const SEMI_GROUPS = new Set(["Semi-finished"]);
+
+export function productType(p: Pick<CatalogProduct, "group">): ProductType {
+  if (PRECURSOR_GROUPS.has(p.group)) return "Precursor";
+  if (SEMI_GROUPS.has(p.group)) return "Semi-finished";
+  return "Finished product";
+}
+
+/** Sub-groups present in the catalogue, in catalogue order — the filter chips
+    on the product picker read from this so a group added to the catalogue
+    appears in the filter without a second edit. */
+export function productGroups(category?: ProductCategory): string[] {
+  const seen: string[] = [];
+  for (const p of PRODUCT_CATALOG) {
+    if (category && p.category !== category) continue;
+    if (!seen.includes(p.group)) seen.push(p.group);
+  }
+  return seen;
+}
+
+/** Search by name, keyword, CN code or HS heading. Returns EVERY match — the
+    picker paginates by scrolling, and a silent `.slice(0, 12)` is why the
+    catalogue read as "not all 67 are there" when all 67 always were. */
+export function searchCatalog(
+  query: string,
+  filters: { category?: ProductCategory; group?: string; type?: ProductType } = {},
+): CatalogProduct[] {
+  const q = query.trim().toLowerCase();
+  const digits = q.replace(/\D/g, "");
+  return PRODUCT_CATALOG.filter((p) => {
+    if (filters.category && p.category !== filters.category) return false;
+    if (filters.group && p.group !== filters.group) return false;
+    if (filters.type && productType(p) !== filters.type) return false;
+    if (!q) return true;
+    if (p.name.toLowerCase().includes(q)) return true;
+    if (p.group.toLowerCase().includes(q)) return true;
+    if (p.keywords.some((k) => k.includes(q))) return true;
+    if (digits && (digitsOf(p.cnCode).startsWith(digits) || p.hsCode.startsWith(digits))) return true;
+    return false;
+  });
+}
+
+export const CATALOG_SIZE = PRODUCT_CATALOG.length;

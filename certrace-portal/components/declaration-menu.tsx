@@ -15,28 +15,26 @@ import { toast } from "./toast";
 import type { Declaration } from "@/lib/data";
 import { duplicateToDraft } from "@/lib/duplicate";
 import { deleteDeclaration } from "@/lib/declarations-store";
+import { useT } from "@/lib/i18n";
 
 function MenuItems({ decl, close, afterDelete }: { decl: Declaration; close: () => void; afterDelete?: () => void }) {
   const router = useRouter();
+  const t = useT();
   const [armed, setArmed] = React.useState(false);
   const item = "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[12.5px] text-black/65 transition-colors hover:bg-[#fafaf8] hover:text-black";
 
   const duplicate = () => {
-    try {
-      const id = duplicateToDraft(decl);
-      toast({ message: "Duplicated as a draft", detail: "Scope and suppliers copied — adjust the period and quantities.", tone: "ok" });
-      close();
-      router.push(`/declarations/new?draft=${id}`);
-    } catch (error) {
-      toast({ message: "Classification required", detail: error instanceof Error ? error.message : "The declaration contains an unmapped product.", tone: "err" });
-    }
+    const id = duplicateToDraft(decl);
+    toast({ message: t("Duplicated as a draft"), detail: t("Scope and suppliers copied — adjust the period and quantities."), tone: "ok" });
+    close();
+    router.push(`/declarations/new?draft=${id}`);
   };
 
   const copyLink = () => {
     if (typeof navigator !== "undefined" && navigator.clipboard) {
       navigator.clipboard.writeText(`${window.location.origin}/declarations/${decl.id}`);
     }
-    toast({ message: "Link copied", detail: "Anyone on your team with a seat can open it.", tone: "info" });
+    toast({ message: t("Link copied"), detail: t("Anyone on your team with a seat can open it."), tone: "info" });
     close();
   };
 
@@ -46,7 +44,7 @@ function MenuItems({ decl, close, afterDelete }: { decl: Declaration; close: () 
       return;
     }
     deleteDeclaration(decl.id);
-    toast({ message: "Declaration deleted", detail: "Supplier submissions stay on their own record.", tone: "info" });
+    toast({ message: t("Declaration deleted"), detail: t("Supplier submissions stay on their own record."), tone: "info" });
     close();
     afterDelete?.();
   };
@@ -54,15 +52,15 @@ function MenuItems({ decl, close, afterDelete }: { decl: Declaration; close: () 
   return (
     <div>
       <button onClick={duplicate} className={item}>
-        <Copy size={13} strokeWidth={1.5} className="flex-none text-black/40" /> Duplicate as draft
+        <Copy size={13} strokeWidth={1.5} className="flex-none text-black/40" /> {t("Duplicate as draft")}
       </button>
       <button onClick={copyLink} className={item}>
-        <Link2 size={13} strokeWidth={1.5} className="flex-none text-black/40" /> Copy link
+        <Link2 size={13} strokeWidth={1.5} className="flex-none text-black/40" /> {t("Copy link")}
       </button>
       <div className="mx-2 my-1 h-px bg-black/[0.06]" />
       <button onClick={del} className={cn(item, "text-[#dc2626] hover:bg-[#fef2f2] hover:text-[#dc2626]")}>
         {armed ? <Check size={13} strokeWidth={2} className="flex-none" /> : <Trash2 size={13} strokeWidth={1.5} className="flex-none" />}
-        {armed ? "Click again to confirm" : "Delete declaration"}
+        {armed ? t("Click again to confirm") : t("Delete declaration")}
       </button>
     </div>
   );
@@ -79,6 +77,7 @@ export function DeclarationMenu({
   size?: "sm" | "md";
   className?: string;
 }) {
+  const t = useT();
   return (
     <Dropdown
       align="right"
@@ -86,8 +85,8 @@ export function DeclarationMenu({
       trigger={(open) => (
         <span
           role="presentation"
-          aria-label={`Actions for ${decl.title ?? decl.name}`}
-          title="More actions"
+          aria-label={t("Actions for {name}", { name: decl.title ?? decl.name })}
+          title={t("More actions")}
           className={cn(
             "grid place-items-center rounded-lg transition-colors",
             size === "sm" ? "h-7 w-7" : "h-9 w-9 rounded-xl border",

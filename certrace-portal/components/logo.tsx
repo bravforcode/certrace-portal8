@@ -4,8 +4,6 @@
    reserved for the #111 dark fill only. Min lockup width 96px — below that the
    wordmark stops reading, so use <CertraceIcon> instead. */
 
-/* eslint-disable @next/next/no-img-element */
-
 type Variant = "ink" | "onDark";
 
 export function CertraceLogo({
@@ -15,6 +13,7 @@ export function CertraceLogo({
   variant?: Variant;
   className?: string;
 }) {
+  // eslint-disable-next-line @next/next/no-img-element
   return (
     <img
       src={`/brand/certrace-logo-horizontal-${variant}.svg`}
@@ -32,6 +31,7 @@ export function CertraceIcon({
   variant?: Variant;
   className?: string;
 }) {
+  // eslint-disable-next-line @next/next/no-img-element
   return (
     <img
       src={`/brand/certrace-icon-${variant}.svg`}

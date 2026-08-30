@@ -11,43 +11,42 @@
 import { valueKey } from "./supplier";
 import { scope2Treatment } from "./config";
 import { formatPrecursors } from "./precursors";
+import { readElectricity } from "./cbam/electricity-migration";
 import type { ReviewSubmission, ReportSignoff } from "./exporter-review";
 import { getTeamMember } from "./team-store";
 import type { SupplierChapter, SignOffStep, ChapterProduct, PackageInput } from "./download";
-import { decimal, decimalToString } from "./mrv";
-import { embeddedEmissionsPerTonne, multiplyExact } from "./workflow-measurements";
 
 const fmtDate = (ts: number) => new Date(ts).toUTCString();
-const decimalOrNull = (v: string | undefined): string | null => {
+const numOrNull = (v: string | undefined): number | null => {
   if (v == null || v.trim() === "") return null;
-  try {
-    return decimalToString(decimal(v.trim()));
-  } catch {
-    return null;
-  }
+  const n = Number(v.replace(/,/g, ""));
+  return Number.isFinite(n) ? n : null;
 };
 
-/** Part C of the package — one full chapter per submission. */
-export function buildSupplierChapters(subs: ReviewSubmission[]): SupplierChapter[] {
+/* A supplier can withhold SUPPORTING DETAIL from a buyer-facing package —
+   evidence files, the electricity derivation, the precursor breakdown naming
+   their own upstream (lib/supplier-records.ts). Declared figures are never
+   restrictable, so a redacted chapter is still a complete CBAM chapter.
+   Omitting the field entirely would read as "they didn't answer", which is a
+   different and much worse thing to tell a buyer — so it's replaced with an
+   explicit line saying the supplier withheld it. */
+const WITHHELD = "Withheld by the supplier — shared with the exporter only";
+
+/** Part C of the package — one full chapter per submission.
+    `audience: "buyer"` applies each supplier's onward-sharing policy; the
+    default (the exporter's own verification package) redacts nothing. */
+export function buildSupplierChapters(subs: ReviewSubmission[], opts?: { audience?: "buyer" | "verifier" }): SupplierChapter[] {
   return subs.map((sub) => {
     const v = (id: string, pid?: string) => sub.values[valueKey(id, pid)] ?? "";
+    const restricted = new Set(
+      opts?.audience === "verifier" ? sub.restrictedForVerifier : opts?.audience === "buyer" ? sub.restrictedForBuyer : [],
+    );
 
     const products: ChapterProduct[] = sub.request.products.map((rp) => {
       const pid = rp.product.id;
-      const direct = decimalOrNull(v("direct-emissions", pid));
-      const indirect = decimalOrNull(v("indirect-emissions", pid));
-      let total: string | null = null;
-      try {
-        total = embeddedEmissionsPerTonne({
-          product: rp.product,
-          direct: v("direct-emissions", pid),
-          indirect: v("indirect-emissions", pid),
-          precursors: v("precursors", pid),
-          reportingPeriod: sub.request.period,
-        });
-      } catch {
-        total = null;
-      }
+      const direct = numOrNull(v("direct-emissions", pid));
+      const indirect = numOrNull(v("indirect-emissions", pid));
+      const total = numOrNull(v("total-emissions", pid)) ?? (direct != null && indirect != null ? direct + indirect : null);
       return {
         name: rp.product.name,
         cnCode: rp.product.cnCode,
@@ -55,30 +54,31 @@ export function buildSupplierChapters(subs: ReviewSubmission[]): SupplierChapter
         category: rp.product.category,
         group: rp.product.group,
         route: v("process-route", pid) || undefined,
-        installationReference: v("installation-reference", pid) || undefined,
-        productionActivityTonnes: v("production-activity", pid) || undefined,
-        mrvMethod: v("emissions-method", pid) || undefined,
-        monitoringPlanId: v("monitoring-plan-id", pid) || undefined,
-        monitoringPlanVersion: v("monitoring-plan-version", pid) || undefined,
-        systemBoundary: v("system-boundary", pid) || undefined,
-        excludedActivities: v("excluded-activities", pid) || undefined,
-        dataGapMethodology: v("data-gap-methodology", pid) || undefined,
-        controlActivities: v("control-activities", pid) || undefined,
-        quantityTonnes: rp.commercialQuantityTonnes,
+        quantityTonnes: rp.totalTonnes,
         directPerTonne: direct,
         indirectPerTonne: indirect,
         totalPerTonne: total,
-        absoluteTCO2e: total != null ? multiplyExact(total, rp.commercialQuantityTonnes) : null,
-        calculationTraces: sub.emissions.find((line) => line.productId === pid)?.calculationTraces ?? [],
+        absoluteTCO2e: total != null ? Math.round(total * rp.totalTonnes) : null,
         method: v("method", pid) || undefined,
         // structured rows print as readable lines; legacy prose passes through
-        precursors: v("precursors", pid) ? formatPrecursors(v("precursors", pid)) : undefined,
-        precursorRoutes: v("precursor-route", pid) || undefined,
-        electricityConsumed: v("elec-consumed", pid) || undefined,
-        electricityFactor: v("elec-factor", pid)
-          ? `${v("elec-factor", pid)} TCO2E_PER_MWH${v("elec-factor-source", pid) ? ` · ${v("elec-factor-source", pid)}` : ""}`
-          : undefined,
-        electrolysisTech: v("al-process", pid) || undefined,
+        precursors: restricted.has("precursors")
+          ? WITHHELD
+          : v("precursors", pid)
+            ? formatPrecursors(v("precursors", pid))
+            : undefined,
+        precursorRoutes: restricted.has("precursors") ? undefined : v("precursor-route", pid) || undefined,
+        /* Absolute MWh for the period, with the output it divides by — the pair
+           is what lets a reader re-derive the intensity instead of trusting it. */
+        electricityConsumed: restricted.has("electricity")
+          ? WITHHELD
+          : (() => {
+              const e = readElectricity(sub.values, pid);
+              if (e.mwhAbsolute == null) return v("elec-consumed", pid) || undefined;
+              const per = e.perTonne != null ? ` (${e.perTonne.toFixed(3)} MWh/t over ${e.outputTonnes?.toLocaleString("en-US")} t output)` : "";
+              return `${e.mwhAbsolute.toLocaleString("en-US")} MWh${per}`;
+            })(),
+        electricityFactor: restricted.has("electricity") ? undefined : v("elec-factor", pid) || undefined,
+        electrolysisTech: restricted.has("electricity") ? undefined : v("al-process", pid) || undefined,
       };
     });
 
@@ -91,48 +91,31 @@ export function buildSupplierChapters(subs: ReviewSubmission[]): SupplierChapter
       signedBy: sub.signedBy,
       signedRole: sub.signedRole,
       dataQualityScore: sub.check?.score ?? null,
-      actorRole: sub.profile?.actorRole,
-      upstreamProducer: sub.profile?.upstreamProducer || undefined,
       installation: {
         name: v("inst-name"),
         address: v("inst-address"),
         country: v("inst-country") || sub.supplier.country,
         unlocode: v("inst-unlocode") || undefined,
         coordinates: v("inst-coords") || undefined,
-        productionActivity: sub.profile?.productionActivityMeasurement?.canonicalValue,
       },
-      additionalInstallations: (sub.profile?.additionalInstallations ?? []).map((installation) => ({
-        id: installation.id,
-        name: installation.name,
-        country: installation.country,
-        address: installation.address,
-        routes: installation.routes,
-        productionActivity: installation.productionActivityMeasurement?.canonicalValue,
-      })),
-      monitoringPlans: [...new Map(products.map((product) => [
-        `${product.installationReference ?? "primary"}:${product.monitoringPlanId ?? ""}:${product.monitoringPlanVersion ?? ""}`,
-        { id: product.monitoringPlanId ?? "", version: product.monitoringPlanVersion ?? "", installationReference: product.installationReference },
-      ])).values()],
       products,
       carbonPrice: {
         amount: `${v("carbon-price") || "0"} ${v("carbon-price-currency") || "THB"}/tCO₂e`,
         instrument: v("carbon-price-form") || undefined,
-        note: (v("carbon-price") || "0") === "0" ? "No carbon price was reported for this dataset." : undefined,
+        note: (v("carbon-price") || "0") === "0" ? "Thailand currently has no carbon price." : undefined,
       },
       verification: v("verification"),
-      documents: sub.request.documents.map((d) => ({
-        label: d.label,
-        required: d.required,
-        status: (sub.docs[d.id]?.status === "uploaded" ? "referenced" : "missing") as "referenced" | "missing",
-        files: (sub.docs[d.id]?.files ?? []).map((f) => f.name),
-      })),
-      findings: [
-        ...(sub.check?.findings ?? [])
-          .filter((f) => f.severity === "critical" || f.severity === "warning")
-          .map((f) => ({ severity: f.severity as "critical" | "warning", title: f.title, detail: f.detail })),
-        ...sub.mrvAssemblyBlockers.map((detail) => ({ severity: "critical" as const, title: "MRV report assembly blocked", detail })),
-        ...(sub.mrvReportDraft?.blockers ?? []).map((detail) => ({ severity: "critical" as const, title: "Regulatory readiness blocked", detail })),
-      ],
+      documents: restricted.has("documents")
+        ? [{ label: WITHHELD, required: false, status: "missing" as const, files: [] }]
+        : sub.request.documents.map((d) => ({
+            label: d.label,
+            required: d.required,
+            status: (sub.docs[d.id]?.status === "uploaded" ? "uploaded" : "missing") as "uploaded" | "missing",
+            files: (sub.docs[d.id]?.files ?? []).map((f) => f.name),
+          })),
+      findings: (sub.check?.findings ?? [])
+        .filter((f) => f.severity === "critical" || f.severity === "warning")
+        .map((f) => ({ severity: f.severity as "critical" | "warning", title: f.title, detail: f.detail })),
       versions: sub.versions.map((ver) => ({ n: ver.n, when: fmtDate(ver.submittedAt), score: ver.score, signedBy: ver.signedBy })),
     };
   });
@@ -163,15 +146,15 @@ export function packageSummaryData(approved: ReviewSubmission[]) {
     suppliers: approved.map((s) => {
       const line = s.emissions[0];
       const pid = line?.productId;
-      const direct = pid ? decimalOrNull(s.values[valueKey("direct-emissions", pid)]) : null;
-      const indirect = pid ? decimalOrNull(s.values[valueKey("indirect-emissions", pid)]) : null;
+      const direct = pid ? Number(s.values[valueKey("direct-emissions", pid)]) : NaN;
+      const indirect = pid ? Number(s.values[valueKey("indirect-emissions", pid)]) : NaN;
       return {
         name: s.supplier.name,
         material: s.supplier.material,
         emissions: line?.perTonne ?? null,
         productionRoute: pid ? s.values[valueKey("process-route", pid)] : undefined,
-        directEmissions: direct,
-        indirectEmissions: indirect,
+        directEmissions: Number.isFinite(direct) ? direct : null,
+        indirectEmissions: Number.isFinite(indirect) ? indirect : null,
         verificationStatus: s.values[valueKey("verification")] || undefined,
         exportQuantity: line?.tonnes,
       };
@@ -180,7 +163,7 @@ export function packageSummaryData(approved: ReviewSubmission[]) {
       s.request.documents.map((d) => ({
         supplier: s.supplier.name,
         name: d.label,
-        status: (s.docs[d.id]?.status === "uploaded" ? "referenced" : "missing") as "referenced" | "missing",
+        status: (s.docs[d.id]?.status === "uploaded" ? "uploaded" : "missing") as "uploaded" | "missing",
       })),
     ),
     aiWarnings: approved.flatMap((s) =>
@@ -191,13 +174,13 @@ export function packageSummaryData(approved: ReviewSubmission[]) {
   };
 }
 
-/** Version-history + audit-trail blocks (Parts F/H), shared shape. */
-export function packageHistoryData(approved: ReviewSubmission[]): Pick<PackageInput, "versionHistory" | "auditTrail"> {
+/** Version-history + verification-trail blocks (Parts F/H), shared shape. */
+export function packageHistoryData(approved: ReviewSubmission[]): Pick<PackageInput, "versionHistory" | "verificationTrail"> {
   return {
     versionHistory: approved.flatMap((s) =>
       s.versions.map((ver) => ({ supplier: s.supplier.name, version: ver.n, when: fmtDate(ver.submittedAt), score: ver.score })),
     ),
-    auditTrail: approved
+    verificationTrail: approved
       .flatMap((s) => s.events.map((e) => ({ supplier: s.supplier.name, when: fmtDate(e.at), text: e.text, at: e.at })))
       .sort((a, b) => a.at - b.at)
       .map(({ supplier, when, text }) => ({ supplier, when, text })),

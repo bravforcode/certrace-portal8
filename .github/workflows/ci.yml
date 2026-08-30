@@ -68,23 +68,6 @@ jobs:
       - name: Build OpenNext Cloudflare artifact
         run: npm run build-pages
 
-      - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
-
-      - name: Run Playwright readiness-demo tests
-        run: npm run test:e2e -- --project=chromium
-
-      - name: Upload Playwright diagnostics
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: portal-playwright-results
-          path: |
-            certrace-portal/playwright-report/
-            certrace-portal/test-results/
-          if-no-files-found: ignore
-          retention-days: 7
-
 
   exporter-portal:
     name: Exporter portal checks

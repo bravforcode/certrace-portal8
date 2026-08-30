@@ -1,13 +1,26 @@
 "use client";
 
-/* Interface language — real, working switcher (not a fake dropdown).
-   Two languages ship today; the list is data, so adding a third is one entry,
-   same pattern as JURISDICTIONS in config.ts. Coverage: the chrome that's on
-   every screen (nav, topbar, account menu) plus the auth flow. Deeper page
-   copy stays English in this MVP pass — translating it is content work, not
-   plumbing, and the mechanism here is what proves the plumbing works. */
+/* ── Interface language ────────────────────────────────────────
+   A real switcher, and now a real translation layer rather than a
+   proof-of-plumbing over the nav.
+
+   The dictionary is keyed by the ENGLISH SOURCE STRING, not by invented ids.
+   That buys two things worth more than tidy key names: a screen reads exactly
+   as it renders (`{t("Supplier directory.")}`), and an untranslated string
+   degrades to correct English instead of a missing-key stub. Adding Thai to a
+   screen is therefore always additive — wrap the copy, add the pair.
+
+   `{placeholders}` interpolate, so a sentence stays one translatable unit
+   instead of being welded together from fragments in English word order —
+   Thai puts them elsewhere.
+
+   NOT translated, deliberately: proper nouns (Certrace, CBAM, EUDR, CSRD,
+   O3CI, EORI), CBAM master data (Annex I product names, CN/HS codes, unit
+   symbols) and identifiers. Those are the legal wording of the filing — a
+   translated CN description is a wrong CN description. */
 
 import * as React from "react";
+import { TH } from "./i18n-th";
 
 export type LangCode = "en" | "th";
 export const LANGUAGES: { code: LangCode; label: string; nativeLabel: string; glyph: string }[] = [
@@ -15,30 +28,25 @@ export const LANGUAGES: { code: LangCode; label: string; nativeLabel: string; gl
   { code: "th", label: "Thai", nativeLabel: "ไทย", glyph: "TH" },
 ];
 
-const dict = {
-  nav_dashboard: { en: "Dashboard", th: "แดชบอร์ด" },
-  nav_declarations: { en: "Declarations", th: "รายการยื่นข้อมูล" },
-  nav_suppliers: { en: "Suppliers", th: "ซัพพลายเออร์" },
-  nav_reports: { en: "Reports", th: "รายงาน" },
-  nav_team: { en: "Team & seats", th: "ทีมงานและสิทธิ์ใช้งาน" },
-  nav_billing: { en: "Plan & billing", th: "แพ็กเกจและการเรียกเก็บเงิน" },
-  nav_settings: { en: "Settings", th: "การตั้งค่า" },
-  topbar_notifications: { en: "Notifications", th: "การแจ้งเตือน" },
-  topbar_no_new: { en: "You're all caught up.", th: "คุณอ่านครบทุกรายการแล้ว" },
-  account_profile: { en: "Profile & account", th: "โปรไฟล์และบัญชี" },
-  account_notifications: { en: "Notification settings", th: "ตั้งค่าการแจ้งเตือน" },
-  account_billing: { en: "Plan & billing", th: "แพ็กเกจและการเรียกเก็บเงิน" },
-  account_signout: { en: "Sign out", th: "ออกจากระบบ" },
-  language_label: { en: "Language", th: "ภาษา" },
-  seats_used: { en: "seats used", th: "สิทธิ์ที่ใช้ไป" },
-} as const;
+const DICTS: Record<LangCode, Record<string, string>> = { en: {}, th: TH };
 
-type Key = keyof typeof dict;
+export type Vars = Record<string, string | number>;
 
-const LangContext = React.createContext<{ lang: LangCode; setLang: (l: LangCode) => void; t: (k: Key) => string }>({
+function interpolate(s: string, vars?: Vars) {
+  if (!vars) return s;
+  return s.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
+}
+
+export function translate(lang: LangCode, en: string, vars?: Vars) {
+  return interpolate(DICTS[lang][en] ?? en, vars);
+}
+
+export type TFunction = (en: string, vars?: Vars) => string;
+
+const LangContext = React.createContext<{ lang: LangCode; setLang: (l: LangCode) => void; t: TFunction }>({
   lang: "en",
   setLang: () => {},
-  t: (k) => dict[k].en,
+  t: (en, vars) => interpolate(en, vars),
 });
 
 const STORAGE_KEY = "certrace:lang";
@@ -54,13 +62,124 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const setLang = React.useCallback((l: LangCode) => {
     setLangState(l);
     window.localStorage.setItem(STORAGE_KEY, l);
+    document.documentElement.lang = l;
   }, []);
 
-  const t = React.useCallback((k: Key) => dict[k][lang], [lang]);
+  React.useEffect(() => {
+    document.documentElement.lang = lang;
+  }, [lang]);
+
+  const t = React.useCallback<TFunction>((en, vars) => translate(lang, en, vars), [lang]);
 
   return <LangContext.Provider value={{ lang, setLang, t }}>{children}</LangContext.Provider>;
 }
 
 export function useLanguage() {
   return React.useContext(LangContext);
+}
+
+/* ── Screens pinned to English ──────────────────────────────────
+   /login, /register and /forgot-password render in English only, by product
+   decision: they are the first thing a visitor sees, they carry the legal
+   consent copy, and the account they belong to does not exist yet — there is
+   no profile whose language preference could be honoured. The switcher lives
+   one step later, on /onboarding, where the person filling the form is known.
+
+   This has to be a PROVIDER rather than "just don't call t()": the stored
+   language is global (a user who set Thai inside the portal and then signed
+   out still has `certrace:lang = th`), so an auth screen inherits Thai unless
+   something overrides the context above it. It also re-pins <html lang> for
+   the duration, because the Thai font swap in globals.css keys off that
+   attribute — leaving it "th" would render English copy in the Thai cut and
+   with the Thai letter-spacing corrections. The original value is restored on
+   unmount, so walking from /register into /onboarding hands the language back
+   untouched. */
+export function EnglishOnly({ children }: { children: React.ReactNode }) {
+  const { lang } = React.useContext(LangContext);
+  const langRef = React.useRef(lang);
+  langRef.current = lang;
+
+  /* <html lang> is PINNED, not merely set once. The provider above writes the
+     stored language into the same attribute from its own effect, and a parent
+     effect runs after its child's — so a plain assignment here loses the race
+     on the very case that matters (arriving at /login with `certrace:lang =
+     th` saved from a previous session). Observing the attribute settles it
+     whoever writes and in whatever order. Released on unmount back to the
+     real language, so /onboarding renders Thai in the Thai cut. */
+  React.useEffect(() => {
+    const html = document.documentElement;
+    const pin = () => {
+      if (html.lang !== "en") html.lang = "en";
+    };
+    pin();
+    const observer = new MutationObserver(pin);
+    observer.observe(html, { attributes: true, attributeFilter: ["lang"] });
+    return () => {
+      observer.disconnect();
+      html.lang = langRef.current;
+    };
+  }, []);
+
+  const value = React.useMemo(
+    () => ({ lang: "en" as LangCode, setLang: () => {}, t: (en: string, vars?: Vars) => interpolate(en, vars) }),
+    [],
+  );
+  return <LangContext.Provider value={value}>{children}</LangContext.Provider>;
+}
+
+/** Sugar for the common case — `const t = useT()`. */
+export function useT(): TFunction {
+  return React.useContext(LangContext).t;
+}
+
+/* Country names come from the platform (Intl.DisplayNames), not from a
+   hand-kept table — ICU already knows every ISO 3166 region in Thai, and a
+   hand-written list of 195 names would only drift. The ISO code is always what
+   we store; this is display only. */
+export function useCountryOptions(countries: { code: string; name: string }[]) {
+  const { lang } = useLanguage();
+  return React.useMemo(() => {
+    let display: Intl.DisplayNames | null = null;
+    try {
+      display = new Intl.DisplayNames([localeFor(lang)], { type: "region" });
+    } catch {
+      display = null;
+    }
+    return countries
+      .map((c) => ({ value: c.code, label: (display?.of(c.code) ?? c.name) || c.name, hint: c.code }))
+      .sort((a, b) => a.label.localeCompare(b.label, localeFor(lang)));
+  }, [countries, lang]);
+}
+
+/** One country's display name in the active language. */
+export function useCountryName() {
+  const { lang } = useLanguage();
+  return React.useCallback(
+    (code: string, fallback?: string) => {
+      try {
+        return new Intl.DisplayNames([localeFor(lang)], { type: "region" }).of(code) ?? fallback ?? code;
+      } catch {
+        return fallback ?? code;
+      }
+    },
+    [lang],
+  );
+}
+
+/* Locale-aware helpers, so numbers and dates follow the interface language
+   rather than being hardcoded en-GB/en-US at every call site. */
+export const localeFor = (lang: LangCode) => (lang === "th" ? "th-TH" : "en-GB");
+
+export function useFormat() {
+  const { lang } = useLanguage();
+  const locale = localeFor(lang);
+  return React.useMemo(
+    () => ({
+      locale,
+      number: (n: number, opts?: Intl.NumberFormatOptions) => n.toLocaleString(locale, opts),
+      date: (d: Date | string, opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric" }) =>
+        (typeof d === "string" ? new Date(d) : d).toLocaleDateString(locale, opts),
+    }),
+    [locale],
+  );
 }
