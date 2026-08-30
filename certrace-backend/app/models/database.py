@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from typing import Optional
 
 from sqlalchemy import (
     CheckConstraint,
@@ -61,7 +62,7 @@ class DefaultEmissionFactor(Base):
         Text, nullable=False, default="UNSPECIFIED"
     )
     sector: Mapped[str] = mapped_column(Text, nullable=False)
-    route: Mapped[str | None] = mapped_column(Text)
+    route: Mapped[Optional[str]] = mapped_column(Text)
     specific_embedded_emissions: Mapped[Decimal] = mapped_column(
         Numeric(24, 12), nullable=False
     )
@@ -69,7 +70,7 @@ class DefaultEmissionFactor(Base):
     source_reference: Mapped[str] = mapped_column(Text, nullable=False)
     regulatory_data_version: Mapped[str] = mapped_column(Text, nullable=False)
     effective_from: Mapped[datetime] = mapped_column(Date, nullable=False)
-    effective_to: Mapped[datetime | None] = mapped_column(Date)
+    effective_to: Mapped[Optional[datetime]] = mapped_column(Date)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -154,7 +155,7 @@ class DeclarationAuditEvent(Base):
         ForeignKey("declarations.id", ondelete="CASCADE"), nullable=False
     )
     event_type: Mapped[str] = mapped_column(Text, nullable=False)
-    actor: Mapped[str | None] = mapped_column(Text)
+    actor: Mapped[Optional[str]] = mapped_column(Text)
     payload: Mapped[dict[str, object]] = mapped_column(
         JSONB, nullable=False, default=dict
     )
