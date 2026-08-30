@@ -4,16 +4,24 @@ import { useEffect, useRef, useState } from "react";
 import { useLang } from "@/lib/i18n";
 import { TagBadge } from "./ui";
 
-type VisualType = "collect" | "quality" | "engine" | "handoff";
+type VisualType =
+  | "invite"
+  | "profile"
+  | "quality"
+  | "engine"
+  | "benchmark"
+  | "report";
 
 /* Anchor id + which mini-visual to draw. Copy comes from lib/content.ts, in
    the same order — the anchors are linked from the nav and the footer, so
    these ids are fixed regardless of language. */
 const MODULE_SHELLS: { id: string; visual: VisualType }[] = [
-  { id: "platform-collect", visual: "collect" },
+  { id: "platform-invite", visual: "invite" },
+  { id: "platform-profile", visual: "profile" },
   { id: "platform-quality", visual: "quality" },
   { id: "platform-engine", visual: "engine" },
-  { id: "platform-handoff", visual: "handoff" },
+  { id: "platform-benchmark", visual: "benchmark" },
+  { id: "platform-report", visual: "report" },
 ];
 
 const PANEL_GRID = {
@@ -43,7 +51,7 @@ function MiniHeader({ children }: { children: React.ReactNode }) {
   );
 }
 
-function CollectVisual() {
+function InviteVisual() {
   const rows = [
     { name: "bangkok-steel", state: "approved", color: "#4ade80" },
     { name: "eastern-aluminum", state: "in review", color: "#60a5fa" },
@@ -73,6 +81,46 @@ function CollectVisual() {
           style={MONO}
         >
           ✓ reminder sent · rayong-industrial · 2h ago
+        </div>
+      </div>
+    </MiniCard>
+  );
+}
+
+/* Two panes on purpose: the top half is the data entered once, the bottom half
+   is two *different* buyers' requests filling themselves from it. The reuse is
+   the whole point of the feature, and a single saved-fields list wouldn't show
+   it. */
+function ProfileVisual() {
+  /* Two saved rows, not three: with the reuse pane and the closing line below
+     it, a third pushed the card past the module panel's height and the last
+     line was sliced off at the edge. These two are also the most obviously
+     static facts about a supplier, which is the point being made. */
+  const saved = ["installation address", "production route"];
+  const reused = [
+    { req: "Q3 2026 · buyer A", state: "14/18 prefilled" },
+    { req: "Q3 2026 · buyer B", state: "14/18 prefilled" },
+  ];
+  return (
+    <MiniCard>
+      <MiniHeader>SUPPLIER PROFILE · bangkok-steel</MiniHeader>
+      <div className="p-3 space-y-2 text-[9px]" style={MONO}>
+        {saved.map((field) => (
+          <div key={field} className="flex items-center justify-between">
+            <span className="text-black/50">{field}</span>
+            <span className="text-emerald-600">saved ✓</span>
+          </div>
+        ))}
+        <div className="pt-2 mt-1 border-t border-black/[0.06] space-y-2">
+          {reused.map((row) => (
+            <div key={row.req} className="flex items-center justify-between">
+              <span className="text-black/35">{row.req}</span>
+              <span className="text-emerald-600">{row.state}</span>
+            </div>
+          ))}
+        </div>
+        <div className="text-black/30 pt-0.5">
+          entered once — never asked again
         </div>
       </div>
     </MiniCard>
@@ -135,7 +183,70 @@ function EngineVisual() {
   );
 }
 
-function HandoffVisual() {
+/* Bars against a benchmark line, not a table of numbers: the feature's promise
+   is "see where you stand", and standing somewhere is a position, not a value.
+   The dashed rule is the CBAM penalty rate; anything crossing it is the thing
+   worth fixing, so those bars carry the error tone. */
+function BenchmarkVisual() {
+  const lines = [
+    { name: "hot-rolled coil", value: 1.82, pct: 88, over: true },
+    { name: "rebar", value: 1.21, pct: 52, over: false },
+    { name: "alu extrusion", value: 6.4, pct: 94, over: true },
+    { name: "wire rod", value: 1.05, pct: 44, over: false },
+  ];
+  /* Where the dashed benchmark rule sits, as a % of the track width. Bars
+     past it are the exposed ones. */
+  const threshold = 70;
+
+  return (
+    <MiniCard>
+      <MiniHeader>CARBON BENCHMARK · vs CBAM RATE</MiniHeader>
+      <div className="p-3 text-[9px]" style={MONO}>
+        {/* The rule is a sibling spanning the whole list, not one per row, so
+            the eye reads a single shared threshold rather than four unrelated
+            tracks. Both it and the bars measure from the same padding box, so
+            the percentages line up. */}
+        <div className="relative space-y-2">
+          <div
+            aria-hidden="true"
+            className="absolute inset-y-0 z-10 pointer-events-none"
+            style={{
+              left: `${threshold}%`,
+              borderLeft: "1px dashed rgba(17,17,17,0.28)",
+            }}
+          />
+          {lines.map((line) => (
+            <div key={line.name}>
+              <div className="flex items-center justify-between">
+                <span className="text-black/50">{line.name}</span>
+                <span className={line.over ? "text-red-500" : "text-black/35"}>
+                  {line.value.toFixed(2)} t
+                </span>
+              </div>
+              <div className="relative mt-1 h-1.5 rounded-full bg-black/[0.05] overflow-hidden">
+                <div
+                  className="absolute inset-y-0 left-0 rounded-full"
+                  style={{
+                    width: `${line.pct}%`,
+                    background: line.over
+                      ? "rgba(248,113,113,0.55)"
+                      : "rgba(17,17,17,0.22)",
+                  }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-2.5 flex items-center justify-between pt-1.5 border-t border-black/[0.05]">
+          <span className="text-black/30">exposure if unchanged</span>
+          <span className="text-black/50">€41,200</span>
+        </div>
+      </div>
+    </MiniCard>
+  );
+}
+
+function ReportVisual() {
   const files = [
     { name: "CBAM_Communication_Package.pdf", state: "24 pp ✓" },
     { name: "annex_iv_template.xml", state: "✓" },
@@ -144,7 +255,7 @@ function HandoffVisual() {
   ];
   return (
     <MiniCard>
-      <MiniHeader>OUTPUT CENTER · SEALED</MiniHeader>
+      <MiniHeader>REPORT PACKAGE · READY NOW</MiniHeader>
       <div className="p-3 space-y-2 text-[9px]" style={MONO}>
         {files.map((file) => (
           <div key={file.name} className="flex items-center justify-between">
@@ -154,7 +265,7 @@ function HandoffVisual() {
         ))}
         <div className="mt-1 inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-50 border border-emerald-600/15 text-emerald-700 text-[8px]">
           <span className="w-1 h-1 rounded-full bg-emerald-500" />
-          PUSHED TO O3CI · BUYER ACKNOWLEDGED
+          CURRENT AS OF 4 MIN AGO · NOBODY ASKED
         </div>
       </div>
     </MiniCard>
@@ -167,10 +278,12 @@ function ModuleVisual({ type }: { type: VisualType }) {
       className="w-full h-full flex items-center justify-center"
       style={PANEL_GRID}
     >
-      {type === "collect" && <CollectVisual />}
+      {type === "invite" && <InviteVisual />}
+      {type === "profile" && <ProfileVisual />}
       {type === "quality" && <QualityVisual />}
       {type === "engine" && <EngineVisual />}
-      {type === "handoff" && <HandoffVisual />}
+      {type === "benchmark" && <BenchmarkVisual />}
+      {type === "report" && <ReportVisual />}
     </div>
   );
 }

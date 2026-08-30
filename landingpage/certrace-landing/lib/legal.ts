@@ -8,6 +8,7 @@
    Creation.**") — `LegalBody` in components/legal-page.tsx renders those runs
    in medium weight. No other markup is supported, deliberately. */
 
+import type { Lang } from "./i18n";
 import { PRIVACY_EN, PRIVACY_TH } from "./legal-privacy";
 import { TERMS_EN, TERMS_TH } from "./legal-terms";
 
@@ -36,8 +37,19 @@ export type LegalDoc = {
   sections: LegalSection[];
 };
 
-export const LEGAL: Record<"en" | "th", { terms: LegalDoc; privacy: LegalDoc }> =
-  {
-    en: { terms: TERMS_EN, privacy: PRIVACY_EN },
-    th: { terms: TERMS_TH, privacy: PRIVACY_TH },
-  };
+/* Vietnamese, Turkish and Hindi read the English documents.
+
+   The rest of the site is translated; these two are not, on purpose. They are
+   the contract, they were supplied as finished text, and a translated clause
+   that drifts from the English one does not read as a rough edge — it reads as
+   a second, conflicting set of terms. The Thai versions exist because they were
+   written and reviewed alongside the English, and they still carry the note
+   saying the English prevails. Until the same is true of another language, that
+   language gets the authoritative text rather than an approximation of it. */
+export const LEGAL: Record<Lang, { terms: LegalDoc; privacy: LegalDoc }> = {
+  en: { terms: TERMS_EN, privacy: PRIVACY_EN },
+  th: { terms: TERMS_TH, privacy: PRIVACY_TH },
+  vi: { terms: TERMS_EN, privacy: PRIVACY_EN },
+  tr: { terms: TERMS_EN, privacy: PRIVACY_EN },
+  hi: { terms: TERMS_EN, privacy: PRIVACY_EN },
+};

@@ -22,7 +22,7 @@ import {
 } from "@/components/sections";
 import { SplashScreen } from "@/components/splash-screen";
 import { AnimateCard, BlurHeading, TagBadge, handleMouseGlow } from "@/components/ui";
-import { useLang } from "@/lib/i18n";
+import { DATE_LOCALE, useLang } from "@/lib/i18n";
 
 const AUDIENCE_LINKS: { id: string; href: string; live: boolean; delay: number }[] =
   [
@@ -31,7 +31,7 @@ const AUDIENCE_LINKS: { id: string; href: string; live: boolean; delay: number }
     {
       id: "for-legal",
       href: "/solutions/legal-compliance",
-      live: true,
+      live: false,
       delay: 140,
     },
     {
@@ -97,7 +97,7 @@ function CtaBarField() {
 }
 
 export default function HomePage() {
-  const { c } = useLang();
+  const { lang, c } = useLang();
   const [heroReady, setHeroReady] = useState(false);
 
   const onSplashDone = useCallback(() => setHeroReady(true), []);
@@ -258,7 +258,7 @@ export default function HomePage() {
           <div className="w-full rounded-2xl overflow-hidden bg-black aspect-video">
             <iframe
               className="w-full h-full"
-              src="https://www.youtube.com/embed/_OHf61dbt4Y"
+              src="https://www.youtube.com/embed/l4ZdQq5KA7Q"
               title={c.hero.videoTitle}
               loading="lazy"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -283,14 +283,22 @@ export default function HomePage() {
         className="py-32 px-6 md:px-12 lg:px-20 border-t border-black/[0.06]"
       >
         <div className="max-w-6xl mx-auto">
-          <div className="mb-16">
-            <PixelIcon type="people" size={40} />
-            <div className="mt-4">
-              <TagBadge>{c.stakeholders.badge}</TagBadge>
+          {/* The heading sits opposite its intro like every other section on
+              the page — the ecosystem line is what explains why two of the
+              four cards below are marked SOON, so it can't be dropped. */}
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-8 mb-16">
+            <div>
+              <PixelIcon type="people" size={40} />
+              <div className="mt-4">
+                <TagBadge>{c.stakeholders.badge}</TagBadge>
+              </div>
+              <BlurHeading className="mt-5 text-4xl md:text-5xl font-light tracking-tight leading-[1.05]">
+                {c.stakeholders.headline}
+              </BlurHeading>
             </div>
-            <BlurHeading className="mt-5 text-4xl md:text-5xl font-light tracking-tight leading-[1.05]">
-              {c.stakeholders.headline}
-            </BlurHeading>
+            <p className="text-sm text-black/45 leading-relaxed max-w-xs">
+              {c.stakeholders.intro}
+            </p>
           </div>
 
           <div
@@ -328,7 +336,11 @@ export default function HomePage() {
                     href={link.href}
                     className="inline-flex items-center gap-2 text-[11px] tracking-widest text-black/40 hover:text-black transition-colors group/link"
                   >
-                    {audience.cta.toUpperCase()}
+                    {/* Locale-aware: plain `toUpperCase()` maps Turkish "i" to
+                        "I" instead of "İ", so "ihracatçı" would come out
+                        misspelled on the one language where casing is not a
+                        one-to-one mapping. */}
+                    {audience.cta.toLocaleUpperCase(DATE_LOCALE[lang])}
                     <span className="transition-transform duration-200 group-hover/link:translate-x-1">
                       →
                     </span>

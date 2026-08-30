@@ -1,0 +1,43 @@
+{
+  "name": "certrace-portal",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CertTrace — Exporter compliance portal (MVP, frontend + UX/UI). Built on the CertTrace design system.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "build-pages": "opennextjs-cloudflare build",
+    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run test:unit",
+    "test:unit": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/test-resolver.mjs --test \"lib/**/__tests__/**/*.test.ts\"",
+    "stress-test:pdf": "tsx scripts/stress-test-pdf.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.116.0",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
+    "lucide-react": "^0.456.0",
+    "next": "15.5.22",
+    "pdf-lib": "^1.17.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.6",
+    "@opennextjs/cloudflare": "1.20.1",
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "15.5.22",
+    "tailwindcss": "^4.0.0",
+    "tsx": "^4.22.4",
+    "typescript": "^5.0.0",
+    "wrangler": "^4.110.0"
+  }
+}

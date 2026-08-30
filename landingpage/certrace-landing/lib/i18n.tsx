@@ -10,14 +10,42 @@ import {
 } from "react";
 import { CONTENT, type Content } from "./content";
 
-export type Lang = "en" | "th";
+export type Lang = "en" | "th" | "vi" | "tr" | "hi";
 
 const STORAGE_KEY = "certrace-lang";
 
+/* The five languages the site is published in. The order matches the LANGUAGE
+   SUPPORT section on the home page — that section is about the *supplier
+   forms* inside the product and carries its own live/soon status, so the two
+   lists are separate things that happen to name the same languages; changing
+   one does not imply changing the other. */
 export const LANG_OPTIONS: { code: Lang; short: string; label: string }[] = [
   { code: "en", short: "EN", label: "English" },
   { code: "th", short: "TH", label: "ไทย" },
+  { code: "vi", short: "VI", label: "Tiếng Việt" },
+  { code: "tr", short: "TR", label: "Türkçe" },
+  { code: "hi", short: "HI", label: "हिन्दी" },
 ];
+
+const LANG_CODES = LANG_OPTIONS.map((o) => o.code);
+
+function isLang(value: string | null): value is Lang {
+  return !!value && (LANG_CODES as string[]).includes(value);
+}
+
+/* Locales for anything the platform formats rather than the dictionary: so far
+   the booking calendar's weekday and month names. Kept beside the language
+   list so a sixth language can't be added without one.
+
+   Deliberately no year in any format that uses these — `th-TH` would render it
+   in the Buddhist era, which this site does not use anywhere else. */
+export const DATE_LOCALE: Record<Lang, string> = {
+  en: "en-GB",
+  th: "th-TH",
+  vi: "vi-VN",
+  tr: "tr-TR",
+  hi: "hi-IN",
+};
 
 type LangContextValue = {
   lang: Lang;
@@ -39,7 +67,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (stored === "th" || stored === "en") setLangState(stored);
+    if (isLang(stored)) setLangState(stored);
   }, []);
 
   useEffect(() => {

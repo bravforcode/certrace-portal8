@@ -3,24 +3,38 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CONTACT_EMAIL } from "@/lib/content";
-import { useLang } from "@/lib/i18n";
+import { DATE_LOCALE, useLang } from "@/lib/i18n";
+import { calendarDayString, leadLocaleFields, postToSheet } from "@/lib/sheet-sync";
+import { SelectChevron } from "./form-fields";
+import {
+  TIME_ZONE_REGIONS,
+  calendarDayInZone,
+  detectZone,
+  wallTimeInstant,
+  withDetectedZone,
+  zoneLabel,
+} from "@/lib/timezones";
 
 /* Three-step booking dialog that opens once the demo form is submitted:
    (1) a short qualification pass, (2) day + time selection, (3) confirmation.
 
-   Frontend-only, like the rest of this site — nothing is sent anywhere and no
-   real calendar is touched, so every string here has to stay honest about
-   being a booking *request*: "invite on its way", never "meeting created". */
+   The completed booking is posted to the lead sheet (lib/sheet-sync.ts), but
+   no real calendar is touched and no invite is issued, so every string here
+   has to stay honest about being a booking *request*: "invite on its way",
+   never "meeting created". */
 
 export type Booking = {
-  /* Midnight of the chosen day, local time */
+  /* Midnight of the chosen day, as a floating calendar date in the selected
+     zone — not an instant. See `calendarDayInZone`. */
   date: Date;
-  /* 24h "HH:MM" — the slot label as shown */
+  /* 24h "HH:MM" — the slot label as shown, in the selected zone */
   time: string;
-  /* e.g. "Asia/Bangkok (GMT+7)" */
+  /* e.g. "Bangkok, Thailand (GMT+7)" */
   timeZoneLabel: string;
 };
 
+/* The full record the demo form collected, carried through so the booking
+   post describes the same person rather than a three-field subset of them. */
 type Lead = {
   firstName: string;
   lastName?: string;
@@ -33,9 +47,11 @@ type Lead = {
   employees?: string;
 };
 
-/* Half-hour slots across a Bangkok working day. Which of them a given date
-   offers is derived from the date itself (see `slotsFor`) so the grid is
-   stable — paging back and forth doesn't reshuffle availability. */
+/* Half-hour slots across a working day, read in whichever zone the visitor has
+   selected: the grid is the shape of *their* day, so someone booking from
+   Hamburg picks 09:00–16:30 Hamburg time. Which of them a given date offers is
+   derived from the date itself (see `slotsFor`) so the grid is stable — paging
+   back and forth doesn't reshuffle availability. */
 const BASE_SLOTS = [
   "09:00", "09:30", "10:00", "10:30", "11:00", "11:30",
   "13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30",
@@ -58,8 +74,13 @@ function isWeekend(d: Date) {
 }
 
 /* Stable pseudo-availability: seeded on the calendar date, so a Tuesday three
-   weeks out always shows the same set. Roughly 8-10 of the 14 slots survive. */
-function slotsFor(day: Date, now: Date) {
+   weeks out always shows the same set. Roughly 8-10 of the 14 slots survive.
+
+   The two-hour lead time is the one rule that has to cross zones properly: the
+   slot is a wall-clock time in `zone`, so it is resolved to a real instant
+   before being compared with now. Reading it as a local time instead would let
+   a visitor twelve hours away book a call that already happened. */
+function slotsFor(day: Date, now: Date, zone: string) {
   if (isWeekend(day)) return [];
   const seed =
     day.getFullYear() * 10_000 + (day.getMonth() + 1) * 100 + day.getDate();
@@ -71,21 +92,26 @@ function slotsFor(day: Date, now: Date) {
     const hash = (seed * 9301 + (i + 1) * 49_297) % 233_280;
     if (hash / 233_280 <= 0.36) return false;
     const [h, m] = slot.split(":").map(Number);
-    const at = new Date(day);
-    at.setHours(h, m, 0, 0);
-    return at.getTime() >= earliest;
+    const at = wallTimeInstant(
+      zone,
+      day.getFullYear(),
+      day.getMonth(),
+      day.getDate(),
+      h,
+      m,
+    );
+    return at >= earliest;
   });
 }
 
-function timeZoneLabel() {
-  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone ?? "";
-  const offsetMinutes = -new Date().getTimezoneOffset();
-  const sign = offsetMinutes < 0 ? "-" : "+";
-  const abs = Math.abs(offsetMinutes);
-  const hours = Math.floor(abs / 60);
-  const minutes = abs % 60;
-  const offset = `GMT${sign}${hours}${minutes ? `:${String(minutes).padStart(2, "0")}` : ""}`;
-  return `${tz.replace(/_/g, " ")} (${offset})`;
+/* The first day from `from` that has any slot left, so step 2 never opens on
+   an empty grid — after a zone change as much as on first open. */
+function firstOpenDay(from: Date, now: Date, zone: string) {
+  for (let i = 0; i < 21; i++) {
+    const candidate = addDays(from, i);
+    if (slotsFor(candidate, now, zone).length) return candidate;
+  }
+  return from;
 }
 
 const labelClass =
@@ -193,7 +219,7 @@ export function DemoBookingModal({
   onClose: () => void;
   onComplete: (booking: Booking) => void;
 }) {
-  const { c } = useLang();
+  const { lang, c } = useLang();
   const b = c.booking;
 
   const [step, setStep] = useState(1);
@@ -213,6 +239,13 @@ export function DemoBookingModal({
   const [selectedTime, setSelectedTime] = useState("");
   const [booked, setBooked] = useState<Booking | null>(null);
 
+  /* Detected on open rather than at module load: the value is read from the
+     browser, so it has to stay out of the server-rendered pass, and a visitor
+     who changes their machine's zone between page load and booking gets the
+     new one. Empty until then — the dialog renders nothing before `now` is
+     set either. */
+  const [zone, setZone] = useState("");
+
   const panelRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -230,21 +263,33 @@ export function DemoBookingModal({
   useEffect(() => {
     if (!open) return;
     const today = new Date();
-    let firstOpen = startOfDay(today);
-    for (let i = 0; i < 21; i++) {
-      const candidate = addDays(today, i);
-      if (slotsFor(candidate, today).length) {
-        firstOpen = candidate;
-        break;
-      }
-    }
+    const detected = detectZone();
+    /* "Today" is the selected zone's calendar date, not the machine's: at
+       23:00 in Bangkok it is still the previous afternoon in Berlin, and a
+       Berlin visitor should be offered that afternoon. */
+    const start = calendarDayInZone(detected, today);
+
     setStep(1);
     setNow(today);
-    setWeekStart(startOfDay(today));
-    setSelectedDay(firstOpen);
+    setZone(detected);
+    setWeekStart(start);
+    setSelectedDay(firstOpenDay(start, today, detected));
     setSelectedTime("");
     setBooked(null);
   }, [open]);
+
+  /* Changing the zone re-cuts the calendar under the visitor: the day strip
+     restarts on that zone's today, and the selection moves to its first open
+     day. Keeping the old selection would leave a slot on screen that the new
+     zone's lead-time rule may already have ruled out. */
+  const changeZone = (next: string) => {
+    if (!now || next === zone) return;
+    const start = calendarDayInZone(next, now);
+    setZone(next);
+    setWeekStart(start);
+    setSelectedDay(firstOpenDay(start, now, next));
+    setSelectedTime("");
+  };
 
   /* Escape closes, and the page behind must not scroll under the dialog. */
   useEffect(() => {
@@ -274,15 +319,55 @@ export function DemoBookingModal({
   }, [weekStart]);
 
   const slots = useMemo(
-    () => (selectedDay && now ? slotsFor(selectedDay, now) : []),
-    [selectedDay, now],
+    () => (selectedDay && now && zone ? slotsFor(selectedDay, now, zone) : []),
+    [selectedDay, now, zone],
   );
 
-  const tzLabel = useMemo(() => (open ? timeZoneLabel() : ""), [open]);
+  /* Labelled at the instant being booked, not at the day it falls on.
+     Two separate reasons the offset can differ from today's:
+
+     the day — a call in late March may sit on the other side of a
+     daylight-saving change from the day the visitor is looking at it; and
+
+     the hour — a zone switches overnight, around 02:00-03:00, so reading the
+     label at the day's midnight names the offset that is about to end while
+     every bookable slot sits after the switch. On 25 October a Berlin 14:00
+     slot is GMT+1, but that day's midnight is still GMT+2.
+
+     Before a slot is picked there is no single instant to read, so midday
+     stands in for the day: the grid runs 09:00-16:30 and all of it lands on
+     the same side of any overnight transition. */
+  const tzLabel = useMemo(() => {
+    if (!zone) return "";
+    if (!selectedDay) return zoneLabel(zone, now ?? new Date());
+    const [hour, minute] = selectedTime ? selectedTime.split(":").map(Number) : [12, 0];
+    return zoneLabel(
+      zone,
+      new Date(
+        wallTimeInstant(
+          zone,
+          selectedDay.getFullYear(),
+          selectedDay.getMonth(),
+          selectedDay.getDate(),
+          hour,
+          minute,
+        ),
+      ),
+    );
+  }, [zone, selectedDay, selectedTime, now]);
+
+  const zoneOptions = useMemo(() => (zone ? withDetectedZone(zone) : []), [zone]);
 
   if (!open || !mounted) return null;
 
-  const canGoBackAWeek = !!(weekStart && now && weekStart > startOfDay(now));
+  /* Paging back stops at the selected zone's today, not the machine's — the
+     two can be different calendar dates. */
+  const canGoBackAWeek = !!(
+    weekStart &&
+    now &&
+    zone &&
+    weekStart > calendarDayInZone(zone, now)
+  );
 
   /* Each of the four questions needs an answer before the step advances. The
      free-text boxes are deliberately not part of this. */
@@ -299,31 +384,49 @@ export function DemoBookingModal({
     setStep(3);
     onComplete(booking);
 
-    // Send complete booking info to Google Sheets
-    const scriptUrl = 'https://script.google.com/macros/s/AKfycbyg7GkOopgK_nZqZ8V25HIaGazawP39kphMHUpkVFnAA0mQKeB8_UxDqM2dxp4G3_ckKg/exec';
-    const formData = new FormData();
-    formData.append('firstName', lead.firstName);
-    formData.append('lastName', lead.lastName || '');
-    formData.append('email', lead.email);
-    formData.append('countryCode', lead.countryCode || '');
-    formData.append('phone', lead.phone || '');
-    formData.append('company', lead.company);
-    formData.append('jobTitle', lead.jobTitle || '');
-    formData.append('sector', lead.sector || '');
-    formData.append('employees', lead.employees || '');
-    formData.append('bookingDate', selectedDay.toISOString().split('T')[0]);
-    formData.append('bookingTime', selectedTime);
-    formData.append('decision', decision);
-    formData.append('budget', budget);
-    formData.append('timing', timing);
-    formData.append('source', source === 'other' ? sourceOther : source);
-    formData.append('context', context);
-    formData.append('type', 'demo_booking');
-    fetch(scriptUrl, { method: 'POST', body: formData, mode: 'no-cors' }).catch(() => {});
+    /* "14:00" is not a time until you know whose 14:00 it is. The slot was
+       picked in the visitor's zone, so the record carries that zone three
+       ways: the IANA id to compute with, the label as they saw it, and the
+       resolved UTC instant — the only field that survives being read from
+       another zone without reconstruction. */
+    const [hour, minute] = selectedTime.split(":").map(Number);
+    const startUtc = new Date(
+      wallTimeInstant(
+        zone,
+        selectedDay.getFullYear(),
+        selectedDay.getMonth(),
+        selectedDay.getDate(),
+        hour,
+        minute,
+      ),
+    ).toISOString();
+
+    postToSheet({
+      ...lead,
+      ...leadLocaleFields(),
+      type: "demo_booking",
+      bookingDate: calendarDayString(selectedDay),
+      bookingTime: selectedTime,
+      bookingTimeZone: zone,
+      bookingTimeZoneLabel: tzLabel,
+      bookingStartUtc: startUtc,
+      decision,
+      budget,
+      timing,
+      source: source === "other" ? sourceOther : source,
+      context,
+    });
   };
 
+  /* Dates follow the language the site is being read in, not the browser's —
+     a Turkish page showing "Monday, 18 August" would be the one English string
+     left in the flow. `DATE_LOCALE` maps the five site languages onto their
+     locales; no format here includes a year, which is what keeps the Thai
+     locale from printing Buddhist-era dates the site deliberately doesn't use. */
+  const locale = DATE_LOCALE[lang];
+
   const longDate = (d: Date) =>
-    d.toLocaleDateString(undefined, {
+    d.toLocaleDateString(locale, {
       weekday: "long",
       day: "numeric",
       month: "long",
@@ -516,9 +619,50 @@ export function DemoBookingModal({
                   {b.step2Title}
                 </h2>
                 <p className="mt-3 text-xs text-black/45 leading-relaxed">
-                  {b.step2Intro}{" "}
-                  <span className="text-black/70">{tzLabel}</span>.
+                  {b.step2Intro}
                 </p>
+
+                {/* Zone picker. The detected zone is already selected, so this
+                    is a correction rather than a question — but it has to be a
+                    real control, because a visitor booking on behalf of a
+                    colleague in another market needs the grid in that market's
+                    hours, and everything below reads `zone`. */}
+                <div className="mt-6">
+                  <label htmlFor="booking-timezone" className={labelClass}>
+                    {b.timeZoneLabel}
+                  </label>
+                  <div className="relative">
+                    <select
+                      id="booking-timezone"
+                      value={zone}
+                      onChange={(e) => changeZone(e.target.value)}
+                      className="w-full appearance-none bg-white border border-black/10 rounded-[10px] pl-3 pr-9 py-2.5 text-xs text-[#111] focus:outline-none focus:border-black/25 transition-colors"
+                    >
+                      {TIME_ZONE_REGIONS.map((region) => {
+                        const inRegion = zoneOptions.filter(
+                          (z) => z.region === region,
+                        );
+                        if (!inRegion.length) return null;
+                        return (
+                          <optgroup
+                            key={region}
+                            label={b.timeZoneRegions[region]}
+                          >
+                            {inRegion.map((z) => (
+                              <option key={z.id} value={z.id}>
+                                {zoneLabel(z.id, selectedDay ?? now ?? undefined)}
+                              </option>
+                            ))}
+                          </optgroup>
+                        );
+                      })}
+                    </select>
+                    <SelectChevron />
+                  </div>
+                  <p className="mt-2 text-[11px] leading-snug text-black/35">
+                    {b.timeZoneHint}
+                  </p>
+                </div>
 
                 <div className="mt-7">
                   <div className="flex items-center justify-between mb-3">
@@ -556,7 +700,8 @@ export function DemoBookingModal({
 
                   <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
                     {days.map((day) => {
-                      const available = now ? slotsFor(day, now).length > 0 : false;
+                      const available =
+                        now && zone ? slotsFor(day, now, zone).length > 0 : false;
                       const active =
                         !!selectedDay &&
                         day.getTime() === selectedDay.getTime();
@@ -580,15 +725,15 @@ export function DemoBookingModal({
                         >
                           <span className="font-pixel text-[9px] tracking-[0.1em] opacity-70">
                             {day
-                              .toLocaleDateString(undefined, { weekday: "short" })
+                              .toLocaleDateString(locale, { weekday: "short" })
                               .slice(0, 3)
-                              .toUpperCase()}
+                              .toLocaleUpperCase(locale)}
                           </span>
                           <span className="text-sm leading-none">
                             {day.getDate()}
                           </span>
                           <span className="text-[9px] leading-none opacity-60">
-                            {day.toLocaleDateString(undefined, { month: "short" })}
+                            {day.toLocaleDateString(locale, { month: "short" })}
                           </span>
                         </button>
                       );
@@ -727,12 +872,15 @@ export function DemoBookingModal({
                 >
                   {selectedTime && selectedDay
                     ? `${b.confirmPrefix} ${selectedDay
-                        .toLocaleDateString(undefined, {
+                        .toLocaleDateString(locale, {
                           weekday: "short",
                           day: "numeric",
                           month: "short",
                         })
-                        .toUpperCase()} · ${selectedTime}`
+                        /* Turkish "Eki" (October) uppercases to "EKİ", not
+                           "EKI" — the locale-aware call is the difference
+                           between a month abbreviation and a typo. */
+                        .toLocaleUpperCase(locale)} · ${selectedTime}`
                     : b.selectToConfirm}
                 </button>
               </div>

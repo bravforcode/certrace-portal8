@@ -15,12 +15,12 @@ import { SolutionPage } from "@/components/solution-page";
 
 /* Exporters are the primary audience, so this page carries the full story
    rather than a summary: the same sections the home page runs, rendered from
-   the same components so the two can't drift. The "what you get" card grid is
-   dropped here for the same reason — the sections below cover that ground in
-   full. */
+   the same components so the two can't drift. There is no "what you get" card
+   grid here for the same reason — the sections below cover that ground in
+   full; SolutionPage renders one for suppliers only. */
 export default function ExportersPage() {
   return (
-    <SolutionPage persona="exporters" benefits={false}>
+    <SolutionPage persona="exporters">
       <ProblemSection topBorder />
       <WhyNowSection />
       <LiveSection />
