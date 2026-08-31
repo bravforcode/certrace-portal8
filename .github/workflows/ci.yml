@@ -89,6 +89,48 @@ jobs:
           echo "Security headers present in $asset_headers."
 
 
+  # The unit suite is .ts run straight through `node --test` with no bundler,
+  # so which Node runs it is not a detail — it is the compiler. Node strips the
+  # types itself, and it only does that without a flag from v22.18.0 onwards
+  # (v22.15.0 for the `module.registerHooks` the resolver in
+  # certrace-portal/scripts/test-resolver.mjs is built on). The `portal` job
+  # above runs on the current LTS line, so a regression that only shows up on
+  # the floor of the supported range would not be seen there at all — and the
+  # floor is what a contributor's laptop is most likely to be sitting on.
+  #
+  # Tests only. The Next and OpenNext builds are the expensive half of the
+  # portal job and they are not what is at risk here.
+  portal-node22:
+    name: Portal unit tests on Node 22 (minimum supported)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: certrace-portal
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: certrace-portal/package-lock.json
+
+      # A 22.x older than the floor strips no types, and `node --test` then
+      # fails on the first type annotation with a syntax error that says
+      # nothing about Node versions. Fail here instead, with the reason.
+      - name: Verify the runner meets the engines floor
+        run: node scripts/check-node-version.mjs
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit
+
+      - name: Run unit tests
+        run: npm run test:unit
+
+
   exporter-portal:
     name: Exporter portal checks
     runs-on: ubuntu-latest

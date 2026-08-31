@@ -15,6 +15,9 @@
     "typecheck": "tsc --noEmit",
     "test:unit": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/test-resolver.mjs --test \"lib/**/__tests__/**/*.test.ts\""
   },
+  "engines": {
+    "node": ">=22.18.0"
+  },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.116.0",
     "jspdf": "^4.2.1",
