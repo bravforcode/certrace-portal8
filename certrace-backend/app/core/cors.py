@@ -119,4 +119,3 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
         response.headers["X-XSS-Protection"] = "0"
         return response
-

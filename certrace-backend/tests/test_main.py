@@ -24,7 +24,6 @@ SECURITY_HEADERS = {
 }
 
 
-
 def assert_security_headers(response) -> None:
     for name, expected in SECURITY_HEADERS.items():
         assert response.headers[name] == expected
