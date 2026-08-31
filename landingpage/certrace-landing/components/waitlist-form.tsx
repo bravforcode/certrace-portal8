@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { CONTACT_EMAIL } from "@/lib/content";
 import { useLang } from "@/lib/i18n";
@@ -122,12 +123,12 @@ export function WaitlistForm() {
           <span className="text-black/70 break-all">{confirmedEmail}</span>{" "}
           {w.confirmedTail}
         </p>
-        <a
+        <Link
           href="/#demo"
           className="mt-7 inline-flex px-7 py-3 bg-[#111] text-white text-sm rounded-[10px] hover:bg-[#333] transition-colors tracking-widest"
         >
           {c.common.bookDemo}
-        </a>
+        </Link>
       </AnimateCard>
     );
   }

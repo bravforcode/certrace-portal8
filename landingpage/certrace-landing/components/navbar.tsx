@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { composeHref, type Content } from "@/lib/content";
 import { LANG_OPTIONS, useLang } from "@/lib/i18n";
@@ -376,14 +377,14 @@ export function Navbar() {
             so the logo's left edge lines up with the hero headline's first
             letter. */}
         <div className="w-full px-6 md:px-12 h-16 grid grid-cols-[auto_1fr_auto] items-center gap-3 md:gap-6">
-          <a
+          <Link
             href="/#top"
             onClick={closeAll}
             aria-label={c.nav.backToTop}
             className="col-start-1 justify-self-start shrink-0 flex items-center"
           >
             <CertraceLogo className="h-[17px] w-auto" />
-          </a>
+          </Link>
 
           {/* Explicit col-start-2 keeps this in the middle track even though it's
               display:none below xl — without it, grid auto-placement collapses
@@ -511,13 +512,13 @@ export function Navbar() {
                                 →
                               </span>
                             </a>
-                            <a
+                            <Link
                               href="/#demo"
                               onClick={closeAll}
                               className="flex-1 flex items-center justify-center gap-2 px-5 py-3.5 border-l border-black/[0.06] bg-[#111] font-pixel text-[11px] tracking-[0.18em] uppercase text-white hover:bg-[#333] transition-colors"
                             >
                               {c.common.getStarted}
-                            </a>
+                            </Link>
                           </div>
                         )}
                       </div>
@@ -554,13 +555,13 @@ export function Navbar() {
               {c.nav.login}
             </a>
 
-            <a
+            <Link
               href="/#demo"
               onClick={closeAll}
               className="hidden xl:inline-flex text-[12px] px-5 py-2.5 rounded-[10px] bg-[#111] text-white hover:bg-[#333] transition-colors duration-200 tracking-widest whitespace-nowrap"
             >
               {c.common.getStarted}
-            </a>
+            </Link>
 
             <button
               onClick={() => {
@@ -764,13 +765,13 @@ export function Navbar() {
               >
                 {c.nav.login}
               </a>
-              <a
+              <Link
                 href="/#demo"
                 onClick={closeAll}
                 className="block w-full text-center text-[12px] px-4 py-3 rounded-[10px] bg-[#111] text-white hover:bg-[#333] active:bg-black transition-colors tracking-widest"
               >
                 {c.common.getStarted}
-              </a>
+              </Link>
             </div>
           </nav>
         </div>

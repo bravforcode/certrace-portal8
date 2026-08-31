@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Footer } from "@/components/footer";
 import { Navbar } from "@/components/navbar";
 import { PixelIcon, type PixelType } from "@/components/pixel-icon";
@@ -109,12 +110,12 @@ export function SolutionPage({
             >
               {ctaLabel}
             </a>
-            <a
+            <Link
               href="/#stakeholders"
               className="px-7 py-3 rounded-[10px] border border-black/10 text-sm text-black/60 hover:border-black/25 hover:text-black hover:bg-black/[0.04] transition-all tracking-widest"
             >
               {c.common.allSolutions}
-            </a>
+            </Link>
           </div>
         </div>
       </section>
@@ -190,12 +191,12 @@ export function SolutionPage({
               ? c.solutionPage.closingIntro
               : c.solutionPage.closingIntroSoon}
           </p>
-          <a
+          <Link
             href="/#demo"
             className="mt-8 inline-flex px-7 py-3 bg-[#111] text-white text-sm rounded-[10px] hover:bg-[#333] transition-colors tracking-widest"
           >
             {c.common.bookDemo}
-          </a>
+          </Link>
         </div>
       </section>
 

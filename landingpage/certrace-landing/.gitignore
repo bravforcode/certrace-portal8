@@ -4,5 +4,6 @@ out
 .DS_Store
 *.log
 .vercel
+.open-next
 .next-verify
 tsconfig.tsbuildinfo

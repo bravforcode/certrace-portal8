@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Footer } from "@/components/footer";
 import { Navbar } from "@/components/navbar";
 import { PixelIcon } from "@/components/pixel-icon";
@@ -121,12 +122,12 @@ export default function BacklogPage() {
             >
               {bl.ctaButton}
             </a>
-            <a
+            <Link
               href="/#demo"
               className="px-7 py-3 rounded-[10px] bg-[#111] text-white text-sm hover:bg-[#333] transition-colors tracking-widest"
             >
               {c.common.bookDemo}
-            </a>
+            </Link>
           </div>
         </div>
       </section>

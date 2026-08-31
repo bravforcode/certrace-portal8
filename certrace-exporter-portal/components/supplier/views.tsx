@@ -1091,19 +1091,21 @@ export function SubmitView() {
           </Field>
         </div>
         <label className="mt-3 flex cursor-pointer items-start gap-2.5">
-          <span className={cn("mt-0.5 grid h-5 w-5 flex-none place-items-center rounded-md border", attest ? "border-transparent bg-[#111] text-white" : "border-black/20")} onClick={() => setAttest((v) => !v)}>
+          <input type="checkbox" className="peer sr-only" checked={attest} onChange={(e) => setAttest(e.target.checked)} />
+          <span aria-hidden className={cn("mt-0.5 grid h-5 w-5 flex-none place-items-center rounded-md border peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-black/40", attest ? "border-transparent bg-[#111] text-white" : "border-black/20")}>
             {attest && <Check size={12} strokeWidth={2.5} />}
           </span>
-          <span className="text-[13px] leading-relaxed text-black/60" onClick={() => setAttest((v) => !v)}>
+          <span className="text-[13px] leading-relaxed text-black/60">
             I confirm the information is accurate and complete to the best of my knowledge, and I’m authorised to submit it on behalf of {req.supplierName}.
           </span>
         </label>
         {warnings > 0 && (
           <label className="mt-2.5 flex cursor-pointer items-start gap-2.5">
-            <span className={cn("mt-0.5 grid h-5 w-5 flex-none place-items-center rounded-md border", ackWarnings ? "border-transparent bg-[#111] text-white" : "border-black/20")} onClick={() => setAckWarnings((v) => !v)}>
+            <input type="checkbox" className="peer sr-only" checked={ackWarnings} onChange={(e) => setAckWarnings(e.target.checked)} />
+            <span aria-hidden className={cn("mt-0.5 grid h-5 w-5 flex-none place-items-center rounded-md border peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-black/40", ackWarnings ? "border-transparent bg-[#111] text-white" : "border-black/20")}>
               {ackWarnings && <Check size={12} strokeWidth={2.5} />}
             </span>
-            <span className="text-[13px] leading-relaxed text-black/60" onClick={() => setAckWarnings((v) => !v)}>
+            <span className="text-[13px] leading-relaxed text-black/60">
               I’ve reviewed the {warnings} warning{warnings === 1 ? "" : "s"} from the quality check and confirm the data is correct as entered.
             </span>
           </label>

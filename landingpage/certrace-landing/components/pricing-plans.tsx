@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useLang } from "@/lib/i18n";
 import { AnimateCard, handleMouseGlow } from "@/components/ui";
 
@@ -51,7 +52,7 @@ export function PricingPlans() {
               ))}
             </ul>
 
-            <a
+            <Link
               href="/#demo"
               className={`w-full py-3 rounded-[10px] text-sm tracking-widest text-center transition-all duration-200 ${
                 highlight
@@ -60,7 +61,7 @@ export function PricingPlans() {
               }`}
             >
               {c.common.requestPricing}
-            </a>
+            </Link>
           </AnimateCard>
         );
       })}
