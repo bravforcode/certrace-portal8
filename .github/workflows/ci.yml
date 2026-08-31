@@ -68,6 +68,26 @@ jobs:
       - name: Build OpenNext Cloudflare artifact
         run: npm run build-pages
 
+      - name: Verify security headers shipped in the build output
+        # public/_headers is what protects the pages Cloudflare serves from
+        # the asset layer without ever invoking the Worker. If a build stops
+        # copying it, next.config.ts still looks correct and production
+        # silently goes back to shipping unprotected HTML — which is exactly
+        # how the site ended up at 5/100 on Observatory. Fail here instead.
+        run: |
+          asset_headers=".vercel/output/static/_headers"
+          if [ ! -f "$asset_headers" ]; then
+            echo "::error::$asset_headers missing — deployed pages would carry no security headers."
+            exit 1
+          fi
+          for header in Content-Security-Policy Strict-Transport-Security X-Content-Type-Options X-Frame-Options; do
+            if ! grep -q "$header" "$asset_headers"; then
+              echo "::error::$header missing from $asset_headers"
+              exit 1
+            fi
+          done
+          echo "Security headers present in $asset_headers."
+
 
   exporter-portal:
     name: Exporter portal checks
@@ -113,6 +133,26 @@ jobs:
 
       - name: Build OpenNext Cloudflare artifact
         run: npm run build-pages
+
+      - name: Verify security headers shipped in the build output
+        # public/_headers is what protects the pages Cloudflare serves from
+        # the asset layer without ever invoking the Worker. If a build stops
+        # copying it, next.config.ts still looks correct and production
+        # silently goes back to shipping unprotected HTML — which is exactly
+        # how the site ended up at 5/100 on Observatory. Fail here instead.
+        run: |
+          asset_headers=".open-next/assets/_headers"
+          if [ ! -f "$asset_headers" ]; then
+            echo "::error::$asset_headers missing — deployed pages would carry no security headers."
+            exit 1
+          fi
+          for header in Content-Security-Policy Strict-Transport-Security X-Content-Type-Options X-Frame-Options; do
+            if ! grep -q "$header" "$asset_headers"; then
+              echo "::error::$header missing from $asset_headers"
+              exit 1
+            fi
+          done
+          echo "Security headers present in $asset_headers."
 
 
   backend:
