@@ -33,7 +33,15 @@ const config = [
     files: ["**/*.{ts,tsx}"],
     rules: {
       "jsx-a11y/click-events-have-key-events": "error",
-      "jsx-a11y/no-static-element-interactions": "error",
+      /* Scoped to activation handlers. Hover and pointer-move (the cursor-glow
+         effect, a dropdown that opens on hover behind a real <button>) are
+         decoration with no keyboard equivalent to demand — flagging them would
+         only teach people to add blanket disables, which is how the rule that
+         matters stops being read. onClick and the key handlers stay covered,
+         and those are what caught the attestation checkbox. */
+      "jsx-a11y/no-static-element-interactions": ["error", {
+        handlers: ["onClick", "onMouseDown", "onMouseUp", "onKeyPress", "onKeyDown", "onKeyUp"],
+      }],
       "jsx-a11y/no-noninteractive-element-interactions": "error",
       "jsx-a11y/interactive-supports-focus": "error",
       "jsx-a11y/label-has-associated-control": ["error", { assert: "either", depth: 6 }],

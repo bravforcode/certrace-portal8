@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { CONTACT_EMAIL, composeHref } from "@/lib/content";
 import { useLang } from "@/lib/i18n";
 import { CertraceLogo } from "./logo";
@@ -171,9 +172,9 @@ export function Footer() {
           and wrapped the last column onto its own row. */}
       <div className="max-w-6xl mx-auto grid grid-cols-2 md:grid-cols-12 gap-x-8 gap-y-12">
         <div className="col-span-2 md:col-span-4">
-          <a href="/#top" aria-label={c.nav.backToTop}>
+          <Link href="/#top" aria-label={c.nav.backToTop}>
             <CertraceLogo className="h-[18px] w-auto opacity-80" />
-          </a>
+          </Link>
           <p className="mt-5 text-xs text-black/35 leading-relaxed max-w-[250px]">
             {c.footer.desc}
           </p>

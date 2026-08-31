@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Footer } from "@/components/footer";
 import { Navbar } from "@/components/navbar";
 import { PixelIcon } from "@/components/pixel-icon";
@@ -68,12 +69,12 @@ export default function PricingPage() {
           <p className="mt-5 text-sm text-black/45 leading-relaxed max-w-md mx-auto">
             {c.cta.intro}
           </p>
-          <a
+          <Link
             href="/#demo"
             className="mt-8 inline-flex px-7 py-3 bg-[#111] text-white text-sm rounded-[10px] hover:bg-[#333] transition-colors tracking-widest"
           >
             {c.common.bookDemo}
-          </a>
+          </Link>
           <p className="mt-6 text-xs text-black/30 tracking-wide">
             {c.cta.note}
           </p>
