@@ -29,6 +29,10 @@ export function middleware(request: NextRequest) {
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDevelopment ? " 'unsafe-eval'" : ""}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
+    // The hero embeds a YouTube player (app/page.tsx). This allowance used to
+    // live only in public/_headers, which does not reach a Worker-rendered
+    // document — so the player was blocked on the page that ships it.
+    "frame-src https://www.youtube.com https://www.youtube-nocookie.com",
     "font-src 'self' data: https://fonts.gstatic.com",
     `connect-src 'self' https://script.google.com https://script.googleusercontent.com${isDevelopment ? " ws: wss:" : ""}`,
     "worker-src 'self' blob:",

@@ -3,13 +3,25 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /* The security header set lives in public/_headers, and that file is the
-   single source of truth — see the comment block at its top for why the
-   asset layer, not this config, is what serves the pages visitors load.
+   single source of truth. Parsing it here is what keeps the asset layer and
+   the Worker in step: the asset layer reads the file directly, the Worker
+   gets the same set through this function, and editing the policy in one
+   place updates both. A silent drift between them is exactly the failure
+   that scored the site 5/100 on Observatory.
 
-   Parsing it here is what keeps the two in step: the asset layer reads the
-   file directly, the Worker gets the same set through this function, and
-   editing the policy in one place updates both. A silent drift between them
-   is exactly the failure that scored the site 5/100 on Observatory.
+   THE CONTENT-SECURITY-POLICY IS THE ONE HEADER NOT LIFTED, and it has to
+   stay that way. OpenNext keeps no HTML in .open-next/assets — every
+   document this site serves is rendered by the Worker — and middleware.ts
+   answers each one with a per-request nonce. Sending this file's policy
+   alongside it did not replace that policy, it ADDED one: Cloudflare joined
+   the two with a comma and the browser enforced their intersection. The
+   homepage video was the visible cost (`frame-src <- https://www.youtube.com`
+   blocked by the nonce policy, which has no frame-src of its own), and
+   Observatory read the `'unsafe-inline'` in the second policy's script-src
+   as the site's script policy. So: documents get their CSP from
+   middleware.ts, assets get theirs from _headers, and neither sends the
+   other's. The paths middleware skips (api, _next/image, prefetch) return no
+   document, so none of them is left needing a policy.
 
    Cloudflare's format: a path pattern at column 0, then one indented
    `Name: value` per header. Only the `/*` block is lifted — any
@@ -34,7 +46,12 @@ function securityHeadersFromFile(): { key: string; value: string }[] {
   if (headers.length === 0) {
     throw new Error("public/_headers produced no headers for the /* block — the build would ship unprotected.");
   }
-  return headers;
+  // Its absence would mean the asset layer serves scripts and styles under no
+  // policy at all, so it is required here — and then withheld from the Worker.
+  if (!headers.some((header) => header.key.toLowerCase() === "content-security-policy")) {
+    throw new Error("public/_headers declares no Content-Security-Policy for the /* block.");
+  }
+  return headers.filter((header) => header.key.toLowerCase() !== "content-security-policy");
 }
 
 const securityHeaders = securityHeadersFromFile();
