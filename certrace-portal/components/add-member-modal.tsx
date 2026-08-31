@@ -57,6 +57,9 @@ export function AddMemberModal({
 
   return (
     <Portal>
+      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events --
+      modal backdrop. Dismiss-on-outside-click is a pointer affordance; the keyboard
+      equivalent is Escape, which this dialog already handles. */}
       <div
         className="fixed inset-0 z-[220] flex items-center justify-center bg-black/25 p-4 backdrop-blur-[2px]"
         onMouseDown={(e) => {

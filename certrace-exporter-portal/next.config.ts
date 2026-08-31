@@ -1,15 +1,44 @@
 import type { NextConfig } from "next";
 
-/* Baseline security headers for every route. A CSP is intentionally deferred:
-   Next.js dev/HMR needs inline scripts, so a meaningful policy belongs in the
-   production deployment config (with nonces) — see docs/SECURITY.md. */
-const securityHeaders = [
-  { key: "X-Content-Type-Options", value: "nosniff" },
-  { key: "X-Frame-Options", value: "DENY" },
-  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
-  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
-];
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+/* The security header set lives in public/_headers, and that file is the
+   single source of truth — see the comment block at its top for why the
+   asset layer, not this config, is what serves the pages visitors load.
+
+   Parsing it here is what keeps the two in step: the asset layer reads the
+   file directly, the Worker gets the same set through this function, and
+   editing the policy in one place updates both. A silent drift between them
+   is exactly the failure that scored the site 5/100 on Observatory.
+
+   Cloudflare's format: a path pattern at column 0, then one indented
+   `Name: value` per header. Only the `/*` block is lifted — any
+   path-specific block added later stays asset-layer-only on purpose. */
+function securityHeadersFromFile(): { key: string; value: string }[] {
+  const raw = readFileSync(join(import.meta.dirname, "public", "_headers"), "utf8");
+  const headers: { key: string; value: string }[] = [];
+  let inGlobalBlock = false;
+
+  for (const line of raw.split("\n")) {
+    if (!line.trim() || line.trimStart().startsWith("#")) continue;
+    if (!/^\s/.test(line)) {
+      inGlobalBlock = line.trim() === "/*";
+      continue;
+    }
+    if (!inGlobalBlock) continue;
+    const separator = line.indexOf(":");
+    if (separator === -1) continue;
+    headers.push({ key: line.slice(0, separator).trim(), value: line.slice(separator + 1).trim() });
+  }
+
+  if (headers.length === 0) {
+    throw new Error("public/_headers produced no headers for the /* block — the build would ship unprotected.");
+  }
+  return headers;
+}
+
+const securityHeaders = securityHeadersFromFile();
 
 const nextConfig: NextConfig = {
   // Pin the workspace root (there's another lockfile in the home dir).

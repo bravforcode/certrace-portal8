@@ -869,6 +869,10 @@ function SubmissionRow({ sub, lastReminded, onRemind, onOpen }: { sub: ReviewSub
   // submitted. Suppliers still collecting stay non-clickable (just remindable).
   const clickable = sub.submitted;
   return (
+    /* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events --
+    this row IS keyboard accessible — role, tabIndex and onKeyDown are all set on the
+    same element. The rule cannot see through the `clickable` ternary and assumes the
+    handler stands alone. */
     <div
       onClick={clickable ? onOpen : undefined}
       role={clickable ? "button" : undefined}

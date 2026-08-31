@@ -1,0 +1,81 @@
+name: Security headers (production)
+
+# Config being right is not the same as production being right. The security
+# header set was declared correctly in next.config.ts for months while every
+# HTML page went out with none of it, because Cloudflare serves prerendered
+# pages from the asset layer and never invokes the Worker that applies them.
+# Nothing in the repo could have caught that — only a request to the live
+# host can. So this job asks production directly, on a schedule.
+
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-headers-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    name: Probe live security headers
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        # Paths matter as much as hosts: "/" is prerendered and served
+        # straight off the asset layer, which is precisely the case that was
+        # unprotected. Probing only a dynamic route would have passed.
+        target:
+          - https://certrace.co/
+          - https://portal.certrace.co/
+          - https://portal.certrace.co/login
+    steps:
+      - name: Check ${{ matrix.target }}
+        shell: bash
+        run: |
+          set -uo pipefail
+          target="${{ matrix.target }}"
+
+          headers="$(curl -sS --fail-with-body --max-time 30 -D - -o /dev/null -L "$target" \
+            | tr -d '\r' | tr '[:upper:]' '[:lower:]')" || {
+              echo "::error::could not reach $target"
+              exit 1
+            }
+
+          required=(
+            content-security-policy
+            strict-transport-security
+            x-content-type-options
+            x-frame-options
+            referrer-policy
+          )
+
+          missing=()
+          for header in "${required[@]}"; do
+            grep -q "^${header}:" <<<"$headers" || missing+=("$header")
+          done
+
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error title=Unprotected response::$target is missing: ${missing[*]}"
+            echo "Response headers received:"
+            echo "$headers"
+            exit 1
+          fi
+
+          # A max-age under six months earns no credit from Observatory and
+          # leaves a real downgrade window, so treat a short one as a failure
+          # rather than a pass on presence alone.
+          max_age="$(grep -o 'max-age=[0-9]\+' <<<"$headers" | head -1 | cut -d= -f2)"
+          if [ "${max_age:-0}" -lt 15768000 ]; then
+            echo "::error::$target HSTS max-age=${max_age:-0} is below the 15768000 minimum."
+            exit 1
+          fi
+
+          echo "$target — all required headers present, HSTS max-age=$max_age."

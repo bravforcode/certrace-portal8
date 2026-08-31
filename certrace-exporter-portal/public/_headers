@@ -1,0 +1,29 @@
+# ════════════════════════════════════════════════════════════
+#  SECURITY HEADERS — served by Cloudflare Workers Assets
+#
+#  WHY THIS FILE EXISTS, AND WHY next.config.ts ALONE IS NOT ENOUGH.
+#
+#  wrangler.jsonc binds `.open-next/assets` as ASSETS. Cloudflare serves a
+#  matching static file DIRECTLY from that layer and never invokes the
+#  Worker — and every prerendered HTML page is such a file. `headers()` in
+#  next.config.ts runs inside the Worker, so it only ever applied to the
+#  requests that fell through to it (API routes, dynamic pages, 404s).
+#
+#  The result in production was that `/`, `/login` and `/legal/privacy`
+#  went out with no security headers at all, while a request for a
+#  non-existent `/_next/static/*.js` — which does reach the Worker —
+#  carried the full set. Mozilla Observatory scored the site 5/100.
+#
+#  So: this file covers the asset layer, next.config.ts covers the Worker,
+#  and next.config.ts PARSES THIS FILE so the two can never drift apart.
+#  Edit the policy here; the Worker picks it up at build time.
+# ════════════════════════════════════════════════════════════
+
+/*
+  Strict-Transport-Security: max-age=63072000; includeSubDomains
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Cross-Origin-Opener-Policy: same-origin
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://api.anthropic.com; upgrade-insecure-requests

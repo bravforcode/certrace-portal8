@@ -1,0 +1,198 @@
+name: Deploy
+
+# One merge to main ships whichever apps that merge actually touched, then asks
+# the live host whether the security headers really came through. That last
+# step is the point: next.config.ts declared the full header set for months
+# while every prerendered page went out with none of it, because Cloudflare
+# serves those from the asset layer without invoking the Worker. A deploy that
+# does not verify against production cannot tell the difference.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      apps:
+        description: Which apps to deploy
+        type: choice
+        default: changed
+        options: [changed, all, landing, portal, exporter-portal]
+
+permissions:
+  contents: read
+
+concurrency:
+  # Never cancel a deploy midway — a half-shipped Worker is worse than a queue.
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    name: Decide what to deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.pick.outputs.matrix }}
+      any: ${{ steps.pick.outputs.any }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          fetch-depth: 0
+
+      - name: Pick apps
+        id: pick
+        shell: bash
+        env:
+          REQUESTED: ${{ github.event_name == 'workflow_dispatch' && inputs.apps || 'changed' }}
+          BEFORE: ${{ github.event.before }}
+          EXPORTER_PORTAL_URL: ${{ vars.EXPORTER_PORTAL_URL }}
+        run: |
+          set -euo pipefail
+
+          # dir | worker | public URL used for the post-deploy header check.
+          # The exporter portal deploys to its own Worker and has no custom
+          # domain in this repo, so its URL comes from a repo variable; with
+          # none set, its deploy still runs and verification is skipped.
+          declare -A DIR=(
+            [landing]="landingpage/certrace-landing"
+            [portal]="certrace-portal"
+            [exporter-portal]="certrace-exporter-portal"
+          )
+          declare -A URL=(
+            [landing]="https://certrace.co/"
+            [portal]="https://portal.certrace.co/"
+            [exporter-portal]="${EXPORTER_PORTAL_URL:-}"
+          )
+
+          selected=()
+          if [ "$REQUESTED" = "all" ]; then
+            selected=(landing portal exporter-portal)
+          elif [ "$REQUESTED" != "changed" ]; then
+            selected=("$REQUESTED")
+          else
+            # A first push, a force-push or a new branch leaves no usable base.
+            # Deploy everything rather than silently shipping nothing.
+            if [ -z "${BEFORE:-}" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] \
+               || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+              echo "No usable base commit — deploying every app."
+              selected=(landing portal exporter-portal)
+            else
+              changed="$(git diff --name-only "$BEFORE" "${{ github.sha }}")"
+              echo "Changed files:"; echo "$changed" | sed 's/^/  /'
+              for app in landing portal exporter-portal; do
+                if grep -q "^${DIR[$app]}/" <<<"$changed"; then selected+=("$app"); fi
+              done
+              # The workflow itself changing means the deploy path changed.
+              if grep -q "^\.github/workflows/deploy\.yml$" <<<"$changed"; then
+                selected=(landing portal exporter-portal)
+              fi
+            fi
+          fi
+
+          # De-duplicate while keeping order.
+          mapfile -t selected < <(printf '%s\n' "${selected[@]:-}" | awk 'NF && !seen[$0]++')
+
+          entries=()
+          for app in "${selected[@]:-}"; do
+            entries+=("$(printf '{"name":"%s","dir":"%s","url":"%s"}' "$app" "${DIR[$app]}" "${URL[$app]}")")
+          done
+          matrix="$(printf '%s\n' "${entries[@]:-}" | paste -sd, -)"
+          matrix="{\"include\":[${matrix}]}"
+
+          echo "Deploying: ${selected[*]:-(nothing)}"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "any=$([ ${#selected[@]} -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    name: Deploy ${{ matrix.name }}
+    needs: plan
+    if: needs.plan.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: production
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    defaults:
+      run:
+        working-directory: ${{ matrix.dir }}
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: Fail early if Cloudflare credentials are missing
+        # wrangler's own failure for this is buried in a stack trace, and it
+        # surfaces only after a full production build has already run.
+        run: |
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN is not set. Add it under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+
+      - name: Set up Node.js 22 LTS
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ matrix.dir }}/package-lock.json
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit
+
+      - name: Typecheck
+        run: npm run typecheck --if-present
+
+      - name: Run unit tests
+        run: npm run test:unit --if-present
+
+      - name: Deploy to Cloudflare
+        run: npm run deploy
+
+      - name: Verify the live response carries the security headers
+        shell: bash
+        env:
+          URL: ${{ matrix.url }}
+        run: |
+          set -uo pipefail
+          if [ -z "${URL:-}" ]; then
+            echo "No public URL configured for ${{ matrix.name }} — skipping verification."
+            echo "Set the EXPORTER_PORTAL_URL repository variable to enable it."
+            exit 0
+          fi
+
+          required=(content-security-policy strict-transport-security
+                    x-content-type-options x-frame-options referrer-policy)
+
+          # Cloudflare needs a moment to pick up a new deployment, so give the
+          # edge a few tries before calling it a failure.
+          for attempt in 1 2 3 4 5 6; do
+            headers="$(curl -sS --max-time 30 -D - -o /dev/null -L "$URL" \
+              | tr -d '\r' | tr '[:upper:]' '[:lower:]')" || headers=""
+
+            missing=()
+            for header in "${required[@]}"; do
+              grep -q "^${header}:" <<<"$headers" || missing+=("$header")
+            done
+
+            if [ ${#missing[@]} -eq 0 ]; then
+              echo "$URL — all required headers present after $attempt attempt(s)."
+              exit 0
+            fi
+
+            echo "attempt $attempt: still missing ${missing[*]}"
+            sleep 10
+          done
+
+          echo "::error title=Deployed but unprotected::$URL is missing: ${missing[*]}"
+          echo "The deploy succeeded, so this is a serving problem, not a build one."
+          echo "public/_headers is what covers pages served from the Cloudflare asset layer."
+          echo "Response headers received:"
+          echo "$headers"
+          exit 1

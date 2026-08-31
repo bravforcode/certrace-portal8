@@ -58,18 +58,16 @@ export function SupplierTable({
                 {row.emissions != null ? row.emissions.toFixed(2) : <span className="text-black/25">—</span>}
               </span>
             )}
-            <span className="flex items-center justify-between gap-2" onClick={(e) => {
-              if (actions) {
-                // Prevent navigation if an action was clicked (not perfect without tracking exact target, but actions usually are standalone)
-                // We'll just let the Link handle the click for now unless the user clicks a specific button inside.
-              }
-            }}>
+            <span className="flex items-center justify-between gap-2">
               <StatusLabel
                 tone={meta.tone}
                 label={t(meta.label)}
                 pulse={row.status === "in_progress"}
                 glow={row.status === "submitted"}
               />
+              {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events --
+                 click sink so the row's <Link> does not navigate when a row action is pressed.
+                 The actions themselves are buttons. */}
               <div onClick={(e) => e.preventDefault()}>{actions?.(row)}</div>
             </span>
           </Link>

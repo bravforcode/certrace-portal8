@@ -1,0 +1,26 @@
+# ════════════════════════════════════════════════════════════
+#  SECURITY HEADERS — served by Cloudflare Workers Assets
+#
+#  wrangler.jsonc binds `.open-next/assets` as ASSETS. Cloudflare serves a
+#  matching static file DIRECTLY from that layer and never invokes the
+#  Worker — and every prerendered HTML page is such a file. A `headers()`
+#  block in next.config.ts runs inside the Worker, so on its own it never
+#  reaches the pages visitors actually load. This file covers the asset
+#  layer; next.config.ts parses it so the Worker sends the same set.
+#
+#  Two allowances here that the portals do not need:
+#    • frame-src  — the hero embeds a YouTube player (app/page.tsx).
+#    • connect-src script.google.com — the waitlist and Book-a-demo forms
+#      POST to the Apps Script lead endpoint (lib/sheet-sync.ts). The
+#      googleusercontent origin is the redirect target of that POST, and
+#      connect-src is enforced against redirects too.
+# ════════════════════════════════════════════════════════════
+
+/*
+  Strict-Transport-Security: max-age=63072000; includeSubDomains
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Cross-Origin-Opener-Policy: same-origin-allow-popups
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://i.ytimg.com; font-src 'self' data:; connect-src 'self' https://script.google.com https://script.googleusercontent.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com; upgrade-insecure-requests

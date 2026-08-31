@@ -13,8 +13,10 @@ export function CertraceLogo({
   variant?: Variant;
   className?: string;
 }) {
-  // eslint-disable-next-line @next/next/no-img-element
   return (
+    /* eslint-disable-next-line @next/next/no-img-element --
+       the mark is an SVG. next/image cannot optimise SVG and would only add a
+       loader hop in front of a file that is already a few hundred bytes. */
     <img
       src={`/brand/certrace-logo-horizontal-${variant}.svg`}
       alt="Certrace"
@@ -31,8 +33,10 @@ export function CertraceIcon({
   variant?: Variant;
   className?: string;
 }) {
-  // eslint-disable-next-line @next/next/no-img-element
   return (
+    /* eslint-disable-next-line @next/next/no-img-element --
+       the mark is an SVG. next/image cannot optimise SVG and would only add a
+       loader hop in front of a file that is already a few hundred bytes. */
     <img
       src={`/brand/certrace-icon-${variant}.svg`}
       alt="Certrace"

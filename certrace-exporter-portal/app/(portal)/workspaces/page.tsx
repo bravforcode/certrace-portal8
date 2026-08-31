@@ -699,7 +699,11 @@ function WorkspaceCard({ data, onChanged, archived = false }: { data: CardData; 
           )}
         </Card>
       </Link>
-      <span className="absolute right-3 top-3" onClick={(e) => e.preventDefault()}>
+      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events --
+   the row is a <Link>; this wrapper exists only to stop the link firing when the
+   menu inside it is used. It is plumbing, not a control — the menu it wraps is the
+   control, and that one is a real button. */}
+<span className="absolute right-3 top-3" onClick={(e) => e.preventDefault()}>
         <WorkspaceMenu workspace={workspace} afterChange={onChanged} />
       </span>
     </div>
@@ -795,7 +799,10 @@ function WorkspaceTable({ rows, onChanged, archived = false }: { rows: CardData[
                     ) : (
                       <StateChip state={overall} />
                     )}
-                    <span onClick={(e) => e.stopPropagation()}>
+                    {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events --
+   same as above: a click sink so the surrounding row navigation does not fire when
+   the menu is used. Not itself interactive. */}
+<span onClick={(e) => e.stopPropagation()}>
                       <WorkspaceMenu workspace={w} afterChange={onChanged} />
                     </span>
                   </div>
