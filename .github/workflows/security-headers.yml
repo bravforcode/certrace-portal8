@@ -78,4 +78,21 @@ jobs:
             exit 1
           fi
 
-          echo "$target — all required headers present, HSTS max-age=$max_age."
+          # Presence is not strength. A script-src that keeps 'unsafe-inline'
+          # satisfies every check above and still lets an injected inline
+          # script run, which is the whole thing a CSP is bought for — and it
+          # is what cost the portal 20 points on Observatory. Prerendered
+          # pages get per-page hashes instead (certrace-portal/scripts/
+          # build-csp-headers.mjs); Worker-rendered ones get a nonce.
+          script_src="$(grep -m1 '^content-security-policy:' <<<"$headers" \
+            | sed -n 's/.*script-src\([^;]*\).*/\1/p')"
+          if [ -z "$script_src" ]; then
+            echo "::error::$target sets no script-src; default-src alone leaves script loading unstated."
+            exit 1
+          fi
+          if grep -q "unsafe-inline" <<<"$script_src"; then
+            echo "::error title=Decorative CSP::$target script-src allows 'unsafe-inline':$script_src"
+            exit 1
+          fi
+
+          echo "$target — all required headers present, HSTS max-age=$max_age, script-src:$script_src"

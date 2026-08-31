@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "build-pages": "next-on-pages && echo _worker.js > .vercel/output/static/.assetsignore",
+    "build-pages": "next-on-pages && echo _worker.js > .vercel/output/static/.assetsignore && node scripts/build-csp-headers.mjs .vercel/output/static",
     "deploy": "npm run build-pages && wrangler deploy",
     "start": "next start",
     "lint": "eslint .",

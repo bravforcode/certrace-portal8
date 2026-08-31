@@ -182,7 +182,18 @@ jobs:
             done
 
             if [ ${#missing[@]} -eq 0 ]; then
-              echo "$URL — all required headers present after $attempt attempt(s)."
+              # Presence is not strength: a script-src that still allows
+              # 'unsafe-inline' passes every check above while leaving an
+              # injected inline script free to run. Prerendered pages carry
+              # per-page hashes instead (certrace-portal/scripts/build-csp-headers.mjs),
+              # Worker-rendered ones a nonce, so neither has an excuse for it.
+              script_src="$(grep -m1 '^content-security-policy:' <<<"$headers" \
+                | sed -n 's/.*script-src\([^;]*\).*/\1/p')"
+              if grep -q "unsafe-inline" <<<"$script_src"; then
+                echo "::error title=Decorative CSP::$URL script-src allows 'unsafe-inline':$script_src"
+                exit 1
+              fi
+              echo "$URL — all required headers present after $attempt attempt(s); script-src:$script_src"
               exit 0
             fi
 

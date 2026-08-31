@@ -13,7 +13,15 @@ import { join } from "node:path";
 
    Cloudflare's format: a path pattern at column 0, then one indented
    `Name: value` per header. Only the `/*` block is lifted — any
-   path-specific block added later stays asset-layer-only on purpose. */
+   path-specific block added later stays asset-layer-only on purpose.
+
+   The `script-src` lifted here is the hash-free base: the per-page hashes
+   that scripts/build-csp-headers.mjs computes belong to prerendered files
+   the Worker never serves. What the Worker does serve is rendered per
+   request, and middleware.ts sets a nonce policy on those responses that
+   takes precedence over this one — so the base is a floor for the paths
+   middleware skips (API routes, /_next/static), none of which are
+   documents. */
 function securityHeadersFromFile(): { key: string; value: string }[] {
   const raw = readFileSync(join(import.meta.dirname, "public", "_headers"), "utf8");
   const headers: { key: string; value: string }[] = [];
