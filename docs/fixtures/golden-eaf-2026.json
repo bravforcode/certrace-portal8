@@ -1,0 +1,194 @@
+{
+  "id": "golden-eaf-2026",
+  "title": "Scrap-fed EAF steel installation, CN 7213.10, calendar year 2026",
+  "purpose": "One set of inputs and one set of answers, read by both calculation engines. Neither engine owns it. See docs/fixtures/README.md.",
+  "specReference": "Certrace build spec 5.6",
+  "regulatoryBasis": "Regulation (EU) 2023/956, Annex II - iron & steel is charged on direct emissions only",
+  "sector": "IRON_STEEL",
+  "route": "EAF",
+  "goodsCategory": "Iron & Steel",
+  "reportingYear": 2026,
+
+  "inputs": {
+    "production": {
+      "value": 10500,
+      "unit": "t",
+      "evidence": "ERP production log 2026"
+    },
+    "fuels": [
+      {
+        "id": "gas",
+        "fuel": "natural_gas",
+        "quantity": 148800,
+        "unit": "m3",
+        "ncv": 0.0383,
+        "ncvUnit": "GJ per m3",
+        "ncvEvidence": "Supplier gas spec sheet",
+        "emissionFactor": 0.0561,
+        "emissionFactorUnit": "tCO2 per GJ",
+        "emissionFactorSource": "IPCC 2006 / EU MRR 2018/2066 Annex VI",
+        "oxidationFactor": 1.0,
+        "evidence": "12 monthly gas invoices 2026"
+      }
+    ],
+    "processEmissions": [
+      {
+        "id": "electrode",
+        "material": "graphite electrode",
+        "massTonnes": 22.05,
+        "carbonContent": 1.0,
+        "conversionFactor": 3.664,
+        "conversionFactorSource": "EU MRR (EU) 2018/2066 - tCO2 per tC from molar masses 44.010 / 12.011",
+        "evidence": "Procurement records 2026"
+      }
+    ],
+    "electricity": [
+      {
+        "id": "grid",
+        "mwhAbsolute": 4725,
+        "unit": "MWh absolute for the period",
+        "emissionFactor": 0.4999,
+        "emissionFactorUnit": "tCO2 per MWh",
+        "emissionFactorSource": "Thailand grid, EGAT/TGO 2023",
+        "evidence": "12 monthly utility bills 2026"
+      }
+    ],
+    "precursors": [
+      {
+        "id": "scrap",
+        "name": "Steel scrap",
+        "cnCode": "72044990",
+        "qtyPerTonneOutput": 1.08,
+        "isScrap": true,
+        "seeDeclared": 0,
+        "route": "Recycled"
+      },
+      {
+        "id": "pigiron",
+        "name": "Pig iron",
+        "cnCode": "72011090",
+        "qtyPerTonneOutput": 0.05,
+        "isScrap": false,
+        "seeDeclared": 1.9,
+        "route": "BF route"
+      }
+    ],
+    "shipments": [
+      { "buyer": "Buyer A", "date": "2026-01-18", "quantityTonnes": 45.2 },
+      { "buyer": "Buyer A", "date": "2026-02-09", "quantityTonnes": 38.7 },
+      { "buyer": "Buyer A", "date": "2026-03-22", "quantityTonnes": 52.1 }
+    ],
+    "exposure": {
+      "status": "BOTH INPUTS UNRESOLVED - spec 9. The arithmetic is pinned here so a later change to an engine cannot move it silently; the two numbers themselves are placeholders and must not be quoted to a customer.",
+      "defaultValue": 1.37,
+      "certificatePrice": 75,
+      "markup": 0.1
+    }
+  },
+
+  "expected": {
+    "fuelEnergyGJ": 5699.04,
+    "fuelTCO2": 319.7161,
+    "processTCO2": 80.7912,
+    "directTCO2": 400.5073,
+    "directSpecific": 0.0381436,
+    "indirectTCO2": 2362.0275,
+    "indirectSpecific": 0.224955,
+    "precursorSpecific": 0.095,
+    "reportedSpecific": 0.3580986,
+    "chargeableSpecific": 0.1331436,
+    "indirectChargeable": false,
+    "massBalanceYieldPct": 88.4956,
+    "electricityIntensityMWhPerTonne": 0.45,
+    "buyerATonnes": 136.0,
+    "buyerATCO2e": 18.1075,
+    "exposureDelta": 1.2368564,
+    "exposureTCO2e": 168.2125,
+    "exposureCurrency": 13877.53
+  },
+
+  "tolerance": {
+    "ratio": 0.000001,
+    "mass": 0.0001,
+    "currency": 0.01
+  },
+
+  "backend": {
+    "status": "PARTIAL - the backend reproduces the indirect and precursor lines exactly and cannot express the direct ones at all. Do not make the backend the source of truth for a filed figure until `unsupported` below is empty.",
+
+    "mapping": [
+      "Precursor quantities are ABSOLUTE TONNES in the backend request and PER TONNE OF OUTPUT in the fixture, so each is multiplied by production: scrap 1.08 x 10500 = 11340 t, pig iron 0.05 x 10500 = 525 t. The backend then divides by production again, so the contribution is identical - this is a change of units, not of arithmetic.",
+      "The backend returns decimal STRINGS at 80 significant digits. Every covered line below is asserted as an exact decimal equality, not within a tolerance: if the two engines are to swap places, they have to agree completely, not nearly."
+    ],
+
+    "request": {
+      "trace_id": "parity:golden-eaf-2026",
+      "reporting_year": 2026,
+      "sector": "IRON_STEEL",
+      "route": "EAF",
+      "production": { "value": "10500", "unit": "TNE" },
+      "electricity": {
+        "electricity": { "value": "4725", "unit": "MWH" },
+        "emission_factor": { "value": "0.4999", "unit": "TCO2E_PER_MWH" },
+        "evidence_reference": "12 monthly utility bills 2026"
+      },
+      "precursors": [
+        {
+          "id": "scrap",
+          "method": "SCRAP",
+          "quantity": { "value": "11340", "unit": "TNE" },
+          "cn_code": "72044990"
+        },
+        {
+          "id": "pigiron",
+          "method": "ACTUAL",
+          "quantity": { "value": "525", "unit": "TNE" },
+          "cn_code": "72011090",
+          "actual_specific_embedded_emissions": { "value": "1.9", "unit": "TCO2E_PER_TNE" }
+        }
+      ]
+    },
+
+    "covered": {
+      "indirectEmissions": "indirectTCO2",
+      "indirectSpecificEmissions": "indirectSpecific",
+      "precursorSpecificEmissions": "precursorSpecific"
+    },
+
+    "expectedPartial": {
+      "ownProcessSpecificEmissions": "0",
+      "reportedSpecificEmbeddedEmissions": "0.319955",
+      "chargeableSpecificEmbeddedEmissions": "0.095",
+      "note": "Both totals are the fixture's totals MINUS the whole direct line, because the two direct rows cannot be sent at all. They are pinned so that closing a gap below visibly moves them."
+    },
+
+    "unsupported": [
+      {
+        "line": "fuelTCO2",
+        "reason": "The fuel row is 148,800 m3 with an NCV of 0.0383 GJ/m3 and a factor of 0.0561 tCO2/GJ. UnitCode in app/models/calculation.py has no energy unit and no NCV field, so a source stream can only be tonnes x tCO2e/tonne. Pre-converting on the client would put the conversion that most often goes wrong outside the audit trace, which is the one thing the backend exists to hold.",
+        "closedBy": "Add GJ and an NCV to the source-stream model, mirroring certrace-portal/lib/cbam/units.ts toGJ.",
+        "guard": "POST a source stream with unit GJ - it must still be rejected."
+      },
+      {
+        "line": "processTCO2",
+        "reason": "Mass balance: 22.05 t x 1.00 carbon content x 3.664. The backend has no process-emission input type, and the model forbids extra fields. It could be smuggled in as a source stream with the emission factor set to 3.664, but the trace would then claim a standard calculation over an emission factor rather than a mass balance over a carbon content.",
+        "closedBy": "Add a process-emission input with its own trace method, carrying CO2_PER_C as a named constant.",
+        "guard": "POST process_emissions - it must still be rejected as an unknown field."
+      },
+      {
+        "line": "multi-tier precursors",
+        "reason": "This fixture is deliberately one tier deep, so it does not exercise the difference - but PrecursorInput has no children and no own-process figure, and real chains are two to four tiers. A tree entered in the portal cannot round-trip.",
+        "closedBy": "Give PrecursorInput children and an own-process term, or port certrace-portal/lib/cbam/leontief.ts.",
+        "guard": "POST a precursor carrying children - it must still be rejected as an unknown field."
+      },
+      {
+        "line": "massBalanceYieldPct",
+        "reason": "materialMix reports scrapRatio over total input mass, which is a different question from the mass-balance yield the portal shows. Neither is wrong; they are simply not the same number and must not be compared."
+      },
+      {
+        "line": "buyerATCO2e / exposure",
+        "reason": "Formulas 5 and 6 are commercial, not MRV. They live only in the portal today. Listed here so that nobody reads their absence from the backend as an oversight."
+      }
+    ]
+  }
+}

@@ -23,6 +23,37 @@ GWP_CF4 = Decimal(6630)
 GWP_C2F6 = Decimal(11100)
 KG_TO_TONNE = Decimal("0.001")
 
+# Annex II to Regulation (EU) 2023/956 lists the sectors whose financial
+# obligation covers DIRECT emissions only, because they already receive
+# indirect-cost compensation under the EU ETS State-aid framework. Indirect
+# emissions are still REPORTED for every good - they just do not reach the
+# certificate bill.
+#
+# The rule is stated once, here, and read only through
+# `indirect_is_chargeable`. Scattering it is how one route ends up billing for
+# electricity while its neighbour does not - which is exactly what happened
+# before: aluminium remelt folded indirect emissions into the same field that
+# primary aluminium left them out of.
+#
+# The mirror of this map on the portal side is INDIRECT_CHARGEABLE in
+# certrace-portal/lib/cbam/engine.ts. The two must agree sector for sector.
+INDIRECT_CHARGEABLE: dict[str, bool] = {
+    "IRON_STEEL": False,
+    "ALUMINIUM": False,
+}
+
+
+def indirect_is_chargeable(sector: str) -> bool:
+    """Do indirect (electricity) emissions enter the chargeable figure?
+
+    Unknown sectors default to True: a sector absent from Annex II is charged
+    on its indirect emissions, so the safe default is to include them rather
+    than to silently under-state what a good costs.
+    """
+
+    return INDIRECT_CHARGEABLE.get(sector, True)
+
+
 EU_DEFAULT_FACTORS: dict[tuple[str, int], Decimal] = {
     ("72071190", 2026): Decimal("1.10"),
     ("72083900", 2026): Decimal("1.85"),
@@ -562,15 +593,29 @@ def calculate_mrv(request: CalculationRequest, factor_lookup=None) -> dict[str, 
 
     own_specific = direct_emissions / production
     indirect_specific = indirect_emissions / production
-    specific_embedded = own_specific + precursor_specific
-    if request.sector == "ALUMINIUM" and request.route != "PRIMARY_HALL_HEROULT":
-        specific_embedded += indirect_specific
+
+    # Two different numbers that used to be one, and conflating them is the
+    # single most expensive mistake available here in either direction:
+    #
+    #   REPORTED    what the declaration discloses. Always direct + indirect +
+    #               precursors - a CBAM declaration states embedded indirect
+    #               emissions for every good, Annex II included.
+    #   CHARGEABLE  what the certificates are bought against. Indirect drops
+    #               out for the Annex II sectors and only for those.
+    #
+    # They coincide outside Annex II, which is why one field survived this
+    # long without anyone noticing it answered two questions.
+    reported_specific = own_specific + indirect_specific + precursor_specific
+    indirect_counted = indirect_is_chargeable(request.sector)
+    chargeable_specific = own_specific + precursor_specific
+    if indirect_counted:
+        chargeable_specific += indirect_specific
     elif indirect_emissions:
         warnings.append(
             {
-                "code": "INDIRECT_EMISSIONS_RETAINED_NOT_EMBEDDED",
+                "code": "INDIRECT_EMISSIONS_REPORTED_NOT_CHARGEABLE",
                 "severity": "INFO",
-                "message": "Indirect emissions are returned in the trace but excluded from embedded emissions for this route.",
+                "message": "Indirect emissions are included in the reported embedded emissions and excluded from the chargeable figure, because this sector is listed in Annex II to Regulation (EU) 2023/956.",
             }
         )
 
@@ -591,14 +636,34 @@ def calculate_mrv(request: CalculationRequest, factor_lookup=None) -> dict[str, 
             "value": decimal_to_string(own_specific),
             "unit": "TCO2E_PER_TNE",
         },
+        # The third component, stated rather than left to be inferred by
+        # subtracting the other two out of the reported total. A client that
+        # has to derive a figure will eventually derive it differently.
+        "indirectSpecificEmissions": {
+            "value": decimal_to_string(indirect_specific),
+            "unit": "TCO2E_PER_TNE",
+        },
         "precursorSpecificEmissions": {
             "value": decimal_to_string(precursor_specific),
             "unit": "TCO2E_PER_TNE",
         },
-        "specificEmbeddedEmissions": {
-            "value": decimal_to_string(specific_embedded),
+        "reportedSpecificEmbeddedEmissions": {
+            "value": decimal_to_string(reported_specific),
             "unit": "TCO2E_PER_TNE",
         },
+        "chargeableSpecificEmbeddedEmissions": {
+            "value": decimal_to_string(chargeable_specific),
+            "unit": "TCO2E_PER_TNE",
+        },
+        # Retained under its original name and its original meaning - the
+        # chargeable figure - so existing callers keep the number they already
+        # had. New callers should read one of the two explicit fields above and
+        # say which question they are asking.
+        "specificEmbeddedEmissions": {
+            "value": decimal_to_string(chargeable_specific),
+            "unit": "TCO2E_PER_TNE",
+        },
+        "indirectEmissionsChargeable": indirect_counted,
         "materialMix": material_mix,
         "regulatoryDataVersion": REGULATORY_DATA_VERSION,
         "traces": traces,

@@ -470,6 +470,119 @@ def test_secondary_aluminium_requires_scrap_input(monkeypatch) -> None:
     ]
 
 
+def test_annex_ii_sectors_report_indirect_emissions_without_charging_for_them(
+    monkeypatch,
+) -> None:
+    """Aluminium remelt used to fold indirect emissions into the same field
+    that primary aluminium left them out of, so the two routes of one sector
+    answered different questions under one name. Both are Annex II: indirect
+    emissions are disclosed and are not charged."""
+
+    monkeypatch.delenv(CORS_ALLOWED_ORIGINS_ENV, raising=False)
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/v1/calculate",
+        json={
+            "trace_id": "fixture:secondary-aluminium:electricity",
+            "sector": "ALUMINIUM",
+            "route": "SECONDARY_ALUMINIUM_REMELT",
+            "production": {"value": "100", "unit": "TNE"},
+            "electricity": {
+                "electricity": {"value": "50", "unit": "MWH"},
+                "emission_factor": {"value": "0.5", "unit": "TCO2E_PER_MWH"},
+            },
+            "precursors": [
+                {
+                    "id": "scrap",
+                    "method": "SCRAP",
+                    "quantity": {"value": "40", "unit": "TNE"},
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["indirectEmissions"] == {"value": "25", "unit": "TCO2E"}
+    assert payload["reportedSpecificEmbeddedEmissions"] == {
+        "value": "0.25",
+        "unit": "TCO2E_PER_TNE",
+    }
+    assert payload["chargeableSpecificEmbeddedEmissions"] == {
+        "value": "0",
+        "unit": "TCO2E_PER_TNE",
+    }
+    assert payload["indirectEmissionsChargeable"] is False
+    # The legacy field keeps its original meaning - the chargeable figure.
+    assert (
+        payload["specificEmbeddedEmissions"]
+        == (payload["chargeableSpecificEmbeddedEmissions"])
+    )
+    assert "INDIRECT_EMISSIONS_REPORTED_NOT_CHARGEABLE" in [
+        warning["code"] for warning in payload["warnings"]
+    ]
+
+
+def test_iron_steel_applies_the_same_annex_ii_rule_as_aluminium(monkeypatch) -> None:
+    monkeypatch.delenv(CORS_ALLOWED_ORIGINS_ENV, raising=False)
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/v1/calculate",
+        json={
+            "trace_id": "fixture:eaf:reported-vs-chargeable",
+            "sector": "IRON_STEEL",
+            "route": "EAF",
+            "production": {"value": "100", "unit": "TNE"},
+            "source_streams": [
+                {
+                    "id": "electrode",
+                    "activity": {"value": "10", "unit": "TNE"},
+                    "emission_factor": {"value": "2", "unit": "TCO2E_PER_TNE"},
+                }
+            ],
+            "electricity": {
+                "electricity": {"value": "50", "unit": "MWH"},
+                "emission_factor": {"value": "0.5", "unit": "TCO2E_PER_MWH"},
+            },
+            "precursors": [
+                {
+                    "id": "scrap",
+                    "method": "SCRAP",
+                    "quantity": {"value": "105", "unit": "TNE"},
+                }
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    # own 0.2 + indirect 0.25 + precursor 0 = 0.45 reported; 0.2 chargeable.
+    assert payload["reportedSpecificEmbeddedEmissions"] == {
+        "value": "0.45",
+        "unit": "TCO2E_PER_TNE",
+    }
+    assert payload["chargeableSpecificEmbeddedEmissions"] == {
+        "value": "0.2",
+        "unit": "TCO2E_PER_TNE",
+    }
+    assert payload["indirectEmissionsChargeable"] is False
+
+
+def test_a_sector_outside_annex_ii_is_charged_on_its_indirect_emissions() -> None:
+    """No such sector is exposed by the API yet - the route/sector allowlist
+    stops at iron/steel and aluminium. The default still has to be the safe
+    one, because the day cement is added, forgetting to charge for its
+    electricity understates every good in that sector."""
+
+    from app.services.mrv_engine import indirect_is_chargeable
+
+    assert indirect_is_chargeable("IRON_STEEL") is False
+    assert indirect_is_chargeable("ALUMINIUM") is False
+    assert indirect_is_chargeable("CEMENT") is True
+
+
 def test_rejects_route_sector_mismatch(monkeypatch) -> None:
     monkeypatch.delenv(CORS_ALLOWED_ORIGINS_ENV, raising=False)
     client = TestClient(create_app())
