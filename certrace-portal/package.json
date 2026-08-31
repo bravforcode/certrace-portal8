@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "build-pages": "next-on-pages && echo _worker.js > .vercel/output/static/.assetsignore",
+    "build-pages": "next-on-pages && echo _worker.js > .vercel/output/static/.assetsignore && node scripts/build-csp-headers.mjs .vercel/output/static",
     "deploy": "npm run build-pages && wrangler deploy",
     "start": "next start",
     "lint": "eslint .",
@@ -36,6 +36,7 @@
     "eslint-config-next": "^15.5.22",
     "tailwindcss": "^4.0.0",
     "tsx": "^4.22.4",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "wrangler": "4.127.1"
   }
 }

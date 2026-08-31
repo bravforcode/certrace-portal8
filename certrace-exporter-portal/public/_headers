@@ -3,20 +3,28 @@
 #
 #  WHY THIS FILE EXISTS, AND WHY next.config.ts ALONE IS NOT ENOUGH.
 #
-#  wrangler.jsonc binds `.open-next/assets` as ASSETS. Cloudflare serves a
-#  matching static file DIRECTLY from that layer and never invokes the
-#  Worker — and every prerendered HTML page is such a file. `headers()` in
-#  next.config.ts runs inside the Worker, so it only ever applied to the
-#  requests that fell through to it (API routes, dynamic pages, 404s).
+#  wrangler.jsonc binds `.open-next/assets` as ASSETS, and Cloudflare serves a
+#  matching static file DIRECTLY from that layer without ever invoking the
+#  Worker. THIS FILE IS WHAT COVERS THOSE RESPONSES; a `headers()` block in
+#  next.config.ts runs inside the Worker and never reaches them, which is how
+#  the site once went out with no security headers at all on the pages
+#  visitors load and scored 5/100 on Observatory. next.config.ts now parses
+#  this file so the Worker sends the same set — with one exception it
+#  enforces there: the Content-Security-Policy is NOT lifted.
 #
-#  The result in production was that `/`, `/login` and `/legal/privacy`
-#  went out with no security headers at all, while a request for a
-#  non-existent `/_next/static/*.js` — which does reach the Worker —
-#  carried the full set. Mozilla Observatory scored the site 5/100.
+#  The reason is that OpenNext keeps no HTML here (`find .open-next/assets
+#  -name '*.html'` comes back empty): every document is rendered by the
+#  Worker, where middleware.ts answers it with a per-request nonce. Sending
+#  this policy as well only added a second one — Cloudflare comma-joins them
+#  and the browser enforces the intersection. So the policy below governs
+#  scripts, styles, fonts and images served from the asset layer;
+#  middleware.ts governs documents. Keep a directive a document needs in
+#  BOTH, or it will not be in effect where it matters.
 #
-#  So: this file covers the asset layer, next.config.ts covers the Worker,
-#  and next.config.ts PARSES THIS FILE so the two can never drift apart.
-#  Edit the policy here; the Worker picks it up at build time.
+#  script-src is deliberately `'self'` with no `'unsafe-inline'`: nothing the
+#  asset layer serves is a document, so nothing here needs an inline
+#  allowance, and a policy that grants one anyway is read as the app's script
+#  policy by anyone scanning it.
 # ════════════════════════════════════════════════════════════
 
 /*
@@ -28,4 +36,4 @@
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Resource-Policy: same-origin
   X-XSS-Protection: 0
-  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://api.anthropic.com; upgrade-insecure-requests
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://api.anthropic.com; upgrade-insecure-requests

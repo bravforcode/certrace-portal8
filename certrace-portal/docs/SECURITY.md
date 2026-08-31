@@ -9,10 +9,20 @@ backend lands, the items in "Production requirements" become blocking.
 - **No XSS sinks.** No `dangerouslySetInnerHTML` anywhere; all user-entered
   strings render through React's default escaping. XML output escapes
   `<>&'"`; PDF output routes every string through a cp1252 whitelist.
-- **Security headers** on every route (`next.config.ts`): `Content-Security-Policy`,
+- **Security headers** on every route: `Content-Security-Policy`,
   `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, strict referrer policy,
   `Permissions-Policy`, `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Resource-Policy: same-origin`,
   `X-XSS-Protection: 0`, and `Strict-Transport-Security` (with preload).
+  They reach a response by two different routes, because a page does:
+  `public/_headers` covers what Cloudflare serves from the asset layer,
+  `middleware.ts` covers what the Worker renders, and `next.config.ts` parses
+  the first so the two cannot drift.
+- **A CSP with no `'unsafe-inline'` in `script-src`.** Both halves of the split
+  above are covered without it. Worker-rendered pages get a per-request nonce
+  from `middleware.ts`. Prerendered pages cannot — the HTML was written at
+  build time — so `scripts/build-csp-headers.mjs` hashes each page's inline
+  scripts after the build and emits one policy per page. Nothing inline runs
+  unless it shipped with the page.
 - **Uploads never leave the browser.** File objects live in memory /
   localStorage metadata only — names and sizes, not contents — so there is no
   upload pipeline to attack yet.
@@ -33,8 +43,9 @@ backend lands, the items in "Production requirements" become blocking.
    `docs/EXPORTER-PORTAL-REDESIGN.md` §15 needs a server to be meaningful.
 3. **Login is a mock.** No real session, no RBAC enforcement — roles are
    display-only fixtures.
-4. **No CSP yet.** Dev-mode Next.js needs inline scripts; ship a nonce-based
-   `Content-Security-Policy` from the production host/CDN config.
+4. **`style-src` still allows `'unsafe-inline'`.** React writes inline styles
+   for measured layout, so tightening it means hashing or refactoring those
+   first. It is the last `'unsafe-inline'` left in the policy.
 
 ## Production requirements (blocking before real data)
 
@@ -49,8 +60,8 @@ backend lands, the items in "Production requirements" become blocking.
       sanitisation on the server.
 - [ ] **Immutable version snapshots** persisted server-side at submit/approve.
 - [ ] **Rate limiting + brute-force protection** on token resolution.
-- [ ] Nonce-based **CSP**, plus `frame-ancestors 'none'` replacing
-      X-Frame-Options.
+- [x] Nonce-based **CSP** (Worker) and hash-based (prerendered), with
+      `frame-ancestors 'none'` alongside X-Frame-Options.
 - [ ] **PII & retention**: supplier contact data under a retention schedule;
       CBAM/ETS-style multi-year retention for sealed packages only.
 - [ ] Secrets in a managed store (not env files in the repo).

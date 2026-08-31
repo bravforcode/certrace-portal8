@@ -86,6 +86,30 @@ jobs:
               exit 1
             fi
           done
+
+          # The prerendered pages are the ones the asset layer serves, and
+          # nothing can mint them a nonce, so scripts/build-csp-headers.mjs
+          # hashes their inline scripts instead. A policy that fell back to
+          # 'unsafe-inline' would still look like a CSP in every check above
+          # while allowing any injected inline script to run — Observatory
+          # scored that -20. Both halves are asserted: no way out, and the
+          # hashes actually there.
+          # Comment lines in the file discuss 'unsafe-inline' by name, so read
+          # the rules only.
+          if grep -v "^[[:space:]]*#" "$asset_headers" | grep -o "script-src[^;]*" | grep -q "unsafe-inline"; then
+            echo "::error::script-src allows 'unsafe-inline' in $asset_headers — the script policy is decorative."
+            exit 1
+          fi
+          if ! grep -q "sha256-" "$asset_headers"; then
+            echo "::error::no inline-script hashes in $asset_headers — did build-csp-headers.mjs run?"
+            exit 1
+          fi
+          for route in "^/$" "^/login$"; do
+            if ! grep -qE "$route" "$asset_headers"; then
+              echo "::error::no per-page rule matching $route in $asset_headers — that page would ship with no policy."
+              exit 1
+            fi
+          done
           echo "Security headers present in $asset_headers."
 
 
@@ -152,6 +176,25 @@ jobs:
               exit 1
             fi
           done
+
+          # Documents on this app are rendered by the Worker, where
+          # middleware.ts answers each one with a nonce, so the policy here
+          # only ever covers assets — none of which is a document, and none of
+          # which needs an inline allowance. If OpenNext ever starts writing
+          # prerendered HTML into the asset directory, those pages would be
+          # served under this policy with no nonce and no hashes and would
+          # come up blank; they would need the portal's per-page hashes
+          # (certrace-portal/scripts/build-csp-headers.mjs) instead.
+          # Comment lines in the file discuss 'unsafe-inline' by name, so read
+          # the rules only.
+          if grep -v "^[[:space:]]*#" "$asset_headers" | grep -o "script-src[^;]*" | grep -q "unsafe-inline"; then
+            echo "::error::script-src allows 'unsafe-inline' in $asset_headers — the script policy is decorative."
+            exit 1
+          fi
+          if find "$(dirname "$asset_headers")" -name "*.html" | grep -q .; then
+            echo "::error::the asset directory now holds HTML, which would be served under the asset-layer policy without a nonce or hashes."
+            exit 1
+          fi
           echo "Security headers present in $asset_headers."
 
 
@@ -210,6 +253,25 @@ jobs:
               exit 1
             fi
           done
+
+          # Documents on this app are rendered by the Worker, where
+          # middleware.ts answers each one with a nonce, so the policy here
+          # only ever covers assets — none of which is a document, and none of
+          # which needs an inline allowance. If OpenNext ever starts writing
+          # prerendered HTML into the asset directory, those pages would be
+          # served under this policy with no nonce and no hashes and would
+          # come up blank; they would need the portal's per-page hashes
+          # (certrace-portal/scripts/build-csp-headers.mjs) instead.
+          # Comment lines in the file discuss 'unsafe-inline' by name, so read
+          # the rules only.
+          if grep -v "^[[:space:]]*#" "$asset_headers" | grep -o "script-src[^;]*" | grep -q "unsafe-inline"; then
+            echo "::error::script-src allows 'unsafe-inline' in $asset_headers — the script policy is decorative."
+            exit 1
+          fi
+          if find "$(dirname "$asset_headers")" -name "*.html" | grep -q .; then
+            echo "::error::the asset directory now holds HTML, which would be served under the asset-layer policy without a nonce or hashes."
+            exit 1
+          fi
           echo "Security headers present in $asset_headers."
 
 

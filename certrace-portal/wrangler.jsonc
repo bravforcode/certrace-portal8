@@ -1,6 +1,39 @@
 {
   "name": "certracept",
-  "main": ".vercel/output/static/_worker.js",
+
+  /* THE ENTRY POINT MUST BE THE FILE, NOT THE `_worker.js` DIRECTORY, AND THE
+     MODULES BESIDE IT MUST BE UPLOADED WITH IT.
+
+     next-on-pages emits `_worker.js/index.js` plus a tree of route functions
+     under `_worker.js/__next-on-pages-dist__/`, which index.js reaches by
+     dynamic import at request time. Cloudflare PAGES understands that layout
+     natively; a Worker deploy does not — it uploads exactly the modules the
+     config tells it to. Pointing `main` at the directory uploaded index.js
+     alone (108 KiB, zero additional modules), so the moment a request needed a
+     route function the Worker threw
+
+         No such module "__next-on-pages-dist__/functions/middleware.func.js"
+
+     and answered 500. That is every dynamic route — /declarations/[id],
+     /w/[token] and the other Smart Link entries, /workspaces/[id]/*,
+     /suppliers/[id] — plus every 404, which surfaced as a 500 too. It also
+     took middleware.ts down with it, so the nonce-based CSP that is supposed
+     to protect Worker-rendered pages never ran.
+
+     `base_dir` + `no_bundle` + an ESModule rule uploads the whole tree
+     (78 modules) and hands the runtime the graph index.js actually imports.
+     `no_bundle` is right here because next-on-pages has already bundled this
+     output; re-bundling it would only break the dynamic import paths again.
+
+     Prerendered pages never touch any of this: Cloudflare serves them from
+     the asset layer below, with the headers in public/_headers. */
+  "main": ".vercel/output/static/_worker.js/index.js",
+  "base_dir": ".vercel/output/static/_worker.js",
+  "no_bundle": true,
+  "rules": [
+    { "type": "ESModule", "globs": ["**/*.js"] }
+  ],
+
   "compatibility_date": "2024-09-23",
   "compatibility_flags": [
     "nodejs_compat"

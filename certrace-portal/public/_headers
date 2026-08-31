@@ -17,6 +17,16 @@
 #  So: this file covers the asset layer, next.config.ts covers the Worker,
 #  and next.config.ts PARSES THIS FILE so the two can never drift apart.
 #  Edit the policy here; the Worker picks it up at build time.
+#
+#  SCRIPT-SRC IS DELIBERATELY HASH-ONLY HERE.
+#  A prerendered page carries Next.js's inline flight scripts, and the asset
+#  layer cannot mint the nonce the middleware uses — the file was written at
+#  build time. `'unsafe-inline'` was the old way out and it neutered the
+#  policy (Observatory: -20). Instead `scripts/build-csp-headers.mjs` runs
+#  after the build, hashes the inline scripts of each page, and rewrites the
+#  DEPLOYED copy of this file with one policy per page. So the script-src
+#  below is the base the hashes are appended to — leave it hash-ready, and
+#  never add `'unsafe-inline'` back to it.
 # ════════════════════════════════════════════════════════════
 
 /*
@@ -28,4 +38,4 @@
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Resource-Policy: same-origin
   X-XSS-Protection: 0
-  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://api.anthropic.com; upgrade-insecure-requests
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://api.anthropic.com; upgrade-insecure-requests
