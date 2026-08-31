@@ -9,9 +9,10 @@ backend lands, the items in "Production requirements" become blocking.
 - **No XSS sinks.** No `dangerouslySetInnerHTML` anywhere; all user-entered
   strings render through React's default escaping. XML output escapes
   `<>&'"`; PDF output routes every string through a cp1252 whitelist.
-- **Security headers** on every route (`next.config.ts`): `nosniff`,
-  `X-Frame-Options: DENY`, strict referrer policy, locked-down
-  `Permissions-Policy`, HSTS.
+- **Security headers** on every route (`next.config.ts`): `Content-Security-Policy`,
+  `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, strict referrer policy,
+  `Permissions-Policy`, `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Resource-Policy: same-origin`,
+  `X-XSS-Protection: 0`, and `Strict-Transport-Security` (with preload).
 - **Uploads never leave the browser.** File objects live in memory /
   localStorage metadata only — names and sizes, not contents — so there is no
   upload pipeline to attack yet.
