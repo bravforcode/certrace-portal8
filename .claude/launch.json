@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "certrace-portal",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "certrace-portal", "run", "dev"],
+      "port": 3000
+    },
+    {
+      "name": "certrace-portal-worker",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["wrangler", "dev", "--cwd", "certrace-portal", "--port", "8787"],
+      "port": 8787
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+﻿Task Name,Description,Assignee,Status,Start Date,Due Date,Priority,Tags
+[INFRA-1] Production Migration & CORS,"รันคำสั่ง Migration ขึ้น DB จริงบน Render, ตั้งค่า Environment Variables ให้ครบ และเปิด CORS ให้พอร์ทัลยิงเข้ามาได้",DEV A,TO DO,09/02/2026,09/02/2026,High,Infra
+[FRONT-1] Frontend Wiring Support & Hide Google Auth,ซ่อนปุ่ม Login with Google ไปก่อน และเข้ามาช่วยทีม Wiring ต่อ API เข้ากับหน้าเว็บ,DEV A,TO DO,09/02/2026,09/05/2026,Normal,Frontend
+[BACK-1] Auth Security & Schema Design,อุดช่องโหว่ระบบ Auth 2 จุด และออกแบบ/รวม Schema ของ Database ให้เรียบร้อย,DEV B,TO DO,08/31/2026,08/31/2026,High,Backend
+[BACK-2] Database Migration & Login/Register API,เขียนโค้ด Migration ชุดแรก และทำ API Endpoint สำหรับ Login / Register,DEV B,TO DO,09/01/2026,09/01/2026,High,Backend
+[BACK-3] JWT Implementation & Declarations Data,ทำระบบ JWT Auth และผูกข้อมูล Declarations เข้ากับ User ID (ให้ดึงข้อมูลเฉพาะของตัวเองได้),DEV B,TO DO,09/02/2026,09/02/2026,High,Backend
+[BACK-4] Smart Link API (Read),ทำระบบออก Token แบบมีอายุ สำหรับลิงก์ให้ซัพพลายเออร์ และทำ Endpoint สำหรับ Resolve token เป็นข้อมูล,DEV B,TO DO,09/03/2026,09/03/2026,High,Backend
+[BACK-5] Smart Link API (Write) & Default Factors,ทำ Endpoint สำหรับ Save/Submit ข้อมูลจากซัพพลายเออร์ และเขียนสคริปต์ Import Default Factors ของจริงเข้า DB,DEV B,TO DO,09/04/2026,09/04/2026,High,Backend
+[BACK-6] API Bug Fixing,สแตนด์บายแก้บั๊ก API ที่เจอระหว่างที่ Frontend (Wiring) เอาไปต่อใช้งานจริง,DEV B,TO DO,09/05/2026,09/05/2026,Normal,Backend
+[WIRE-1] API Contract & Client Layer,คุยสเปกหน้าตา Request/Response กับ Dev B และเขียน API Client (Axios/Fetch layer) โครงเปล่าๆ รอไว้,WIRING,DONE,08/31/2026,08/31/2026,High,Frontend
+[WIRE-2] Connect Login/Register UI,"เอาหน้า Login/Register ต่อกับ API จริง (รับ State, จัดการ Error, เก็บ Token)",WIRING,TO DO,09/01/2026,09/01/2026,High,Frontend
+[WIRE-3] Connect Declarations Store,รื้อ Mock data ออก และเปลี่ยน Zustand/Store ให้ดึงข้อมูล Declarations จาก API จริง,WIRING,TO DO,09/02/2026,09/02/2026,High,Frontend
+[WIRE-4] Supplier Portal UI (Read State),ทำหน้าให้ซัพพลายเออร์สามารถเปิด Smart Link เข้ามาอ่านข้อมูล State จาก API ได้ถูกต้อง,WIRING,TO DO,09/03/2026,09/03/2026,High,Frontend
+[WIRE-5] Supplier Portal UI (Write State),ซัพพลายเออร์กด Submit ข้อมูลกลับเข้า API และอัปเดตหน้า Dashboard ฝั่ง Exporter ให้เห็นสถานะที่เปลี่ยนไป,WIRING,TO DO,09/04/2026,09/04/2026,High,Frontend
+[WIRE-6] Edge Cases & Error Handling,"ไล่เก็บตกงาน UI ทั้งหมด, ทำหน้า Empty State (กรณีไม่มีข้อมูล), Loading State, และแจ้งเตือน Error ต่างๆ",WIRING,TO DO,09/05/2026,09/05/2026,Normal,Frontend
+[QA-1] End-to-End Testing & Final Deploy,เทสต์ระบบร่วมกันแบบจับคู่ เจอพังแก้ให้จบ และ Deploy ขึ้น Production รอบสุดท้าย,EVERYONE,TO DO,09/06/2026,09/06/2026,High,QA
