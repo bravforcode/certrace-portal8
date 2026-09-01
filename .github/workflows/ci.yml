@@ -403,20 +403,31 @@ jobs:
               raise SystemExit("CodeQL produced no SARIF output.")
 
 
-          def signed_off(result):
-              """True when the flagged line carries a CodeQL suppression comment.
-
-              `# codeql[rule-id]` / `// codeql[rule-id]` does not remove the
-              result -- CodeQL still reports it and attaches a `suppressions`
-              entry -- so a gate that ignores the entry leaves no way to clear a
-              false positive except lowering the bar for every file at once.
-              Every suppression still prints below, and adding one is a line in a
-              diff a reviewer has to approve.
-              """
-              for suppression in result.get("suppressions") or []:
-                  if suppression.get("status", "accepted") == "accepted":
-                      return True
-              return False
+          # Findings reviewed and signed off as false positives, keyed on rule
+          # and path, with the reason that has to hold for the entry to stay.
+          #
+          # This list exists because there is nowhere else to put one. CodeQL's
+          # `# codeql[rule-id]` comment does not survive into this SARIF -- the
+          # run that proved it left no `suppressions` entry on the result at all
+          # -- and code scanning's own dismissal lives in a UI this gate cannot
+          # read, so without a list the only lever is the 7.0 threshold, which
+          # lowers the bar for every file at once. Every entry below is printed
+          # by the job whether or not it fires, and adding one is a line in a
+          # diff a reviewer has to approve.
+          #
+          # Deliberately coarse: rule plus path, no line number, because a line
+          # number rots on the next edit. The cost is that a genuine second
+          # finding of the SAME rule in the SAME file would be signed off with
+          # the first. Acceptable at this size; revisit if the list grows.
+          TRIAGED = {
+              (
+                  "py/clear-text-logging-sensitive-data",
+                  "certrace-backend/app/services/email.py",
+              ): (
+                  "logs the NAME of the RESEND_API_KEY env var so an operator "
+                  "knows what to set, never the key -- see NullTransport.send"
+              ),
+          }
 
 
           def path_of(result):
@@ -429,7 +440,7 @@ jobs:
 
 
           blocking = []
-          suppressed = []
+          signed_off = []
           total_results = 0
           for sarif_file in sarif_files:
               with open(sarif_file, encoding="utf-8") as handle:
@@ -456,14 +467,24 @@ jobs:
                       if result.get("level") == "error" or (
                           security_severity is not None and security_severity >= 7.0
                       ):
-                          finding = (rule_id, security_severity, path_of(result))
-                          if signed_off(result):
-                              suppressed.append(finding)
+                          location = path_of(result)
+                          finding = (rule_id, security_severity, location)
+                          if (rule_id, location) in TRIAGED:
+                              signed_off.append(finding)
                           else:
                               blocking.append(finding)
 
-          for rule_id, severity, location in suppressed:
-              print(f"Suppressed in source: {rule_id} severity={severity} path={location}")
+          for rule_id, severity, location in signed_off:
+              reason = TRIAGED[(rule_id, location)]
+              print(f"Signed off: {rule_id} severity={severity} path={location} -- {reason}")
+
+          # An entry that stops firing is stale. Not a failure -- a
+          # diff-informed run on a pull request reports only what the diff
+          # touched, so most entries legitimately miss there -- but it has to be
+          # visible, or the list outlives the findings it was written for.
+          stale = sorted(set(TRIAGED) - {(r, loc) for r, _, loc in signed_off})
+          for rule_id, location in stale:
+              print(f"::notice::triage entry did not fire: {rule_id} at {location}")
 
           if blocking:
               for rule_id, severity, location in blocking:
@@ -471,7 +492,7 @@ jobs:
               raise SystemExit(1)
           print(
               f"CodeQL analyzed {len(sarif_files)} SARIF file(s); {total_results} result(s), "
-              f"{len(suppressed)} suppressed in source, no blocking high/critical finding."
+              f"{len(signed_off)} signed off, no blocking high/critical finding."
           )
           PY
 
