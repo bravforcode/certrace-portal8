@@ -2,34 +2,31 @@
 
 import { useEffect, useState } from "react";
 import { useLang } from "@/lib/i18n";
+import { StepScreen } from "./portal-screens";
 
-/* The console panel's lines are stored as plain strings in lib/content.ts so
-   the two languages stay easy to keep in sync. The leading glyph decides the
-   colour — the same convention the product's own activity log uses:
-     #  section heading   ✓  success   ●  attention   →  in progress
-   An empty string is a blank line, used to group the log into stanzas. */
-function lineTone(text: string) {
-  if (!text.trim()) return "gap" as const;
-  if (text.startsWith("#")) return "muted" as const;
-  if (text.startsWith("✓")) return "ok" as const;
-  if (text.startsWith("●")) return "warn" as const;
-  if (text.startsWith("→")) return "info" as const;
-  return "plain" as const;
-}
+/* ════════════════════════════════════════════════════════════
+   FOUR SIMPLE STEPS — now showing the four screens themselves
 
-const TONE_COLOR: Record<string, string> = {
-  muted: "#9ca3af",
-  ok: "#16a34a",
-  warn: "#b45309",
-  info: "#2563eb",
-  plain: "#111",
-};
+   WHAT CHANGED. The right-hand pane used to be a console log: coloured lines
+   of pseudo-output stored as strings in lib/content.ts. It read as a terminal,
+   which is not what this product is — nobody using Certrace ever sees a
+   console, and a section titled "no learning curve" showing log output was
+   arguing against itself.
 
-function LogLineView({ text }: { text: string }) {
-  const tone = lineTone(text);
-  if (tone === "gap") return <div className="h-3" />;
-  return <div style={{ color: TONE_COLOR[tone] }}>{text}</div>;
-}
+   It now shows the actual screen for each step, drawn from the portal's own
+   tokens and strings (components/portal-screens.tsx):
+
+     1 Create        the new-workspace wizard, step 1 of 4
+     2 Collect       the supplier's month form, on their own link
+     3 Review        Carbon & Cost, with the figure against the EU default
+     4 Always ready  the finished, signed report package
+
+   `step.view` is still read from the dictionary and still labels the pane, so
+   the step names and captions remain translated. `step.lines` is no longer
+   read here; it stays in the dictionary rather than being deleted, because
+   removing a key from five languages for a layout change is a bigger edit than
+   leaving one unused, and the type is shared.
+   ════════════════════════════════════════════════════════════ */
 
 export function HowItWorksPanel() {
   const { c } = useLang();
@@ -45,7 +42,7 @@ export function HowItWorksPanel() {
         setActive((i) => (i + 1) % steps.length);
         setVisible(true);
       }, 180);
-    }, 3600);
+    }, 5200);
     return () => clearInterval(interval);
   }, [steps.length]);
 
@@ -114,7 +111,7 @@ export function HowItWorksPanel() {
       </div>
 
       <div
-        className="lg:col-span-2 rounded-2xl border border-black/[0.06] p-8 flex flex-col"
+        className="lg:col-span-2 rounded-2xl border border-black/[0.06] p-6 sm:p-8 flex flex-col"
         style={{
           background: "rgba(255,255,255,0.7)",
           boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
@@ -123,7 +120,7 @@ export function HowItWorksPanel() {
       >
         <div className="flex items-center justify-between mb-5 shrink-0">
           <div
-            className="text-[10px] tracking-widest uppercase transition-all duration-200"
+            className="text-[10px] tracking-widest uppercase"
             style={{
               opacity: visible ? 1 : 0,
               filter: visible ? "blur(0px)" : "blur(4px)",
@@ -147,26 +144,23 @@ export function HowItWorksPanel() {
           </div>
         </div>
 
-        <div
-          className="flex-1 rounded-xl p-6 overflow-hidden"
-          style={{
-            background: "rgba(0,0,0,0.03)",
-            border: "1px solid rgba(0,0,0,0.06)",
-          }}
-        >
+        {/* The window is centred and capped rather than stretched: at
+            lg:col-span-2 this pane is ~560px, and a browser frame that wide
+            with 7px type inside reads as a diagram of a screen rather than a
+            screen. `flex-1` keeps the pane height stable as the four screens
+            swap, so the section does not jump between steps. */}
+        <div className="flex-1 flex items-center justify-center">
           <div
-            className="font-mono text-[12px] leading-6"
+            className="w-full max-w-[440px]"
             style={{
               opacity: visible ? 1 : 0,
               filter: visible ? "blur(0px)" : "blur(6px)",
               transform: visible ? "translateY(0)" : "translateY(6px)",
               transition:
-                "opacity 220ms cubic-bezier(0.16,1,0.3,1), filter 220ms cubic-bezier(0.16,1,0.3,1), transform 220ms cubic-bezier(0.16,1,0.3,1)",
+                "opacity 260ms cubic-bezier(0.16,1,0.3,1), filter 260ms cubic-bezier(0.16,1,0.3,1), transform 260ms cubic-bezier(0.16,1,0.3,1)",
             }}
           >
-            {step.lines.map((line, i) => (
-              <LogLineView key={i} text={line} />
-            ))}
+            <StepScreen index={active} />
           </div>
         </div>
       </div>
