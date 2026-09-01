@@ -397,13 +397,39 @@ jobs:
           python - <<'PY'
           import glob
           import json
-          import sys
 
           sarif_files = glob.glob("codeql-results/**/*.sarif", recursive=True)
           if not sarif_files:
               raise SystemExit("CodeQL produced no SARIF output.")
 
+
+          def signed_off(result):
+              """True when the flagged line carries a CodeQL suppression comment.
+
+              `# codeql[rule-id]` / `// codeql[rule-id]` does not remove the
+              result -- CodeQL still reports it and attaches a `suppressions`
+              entry -- so a gate that ignores the entry leaves no way to clear a
+              false positive except lowering the bar for every file at once.
+              Every suppression still prints below, and adding one is a line in a
+              diff a reviewer has to approve.
+              """
+              for suppression in result.get("suppressions") or []:
+                  if suppression.get("status", "accepted") == "accepted":
+                      return True
+              return False
+
+
+          def path_of(result):
+              location = (result.get("locations") or [{}])[0]
+              return (
+                  location.get("physicalLocation", {})
+                  .get("artifactLocation", {})
+                  .get("uri", "unknown-path")
+              )
+
+
           blocking = []
+          suppressed = []
           total_results = 0
           for sarif_file in sarif_files:
               with open(sarif_file, encoding="utf-8") as handle:
@@ -430,22 +456,22 @@ jobs:
                       if result.get("level") == "error" or (
                           security_severity is not None and security_severity >= 7.0
                       ):
-                          locations = result.get("locations") or [{}]
-                          location = (
-                              locations[0]
-                              .get("physicalLocation", {})
-                              .get("artifactLocation", {})
-                              .get("uri", "unknown-path")
-                          )
-                          blocking.append((rule_id, security_severity, location))
+                          finding = (rule_id, security_severity, path_of(result))
+                          if signed_off(result):
+                              suppressed.append(finding)
+                          else:
+                              blocking.append(finding)
+
+          for rule_id, severity, location in suppressed:
+              print(f"Suppressed in source: {rule_id} severity={severity} path={location}")
 
           if blocking:
               for rule_id, severity, location in blocking:
                   print(f"Blocking CodeQL finding: {rule_id} severity={severity} path={location}")
               raise SystemExit(1)
           print(
-              f"CodeQL analyzed {len(sarif_files)} SARIF file(s); "
-              f"{total_results} result(s), no high/critical security finding."
+              f"CodeQL analyzed {len(sarif_files)} SARIF file(s); {total_results} result(s), "
+              f"{len(suppressed)} suppressed in source, no blocking high/critical finding."
           )
           PY
 
