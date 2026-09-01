@@ -1,12 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import { Footer } from "@/components/footer";
 import { Navbar } from "@/components/navbar";
 import { PixelIcon, type PixelType } from "@/components/pixel-icon";
 import { AnimateCard, BlurHeading, TagBadge, handleMouseGlow } from "@/components/ui";
 import { WaitlistSection } from "@/components/waitlist-form";
 import { useLang } from "@/lib/i18n";
+import { usePages } from "@/lib/i18n-pages";
+import { SIGNUP_URL } from "@/lib/site";
+import Link from "next/link";
 
 export type Persona = "exporters" | "suppliers" | "legal" | "importers";
 
@@ -61,6 +63,7 @@ export function SolutionPage({
   children?: React.ReactNode;
 }) {
   const { c } = useLang();
+  const p = usePages();
   const page = c.solutionPage[persona];
   const live = LIVE[persona];
 
@@ -72,10 +75,11 @@ export function SolutionPage({
      and their pages now go straight from the pitch to the waitlist. */
   const benefits =
     persona === "suppliers" ? c.solutionPage.suppliers : null;
-  const ctaLabel = live ? c.common.bookDemo : c.common.joinWaitlist;
-  /* A page with no product behind it sends people to the waitlist further down
-     its own page; a live one sends them to the booking form on the home page. */
-  const ctaHref = live ? "/#demo" : "#waitlist";
+  /* A live page leads on the trial and offers the demo beside it — the
+     site-wide pair. A page with no product behind it cannot offer either, so
+     it keeps its single waitlist button. */
+  const ctaLabel = live ? p.nav.startFreeTrial : c.common.joinWaitlist;
+  const ctaHref = live ? SIGNUP_URL : "#waitlist";
 
   return (
     <div className="bg-[#F5F4F0] text-[#111] min-h-screen font-sans antialiased">
@@ -110,12 +114,12 @@ export function SolutionPage({
             >
               {ctaLabel}
             </a>
-            <Link
-              href="/#stakeholders"
+            <a
+              href={live ? "/#demo" : "/#stakeholders"}
               className="px-7 py-3 rounded-[10px] border border-black/10 text-sm text-black/60 hover:border-black/25 hover:text-black hover:bg-black/[0.04] transition-all tracking-widest"
             >
-              {c.common.allSolutions}
-            </Link>
+              {live ? c.common.bookDemo : c.common.allSolutions}
+            </a>
           </div>
         </div>
       </section>
@@ -191,12 +195,20 @@ export function SolutionPage({
               ? c.solutionPage.closingIntro
               : c.solutionPage.closingIntroSoon}
           </p>
-          <Link
-            href="/#demo"
-            className="mt-8 inline-flex px-7 py-3 bg-[#111] text-white text-sm rounded-[10px] hover:bg-[#333] transition-colors tracking-widest"
-          >
-            {c.common.bookDemo}
-          </Link>
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+            <a
+              href={SIGNUP_URL}
+              className="px-7 py-3 bg-[#111] text-white text-sm rounded-[10px] hover:bg-[#333] transition-colors tracking-widest"
+            >
+              {p.nav.startFreeTrial}
+            </a>
+            <Link
+              href="/#demo"
+              className="px-7 py-3 rounded-[10px] border border-black/10 text-sm text-black/60 hover:border-black/25 hover:text-black hover:bg-black/[0.04] transition-all tracking-widest"
+            >
+              {c.common.bookDemo}
+            </Link>
+          </div>
         </div>
       </section>
 

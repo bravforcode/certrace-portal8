@@ -150,7 +150,7 @@ export function buildVi(en: Content): Content {
       badge: "HẠ TẦNG TUÂN THỦ CARBON",
       headline: "Người mua không chờ.\nHọ chọn ai\nchứng minh trước.",
       intro:
-        "Nền tảng quy trình AI kết nối người mua, nhà xuất khẩu và nhà cung cấp để tự động hoá việc thu thập dữ liệu carbon CBAM — từ yêu cầu đến báo cáo sẵn sàng kiểm toán.",
+        "Nền tảng quy trình AI kết nối người mua, nhà xuất khẩu và nhà cung cấp để tự động hoá việc thu thập dữ liệu carbon CBAM — từ yêu cầu đến báo cáo sẵn sàng trước cả khi người mua hỏi tới.",
       /* Four returns, not four facts about the market. Measured to two lines in
          the 140px caption box at 390 / 640 / 768 / 1440 — the grid squeezes the
          box to ~118px at 640, and a third line pushes the hero block past the
@@ -450,7 +450,7 @@ export function buildVi(en: Content): Content {
         "Mọi gói đều được thiết kế để tiết kiệm nhiều hơn chi phí bỏ ra, ngay từ ngày đầu. Nhà cung cấp luôn miễn phí.",
       introPage:
         "Mọi gói đều được thiết kế để tiết kiệm nhiều hơn chi phí bỏ ra, ngay từ ngày đầu. Nhà cung cấp luôn miễn phí, ở mọi gói.",
-      note: "Giá tuỳ theo số nhà cung cấp và yêu cầu tuân thủ của bạn · Thuê bao theo năm · Nhà cung cấp luôn miễn phí · Huỷ bất cứ lúc nào sau năm đầu",
+      note: "Giá tuỳ theo số nhà cung cấp và yêu cầu tuân thủ của bạn · Thuê bao theo năm · Nhà cung cấp và người mua luôn miễn phí · Huỷ bất cứ lúc nào sau năm đầu",
       questionsBadge: "CÂU HỎI",
       plans: [
         {
@@ -692,7 +692,7 @@ export function buildVi(en: Content): Content {
     },
 
     footer: {
-      desc: "Nền tảng quy trình AI kết nối người mua, nhà xuất khẩu và nhà cung cấp để tự động hoá việc thu thập dữ liệu carbon CBAM — từ yêu cầu đến báo cáo sẵn sàng kiểm toán.",
+      desc: "Nền tảng quy trình AI kết nối người mua, nhà xuất khẩu và nhà cung cấp để tự động hoá việc thu thập dữ liệu carbon CBAM — từ yêu cầu đến báo cáo sẵn sàng trước cả khi người mua hỏi tới.",
       location: "Bangkok, Thái Lan",
       columns: {
         platform: "NỀN TẢNG",

@@ -151,7 +151,7 @@ export function buildTr(en: Content): Content {
       badge: "KARBON UYUM ALTYAPISI",
       headline: "Alıcılar beklemez.\nÖnce kanıtlayanı\nseçerler.",
       intro:
-        "Alıcıları, ihracatçıları ve tedarikçileri birbirine bağlayarak CBAM karbon verisi toplamayı otomatikleştiren bir yapay zekâ iş akışı platformu — talepten denetime hazır rapora kadar.",
+        "Alıcıları, ihracatçıları ve tedarikçileri birbirine bağlayarak CBAM karbon verisi toplamayı otomatikleştiren bir yapay zekâ iş akışı platformu — talepten, alıcılar sormadan hazır duran rapora kadar.",
       /* Four returns, not four market facts. Measured to two lines in the 140px
          caption box at 390 / 640 / 768 / 1440 — the grid squeezes the box to
          ~118px at 640, and a third line pushes the hero block past the fold on
@@ -452,7 +452,7 @@ export function buildTr(en: Content): Content {
         "Her plan, ilk günden maliyetinden fazlasını kazandıracak şekilde tasarlandı. Tedarikçiler her zaman ücretsiz.",
       introPage:
         "Her plan, ilk günden maliyetinden fazlasını kazandıracak şekilde tasarlandı. Tedarikçiler her planda, her zaman ücretsiz.",
-      note: "Fiyat, tedarikçi sayınıza ve uyum gereksinimlerinize göre belirlenir · Yıllık abonelik · Tedarikçiler her zaman ücretsiz · İlk yıldan sonra istediğiniz an iptal",
+      note: "Fiyat, tedarikçi sayınıza ve uyum gereksinimlerinize göre belirlenir · Yıllık abonelik · Tedarikçiler ve alıcılar her zaman ücretsiz · İlk yıldan sonra istediğiniz an iptal",
       questionsBadge: "SORULAR",
       plans: [
         {
@@ -694,7 +694,7 @@ export function buildTr(en: Content): Content {
     },
 
     footer: {
-      desc: "Alıcıları, ihracatçıları ve tedarikçileri birbirine bağlayarak CBAM karbon verisi toplamayı otomatikleştiren bir yapay zekâ iş akışı platformu — talepten denetime hazır rapora kadar.",
+      desc: "Alıcıları, ihracatçıları ve tedarikçileri birbirine bağlayarak CBAM karbon verisi toplamayı otomatikleştiren bir yapay zekâ iş akışı platformu — talepten, alıcılar sormadan hazır duran rapora kadar.",
       location: "Bangkok, Tayland",
       columns: {
         platform: "PLATFORM",

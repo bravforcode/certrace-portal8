@@ -1,10 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { composeHref, type Content } from "@/lib/content";
+import { type Content } from "@/lib/content";
 import { LANG_OPTIONS, useLang } from "@/lib/i18n";
+import { usePages } from "@/lib/i18n-pages";
+import type { PageCopy } from "@/lib/pages";
+import { LOGIN_URL, SIGNUP_URL } from "@/lib/site";
 import { CertraceLogo } from "./logo";
+import { PopupForm, type PopupFormKind } from "./popup-form";
+import Link from "next/link";
 
 /* Nav IA. Every entry resolves to a real route or a real anchor on the home
    page — root-relative (`/#id`, not `#id`) so the same header works from
@@ -22,8 +26,12 @@ type MenuItem = {
   /* Content that doesn't exist yet. Rendered as a non-interactive row rather
      than a link to "#", so nothing in the nav is a dead click. */
   soon?: boolean;
-  /* Leaves the site (mail compose, etc.) — opens in its own tab. */
+  /* Leaves the site — opens in its own tab. */
   external?: boolean;
+  /* Opens one of the three pop-up forms instead of navigating. Careers,
+     Request a feature and Report an issue all used to be mail-compose links;
+     they now collect a structured answer. See components/popup-form.tsx. */
+  form?: PopupFormKind;
 };
 
 type NavEntry =
@@ -34,7 +42,7 @@ type NavEntry =
     }
   | { label: string; href: string; menu?: undefined };
 
-function buildNav(c: Content): NavEntry[] {
+function buildNav(c: Content, p: PageCopy): NavEntry[] {
   const live = { text: c.common.live, live: true };
   const soon = { text: c.common.soon };
 
@@ -99,35 +107,62 @@ function buildNav(c: Content): NavEntry[] {
     },
     { label: c.nav.pricing, href: "/pricing" },
     {
+      /* About CBAM leads: it is the only entry here that answers a question
+         somebody types into a search engine rather than one they only have
+         once they are already on the site. */
       label: c.nav.resources.label,
       menu: {
         items: [
+          { label: p.nav.aboutCbam, desc: p.nav.aboutCbamDesc, href: "/about-cbam" },
           { ...c.nav.resources.items[0], href: "/#how-it-works" },
           { ...c.nav.resources.items[1], href: "/#faq" },
           { ...c.nav.resources.items[2], href: "/#why-now" },
           { ...c.nav.resources.items[3], href: "/backlog" },
+          { label: p.nav.updates, desc: p.nav.updatesDesc, href: "/updates" },
+          /* The free CN-code engine. It is a resource rather than a pricing
+             row: it answers "which of these codes are even in scope", which is
+             a question people arrive with long before they are choosing a
+             plan — even though the tool lives on the pricing page. */
+          {
+            label: p.pricingPage.calc.navLabel,
+            desc: p.pricingPage.calc.navDesc,
+            href: "/pricing#cbam-engine",
+          },
         ],
         footer: { label: c.nav.resources.footer, href: "/#demo" },
       },
     },
     {
+      /* Everything a reader might want from the company, in the order they
+         tend to want it: who you are, where to find you, what you have been
+         doing, then the four ways to send us something. Those four open a form
+         rather than a mail client — see the MenuItem note above.
+
+         Request pricing leads that group. It is the one thing in this menu a
+         reader is most often trying to do, and until now it was only reachable
+         from the pricing and contact pages — which meant leaving whatever they
+         were reading to ask what it costs. */
       label: c.nav.company.label,
       menu: {
         items: [
+          { label: p.nav.about, desc: p.nav.aboutDesc, href: "/about" },
+          { label: p.nav.contact, desc: p.nav.contactDesc, href: "/contact" },
+          { label: p.nav.events, desc: p.nav.eventsDesc, href: "/events" },
+          { label: p.nav.updates, desc: p.nav.updatesDesc, href: "/updates" },
           {
-            ...c.nav.company.items[0],
-            href: composeHref(c.footer.contactSubject),
-            external: true,
+            label: p.nav.requestPricing,
+            desc: p.nav.requestPricingDesc,
+            href: "#",
+            form: "pricing",
           },
-          { ...c.nav.company.items[1], href: "#", badge: soon, soon: true },
-          /* Careers is live: no page to build, it opens a pre-addressed email
-             to the same inbox Contact uses. A SOON badge on a row that already
-             works would just stop people clicking it. */
+          { label: p.nav.careers, desc: p.nav.careersDesc, href: "#", form: "careers" },
           {
-            ...c.nav.company.items[2],
-            href: composeHref(c.footer.careersSubject),
-            external: true,
+            label: p.nav.requestFeature,
+            desc: p.nav.requestFeatureDesc,
+            href: "#",
+            form: "feature",
           },
+          { label: p.nav.reportIssue, desc: p.nav.reportIssueDesc, href: "#", form: "issue" },
         ],
         footer: { label: c.nav.company.footer, href: "/#demo" },
       },
@@ -296,13 +331,17 @@ export function LanguageSwitch({
 
 export function Navbar() {
   const { lang, setLang, c } = useLang();
+  const p = usePages();
+  /* Which pop-up form is open, if any. Held here rather than on each row so
+     opening one can also close the menu that was used to reach it. */
+  const [formOpen, setFormOpen] = useState<PopupFormKind | null>(null);
   const [scrolled, setScrolled] = useState(false);
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mobileGroup, setMobileGroup] = useState<string | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const nav = buildNav(c);
+  const nav = buildNav(c, p);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -474,6 +513,24 @@ export function Navbar() {
                                   {item.desc}
                                 </span>
                               </div>
+                            ) : item.form ? (
+                              <button
+                                key={item.label}
+                                type="button"
+                                onClick={() => {
+                                  setFormOpen(item.form!);
+                                  closeAll();
+                                }}
+                                className="group flex flex-col gap-1.5 p-5 rounded-xl min-h-[92px] text-left hover:bg-white/80 transition-colors duration-150"
+                              >
+                                <span className="flex items-center gap-2 text-[13px] text-black/80 group-hover:text-black transition-colors">
+                                  {item.label}
+                                  {item.badge && <MenuBadge badge={item.badge} />}
+                                </span>
+                                <span className="text-xs text-black/40 leading-relaxed max-w-md">
+                                  {item.desc}
+                                </span>
+                              </button>
                             ) : (
                               <a
                                 key={item.label}
@@ -512,13 +569,13 @@ export function Navbar() {
                                 →
                               </span>
                             </a>
-                            <Link
-                              href="/#demo"
+                            <a
+                              href={SIGNUP_URL}
                               onClick={closeAll}
                               className="flex-1 flex items-center justify-center gap-2 px-5 py-3.5 border-l border-black/[0.06] bg-[#111] font-pixel text-[11px] tracking-[0.18em] uppercase text-white hover:bg-[#333] transition-colors"
                             >
-                              {c.common.getStarted}
-                            </Link>
+                              {p.nav.freeTrial}
+                            </a>
                           </div>
                         )}
                       </div>
@@ -544,24 +601,24 @@ export function Navbar() {
             {/* Outlined, matching the language switch beside it and the mobile
                 menu's LOG IN: it's the secondary action next to a solid dark
                 CTA, so it reads as a button, not a text link. */}
+            {/* LOG IN goes to the portal's sign-in screen; the primary CTA
+                goes to its create-account screen. Sending somebody who has no
+                account to a password field is the one wrong answer here. */}
             <a
-              href="#"
-              onClick={(e) => {
-                e.preventDefault();
-                closeAll();
-              }}
+              href={LOGIN_URL}
+              onClick={closeAll}
               className="hidden xl:inline-flex text-[12px] px-4 py-2.5 rounded-[10px] border border-black/[0.10] text-black/55 hover:text-black hover:bg-black/[0.05] hover:border-black/20 transition-colors duration-200 tracking-widest whitespace-nowrap"
             >
               {c.nav.login}
             </a>
 
-            <Link
-              href="/#demo"
+            <a
+              href={SIGNUP_URL}
               onClick={closeAll}
               className="hidden xl:inline-flex text-[12px] px-5 py-2.5 rounded-[10px] bg-[#111] text-white hover:bg-[#333] transition-colors duration-200 tracking-widest whitespace-nowrap"
             >
-              {c.common.getStarted}
-            </Link>
+              {p.nav.freeTrial}
+            </a>
 
             <button
               onClick={() => {
@@ -639,7 +696,10 @@ export function Navbar() {
                   <div
                     className="overflow-hidden transition-all duration-300"
                     style={{
-                      maxHeight: mobileGroup === entry.label ? "540px" : "0px",
+                      /* 640, not 540: Company now carries seven rows and
+                         Resources six. Measured at 320px wide, where Company
+                         is the tallest group at 604px. */
+                      maxHeight: mobileGroup === entry.label ? "640px" : "0px",
                       opacity: mobileGroup === entry.label ? 1 : 0,
                     }}
                   >
@@ -659,6 +719,24 @@ export function Navbar() {
                               {item.desc}
                             </span>
                           </div>
+                        ) : item.form ? (
+                          <button
+                            key={item.label}
+                            type="button"
+                            onClick={() => {
+                              setFormOpen(item.form!);
+                              closeAll();
+                            }}
+                            className="flex flex-col gap-0.5 px-4 py-2.5 rounded-xl text-left hover:bg-black/[0.03] transition-colors"
+                          >
+                            <span className="flex items-center gap-2 text-[13px] text-black/70">
+                              {item.label}
+                              {item.badge && <MenuBadge badge={item.badge} />}
+                            </span>
+                            <span className="text-xs text-black/35 leading-relaxed">
+                              {item.desc}
+                            </span>
+                          </button>
                         ) : (
                           <a
                             key={item.label}
@@ -756,26 +834,35 @@ export function Navbar() {
                 hover plate so it reads as the secondary button it is. */}
             <div className="pt-4 pb-2 flex flex-col gap-2">
               <a
-                href="#"
-                onClick={(e) => {
-                  e.preventDefault();
-                  closeAll();
-                }}
+                href={LOGIN_URL}
+                onClick={closeAll}
                 className="block w-full text-center text-[12px] px-4 py-3 rounded-[10px] border border-black/[0.10] text-black/60 hover:text-black hover:bg-black/[0.05] hover:border-black/20 active:bg-black/[0.08] transition-colors tracking-widest"
               >
                 {c.nav.login}
               </a>
-              <Link
-                href="/#demo"
+              <a
+                href={SIGNUP_URL}
                 onClick={closeAll}
                 className="block w-full text-center text-[12px] px-4 py-3 rounded-[10px] bg-[#111] text-white hover:bg-[#333] active:bg-black transition-colors tracking-widest"
               >
-                {c.common.getStarted}
-              </Link>
+                {p.nav.freeTrial}
+              </a>
             </div>
           </nav>
         </div>
       </header>
+
+      {/* One instance of each dialog for the whole header — a row in the
+          desktop menu and the same row in the mobile menu open the same one,
+          so the state cannot get out of step between the two. */}
+      {(["pricing", "careers", "feature", "issue"] as PopupFormKind[]).map((kind) => (
+        <PopupForm
+          key={kind}
+          kind={kind}
+          open={formOpen === kind}
+          onClose={() => setFormOpen(null)}
+        />
+      ))}
     </>
   );
 }

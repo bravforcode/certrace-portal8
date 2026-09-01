@@ -11,6 +11,7 @@ import {
   ProblemSection,
   WhyNowSection,
 } from "@/components/sections";
+import { CnCalculator } from "@/components/cn-calculator";
 import { SolutionPage } from "@/components/solution-page";
 
 /* Exporters are the primary audience, so this page carries the full story
@@ -28,6 +29,8 @@ export default function ExportersPage() {
       <ComparisonSection />
       <HowItWorksSection />
       <LanguagesSection />
+      {/* The count before the price — see the same pairing on the home page. */}
+      <CnCalculator />
       <PricingSection />
       <FaqSection />
     </SolutionPage>

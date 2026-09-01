@@ -90,40 +90,62 @@ html[lang="vi"] body {
 /* Thai stacks marks above and below the consonant, so the display leading the
    Latin headings use (1.0–1.05) collides tone marks with the descenders of the
    line above — and BlurHeading clips the overflow. Element selectors here so
-   they outrank the `leading-*` utilities without needing !important. */
+   they outrank the `leading-*` utilities without needing !important.
+
+   1.4, not the old 1.35: the face needs 1.369em between baselines before a
+   doubled tone mark can touch the below-vowel above it (the arithmetic is in
+   the display rule below), and 1.35 left the smaller headings a hair short of
+   that — invisible most of the time and a collision whenever the two marks
+   happened to land in the same column. This is the floor for every Thai
+   heading; the display sizes take their own, larger value below. */
 html[lang="th"] h1,
 html[lang="th"] h2,
 html[lang="th"] h3,
 html[lang="th"] h4,
 html[lang="th"] blockquote {
-  line-height: 1.35;
+  line-height: 1.4;
 }
 
-/* …but 1.35 is body leading, and on display type it is far too much air.
-   It cost the hero 101px of height (a 3-line Thai h1 ran 389px against
-   English's 288px), which pushed the whole bottom-anchored hero block up past
-   the top of the section — on a 720–820px-tall window the eyebrow pill
-   disappeared behind the fixed header and the first headline line went with
-   it. Display sizes get 1.12: enough to clear a tone mark stacked over the
-   descender below it, and close enough to the Latin 1.0 that the two
-   languages lay out the same. The rule matches the responsive class list, so
-   a heading declared `text-4xl md:text-6xl` is tightened at every width —
-   which is correct, since the ratio is what matters, not the pixel size.
+/* …but 1.35 is body leading, and a Thai display heading needs its own number.
+   Measured against the face rather than guessed: at any size IBM Plex Sans
+   Thai puts a doubled tone mark (the `ั้` of `นั้น`) 1.025em above the
+   baseline, and a below-vowel (the `ู` of `ผู้`) 0.344em under it. Two lines
+   therefore need 1.369em between baselines before the mark of the lower line
+   can touch the vowel of the upper one — and that is a per-column collision,
+   which is why a tighter value looks fine until the two happen to land in the
+   same place.
 
-   1.12 was picked by rendering the hero headline at 1.00/1.05/1.08/1.12/1.16
-   and reading the marks: below it the `์` on line one starts to crowd, and it
-   is the tightest step where line three's `ไม่` tone mark still clears line
-   two's `อุ` descender. It leaves the Thai hero block 725px against English's
-   706px — near enough that neither language clips before the other.
+   They did. At the old 1.12 the LANGUAGE-SUPPORT and COMPARISON headings
+   overlapped by 0.244em — `ผู้` over `นี้`, ink through ink, on every
+   viewport. 1.42 clears the worst pair in the current copy by 0.069em and
+   clears the theoretical worst by 0.05em, so a copy change cannot reintroduce
+   it. It costs the Thai hero ~98px (803px → 901px); nothing hides behind the
+   header any more, because the hero block is in flow with `mt-auto` rather
+   than pinned to the bottom (see the note on the hero in app/page.tsx), so a
+   taller headline grows the section downward instead of upward.
 
-   The padding/margin pair is load-bearing, not decoration. A Thai tone mark
-   sits above the line box, and `BlurHeading` renders inside `overflow:hidden`
-   (it masks the words rising into place), so tightening the leading alone put
-   the first line's marks outside the box and the mask sliced their tops off —
-   measured at 1352 clipped pixels across the section headings, against 0 at
-   the old 1.35 and 0 in English. The padding grows the box upward so the ink
-   lands inside it; the equal negative margin cancels the growth, so nothing
-   moves. Change one, change the other. */
+   The rule matches the responsive class list, so a heading declared
+   `text-4xl md:text-6xl` is set at every width — which is correct, since the
+   ratio is what matters, not the pixel size.
+
+   The padding/margin pairs are load-bearing, not decoration. `BlurHeading`
+   renders inside `overflow:hidden`, so any ink outside the line box is sliced
+   off rather than merely overlapping.
+
+   TOP: a Thai tone mark sits above the line box, so the first line's marks
+   land outside it. At 1.42 the overshoot is only 0.02em against 0.17em at
+   1.12, but it is still an overshoot.
+
+   BOTTOM: the same problem, mirrored, and it was the one actually visible.
+   A below-vowel (the `ู` of `ผู้`, the `ุ` of `คุณ`) hangs under the last
+   line's baseline and past the bottom of the box — measured at 0.11em on
+   every multi-line Thai heading on the home page, which is why the tails of
+   the last line were being cut. 0.18em clears the worst of the current copy
+   with room for a longer word later.
+
+   Each padding grows the box in one direction so the ink lands inside it, and
+   the equal negative margin cancels the growth, so nothing moves. Change one,
+   change its partner. */
 html[lang="th"] body :is(
     [class*="text-4xl"],
     [class*="text-5xl"],
@@ -131,9 +153,11 @@ html[lang="th"] body :is(
     [class*="text-7xl"],
     [class*="text-8xl"]
   ) {
-  line-height: 1.12;
+  line-height: 1.42;
   padding-top: 0.26em;
   margin-top: -0.26em;
+  padding-bottom: 0.18em;
+  margin-bottom: -0.18em;
 }
 
 /* Thai has no word spaces, so wide letter-spacing pulls syllable clusters
@@ -167,10 +191,11 @@ html[lang="th"] body :is([class*="tracking-wide"], [class*="tracking-["]) {
    taller.
 
    Display sizes get 1.18 (Thai takes 1.12) with the same load-bearing
-   padding/margin pair: `BlurHeading` masks its words behind `overflow:hidden`,
-   an ि or a ें sits outside the line box, and tightening the leading alone
-   slices the tops off. The padding grows the box upward, the equal negative
-   margin cancels the growth so nothing moves. Change one, change the other.
+   padding/margin pairs: `BlurHeading` clips to `overflow:hidden`, an ि or a ें
+   sits above the line box and a ु, ू or ृ hangs below it, so tightening the
+   leading alone slices the tops off the first line and the tails off the last.
+   Each padding grows the box in one direction, the equal negative margin
+   cancels the growth so nothing moves. Change one, change its partner.
 
    Tracking: a Devanagari word is joined along its top bar, and letter-spacing
    cuts that bar into pieces — worse than the Thai case, where the syllable
@@ -193,6 +218,8 @@ html[lang="hi"] body :is(
   line-height: 1.18;
   padding-top: 0.26em;
   margin-top: -0.26em;
+  padding-bottom: 0.18em;
+  margin-bottom: -0.18em;
 }
 
 html[lang="hi"] .font-pixel {
@@ -414,5 +441,60 @@ html[lang="hi"] body :is([class*="tracking-wide"], [class*="tracking-["]) {
      fast-forward it to its end position. */
   .marquee-track {
     animation: none !important;
+  }
+}
+
+/* The confirmation panel's auto-close meter. Purely informational: the dialog
+   closes on a timer in popup-form.tsx and this shows the reader that it is
+   about to, so the close reads as a decision rather than a glitch. */
+@keyframes popupCountdown {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+
+/* ── The plan comparison table ──────────────────────────────
+   Below 901px the table scrolls sideways inside its own box and the feature
+   column is pinned, so a reader always knows which row they are reading. From
+   901px it fits, so nothing is sticky — a stuck column on a table that already
+   fits reads as a rendering fault rather than a feature. The header row stays
+   sticky at both sizes: 42 rows is far enough to lose which column is which. */
+@media (max-width: 900px) {
+  /* NOTE ON THE HEADER ROW BELOW 901px. It cannot stick to the viewport here,
+     and no declaration in this block can make it: `overflow-x: auto` forces
+     the Y axis to compute to `auto` (or, if it is set to `clip`, to `hidden`),
+     which makes the wrapper a scroll container, and a sticky header resolves
+     against the nearest scrollport rather than the page. The wrapper is as
+     tall as the table and never scrolls vertically, so the header simply sits
+     where it was. Sideways scrolling and a viewport-sticky header are mutually
+     exclusive in one box; sideways scrolling is the one phones need, and the
+     pinned feature column below is what keeps the rows legible instead. */
+  .compare-head-first,
+  .compare-row-head,
+  .compare-group {
+    position: sticky;
+    left: 0;
+  }
+  .compare-head-first {
+    z-index: 5;
+  }
+  .compare-row-head,
+  .compare-group {
+    z-index: 2;
+  }
+  /* The pinned column needs its own right edge — without it the cells
+     scrolling underneath show through the gap between borders. */
+  .compare-head-first,
+  .compare-row-head {
+    box-shadow: 1px 0 0 rgba(0, 0, 0, 0.06);
+  }
+}
+
+@media (min-width: 901px) {
+  .compare-scroller {
+    overflow-x: visible;
   }
 }

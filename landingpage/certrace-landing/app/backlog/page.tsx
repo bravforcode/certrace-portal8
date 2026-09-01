@@ -1,11 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { Footer } from "@/components/footer";
 import { Navbar } from "@/components/navbar";
 import { PixelIcon } from "@/components/pixel-icon";
 import { BlurHeading, TagBadge } from "@/components/ui";
-import { composeHref } from "@/lib/content";
+import { PopupFormTrigger } from "@/components/popup-form";
+import { SIGNUP_URL } from "@/lib/site";
+import { usePages } from "@/lib/i18n-pages";
 import { useLang } from "@/lib/i18n";
 
 /* The public backlog — a changelog, not a roadmap. Everything under RECENTLY
@@ -22,6 +23,7 @@ import { useLang } from "@/lib/i18n";
 
 export default function BacklogPage() {
   const { c } = useLang();
+  const p = usePages();
   const bl = c.backlog;
 
   return (
@@ -113,21 +115,23 @@ export default function BacklogPage() {
               {bl.ctaIntro}
             </p>
           </div>
-          <div className="flex flex-wrap gap-3 shrink-0">
-            <a
-              href={composeHref(bl.ctaSubject)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-6 py-3 rounded-[10px] border border-black/10 text-sm text-black/60 hover:border-black/25 hover:text-black hover:bg-black/[0.04] transition-all tracking-widest"
+          {/* "Tell us what's missing" is a feature request, so it opens the
+              feature form rather than a mail-compose window — the same dialog
+              the nav and the footer open, and the only one that comes back
+              with enough context to act on. */}
+          <div className="flex shrink-0 flex-wrap gap-3">
+            <PopupFormTrigger
+              kind="feature"
+              className="rounded-[10px] border border-black/10 px-6 py-3 text-sm tracking-widest text-black/60 transition-all hover:border-black/25 hover:bg-black/[0.04] hover:text-black"
             >
               {bl.ctaButton}
-            </a>
-            <Link
-              href="/#demo"
-              className="px-7 py-3 rounded-[10px] bg-[#111] text-white text-sm hover:bg-[#333] transition-colors tracking-widest"
+            </PopupFormTrigger>
+            <a
+              href={SIGNUP_URL}
+              className="rounded-[10px] bg-[#111] px-7 py-3 text-sm tracking-widest text-white transition-colors hover:bg-[#333]"
             >
-              {c.common.bookDemo}
-            </Link>
+              {p.nav.startFreeTrial}
+            </a>
           </div>
         </div>
       </section>

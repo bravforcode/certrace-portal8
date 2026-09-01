@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { AnimatedNumber } from "@/components/animated-number";
+import { CnCalculator } from "@/components/cn-calculator";
 import { DemoForm } from "@/components/demo-form";
 import { HeroCanvas } from "@/components/hero-canvas";
 import { MarqueeBand } from "@/components/marquee";
@@ -23,6 +24,8 @@ import {
 import { SplashScreen } from "@/components/splash-screen";
 import { AnimateCard, BlurHeading, TagBadge, handleMouseGlow } from "@/components/ui";
 import { DATE_LOCALE, useLang } from "@/lib/i18n";
+import { usePages } from "@/lib/i18n-pages";
+import { SIGNUP_URL } from "@/lib/site";
 
 const AUDIENCE_LINKS: { id: string; href: string; live: boolean; delay: number }[] =
   [
@@ -98,6 +101,7 @@ function CtaBarField() {
 
 export default function HomePage() {
   const { lang, c } = useLang();
+  const p = usePages();
   const [heroReady, setHeroReady] = useState(false);
 
   const onSplashDone = useCallback(() => setHeroReady(true), []);
@@ -200,18 +204,22 @@ export default function HomePage() {
             {c.hero.intro}
           </p>
 
+          {/* The site-wide pair: FREE TRIAL is the primary action everywhere,
+              BOOK A DEMO the secondary. Somebody who wants to try should not
+              have to go through a calendar first, and somebody who wants to be
+              shown around still has the button they came for. */}
           <div className="flex flex-wrap gap-3 mb-10" style={heroFade(260)}>
             <a
-              href="#demo"
+              href={SIGNUP_URL}
               className="px-7 py-3 bg-[#111] text-white text-sm rounded-[10px] hover:bg-[#333] transition-colors tracking-widest"
             >
-              {c.common.bookDemo}
+              {p.nav.startFreeTrial}
             </a>
             <a
-              href="#how-it-works"
+              href="#demo"
               className="px-7 py-3 rounded-[10px] border border-black/10 text-sm text-black/60 hover:border-black/25 hover:text-black hover:bg-black/[0.04] transition-all tracking-widest"
             >
-              {c.common.seeHowItWorks}
+              {c.common.bookDemo}
             </a>
           </div>
 
@@ -353,6 +361,14 @@ export default function HomePage() {
       </section>
 
       <LanguagesSection />
+
+      {/* The free engine, immediately before the plans. Every plan below is
+          metered on distinct CN codes and almost nobody knows their own number
+          — so the section that answers "how many do I have?" has to come
+          before the one that prices it. Same component the pricing page and
+          the exporter page run; see components/cn-calculator.tsx. */}
+      <CnCalculator />
+
       <PricingSection />
       <FaqSection />
 

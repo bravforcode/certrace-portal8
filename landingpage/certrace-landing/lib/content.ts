@@ -173,7 +173,7 @@ const en = {
     badge: "CARBON COMPLIANCE INFRASTRUCTURE",
     headline: "Buyers don't wait.\nThey pick whoever\nproves it first.",
     intro:
-      "An AI workflow platform connecting buyers, exporters, and suppliers to automate CBAM carbon data collection — from request to audit-ready reports.",
+      "An AI workflow platform connecting buyers, exporters, and suppliers to automate CBAM carbon data collection — from request to report-ready before buyers even ask.",
     /* Four returns, not four facts about the market: cost, effort, coverage,
        speed. Kept to four or five words each — they sit under the fold line on
        a laptop, and anything longer wraps to a third line and gets cut. */
@@ -548,7 +548,7 @@ const en = {
     /* The standalone /pricing page has always carried the longer line. */
     introPage:
       "Every plan is designed to save you more than it costs from day one. Suppliers are always free, on every plan.",
-    note: "Pricing is tailored to your supplier count and compliance requirements · Annual subscription · Suppliers always free · Cancel anytime after year one",
+    note: "Pricing is tailored to your supplier count and compliance requirements · Annual subscription · Suppliers and buyers always free · Cancel anytime after year one",
     questionsBadge: "QUESTIONS",
     plans: [
       {
@@ -772,13 +772,25 @@ const en = {
       "Benchmarked Against CBAM Penalty Rates",
       "Proof Ready Before the Buyer Asks",
     ],
+    /* The regulatory surface the product is built against, in the order the
+       band reads best. Implementing and delegated acts carry their EU short
+       form (IR / DR) so the row stays scannable at marquee speed; the two
+       base regulations are spelled out. GDPR and the two carbon-accounting
+       standards close the row. */
     rowTwo: [
-      "EU CBAM Regulation 2023/956",
-      "CBAM Implementing Regulation (EU) 2023/1773",
-      "GHG Protocol",
-      "ISO 14064-1",
-      "ISO 14067",
+      "IR (EU) 2025/2548",
+      "IR (EU) 2025/2620",
+      "Regulation (EU) 2023/956",
+      "Regulation (EU) 2025/2083",
+      "IR (EU) 2025/2547",
+      "IR (EU) 2023/1773",
+      "IR (EU) 2025/2621",
+      "IR (EU) 2026/1740",
+      "IR (EU) 2025/2546",
+      "DR (EU) 2025/2551",
       "GDPR",
+      "ISO 14064-1",
+      "GHG Protocol",
     ],
     ctaRowOne: [
       "Book a Demo",
@@ -799,7 +811,7 @@ const en = {
   },
 
   footer: {
-    desc: "An AI workflow platform connecting buyers, exporters, and suppliers to automate CBAM carbon data collection — from request to audit-ready reports.",
+    desc: "An AI workflow platform connecting buyers, exporters, and suppliers to automate CBAM carbon data collection — from request to report-ready before buyers even ask.",
     location: "Bangkok, Thailand",
     columns: {
       platform: "PLATFORM",
@@ -1073,7 +1085,7 @@ export type Content = typeof en;
 
 const th: Content = {
   common: {
-    bookDemo: "จองการสาธิต",
+    bookDemo: "นัดชมระบบ",
     getStarted: "เริ่มต้นใช้งาน",
     seeHowItWorks: "ดูวิธีการทำงาน",
     requestPricing: "ขอใบเสนอราคา",
@@ -1178,7 +1190,7 @@ const th: Content = {
           desc: "ทุกอย่างที่เราปล่อยแล้ว เรียงจากใหม่ไปเก่า",
         },
       ],
-      footer: "จองการสาธิต",
+      footer: "นัดชมระบบ",
     },
     company: {
       label: "บริษัท",
@@ -1196,7 +1208,7 @@ const th: Content = {
           desc: "บอกเราว่าคุณอยากสร้างอะไร เราอ่านทุกฉบับ",
         },
       ],
-      footer: "จองการสาธิต",
+      footer: "นัดชมระบบ",
     },
   },
 
@@ -1204,7 +1216,7 @@ const th: Content = {
     badge: "โครงสร้างพื้นฐานด้านข้อมูลคาร์บอน",
     headline: "ผู้ซื้อไม่รอ\nเขาเลือกคนที่\nพิสูจน์ได้ก่อน",
     intro:
-      "แพลตฟอร์ม AI ที่เชื่อมผู้ซื้อ ผู้ส่งออก และซัพพลายเออร์เข้าด้วยกัน เพื่อเก็บข้อมูลคาร์บอนตาม CBAM แบบอัตโนมัติ ตั้งแต่คำขอจนถึงรายงานที่พร้อมตรวจสอบ",
+      "แพลตฟอร์ม AI ที่เชื่อมผู้ซื้อ ผู้ส่งออก และซัพพลายเออร์เข้าด้วยกัน เพื่อเก็บข้อมูลคาร์บอนตาม CBAM แบบอัตโนมัติ ตั้งแต่คำขอ จนถึงรายงานที่พร้อมส่งก่อนผู้ซื้อจะเอ่ยปาก",
     stats: [
       /* The comparison section reuses these captions in a 109px box at 768px;
          anything past ~15 characters splits ลดลง into ลด / ลง there. */
@@ -1510,7 +1522,7 @@ const th: Content = {
       "ทุกแพ็กเกจออกแบบมาให้คุ้มค่ากว่าที่จ่ายตั้งแต่วันแรก และซัพพลายเออร์ใช้ฟรีเสมอ",
     introPage:
       "ทุกแพ็กเกจออกแบบมาให้คุ้มค่ากว่าที่จ่ายตั้งแต่วันแรก และซัพพลายเออร์ใช้ฟรีเสมอในทุกแพ็กเกจ",
-    note: "ราคาปรับตามจำนวนซัพพลายเออร์และข้อกำหนดด้านการปฏิบัติตามกฎ · แบบรายปี · ซัพพลายเออร์ใช้ฟรีเสมอ · ยกเลิกได้ทุกเมื่อหลังปีแรก",
+    note: "ราคาปรับตามจำนวนซัพพลายเออร์และข้อกำหนดด้านการปฏิบัติตามกฎ · แบบรายปี · ซัพพลายเออร์และผู้ซื้อใช้ฟรีเสมอ · ยกเลิกได้ทุกเมื่อหลังปีแรก",
     questionsBadge: "คำถามที่พบบ่อย",
     plans: [
       {
@@ -1737,7 +1749,7 @@ const th: Content = {
     ],
     rowTwo: en.marquee.rowTwo,
     ctaRowOne: [
-      "จองการสาธิต",
+      "นัดชมระบบ",
       "พาชมแบบมีผู้แนะนำ 30 นาที",
       "ซัพพลายเชนของคุณเอง แบบสด",
       "ตั้งแต่เชิญซัพพลายเออร์จนถึงรายงานที่พร้อมตรวจสอบ",
@@ -1750,12 +1762,12 @@ const th: Content = {
       "คุยกับทีมงาน",
       "พิสูจน์ให้ได้ก่อน",
       "เริ่มวันนี้",
-      "จองการสาธิต",
+      "นัดชมระบบ",
     ],
   },
 
   footer: {
-    desc: "แพลตฟอร์ม AI ที่เชื่อมผู้ซื้อ ผู้ส่งออก และซัพพลายเออร์เข้าด้วยกัน เพื่อเก็บข้อมูลคาร์บอนตาม CBAM แบบอัตโนมัติ ตั้งแต่คำขอจนถึงรายงานที่พร้อมตรวจสอบ",
+    desc: "แพลตฟอร์ม AI ที่เชื่อมผู้ซื้อ ผู้ส่งออก และซัพพลายเออร์เข้าด้วยกัน เพื่อเก็บข้อมูลคาร์บอนตาม CBAM แบบอัตโนมัติ ตั้งแต่คำขอ จนถึงรายงานที่พร้อมส่งก่อนผู้ซื้อจะเอ่ยปาก",
     location: "กรุงเทพมหานคร ประเทศไทย",
     columns: {
       platform: "แพลตฟอร์ม",
@@ -1780,7 +1792,7 @@ const th: Content = {
       backlog: "แผนพัฒนา",
       pricing: "ราคา",
       contact: "ติดต่อเรา",
-      bookDemo: "จองการสาธิต",
+      bookDemo: "นัดชมระบบ",
       terms: "ข้อกำหนดการใช้งาน",
       privacy: "นโยบายความเป็นส่วนตัว",
       cookies: "นโยบายคุกกี้",
@@ -1917,7 +1929,7 @@ const th: Content = {
       confirmedTitle: "คุณอยู่ในรายชื่อแล้ว",
       confirmedBody: "เราจะเขียนถึง",
       confirmedTail:
-        "ก่อนที่ส่วนนี้จะเปิดใช้งาน หากอยากเห็นฝั่งผู้ส่งออกที่ใช้งานได้แล้ววันนี้ จองการสาธิตได้เลย",
+        "ก่อนที่ส่วนนี้จะเปิดใช้งาน หากอยากเห็นฝั่งผู้ส่งออกที่ใช้งานได้แล้ววันนี้ นัดชมระบบได้เลย",
       errors: {
         required: "กรุณากรอกข้อมูล",
         emailFormat: "กรุณากรอกอีเมลให้ถูกต้อง",
