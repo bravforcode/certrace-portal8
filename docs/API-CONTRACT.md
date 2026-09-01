@@ -58,8 +58,9 @@
 ```
 
 code ที่ฝั่งพอร์ทัลจะดักเป็นพิเศษ:
-`INVALID_CREDENTIALS` · `EMAIL_TAKEN` · `TOKEN_NOT_FOUND` · `TOKEN_EXPIRED` ·
-`TOKEN_REVOKED` · `ALREADY_SUBMITTED` · `DECLARATION_NOT_FOUND`
+`INVALID_CREDENTIALS` · `INVALID_RESET_TOKEN` · `EMAIL_TAKEN` ·
+`TOKEN_NOT_FOUND` · `TOKEN_EXPIRED` · `TOKEN_REVOKED` · `ALREADY_SUBMITTED` ·
+`DECLARATION_NOT_FOUND`
 
 **เวลา** — ทุก timestamp เป็น epoch milliseconds (number) ให้ตรงกับที่พอร์ทัลใช้อยู่
 อย่าส่ง ISO string ปนมา
@@ -95,8 +96,43 @@ code ที่ฝั่งพอร์ทัลจะดักเป็นพิ
 ### ของเดิมที่มีอยู่แล้ว
 
 `change-password` · `forgot-password` · `reset-password` ใช้ต่อได้
-**แต่ต้องแก้ก่อน:** `forgot-password` ห้ามคืน `resetToken` กลับมาใน response
-ให้ส่งทางอีเมลแทน และคืนแค่ข้อความกลางๆ เสมอไม่ว่าอีเมลนั้นจะมีอยู่จริงหรือไม่
+
+~~**แต่ต้องแก้ก่อน:** `forgot-password` ห้ามคืน `resetToken` กลับมาใน response~~
+**✅ แก้แล้ว** — `AuthResponse` ไม่มีฟิลด์ `reset_token` อีกต่อไป รหัส 6 หลัก
+ส่งไปที่กล่องจดหมายทางเดียว และ response คืนข้อความกลางๆ ประโยคเดียวเสมอ
+ไม่ว่าอีเมลนั้นจะมีอยู่จริงหรือไม่ (ถ้าไม่มีบัญชี = ไม่ส่งเมล แต่ตอบเหมือนเดิมเป๊ะ)
+
+```jsonc
+// POST /api/auth/forgot-password
+{ "email": "a@b.co", "locale": "th" }   // locale ใส่หรือไม่ใส่ก็ได้
+// 200 (ทุกกรณี)
+{ "success": true,
+  "message": "If an account exists for that email, a reset code is on its way." }
+```
+
+**`locale` เพิ่มใหม่ในทั้งสาม endpoint** — `"en"` หรือ `"th"` ไม่ใส่ = `"en"`
+ฝั่งพอร์ทัลส่งค่าจาก `certrace:lang` (localStorage) ได้เลย ค่าที่ไม่รู้จัก
+เช่น `"de"` หรือ `"th-TH"` ไม่ error — normalize ให้เอง
+
+รหัสมีอายุ 15 นาที ใช้ได้ครั้งเดียว และ `change-password` / `reset-password`
+จะยิงเมลยืนยัน "รหัสผ่านถูกเปลี่ยนแล้ว" ตามไปด้วยเสมอ (ปิดไม่ได้ เป็นเมลความปลอดภัย)
+
+**ฝั่งพอร์ทัลต่อเสร็จแล้ว** — `/forgot-password` ยิง API จริง และมีหน้า
+`/reset-password` ใหม่สำหรับกรอกรหัส 6 หลัก + ตั้งรหัสผ่านใหม่
+(client อยู่ที่ `lib/api/auth.ts` — `requestPasswordReset` · `resetPassword` ·
+`changePassword` ทั้งสามส่ง `auth: false` ไม่แนบ bearer)
+
+**error ของสามตัวนี้ใช้ `{detail: {code, message}}` แล้ว** (เดิมเป็น string เปล่า):
+
+| Endpoint | code | เมื่อไหร่ |
+| :-- | :-- | :-- |
+| `reset-password` | `INVALID_RESET_TOKEN` | รหัสผิด ถูกใช้ไปแล้ว หรือหมดอายุ |
+| `change-password` | `INVALID_CREDENTIALS` | รหัสผ่านปัจจุบันไม่ถูกต้อง |
+
+**อย่าลืม CSP** — origin ของ backend ต้องอยู่ใน `connect-src` ไม่งั้นเบราว์เซอร์
+บล็อกทุก call เงียบ ๆ และหน้าจอจะขึ้นว่า "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้" ทั้งที่
+เซิร์ฟเวอร์ปกติ ตอนนี้ดึงมาจาก `NEXT_PUBLIC_API_BASE_URL` อัตโนมัติแล้ว
+ทั้งใน `middleware.ts` และ `scripts/build-csp-headers.mjs`
 
 ---
 
