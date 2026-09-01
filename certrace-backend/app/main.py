@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.config import (
     CORS_ALLOWED_ORIGINS_ENV,
@@ -20,6 +21,27 @@ from app.core.cors import (
 from app.repositories.database import DatabaseRepository
 from app.routers import auth, calculations, declarations, health
 from app.services.email import EmailTransport, transport_from_env
+from app.services.errors import AccountStoreUnavailable
+
+
+async def _account_store_unavailable_handler(
+    request: Request, exc: Exception
+) -> JSONResponse:
+    """Answer 503 when the account tables are configured but unreachable.
+
+    The detail carries no database text: the caller needs to know to retry,
+    not which relation is missing.
+    """
+
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={
+            "detail": {
+                "code": AccountStoreUnavailable.code,
+                "message": AccountStoreUnavailable.message,
+            }
+        },
+    )
 
 
 def create_app(
@@ -63,6 +85,9 @@ def create_app(
             max_age=600,
         )
     application.add_middleware(SecurityHeadersMiddleware)
+    application.add_exception_handler(
+        AccountStoreUnavailable, _account_store_unavailable_handler
+    )
     application.include_router(health.router)
     application.include_router(auth.router)
     application.include_router(calculations.router)
