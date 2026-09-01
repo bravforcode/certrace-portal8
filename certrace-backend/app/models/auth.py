@@ -42,6 +42,51 @@ class ResetPasswordRequest(BaseModel):
     )
 
 
+class RegisterRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(
+        ..., min_length=8, description="Password (minimum 8 characters)"
+    )
+    first_name: str | None = Field(default=None, max_length=200, alias="firstName")
+    last_name: str | None = Field(default=None, max_length=200, alias="lastName")
+    company_name: str | None = Field(default=None, max_length=200, alias="companyName")
+
+    # The portal sends camelCase for these three; the password endpoints that
+    # predate the contract send snake_case. Accepting both by alias keeps one
+    # model instead of two shapes for the same account.
+    model_config = {"populate_by_name": True}
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(..., min_length=1)
+
+
+class AuthUser(BaseModel):
+    """The account as the portal renders it.
+
+    ``onboarded`` decides whether a signup lands on /onboarding, so it is read
+    from storage on every /me rather than carried in the token, where it would
+    keep reporting the value it had at sign-in until the token expired.
+    """
+
+    id: str
+    email: EmailStr
+    onboarded: bool
+    first_name: str | None = Field(default=None, serialization_alias="firstName")
+    last_name: str | None = Field(default=None, serialization_alias="lastName")
+    company_name: str | None = Field(default=None, serialization_alias="companyName")
+
+
+class SessionResponse(BaseModel):
+    access_token: str = Field(..., serialization_alias="accessToken")
+    user: AuthUser
+
+
+class MeResponse(BaseModel):
+    user: AuthUser
+
+
 class AuthResponse(BaseModel):
     """Deliberately carries no reset token.
 
