@@ -26,6 +26,8 @@
    lib/installations.ts.
    ════════════════════════════════════════════════════════════ */
 
+import { secureId } from "./secure-id";
+
 export type SupplierCompany = {
   /** stable id, minted once. NOT derived from the name — see the header. */
   id: string;
@@ -43,10 +45,11 @@ export type SupplierCompany = {
 
 const KEY = "certrace:supplier-companies";
 
-export const supplierUid = () =>
-  typeof crypto !== "undefined" && crypto.randomUUID
-    ? `sup-${crypto.randomUUID().slice(0, 8)}`
-    : `sup-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+/** Minted once per company and then pointed at from everywhere: a workspace,
+    an installation, a precursor row. It travels the same paths a workspace or
+    supplier-row id does, so it is minted the same way — see lib/secure-id.ts
+    for why Math.random() and Date.now() are not an acceptable fallback. */
+export const supplierUid = () => secureId("sup");
 
 function read(): SupplierCompany[] {
   if (typeof window === "undefined") return [];
