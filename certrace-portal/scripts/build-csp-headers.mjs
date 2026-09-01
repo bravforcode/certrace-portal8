@@ -140,8 +140,36 @@ if (passthrough.some((block) => block.headers.some((header) => header.key.toLowe
   fail("a path-specific rule already sets a Content-Security-Policy; it would merge with the generated ones.");
 }
 
-const basePolicy = global.headers.find((header) => header.key.toLowerCase() === CSP.toLowerCase())?.value;
+let basePolicy = global.headers.find((header) => header.key.toLowerCase() === CSP.toLowerCase())?.value;
 if (!basePolicy) fail("the /* block declares no Content-Security-Policy.");
+
+/* ── the backend origin ──
+   public/_headers is a static file and cannot know where the API lives; the
+   value is only fixed at build time, in NEXT_PUBLIC_API_BASE_URL. Without it
+   in connect-src, every prerendered page — /login, /forgot-password,
+   /reset-password among them — ships a policy that refuses the very calls the
+   page is built to make, and the failure reads as "the server is down".
+   Mirrors the same addition in middleware.ts, which covers the pages the
+   Worker renders. */
+const configuredApi = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").trim();
+if (configuredApi) {
+  let origin;
+  try {
+    origin = new URL(configuredApi).origin;
+  } catch {
+    fail(`NEXT_PUBLIC_API_BASE_URL is not a URL: ${configuredApi}`);
+  }
+  if (!/(^|;)\s*connect-src\s/.test(basePolicy)) {
+    fail("the policy has no connect-src directive to add the API origin to.");
+  }
+  if (!basePolicy.includes(origin)) {
+    basePolicy = basePolicy.replace(
+      /(^|;)(\s*connect-src\s[^;]*)/,
+      (match, lead, directive) => `${lead}${directive} ${origin}`,
+    );
+  }
+  console.log(`build-csp-headers: connect-src includes ${origin}.`);
+}
 if (/script-src[^;]*'unsafe-inline'/.test(basePolicy)) {
   fail("script-src still allows 'unsafe-inline' — remove it; the hashes generated here replace it.");
 }

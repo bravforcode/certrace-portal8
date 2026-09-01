@@ -1,9 +1,32 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+/* ── The one cross-origin the portal is allowed to call ─────────
+   `connect-src 'self'` does not cover api.certrace.co, and a CSP does not
+   fail loudly: the request is simply refused in the browser, which looks
+   exactly like the backend being down. Every call in lib/api goes to this
+   origin, so it has to be named. Read from the same build-time variable the
+   client reads, so the policy cannot disagree with the code it is policing.
+
+   Mirrored into the static policy by scripts/build-csp-headers.mjs — this
+   middleware only runs in the Worker, and a prerendered page is served off
+   Cloudflare's asset layer without ever reaching it. */
+function apiOrigin(): string {
+  const configured = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").trim();
+  if (!configured) return "";
+  try {
+    return new URL(configured).origin;
+  } catch {
+    /* A malformed value must not take the whole policy down with it; the
+       client's own fetch will fail on it loudly enough. */
+    return "";
+  }
+}
+
 export function middleware(request: NextRequest) {
   const isDevelopment = process.env.NODE_ENV !== "production";
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+  const api = apiOrigin();
 
   const cspHeader = [
     "default-src 'self'",
@@ -15,7 +38,7 @@ export function middleware(request: NextRequest) {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https://fonts.gstatic.com",
-    `connect-src 'self' https://api.anthropic.com${isDevelopment ? " ws: wss:" : ""}`,
+    `connect-src 'self' https://api.anthropic.com${api ? ` ${api}` : ""}${isDevelopment ? " ws: wss:" : ""}`,
     "worker-src 'self' blob:",
     "manifest-src 'self'",
     ...(isDevelopment ? [] : ["upgrade-insecure-requests"]),
