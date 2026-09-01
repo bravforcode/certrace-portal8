@@ -33,8 +33,24 @@ export {
 } from "./session";
 export type { Session } from "./session";
 
-export { register, login, me, logout } from "./auth";
-export type { AuthUser, RegisterInput, LoginInput } from "./auth";
+export {
+  register,
+  login,
+  me,
+  logout,
+  requestPasswordReset,
+  resetPassword,
+  changePassword,
+} from "./auth";
+export type {
+  AuthUser,
+  RegisterInput,
+  LoginInput,
+  EmailLocale,
+  PasswordResetRequestInput,
+  PasswordResetInput,
+  ChangePasswordInput,
+} from "./auth";
 
 export {
   listDeclarations,

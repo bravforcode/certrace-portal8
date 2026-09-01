@@ -132,6 +132,23 @@ export function useT(): TFunction {
   return React.useContext(LangContext).t;
 }
 
+/* ── Reading the saved language past an English pin ─────────────
+   `useLanguage()` inside <EnglishOnly> answers "en", which is right for the
+   screen and wrong for anything the screen SENDS somewhere else. The auth
+   pages are pinned to English but the email they ask the server for is read
+   later, by a person whose language we do know — the one they picked before
+   they signed out. This is the only way to see it from in there.
+
+   Storage can throw (Safari private mode, a browser set to block site data),
+   so the fallback is the default language, never an exception. */
+export function storedLang(): LangCode {
+  try {
+    return window.localStorage.getItem(STORAGE_KEY) === "th" ? "th" : "en";
+  } catch {
+    return "en";
+  }
+}
+
 /* Country names come from the platform (Intl.DisplayNames), not from a
    hand-kept table — ICU already knows every ISO 3166 region in Thai, and a
    hand-written list of 195 names would only drift. The ISO code is always what
