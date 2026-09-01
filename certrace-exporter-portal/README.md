@@ -20,6 +20,30 @@ its own workspace/readiness/MMD engine under `lib/`.
 Both portals are still in the repository and will drift apart. Deciding which
 one takes over — and removing the other — is still open.
 
+**Those counts are stale.** The two trees have since converged: as of the
+password-reset work, only a handful of files exist in one and not the other,
+and most of the paths that "differ in content" differ only in line endings.
+What genuinely differs is the build and deploy setup (OpenNext here,
+`next-on-pages` there) and the files that follow from it — `next.config.ts`,
+`public/_headers`, `wrangler.jsonc`, `package.json`. Recount before quoting
+the numbers above.
+
+### Kept identical on purpose
+
+These are byte-for-byte copies of `certrace-portal/`, and a change to either
+copy should be made to both until one portal is retired:
+
+- `lib/api/` — the client layer for `docs/API-CONTRACT.md`
+- `lib/password-reset.ts`, `app/forgot-password/`, `app/reset-password/`
+- `lib/__tests__/api-client.test.ts`
+
+`middleware.ts` is the deliberate exception. Both add the backend's origin to
+`connect-src` from `NEXT_PUBLIC_API_BASE_URL`, but only the comment explaining
+where else the policy has to be repeated differs — there, a prerendered page
+is served off Cloudflare's asset layer and needs the same origin written into
+`public/_headers` by a build script; here, every document is Worker-rendered,
+so this file is the only place it is needed.
+
 ## Build, deploy and CI
 
 The build now matches the rest of the monorepo:

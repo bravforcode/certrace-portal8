@@ -12,6 +12,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["wrangler", "dev", "--cwd", "certrace-portal", "--port", "8787"],
       "port": 8787
+    },
+    {
+      "name": "certrace-exporter-portal",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "certrace-exporter-portal", "run", "dev", "--", "--port", "3007"],
+      "port": 3007
     }
   ]
 }

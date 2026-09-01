@@ -83,9 +83,38 @@ In Git Bash, the same commands are:
 | `DATABASE_MAX_OVERFLOW` | No (default `0`) | Additional temporary PostgreSQL connections per instance. |
 | `CERTRACE_REQUIRE_DATABASE` | No (default `false`) | Fail startup when persistence is missing; set to `true` on Cloud Run. |
 | `CERTRACE_ENABLE_API_DOCS` | No (default `true`) | Expose `/docs`, `/redoc`, and `/openapi.json`; set to `false` in production. |
+| `CERTRACE_EMAIL_DELIVERY` | No | `resend`, `console`, or `off`. Defaults to `resend` once a key and sender exist, `off` otherwise. |
+| `RESEND_API_KEY` | Only to send mail | Resend API key. The same secret the outreach script at the repository root uses. |
+| `CERTRACE_EMAIL_SENDER` | Only to send mail | From address, on a domain verified in Resend, e.g. `Certrace <contact@certrace.co>`. |
+| `CERTRACE_EMAIL_REPLY_TO` | No | Reply-to address, when it differs from the sender. |
+| `CERTRACE_EMAIL_LOGO_URL` | No | Public PNG/JPG shown at the top of each email. Omit for no logo. |
 
 `.env` is ignored by Git. Use [`.env.example`](.env.example) as the safe,
 committable template.
+
+## Email notifications
+
+Three modules, deliberately separate ([why](app/services/email.py)):
+
+| Module | Owns |
+| --- | --- |
+| `app/services/email.py` | Talking to Resend — retries, timeouts, the dev transports. |
+| `app/services/email_templates.py` | What each message says, in English and Thai. |
+| `app/services/notifications.py` | Which message goes to whom, and when we stay quiet. |
+
+Categories match `certrace-portal/lib/notification-prefs.ts` one for one, so
+the preference check is already written for the day preferences move off the
+browser and onto the account. Security mail (`password_reset`,
+`password_changed`) cannot be switched off.
+
+To read a reset code locally with no Resend key, set
+`CERTRACE_EMAIL_DELIVERY=console` — the whole message, code included, goes to
+the application log.
+
+Adding a notification is three edits: copy in both locales in
+`email_templates.TEMPLATES`, a `NotificationType` in `notifications.CATALOG`,
+and a `background_tasks.add_task(notifications.send_quietly, ...)` at the point
+in the router where the thing actually happens.
 
 ## Supabase setup
 

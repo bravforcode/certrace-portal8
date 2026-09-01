@@ -11,6 +11,21 @@ DATABASE_POOL_SIZE_ENV = "DATABASE_POOL_SIZE"
 DATABASE_MAX_OVERFLOW_ENV = "DATABASE_MAX_OVERFLOW"
 ENABLE_API_DOCS_ENV = "CERTRACE_ENABLE_API_DOCS"
 REQUIRE_DATABASE_ENV = "CERTRACE_REQUIRE_DATABASE"
+
+# Outbound email. The API key keeps Resend's own name because the same secret
+# already drives the outreach script at the repository root -- two names for
+# one credential is how a rotation ends up half-done.
+RESEND_API_KEY_ENV = "RESEND_API_KEY"
+EMAIL_DELIVERY_ENV = "CERTRACE_EMAIL_DELIVERY"
+EMAIL_SENDER_ENV = "CERTRACE_EMAIL_SENDER"
+EMAIL_REPLY_TO_ENV = "CERTRACE_EMAIL_REPLY_TO"
+EMAIL_LOGO_URL_ENV = "CERTRACE_EMAIL_LOGO_URL"
+APP_BASE_URL_ENV = "CERTRACE_APP_BASE_URL"
+
+# Where a recipient is told to write when a security email surprises them.
+# The same mailbox the brand's verified Resend domain already sends from.
+SUPPORT_EMAIL = "contact@certrace.co"
+
 SERVICE_NAME = "certrace-backend"
 REGULATORY_DATA_VERSION = "EU-CBAM-2026.1"
 

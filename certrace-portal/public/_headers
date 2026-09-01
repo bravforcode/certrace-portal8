@@ -27,6 +27,10 @@
 #  DEPLOYED copy of this file with one policy per page. So the script-src
 #  below is the base the hashes are appended to — leave it hash-ready, and
 #  never add `'unsafe-inline'` back to it.
+#
+#  The same script also appends the backend's origin to connect-src, from
+#  NEXT_PUBLIC_API_BASE_URL. It cannot be written here: this file is static
+#  and the value differs per deploy. Don't hardcode one — set the variable.
 # ════════════════════════════════════════════════════════════
 
 /*

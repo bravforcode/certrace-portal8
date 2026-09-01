@@ -39,7 +39,9 @@ const { configureApi, apiConfigured } = await import("../api/config");
 const { ApiError, isDeadLink, hasCode } = await import("../api/errors");
 const { request } = await import("../api/http");
 const { saveSession, loadSession, accessToken } = await import("../api/session");
-const { login, register } = await import("../api/auth");
+const { login, register, requestPasswordReset, resetPassword, changePassword } = await import(
+  "../api/auth"
+);
 const { resolveLink, saveLinkState, submitLink, createSmartLink } = await import("../api/links");
 const { listDeclarations, createDeclaration, removeDeclaration } = await import("../api/declarations");
 
@@ -261,4 +263,96 @@ test("hasCode narrows to the codes a screen cares about", () => {
   assert.equal(hasCode(error, "EMAIL_TAKEN", "INVALID_CREDENTIALS"), true);
   assert.equal(hasCode(error, "TOKEN_EXPIRED"), false);
   assert.equal(hasCode(new Error("plain"), "EMAIL_TAKEN"), false);
+});
+
+/* ── passwords ── */
+
+test("asking for a reset code sends the address and the reader's language", async () => {
+  reset();
+  const calls = stubServer(() => json({ success: true, message: "If an account exists…" }));
+
+  const message = await requestPasswordReset({ email: "a@b.co", locale: "th" });
+
+  assert.equal(calls[0].url, "https://api.certrace.co/api/auth/forgot-password");
+  assert.deepEqual(JSON.parse(String(calls[0].init.body)), { email: "a@b.co", locale: "th" });
+  assert.equal(message, "If an account exists…");
+});
+
+test("the password routes never carry a session token", async () => {
+  reset();
+  const calls = stubServer(() => json({ success: true, message: "ok" }));
+  /* Someone resetting a password may still have a stale session in this
+     browser — a shared laptop, or a second account. It must not be sent to a
+     route that proves identity with a mailed code instead. */
+  saveSession({ accessToken: "tok-123", user: { id: "u1", email: "a@b.co", onboarded: true } });
+
+  await requestPasswordReset({ email: "a@b.co" });
+  await resetPassword({ email: "a@b.co", code: "482913", newPassword: "long-enough-1" });
+  await changePassword({ email: "a@b.co", currentPassword: "old", newPassword: "long-enough-1" });
+
+  for (const call of calls) {
+    assert.equal(headerOf(call, "Authorization"), undefined, call.url);
+  }
+});
+
+test("the reset call maps onto the endpoint's snake_case fields", async () => {
+  reset();
+  const calls = stubServer(() => json({ success: true, message: "ok" }));
+
+  await resetPassword({ email: "a@b.co", code: "482913", newPassword: "long-enough-1" });
+
+  assert.deepEqual(JSON.parse(String(calls[0].init.body)), {
+    email: "a@b.co",
+    reset_token: "482913",
+    new_password: "long-enough-1",
+  });
+});
+
+test("a bad or expired code arrives as a code the screen can branch on", async () => {
+  reset();
+  stubServer(() =>
+    json({ detail: { code: "INVALID_RESET_TOKEN", message: "Invalid or expired." } }, 400),
+  );
+
+  const error = await resetPassword({
+    email: "a@b.co",
+    code: "000000",
+    newPassword: "long-enough-1",
+  }).then(
+    () => null,
+    (e: unknown) => e,
+  );
+
+  assert.ok(error instanceof ApiError);
+  assert.equal(hasCode(error, "INVALID_RESET_TOKEN"), true);
+  assert.equal(error.retryable, false, "retyping the same dead code cannot work");
+});
+
+test("an unknown address is not an error — the server answers the same either way", async () => {
+  reset();
+  stubServer(() => json({ success: true, message: "If an account exists for that email…" }));
+
+  /* If this ever started rejecting, the page would show "no such account" and
+     rebuild the membership oracle the backend deliberately closed. */
+  const message = await requestPasswordReset({ email: "nobody@example.com" });
+
+  assert.match(message, /if an account exists/i);
+});
+
+test("a wrong current password arrives as INVALID_CREDENTIALS", async () => {
+  reset();
+  stubServer(() =>
+    json({ detail: { code: "INVALID_CREDENTIALS", message: "Current password is incorrect." } }, 400),
+  );
+
+  const error = await changePassword({
+    email: "a@b.co",
+    currentPassword: "wrong",
+    newPassword: "long-enough-1",
+  }).then(
+    () => null,
+    (e: unknown) => e,
+  );
+
+  assert.equal(hasCode(error, "INVALID_CREDENTIALS"), true);
 });

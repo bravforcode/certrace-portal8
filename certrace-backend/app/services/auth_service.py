@@ -22,6 +22,38 @@ _MEMORY_USERS: dict[str, str] = {
 # Structure: {email: {"token": str, "expires_at": datetime, "used": bool}}
 _MEMORY_RESET_TOKENS: dict[str, dict[str, object]] = {}
 
+RESET_TOKEN_TTL_MINUTES = 15
+
+# The one answer /forgot-password gives, whether or not the address is ours.
+# Anything that varies with existence turns the endpoint into a membership
+# oracle: an attacker with a list of addresses learns which are customers.
+GENERIC_RESET_MESSAGE = (
+    "If an account exists for that email, a reset code is on its way."
+)
+
+
+def user_exists(db: DatabaseRepository | None, email: str) -> bool:
+    """Whether we hold an account for this address.
+
+    Callers use it to decide whether to *send* -- never to decide what to say
+    back. Mailing a password-reset code to an address that never signed up is
+    unsolicited mail sent on an attacker's behalf.
+    """
+
+    email_clean = email.strip().lower()
+    if db is not None:
+        try:
+            with db.session_factory() as session:
+                found = session.execute(
+                    text("SELECT 1 FROM public.users WHERE LOWER(email) = :email"),
+                    {"email": email_clean},
+                ).first()
+                if found is not None:
+                    return True
+        except SQLAlchemyError:
+            pass
+    return email_clean in _MEMORY_USERS
+
 
 def change_user_password(
     db: DatabaseRepository | None,
@@ -77,11 +109,20 @@ def request_password_reset(
     db: DatabaseRepository | None,
     email: str,
 ) -> tuple[bool, str, str | None]:
-    """Generate a password reset token for the specified user email."""
+    """Issue a password reset code, if the address belongs to an account.
+
+    The third element is the code, and it is for the caller to *email* -- not
+    to put in the HTTP response. Returning it there would let anyone who can
+    reach the endpoint reset any account they can name (docs/API-CONTRACT.md
+    section 1). ``None`` means no account, so nothing to send.
+    """
     email_clean = email.strip().lower()
+    if not user_exists(db, email_clean):
+        return True, GENERIC_RESET_MESSAGE, None
+
     token = generate_reset_token()
     expires_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(
-        minutes=15
+        minutes=RESET_TOKEN_TTL_MINUTES
     )
 
     if db is not None:
@@ -105,7 +146,7 @@ def request_password_reset(
         "used": False,
     }
 
-    return True, f"Reset verification token created for {email_clean}.", token
+    return True, GENERIC_RESET_MESSAGE, token
 
 
 def reset_user_password(
