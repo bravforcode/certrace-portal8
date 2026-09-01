@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from decimal import Decimal
 from urllib.parse import quote, unquote, urlsplit, urlunsplit
@@ -24,6 +25,23 @@ from app.models.database import (
     DeclarationAuditEvent,
     DefaultEmissionFactor,
 )
+
+
+_logger = logging.getLogger(__name__)
+
+
+def _connection_failure_reason(exc: SQLAlchemyError) -> str:
+    """The driver's own first line, without SQLAlchemy's trailing help link.
+
+    ``exc.orig`` is the psycopg error, which names the actual cause -- password
+    authentication failed, could not translate host name, connection timed out
+    -- rather than the SQLAlchemy wrapper around it. It carries the host and
+    port but never the password, which is why it is safe to log.
+    """
+
+    detail = str(getattr(exc, "orig", None) or exc).strip()
+    first_line = detail.splitlines()[0] if detail else type(exc).__name__
+    return first_line[:300]
 
 
 def normalize_database_url(database_url: str) -> str:
@@ -67,11 +85,21 @@ class DatabaseRepository:
         self.session_factory = sessionmaker(self.engine, expire_on_commit=False)
 
     def ping(self) -> bool:
+        """Whether the database answers. Logs why when it does not.
+
+        /readyz reports this as a bare 503, which is the right answer to give
+        a load balancer and a useless one to debug from: a wrong password, an
+        unresolvable host and a firewall all look identical from outside. The
+        reason belongs in the operator's log, where the URL is not echoed and
+        only the driver's own message is kept.
+        """
+
         try:
             with self.engine.connect() as connection:
                 connection.execute(text("select 1"))
             return True
-        except SQLAlchemyError:
+        except SQLAlchemyError as exc:
+            _logger.warning("Database ping failed: %s", _connection_failure_reason(exc))
             return False
 
     def lookup_default_factor(
