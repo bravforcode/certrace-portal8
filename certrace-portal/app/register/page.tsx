@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Check } from "lucide-react";
 import { Button, Field, inputClass, cn } from "@/components/ui";
-import { AuthLayout, GoogleButton, Divider, PasswordStrength } from "@/components/auth-panel";
+import { AuthLayout, GoogleButton, Divider, PasswordStrength, GOOGLE_AUTH_ENABLED } from "@/components/auth-panel";
 import { useProfile } from "@/lib/profile";
 import { EnglishOnly, useT } from "@/lib/i18n";
 import { LEGAL_PRIVACY_URL, LEGAL_TERMS_URL } from "@/lib/links";
@@ -114,12 +114,21 @@ function RegisterScreen() {
       </h2>
       <p className="mt-2 text-sm text-black/45">{t("One account per company. Add teammates as seats once you're in.")}</p>
 
-      <div className="mt-4 space-y-2 lg:mt-7 lg:space-y-4">
-        <GoogleButton onClick={withGoogle} loading={googleLoading} label={t("Sign up with Google")} />
-        <Divider label={t("or sign up with email")} />
-      </div>
+      {GOOGLE_AUTH_ENABLED && (
+        <div className="mt-4 space-y-2 lg:mt-7 lg:space-y-4">
+          <GoogleButton onClick={withGoogle} loading={googleLoading} label={t("Sign up with Google")} />
+          <Divider label={t("or sign up with email")} />
+        </div>
+      )}
 
-      <form onSubmit={submit} className="mt-3 space-y-2 lg:mt-5 lg:space-y-4">
+      {/* Takes over the hidden block's spacing, at both breakpoints. */}
+      <form
+        onSubmit={submit}
+        className={cn(
+          "space-y-2 lg:space-y-4",
+          GOOGLE_AUTH_ENABLED ? "mt-3 lg:mt-5" : "mt-4 lg:mt-7",
+        )}
+      >
         {/* Two fields, not one. A single "Full name" has to be guessed apart
             again the moment anything addresses the person by first name —
             supplier invitations, the account menu, the signature on a report

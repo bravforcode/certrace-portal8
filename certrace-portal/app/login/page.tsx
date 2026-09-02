@@ -4,8 +4,8 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
-import { Button, Field, inputClass } from "@/components/ui";
-import { AuthLayout, GoogleButton, Divider } from "@/components/auth-panel";
+import { Button, Field, inputClass, cn } from "@/components/ui";
+import { AuthLayout, GoogleButton, Divider, GOOGLE_AUTH_ENABLED } from "@/components/auth-panel";
 import { EnglishOnly, useT } from "@/lib/i18n";
 
 /* Sign-in is English-only, like the rest of the auth screens — see
@@ -54,12 +54,16 @@ function LoginScreen() {
         {t("Sign in to continue.")}
       </h2>
 
-      <div className="mt-7 space-y-4">
-        <GoogleButton onClick={withGoogle} loading={googleLoading} />
-        <Divider label={t("or sign in with email")} />
-      </div>
+      {GOOGLE_AUTH_ENABLED && (
+        <div className="mt-7 space-y-4">
+          <GoogleButton onClick={withGoogle} loading={googleLoading} />
+          <Divider label={t("or sign in with email")} />
+        </div>
+      )}
 
-      <form onSubmit={submit} className="mt-5 space-y-4">
+      {/* With the Google block hidden the form is the first thing under the
+          heading, so it takes over the spacing that block was providing. */}
+      <form onSubmit={submit} className={cn("space-y-4", GOOGLE_AUTH_ENABLED ? "mt-5" : "mt-7")}>
         <Field label={t("Work email")}>
           <input className={inputClass} type="email" placeholder={t("you@company.com")} autoComplete="username" required />
         </Field>
