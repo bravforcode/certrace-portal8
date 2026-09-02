@@ -47,6 +47,26 @@ export const DATE_LOCALE: Record<Lang, string> = {
   hi: "hi-IN",
 };
 
+/* The intro clip on the home page, one YouTube ID per language. Not copy, so
+   it is not in the dictionaries — but not language-independent either, which
+   is why it sits here with the locale table rather than in lib/site.ts.
+
+   The Thai entry is a separate recording on the same channel, narrated in
+   Thai, not subtitles laid over the English cut. A language with no cut of
+   its own points at the English one on purpose: the section is the same shape
+   in every language, and an empty entry would leave a black rectangle where
+   the walkthrough should be. When a new cut is published, replacing the ID
+   here is the whole change. */
+const VIDEO_EN = "l4ZdQq5KA7Q";
+
+export const HERO_VIDEO_ID: Record<Lang, string> = {
+  en: VIDEO_EN,
+  th: "ktOkmCM31oA",
+  vi: VIDEO_EN,
+  tr: VIDEO_EN,
+  hi: VIDEO_EN,
+};
+
 type LangContextValue = {
   lang: Lang;
   setLang: (lang: Lang) => void;
