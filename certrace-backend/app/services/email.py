@@ -216,6 +216,16 @@ class NullTransport:
 
     def send(self, message: EmailMessage) -> str:
         if not self._warned:
+            # The three constants below are variable NAMES -- "RESEND_API_KEY",
+            # not the key. Naming them is the whole point of the warning: an
+            # operator reading it has to learn what to set.
+            #
+            # CodeQL reads it the other way. Its clear-text-logging query
+            # classifies a source by the name of the constant carrying it, so
+            # RESEND_API_KEY_ENV looks like the key whatever it holds, and the
+            # finding is signed off in the TRIAGED list in .github/workflows/
+            # ci.yml -- there is no comment that reaches that gate. Renaming the
+            # constant would silence it and make config.py worse to read.
             self._logger.warning(
                 "Email delivery is off (%s); messages are being discarded. "
                 "Set %s and %s to send.",
