@@ -27,6 +27,7 @@
 import { annualProductionFor } from "./monthly-data";
 import { aggregatedGoodsCategory, getCatalogProduct, isEuOrExempt } from "./config";
 import type { VerificationWorkspace } from "./workspace";
+import { secureId } from "./secure-id";
 
 /* ── Data origin ────────────────────────────────────────────────
    Ordered strongest to weakest. The ordering is load-bearing: `weakestOrigin`
@@ -306,8 +307,7 @@ const KEY = "certrace:precursor-suppliers";
 
 type Store = Record<string, PrecursorSupplier[]>;
 
-export const uid = () =>
-  typeof crypto !== "undefined" && crypto.randomUUID ? `ps-${crypto.randomUUID().slice(0, 8)}` : `ps-${Date.now().toString(36)}`;
+export const uid = () => secureId("ps");
 
 function read(): Store {
   if (typeof window === "undefined") return {};

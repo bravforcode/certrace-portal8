@@ -29,6 +29,7 @@
 import { getCatalogProduct, isComplexGood, type AggregatedGoodsCategory, type CatalogProduct, type ProductCategory } from "./config";
 import { pickerOptions } from "./installations";
 import type { GoodsCategory } from "./cbam/engine";
+import { secureId } from "./secure-id";
 
 /* ── Production routes ──────────────────────────────────────────
    The route is not decoration: it decides which precursors are even possible
@@ -392,10 +393,7 @@ export type Signoff = {
 
 const KEY = "certrace:workspaces";
 
-export const uid = () =>
-  typeof crypto !== "undefined" && crypto.randomUUID
-    ? `ws-${crypto.randomUUID().slice(0, 8)}`
-    : `ws-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+export const uid = () => secureId("ws");
 
 function read(): VerificationWorkspace[] {
   if (typeof window === "undefined") return [];
