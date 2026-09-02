@@ -71,7 +71,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   const t = React.useCallback<TFunction>((en, vars) => translate(lang, en, vars), [lang]);
 
-  return <LangContext.Provider value={{ lang, setLang, t }}>{children}</LangContext.Provider>;
+  return React.createElement(LangContext.Provider, { value: { lang, setLang, t } }, children);
 }
 
 export function useLanguage() {
@@ -124,7 +124,7 @@ export function EnglishOnly({ children }: { children: React.ReactNode }) {
     () => ({ lang: "en" as LangCode, setLang: () => {}, t: (en: string, vars?: Vars) => interpolate(en, vars) }),
     [],
   );
-  return <LangContext.Provider value={value}>{children}</LangContext.Provider>;
+  return React.createElement(LangContext.Provider, { value }, children);
 }
 
 /** Sugar for the common case — `const t = useT()`. */
