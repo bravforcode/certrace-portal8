@@ -1,0 +1,325 @@
+@import "tailwindcss";
+
+/*
+  Certrace design system — canonical tokens.
+  Source of truth: certrace design system/design-tokens.json + DESIGN_SYSTEM.md
+  Ink-on-bone, light mode only. Color = status only.
+*/
+
+@theme {
+  /* Fonts (wired to next/font variables in layout.tsx) */
+  --font-display: var(--font-plex), "IBM Plex Sans", sans-serif;
+  --font-sans: var(--font-geist), "Inter", system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-pixel: var(--font-courier), "Courier Prime", monospace;
+
+  /* Ground */
+  --color-canvas: #f5f4f0;
+  --color-surface: #ffffff;
+  --color-surface-hover: #fafaf8;
+  --color-surface-warm: #faf9f7;
+  --color-surface-highlight: #f0eee8;
+
+  /* Status */
+  --color-ok: #4ade80;
+  --color-ok-accent: #10b981;
+  --color-ok-text: #16a34a;
+  --color-ok-chip-text: #047857;
+  --color-ok-chip-bg: #ecfdf5;
+  --color-warn: #facc15;
+  --color-warn-text: #b45309;
+  --color-err: #f87171;
+  --color-err-text: #dc2626;
+  --color-info: #60a5fa;
+  --color-info-text: #2563eb;
+}
+
+:root {
+  --ease-signature: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--color-canvas);
+  color: #111111;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Brand wordmark + pixel labels */
+.font-pixel {
+  font-family: var(--font-pixel);
+}
+
+/* ── Thai ───────────────────────────────────────────────────────
+   The whole type stack swaps to the Thai-script cut of the display family —
+   the same face and the same mechanism certrace-landing uses, so a Thai page
+   looks identical across the marketing site and the portal.
+
+   The selector has to reach `body`, not `html`: next/font declares each
+   `--font-*` variable in a class on <body>, and a variable set on a closer
+   ancestor wins over one set on <html>, so an `html[lang="th"]` rule alone is
+   silently overridden and Thai renders in the Latin cut.
+
+   Geist, Geist Mono and Courier Prime carry no Thai glyphs, so leaving them
+   mapped would fall back per glyph and mix a system Thai face into the pixel
+   labels and every mono data column. Mapping them to the Thai cut costs the
+   monospace texture on Thai pages and keeps every glyph inside the brand
+   family — the trade the landing page already made.
+
+   Both layers are redeclared: the next/font variables (which components read
+   directly via `font-[family-name:var(--font-plex)]`) and the Tailwind theme
+   tokens that alias them, because `--font-sans: var(--font-geist)` in @theme
+   is substituted against :root and would not see a body-level override. */
+html[lang="th"] body {
+  --font-plex: var(--font-plex-thai);
+  --font-geist: var(--font-plex-thai);
+  --font-geist-mono: var(--font-plex-thai);
+  --font-courier: var(--font-plex-thai);
+
+  --font-display: var(--font-plex-thai), sans-serif;
+  --font-sans: var(--font-plex-thai), sans-serif;
+  --font-mono: var(--font-plex-thai), sans-serif;
+  --font-pixel: var(--font-plex-thai), sans-serif;
+
+  font-family: var(--font-plex-thai), sans-serif;
+}
+
+/* Thai stacks marks above and below the consonant, so the tight leading Latin
+   headings use collides tone marks with the descenders of the line above.
+   Element selectors so they outrank the `leading-*` utilities without
+   !important. */
+html[lang="th"] h1,
+html[lang="th"] h2,
+html[lang="th"] h3,
+html[lang="th"] h4 {
+  line-height: 1.35;
+}
+
+/* …but 1.35 is body leading and far too much air on display type. 1.12 is the
+   tightest step that still clears a tone mark stacked over the descender
+   below it, and close enough to the Latin 1.0–1.05 that the two languages lay
+   out the same. Matches the responsive class list, so a heading declared
+   `text-3xl md:text-4xl` is tightened at every width — the ratio is what
+   matters, not the pixel size. */
+html[lang="th"] body :is([class*="text-3xl"], [class*="text-4xl"], [class*="text-5xl"], [class*="text-6xl"]) {
+  line-height: 1.12;
+  padding-top: 0.26em;
+  margin-top: -0.26em;
+}
+
+/* Thai has no word spaces, so the wide Latin track pulls syllable clusters
+   apart: the vowel drifts away from its consonant and the cluster stops
+   reading as one syllable. Eyebrows, chips, status labels, table headers and
+   button labels all carry `tracking-[0.1em]`–`tracking-[0.25em]`. One rule
+   covers the named utilities and the arbitrary ones; `:is()` takes the
+   specificity of an attribute selector, so with `html body` ahead of it this
+   outranks every Tailwind track without !important. Headings keep
+   `tracking-tight` — negative tracking crowds nothing. */
+html[lang="th"] .font-pixel,
+html[lang="th"] body :is([class*="tracking-wide"], [class*="tracking-["]) {
+  letter-spacing: 0.04em;
+}
+
+/* Visible focus ring on all interactive elements (DS §2.4) */
+:focus-visible {
+  outline: 2px solid rgba(17, 17, 17, 0.4);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Texture: dotted grid (decorative) */
+.dotted-grid {
+  background-image: radial-gradient(rgba(17, 17, 17, 0.045) 1.5px, transparent 1.5px);
+  background-size: 56px 56px;
+}
+.hairline-grid {
+  background-image:
+    linear-gradient(to right, rgba(0, 0, 0, 0.035) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.035) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* ── Motion ─────────────────────────────────────────────── */
+@keyframes ct-blur-in {
+  from {
+    opacity: 0;
+    filter: blur(10px);
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+  }
+}
+@keyframes ct-row-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes ct-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+.ct-enter {
+  animation: ct-blur-in 0.7s var(--ease-signature) both;
+}
+
+/* ── Popover entrance ───────────────────────────────────────────
+   Menus, dropdowns, calendars and help tips use THIS, never .ct-enter.
+
+   .ct-enter is a 0.7s blur-in: filter: blur(10px) plus a 14px slide. On a page
+   section that reads as the content arriving. On a dropdown it is a bug you
+   can screenshot — a blur filter is applied to the element's rendered result,
+   so the list SMEARS OUTSIDE its own rounded box and its clip. For most of
+   that 700ms the selected row is visible as a ghost floating above the panel,
+   which reads as the trigger having been drawn twice, while the panel itself
+   sits 14px low and slides up under the cursor.
+
+   A menu is a response to a click, not an arrival. 120ms, 4px, no blur — long
+   enough to show where it came from, short enough that the list is readable
+   and hittable by the time the finger lifts. */
+@keyframes ct-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.ct-pop {
+  animation: ct-pop-in 0.12s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ct-pop {
+    animation: none;
+  }
+}
+
+.ct-row {
+  animation: ct-row-slide-in 0.4s var(--ease-signature) both;
+}
+.ct-pulse {
+  animation: ct-pulse 2s ease-in-out infinite;
+}
+
+/* ── Confirmation, in place ─────────────────────────────────────
+   The motion a button makes when it has just done the thing: the tick pops in
+   over a fifth of a second while the button's own colour transitions under
+   it. Deliberately small — this replaces a toast, and a control that leaps
+   about on success reads as a control that broke. */
+@keyframes ct-confirm-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.ct-confirm {
+  animation: ct-confirm-in 0.26s var(--ease-signature) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ct-confirm {
+    animation: none;
+  }
+}
+
+/* Indeterminate sweep — the sign-up completion page (/onboarding/done).
+   The account really is being provisioned by someone off-screen, and the wait
+   is measured in hours rather than milliseconds, so this is honest motion
+   rather than a fake progress percentage: it says "in hand", not "37% done".
+   A bar that claimed a number would be lying about a queue we cannot see. */
+@keyframes ct-sweep {
+  from {
+    transform: translateX(-60%);
+  }
+  to {
+    transform: translateX(260%);
+  }
+}
+.ct-sweep {
+  animation: ct-sweep 2.1s var(--ease-signature) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ct-sweep {
+    animation: none;
+  }
+}
+
+/* Thin, calm scrollbars */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 9999px;
+  border: 3px solid var(--color-canvas);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Reduced motion (DS §8) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── A frozen account, without a word of copy ────────────────────
+   `data-account-locked` is set on <html> when a free trial has run out (see
+   components/account-lock.tsx). Every control inside the page body that would
+   CHANGE something goes quiet: dimmed, with a cursor that says so. Nothing is
+   written on screen — a blocked click lands on Plan & billing instead, which
+   is the only screen that can do anything about it.
+
+   SCOPED TO `main`, so the shell is untouched. The sidebar, the topbar, the
+   language switcher and the account menu all stay at full strength: the
+   account is a reading room, and a reading room you cannot walk around is a
+   locked door.
+
+   LINKS ARE LEFT ALONE on purpose — they are how the reading is done. Only
+   buttons and fields are dimmed, and `[data-lock="allow"]` opts out the
+   controls that change what you are LOOKING at rather than what is stored. */
+html[data-account-locked="1"] main :is(button, input, textarea, select):not([data-lock="allow"]) {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+html[data-account-locked="1"] main :is(input, textarea, select):not([data-lock="allow"]) {
+  user-select: none;
+}
