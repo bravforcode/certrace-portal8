@@ -45,6 +45,7 @@ import {
 import { FUEL_UNITS, FUEL_UNIT_LABEL, needsNcv, ncvUnitLabel, toGJ, UnitError, CO2_PER_C } from "@/lib/cbam/units";
 import { FUEL_EF_BAND } from "@/lib/cbam/reference";
 import { gridFactorFor, gridFactorRowOrPlaceholder } from "@/lib/cbam/electricity-grid-factors";
+import { CARBON_CONTENTS, carbonContentFor } from "@/lib/cbam/process-factors";
 import { calendarYear, displayPeriod, displayDate, type ReportingPeriod } from "@/lib/cbam/boundary";
 import {
   loadDataset,
@@ -77,13 +78,21 @@ const num = (v: string): number => {
 
 const fmt = (n: number, dp = 4) => n.toLocaleString("en-US", { maximumFractionDigits: dp });
 
-/* A grid row's factor is read from the country table, never trusted from
-   storage (lib/monthly-data.ts says so on `electricityFactorFor`). Datasets
-   saved before the Thailand default was corrected still carry the old figure,
-   and without this the row would display one number while the totals below —
-   which run through the engine on the stored value — used another. */
-function withPublishedGridFactors(d: ActivityDataset): ActivityDataset {
+/* Sentinel for the material picker: a real material id can never be this, so
+   selecting it is unambiguous. Storage still holds the typed name, not this. */
+const MATERIAL_NOT_IN_TABLE = "__not_in_table";
+
+/* ── Published figures win over stored ones ─────────────────────
+   Two fields on this screen are looked up rather than typed: a grid row's
+   emission factor and a Table 5 material's carbon content. The engine that
+   computes the totals underneath reads what is IN STORAGE, while the rows
+   render what the tables say — so a dataset saved before a table was
+   corrected would show one number and total another. Reconciling on load
+   keeps the arithmetic on screen self-consistent, and means an old dataset
+   heals the moment somebody opens it. */
+function withPublishedFactors(d: ActivityDataset): ActivityDataset {
   let changed = false;
+
   const electricity = d.electricity.map((e) => {
     if (!isGridSourced(e.factorSource)) return e;
     const published = gridFactorFor("TH")?.value ?? 0;
@@ -91,7 +100,15 @@ function withPublishedGridFactors(d: ActivityDataset): ActivityDataset {
     changed = true;
     return { ...e, emissionFactor: published };
   });
-  return changed ? { ...d, electricity } : d;
+
+  const processEmissions = d.processEmissions.map((p) => {
+    const known = carbonContentFor(p.material);
+    if (!known || known.tCPerT === p.carbonContent) return p;
+    changed = true;
+    return { ...p, carbonContent: known.tCPerT };
+  });
+
+  return changed ? { ...d, electricity, processEmissions } : d;
 }
 
 function periodFor(decl: Declaration): ReportingPeriod {
@@ -122,7 +139,7 @@ export default function ActivityDataPage({ params }: { params: Promise<{ id: str
       return;
     }
     setDecl(found);
-    const d = withPublishedGridFactors(loadDataset(id, periodFor(found), USER.name));
+    const d = withPublishedFactors(loadDataset(id, periodFor(found), USER.name));
     setDataset(d);
     setProductionInput(d.annualProductionTonnes > 0 ? String(d.annualProductionTonnes) : "");
     setGaps(listGaps(id));
@@ -595,19 +612,49 @@ export default function ActivityDataPage({ params }: { params: Promise<{ id: str
         ) : (
           <div className="mt-5 space-y-4">
             {dataset.processEmissions.map((p) => {
-              const tco2 = p.massTonnes * p.carbonContent * CO2_PER_C.value;
+              /* A material named in Point G Table 5 carries its own carbon
+                 content, so the figure is looked up rather than typed. Rows
+                 saved before this picker existed hold free text that matches
+                 nothing in the table — they fall to the "other" branch and
+                 keep the number they were entered with. */
+              const known = carbonContentFor(p.material);
+              const carbonContent = known ? known.tCPerT : p.carbonContent;
+              const tco2 = p.massTonnes * carbonContent * CO2_PER_C.value;
               return (
                 <div key={p.id} className="rounded-2xl border border-black/[0.07] p-4">
                   <div className="flex flex-wrap items-end gap-3">
                     <label className="min-w-[190px] flex-1">
                       <FieldLabel>{t("Material")}</FieldLabel>
-                      <input
-                        className={inputClass}
-                        value={p.material}
-                        placeholder={t("e.g. graphite electrode")}
-                        onChange={(e) => mutate(updateProcess(dataset, p.id, { material: e.target.value }))}
+                      <Select
+                        value={known ? p.material : MATERIAL_NOT_IN_TABLE}
+                        onChange={(v) =>
+                          mutate(
+                            updateProcess(
+                              dataset,
+                              p.id,
+                              v === MATERIAL_NOT_IN_TABLE
+                                ? { material: "" }
+                                : { material: v, carbonContent: carbonContentFor(v)?.tCPerT ?? 0 },
+                            ),
+                          )
+                        }
+                        options={[
+                          ...CARBON_CONTENTS.map((c) => ({ value: c.material, label: c.label, hint: `${c.tCPerT} t C/t` })),
+                          { value: MATERIAL_NOT_IN_TABLE, label: t("Not in the table — enter it"), hint: t("Needs its own carbon content and evidence") },
+                        ]}
                       />
                     </label>
+                    {!known && (
+                      <label className="min-w-[170px] flex-1">
+                        <FieldLabel>{t("Material name")}</FieldLabel>
+                        <input
+                          className={inputClass}
+                          value={p.material}
+                          placeholder={t("e.g. graphite electrode")}
+                          onChange={(e) => mutate(updateProcess(dataset, p.id, { material: e.target.value }))}
+                        />
+                      </label>
+                    )}
                     <label className="min-w-[130px] flex-1">
                       <FieldLabel>{t("Mass (t)")}</FieldLabel>
                       <input
@@ -618,11 +665,16 @@ export default function ActivityDataPage({ params }: { params: Promise<{ id: str
                       />
                     </label>
                     <label className="min-w-[150px] flex-1">
-                      <FieldLabel>{t("Carbon content (0–1)")}</FieldLabel>
+                      <FieldLabel>
+                        {t("Carbon content (0–1)")}
+                        {known && <Lock size={11} strokeWidth={1.5} className="ml-1.5 inline-block align-[-1px] text-black/30" />}
+                      </FieldLabel>
                       <input
-                        className={inputClass}
+                        className={cn(inputClass, known && "bg-black/[0.03] text-black/55")}
                         inputMode="decimal"
-                        value={p.carbonContent}
+                        value={carbonContent}
+                        readOnly={!!known}
+                        aria-readonly={!!known}
                         onChange={(e) => mutate(updateProcess(dataset, p.id, { carbonContent: num(e.target.value) }))}
                       />
                     </label>
@@ -636,8 +688,18 @@ export default function ActivityDataPage({ params }: { params: Promise<{ id: str
                   </div>
 
                   <div className="mt-3 rounded-xl border border-black/[0.05] bg-white px-3 py-2.5 font-mono text-[12px] text-black/55">
-                    {fmt(p.massTonnes, 2)} t × {fmt(p.carbonContent, 2)} × 44/12 = <span className="text-black/80">{fmt(tco2, 4)} tCO₂</span>
+                    {fmt(p.massTonnes, 2)} t × {fmt(carbonContent, 4)} × 44/12 = <span className="text-black/80">{fmt(tco2, 4)} tCO₂</span>
                   </div>
+
+                  {/* The citation travels with the figure. Where the operator
+                      supplied their own, the screen says the evidence has to
+                      as well — a carbon content nobody sourced is the way a
+                      wrong one survives review. */}
+                  <p className="mt-2 text-[11.5px] leading-relaxed text-black/35">
+                    {known
+                      ? `${known.tCPerT} t C/t — ${known.source}`
+                      : t("Not a Point G Table 5 material. Record where this carbon content came from in the provenance below — a lab analysis or a supplier specification.")}
+                  </p>
 
                   <div className="mt-3">
                     <FieldLabel>{t("Provenance")}</FieldLabel>
