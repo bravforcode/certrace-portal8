@@ -22,7 +22,8 @@ import { ArrowLeft, FileText, Download, Check, TriangleAlert, History, ChevronRi
 import { Card, Button, Eyebrow, Chip, inputClass, cn, useSaveState, SaveButton } from "@/components/ui";
 import { DatePicker, Select } from "@/components/controls";
 import { toast } from "@/components/toast";
-import { getDeclaration, USER, ORG, type Declaration } from "@/lib/data";
+import { USER, ORG, type Declaration } from "@/lib/data";
+import { getMyDeclaration } from "@/lib/declarations-store";
 import { getOrgIdentity } from "@/lib/org";
 import { getRecord } from "@/lib/supplier-records";
 import { countryName } from "@/lib/config";
@@ -99,18 +100,26 @@ export default function MmdPage({ params }: { params: Promise<{ id: string }> })
   );
 
   React.useEffect(() => {
-    const found = getDeclaration(id);
-    if (!found) {
-      router.replace("/declarations");
-      return;
-    }
-    const b = loadBoundary(id);
-    const dr = loadDraft(id);
-    setDecl(found);
-    setBoundary(b);
-    setDraft(dr);
-    setVersions(listVersions(id));
-    setContent(rebuild(found, dr, b));
+    let cancelled = false;
+    void getMyDeclaration(id)
+      .catch(() => null)
+      .then((found) => {
+        if (cancelled) return;
+        if (!found) {
+          router.replace("/declarations");
+          return;
+        }
+        const b = loadBoundary(id);
+        const dr = loadDraft(id);
+        setDecl(found);
+        setBoundary(b);
+        setDraft(dr);
+        setVersions(listVersions(id));
+        setContent(rebuild(found, dr, b));
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [id, router, rebuild]);
 
   if (!decl || !draft || !content) return null;

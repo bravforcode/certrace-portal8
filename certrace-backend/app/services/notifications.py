@@ -163,7 +163,7 @@ def send_quietly(
         _LOGGER.error(
             "Could not send %s to %s: %s", notification.key, _redact(to), error
         )
-    except Exception:  # noqa: BLE001 - a background task must not die silently
+    except Exception:
         _LOGGER.exception(
             "Unexpected failure sending %s to %s", notification.key, _redact(to)
         )

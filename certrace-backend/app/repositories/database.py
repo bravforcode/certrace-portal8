@@ -2,30 +2,26 @@
 
 from __future__ import annotations
 
+import datetime
 import logging
 import uuid
 from decimal import Decimal
 from urllib.parse import quote, unquote, urlsplit, urlunsplit
 
-from sqlalchemy import case, create_engine, select, text
+from sqlalchemy import case, create_engine, delete, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
 
 from app.config import (
     DATABASE_MAX_OVERFLOW_ENV,
     DATABASE_POOL_SIZE_ENV,
-    REGULATORY_DATA_VERSION,
     load_nonnegative_int,
     load_positive_int,
 )
-from app.models.calculation import DeclarationInput
 from app.models.database import (
-    CalculationRun,
-    Declaration,
-    DeclarationAuditEvent,
     DefaultEmissionFactor,
+    PortalDeclaration,
 )
-
 
 _logger = logging.getLogger(__name__)
 
@@ -130,76 +126,70 @@ class DatabaseRepository:
             )
             return session.scalar(statement)
 
-    def create_declaration(
-        self, request: DeclarationInput, calculation: dict[str, object]
-    ) -> dict[str, object]:
-        with self.session_factory.begin() as session:
-            declaration = Declaration(
-                declarant_name=request.declarant_name,
-                cn_code=request.cn_code,
-                reporting_year=request.reporting_year,
-                status="DRAFT_CALCULATION_PREVIEW",
-            )
-            session.add(declaration)
-            session.flush()
-            session.add(
-                CalculationRun(
-                    declaration_id=declaration.id,
-                    trace_id=request.calculation.trace_id,
-                    request_payload=request.calculation.model_dump(mode="json"),
-                    result_payload=calculation,
-                    regulatory_data_version=REGULATORY_DATA_VERSION,
-                )
-            )
-            session.add(
-                DeclarationAuditEvent(
-                    declaration_id=declaration.id,
-                    event_type="DECLARATION_CREATED",
-                    payload={"traceId": request.calculation.trace_id},
-                )
-            )
-        return self._declaration_response(declaration, calculation)
+    # ── Portal declarations (docs/API-CONTRACT.md §2) ────────────
+    # The document is the portal's; only the sort/filter columns are broken
+    # out. Every method takes the owning user first — there is deliberately no
+    # way to reach a row without saying whose it is.
 
     @staticmethod
-    def _declaration_response(
-        declaration: Declaration, calculation: object
-    ) -> dict[str, object]:
+    def _portal_doc(row: PortalDeclaration) -> dict[str, object]:
+        # The contract wants epoch milliseconds; updatedAt is served from the
+        # column so the client cannot lie about when a row last moved.
         return {
-            "id": str(declaration.id),
-            "declarantName": declaration.declarant_name,
-            "cnCode": declaration.cn_code,
-            "reportingYear": declaration.reporting_year,
-            "status": declaration.status,
-            "calculation": calculation,
+            **row.doc,
+            "updatedAt": int(row.updated_at.timestamp() * 1000),
         }
 
-    def list_declarations(self) -> list[dict[str, object]]:
+    def list_portal_declarations(self, user_id: uuid.UUID) -> list[dict[str, object]]:
         with self.session_factory() as session:
-            declarations = session.scalars(
-                select(Declaration).order_by(Declaration.created_at.desc())
+            rows = session.scalars(
+                select(PortalDeclaration)
+                .where(PortalDeclaration.user_id == user_id)
+                .order_by(PortalDeclaration.updated_at.desc())
             ).all()
-            return [
-                self._declaration_response(
-                    item,
-                    item.calculation_runs[0].result_payload
-                    if item.calculation_runs
-                    else None,
-                )
-                for item in declarations
-            ]
+            return [self._portal_doc(row) for row in rows]
 
-    def get_declaration(self, declaration_id: str) -> dict[str, object] | None:
-        try:
-            parsed_id = uuid.UUID(declaration_id)
-        except ValueError:
-            return None
+    def get_portal_declaration(
+        self, user_id: uuid.UUID, declaration_id: str
+    ) -> dict[str, object] | None:
         with self.session_factory() as session:
-            declaration = session.get(Declaration, parsed_id)
-            if declaration is None:
-                return None
-            calculation = (
-                declaration.calculation_runs[0].result_payload
-                if declaration.calculation_runs
-                else None
+            row = session.get(PortalDeclaration, (user_id, declaration_id))
+            return self._portal_doc(row) if row else None
+
+    def save_portal_declaration(
+        self, user_id: uuid.UUID, doc: dict[str, object]
+    ) -> dict[str, object]:
+        """Insert or overwrite one declaration document, whole.
+
+        Serving POST and PUT alike: the id is client-minted, so a retried
+        create and an edit are the same write, and merge() on the composite
+        key keeps it idempotent.
+        """
+
+        now = datetime.datetime.now(datetime.timezone.utc)
+        with self.session_factory.begin() as session:
+            row = session.merge(
+                PortalDeclaration(
+                    user_id=user_id,
+                    id=str(doc["id"]),
+                    name=doc.get("name") if isinstance(doc.get("name"), str) else None,
+                    period=doc.get("period")
+                    if isinstance(doc.get("period"), str)
+                    else None,
+                    step=doc.get("step") if isinstance(doc.get("step"), str) else None,
+                    doc=doc,
+                    updated_at=now,
+                )
             )
-            return self._declaration_response(declaration, calculation)
+            return self._portal_doc(row)
+
+    def delete_portal_declaration(
+        self, user_id: uuid.UUID, declaration_id: str
+    ) -> None:
+        with self.session_factory.begin() as session:
+            session.execute(
+                delete(PortalDeclaration).where(
+                    PortalDeclaration.user_id == user_id,
+                    PortalDeclaration.id == declaration_id,
+                )
+            )

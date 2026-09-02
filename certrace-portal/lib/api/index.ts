@@ -37,6 +37,7 @@ export {
   register,
   login,
   me,
+  markOnboarded,
   logout,
   requestPasswordReset,
   resetPassword,

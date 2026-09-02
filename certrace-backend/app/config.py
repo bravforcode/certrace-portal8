@@ -31,10 +31,15 @@ JWT_SECRET_ENV = "CERTRACE_JWT_SECRET"
 # about a deployment needs them to differ.
 JWT_ALGORITHM = "HS256"
 JWT_ISSUER = "certrace-backend"
-# Seven days. There is no refresh endpoint in the contract, so a shorter life
-# signs people out mid-week; there is also no revocation, so a longer one is
-# how long a stolen token keeps working. Revisit both together.
-JWT_TTL_HOURS = 24 * 7
+# One hour: with /api/auth/refresh in place the access token no longer has to
+# carry the whole week, so a stolen one dies within the hour. The seven-day
+# session now lives in the refresh token, which — unlike this JWT — is stored
+# server-side and can be revoked.
+JWT_TTL_HOURS = 1
+
+# How long someone stays signed in without re-entering a password. Each use
+# rotates the token, so the week is a ceiling, not a fixed credential's life.
+REFRESH_TOKEN_TTL_DAYS = 7
 
 SUPPORT_EMAIL = "contact@certrace.co"
 

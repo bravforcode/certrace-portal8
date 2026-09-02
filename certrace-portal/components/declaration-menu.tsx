@@ -38,12 +38,18 @@ function MenuItems({ decl, close, afterDelete }: { decl: Declaration; close: () 
     close();
   };
 
-  const del = () => {
+  const del = async () => {
     if (!armed) {
       setArmed(true);
       return;
     }
-    deleteDeclaration(decl.id);
+    try {
+      await deleteDeclaration(decl.id);
+    } catch {
+      toast({ message: t("Couldn't delete that declaration"), detail: t("Check your connection and try again."), tone: "err" });
+      close();
+      return;
+    }
     toast({ message: t("Declaration deleted"), detail: t("Supplier submissions stay on their own record."), tone: "info" });
     close();
     afterDelete?.();

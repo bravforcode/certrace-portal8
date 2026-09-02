@@ -23,7 +23,8 @@ import { ArrowLeft, Paperclip, Upload, Trash2, Link2, TriangleAlert, Check } fro
 import { Card, Button, Eyebrow, Progress, EmptyState, OptionalTag, inputClass, cn } from "@/components/ui";
 import { Select } from "@/components/controls";
 import { toast } from "@/components/toast";
-import { getDeclaration, USER, type Declaration } from "@/lib/data";
+import { USER, type Declaration } from "@/lib/data";
+import { getMyDeclaration } from "@/lib/declarations-store";
 import { calendarYear, displayDate, type ReportingPeriod } from "@/lib/cbam/boundary";
 import { provenanceRefs, type ActivityDataset } from "@/lib/cbam/activity";
 import { loadDataset, saveDataset } from "@/lib/cbam/activity-store";
@@ -63,14 +64,22 @@ export default function EvidencePage({ params }: { params: Promise<{ id: string 
   const [uploadCategory, setUploadCategory] = React.useState<EvidenceCategory>("utility_bill");
 
   React.useEffect(() => {
-    const found = getDeclaration(id);
-    if (!found) {
-      router.replace("/declarations");
-      return;
-    }
-    setDecl(found);
-    setDataset(loadDataset(id, periodFor(found), USER.name));
-    setFiles(listEvidence(id));
+    let cancelled = false;
+    void getMyDeclaration(id)
+      .catch(() => null)
+      .then((found) => {
+        if (cancelled) return;
+        if (!found) {
+          router.replace("/declarations");
+          return;
+        }
+        setDecl(found);
+        setDataset(loadDataset(id, periodFor(found), USER.name));
+        setFiles(listEvidence(id));
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [id, router]);
 
   if (!decl || !dataset) return null;

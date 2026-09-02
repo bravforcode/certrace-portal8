@@ -27,7 +27,8 @@ import { useRouter } from "next/navigation";
 import { DeclarationHierarchy } from "@/components/declaration-hierarchy";
 import { DeclarationWorkflow } from "@/components/declaration-workflow";
 import { cn } from "@/components/ui";
-import { getDeclaration, type Declaration } from "@/lib/data";
+import { type Declaration } from "@/lib/data";
+import { getMyDeclaration } from "@/lib/declarations-store";
 import { useT } from "@/lib/i18n";
 
 type View = "reports" | "workflow";
@@ -36,18 +37,25 @@ export default function DeclarationDetailPage({ params }: { params: Promise<{ id
   const t = useT();
   const { id } = React.use(params);
   const router = useRouter();
-  const [declaration, setDeclaration] = React.useState<Declaration | null>(() => getDeclaration(id) ?? null);
+  const [declaration, setDeclaration] = React.useState<Declaration | null>(null);
   const [view, setView] = React.useState<View>("reports");
 
   React.useEffect(() => {
-    if (declaration) return;
-    const found = getDeclaration(id);
-    if (found) {
-      setDeclaration(found);
-    } else {
-      router.replace("/declarations");
-    }
-  }, [id, declaration, router]);
+    let cancelled = false;
+    void getMyDeclaration(id)
+      .catch(() => null)
+      .then((found) => {
+        if (cancelled) return;
+        if (found) {
+          setDeclaration(found);
+        } else {
+          router.replace("/declarations");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [id, router]);
 
   if (!declaration) return null;
 

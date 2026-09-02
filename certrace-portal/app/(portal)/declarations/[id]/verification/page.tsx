@@ -22,7 +22,8 @@ import { ArrowLeft, ShieldCheck, Link2, CircleCheck, TriangleAlert, CircleX, Cop
 import { Card, Button, Eyebrow, Chip, cn } from "@/components/ui";
 import { toast } from "@/components/toast";
 import { ReadinessScore } from "@/components/cbam/readiness-score";
-import { getDeclaration, USER, type Declaration } from "@/lib/data";
+import { USER, type Declaration } from "@/lib/data";
+import { getMyDeclaration } from "@/lib/declarations-store";
 import { loadExporterState, rollup as buildRollup } from "@/lib/exporter-review";
 import { computeReadiness } from "@/lib/cbam/readiness-input";
 import { buildDossier, verifierShareToken, type Dossier } from "@/lib/cbam/dossier";
@@ -49,23 +50,31 @@ export default function VerificationDossierPage({ params }: { params: Promise<{ 
   const [copied, setCopied] = React.useState(false);
 
   React.useEffect(() => {
-    const found = getDeclaration(id);
-    if (!found) {
-      router.replace("/declarations");
-      return;
-    }
-    setDecl(found);
-    const roll = buildRollup(found, loadExporterState(found.id));
-    const snap = activeSnapshot(found.id);
-    const mmdVersion = latestVersion(found.id);
-    setDossier(
-      buildDossier(found.id, computeReadiness(found, roll, USER.name), {
-        mmdFinalised: Boolean(mmdVersion),
-        frozen: Boolean(snap),
-      }),
-    );
-    setSnapshot(snap);
-    setMmd(mmdVersion);
+    let cancelled = false;
+    void getMyDeclaration(id)
+      .catch(() => null)
+      .then((found) => {
+        if (cancelled) return;
+        if (!found) {
+          router.replace("/declarations");
+          return;
+        }
+        setDecl(found);
+        const roll = buildRollup(found, loadExporterState(found.id));
+        const snap = activeSnapshot(found.id);
+        const mmdVersion = latestVersion(found.id);
+        setDossier(
+          buildDossier(found.id, computeReadiness(found, roll, USER.name), {
+            mmdFinalised: Boolean(mmdVersion),
+            frozen: Boolean(snap),
+          }),
+        );
+        setSnapshot(snap);
+        setMmd(mmdVersion);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [id, router]);
 
   if (!decl || !dossier) return null;

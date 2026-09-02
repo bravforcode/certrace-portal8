@@ -14,20 +14,25 @@
    wired-up page a way to reset any account you could name. It no longer does —
    the code goes to the mailbox and nowhere else — so the calls are here.
 
-   Two things they do NOT do, deliberately:
+   Two things the reset pair does NOT do, deliberately:
 
-   • They never carry the session token (`auth: false`). Someone who has
-     forgotten their password does not have one, and `/reset-password` opened
-     in a browser that is still signed in as somebody else must not send that
-     person's credential along.
+   • `requestPasswordReset` and `resetPassword` never carry the session token
+     (`auth: false`). Someone who has forgotten their password does not have
+     one, and `/reset-password` opened in a browser that is still signed in
+     as somebody else must not send that person's credential along.
    • `requestPasswordReset` resolves the same way whether or not the address
      has an account. The server answers identically on purpose — a client that
      turned one of those into a rejection would rebuild the membership oracle
      the server just closed.
+
+   `changePassword` is the odd one out: it now REQUIRES the bearer. The server
+   changes the token holder's own password and ignores the body's email, so an
+   unauthenticated caller can no longer use it to test credentials.
    ════════════════════════════════════════════════════════════ */
 
+import { apiConfigured } from "./config";
 import { request } from "./http";
-import { clearSession, saveSession, type Session } from "./session";
+import { clearSession, loadSession, saveSession, type Session } from "./session";
 
 export type AuthUser = {
   id: string;
@@ -54,6 +59,7 @@ export type LoginInput = {
 
 type AuthResponse = {
   accessToken: string;
+  refreshToken: string;
   user: AuthUser;
 };
 
@@ -63,7 +69,11 @@ export async function register(input: RegisterInput): Promise<Session> {
     body: input,
     auth: false,
   });
-  const session: Session = { accessToken: result.accessToken, user: result.user };
+  const session: Session = {
+    accessToken: result.accessToken,
+    refreshToken: result.refreshToken,
+    user: result.user,
+  };
   saveSession(session);
   return session;
 }
@@ -74,7 +84,11 @@ export async function login(input: LoginInput): Promise<Session> {
     body: input,
     auth: false,
   });
-  const session: Session = { accessToken: result.accessToken, user: result.user };
+  const session: Session = {
+    accessToken: result.accessToken,
+    refreshToken: result.refreshToken,
+    user: result.user,
+  };
   saveSession(session);
   return session;
 }
@@ -85,11 +99,38 @@ export async function me(): Promise<AuthUser> {
   return result.user;
 }
 
-/* Local only: the contract has no logout endpoint because a stateless JWT has
-   nothing on the server to revoke. When token revocation lands, this is where
-   the call goes. */
+/**
+ * Records onboarding as finished, server-side and in the stored session.
+ *
+ * From the next sign-in on, login routes to /dashboard instead of back
+ * through /onboarding/setup. One-way — nothing un-finishes a wizard.
+ */
+export async function markOnboarded(): Promise<void> {
+  const result = await request<{ user: AuthUser }>("/api/auth/onboarded", {
+    method: "POST",
+  });
+  const session = loadSession();
+  if (session) saveSession({ ...session, user: result.user });
+}
+
+/* Clears this browser AND revokes the refresh token server-side, so a
+   signed-out session cannot quietly mint new access tokens for the rest of
+   the week. Fire-and-forget: the person is leaving now, not after a network
+   round-trip, and a failed revoke leaves them no worse than the pre-refresh
+   world (the access token still ages out within the hour). */
 export function logout(): void {
+  const session = loadSession();
   clearSession();
+  const refreshToken = session?.refreshToken;
+  if (refreshToken && apiConfigured()) {
+    void request("/api/auth/logout", {
+      method: "POST",
+      body: { refreshToken },
+      auth: false,
+    }).catch(() => {
+      /* Already signed out locally — nothing the person can do with this. */
+    });
+  }
 }
 
 /* ── Passwords ──────────────────────────────────────────────
@@ -160,11 +201,12 @@ export type ChangePasswordInput = {
 };
 
 /**
- * Changes the password of an account whose current one is known.
+ * Changes the signed-in account's password.
  *
- * Throws `ApiError` with code `INVALID_CREDENTIALS` when the current password
- * is wrong. Sends no session token: the endpoint proves identity with the
- * current password, not with the bearer.
+ * Sends the bearer — the server changes the token holder's password and
+ * ignores `email` (still on the wire because the request model requires it).
+ * Throws `ApiError` with `INVALID_CREDENTIALS` when the current password is
+ * wrong, and `RATE_LIMITED` after too many tries.
  */
 export async function changePassword(input: ChangePasswordInput): Promise<string> {
   const result = await request<MessageResponse>("/api/auth/change-password", {
@@ -175,7 +217,6 @@ export async function changePassword(input: ChangePasswordInput): Promise<string
       new_password: input.newPassword,
       locale: input.locale,
     },
-    auth: false,
   });
   return result.message;
 }

@@ -27,7 +27,8 @@ import { Select } from "@/components/controls";
 import { toast } from "@/components/toast";
 import { ProvenanceForm, AssumptionChip } from "@/components/cbam/provenance-form";
 import { DataGapSection } from "@/components/cbam/data-gap-section";
-import { getDeclaration, USER, type Declaration } from "@/lib/data";
+import { USER, type Declaration } from "@/lib/data";
+import { getMyDeclaration } from "@/lib/declarations-store";
 import {
   emptyProvenance,
   emptyFuelEntry,
@@ -85,7 +86,7 @@ export default function ActivityDataPage({ params }: { params: Promise<{ id: str
   const t = useT();
   const { id } = React.use(params);
   const router = useRouter();
-  const [decl, setDecl] = React.useState<Declaration | null>(() => getDeclaration(id) ?? null);
+  const [decl, setDecl] = React.useState<Declaration | null>(null);
   const [dataset, setDataset] = React.useState<ActivityDataset | null>(null);
   const [productionInput, setProductionInput] = React.useState("");
   const [gaps, setGaps] = React.useState<GapEntry[]>([]);
@@ -97,17 +98,25 @@ export default function ActivityDataPage({ params }: { params: Promise<{ id: str
   const save = useSaveState();
 
   React.useEffect(() => {
-    const found = getDeclaration(id);
-    if (!found) {
-      router.replace("/declarations");
-      return;
-    }
-    setDecl(found);
-    const d = loadDataset(id, periodFor(found), USER.name);
-    setDataset(d);
-    setProductionInput(d.annualProductionTonnes > 0 ? String(d.annualProductionTonnes) : "");
-    setGaps(listGaps(id));
-    setSnapshot(activeSnapshot(id));
+    let cancelled = false;
+    void getMyDeclaration(id)
+      .catch(() => null)
+      .then((found) => {
+        if (cancelled) return;
+        if (!found) {
+          router.replace("/declarations");
+          return;
+        }
+        setDecl(found);
+        const d = loadDataset(id, periodFor(found), USER.name);
+        setDataset(d);
+        setProductionInput(d.annualProductionTonnes > 0 ? String(d.annualProductionTonnes) : "");
+        setGaps(listGaps(id));
+        setSnapshot(activeSnapshot(id));
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [id, router]);
 
   const shipped = React.useMemo(() => {

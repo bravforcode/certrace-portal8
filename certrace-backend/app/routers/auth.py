@@ -15,6 +15,8 @@ English prose that a translator will eventually change.
 from __future__ import annotations
 
 import datetime
+import time
+from dataclasses import replace
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 
@@ -27,6 +29,7 @@ from app.models.auth import (
     ForgotPasswordRequest,
     LoginRequest,
     MeResponse,
+    RefreshRequest,
     RegisterRequest,
     ResetPasswordRequest,
     SessionResponse,
@@ -39,13 +42,65 @@ from app.services.auth_service import (
     authenticate_user,
     change_user_password,
     get_account,
+    issue_refresh_token,
+    mark_onboarded,
     register_user,
     request_password_reset,
     reset_user_password,
-    user_exists,
+    revoke_refresh_token,
+    rotate_refresh_token,
 )
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+# One window for every auth limit. Password guesses (login, change-password),
+# code guesses (reset-password) and code issuance (forgot-password) all have
+# to be counted, or capping one just funnels the attacker to another.
+_RATE_WINDOW_SECONDS = 900  # 15 minutes
+
+
+def _rate_limited(request: Request, key: str, limit: int) -> bool:
+    """Record one hit for ``key``; True once it exceeds ``limit`` per window.
+
+    ponytail: per-process fixed window on app.state. Dockerfile pins uvicorn
+    --workers 1, so one dict is the whole limiter — move to Redis the day the
+    API runs more than one instance. Keyed by email (the guess target), so it
+    holds regardless of source IP and needs no proxy-header trust; the flip
+    side, throttling a victim's own sign-in by hammering their address, is the
+    accepted cost.
+    """
+
+    hits: dict[str, list[float]] | None = getattr(
+        request.app.state, "auth_rate_hits", None
+    )
+    if hits is None:
+        hits = {}
+        request.app.state.auth_rate_hits = hits
+    now = time.monotonic()
+    # Drop keys that have aged out entirely so cycling through addresses
+    # cannot grow the table without bound. O(active keys) per call — auth
+    # traffic is small; swap for a TTL cache if that stops being true.
+    for stale in [
+        k for k, v in hits.items() if all(now - t >= _RATE_WINDOW_SECONDS for t in v)
+    ]:
+        del hits[stale]
+    bucket = [t for t in hits.get(key, ()) if now - t < _RATE_WINDOW_SECONDS]
+    hits[key] = bucket
+    if len(bucket) >= limit:
+        return True
+    bucket.append(now)
+    return False
+
+
+def _rate_limit_or_429(request: Request, key: str, limit: int) -> None:
+    if _rate_limited(request, key, limit):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "code": "RATE_LIMITED",
+                "message": "Too many attempts. Please try again later.",
+            },
+        )
 
 
 def _queue_password_changed(
@@ -107,7 +162,12 @@ def _session_response(request: Request, account: Account) -> SessionResponse:
     token = issue_access_token(
         _signing_secret(request), user_id=account.id, email=account.email
     )
-    return SessionResponse(access_token=token, user=_as_auth_user(account))
+    refresh = issue_refresh_token(
+        getattr(request.app.state, "database", None), account.id
+    )
+    return SessionResponse(
+        access_token=token, refresh_token=refresh, user=_as_auth_user(account)
+    )
 
 
 def _as_auth_user(account: Account) -> AuthUser:
@@ -162,6 +222,9 @@ def _unauthorized() -> HTTPException:
 def register(payload: RegisterRequest, request: Request) -> SessionResponse:
     """Create an account and sign the caller straight in."""
 
+    # Per-address cap: stops hammering one email. Mass registration across
+    # many addresses needs a per-IP limit at the proxy — out of scope here.
+    _rate_limit_or_429(request, f"rg:{payload.email.strip().lower()}", 5)
     try:
         account = register_user(
             getattr(request.app.state, "database", None),
@@ -187,6 +250,7 @@ def register(payload: RegisterRequest, request: Request) -> SessionResponse:
 
 @router.post("/login", response_model=SessionResponse)
 def login(payload: LoginRequest, request: Request) -> SessionResponse:
+    _rate_limit_or_429(request, f"lg:{payload.email.strip().lower()}", 10)
     account = authenticate_user(
         getattr(request.app.state, "database", None), payload.email, payload.password
     )
@@ -206,22 +270,89 @@ def me(account: Account = Depends(current_account)) -> MeResponse:
     return MeResponse(user=_as_auth_user(account))
 
 
+@router.post("/onboarded", response_model=MeResponse)
+def complete_onboarding(
+    request: Request, account: Account = Depends(current_account)
+) -> MeResponse:
+    """Mark the signed-in account as having finished onboarding.
+
+    The portal calls this when the wizard completes; from then on, signing in
+    routes straight to the dashboard instead of back through setup. No body:
+    the bearer token names the account, and the only thing this can say is
+    "done".
+    """
+
+    mark_onboarded(getattr(request.app.state, "database", None), account.id)
+    return MeResponse(user=_as_auth_user(replace(account, onboarded=True)))
+
+
+@router.post("/refresh", response_model=SessionResponse)
+def refresh_session(payload: RefreshRequest, request: Request) -> SessionResponse:
+    """Trade a live refresh token for a fresh access token — and a successor.
+
+    The presented token is burned in the same transaction (see
+    rotate_refresh_token), so every session holds exactly one live refresh
+    token at a time. No rate limit: the token is a 256-bit secret, and the
+    failure answer carries nothing a guesser can climb on.
+    """
+
+    db = getattr(request.app.state, "database", None)
+    rotated = rotate_refresh_token(db, payload.refresh_token)
+    account = get_account(db, rotated[0]) if rotated else None
+    if rotated is None or account is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "code": "INVALID_REFRESH_TOKEN",
+                "message": "Please sign in again.",
+            },
+        )
+    token = issue_access_token(
+        _signing_secret(request), user_id=account.id, email=account.email
+    )
+    return SessionResponse(
+        access_token=token, refresh_token=rotated[1], user=_as_auth_user(account)
+    )
+
+
+@router.post("/logout", response_model=AuthResponse)
+def logout(payload: RefreshRequest, request: Request) -> AuthResponse:
+    """Revoke the session's refresh token.
+
+    The access JWT cannot be recalled — it simply ages out within the hour —
+    but this is what stops a signed-out browser's refresh token from quietly
+    minting new ones for a week. Always succeeds: the caller is leaving, and
+    "that token was already dead" is not something they can act on.
+    """
+
+    revoke_refresh_token(
+        getattr(request.app.state, "database", None), payload.refresh_token
+    )
+    return AuthResponse(success=True, message="Signed out.")
+
+
 @router.post("/change-password", response_model=AuthResponse)
 def change_password(
     payload: ChangePasswordRequest,
     request: Request,
     background_tasks: BackgroundTasks,
+    account: Account = Depends(current_account),
 ) -> AuthResponse:
-    """Endpoint for changing a user's password."""
+    """Change the signed-in account's password.
+
+    The bearer token names WHOSE password moves — the email in the body is
+    ignored. Unauthenticated, this endpoint was an unlimited credential
+    oracle: email + password guess in, distinguishable yes/no out.
+    """
+
+    # The token proves a session, not the password. Still capped: a stolen
+    # browser session must not get unlimited guesses at the one credential
+    # it does not hold.
+    _rate_limit_or_429(request, f"cp:{account.email}", 10)
     db = getattr(request.app.state, "database", None)
-    # Read before the write: in the no-database mode change_user_password
-    # claims an unknown address on first use. Without this check, posting a
-    # made-up address would mail a "your password changed" notice to someone
-    # who has no account here.
-    known_account = user_exists(db, payload.email)
     success, message = change_user_password(
         db=db,
-        email=payload.email,
+        email=account.email,
         current_password=payload.current_password,
         new_password=payload.new_password,
     )
@@ -230,10 +361,7 @@ def change_password(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"code": "INVALID_CREDENTIALS", "message": message},
         )
-    if known_account:
-        _queue_password_changed(
-            background_tasks, request, payload.email, payload.locale
-        )
+    _queue_password_changed(background_tasks, request, account.email, payload.locale)
     return AuthResponse(success=True, message=message)
 
 
@@ -244,6 +372,10 @@ def forgot_password(
     background_tasks: BackgroundTasks,
 ) -> AuthResponse:
     """Endpoint for requesting a password reset verification code by email."""
+    # Caps both mail-bombing and "ask for a fresh code" cycling. Keyed on the
+    # address alone, so a known and an unknown email are throttled identically
+    # — no new existence oracle.
+    _rate_limit_or_429(request, f"fp:{payload.email.strip().lower()}", 5)
     db = getattr(request.app.state, "database", None)
     _, message, token = request_password_reset(db=db, email=payload.email)
     # `token is None` means no such account. The response above is identical
@@ -272,6 +404,10 @@ def reset_password(
     background_tasks: BackgroundTasks,
 ) -> AuthResponse:
     """Endpoint for verifying the emailed code and setting a new password."""
+    # First fence around the code; the second is per-code: MAX_RESET_ATTEMPTS
+    # wrong guesses burn it (auth_service). Both are needed — this one slows
+    # the firehose, that one caps total tries even across windows.
+    _rate_limit_or_429(request, f"rp:{payload.email.strip().lower()}", 10)
     db = getattr(request.app.state, "database", None)
     success, message = reset_user_password(
         db=db,
