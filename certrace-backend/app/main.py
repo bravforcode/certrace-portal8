@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import secrets
 from collections.abc import Sequence
 
 from fastapi import FastAPI, Request, status
@@ -11,6 +12,7 @@ from fastapi.responses import JSONResponse
 from app.config import (
     CORS_ALLOWED_ORIGINS_ENV,
     EMAIL_LOGO_URL_ENV,
+    JWT_SECRET_ENV,
     load_env_file_value,
 )
 from app.core.cors import (
@@ -50,7 +52,17 @@ def create_app(
     database_url: str | None = None,
     enable_api_docs: bool = True,
     email_transport: EmailTransport | None = None,
+    jwt_secret: str | None = None,
 ) -> FastAPI:
+    signing_secret = jwt_secret or load_env_file_value(JWT_SECRET_ENV)
+    if database_url and not signing_secret:
+        # A deployment holding real accounts must not start without a signing
+        # key. Generating one here would work and be worse: every restart, and
+        # every instance, would sign with a different key, so tokens would stop
+        # working at random and look to a customer like a flaky login.
+        raise RuntimeError(
+            f"{JWT_SECRET_ENV} is required when a database is configured."
+        )
     configured_origins = (
         tuple(validate_cors_origin(origin) for origin in cors_origins)
         if cors_origins is not None
@@ -71,6 +83,11 @@ def create_app(
         DatabaseRepository(database_url) if database_url else None
     )
     application.state.declarations = {}
+    # Without a database there are no real accounts to protect, so the
+    # no-database mode gets an ephemeral key rather than a startup failure:
+    # tokens work for the life of the process, which is all a local demo or a
+    # test needs.
+    application.state.jwt_secret = signing_secret or secrets.token_urlsafe(32)
     # Injected in tests so a suite never depends on a network or a key; built
     # from the environment everywhere else. See app/services/email.py.
     application.state.email_transport = email_transport or transport_from_env()

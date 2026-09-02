@@ -19,8 +19,10 @@ process that a restart or a second instance would take away.
 from __future__ import annotations
 
 import datetime
+import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from sqlalchemy import text
@@ -33,12 +35,44 @@ from app.services.errors import AccountStoreUnavailable
 if TYPE_CHECKING:
     from app.repositories.database import DatabaseRepository
 
+
+@dataclass(frozen=True)
+class Account:
+    """One account, as both stores hand it back and the router renders it."""
+
+    id: str
+    email: str
+    onboarded: bool
+    first_name: str | None = None
+    last_name: str | None = None
+    company_name: str | None = None
+
+
+class EmailAlreadyRegistered(Exception):
+    """Raised when a signup names an address that already has an account."""
+
+
 # Demo accounts for the no-database mode only. Nothing reads these once a
 # DATABASE_URL is set, which is why production must set one -- see
-# CERTRACE_REQUIRE_DATABASE.
-_MEMORY_USERS: dict[str, str] = {
-    "wasawat@siamsteel.co.th": hash_password("demo-password"),
-    "demo@certrace.com": hash_password("demo-password"),
+# CERTRACE_REQUIRE_DATABASE. The ids are fixed so a page reloaded against a
+# restarted dev server does not find itself holding a token for a stranger.
+_MEMORY_USERS: dict[str, dict[str, object]] = {
+    "wasawat@siamsteel.co.th": {
+        "id": "00000000-0000-4000-8000-000000000001",
+        "password_hash": hash_password("demo-password"),
+        "onboarded": True,
+        "first_name": "Wasawat",
+        "last_name": "Siamsteel",
+        "company_name": "Siam Steel",
+    },
+    "demo@certrace.com": {
+        "id": "00000000-0000-4000-8000-000000000002",
+        "password_hash": hash_password("demo-password"),
+        "onboarded": True,
+        "first_name": None,
+        "last_name": None,
+        "company_name": None,
+    },
 }
 
 # Structure: {email: {"token": str, "expires_at": datetime, "used": bool}}
@@ -140,17 +174,177 @@ def _change_password_in_memory(
     this branch is unreachable once a DATABASE_URL is configured.
     """
 
-    stored_hash = _MEMORY_USERS.get(email_clean)
-    if stored_hash is None:
-        stored_hash = _MEMORY_USERS.setdefault(
-            email_clean, hash_password(current_password)
-        )
+    record = _MEMORY_USERS.get(email_clean)
+    if record is None:
+        record = _memory_record(email_clean, hash_password(current_password))
+        _MEMORY_USERS[email_clean] = record
 
-    if not verify_password(current_password, stored_hash):
+    if not verify_password(current_password, str(record["password_hash"])):
         return False, INVALID_CREDENTIALS_MESSAGE
 
-    _MEMORY_USERS[email_clean] = new_hash
+    record["password_hash"] = new_hash
     return True, "Password updated successfully."
+
+
+def _memory_record(
+    email_clean: str,
+    password_hash: str,
+    *,
+    onboarded: bool = True,
+    first_name: str | None = None,
+    last_name: str | None = None,
+    company_name: str | None = None,
+) -> dict[str, object]:
+    return {
+        "id": str(uuid.uuid4()),
+        "password_hash": password_hash,
+        "onboarded": onboarded,
+        "first_name": first_name,
+        "last_name": last_name,
+        "company_name": company_name,
+    }
+
+
+def _account_from_memory(email_clean: str, record: dict[str, object]) -> Account:
+    return Account(
+        id=str(record["id"]),
+        email=email_clean,
+        onboarded=bool(record["onboarded"]),
+        first_name=record["first_name"],  # type: ignore[arg-type]
+        last_name=record["last_name"],  # type: ignore[arg-type]
+        company_name=record["company_name"],  # type: ignore[arg-type]
+    )
+
+
+_ACCOUNT_COLUMNS = (
+    "id, email, onboarded, first_name, last_name, company_name, password_hash"
+)
+
+
+def _account_from_row(row: object) -> Account:
+    return Account(
+        id=str(row[0]),  # type: ignore[index]
+        email=row[1],  # type: ignore[index]
+        onboarded=bool(row[2]),  # type: ignore[index]
+        first_name=row[3],  # type: ignore[index]
+        last_name=row[4],  # type: ignore[index]
+        company_name=row[5],  # type: ignore[index]
+    )
+
+
+def register_user(
+    db: DatabaseRepository | None,
+    email: str,
+    password: str,
+    *,
+    first_name: str | None = None,
+    last_name: str | None = None,
+    company_name: str | None = None,
+) -> Account:
+    """Create an account, or raise ``EmailAlreadyRegistered``.
+
+    New accounts start un-onboarded: the portal reads that to send a fresh
+    signup through the wizard once, and only once.
+    """
+
+    email_clean = _normalize(email)
+    password_hash = hash_password(password)
+
+    if db is None:
+        if email_clean in _MEMORY_USERS:
+            raise EmailAlreadyRegistered(email_clean)
+        record = _memory_record(
+            email_clean,
+            password_hash,
+            onboarded=False,
+            first_name=first_name,
+            last_name=last_name,
+            company_name=company_name,
+        )
+        _MEMORY_USERS[email_clean] = record
+        return _account_from_memory(email_clean, record)
+
+    with _account_session(db) as session:
+        # No read-then-write: two signups racing on the same address would both
+        # see it free. The unique index on lower(email) is the one arbiter, and
+        # ON CONFLICT lets it decide without raising through the driver.
+        row = session.execute(
+            text(
+                "INSERT INTO public.users "
+                "(email, password_hash, first_name, last_name, company_name, onboarded) "
+                "VALUES (:email, :password_hash, :first_name, :last_name, "
+                ":company_name, false) "
+                "ON CONFLICT DO NOTHING "
+                f"RETURNING {_ACCOUNT_COLUMNS}"
+            ),
+            {
+                "email": email_clean,
+                "password_hash": password_hash,
+                "first_name": first_name,
+                "last_name": last_name,
+                "company_name": company_name,
+            },
+        ).first()
+        if row is None:
+            raise EmailAlreadyRegistered(email_clean)
+        session.commit()
+    return _account_from_row(row)
+
+
+def authenticate_user(
+    db: DatabaseRepository | None, email: str, password: str
+) -> Account | None:
+    """The account these credentials open, or ``None``.
+
+    One return value for "no such address" and "wrong password" on purpose:
+    anything that distinguishes them turns sign-in into a way to test whether
+    an address is a customer.
+    """
+
+    email_clean = _normalize(email)
+
+    if db is None:
+        record = _MEMORY_USERS.get(email_clean)
+        if record is None or not verify_password(
+            password, str(record["password_hash"])
+        ):
+            return None
+        return _account_from_memory(email_clean, record)
+
+    with _account_session(db) as session:
+        row = session.execute(
+            text(
+                f"SELECT {_ACCOUNT_COLUMNS} FROM public.users "
+                "WHERE LOWER(email) = :email"
+            ),
+            {"email": email_clean},
+        ).first()
+    if row is None or not verify_password(password, row[6]):
+        return None
+    return _account_from_row(row)
+
+
+def get_account(db: DatabaseRepository | None, user_id: str) -> Account | None:
+    """The account a valid token names, read fresh rather than trusted from it."""
+
+    if db is None:
+        for email_clean, record in _MEMORY_USERS.items():
+            if record["id"] == user_id:
+                return _account_from_memory(email_clean, record)
+        return None
+
+    try:
+        parsed_id = uuid.UUID(user_id)
+    except ValueError:
+        # A well-signed token whose subject is not an id we could have issued.
+        return None
+
+    with _account_session(db) as session:
+        row = session.execute(
+            text(f"SELECT {_ACCOUNT_COLUMNS} FROM public.users WHERE id = :id"),
+            {"id": parsed_id},
+        ).first()
+    return None if row is None else _account_from_row(row)
 
 
 def request_password_reset(
@@ -252,5 +446,6 @@ def _reset_password_in_memory(
         return False, "Invalid or expired reset verification token."
 
     record["used"] = True
-    _MEMORY_USERS[email_clean] = new_hash
+    account = _MEMORY_USERS.setdefault(email_clean, _memory_record(email_clean, ""))
+    account["password_hash"] = new_hash
     return True, "Password has been successfully reset."

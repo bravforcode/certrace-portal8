@@ -23,7 +23,7 @@ import {
 } from "@/components/sections";
 import { SplashScreen } from "@/components/splash-screen";
 import { AnimateCard, BlurHeading, TagBadge, handleMouseGlow } from "@/components/ui";
-import { DATE_LOCALE, useLang } from "@/lib/i18n";
+import { DATE_LOCALE, HERO_VIDEO_ID, useLang } from "@/lib/i18n";
 import { usePages } from "@/lib/i18n-pages";
 import { SIGNUP_URL } from "@/lib/site";
 
@@ -264,9 +264,13 @@ export default function HomePage() {
       >
         <div className="max-w-4xl mx-auto text-center flex flex-col items-center">
           <div className="w-full rounded-2xl overflow-hidden bg-black aspect-video">
+            {/* Keyed on the video, not the language: switching languages swaps
+                the clip, and remounting the player is what stops the previous
+                one from carrying on playing underneath the new src. */}
             <iframe
+              key={HERO_VIDEO_ID[lang]}
               className="w-full h-full"
-              src="https://www.youtube.com/embed/l4ZdQq5KA7Q"
+              src={`https://www.youtube.com/embed/${HERO_VIDEO_ID[lang]}`}
               title={c.hero.videoTitle}
               loading="lazy"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"

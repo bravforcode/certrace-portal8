@@ -106,6 +106,21 @@ export function AuthLayout({ children, description }: { children: React.ReactNod
   );
 }
 
+/* ── Google sign-in: off for launch ────────────────────────────
+   There is no OAuth client registered for Certrace yet, so the button could
+   only ever pretend: click it and you are signed in as nobody, which is worse
+   than not offering it. Hidden rather than deleted because it is coming back —
+   flipping this to true restores the button, its divider and both handlers,
+   which are all still here and still wired.
+
+   One flag for both screens on purpose. /login and /register each render their
+   own copy, and a launch that shipped the button on one and not the other
+   would look like a bug on whichever page you saw second.
+
+   Typed as boolean, not inferred as `false`, so the code behind the flag stays
+   type-checked instead of narrowing to a branch the compiler treats as dead. */
+export const GOOGLE_AUTH_ENABLED: boolean = false;
+
 /* "G" glyph drawn in brand-neutral strokes — no imported logo asset, just the
    universally-recognised four-colour mark so the button reads instantly. */
 export function GoogleButton({ onClick, loading, label = "Continue with Google" }: { onClick: () => void; loading?: boolean; label?: string }) {
