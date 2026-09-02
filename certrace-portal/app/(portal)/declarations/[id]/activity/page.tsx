@@ -39,10 +39,12 @@ import {
   ELECTRICITY_FACTOR_SOURCES,
   ELECTRICITY_FACTOR_LABEL,
   PRODUCTION_NEVER_AUTOFILL_NOTE,
+  isGridSourced,
   type ActivityDataset,
 } from "@/lib/cbam/activity";
 import { FUEL_UNITS, FUEL_UNIT_LABEL, needsNcv, ncvUnitLabel, toGJ, UnitError, CO2_PER_C } from "@/lib/cbam/units";
-import { FUEL_EF_BAND, THAILAND_GRID_FACTOR } from "@/lib/cbam/reference";
+import { FUEL_EF_BAND } from "@/lib/cbam/reference";
+import { gridFactorFor, gridFactorRowOrPlaceholder } from "@/lib/cbam/electricity-grid-factors";
 import { calendarYear, displayPeriod, displayDate, type ReportingPeriod } from "@/lib/cbam/boundary";
 import {
   loadDataset,
@@ -75,6 +77,23 @@ const num = (v: string): number => {
 
 const fmt = (n: number, dp = 4) => n.toLocaleString("en-US", { maximumFractionDigits: dp });
 
+/* A grid row's factor is read from the country table, never trusted from
+   storage (lib/monthly-data.ts says so on `electricityFactorFor`). Datasets
+   saved before the Thailand default was corrected still carry the old figure,
+   and without this the row would display one number while the totals below —
+   which run through the engine on the stored value — used another. */
+function withPublishedGridFactors(d: ActivityDataset): ActivityDataset {
+  let changed = false;
+  const electricity = d.electricity.map((e) => {
+    if (!isGridSourced(e.factorSource)) return e;
+    const published = gridFactorFor("TH")?.value ?? 0;
+    if (published === e.emissionFactor) return e;
+    changed = true;
+    return { ...e, emissionFactor: published };
+  });
+  return changed ? { ...d, electricity } : d;
+}
+
 function periodFor(decl: Declaration): ReportingPeriod {
   if (decl.periodStart && decl.periodEnd) return { start: decl.periodStart, end: decl.periodEnd, type: "calendar_year" };
   const year = Number(/(20\d\d)/.exec(decl.period)?.[1] ?? new Date().getFullYear());
@@ -103,7 +122,7 @@ export default function ActivityDataPage({ params }: { params: Promise<{ id: str
       return;
     }
     setDecl(found);
-    const d = loadDataset(id, periodFor(found), USER.name);
+    const d = withPublishedGridFactors(loadDataset(id, periodFor(found), USER.name));
     setDataset(d);
     setProductionInput(d.annualProductionTonnes > 0 ? String(d.annualProductionTonnes) : "");
     setGaps(listGaps(id));
@@ -157,6 +176,9 @@ export default function ActivityDataPage({ params }: { params: Promise<{ id: str
 
   const production = num(productionInput);
   const diff = compareShippedToProduced(production > 0 ? production : null, shipped.linked);
+  /* Every installation in this portal is Thai — see the note on
+     `electricityFactorFor`, which defaults the same way. */
+  const gridRow = gridFactorRowOrPlaceholder("TH");
 
   return (
     <div className="space-y-7">
@@ -452,7 +474,14 @@ export default function ActivityDataPage({ params }: { params: Promise<{ id: str
         ) : (
           <div className="mt-5 space-y-4">
             {dataset.electricity.map((e) => {
-              const tco2 = e.mwhAbsolute * e.emissionFactor;
+              /* Grid supply takes the country default and nothing else. The
+                 stored figure is never trusted for a grid row — the table is
+                 read on every render, so a factor that changes (or arrives)
+                 shows up without anyone re-typing it. */
+              const locked = isGridSourced(e.factorSource);
+              const published = locked ? gridRow.value : null;
+              const factor = locked ? published ?? 0 : e.emissionFactor;
+              const tco2 = e.mwhAbsolute * factor;
               const perTonne = production > 0 ? tco2 / production : null;
               return (
                 <div key={e.id} className="rounded-2xl border border-black/[0.07] p-4">
@@ -468,12 +497,20 @@ export default function ActivityDataPage({ params }: { params: Promise<{ id: str
                       />
                     </label>
                     <label className="min-w-[150px] flex-1">
-                      <FieldLabel>{t("Emission factor (tCO₂/MWh)")}</FieldLabel>
+                      <FieldLabel>
+                        {t("Emission factor (tCO₂/MWh)")}
+                        {locked && <Lock size={11} strokeWidth={1.5} className="ml-1.5 inline-block align-[-1px] text-black/30" />}
+                      </FieldLabel>
                       <input
-                        className={inputClass}
+                        className={cn(inputClass, locked && "bg-black/[0.03] text-black/55")}
                         inputMode="decimal"
-                        value={e.emissionFactor || ""}
-                        placeholder={String(THAILAND_GRID_FACTOR.value)}
+                        value={locked ? published ?? "" : e.emissionFactor || ""}
+                        readOnly={locked}
+                        aria-readonly={locked}
+                        /* No suggested number on a free-typed row: PPA and
+                           self-generated factors come from the generator, and
+                           a hint here would be read as the expected answer. */
+                        placeholder={locked ? t("Awaiting the published default") : t("From your contract or fuel mix")}
                         onChange={(ev) => mutate(updateElectricity(dataset, e.id, { emissionFactor: num(ev.target.value) }))}
                       />
                     </label>
@@ -481,7 +518,17 @@ export default function ActivityDataPage({ params }: { params: Promise<{ id: str
                       <FieldLabel>{t("Factor source")}</FieldLabel>
                       <Select
                         value={e.factorSource}
-                        onChange={(v) => mutate(updateElectricity(dataset, e.id, { factorSource: v as typeof e.factorSource }))}
+                        onChange={(v) => {
+                          const next = v as typeof e.factorSource;
+                          /* Switching to grid overwrites whatever was typed:
+                             a grid row carries the country default or nothing. */
+                          mutate(
+                            updateElectricity(dataset, e.id, {
+                              factorSource: next,
+                              ...(isGridSourced(next) ? { emissionFactor: gridRow.value ?? 0 } : {}),
+                            }),
+                          );
+                        }}
                         options={ELECTRICITY_FACTOR_SOURCES.map((s) => ({ value: s, label: ELECTRICITY_FACTOR_LABEL[s] }))}
                       />
                     </label>
@@ -495,7 +542,7 @@ export default function ActivityDataPage({ params }: { params: Promise<{ id: str
                   </div>
 
                   <div className="mt-3 rounded-xl border border-black/[0.05] bg-white px-3 py-2.5 font-mono text-[12px] text-black/55">
-                    {fmt(e.mwhAbsolute, 2)} MWh × {fmt(e.emissionFactor, 4)} tCO₂/MWh = <span className="text-black/80">{fmt(tco2, 4)} tCO₂</span>
+                    {fmt(e.mwhAbsolute, 2)} MWh × {fmt(factor, 4)} tCO₂/MWh = <span className="text-black/80">{fmt(tco2, 4)} tCO₂</span>
                     {perTonne != null ? (
                       <>
                         {"  →  ÷ "}
@@ -516,11 +563,15 @@ export default function ActivityDataPage({ params }: { params: Promise<{ id: str
           </div>
         )}
 
-        {THAILAND_GRID_FACTOR.note && (
-          <p className="mt-4 text-[11.5px] leading-relaxed text-black/35">
-            Reference · {THAILAND_GRID_FACTOR.value} {THAILAND_GRID_FACTOR.unit} — {THAILAND_GRID_FACTOR.source}. {THAILAND_GRID_FACTOR.note}
-          </p>
-        )}
+        {/* The citation travels with the number, from the one table that owns
+            it — so a verifier reading this line is told where the figure
+            actually came from, including when the honest answer is "not
+            published yet". */}
+        <p className="mt-4 text-[11.5px] leading-relaxed text-black/35">
+          {/* The citation already names the figure — printing the number
+              again ahead of it just says 0.47 twice. */}
+          {gridRow.citation}
+        </p>
       </Card>
 
       {/* ── 4 · Process emissions ───────────────────────────────── */}
