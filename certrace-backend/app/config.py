@@ -24,6 +24,18 @@ APP_BASE_URL_ENV = "CERTRACE_APP_BASE_URL"
 
 # Where a recipient is told to write when a security email surprises them.
 # The same mailbox the brand's verified Resend domain already sends from.
+JWT_SECRET_ENV = "CERTRACE_JWT_SECRET"
+
+# Signing settings are constants, not environment knobs. An operator who can
+# lower them by mistake is a way to weaken every token at once, and nothing
+# about a deployment needs them to differ.
+JWT_ALGORITHM = "HS256"
+JWT_ISSUER = "certrace-backend"
+# Seven days. There is no refresh endpoint in the contract, so a shorter life
+# signs people out mid-week; there is also no revocation, so a longer one is
+# how long a stolen token keeps working. Revisit both together.
+JWT_TTL_HOURS = 24 * 7
+
 SUPPORT_EMAIL = "contact@certrace.co"
 
 SERVICE_NAME = "certrace-backend"
