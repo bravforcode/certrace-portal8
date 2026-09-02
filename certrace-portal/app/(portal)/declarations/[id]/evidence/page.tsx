@@ -24,7 +24,8 @@ import { Card, Button, Eyebrow, Progress, EmptyState, OptionalTag, inputClass, c
 import { Select } from "@/components/controls";
 import { toast } from "@/components/toast";
 import { USER, type Declaration } from "@/lib/data";
-import { getMyDeclaration } from "@/lib/declarations-store";
+import { useDeclaration } from "@/lib/declarations-query";
+import { ErrorState, LoadingState } from "@/components/query-state";
 import { calendarYear, displayDate, type ReportingPeriod } from "@/lib/cbam/boundary";
 import { provenanceRefs, type ActivityDataset } from "@/lib/cbam/activity";
 import { loadDataset, saveDataset } from "@/lib/cbam/activity-store";
@@ -56,7 +57,7 @@ export default function EvidencePage({ params }: { params: Promise<{ id: string 
   const t = useT();
   const { id } = React.use(params);
   const router = useRouter();
-  const [decl, setDecl] = React.useState<Declaration | null>(null);
+  const { data: decl, isError, refetch } = useDeclaration(id);
   const [dataset, setDataset] = React.useState<ActivityDataset | null>(null);
   const [files, setFiles] = React.useState<EvidenceFile[]>([]);
   const [openFileId, setOpenFileId] = React.useState<string | null>(null);
@@ -64,25 +65,20 @@ export default function EvidencePage({ params }: { params: Promise<{ id: string 
   const [uploadCategory, setUploadCategory] = React.useState<EvidenceCategory>("utility_bill");
 
   React.useEffect(() => {
-    let cancelled = false;
-    void getMyDeclaration(id)
-      .catch(() => null)
-      .then((found) => {
-        if (cancelled) return;
-        if (!found) {
-          router.replace("/declarations");
-          return;
-        }
-        setDecl(found);
-        setDataset(loadDataset(id, periodFor(found), USER.name));
-        setFiles(listEvidence(id));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [id, router]);
+    if (decl === null) router.replace("/declarations");
+  }, [decl, router]);
 
-  if (!decl || !dataset) return null;
+  /* The pieces that live NEXT TO the declaration (localStorage stores,
+     drafts, snapshots) load once the query has it. */
+  React.useEffect(() => {
+    if (!decl) return;
+    const found = decl;
+    setDataset(loadDataset(id, periodFor(found), USER.name));
+    setFiles(listEvidence(id));
+  }, [decl, id]);
+
+  if (isError) return <ErrorState onRetry={() => void refetch()} />;
+  if (!decl || !dataset) return <LoadingState />;
 
   /* The coverage rows ARE the dataset's provenance records — one list, so a
      new kind of input can never quietly escape the evidence requirement. */

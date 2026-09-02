@@ -23,7 +23,8 @@ import { Card, Button, Eyebrow, Chip, inputClass, cn, useSaveState, SaveButton }
 import { DatePicker, Select } from "@/components/controls";
 import { toast } from "@/components/toast";
 import { USER, ORG, type Declaration } from "@/lib/data";
-import { getMyDeclaration } from "@/lib/declarations-store";
+import { useDeclaration } from "@/lib/declarations-query";
+import { ErrorState, LoadingState } from "@/components/query-state";
 import { getOrgIdentity } from "@/lib/org";
 import { getRecord } from "@/lib/supplier-records";
 import { countryName } from "@/lib/config";
@@ -62,7 +63,7 @@ export default function MmdPage({ params }: { params: Promise<{ id: string }> })
   const t = useT();
   const { id } = React.use(params);
   const router = useRouter();
-  const [decl, setDecl] = React.useState<Declaration | null>(null);
+  const { data: decl, isError, refetch } = useDeclaration(id);
   const [draft, setDraft] = React.useState<MmdDraft | null>(null);
   const [boundary, setBoundary] = React.useState(() => loadBoundary(id));
   const [versions, setVersions] = React.useState<MmdVersion[]>([]);
@@ -100,29 +101,24 @@ export default function MmdPage({ params }: { params: Promise<{ id: string }> })
   );
 
   React.useEffect(() => {
-    let cancelled = false;
-    void getMyDeclaration(id)
-      .catch(() => null)
-      .then((found) => {
-        if (cancelled) return;
-        if (!found) {
-          router.replace("/declarations");
-          return;
-        }
-        const b = loadBoundary(id);
-        const dr = loadDraft(id);
-        setDecl(found);
-        setBoundary(b);
-        setDraft(dr);
-        setVersions(listVersions(id));
-        setContent(rebuild(found, dr, b));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [id, router, rebuild]);
+    if (decl === null) router.replace("/declarations");
+  }, [decl, router]);
 
-  if (!decl || !draft || !content) return null;
+  /* The pieces that live NEXT TO the declaration (localStorage stores,
+     drafts, snapshots) load once the query has it. */
+  React.useEffect(() => {
+    if (!decl) return;
+    const found = decl;
+    const b = loadBoundary(id);
+    const dr = loadDraft(id);
+    setBoundary(b);
+    setDraft(dr);
+    setVersions(listVersions(id));
+    setContent(rebuild(found, dr, b));
+  }, [decl, id, rebuild]);
+
+  if (isError) return <ErrorState onRetry={() => void refetch()} />;
+  if (!decl || !draft || !content) return <LoadingState />;
 
   const issues = mmdIssues(content);
   /* Two different diffs, and conflating them is what made this screen say

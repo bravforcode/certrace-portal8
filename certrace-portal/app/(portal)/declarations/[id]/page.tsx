@@ -27,8 +27,8 @@ import { useRouter } from "next/navigation";
 import { DeclarationHierarchy } from "@/components/declaration-hierarchy";
 import { DeclarationWorkflow } from "@/components/declaration-workflow";
 import { cn } from "@/components/ui";
-import { type Declaration } from "@/lib/data";
-import { getMyDeclaration } from "@/lib/declarations-store";
+import { useDeclaration } from "@/lib/declarations-query";
+import { ErrorState, LoadingState } from "@/components/query-state";
 import { useT } from "@/lib/i18n";
 
 type View = "reports" | "workflow";
@@ -37,27 +37,15 @@ export default function DeclarationDetailPage({ params }: { params: Promise<{ id
   const t = useT();
   const { id } = React.use(params);
   const router = useRouter();
-  const [declaration, setDeclaration] = React.useState<Declaration | null>(null);
+  const { data: declaration, isError, refetch } = useDeclaration(id);
   const [view, setView] = React.useState<View>("reports");
 
   React.useEffect(() => {
-    let cancelled = false;
-    void getMyDeclaration(id)
-      .catch(() => null)
-      .then((found) => {
-        if (cancelled) return;
-        if (found) {
-          setDeclaration(found);
-        } else {
-          router.replace("/declarations");
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [id, router]);
+    if (declaration === null) router.replace("/declarations");
+  }, [declaration, router]);
 
-  if (!declaration) return null;
+  if (isError) return <ErrorState onRetry={() => void refetch()} />;
+  if (!declaration) return <LoadingState />;
 
   return (
     <div className="space-y-5">

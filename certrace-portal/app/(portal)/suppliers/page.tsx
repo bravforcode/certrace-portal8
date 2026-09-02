@@ -20,6 +20,7 @@
    ════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { ArrowRight, Building2, Calendar, ChevronLeft, ChevronRight, Factory, Plus, Search, TriangleAlert } from "lucide-react";
 import { Card, FilterChip, PageHeader, Button, Stat, inputClass, cn } from "@/components/ui";
@@ -27,7 +28,7 @@ import { SupplierModal } from "@/components/workspace/supplier-form";
 import { LinkStatusChip, ValueTypeBadge } from "@/components/precursor/status-chips";
 import { listSupplierRows } from "@/lib/supplier-directory";
 import { installationsForSupplier } from "@/lib/installations";
-import { listSupplierCompanies, seedSupplierCompaniesFrom, type SupplierCompany } from "@/lib/supplier-companies";
+import { seedSupplierCompaniesFrom, type SupplierCompany } from "@/lib/supplier-companies";
 import { listWorkspaces } from "@/lib/workspace";
 import { allPrecursorSuppliers, hasCertraceAccount, type PrecursorSupplierRow } from "@/lib/precursor-suppliers";
 import { precursorSeeDeadlineFor, type Deadline } from "@/lib/cbam/precursor-deadlines";
@@ -68,18 +69,19 @@ type View = "all" | "data" | "precursor";
 
 export default function SuppliersPage() {
   const t = useT();
-  const [rows, setRows] = React.useState<Row[] | null>(null);
-  const [precursorRows, setPrecursorRows] = React.useState<PrecursorSupplierRow[] | null>(null);
+  /* Page-shaped rows, but cached under the ["suppliers"] prefix so a
+     directory add or workspace change elsewhere refetches them — the job the
+     old reload() callback did by hand, minus the hand. */
+  const { data: rows } = useQuery({ queryKey: ["suppliers", "overview"], queryFn: build, staleTime: 0 });
+  const { data: precursorRows } = useQuery({
+    queryKey: ["suppliers", "precursor"],
+    queryFn: buildPrecursorRows,
+    staleTime: 0,
+  });
   const [query, setQuery] = React.useState("");
   const [adding, setAdding] = React.useState(false);
   const [page, setPage] = React.useState(1);
   const [view, setView] = React.useState<View>("all");
-
-  const reload = React.useCallback(() => {
-    setRows(build());
-    setPrecursorRows(buildPrecursorRows());
-  }, []);
-  React.useEffect(() => reload(), [reload]);
 
   const all = rows ?? [];
 
@@ -266,7 +268,7 @@ export default function SuppliersPage() {
             <span>{t("Status")}</span>
             <span>{t("SEE & verification due")}</span>
           </div>
-          {precursorRows === null ? null : filteredPrecursor.length === 0 ? (
+          {precursorRows == null ? null : filteredPrecursor.length === 0 ? (
             <div className="px-5 py-10 text-center text-sm text-black/35">
               {query ? t("No precursor suppliers match “{query}”.", { query }) : t("No precursor suppliers yet — they are added from a workspace's Supply Chain — Precursor Tree.")}
             </div>
@@ -310,7 +312,8 @@ export default function SuppliersPage() {
         open={adding}
         onClose={() => setAdding(false)}
         onSaved={(s) => {
-          setRows(build());
+          /* Navigating away anyway; the ["suppliers"] cache refetches on the
+             way back. No hand-rebuild needed. */
           window.location.href = `/suppliers/${s.id}`;
         }}
       />

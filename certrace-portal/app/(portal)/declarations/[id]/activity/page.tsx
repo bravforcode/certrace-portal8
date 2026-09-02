@@ -28,7 +28,8 @@ import { toast } from "@/components/toast";
 import { ProvenanceForm, AssumptionChip } from "@/components/cbam/provenance-form";
 import { DataGapSection } from "@/components/cbam/data-gap-section";
 import { USER, type Declaration } from "@/lib/data";
-import { getMyDeclaration } from "@/lib/declarations-store";
+import { useDeclaration } from "@/lib/declarations-query";
+import { ErrorState, LoadingState } from "@/components/query-state";
 import {
   emptyProvenance,
   emptyFuelEntry,
@@ -86,7 +87,7 @@ export default function ActivityDataPage({ params }: { params: Promise<{ id: str
   const t = useT();
   const { id } = React.use(params);
   const router = useRouter();
-  const [decl, setDecl] = React.useState<Declaration | null>(null);
+  const { data: decl, isError, refetch } = useDeclaration(id);
   const [dataset, setDataset] = React.useState<ActivityDataset | null>(null);
   const [productionInput, setProductionInput] = React.useState("");
   const [gaps, setGaps] = React.useState<GapEntry[]>([]);
@@ -98,26 +99,20 @@ export default function ActivityDataPage({ params }: { params: Promise<{ id: str
   const save = useSaveState();
 
   React.useEffect(() => {
-    let cancelled = false;
-    void getMyDeclaration(id)
-      .catch(() => null)
-      .then((found) => {
-        if (cancelled) return;
-        if (!found) {
-          router.replace("/declarations");
-          return;
-        }
-        setDecl(found);
-        const d = loadDataset(id, periodFor(found), USER.name);
-        setDataset(d);
-        setProductionInput(d.annualProductionTonnes > 0 ? String(d.annualProductionTonnes) : "");
-        setGaps(listGaps(id));
-        setSnapshot(activeSnapshot(id));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [id, router]);
+    if (decl === null) router.replace("/declarations");
+  }, [decl, router]);
+
+  /* The pieces that live NEXT TO the declaration (localStorage stores,
+     drafts, snapshots) load once the query has it. */
+  React.useEffect(() => {
+    if (!decl) return;
+    const found = decl;
+    const d = loadDataset(id, periodFor(found), USER.name);
+    setDataset(d);
+    setProductionInput(d.annualProductionTonnes > 0 ? String(d.annualProductionTonnes) : "");
+    setGaps(listGaps(id));
+    setSnapshot(activeSnapshot(id));
+  }, [decl, id]);
 
   const shipped = React.useMemo(() => {
     if (!decl) return { linked: 0, candidates: 0 };
@@ -145,7 +140,8 @@ export default function ActivityDataPage({ params }: { params: Promise<{ id: str
     return { fuelTCO2: fuel, processTCO2: process, indirectTCO2: indirect, totalTCO2: fuel + process + indirect, blocked };
   }, [dataset]);
 
-  if (!decl || !dataset) return null;
+  if (isError) return <ErrorState onRetry={() => void refetch()} />;
+  if (!decl || !dataset) return <LoadingState />;
 
   const mutate = (next: ActivityDataset) => setDataset(next);
 

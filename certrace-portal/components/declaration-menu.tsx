@@ -14,12 +14,13 @@ import { Dropdown } from "./controls";
 import { toast } from "./toast";
 import type { Declaration } from "@/lib/data";
 import { duplicateToDraft } from "@/lib/duplicate";
-import { deleteDeclaration } from "@/lib/declarations-store";
+import { useDeleteDeclaration } from "@/lib/declarations-query";
 import { useT } from "@/lib/i18n";
 
 function MenuItems({ decl, close, afterDelete }: { decl: Declaration; close: () => void; afterDelete?: () => void }) {
   const router = useRouter();
   const t = useT();
+  const removeDeclaration = useDeleteDeclaration();
   const [armed, setArmed] = React.useState(false);
   const item = "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[12.5px] text-black/65 transition-colors hover:bg-[#fafaf8] hover:text-black";
 
@@ -44,7 +45,9 @@ function MenuItems({ decl, close, afterDelete }: { decl: Declaration; close: () 
       return;
     }
     try {
-      await deleteDeclaration(decl.id);
+      // The mutation also drops the cached entry and refetches the list, so
+      // every open screen agrees the row is gone.
+      await removeDeclaration.mutateAsync(decl.id);
     } catch {
       toast({ message: t("Couldn't delete that declaration"), detail: t("Check your connection and try again."), tone: "err" });
       close();
