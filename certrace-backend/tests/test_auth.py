@@ -6,6 +6,7 @@ import re
 
 from conftest import ExplodingTransport, RecordingTransport
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import OperationalError
 
 from app.main import create_app
 from app.services.email import EmailDeliveryError
@@ -183,9 +184,9 @@ def test_changing_a_password_sends_a_confirmation() -> None:
 
 
 def test_change_password_for_an_unknown_address_sends_nothing() -> None:
-    """change_user_password still registers an unknown address on the spot (a
-    fixture that predates this router). The router must not turn that into a
-    security notice mailed to a stranger."""
+    """In the no-database mode change_user_password claims an unknown address
+    on the spot. The router must not turn that into a security notice mailed
+    to a stranger."""
 
     client, transport = _app_with_mail()
 
@@ -200,6 +201,80 @@ def test_change_password_for_an_unknown_address_sends_nothing() -> None:
 
     assert response.status_code == 200
     assert transport.sent == []
+
+
+class BrokenDatabase:
+    """A configured account store that fails every statement.
+
+    Stands in for the whole family of real failures -- the instance is down,
+    the password was rotated, the `users` table was never migrated -- which
+    all reach the service as a ``SQLAlchemyError``.
+    """
+
+    def session_factory(self) -> object:
+        raise OperationalError("SELECT 1", {}, Exception("connection refused"))
+
+
+def _client_with_broken_database() -> TestClient:
+    app = create_app()
+    app.state.database = BrokenDatabase()
+    return TestClient(app, raise_server_exceptions=False)
+
+
+def test_change_password_reports_the_outage_instead_of_using_memory() -> None:
+    """The demo accounts must not answer for a configured database.
+
+    They are seeded with a known password, so falling back to them here would
+    let anyone holding "demo-password" change a real account -- and would
+    report success for a write that never reached PostgreSQL.
+    """
+
+    client = _client_with_broken_database()
+
+    response = client.post(
+        "/api/auth/change-password",
+        json={
+            "email": "demo@certrace.com",
+            "current_password": "demo-password",
+            "new_password": "new-secure-password-123",
+        },
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"]["code"] == "ACCOUNT_STORE_UNAVAILABLE"
+
+
+def test_reset_password_reports_the_outage_instead_of_using_memory() -> None:
+    client = _client_with_broken_database()
+
+    response = client.post(
+        "/api/auth/reset-password",
+        json={
+            "email": "demo@certrace.com",
+            "reset_token": "123456",
+            "new_password": "new-secure-password-123",
+        },
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"]["code"] == "ACCOUNT_STORE_UNAVAILABLE"
+
+
+def test_forgot_password_reports_the_outage_instead_of_using_memory() -> None:
+    """Even the endpoint with a deliberately uninformative body must not lie.
+
+    Its generic message means "we have handled this". Returning it while the
+    account store is down would promise an email that no code was issued for.
+    """
+
+    client = _client_with_broken_database()
+
+    response = client.post(
+        "/api/auth/forgot-password", json={"email": "demo@certrace.com"}
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"]["code"] == "ACCOUNT_STORE_UNAVAILABLE"
 
 
 def test_a_delivery_failure_does_not_break_the_request() -> None:

@@ -1,19 +1,41 @@
-"""Authentication service handling password changes, reset tokens, and DB/in-memory fallback."""
+"""Password changes and reset codes, over PostgreSQL or an in-process store.
+
+There are exactly two modes, and which one is in play is decided once, by
+whether the app was given a ``DATABASE_URL``:
+
+* ``db is None``  -- no database configured. A dictionary of demo accounts
+  backs the endpoints so the portal can be driven locally and in tests.
+* ``db is not None`` -- PostgreSQL is the only account store. A failure to
+  reach it raises :class:`AccountStoreUnavailable`; it never silently degrades
+  to the dictionary.
+
+That second rule is the point of this module. An earlier version wrapped every
+statement in ``except SQLAlchemyError: pass`` and fell through to memory, so a
+deployment whose ``users`` table did not exist answered "Password updated
+successfully" to any address and any password, and kept reset codes in a
+process that a restart or a second instance would take away.
+"""
 
 from __future__ import annotations
 
 import datetime
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
 from app.core.security import generate_reset_token, hash_password, verify_password
+from app.services.errors import AccountStoreUnavailable
 
 if TYPE_CHECKING:
     from app.repositories.database import DatabaseRepository
 
-# In-memory fallback user store & reset token store
+# Demo accounts for the no-database mode only. Nothing reads these once a
+# DATABASE_URL is set, which is why production must set one -- see
+# CERTRACE_REQUIRE_DATABASE.
 _MEMORY_USERS: dict[str, str] = {
     "wasawat@siamsteel.co.th": hash_password("demo-password"),
     "demo@certrace.com": hash_password("demo-password"),
@@ -31,6 +53,29 @@ GENERIC_RESET_MESSAGE = (
     "If an account exists for that email, a reset code is on its way."
 )
 
+# Said for a wrong password and for an address with no account alike, so the
+# endpoint cannot be used to enumerate customers either.
+INVALID_CREDENTIALS_MESSAGE = "Current password is incorrect."
+
+
+def _normalize(email: str) -> str:
+    return email.strip().lower()
+
+
+def _now() -> datetime.datetime:
+    return datetime.datetime.now(datetime.timezone.utc)
+
+
+@contextmanager
+def _account_session(db: DatabaseRepository) -> Iterator[Session]:
+    """Open a session, turning any database failure into a 503-shaped error."""
+
+    try:
+        with db.session_factory() as session:
+            yield session
+    except SQLAlchemyError as exc:
+        raise AccountStoreUnavailable(str(exc)) from exc
+
 
 def user_exists(db: DatabaseRepository | None, email: str) -> bool:
     """Whether we hold an account for this address.
@@ -40,19 +85,16 @@ def user_exists(db: DatabaseRepository | None, email: str) -> bool:
     unsolicited mail sent on an attacker's behalf.
     """
 
-    email_clean = email.strip().lower()
-    if db is not None:
-        try:
-            with db.session_factory() as session:
-                found = session.execute(
-                    text("SELECT 1 FROM public.users WHERE LOWER(email) = :email"),
-                    {"email": email_clean},
-                ).first()
-                if found is not None:
-                    return True
-        except SQLAlchemyError:
-            pass
-    return email_clean in _MEMORY_USERS
+    email_clean = _normalize(email)
+    if db is None:
+        return email_clean in _MEMORY_USERS
+
+    with _account_session(db) as session:
+        found = session.execute(
+            text("SELECT 1 FROM public.users WHERE LOWER(email) = :email"),
+            {"email": email_clean},
+        ).first()
+    return found is not None
 
 
 def change_user_password(
@@ -61,45 +103,51 @@ def change_user_password(
     current_password: str,
     new_password: str,
 ) -> tuple[bool, str]:
-    """Change password for an existing user after verifying current password."""
-    email_clean = email.strip().lower()
+    """Change a password after verifying the current one."""
+
+    email_clean = _normalize(email)
     new_hash = hash_password(new_password)
 
-    if db is not None:
-        try:
-            with db.session_factory() as session:
-                result = session.execute(
-                    text(
-                        "SELECT password_hash FROM public.users WHERE LOWER(email) = :email"
-                    ),
-                    {"email": email_clean},
-                ).first()
+    if db is None:
+        return _change_password_in_memory(email_clean, current_password, new_hash)
 
-                if result is not None:
-                    stored_hash = result[0]
-                    if not verify_password(current_password, stored_hash):
-                        return False, "Current password is incorrect."
+    with _account_session(db) as session:
+        row = session.execute(
+            text("SELECT password_hash FROM public.users WHERE LOWER(email) = :email"),
+            {"email": email_clean},
+        ).first()
+        # An unknown address and a wrong password get the same answer.
+        if row is None or not verify_password(current_password, row[0]):
+            return False, INVALID_CREDENTIALS_MESSAGE
 
-                    session.execute(
-                        text(
-                            "UPDATE public.users SET password_hash = :new_hash WHERE LOWER(email) = :email"
-                        ),
-                        {"new_hash": new_hash, "email": email_clean},
-                    )
-                    session.commit()
-                    return True, "Password updated successfully."
-        except SQLAlchemyError:
-            pass  # Fallback to memory store if DB operation fails
+        session.execute(
+            text(
+                "UPDATE public.users SET password_hash = :new_hash, updated_at = now() "
+                "WHERE LOWER(email) = :email"
+            ),
+            {"new_hash": new_hash, "email": email_clean},
+        )
+        session.commit()
+    return True, "Password updated successfully."
 
-    # Fallback / In-Memory Store
+
+def _change_password_in_memory(
+    email_clean: str, current_password: str, new_hash: str
+) -> tuple[bool, str]:
+    """No-database mode: an unknown address is claimed on first use.
+
+    Convenient for driving the portal against fixtures; harmless only because
+    this branch is unreachable once a DATABASE_URL is configured.
+    """
+
     stored_hash = _MEMORY_USERS.get(email_clean)
     if stored_hash is None:
-        # If user not in seed memory, register user with current password as fixture for testing
-        _MEMORY_USERS[email_clean] = hash_password(current_password)
-        stored_hash = _MEMORY_USERS[email_clean]
+        stored_hash = _MEMORY_USERS.setdefault(
+            email_clean, hash_password(current_password)
+        )
 
     if not verify_password(current_password, stored_hash):
-        return False, "Current password is incorrect."
+        return False, INVALID_CREDENTIALS_MESSAGE
 
     _MEMORY_USERS[email_clean] = new_hash
     return True, "Password updated successfully."
@@ -116,36 +164,33 @@ def request_password_reset(
     reach the endpoint reset any account they can name (docs/API-CONTRACT.md
     section 1). ``None`` means no account, so nothing to send.
     """
-    email_clean = email.strip().lower()
+
+    email_clean = _normalize(email)
     if not user_exists(db, email_clean):
         return True, GENERIC_RESET_MESSAGE, None
 
     token = generate_reset_token()
-    expires_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(
-        minutes=RESET_TOKEN_TTL_MINUTES
-    )
+    expires_at = _now() + datetime.timedelta(minutes=RESET_TOKEN_TTL_MINUTES)
 
-    if db is not None:
-        try:
-            with db.session_factory() as session:
-                session.execute(
-                    text(
-                        "INSERT INTO public.password_resets (email, token, expires_at) "
-                        "VALUES (:email, :token, :expires_at)"
-                    ),
-                    {"email": email_clean, "token": token, "expires_at": expires_at},
-                )
-                session.commit()
-        except SQLAlchemyError:
-            pass
+    if db is None:
+        _MEMORY_RESET_TOKENS[email_clean] = {
+            "token": token,
+            "expires_at": expires_at,
+            "used": False,
+        }
+        return True, GENERIC_RESET_MESSAGE, token
 
-    # Save to memory store as well for instant availability & fallback
-    _MEMORY_RESET_TOKENS[email_clean] = {
-        "token": token,
-        "expires_at": expires_at,
-        "used": False,
-    }
-
+    # Written only to the database. Mirroring it into the dictionary as well
+    # would make a code issued by one instance unredeemable on another.
+    with _account_session(db) as session:
+        session.execute(
+            text(
+                "INSERT INTO public.password_resets (email, token, expires_at) "
+                "VALUES (:email, :token, :expires_at)"
+            ),
+            {"email": email_clean, "token": token, "expires_at": expires_at},
+        )
+        session.commit()
     return True, GENERIC_RESET_MESSAGE, token
 
 
@@ -155,60 +200,57 @@ def reset_user_password(
     reset_token: str,
     new_password: str,
 ) -> tuple[bool, str]:
-    """Verify reset token and update the user's password."""
-    email_clean = email.strip().lower()
+    """Redeem a reset code and set the new password."""
+
+    email_clean = _normalize(email)
     token_clean = reset_token.strip()
     new_hash = hash_password(new_password)
-    now = datetime.datetime.now(datetime.timezone.utc)
 
-    # 1. Try DB reset token verification
-    token_valid = False
-    if db is not None:
-        try:
-            with db.session_factory() as session:
-                record = session.execute(
-                    text(
-                        "SELECT id, expires_at, used FROM public.password_resets "
-                        "WHERE LOWER(email) = :email AND token = :token AND used = FALSE "
-                        "ORDER BY created_at DESC LIMIT 1"
-                    ),
-                    {"email": email_clean, "token": token_clean},
-                ).first()
+    if db is None:
+        return _reset_password_in_memory(email_clean, token_clean, new_hash)
 
-                if record is not None:
-                    rec_id, rec_expires, rec_used = record
-                    if rec_expires > now and not rec_used:
-                        token_valid = True
-                        session.execute(
-                            text(
-                                "UPDATE public.password_resets SET used = TRUE WHERE id = :id"
-                            ),
-                            {"id": rec_id},
-                        )
-                        session.execute(
-                            text(
-                                "UPDATE public.users SET password_hash = :new_hash WHERE LOWER(email) = :email"
-                            ),
-                            {"new_hash": new_hash, "email": email_clean},
-                        )
-                        session.commit()
-        except SQLAlchemyError:
-            pass
+    # Redeeming the code and writing the password share one transaction: a
+    # code must not be burned by an update that then fails to land.
+    with _account_session(db) as session:
+        record = session.execute(
+            text(
+                "SELECT id FROM public.password_resets "
+                "WHERE LOWER(email) = :email AND token = :token "
+                "AND used = FALSE AND expires_at > :now "
+                "ORDER BY created_at DESC LIMIT 1"
+            ),
+            {"email": email_clean, "token": token_clean, "now": _now()},
+        ).first()
+        if record is None:
+            return False, "Invalid or expired reset verification token."
 
-    # 2. Check Memory reset token store if DB didn't handle it
-    if not token_valid:
-        mem_record = _MEMORY_RESET_TOKENS.get(email_clean)
-        if (
-            mem_record
-            and mem_record["token"] == token_clean
-            and not mem_record["used"]
-            and mem_record["expires_at"] > now
-        ):
-            token_valid = True
-            mem_record["used"] = True
+        session.execute(
+            text("UPDATE public.password_resets SET used = TRUE WHERE id = :id"),
+            {"id": record[0]},
+        )
+        session.execute(
+            text(
+                "UPDATE public.users SET password_hash = :new_hash, updated_at = now() "
+                "WHERE LOWER(email) = :email"
+            ),
+            {"new_hash": new_hash, "email": email_clean},
+        )
+        session.commit()
+    return True, "Password has been successfully reset."
 
-    if not token_valid:
+
+def _reset_password_in_memory(
+    email_clean: str, token_clean: str, new_hash: str
+) -> tuple[bool, str]:
+    record = _MEMORY_RESET_TOKENS.get(email_clean)
+    if (
+        record is None
+        or record["token"] != token_clean
+        or record["used"]
+        or record["expires_at"] <= _now()
+    ):
         return False, "Invalid or expired reset verification token."
 
+    record["used"] = True
     _MEMORY_USERS[email_clean] = new_hash
     return True, "Password has been successfully reset."

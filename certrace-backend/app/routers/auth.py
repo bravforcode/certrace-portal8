@@ -84,10 +84,10 @@ def change_password(
 ) -> AuthResponse:
     """Endpoint for changing a user's password."""
     db = getattr(request.app.state, "database", None)
-    # Read before the write: change_user_password registers an unknown address
-    # on the spot (a test fixture that predates this router). Without this
-    # check, posting a made-up address would mail a "your password changed"
-    # notice to someone who has no account here.
+    # Read before the write: in the no-database mode change_user_password
+    # claims an unknown address on first use. Without this check, posting a
+    # made-up address would mail a "your password changed" notice to someone
+    # who has no account here.
     known_account = user_exists(db, payload.email)
     success, message = change_user_password(
         db=db,
