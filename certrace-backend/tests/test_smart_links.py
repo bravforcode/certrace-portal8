@@ -48,9 +48,27 @@ def _declaration(
     doc = {
         "id": declaration_id,
         "name": "Q2 2026 CBAM report",
+        "regulation": "cbam",
+        "origin": "TH",
+        "market": "EU",
         "period": "Q2 2026",
+        "periodEnd": "2026-06-30",
+        "due": "31 Aug 2026",
+        "dueInDays": 45,
+        "kind": "cbam",
+        "includedFieldIds": ["carbon-price"],
+        "notesToSuppliers": "Report at installation level.",
         "step": "collect",
-        "suppliers": [],
+        # d1's own emissions figure sits on the row and must NOT reach them --
+        # the form is where they report it, not read a prior one back.
+        "suppliers": [
+            {"id": "d1", "name": "Siam Yamato Steel", "ref": "#0418",
+             "country": "TH", "material": "Hot-rolled coil", "critical": True,
+             "emissions": 1.84},
+            {"id": "d2", "name": "Thai Metal Pro", "ref": "#0231",
+             "country": "TH", "material": "Steel billet", "critical": True,
+             "emissions": 2.9},
+        ],
         "requests": [
             {
                 "supplierId": "d1",
@@ -148,6 +166,24 @@ def test_mint_and_resolve_roundtrip() -> None:
     # Exactly this supplier's slice of the request -- d2's spec must not leak.
     assert [p["productId"] for p in body["request"]["products"]] == ["hrc"]
     assert "billet" not in resolved.text
+
+    # The declaration context the guided form is built from -- shared, not secret.
+    assert body["declaration"]["regulation"] == "cbam"
+    assert body["declaration"]["period"] == "Q2 2026"
+    assert body["declaration"]["periodEnd"] == "2026-06-30"
+    assert body["declaration"]["dueInDays"] == 45
+    assert body["declaration"]["kind"] == "cbam"
+    assert body["declaration"]["includedFieldIds"] == ["carbon-price"]
+    assert body["declaration"]["note"] == "Report at installation level."
+
+    # Only d1's own identity -- d2's row, and EVERYONE's emissions figure, stay
+    # server-side. The token holder is not our customer; they see only theirs.
+    assert body["supplier"]["name"] == "Siam Yamato Steel"
+    assert body["supplier"]["ref"] == "#0418"
+    assert body["supplier"]["critical"] is True
+    assert "emissions" not in body["supplier"]
+    assert "Thai Metal Pro" not in resolved.text
+    assert "1.84" not in resolved.text
 
     # Nobody has saved yet: the empty state, never null.
     assert body["state"]["token"] == token

@@ -25,6 +25,33 @@ import type { Attestation } from "../supplier-records";
 import type { SubmissionStatus, SupplierState } from "../supplier-store";
 import { request } from "./http";
 
+/** Declaration-level context the supplier's guided form is built from. Shared,
+    not secret — which regulation, the period, the deadline, the exporter's
+    note. Never carries another supplier's data or anyone's figures. */
+export type LinkDeclaration = {
+  name: string;
+  regulation: string;
+  origin: string;
+  market: string;
+  period: string;
+  periodEnd: string;
+  due: string;
+  dueInDays: number;
+  kind: "cbam" | "buyer";
+  includedFieldIds: string[] | null;
+  note: string;
+};
+
+/** This one supplier's identity row — never their emissions figure. */
+export type LinkSupplier = {
+  name: string;
+  ref: string;
+  country: string;
+  material: string;
+  critical: boolean;
+  selfSupplied: boolean;
+};
+
 /** What `GET /api/v1/links/{token}` hands the supplier's browser. */
 export type LinkResolution = {
   token: string;
@@ -35,8 +62,12 @@ export type LinkResolution = {
   expiresAt: number;
   /** Only what the holder of the link may see: who is asking. */
   exporter: { companyName: string };
+  /** Declaration context the questionnaire is rebuilt from (buildFromPayload). */
+  declaration: LinkDeclaration;
+  /** This supplier's identity, so the form need not invent a name. */
+  supplier: LinkSupplier;
   /** The products and lots this supplier was asked about. */
-  request: unknown;
+  request: { products: unknown };
   /** Never null — an untouched link resolves to an empty state. */
   state: SupplierState;
 };
