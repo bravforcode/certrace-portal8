@@ -174,7 +174,9 @@ def _persist_state(
     return state
 
 
-@router.post("/declarations/{declaration_id}/links", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/declarations/{declaration_id}/links", status_code=status.HTTP_201_CREATED
+)
 def create_link(
     declaration_id: str,
     body: CreateLinkRequest,
@@ -306,14 +308,17 @@ def resolve_link(token: str, request: Request) -> dict[str, object]:
     # This supplier's own identity row -- pulled by id so no other supplier's
     # row can leak, and its emissions figure is dropped even from the match.
     suppliers = doc.get("suppliers")
-    row = next(
-        (
-            entry
-            for entry in (suppliers if isinstance(suppliers, list) else [])
-            if isinstance(entry, dict) and entry.get("id") == link["supplierId"]
-        ),
-        None,
-    ) or {}
+    row = (
+        next(
+            (
+                entry
+                for entry in (suppliers if isinstance(suppliers, list) else [])
+                if isinstance(entry, dict) and entry.get("id") == link["supplierId"]
+            ),
+            None,
+        )
+        or {}
+    )
 
     included = doc.get("includedFieldIds")
     due_in_days = doc.get("dueInDays")
@@ -377,9 +382,7 @@ def save_link_state(
 
 
 @router.post("/links/{token}/submit")
-def submit_link(
-    token: str, body: SubmitRequest, request: Request
-) -> dict[str, object]:
+def submit_link(token: str, body: SubmitRequest, request: Request) -> dict[str, object]:
     """The supplier signs and submits. Server owns the evidence fields.
 
     The blob arrives with the answers, but the version number, its timestamp,

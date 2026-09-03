@@ -29,7 +29,9 @@ def _client() -> TestClient:
     return TestClient(create_app(), raise_server_exceptions=False)
 
 
-def _signed_in(client: TestClient, company: str | None = "Siam Steel Export Co.") -> dict[str, str]:
+def _signed_in(
+    client: TestClient, company: str | None = "Siam Steel Export Co."
+) -> dict[str, str]:
     response = client.post(
         "/api/auth/register",
         json={
@@ -62,12 +64,24 @@ def _declaration(
         # d1's own emissions figure sits on the row and must NOT reach them --
         # the form is where they report it, not read a prior one back.
         "suppliers": [
-            {"id": "d1", "name": "Siam Yamato Steel", "ref": "#0418",
-             "country": "TH", "material": "Hot-rolled coil", "critical": True,
-             "emissions": 1.84},
-            {"id": "d2", "name": "Thai Metal Pro", "ref": "#0231",
-             "country": "TH", "material": "Steel billet", "critical": True,
-             "emissions": 2.9},
+            {
+                "id": "d1",
+                "name": "Siam Yamato Steel",
+                "ref": "#0418",
+                "country": "TH",
+                "material": "Hot-rolled coil",
+                "critical": True,
+                "emissions": 1.84,
+            },
+            {
+                "id": "d2",
+                "name": "Thai Metal Pro",
+                "ref": "#0231",
+                "country": "TH",
+                "material": "Steel billet",
+                "critical": True,
+                "emissions": 2.9,
+            },
         ],
         "requests": [
             {
@@ -491,9 +505,7 @@ def test_dead_links_reject_save_and_submit() -> None:
     }
 
     # Unknown token: 404 on both.
-    assert (
-        client.put("/api/v1/links/nope/state", json={"state": {}}).status_code == 404
-    )
+    assert client.put("/api/v1/links/nope/state", json={"state": {}}).status_code == 404
     assert client.post("/api/v1/links/nope/submit", json=submit_body).status_code == 404
 
     # Expired: 410 TOKEN_EXPIRED.
