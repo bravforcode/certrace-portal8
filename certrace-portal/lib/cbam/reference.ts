@@ -138,13 +138,19 @@ export const REGISTRY_SCHEMA_STATUS: UnresolvedValue<"transitional_structure"> =
   actionRequired: "Swap the adapter in lib/cbam-xml.ts once the Commission publishes the definitive XSD.",
 };
 
-/** Thailand's grid factor is a real, current national figure — but it is a
-    NATIONAL figure, and whether a verifier expects it or an EU country
-    default is a question nobody has answered. Kept explicit rather than
-    silently applied. */
-export const THAILAND_GRID_FACTOR = {
-  value: 0.4999,
-  unit: "tCO₂/MWh",
-  source: "EGAT / TGO (อบก.) national grid emission factor, 2023",
-  note: "Confirmed real, but it is Thailand's national figure rather than an EU country default. Keep factorSource explicit so a verifier can see which was used.",
-};
+/* THAILAND_GRID_FACTOR (0.4999 tCO₂/MWh, EGAT/TGO 2023) was removed here.
+
+   It was not stale, it was the wrong figure: EGAT/TGO publish a Thai
+   regulatory number for Thai purposes, while CBAM wants the Commission's
+   country default, computed as a five-year moving average under Annex II
+   Point D.2.3, Equation 37. lib/cbam/electricity-grid-factors.ts already
+   said so and already held the replacement — but this constant survived it,
+   and the declaration activity screen was still offering 0.4999 as the
+   placeholder in the emission-factor box and printing it underneath as
+   "Reference". A placeholder is what somebody types when they do not know
+   the answer, so the screen was recommending the number the rest of the
+   system had already ruled out.
+
+   Grid factors live in electricity-grid-factors.ts and are read through
+   `electricityFactorFor` in lib/monthly-data.ts. There is deliberately no
+   constant here to reach for instead. */

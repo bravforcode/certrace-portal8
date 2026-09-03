@@ -180,11 +180,29 @@ export const ELECTRICITY_FACTOR_SOURCES: ElectricityFactorSource[] = [
 ];
 
 export const ELECTRICITY_FACTOR_LABEL: Record<ElectricityFactorSource, string> = {
-  grid_national: "National grid factor",
+  grid_national: "Public grid — country default",
   ppa: "Power purchase agreement",
   self_generated: "Self-generated on site",
-  eu_default: "EU default factor",
+  eu_default: "Public grid — country default (EU)",
 };
+
+/* ── Which sources take the country default ─────────────────────
+   Grid supply takes the Commission's country default and nothing else — a
+   five-year moving average under Annex II Point D.2.3, Equation 37 — so a
+   grid row is never a typed figure. Both members below describe grid supply:
+   `grid_national` was named when the portal still believed a national figure
+   (Thailand's EGAT/TGO number) was the right basis, which
+   lib/cbam/electricity-grid-factors.ts records as an attribution error, and
+   `eu_default` was the alternative offered beside it. They are the same case
+   and both resolve to the same table.
+
+   THIS ENUM AND lib/monthly-data.ts DISAGREE, and that is a real gap, not a
+   naming quirk: monthly-data models the corrected set — `grid_default`, and
+   `direct_technical_link` for a dedicated line outside the public grid, which
+   has no member here at all. Reconciling them means migrating stored
+   datasets, so it is deliberately not done in this change. */
+export const isGridSourced = (source: ElectricityFactorSource): boolean =>
+  source === "grid_national" || source === "eu_default";
 
 export type ElectricityEntry = {
   id: string;
