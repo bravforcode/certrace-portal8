@@ -72,17 +72,23 @@ export type CarbonContent = { material: string; label: string; tCPerT: number; s
 
 /** t carbon per tonne of material — Path B's CC_k. BF, BOF, EAF and
     ferro-alloy routes use this method; see the mass-balance section of the
-    build spec for why an integrated route cannot use Path A alone. */
+    build spec for why an integrated route cannot use Path A alone.
+
+    These figures now cite the Annex rather than the internal build spec that
+    transcribed them. The screens print the source beside the number so a
+    verifier can check it, and "Build spec §5" is not something anyone outside
+    this company can look up — the citation has to name the regulation or it
+    is decoration. Values are unchanged; only their provenance is. */
 export const CARBON_CONTENTS: CarbonContent[] = [
-  { material: "dri", label: "DRI", tCPerT: 0.0191, source: "Build spec §5, mass-balance carbon contents" },
-  { material: "eaf_carbon_electrodes", label: "EAF carbon electrodes", tCPerT: 0.8188, source: "Build spec §5, mass-balance carbon contents" },
-  { material: "eaf_charge_carbon", label: "EAF charge carbon", tCPerT: 0.8297, source: "Build spec §5, mass-balance carbon contents" },
-  { material: "hbi", label: "HBI", tCPerT: 0.0191, source: "Build spec §5, mass-balance carbon contents" },
-  { material: "bof_gas", label: "Oxygen steel furnace gas", tCPerT: 0.3493, source: "Build spec §5, mass-balance carbon contents" },
-  { material: "petroleum_coke", label: "Petroleum coke", tCPerT: 0.8706, source: "Build spec §5, mass-balance carbon contents" },
-  { material: "pig_iron", label: "Pig iron", tCPerT: 0.0409, source: "Build spec §5, mass-balance carbon contents" },
-  { material: "iron_scrap", label: "Iron / iron scrap", tCPerT: 0.0409, source: "Build spec §5, mass-balance carbon contents" },
-  { material: "steel_scrap", label: "Steel / steel scrap", tCPerT: 0.0109, source: "Build spec §5, mass-balance carbon contents" },
+  { material: "dri", label: "DRI", tCPerT: 0.0191, source: "IR (EU) 2025/2547 Annex II Point G, Table 5" },
+  { material: "eaf_carbon_electrodes", label: "EAF carbon electrodes", tCPerT: 0.8188, source: "IR (EU) 2025/2547 Annex II Point G, Table 5" },
+  { material: "eaf_charge_carbon", label: "EAF charge carbon", tCPerT: 0.8297, source: "IR (EU) 2025/2547 Annex II Point G, Table 5" },
+  { material: "hbi", label: "HBI", tCPerT: 0.0191, source: "IR (EU) 2025/2547 Annex II Point G, Table 5" },
+  { material: "bof_gas", label: "Oxygen steel furnace gas", tCPerT: 0.3493, source: "IR (EU) 2025/2547 Annex II Point G, Table 5" },
+  { material: "petroleum_coke", label: "Petroleum coke", tCPerT: 0.8706, source: "IR (EU) 2025/2547 Annex II Point G, Table 5" },
+  { material: "pig_iron", label: "Pig iron", tCPerT: 0.0409, source: "IR (EU) 2025/2547 Annex II Point G, Table 5" },
+  { material: "iron_scrap", label: "Iron / iron scrap", tCPerT: 0.0409, source: "IR (EU) 2025/2547 Annex II Point G, Table 5" },
+  { material: "steel_scrap", label: "Steel / steel scrap", tCPerT: 0.0109, source: "IR (EU) 2025/2547 Annex II Point G, Table 5" },
 ];
 
 export const carbonContentFor = (material: string): CarbonContent | undefined => CARBON_CONTENTS.find((c) => c.material === material);
