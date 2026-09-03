@@ -32,8 +32,10 @@ import { JOB_TITLES, JOB_TITLE_OPTIONS } from "@/lib/job-titles";
 import { useT } from "@/lib/i18n";
 import { LEGAL_PRIVACY_URL, LEGAL_TERMS_URL } from "@/lib/links";
 import { InstallationModal } from "@/components/workspace/installation-form";
-import { emptyInstallation, missingFields, ownInstallations, removeInstallation, saveInstallation, type Installation } from "@/lib/installations";
-import { CAP_LABEL, cnCodeCap, seatCap, siteCap, yearCap, type CapState } from "@/lib/plan";
+import { emptyInstallation, missingFields, type Installation } from "@/lib/installations";
+import { useOwnInstallations, useRemoveInstallation, useSaveInstallation } from "@/lib/installations-query";
+import { CAP_LABEL } from "@/lib/plan";
+import { useCaps, useInvalidateCaps, useInvalidateWorkspaces } from "@/lib/workspaces-query";
 import { useAccount } from "@/components/account-lock";
 import { PlanCapNotice } from "@/components/plan-cap-notice";
 
@@ -199,13 +201,21 @@ function PlanCard() {
   const t = useT();
   /* Through the context so the card re-renders when the plan resolves on the
      client — see components/account-lock.tsx. */
-  const { planId, plan } = useAccount();
-  const [caps, setCaps] = React.useState<CapState[] | null>(null);
-
+  const { plan, planId } = useAccount();
   /* Two of the four read localStorage, so all four are measured after mount
-     and the row renders as one thing rather than half server, half client. */
+     and the row renders as one thing rather than half server, half client —
+     the query only resolves on the client. */
+  const caps = useCaps().data;
+  /* The caps read a plan override that can change while this page stays
+     mounted (a demo override landing, the trial re-read); re-measure on the
+     change so the row does not sit stale until remount. */
+  const invalidateCaps = useInvalidateCaps();
+  const lastPlan = React.useRef(planId);
   React.useEffect(() => {
-    setCaps([cnCodeCap(), siteCap(), yearCap(), seatCap()]);
+    if (lastPlan.current === planId) return;
+    lastPlan.current = planId;
+    invalidateCaps();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [planId]);
 
   return (
@@ -225,7 +235,7 @@ function PlanCard() {
       </div>
 
       <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-black/[0.08] pt-4 sm:grid-cols-4">
-        {(caps ?? []).map((c) => (
+        {(caps ? [caps.cnCodes, caps.sites, caps.years, caps.seats] : []).map((c) => (
           <div key={c.key}>
             <dt className="font-pixel text-[10px] uppercase tracking-[0.12em] text-black/40">{t(CAP_LABEL[c.key])}</dt>
             <dd className={cn("mt-1 font-mono text-[13px] tabular-nums", c.atCap ? "text-[#b45309]" : "text-black/60")}>
@@ -260,25 +270,22 @@ function PlanCard() {
    ══════════════════════════════════════════════════════════════ */
 function OwnInstallationCard() {
   const t = useT();
-  const [own, setOwn] = React.useState<Installation[]>([]);
+  const own = useOwnInstallations().data;
   /** null = closed · "new" = adding · an Installation = editing that one */
   const [editing, setEditing] = React.useState<Installation | "new" | null>(null);
-  const [loaded, setLoaded] = React.useState(false);
   const [removing, setRemoving] = React.useState<string | null>(null);
-
-  const reload = React.useCallback(() => setOwn(ownInstallations()), []);
-
-  React.useEffect(() => {
-    reload();
-    setLoaded(true);
-  }, [reload]);
-
-  if (!loaded) return null;
+  const saveOwn = useSaveInstallation();
+  const removeOwn = useRemoveInstallation();
+  /* The site cap counts these very installations, so every add/remove also
+     re-measures the caps living under the workspaces key. */
+  const invalidateCaps = useInvalidateWorkspaces();
 
   /* PRODUCTION SITES ARE A TERM OF THE PLAN — Starter buys one, Standard five,
      Enterprise as many as it runs. A SUPPLIER'S plant is not one of these and
      is never counted: suppliers are free and unlimited on every tier. */
-  const cap = siteCap();
+  const cap = useCaps().data?.sites;
+
+  if (!own || !cap) return null;
 
   return (
     <Card className="p-6">
@@ -362,9 +369,8 @@ function OwnInstallationCard() {
                           setRemoving(i.id);
                           return;
                         }
-                        removeInstallation(i.id);
+                        removeOwn.mutate(i.id, { onSuccess: invalidateCaps });
                         setRemoving(null);
-                        reload();
                       }}
                       onBlur={() => setRemoving((r) => (r === i.id ? null : r))}
                       aria-label={t("Remove {name}", { name: i.name })}
@@ -397,8 +403,7 @@ function OwnInstallationCard() {
         title={editing === "new" ? t("Add a site") : t("Your installation")}
         lead={t("These are the facts a verifier asks for about a producing site. Entered once here, reused by every workspace.")}
         onSaved={(saved) => {
-          saveInstallation({ ...saved, self: true });
-          reload();
+          saveOwn.mutate({ ...saved, self: true }, { onSuccess: invalidateCaps });
         }}
       />
     </Card>

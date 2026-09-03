@@ -47,12 +47,12 @@ import { coordinateError } from "@/lib/installations";
 import { getOrgIdentity } from "@/lib/org";
 import { COUNTRIES } from "@/lib/config";
 import { SectionEvidence } from "@/components/workspace/evidence-panel";
-import { annualEvidence, type RequiredKey } from "@/lib/workspace-evidence";
-import { resolvePrecursorLink, type PrecursorLinkRequest } from "@/lib/precursor-link";
+import { type RequiredKey } from "@/lib/workspace-evidence";
 import { useT } from "@/lib/i18n";
+import { useInvalidatePrecursorSuppliers, usePrecursorLink, usePrecursorSupplier } from "@/lib/suppliers-query";
+import { useAnnualEvidence, useInvalidateWorkspaceData } from "@/lib/workspace-data-query";
 import {
   descendantsOf,
-  getSupplier,
   markLinkOpened,
   markLinkSubmitted,
   saveSupplier,
@@ -92,13 +92,20 @@ function Invalid() {
 export default function PrecursorSupplierPage() {
   const params = useParams<{ token: string }>();
   const token = decodeURIComponent(params.token);
-  const [req, setReq] = React.useState<PrecursorLinkRequest | null | undefined>(undefined);
+  const { data: req } = usePrecursorLink(token);
+  const invalidatePrecursorSuppliers = useInvalidatePrecursorSuppliers();
 
+  /* The open-stamp stays the page's own effect — a query refetch must never
+     count as an "open". Keyed on the resolved ids, not the object, so the
+     refetch our own invalidation triggers cannot re-fire it. */
+  const workspaceId = req?.workspace.id;
+  const nodeId = req?.node.id;
   React.useEffect(() => {
-    const resolved = resolvePrecursorLink(token);
-    setReq(resolved);
-    if (resolved) markLinkOpened(resolved.workspace.id, resolved.node.id);
-  }, [token]);
+    if (!workspaceId || !nodeId) return;
+    markLinkOpened(workspaceId, nodeId);
+    invalidatePrecursorSuppliers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspaceId, nodeId]);
 
   if (req === undefined) return null;
   if (req === null) return <Invalid />;
@@ -113,18 +120,22 @@ export default function PrecursorSupplierPage() {
 
 function Form({ workspaceId, nodeId, exporterName }: { workspaceId: string; nodeId: string; exporterName: string }) {
   const t = useT();
+  const supplier = usePrecursorSupplier(workspaceId, nodeId);
+  const evidence = useAnnualEvidence(workspaceId);
+  const invalidatePrecursorSuppliers = useInvalidatePrecursorSuppliers();
+  /* Invalidated by the Documents block on every attach/remove, so the effect
+     below re-reads which file is bound to this row. */
+  const invalidateWorkspaceData = useInvalidateWorkspaceData(workspaceId);
   const [draft, setDraft] = React.useState<PrecursorSupplier | null>(null);
-  /* Bumped by the Documents block on every attach/remove, so the effect below
-     re-reads which file is bound to this row. */
-  const [evidenceVersion, setEvidenceVersion] = React.useState(0);
   const [submitted, setSubmitted] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
 
-  const reload = React.useCallback(() => {
-    setDraft(getSupplier(workspaceId, nodeId));
-  }, [workspaceId, nodeId]);
-
-  React.useEffect(reload, [reload]);
+  /* Local edit buffer, seeded from the query. Refetches (the open-stamp
+     invalidation on mount, the one after submit) re-seed it with the same
+     freshly-saved record. */
+  React.useEffect(() => {
+    if (supplier.data) setDraft(supplier.data);
+  }, [supplier.data]);
 
   /* THE ATTACHED FILE HAS TO REACH THE ROW, or the gate below never sees it.
      `precursorSubmissionGaps` asks for `verificationReportFileId`, which is a
@@ -134,10 +145,11 @@ function Form({ workspaceId, nodeId, exporterName }: { workspaceId: string; node
      the same effect the exporter's own SupplierEditor runs, for the same
      reason: one store, one pointer, kept in step on both sides. */
   React.useEffect(() => {
-    const items = annualEvidence(workspaceId).filter((i) => i.fieldKeys.includes(`precursor:${nodeId}`));
+    if (!evidence.data) return;
+    const items = evidence.data.filter((i) => i.fieldKeys.includes(`precursor:${nodeId}`));
     const latest = items[0]?.id; // annualEvidence is already newest-first
     setDraft((d) => (d == null || d.verificationReportFileId === latest ? d : { ...d, verificationReportFileId: latest }));
-  }, [workspaceId, nodeId, evidenceVersion]);
+  }, [evidence.data, nodeId]);
 
   if (!draft) return null;
 
@@ -178,6 +190,10 @@ function Form({ workspaceId, nodeId, exporterName }: { workspaceId: string; node
 
     setDraft(saved);
     setSubmitted(true);
+    /* One invalidation for the whole batch — the two direct saves above plus
+       markLinkSubmitted and the descendant back-fill, none of which are
+       wrapped as mutations. */
+    invalidatePrecursorSuppliers();
     toast({ message: "Submitted", detail: "The exporter will see this the next time they open the chain.", tone: "ok" });
   };
 
@@ -433,7 +449,7 @@ function Form({ workspaceId, nodeId, exporterName }: { workspaceId: string; node
           keys={evidenceKeys}
           emptyLabel={t("Nothing attached yet — this figure needs something behind it.")}
           openable
-          onChange={() => setEvidenceVersion((v) => v + 1)}
+          onChange={() => invalidateWorkspaceData()}
         />
       </section>
 

@@ -18,18 +18,17 @@ export const runtime = "edge";
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ShieldCheck, Link2, CircleCheck, TriangleAlert, CircleX, Copy, EyeOff } from "lucide-react";
-import { Card, Button, Eyebrow, Chip, cn } from "@/components/ui";
+import { ArrowLeft, Link2, CircleCheck, TriangleAlert, CircleX, EyeOff } from "lucide-react";
+import { Card, Button, Eyebrow, cn } from "@/components/ui";
 import { toast } from "@/components/toast";
 import { ReadinessScore } from "@/components/cbam/readiness-score";
 import { USER } from "@/lib/data";
 import { useDeclaration } from "@/lib/declarations-query";
 import { ErrorState, LoadingState } from "@/components/query-state";
-import { loadExporterState, rollup as buildRollup } from "@/lib/exporter-review";
+import { rollup as buildRollup } from "@/lib/exporter-review";
 import { computeReadiness } from "@/lib/cbam/readiness-input";
-import { buildDossier, verifierShareToken, type Dossier } from "@/lib/cbam/dossier";
-import { activeSnapshot, type CalculationSnapshot } from "@/lib/cbam/freeze";
-import { latestVersion, type MmdVersion } from "@/lib/cbam/mmd";
+import { buildDossier, verifierShareToken } from "@/lib/cbam/dossier";
+import { useActiveSnapshot, useExporterState, useLatestMmdVersion } from "@/lib/cbam/cbam-query";
 import { displayDate } from "@/lib/cbam/boundary";
 import { REGISTRY_SCHEMA_STATUS } from "@/lib/cbam/reference";
 import { useT } from "@/lib/i18n";
@@ -45,9 +44,9 @@ export default function VerificationDossierPage({ params }: { params: Promise<{ 
   const { id } = React.use(params);
   const router = useRouter();
   const { data: decl, isError, refetch } = useDeclaration(id);
-  const [dossier, setDossier] = React.useState<Dossier | null>(null);
-  const [snapshot, setSnapshot] = React.useState<CalculationSnapshot | null>(null);
-  const [mmd, setMmd] = React.useState<MmdVersion | null>(null);
+  const { data: snapshot } = useActiveSnapshot(id);
+  const { data: mmd } = useLatestMmdVersion(id);
+  const { data: exporter } = useExporterState(id);
   const [copied, setCopied] = React.useState(false);
 
   React.useEffect(() => {
@@ -55,22 +54,14 @@ export default function VerificationDossierPage({ params }: { params: Promise<{ 
   }, [decl, router]);
 
   /* The pieces that live NEXT TO the declaration (localStorage stores,
-     drafts, snapshots) load once the query has it. */
-  React.useEffect(() => {
-    if (!decl) return;
-    const found = decl;
-    const roll = buildRollup(found, loadExporterState(found.id));
-    const snap = activeSnapshot(found.id);
-    const mmdVersion = latestVersion(found.id);
-    setDossier(
-      buildDossier(found.id, computeReadiness(found, roll, USER.name), {
-        mmdFinalised: Boolean(mmdVersion),
-        frozen: Boolean(snap),
-      }),
-    );
-    setSnapshot(snap);
-    setMmd(mmdVersion);
-  }, [decl, id]);
+     drafts, snapshots) come from the cbam queries; the dossier derives. */
+  const dossier = React.useMemo(() => {
+    if (!decl || exporter === undefined || snapshot === undefined || mmd === undefined) return null;
+    return buildDossier(decl.id, computeReadiness(decl, buildRollup(decl, exporter), USER.name), {
+      mmdFinalised: Boolean(mmd),
+      frozen: Boolean(snapshot),
+    });
+  }, [decl, exporter, snapshot, mmd]);
 
   if (isError) return <ErrorState onRetry={() => void refetch()} />;
   if (!decl || !dossier) return <LoadingState />;

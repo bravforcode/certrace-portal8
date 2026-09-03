@@ -83,8 +83,8 @@ import { Select } from "@/components/controls";
 import { toast, Toaster } from "@/components/toast";
 import { Note, fmt } from "@/components/workspace/chrome";
 import { DocumentsStep, InstallationStep, MmdStep, MonthlyStep, PrecursorStep, installationGaps } from "@/components/supplier/month-steps";
-import { emptyInstallation, getInstallation, missingFields, saveInstallation, type Installation } from "@/lib/installations";
-import { coverageForMonth, evidenceForMonth, reconcileFuelEvidence } from "@/lib/workspace-evidence";
+import { emptyInstallation, missingFields, type Installation } from "@/lib/installations";
+import { coverageForMonth, reconcileFuelEvidence } from "@/lib/workspace-evidence";
 import { workspaceRequiresIndirectEmissions } from "@/lib/cbam/product-category-rules";
 import {
   emptyFuel,
@@ -100,13 +100,26 @@ import {
   type MonthlyEntry,
 } from "@/lib/monthly-data";
 import { KIND_BLURB, KIND_LABEL, STEP_LABEL, runMonthQualityCheck, type FindingKind, type QualityFinding } from "@/lib/month-quality";
-import { requestEdit, submissionFor, submitWithAttestation, type MonthSubmission } from "@/lib/month-submission";
+import { submitWithAttestation, type MonthSubmission } from "@/lib/month-submission";
 import { REVISION_CHIP, REVISION_RING, resolveAreas, type RevisionArea } from "@/lib/month-revision";
-import { listSuppliers, saveSupplier, type PrecursorSupplier } from "@/lib/precursor-suppliers";
+import { type PrecursorSupplier } from "@/lib/precursor-suppliers";
 import { monthNameLong, routeLabel } from "@/lib/workspace";
-import { resolveWorkspaceRequest, type WorkspaceRequest } from "@/lib/workspace-link";
-import { loadDraft, saveDraft, type WorkspaceMmdContent } from "@/lib/workspace-mmd";
+import { type WorkspaceRequest } from "@/lib/workspace-link";
+import { saveDraft, type WorkspaceMmdContent } from "@/lib/workspace-mmd";
 import { syncFromMmd, syncFromMonth } from "@/lib/mmd-sync";
+import { useInstallation, useSaveInstallation } from "@/lib/installations-query";
+import { usePrecursorSuppliers, useSavePrecursorSupplier } from "@/lib/suppliers-query";
+import {
+  useInvalidateWorkspaceData,
+  useMmdDraft,
+  useMonth,
+  useMonthEvidence,
+  useRequestEdit,
+  useSaveMmdDraft,
+  useSaveMonth,
+  useSubmission,
+} from "@/lib/workspace-data-query";
+import { useWorkspaceRequest } from "@/lib/workspaces-query";
 import { useT } from "@/lib/i18n";
 
 const STEPS = [
@@ -125,9 +138,7 @@ type StepKey = (typeof STEPS)[number]["key"];
 export default function WorkspaceSupplierPage() {
   const params = useParams<{ token: string }>();
   const token = decodeURIComponent(params.token);
-  const [req, setReq] = React.useState<WorkspaceRequest | null | undefined>(undefined);
-
-  React.useEffect(() => setReq(resolveWorkspaceRequest(token)), [token]);
+  const { data: req } = useWorkspaceRequest(token);
 
   if (req === undefined) return null;
   if (req === null) return <Invalid />;
@@ -170,11 +181,30 @@ function Flow({ req }: { req: WorkspaceRequest }) {
   const [step, setStep] = React.useState<StepKey>("overview");
   const [month, setMonth] = React.useState(req.month);
 
+  /* Everything this month needs, off the query cache. The month is part of
+     the key, which is what makes the month picker a real switch rather than
+     a label. */
+  const monthQ = useMonth(workspace.id, month);
+  const mmdQ = useMmdDraft(workspace.id, workspace.periodStart, workspace.periodEnd);
+  const installationQ = useInstallation(workspace.installationId);
+  const { data: supplierRows } = usePrecursorSuppliers(workspace.id);
+  const { data: monthEvidence } = useMonthEvidence(workspace.id, month);
+  const saveMonthMut = useSaveMonth();
+  const saveMmdMut = useSaveMmdDraft();
+  const saveInstallationMut = useSaveInstallation();
+  const savePrecursorMut = useSavePrecursorSupplier();
+  const requestEditMut = useRequestEdit();
+  const invalidateWorkspaceData = useInvalidateWorkspaceData(workspace.id);
+
+  /* The edit buffers. entry, mmd and installation stay component state on
+     purpose: the entry–mmd reconciliation below can only happen here, and the
+     autosave writes from here. Each is seeded from its query; invalidation
+     after a write brings buffer and store back into line. */
   const [entry, setEntry] = React.useState<MonthlyEntry | null>(null);
   const [mmd, setMmd] = React.useState<WorkspaceMmdContent | null>(null);
   const [installation, setInstallation] = React.useState<Installation | null>(null);
-  const [precursors, setPrecursors] = React.useState<PrecursorSupplier[]>([]);
-  const [documentCount, setDocumentCount] = React.useState(0);
+  const precursors = React.useMemo(() => supplierRows?.filter((s) => s.parentId === null) ?? [], [supplierRows]);
+  const documentCount = monthEvidence?.length ?? 0;
   const [carried, setCarried] = React.useState(false);
 
   const [fullName, setFullName] = React.useState("");
@@ -189,7 +219,8 @@ function Flow({ req }: { req: WorkspaceRequest }) {
   /* The exporter's side of this month, read for two things the supplier
      genuinely needs: what was sent back for revision, and whether a request to
      reopen a submitted month has been answered. */
-  const [submission, setSubmission] = React.useState<MonthSubmission | null>(null);
+  const { data: submissionData } = useSubmission(workspace.id, month);
+  const submission: MonthSubmission | null = submissionData ?? null;
   const askEdit = useSaveState(1400);
   const [editReason, setEditReason] = React.useState("");
   const [editOpen, setEditOpen] = React.useState(false);
@@ -199,39 +230,79 @@ function Flow({ req }: { req: WorkspaceRequest }) {
     return i > 0 ? months[i - 1] : null;
   }, [months, month]);
 
-  /* Load everything this month needs. Re-runs on month change, which is what
-     makes the month picker a real switch rather than a label. */
+  /* Seed the buffers from the queries. A month that was never started reads
+     back null, so the empty entry is fabricated here exactly as before; the
+     installation falls back to the workspace's own naming of the site.
+
+     NEVER reseed while the autosave holds keystrokes it has not written yet:
+     the refetch a nearby write triggers would hand back the pre-keystroke value
+     and erase them, and the reverted buffer would clear the pending save timer
+     so the edit is lost for good. Read through a ref (assigned just below the
+     autosave) so the resync fires on data arriving, not on the autosave's own
+     transitions — the same guard the exporter's month editor documents. */
+  const autosaveStatus = React.useRef("idle");
+  const seeding = () => autosaveStatus.current === "pending" || autosaveStatus.current === "saving";
+  /* The month buffer is guarded WITHIN a month, but a month SWITCH must always
+     reseed: the previous month's pending save writes it on its own, so nothing
+     is lost by abandoning that buffer, and gating the switch on its pending
+     status would strand the picker on the old month. (The month editor route
+     avoids this by remounting per month; here the picker is in-component.) */
+  const seededMonth = React.useRef<string | null>(null);
   React.useEffect(() => {
-    setEntry(getMonth(workspace.id, month) ?? emptyMonth(workspace.id, month));
-    setMmd(loadDraft(workspace.id, workspace.periodStart, workspace.periodEnd));
-    setInstallation(getInstallation(workspace.installationId) ?? { ...emptyInstallation(), id: workspace.installationId, name: workspace.installationName });
-    setPrecursors(listSuppliers(workspace.id).filter((s) => s.parentId === null));
-    setDocumentCount(evidenceForMonth(workspace.id, month).length);
+    if (seededMonth.current === month && seeding()) return;
+    if (monthQ.data !== undefined) {
+      setEntry(monthQ.data ?? emptyMonth(workspace.id, month));
+      seededMonth.current = month;
+    }
+  }, [monthQ.data, workspace.id, month]);
+
+  React.useEffect(() => {
+    if (seeding()) return;
+    if (mmdQ.data) setMmd(mmdQ.data);
+  }, [mmdQ.data]);
+
+  React.useEffect(() => {
+    if (seeding()) return;
+    // An empty installationId disables the query, so its data stays undefined
+    // forever; fabricate the blank record the form edits (as the old code did
+    // unconditionally) rather than leave the page gated on `installation` for good.
+    if (!workspace.installationId) {
+      setInstallation({ ...emptyInstallation(), id: workspace.installationId, name: workspace.installationName });
+    } else if (installationQ.data !== undefined) {
+      setInstallation(installationQ.data ?? { ...emptyInstallation(), id: workspace.installationId, name: workspace.installationName });
+    }
+  }, [installationQ.data, workspace.installationId, workspace.installationName]);
+
+  /* A month switch resets the flow's own state; the data above re-keys and
+     refetches on its own. */
+  React.useEffect(() => {
     setCarried(false);
     setConfirmed(false);
     setWarningsRead(false);
     setShowStepErrors(false);
-    setSubmission(submissionFor(workspace.id, month));
     setEditOpen(false);
     setEditReason("");
-  }, [workspace.id, workspace.installationId, workspace.installationName, workspace.periodStart, workspace.periodEnd, month]);
+  }, [workspace.id, month]);
 
   const readOnly = entry?.status === "submitted" || entry?.status === "reviewed";
 
   const autosave = useAutoSave(
     { entry, mmd, installation },
     (v) => {
-      if (v.entry) saveMonth(v.entry);
-      if (v.mmd) saveDraft(workspace.id, v.mmd);
+      if (v.entry) saveMonthMut.mutate(v.entry);
+      if (v.mmd) saveMmdMut.mutate({ workspaceId: workspace.id, content: v.mmd });
       // The installation is SHARED. Writing it here is what makes the
       // supplier's correction reach the exporter's screen — see the note on
       // InstallationStep for why that beats two diverging copies.
       if (v.installation && v.installation.name.trim() && v.installation.id.trim()) {
-        saveInstallation(v.installation);
+        saveInstallationMut.mutate(v.installation);
       }
     },
     { enabled: Boolean(entry) && !readOnly },
   );
+  // Current autosave status, read by the reseed effects above at effect-run
+  // time (after this render's assignment lands).
+  autosaveStatus.current = autosave.status;
 
   const peers = React.useMemo(
     () => (entry ? monthsForWorkspace(workspace).filter((m) => m.month !== month) : []),
@@ -371,8 +442,9 @@ function Flow({ req }: { req: WorkspaceRequest }) {
       ...row,
       monthlyQuantities: tonnes == null ? others : [...others, { month, tonnes }].sort((a, b) => a.month.localeCompare(b.month)),
     };
-    saveSupplier(next);
-    setPrecursors((cur) => cur.map((r) => (r.id === row.id ? next : r)));
+    // The mutation invalidates the precursor list, which is what refreshes
+    // the rows — no hand-patching a second copy of the store here.
+    savePrecursorMut.mutate(next);
   };
 
   /* Copying brings the SHAPE of last month across — which fuels, on which
@@ -422,7 +494,9 @@ function Flow({ req }: { req: WorkspaceRequest }) {
      from the same function, because a rule that fired on one of the two
      screens is a rule an installation could walk around by using the other. */
   const onDocumentsChanged = () => {
-    setDocumentCount(evidenceForMonth(workspace.id, month).length);
+    // DocumentsStep writes around the mutations — settle the evidence query
+    // (documentCount above) and everything else the upload moved.
+    invalidateWorkspaceData();
     setEntry((cur) => {
       if (!cur) return cur;
       const r = reconcileFuelEvidence(workspace.id, cur, fuelEvidenceRef.current, requiresIndirect);
@@ -471,7 +545,7 @@ function Flow({ req }: { req: WorkspaceRequest }) {
   const sendEditRequest = () => {
     if (!editReason.trim()) return;
     askEdit.run(() => {
-      setSubmission(requestEdit(workspace.id, month, editReason.trim()));
+      requestEditMut.mutate({ workspaceId: workspace.id, month, reason: editReason.trim() });
       setEditOpen(false);
       setEditReason("");
     });
@@ -482,6 +556,9 @@ function Flow({ req }: { req: WorkspaceRequest }) {
   const doSubmit = () => {
     if (!canSign) return;
     submit.run(() => {
+      // Direct store calls, in order: submitMonth reads the entry saveMonth
+      // just wrote, and no mutation wraps submitMonth — so the whole sequence
+      // stays synchronous and the caches are settled once, at the end.
       saveMonth(entry);
       saveDraft(workspace.id, mmd);
       submitWithAttestation(workspace.id, month, {
@@ -492,6 +569,7 @@ function Flow({ req }: { req: WorkspaceRequest }) {
       });
       const done = submitMonth(workspace.id, month, fullName.trim() || "Supplier");
       if (done) setEntry(done);
+      invalidateWorkspaceData();
       toast({ message: `${monthNameLong(month)} submitted`, detail: "The exporter can see it now.", tone: "ok" });
     });
   };

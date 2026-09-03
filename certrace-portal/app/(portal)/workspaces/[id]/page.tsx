@@ -62,12 +62,13 @@ import { Button, Card, EnglishWhyBody, Field, SaveButton, Stat, TagBadge, inputC
 import { Select } from "@/components/controls";
 import { ProductPicker } from "@/components/workspace/product-picker";
 import { InstallationFields, canSaveInstallation } from "@/components/workspace/installation-form";
-import { FactGrid, GroupHeading, Note, SectionCard, StateChip, fmt } from "@/components/workspace/chrome";
+import { FactGrid, GroupHeading, Note, SectionCard, fmt } from "@/components/workspace/chrome";
 import { useWorkspace } from "@/components/workspace/provider";
 import { aggregatedGoodsCategory, getCatalogProduct, productType } from "@/lib/config";
-import { installationErrors, installationForWorkspace, removeInstallation, saveInstallation, type Installation } from "@/lib/installations";
-import { allMissing, TAB_LABEL } from "@/lib/readiness";
-import { workspaceSEE } from "@/lib/workspace-see";
+import { installationErrors, type Installation } from "@/lib/installations";
+import { useInstallationForWorkspace, useRemoveInstallation, useSaveInstallation } from "@/lib/installations-query";
+import { useInvalidateWorkspaceData, useWorkspaceSEE } from "@/lib/workspace-data-query";
+import { useUpdateWorkspace } from "@/lib/workspaces-query";
 import { useT } from "@/lib/i18n";
 import {
   getRoute,
@@ -76,13 +77,12 @@ import {
   routeLabel,
   routeMatchesCategory,
   routesForCategory,
-  updateWorkspace,
 } from "@/lib/workspace";
 
 export default function WorkspaceOverviewPage() {
   const t = useT();
-  const { workspace, readiness, refresh } = useWorkspace();
-  const [see, setSee] = React.useState<ReturnType<typeof workspaceSEE> | null>(null);
+  const { workspace, refresh } = useWorkspace();
+  const see = useWorkspaceSEE(workspace).data ?? null;
   const [editing, setEditing] = React.useState(false);
   /* SAVED IS SAID ON THE BUTTON, not in the corner of the screen. The reader
      is looking at the control they just pressed; a toast asks them to look
@@ -92,15 +92,22 @@ export default function WorkspaceOverviewPage() {
 
   /* ── The installation record behind this workspace ─────────────
      Read on the client, because every store in this build is localStorage and
-     the value computed during the first render saw nothing. `installationRead`
-     is bumped by hand after a save: the provider's `refresh()` only changes
-     `workspace` when the WORKSPACE changed, and correcting a postcode changes
-     the installation without touching it. */
-  const [installationRead, setInstallationRead] = React.useState(0);
-  const [installation, setInstallation] = React.useState<Installation | null>(null);
-  React.useEffect(() => {
-    setInstallation(installationForWorkspace(workspace));
-  }, [workspace, installationRead]);
+     the value computed during the first render saw nothing. The save and
+     remove mutations invalidate this query, so the re-read a hand-bumped
+     counter used to force after a save now happens on its own. Only the four
+     ref fields go into the key — the whole workspace there would refetch on
+     every unrelated edit. */
+  const installation =
+    useInstallationForWorkspace({
+      installationId: workspace.installationId,
+      installationName: workspace.installationName,
+      selfSupplied: workspace.selfSupplied,
+      supplierId: workspace.supplierId,
+    }).data ?? null;
+  const saveInstallation = useSaveInstallation();
+  const removeInstallation = useRemoveInstallation();
+  const updateWorkspace = useUpdateWorkspace();
+  const invalidateWorkspaceData = useInvalidateWorkspaceData(workspace.id);
 
   /* The edit buffer is separate from the record so a half-typed installation
      name never reaches the title bar above. It resyncs whenever the record
@@ -118,15 +125,10 @@ export default function WorkspaceOverviewPage() {
     if (!editing) setWsDraft({ productId: workspace.productId, productionRoute: workspace.productionRoute });
   }, [workspace.productId, workspace.productionRoute, editing]);
 
-  React.useEffect(() => {
-    setSee(workspaceSEE(workspace));
-  }, [workspace, readiness]);
-
   const draftProduct = getCatalogProduct(wsDraft.productId);
   const draftAggCategory = draftProduct ? aggregatedGoodsCategory(draftProduct) : null;
   const routes = draftAggCategory ? routesForCategory(draftAggCategory) : [];
 
-  const missing = allMissing(readiness);
   const product = getCatalogProduct(workspace.productId);
   const route = getRoute(workspace.productionRoute);
   const productChanged = wsDraft.productId !== workspace.productId;
@@ -168,9 +170,9 @@ export default function WorkspaceOverviewPage() {
     save.run(() => commitEdit());
   };
 
-  const commitEdit = () => {
+  const commitEdit = async () => {
     if (!shown || !installation) return;
-    const saved = saveInstallation(shown);
+    const saved = await saveInstallation.mutateAsync(shown);
 
     /* THE REFERENCE IS THE RECORD'S KEY, so changing it MOVES the record
        rather than renaming it in place — `saveInstallation` has just written a
@@ -180,22 +182,28 @@ export default function WorkspaceOverviewPage() {
        old reference, and that workspace is not this screen's to rewrite. */
     if (installation.id && saved.id !== installation.id) {
       const stillNamed = listWorkspaces().some((w) => w.id !== workspace.id && w.installationId === installation.id);
-      if (!stillNamed) removeInstallation(installation.id);
+      if (!stillNamed) await removeInstallation.mutateAsync(installation.id);
     }
 
     const nextProduct = getCatalogProduct(wsDraft.productId);
-    updateWorkspace(workspace.id, {
-      installationId: saved.id,
-      installationName: saved.name,
-      productId: wsDraft.productId,
-      // Denormalised at write time, exactly as at creation: a workspace
-      // already handed to a verifier keeps saying what it said.
-      productName: nextProduct?.name ?? workspace.productName,
-      cnCode: nextProduct?.cnCode ?? workspace.cnCode,
-      productionRoute: wsDraft.productionRoute,
+    await updateWorkspace.mutateAsync({
+      id: workspace.id,
+      patch: {
+        installationId: saved.id,
+        installationName: saved.name,
+        productId: wsDraft.productId,
+        // Denormalised at write time, exactly as at creation: a workspace
+        // already handed to a verifier keeps saying what it said.
+        productName: nextProduct?.name ?? workspace.productName,
+        cnCode: nextProduct?.cnCode ?? workspace.cnCode,
+        productionRoute: wsDraft.productionRoute,
+      },
     });
 
-    setInstallationRead((v) => v + 1);
+    /* The SEE figures live under the workspace-data subtree, and the workspace
+       mutation only invalidates ["workspaces"] — a product or route change
+       moves the SEE, so the recompute is asked for here. */
+    invalidateWorkspaceData();
     refresh();
   };
 

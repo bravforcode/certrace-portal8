@@ -42,12 +42,14 @@ import { SupplierModal } from "@/components/workspace/supplier-form";
 import { StateChip } from "@/components/workspace/chrome";
 import { getCountry } from "@/lib/config";
 import { useT } from "@/lib/i18n";
-import { installationsForSupplier, type Installation } from "@/lib/installations";
+import { type Installation } from "@/lib/installations";
+import { useInstallationsForSupplier, useInvalidateInstallations } from "@/lib/installations-query";
 import { countdownFor, dispatchesFor, effectiveDueDay, formatDate } from "@/lib/month-dispatch";
 import { MONTH_STATUS_LABEL, monthsForWorkspace, type MonthStatus } from "@/lib/monthly-data";
 import { workspaceReadiness } from "@/lib/readiness";
-import { getSupplierCompany, type SupplierCompany } from "@/lib/supplier-companies";
-import { listWorkspaces, monthNameLong, scheduleFor, workspaceTitle, type VerificationWorkspace } from "@/lib/workspace";
+import { useInvalidateSupplierCompanies, useSupplierCompany } from "@/lib/suppliers-query";
+import { monthNameLong, scheduleFor, workspaceTitle, type VerificationWorkspace } from "@/lib/workspace";
+import { useWorkspaces } from "@/lib/workspaces-query";
 
 /** One month that has actually been sent, with where it stands. */
 type MonthRow = {
@@ -92,30 +94,23 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
   const t = useT();
   const { id } = React.use(params);
 
-  const [supplier, setSupplier] = React.useState<SupplierCompany | null>(null);
-  const [plants, setPlants] = React.useState<Installation[]>([]);
-  const [goods, setGoods] = React.useState<GoodRow[]>([]);
-  const [resolved, setResolved] = React.useState(false);
+  const { data: supplier } = useSupplierCompany(id);
+  const { data: plantsData } = useInstallationsForSupplier(supplier?.id);
+  const { data: workspaces } = useWorkspaces();
+  const invalidateSupplierCompanies = useInvalidateSupplierCompanies();
+  const invalidateInstallations = useInvalidateInstallations();
 
   const [editingSupplier, setEditingSupplier] = React.useState(false);
   /** null = closed · "new" = adding a plant · an Installation = editing one */
   const [editingPlant, setEditingPlant] = React.useState<Installation | "new" | null>(null);
 
-  const reload = React.useCallback(() => {
-    const found = getSupplierCompany(id);
-    setSupplier(found);
-    if (found) {
-      setPlants(installationsForSupplier(found.id));
-      setGoods(goodsFor(listWorkspaces().filter((w) => w.supplierId === found.id)));
-    }
-  }, [id]);
+  const goods: GoodRow[] = React.useMemo(
+    () => (supplier && workspaces ? goodsFor(workspaces.filter((w) => w.supplierId === supplier.id)) : []),
+    [supplier, workspaces],
+  );
 
-  React.useEffect(() => {
-    reload();
-    setResolved(true);
-  }, [reload]);
-
-  if (!resolved) return null;
+  // undefined = still resolving (the old `resolved` flag); null = not found.
+  if (supplier === undefined) return null;
 
   if (!supplier) {
     return (
@@ -133,6 +128,10 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
       </Card>
     );
   }
+
+  // Same atomic first paint as the old reload(): nothing until every store answered.
+  if (plantsData === undefined || workspaces === undefined) return null;
+  const plants = plantsData;
 
   const monthsSent = goods.reduce((a, g) => a + g.months.length, 0);
   const monthsIn = goods.reduce((a, g) => a + g.months.filter((m) => m.done).length, 0);
@@ -381,7 +380,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
         )}
       </section>
 
-      <SupplierModal open={editingSupplier} onClose={() => setEditingSupplier(false)} initial={supplier} onSaved={() => reload()} />
+      <SupplierModal open={editingSupplier} onClose={() => setEditingSupplier(false)} initial={supplier} onSaved={() => invalidateSupplierCompanies()} />
 
       <InstallationModal
         open={editingPlant !== null}
@@ -390,7 +389,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
         supplierId={supplier.id}
         initial={editingPlant && editingPlant !== "new" ? editingPlant : undefined}
         title={editingPlant === "new" ? t("Add an installation for {name}", { name: supplier.name }) : t("Edit installation")}
-        onSaved={() => reload()}
+        onSaved={() => invalidateInstallations()}
       />
     </div>
   );

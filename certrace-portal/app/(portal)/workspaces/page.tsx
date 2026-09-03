@@ -79,23 +79,19 @@ import { DotStrip, StateChip } from "@/components/workspace/chrome";
 import { WorkspaceMenu } from "@/components/workspace/workspace-menu";
 import { getCatalogProduct } from "@/lib/config";
 import { listInstallations } from "@/lib/installations";
-import { getOrgIdentity } from "@/lib/org";
 import { listSuppliers } from "@/lib/precursor-suppliers";
 import { dotStates, workspaceReadiness, type TabState } from "@/lib/readiness";
-import {
-  groupBySupplier,
-  restoreWorkspace,
-  routeLabel,
-  type VerificationWorkspace,
-} from "@/lib/workspace";
+import { groupBySupplier, routeLabel, type VerificationWorkspace } from "@/lib/workspace";
 import { type WorkspaceDraft } from "@/lib/workspace-drafts";
 import {
   useArchivedWorkspaces,
   useDeleteWorkspaceDraft,
   useInvalidateWorkspaces,
+  useRestoreWorkspace,
   useWorkspaceDrafts,
   useWorkspaces,
 } from "@/lib/store";
+import { useOrgIdentity } from "@/lib/workspaces-query";
 import { useT } from "@/lib/i18n";
 
 type CardData = {
@@ -244,15 +240,12 @@ export default function WorkspacesPage() {
 
   const paged = React.useMemo(() => filtered.slice((page - 1) * perPage, page * perPage), [filtered, page, perPage]);
 
-  /* The exporter's own company name, for the "your own sites" heading. Read
-     once on the client — getOrgIdentity() touches localStorage, so calling it
-     during render would differ between the server pass and the first client
-     pass and trip hydration. */
-  const [selfName, setSelfName] = React.useState("Your own sites");
-  React.useEffect(() => {
-    const org = getOrgIdentity();
-    if (org?.name) setSelfName(org.name);
-  }, []);
+  /* The exporter's own company name, for the "your own sites" heading. Via
+     the query rather than a render-time read — getOrgIdentity() touches
+     localStorage, so calling it during render would differ between the server
+     pass and the first client pass and trip hydration. */
+  const { data: org } = useOrgIdentity();
+  const selfName = org?.name || "Your own sites";
 
   /* Grouping happens AFTER paging, so a page is always `perPage` workspaces
      however many suppliers and sites they span. Grouping first and then paging
@@ -632,6 +625,7 @@ function Pager({
 /* ── Card ─────────────────────────────────────────────────── */
 function WorkspaceCard({ data, onChanged, archived = false }: { data: CardData; onChanged: () => void; archived?: boolean }) {
   const t = useT();
+  const restoreWs = useRestoreWorkspace();
   const { workspace, overall, dots, percent, precursors } = data;
   return (
     <div className={cn("relative h-full", archived && "opacity-75 transition-opacity hover:opacity-100")}>
@@ -696,7 +690,7 @@ function WorkspaceCard({ data, onChanged, archived = false }: { data: CardData; 
                 type="button"
                 onClick={(e) => {
                   e.preventDefault();
-                  restore(workspace, onChanged);
+                  restore(workspace, restoreWs.mutate);
                 }}
                 className="inline-flex flex-none items-center gap-1.5 rounded-lg border border-black/10 px-2.5 py-1.5 text-[11.5px] text-black/60 transition-colors hover:border-black/25 hover:text-black"
               >
@@ -729,16 +723,18 @@ function archivedOn(w: VerificationWorkspace): string {
   return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
 }
 
-function restore(w: VerificationWorkspace, onChanged: () => void) {
-  restoreWorkspace(w.id);
+/* Restore goes through the mutation, which invalidates the whole
+   ["workspaces"] prefix itself — no hand-rolled refresh needed. */
+function restore(w: VerificationWorkspace, mutate: (id: string) => void) {
+  mutate(w.id);
   toast({ message: "Workspace restored", detail: `${w.productName} · ${w.installationName} is back in the estate.`, tone: "ok" });
-  onChanged();
 }
 
 /* ── Table ────────────────────────────────────────────────── */
 function WorkspaceTable({ rows, onChanged, archived = false }: { rows: CardData[]; onChanged: () => void; archived?: boolean }) {
   const t = useT();
   const router = useRouter();
+  const restoreWs = useRestoreWorkspace();
   const th = "px-4 py-2.5 text-left font-pixel text-[10px] uppercase tracking-[0.14em] text-black/35";
   return (
     <Card className="overflow-hidden">
@@ -796,7 +792,7 @@ function WorkspaceTable({ rows, onChanged, archived = false }: { rows: CardData[
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            restore(w, onChanged);
+                            restore(w, restoreWs.mutate);
                           }}
                           className="inline-flex flex-none items-center gap-1.5 rounded-lg border border-black/10 px-2.5 py-1.5 text-[11.5px] text-black/60 transition-colors hover:border-black/25 hover:text-black"
                         >

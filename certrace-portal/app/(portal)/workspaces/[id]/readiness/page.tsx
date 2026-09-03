@@ -68,7 +68,7 @@ export const runtime = "edge";
 import * as React from "react";
 import Link from "next/link";
 import { Check, Download, Pencil } from "lucide-react";
-import { Button, ButtonLink, Card, Chip, Field, Modal, Progress, SaveButton, inputClass, cn, useSaveState } from "@/components/ui";
+import { Button, ButtonLink, Chip, Field, Modal, Progress, SaveButton, inputClass, cn, useSaveState } from "@/components/ui";
 import { Select } from "@/components/controls";
 import { toast } from "@/components/toast";
 import { Note, SectionCard, StateChip, fmt } from "@/components/workspace/chrome";
@@ -79,20 +79,28 @@ import {
   CARBON_PRICE_INSTRUMENT_HINT,
   CARBON_PRICE_INSTRUMENT_LABEL,
   claimedDeduction,
-  getCarbonPrice,
-  saveCarbonPrice,
   THAILAND_EXCISE_CARBON_PRICE,
   type CarbonPriceInstrument,
   type CarbonPriceRecord,
 } from "@/lib/carbon-price";
 import { materiality, MATERIALITY_THRESHOLD } from "@/lib/readiness";
-import { CONTENT_STATE_LABEL, CONTENT_STATE_TONE, contentTally, reportContents, type ContentPart } from "@/lib/report-contents";
-import { annualCoverage, annualScopeFor, CARBON_PRICE_KEY } from "@/lib/workspace-evidence";
+import { CONTENT_STATE_LABEL, CONTENT_STATE_TONE, contentTally, type ContentPart } from "@/lib/report-contents";
+import { annualScopeFor, CARBON_PRICE_KEY } from "@/lib/workspace-evidence";
 import { SectionEvidence } from "@/components/workspace/evidence-panel";
 import { buildFinalReport, downloadFinalReport } from "@/lib/cbam/final-report";
 import { saveFinalReportSnapshot } from "@/lib/cbam/final-report-snapshot";
-import { packFingerprint, signOffPack, signOffState, SIGNOFF_DISCLAIMER, type SignOffState } from "@/lib/pack-signoff";
-import { listEvidence } from "@/lib/workspace-evidence";
+import { packFingerprint, SIGNOFF_DISCLAIMER, type SignOffState } from "@/lib/pack-signoff";
+import {
+  useAnnualCoverage,
+  useCarbonPrice,
+  useEvidence,
+  useInvalidateWorkspaceData,
+  useReportContents,
+  useSaveCarbonPrice,
+  useSignOffPack,
+  useSignOffState,
+  useWorkspaceSEE,
+} from "@/lib/workspace-data-query";
 import { workspaceSEE } from "@/lib/workspace-see";
 import { useT } from "@/lib/i18n";
 import { useAccount } from "@/components/account-lock";
@@ -106,28 +114,26 @@ const numeric = (v: string): number => {
 export default function ReadinessPage() {
   const t = useT();
   const { workspace, readiness, refresh } = useWorkspace();
-  const [price, setPrice] = React.useState<CarbonPriceRecord | null>(null);
-  const [see, setSee] = React.useState<ReturnType<typeof workspaceSEE> | null>(null);
-  const [contents, setContents] = React.useState<ContentPart[] | null>(null);
+  const { data: price } = useCarbonPrice(workspace.id);
+  const { data: see = null } = useWorkspaceSEE(workspace);
+  const { data: contents } = useReportContents(workspace, readiness, t);
+  const invalidate = useInvalidateWorkspaceData(workspace.id);
 
-  React.useEffect(() => {
-    setPrice(getCarbonPrice(workspace.id));
-    setSee(workspaceSEE(workspace));
-    setContents(reportContents(workspace, readiness, t));
-  }, [workspace, readiness]);
-
+  // materiality() reads the MMD/monthly stores at call time; readiness is the
+  // recompute trigger, not an input the closure names.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const mat = React.useMemo(() => materiality(workspace), [workspace, readiness]);
   /* Same resolution the readiness rule uses, so this warning and the tab's
      state can never disagree about whether the receipt is attached. */
-  const priceEvidenced = React.useMemo(
-    () =>
-      Boolean(
-        annualCoverage(workspace.id, annualScopeFor(workspace.id, workspace.periodStart, workspace.periodEnd, (price?.amountPerTonne ?? 0) > 0)).find(
-          (r) => r.key === CARBON_PRICE_KEY.key,
-        )?.covered,
-      ),
+  const scope = React.useMemo(
+    () => annualScopeFor(workspace.id, workspace.periodStart, workspace.periodEnd, (price?.amountPerTonne ?? 0) > 0),
+    // annualScopeFor() reads suppliers + the MMD draft at call time; readiness
+    // is the recompute trigger for those store reads.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [workspace.id, workspace.periodStart, workspace.periodEnd, price, readiness],
   );
+  const coverage = useAnnualCoverage(workspace.id, scope);
+  const priceEvidenced = Boolean(coverage.data?.find((r) => r.key === CARBON_PRICE_KEY.key)?.covered);
   const blocked = readiness.overall === "blocked";
 
   /* Read through the account context rather than calling planAllows() so the
@@ -150,37 +156,42 @@ export default function ReadinessPage() {
      Computed from the same figures the report prints, so "signed" always
      refers to a document somebody could reproduce. See lib/pack-signoff.ts
      for why editing invalidates it. */
+  const evidence = useEvidence(workspace.id);
   const fingerprint = React.useMemo(
     () =>
       packFingerprint({
-        // `see` is null on the first paint. A signature taken against zeros
-        // would be invalidated the moment the real figures arrived, so the
-        // gate stays closed until they have.
+        // `see` and the evidence list are undefined on the first paint. A
+        // signature taken against zeros would be invalidated the moment the
+        // real figures arrived, so the gate stays closed until they have.
         seeDirect: see?.seeDirect ?? NaN,
         seeIndirect: see?.seeIndirect ?? NaN,
         seePrecursor: see?.seePrecursor ?? NaN,
         productionTonnes: see?.production.tonnes ?? NaN,
         readiness: readiness.overall,
-        evidenceCount: listEvidence(workspace.id).length,
+        evidenceCount: evidence.data?.length ?? NaN,
       }),
-    [see, readiness, workspace.id],
+    [see, evidence.data, readiness],
   );
-  const [signState, setSignState] = React.useState<SignOffState>({ kind: "draft_open", signOff: null });
+  const signQuery = useSignOffState(workspace.id, readiness.overall === "complete", fingerprint);
+  /* The same first-paint default the old local state held — draft_open until
+     the store answers. */
+  const signState: SignOffState = signQuery.data ?? { kind: "draft_open", signOff: null };
+  const signPack = useSignOffPack();
   const [signOpen, setSignOpen] = React.useState(false);
   const [signName, setSignName] = React.useState("");
   const [signTitle, setSignTitle] = React.useState("");
 
-  React.useEffect(() => {
-    setSignState(signOffState(workspace.id, readiness.overall === "complete", fingerprint));
-  }, [workspace.id, readiness.overall, fingerprint]);
-
   const confirmSignOff = () => {
     if (!signName.trim() || !signTitle.trim()) return;
-    signOffPack(workspace.id, signName, signTitle, fingerprint);
-    /* Freeze the report itself, not just the fingerprint that gates it — see
-       lib/cbam/final-report-snapshot.ts. */
-    saveFinalReportSnapshot(workspace.id, fingerprint, buildFinalReport(workspace, readiness));
-    setSignState(signOffState(workspace.id, true, fingerprint));
+    signPack.mutate(
+      { workspaceId: workspace.id, name: signName, jobTitle: signTitle, fingerprint },
+      {
+        /* Freeze the report itself, not just the fingerprint that gates it —
+           after the sign-off lands, because buildFinalReport reads it. See
+           lib/cbam/final-report-snapshot.ts. */
+        onSuccess: () => saveFinalReportSnapshot(workspace.id, fingerprint, buildFinalReport(workspace, readiness)),
+      },
+    );
     setSignOpen(false);
     toast({ message: "Signed off", detail: `${signName.trim()} · ${signTitle.trim()}. The report can now be downloaded.`, tone: "ok" });
   };
@@ -268,7 +279,17 @@ export default function ReadinessPage() {
       </SectionCard>
 
       {/* ── 3 · The carbon price paid at home ──────────────────── */}
-      {price && <CarbonPriceCard price={price} onSaved={setPrice} see={see} priceEvidenced={priceEvidenced} onEvidenceChange={refresh} />}
+      {price && (
+        <CarbonPriceCard
+          price={price}
+          see={see}
+          priceEvidenced={priceEvidenced}
+          onEvidenceChange={() => {
+            refresh();
+            invalidate();
+          }}
+        />
+      )}
 
       {/* ── 4 · What the report will contain ───────────────────── */}
       {contents && <ReportContentsCard parts={contents} />}
@@ -386,19 +407,18 @@ export default function ReadinessPage() {
    that reads it, and Cancel is a real undo rather than a re-type. */
 function CarbonPriceCard({
   price,
-  onSaved,
   see,
   priceEvidenced,
   onEvidenceChange,
 }: {
   price: CarbonPriceRecord;
-  onSaved: (next: CarbonPriceRecord) => void;
   see: ReturnType<typeof workspaceSEE> | null;
   priceEvidenced: boolean;
   onEvidenceChange: () => void;
 }) {
   const t = useT();
   const { workspace, refresh } = useWorkspace();
+  const saveRecord = useSaveCarbonPrice();
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState<CarbonPriceRecord>(price);
   const save = useSaveState();
@@ -421,11 +441,7 @@ function CarbonPriceCard({
 
   const set = (p: Partial<CarbonPriceRecord>) => setDraft((d) => ({ ...d, ...p }));
 
-  const commit = () =>
-    save.run(() => {
-      onSaved(saveCarbonPrice(draft));
-      refresh();
-    });
+  const commit = () => save.run(() => saveRecord.mutate(draft, { onSuccess: refresh }));
 
   const shown = editing ? draft : price;
 

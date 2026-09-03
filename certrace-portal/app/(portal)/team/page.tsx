@@ -46,7 +46,7 @@ import { Card, PageHeader, Button, Chip, StatusLabel, Eyebrow, Stat, Tone } from
 import { AddMemberModal } from "@/components/add-member-modal";
 import { toast } from "@/components/toast";
 import { SEATS, Seat, SeatRole } from "@/lib/data";
-import { loadTeam, type TeamMember } from "@/lib/team-store";
+import { useTeam, useInvalidateTeam } from "@/lib/team-query";
 import { seatCap } from "@/lib/plan";
 import { useAccount } from "@/components/account-lock";
 import { PlanCapNotice } from "@/components/plan-cap-notice";
@@ -88,15 +88,13 @@ export default function TeamPage() {
      it: lib/data.ts is shared with the declaration screens that still render
      history, and a row removed there would change what those say happened. */
   const [seats, setSeats] = React.useState<Seat[]>(() => SEATS.filter((s) => s.role !== "verifier"));
-  const [members, setMembers] = React.useState<TeamMember[]>([]);
+  const team = useTeam();
+  const invalidateTeam = useInvalidateTeam();
+  const members = (team.data ?? []).filter((m) => m.role !== "Verifier");
   const [showAdd, setShowAdd] = React.useState(false);
   /* Two-press remove. A single click that frees a paid seat and revokes
      somebody's access is a click that gets made by accident on a trackpad. */
   const [armed, setArmed] = React.useState<string | null>(null);
-
-  React.useEffect(() => {
-    setMembers(loadTeam().filter((m) => m.role !== "Verifier"));
-  }, []);
 
   const used = seats.length;
   const external = members.filter((m) => m.kind === "external").length;
@@ -243,7 +241,7 @@ export default function TeamPage() {
         onClose={() => setShowAdd(false)}
         note={t("They join your team roster and take a seat. Hand them their first month to review from any workspace.")}
         onAdded={(m) => {
-          setMembers(loadTeam().filter((x) => x.role !== "Verifier"));
+          invalidateTeam();
           setSeats((prev) =>
             prev.some((s) => s.email.toLowerCase() === m.email.toLowerCase())
               ? prev
