@@ -25,8 +25,21 @@ class MemoryStorage {
 
 const g = globalThis as unknown as { window?: unknown; localStorage?: unknown };
 const storage = new MemoryStorage();
-g.window = { localStorage: storage };
+g.window = { localStorage: storage, location: { search: "" } };
 g.localStorage = storage;
+
+/* THE FIXTURE MUST NOT RIDE THE DEMO TRIAL CLOCK. Every month below is seeded
+   by actually sending it, and markMonthSent is guarded by writeBlocked() —
+   which turns true on the day the demo org's trial runs out (TRIAL_STARTED_ON
+   in lib/data.ts, plus TRIAL_DAYS). On that date the seeding silently becomes
+   a no-op and these tests fail on an empty queue, reporting a break in the
+   walk and the sort when nothing about either has changed. Pinning a paid
+   tier puts the fixture on a fixed clock; the lock has its own tests.
+   The override is held in a module variable, so the per-test storage.clear()
+   below does not undo it. */
+storage.setItem("certrace:demo-plan", JSON.stringify({ plan: "standard" }));
+const { activateDemoOverride } = await import("../plan");
+activateDemoOverride();
 
 const { actionQueueFor, PRECURSOR_STALE_DAYS } = await import("../cbam/action-queue");
 const { createWorkspace } = await import("../workspace");
