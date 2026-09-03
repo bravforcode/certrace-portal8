@@ -1,0 +1,233 @@
+{
+  "info": {
+    "name": "Certrace — Smart Links",
+    "description": "Flow ครบวงจรของ supplier smart links (docs/API-CONTRACT.md §3)\n\nวิธีใช้:\n1. ตั้ง `baseUrl` ใน collection variables (default = http://localhost:8000)\n2. ยิง `1 Register` หรือ `2 Login` — jwt ถูกเก็บเข้า variable อัตโนมัติ\n3. ยิง `3 Create declaration` — สร้างเอกสารตัวอย่างที่มี request ของ supplier d1\n4. ยิง `4 Mint smart link` — token ถูกเก็บเข้า variable อัตโนมัติ\n5. ยิง `5 List minted links` — ดึง token ที่เคยออกกลับมา (ใบล่าสุดถูกเก็บเข้า variable)\n6. ยิง `6 Resolve link` — ไม่ใช้ auth เลย จำลองมุมมองซัพพลายเออร์\n\nคู่มือเต็ม: certrace-backend/docs/smart-links.md",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{jwt}}", "type": "string" }]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8000" },
+    { "key": "jwt", "value": "" },
+    { "key": "declarationId", "value": "decl-postman-demo" },
+    { "key": "linkToken", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "1 Register (ได้ jwt)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 201) {",
+              "    pm.collectionVariables.set('jwt', pm.response.json().accessToken);",
+              "}",
+              "pm.test('201 + accessToken', () => {",
+              "    pm.response.to.have.status(201);",
+              "    pm.expect(pm.response.json().accessToken).to.be.a('string');",
+              "});"
+            ]
+          }
+        },
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// อีเมลสุ่มใหม่ทุกครั้ง จะได้ยิงซ้ำได้โดยไม่ชน EMAIL_TAKEN",
+              "pm.variables.set('email', `postman-${Date.now()}@certrace-tests.co`);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": { "type": "noauth" },
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/api/auth/register", "host": ["{{baseUrl}}"], "path": ["api", "auth", "register"] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"a-good-password-1\",\n  \"companyName\": \"Siam Steel Export Co.\"\n}"
+        }
+      }
+    },
+    {
+      "name": "2 Login (ทางเลือก ถ้ามีบัญชีแล้ว)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "    pm.collectionVariables.set('jwt', pm.response.json().accessToken);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": { "type": "noauth" },
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"แก้เป็นอีเมลของคุณ\",\n  \"password\": \"แก้เป็นรหัสของคุณ\"\n}"
+        }
+      }
+    },
+    {
+      "name": "3 Create declaration (มี request ของ d1)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.test('201', () => pm.response.to.have.status(201));"]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": { "raw": "{{baseUrl}}/api/v1/declarations", "host": ["{{baseUrl}}"], "path": ["api", "v1", "declarations"] },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"id\": \"{{declarationId}}\",\n  \"name\": \"Postman demo — Q2 2026 CBAM\",\n  \"period\": \"Q2 2026\",\n  \"step\": \"collect\",\n  \"suppliers\": [],\n  \"requests\": [\n    {\n      \"supplierId\": \"d1\",\n      \"products\": [\n        {\n          \"productId\": \"hrc\",\n          \"lots\": [\n            { \"qty\": 200, \"unit\": \"tonnes (t)\", \"from\": \"2026-04-01\", \"to\": \"2026-05-31\", \"notes\": \"\" }\n          ]\n        }\n      ]\n    }\n  ]\n}"
+        }
+      }
+    },
+    {
+      "name": "4 Mint smart link 🔒",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 201) {",
+              "    pm.collectionVariables.set('linkToken', pm.response.json().token);",
+              "    console.log('ส่งลิงก์นี้ให้ซัพพลายเออร์:', pm.response.json().url);",
+              "}",
+              "pm.test('201 + token/url/expiresAt', () => {",
+              "    pm.response.to.have.status(201);",
+              "    const body = pm.response.json();",
+              "    pm.expect(body.token).to.be.a('string');",
+              "    pm.expect(body.url).to.include('/s/' + body.token);",
+              "    pm.expect(body.expiresAt).to.be.a('number');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/declarations/{{declarationId}}/links",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "declarations", "{{declarationId}}", "links"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"supplierId\": \"d1\",\n  \"month\": \"2026-03\",\n  \"expiresInDays\": 60\n}"
+        },
+        "description": "month ไม่บังคับ (YYYY-MM) · expiresInDays ไม่บังคับ 1–365 default 60\n\nErrors: 401 INVALID_CREDENTIALS · 404 DECLARATION_NOT_FOUND (ไม่มีหรือไม่ใช่ของคุณ) · 422 validation"
+      }
+    },
+    {
+      "name": "5 List minted links 🔒 (ดึง token กลับมา)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 + token ที่เพิ่ง mint อยู่ในรายการ', () => {",
+              "    pm.response.to.have.status(200);",
+              "    const links = pm.response.json().links;",
+              "    pm.expect(links).to.be.an('array').that.is.not.empty;",
+              "    const minted = pm.collectionVariables.get('linkToken');",
+              "    pm.expect(links.map(l => l.token)).to.include(minted);",
+              "});",
+              "// เผื่อข้าม step 4: หยิบ token ใบล่าสุดมาใช้ resolve ต่อ",
+              "const links = pm.response.json().links;",
+              "if (links.length) pm.collectionVariables.set('linkToken', links[0].token);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/declarations/{{declarationId}}/links",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "declarations", "{{declarationId}}", "links"]
+        },
+        "description": "ลิงก์ทุกใบของ declaration นี้ เรียงใหม่สุดก่อน — เอา token/url กลับมาหลัง response ตอน mint หายไปแล้ว\n\nใบหมดอายุ/ถูกเพิกถอนยังโผล่ (ดู expiresAt/revokedAt เอง) · ไม่มี state ของซัพพลายเออร์\n\nErrors: 401 INVALID_CREDENTIALS · 404 DECLARATION_NOT_FOUND"
+      }
+    },
+    {
+      "name": "6 Resolve link (ไม่ต้อง auth — มุมมองซัพพลายเออร์)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 + slice ของ supplier เท่านั้น', () => {",
+              "    pm.response.to.have.status(200);",
+              "    const body = pm.response.json();",
+              "    pm.expect(body.supplierId).to.eql('d1');",
+              "    pm.expect(body.request.products).to.be.an('array');",
+              "    pm.expect(body.state).to.not.be.null;",
+              "    pm.expect(body.state.status).to.be.a('string');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": { "type": "noauth" },
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/links/{{linkToken}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "links", "{{linkToken}}"]
+        },
+        "description": "Endpoint สาธารณะตัวเดียว — token คือ credential ทั้งหมด\n\nErrors: 404 TOKEN_NOT_FOUND · 410 TOKEN_EXPIRED · 410 TOKEN_REVOKED\n\nการันตี: state ไม่มีวัน null (ยังไม่กรอก = ก้อนเปล่า status \"new\") · request.products เป็น array เสมอ · ไม่มีข้อมูลซัพพลายเออร์รายอื่น"
+      }
+    },
+    {
+      "name": "7 Resolve token มั่ว (ดูรูปแบบ error)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('404 TOKEN_NOT_FOUND', () => {",
+              "    pm.response.to.have.status(404);",
+              "    pm.expect(pm.response.json().detail.code).to.eql('TOKEN_NOT_FOUND');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": { "type": "noauth" },
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/links/never-issued-token",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "links", "never-issued-token"]
+        }
+      }
+    }
+  ]
+}

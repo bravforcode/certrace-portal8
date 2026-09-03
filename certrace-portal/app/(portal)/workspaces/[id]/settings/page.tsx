@@ -31,7 +31,8 @@ import { Select } from "@/components/controls";
 import { toast } from "@/components/toast";
 import { SectionCard } from "@/components/workspace/chrome";
 import { useWorkspace } from "@/components/workspace/provider";
-import { archiveWorkspace, dueDayOptions, scheduleFor, updateWorkspace, workspaceTitle, type WorkspaceSchedule } from "@/lib/workspace";
+import { dueDayOptions, scheduleFor, workspaceTitle, type WorkspaceSchedule } from "@/lib/workspace";
+import { useArchiveWorkspace, useUpdateWorkspace } from "@/lib/workspaces-query";
 import { useT } from "@/lib/i18n";
 
 const ordinal = (n: number) => {
@@ -44,10 +45,13 @@ export default function WorkspaceSettingsPage() {
   const t = useT();
   const { workspace, refresh } = useWorkspace();
   const router = useRouter();
-  const [schedule, setSchedule] = React.useState<WorkspaceSchedule>(() => scheduleFor(workspace));
+  const updateWorkspace = useUpdateWorkspace();
+  const archiveWorkspace = useArchiveWorkspace();
   const [armed, setArmed] = React.useState(false);
 
-  React.useEffect(() => setSchedule(scheduleFor(workspace)), [workspace]);
+  /* No mirrored state: the schedule is a pure derivation of the provider's
+     workspace, and the write below refreshes the provider before re-render. */
+  const schedule = scheduleFor(workspace);
 
   /* THERE IS NOTHING TO SAVE. This card holds one dropdown with twenty-eight
      answers in it, and picking one WAS the decision — a Save button beside it
@@ -56,10 +60,8 @@ export default function WorkspaceSettingsPage() {
      the page in. Choosing writes it, and the sentence underneath restates what
      was chosen so the press is legible without a confirmation of its own. */
   const set = (p: Partial<WorkspaceSchedule>) => {
-    const next = { ...schedule, ...p };
-    setSchedule(next);
-    updateWorkspace(workspace.id, { schedule: next });
-    refresh();
+    // refresh() keeps the legacy provider in step until it reads from the query.
+    updateWorkspace.mutate({ id: workspace.id, patch: { schedule: { ...schedule, ...p } } }, { onSuccess: refresh });
   };
 
   const archive = () => {
@@ -67,13 +69,16 @@ export default function WorkspaceSettingsPage() {
       setArmed(true);
       return;
     }
-    archiveWorkspace(workspace.id);
-    toast({
-      message: "Workspace archived",
-      detail: "It is out of the estate but nothing was deleted — restore it from Archived.",
-      tone: "info",
+    archiveWorkspace.mutate(workspace.id, {
+      onSuccess: () => {
+        toast({
+          message: "Workspace archived",
+          detail: "It is out of the estate but nothing was deleted — restore it from Archived.",
+          tone: "info",
+        });
+        router.push("/workspaces");
+      },
     });
-    router.push("/workspaces");
   };
 
   return (

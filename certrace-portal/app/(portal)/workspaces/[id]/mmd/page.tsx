@@ -49,31 +49,29 @@ import {
   DRAFT_BANNER,
   ELECTRICITY_SUPPLY_OPTIONS,
   EXCLUSION_GROUND_HINT,
-  FACTOR_SOURCE_HINT,
-  FACTOR_SOURCE_LABEL,
   MMD_EXAMPLE,
   MMD_SECTION_HELP,
   PROCESS_OPTIONS,
   QUALITY_ASSURANCE_LABEL,
   QUALITY_ASSURANCE_OPTIONS,
-  READING_FREQUENCY_OPTIONS,
   electricityInstrument,
   isOwnGeneration,
   emptyExclusion,
   emptyGap,
   emptyMeasurement,
-  finalVersionCovering,
-  finaliseVersion,
-  latestVersion,
-  loadDraft,
   mmdIssues,
-  saveDraft,
   type DirectMethod,
-  type FactorSourceOption,
   type QualityAssurance,
   type WorkspaceMmdContent,
-  type WorkspaceMmdVersion,
 } from "@/lib/workspace-mmd";
+import {
+  useFinalMmdVersion,
+  useFinaliseMmdVersion,
+  useInvalidateWorkspaceData,
+  useLatestMmdVersion,
+  useMmdDraft,
+  useSaveMmdDraft,
+} from "@/lib/workspace-data-query";
 
 /* Reporting-period help. This is the one rule on the screen that an exporter
    cannot infer from the fields in front of them, and getting it wrong produces
@@ -127,21 +125,27 @@ export default function WorkspaceMmdPage() {
   const t = useT();
   const { workspace, refresh } = useWorkspace();
   const fuelOptions = useFuelOptions();
+  const draft = useMmdDraft(workspace.id, workspace.periodStart, workspace.periodEnd);
+  const { data: final } = useFinalMmdVersion(workspace.id, workspace.periodStart, workspace.periodEnd);
+  const { data: latest } = useLatestMmdVersion(workspace.id);
+  const saveMmd = useSaveMmdDraft();
+  const finaliseMmd = useFinaliseMmdVersion();
+  const invalidateWorkspaceData = useInvalidateWorkspaceData(workspace.id);
   const [content, setContent] = React.useState<WorkspaceMmdContent | null>(null);
-  const [final, setFinal] = React.useState<WorkspaceMmdVersion | null>(null);
-  const [latest, setLatest] = React.useState<WorkspaceMmdVersion | null>(null);
   const [forking, setForking] = React.useState(false);
 
-  const reload = React.useCallback(() => {
-    setContent(loadDraft(workspace.id, workspace.periodStart, workspace.periodEnd));
-    setFinal(finalVersionCovering(workspace.id, workspace.periodStart, workspace.periodEnd));
-    setLatest(latestVersion(workspace.id));
-    refresh();
-  }, [workspace, refresh]);
-
+  // The edit buffer, seeded from the draft query. Edits live here between
+  // keystroke and autosave; invalidation after a write brings the two back
+  // into line — but NEVER while the autosave holds keystrokes not yet written:
+  // the autosave both mutates AND calls refresh(), which refetches this very
+  // draft, and an unguarded reseed would hand back the pre-keystroke draft and
+  // discard them. Read the status through a ref assigned just below the
+  // autosave, so the resync fires on data arriving, not on autosave transitions.
+  const autosaveStatus = React.useRef("idle");
   React.useEffect(() => {
-    reload();
-  }, [reload]);
+    if (autosaveStatus.current === "pending" || autosaveStatus.current === "saving") return;
+    if (draft.data) setContent(draft.data);
+  }, [draft.data]);
 
   // A final version is read-only until the exporter explicitly chooses to
   // amend it — which forks v+1 rather than editing the stamped document.
@@ -151,11 +155,12 @@ export default function WorkspaceMmdPage() {
     content,
     (c) => {
       if (!c) return;
-      saveDraft(workspace.id, c);
+      saveMmd.mutate({ workspaceId: workspace.id, content: c });
       refresh();
     },
     { enabled: Boolean(content) && !locked },
   );
+  autosaveStatus.current = autosave.status;
 
   if (!content) return null;
 
@@ -185,11 +190,17 @@ export default function WorkspaceMmdPage() {
   };
 
   const finalise = () => {
-    saveDraft(workspace.id, content);
-    const v = finaliseVersion(workspace.id, content, USER.name);
-    setForking(false);
-    reload();
-    toast({ message: `MMD finalised as v${v.n}`, detail: "It is now read-only. Editing forks a new version.", tone: "ok" });
+    saveMmd.mutate({ workspaceId: workspace.id, content });
+    finaliseMmd.mutate(
+      { workspaceId: workspace.id, content, author: USER.name },
+      {
+        onSuccess: (v) => {
+          setForking(false);
+          refresh();
+          toast({ message: `MMD finalised as v${v.n}`, detail: "It is now read-only. Editing forks a new version.", tone: "ok" });
+        },
+      },
+    );
   };
 
   return (
@@ -795,7 +806,10 @@ export default function WorkspaceMmdPage() {
           workspaceId={workspace.id}
           keys={ANNUAL_REQUIRED_KEYS}
           emptyLabel={t("Nothing attached yet. A verifier asks for both of these on day one.")}
-          onChange={refresh}
+          onChange={() => {
+            invalidateWorkspaceData();
+            refresh();
+          }}
         />
         <ExampleToggle example={t("“Factory-licence-TH-RAYONG-01.pdf” for identity; “FT-2201-calibration-2026-03-12.pdf” for the gas meter named in section 4.")} />
       </SectionCard>

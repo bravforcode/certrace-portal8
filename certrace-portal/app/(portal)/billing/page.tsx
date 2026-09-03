@@ -46,7 +46,8 @@ import Link from "next/link";
 import { Check, ArrowRight, Minus } from "lucide-react";
 import { Card, PageHeader, Button, ButtonLink, Chip, StatusDot, cn } from "@/components/ui";
 import { PLANS, PLAN_COMPARISON, PLAN_COLOPHON, CONTACT_SALES_URL, type Plan, type CompareCell } from "@/lib/config";
-import { CAP_LABEL, cnCodeCap, siteCap, yearCap, seatCap, isUpgrade, type CapState, type PlanId, type TrialState } from "@/lib/plan";
+import { CAP_LABEL, isUpgrade, type CapState, type PlanId, type TrialState } from "@/lib/plan";
+import { useCaps, useInvalidateCaps } from "@/lib/workspaces-query";
 import { useAccount } from "@/components/account-lock";
 import { useFormat, useT, type TFunction } from "@/lib/i18n";
 
@@ -60,10 +61,20 @@ export default function BillingPage() {
   const { ready, planId, plan, trial } = useAccount();
 
   /* The caps read localStorage stores, so they are measured after mount —
-     rendering them on the server would print a zero that then jumps. */
-  const [caps, setCaps] = React.useState<CapState[] | null>(null);
+     rendering them on the server would print a zero that then jumps. The
+     query only resolves on the client, and a plan change (the demo override
+     landing, the hourly re-read) re-measures via invalidation. */
+  const capData = useCaps().data;
+  const caps = capData ? [capData.cnCodes, capData.sites, capData.years, capData.seats] : null;
+  const invalidateCaps = useInvalidateCaps();
+  const lastPlan = React.useRef(planId);
   React.useEffect(() => {
-    setCaps([cnCodeCap(), siteCap(), yearCap(), seatCap()]);
+    // Re-measure only when the plan actually CHANGES — the mount run would
+    // otherwise flush the whole workspaces domain merely on visiting Billing.
+    if (lastPlan.current === planId) return;
+    lastPlan.current = planId;
+    invalidateCaps();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [planId]);
 
   const onTrial = ready && trial.onTrial;

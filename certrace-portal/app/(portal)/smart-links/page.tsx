@@ -48,13 +48,11 @@ import * as React from "react";
 import { ArrowUpRight, Check, Copy, Link2, Send } from "lucide-react";
 import { Button, ButtonLink, Card, Chip, EmptyState, FilterChip, PageHeader, Progress, StatusDot, Modal, cn, useFlash } from "@/components/ui";
 import { ActionButton } from "@/components/chain-actions";
-import { useClientData } from "@/components/workspace/chrome";
-import { markMonthSent } from "@/lib/month-dispatch";
+import { useQueryClient } from "@tanstack/react-query";
 import { MONTH_STATUS_LABEL } from "@/lib/monthly-data";
 import { makePrecursorLinkToken } from "@/lib/precursor-link";
-import { getSupplier, saveSupplier } from "@/lib/precursor-suppliers";
+import { getSupplier } from "@/lib/precursor-suppliers";
 import {
-  buildSmartLinks,
   countByKind,
   countByState,
   countdown,
@@ -70,6 +68,8 @@ import {
   type SmartLinkState,
 } from "@/lib/smart-links";
 import { scheduleFor, workspaceTitle } from "@/lib/workspace";
+import { SMART_LINKS_KEY, useMarkMonthSent, useSmartLinks } from "@/lib/workspace-data-query";
+import { useSavePrecursorSupplier } from "@/lib/suppliers-query";
 import { useT } from "@/lib/i18n";
 
 type StateFilter = SmartLinkState | "all";
@@ -91,16 +91,17 @@ function emptyFilterLine(state: StateFilter, kind: KindFilter): string {
 
 export default function SmartLinksPage() {
   const t = useT();
-  /* `refresh` is the whole update path after a send. The rows are a pure
-     function of the stores, so re-deriving them IS the refresh — there is no
-     local copy of a row to keep in step, and nothing to patch in place. */
-  const [links, refresh] = useClientData(() => buildSmartLinks());
+  /* The rows are a pure function of the stores, so re-deriving them IS the
+     refresh — there is no local copy of a row to keep in step, and nothing to
+     patch in place. The send mutations invalidate SMART_LINKS_KEY, which
+     re-runs the derivation; no hand-wired refresh callback needed. */
+  const { data: links } = useSmartLinks();
 
   const [state, setState] = React.useState<StateFilter>("all");
   const [kind, setKind] = React.useState<KindFilter>("all");
   const [openId, setOpenId] = React.useState<string | null>(null);
 
-  const all = links ?? [];
+  const all = React.useMemo(() => links ?? [], [links]);
   const stateCounts = React.useMemo(() => countByState(all), [all]);
   const kindCounts = React.useMemo(() => countByKind(all), [all]);
 
@@ -115,7 +116,7 @@ export default function SmartLinksPage() {
         lead={t("A workspace asks for twelve months of readings and a verified figure from each of its precursor suppliers. Each of those asks is a link somebody opens and fills in — this is all of them, from every workspace, with where each one stands.")}
       />
 
-      {links === null ? null : all.length === 0 ? (
+      {links === undefined ? null : all.length === 0 ? (
         <EmptyState
           icon={<Link2 size={28} strokeWidth={1.25} />}
           title={t("No links yet")}
@@ -157,7 +158,7 @@ export default function SmartLinksPage() {
         </>
       )}
 
-      <LinkDialog link={open} onClose={() => setOpenId(null)} onSent={refresh} />
+      <LinkDialog link={open} onClose={() => setOpenId(null)} />
     </div>
   );
 }
@@ -373,10 +374,13 @@ function LinkTable({ links, onOpen }: { links: SmartLink[]; onOpen: (id: string)
    not only behind a Copy button, because an exporter pasting it into LINE or
    a phone call needs to be able to read it, and because a copy that silently
    fails on a browser without clipboard permission leaves nothing behind. */
-function LinkDialog({ link, onClose, onSent }: { link: SmartLink | null; onClose: () => void; onSent: () => void }) {
+function LinkDialog({ link, onClose }: { link: SmartLink | null; onClose: () => void }) {
   const t = useT();
   const [copied, flashCopied] = useFlash();
   const [sent, flashSent] = useFlash();
+  const markSent = useMarkMonthSent();
+  const savePrecursor = useSavePrecursorSupplier();
+  const client = useQueryClient();
 
   const url = React.useMemo(() => (link && typeof window !== "undefined" ? `${window.location.origin}${link.path}` : ""), [link]);
 
@@ -400,21 +404,26 @@ function LinkDialog({ link, onClose, onSent }: { link: SmartLink | null; onClose
      for the exporter to paste. */
   const send = () => {
     if (link.kind === "monthly" && link.month) {
-      markMonthSent(link.workspace.id, link.month, scheduleFor(link.workspace).dueDay);
+      markSent.mutate({ workspaceId: link.workspace.id, month: link.month, dueDay: scheduleFor(link.workspace).dueDay });
     } else if (link.precursor) {
       const row = getSupplier(link.workspace.id, link.precursor.id);
       if (!row) return;
       const now = new Date().toISOString();
-      saveSupplier({
-        ...row,
-        smartLinkToken: row.smartLinkToken ?? makePrecursorLinkToken(link.workspace.id, row.id),
-        smartLinkSentAt: row.smartLinkSentAt ?? now,
-        smartLinkLastSentAt: now,
-      });
+      savePrecursor.mutate(
+        {
+          ...row,
+          smartLinkToken: row.smartLinkToken ?? makePrecursorLinkToken(link.workspace.id, row.id),
+          smartLinkSentAt: row.smartLinkSentAt ?? now,
+          smartLinkLastSentAt: now,
+        },
+        /* The precursor mutation settles its own keys but not this page's
+           list, which derives from the same rows — SMART_LINKS_KEY is
+           exported for exactly this nudge. */
+        { onSuccess: () => void client.invalidateQueries({ queryKey: SMART_LINKS_KEY }) },
+      );
     }
     if (url && typeof navigator !== "undefined" && navigator.clipboard) void navigator.clipboard.writeText(url).catch(() => {});
     flashSent();
-    onSent();
   };
 
   const workspaceHref = link.kind === "monthly" ? `/workspaces/${link.workspace.id}/monthly` : `/workspaces/${link.workspace.id}/tree`;

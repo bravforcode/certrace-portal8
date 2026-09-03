@@ -50,8 +50,6 @@ import { gridFactorFor, gridFactorRowOrPlaceholder } from "@/lib/cbam/electricit
 import { CARBON_CONTENTS, carbonContentFor } from "@/lib/cbam/process-factors";
 import { calendarYear, displayPeriod, displayDate, type ReportingPeriod } from "@/lib/cbam/boundary";
 import {
-  loadDataset,
-  saveDataset,
   uid,
   addFuel,
   updateFuel,
@@ -64,13 +62,19 @@ import {
   removeProcess,
 } from "@/lib/cbam/activity-store";
 import { fuelTCO2, processTCO2, electricityTCO2 } from "@/lib/cbam/engine";
-import { listGaps, dataGapPenalty, PENALTY_TITLE, PENALTY_SUBTITLE, type GapEntry } from "@/lib/cbam/data-gaps";
+import { dataGapPenalty, PENALTY_TITLE, PENALTY_SUBTITLE } from "@/lib/cbam/data-gaps";
 import { D_DEFAULT_PLACEHOLDER } from "@/lib/cbam/reference";
 import { DEFAULT_VALUE_MARKUP } from "@/lib/compliance-engine";
 import { certificatePriceSource } from "@/lib/carbon-economics";
 import { compareShippedToProduced } from "@/lib/annual-production";
 import { unlinkedShipmentsFor, shipmentsFor } from "@/lib/shipments";
-import { activeSnapshot, type CalculationSnapshot } from "@/lib/cbam/freeze";
+import {
+  useActivityDataset,
+  useSaveActivityDataset,
+  useDataGaps,
+  useActiveSnapshot,
+  useInvalidateCbam,
+} from "@/lib/cbam/cbam-query";
 import { useT } from "@/lib/i18n";
 
 const num = (v: string): number => {
@@ -124,31 +128,44 @@ export default function ActivityDataPage({ params }: { params: Promise<{ id: str
   const { id } = React.use(params);
   const router = useRouter();
   const { data: decl, isError, refetch } = useDeclaration(id);
-  const [dataset, setDataset] = React.useState<ActivityDataset | null>(null);
-  const [productionInput, setProductionInput] = React.useState("");
-  const [gaps, setGaps] = React.useState<GapEntry[]>([]);
+  /* The pieces that live NEXT TO the declaration (localStorage stores,
+     drafts, snapshots) load as queries once the declaration has. */
+  const period = React.useMemo(() => (decl ? periodFor(decl) : undefined), [decl]);
+  const { data: stored } = useActivityDataset(id, period, USER.name);
+  const { data: gaps } = useDataGaps(id);
   /* Once the calculation is frozen these inputs are the record of what was
      approved, not a working document. Editing them would move a signed
      number, so the screen goes read-only and points at the revision path
      instead (lib/cbam/freeze.ts). */
-  const [snapshot, setSnapshot] = React.useState<CalculationSnapshot | null>(null);
+  const { data: snapshot } = useActiveSnapshot(id);
+  const saveActivity = useSaveActivityDataset();
+  /* Gap writes happen inside DataGapSection, around the mutations — the
+     callback flushes the cache so this screen re-reads them. */
+  const invalidateCbam = useInvalidateCbam(id);
+  const [dataset, setDataset] = React.useState<ActivityDataset | null>(null);
+  const [productionInput, setProductionInput] = React.useState("");
   const save = useSaveState();
 
   React.useEffect(() => {
     if (decl === null) router.replace("/declarations");
   }, [decl, router]);
 
-  /* The pieces that live NEXT TO the declaration (localStorage stores,
-     drafts, snapshots) load once the query has it. */
+  /* The dataset is an edit buffer: seeded from the query ONCE per declaration,
+     mutated locally, persisted through the save mutation. Seeding on every
+     `stored` identity would wipe unsaved edits: loadDataset stamps a fresh
+     provenance timestamp while production is unentered, so each refetch — a gap
+     edit invalidating the cbam subtree, a window refocus — is a new reference,
+     and this is a Save-button screen where edits sit unsaved by design. The
+     ref reseeds only when the declaration itself changes, matching the old
+     load-once-per-[decl] behaviour. */
+  const seededFor = React.useRef<string | null>(null);
   React.useEffect(() => {
-    if (!decl) return;
-    const found = decl;
-    const d = withPublishedFactors(loadDataset(id, periodFor(found), USER.name));
+    if (!stored || seededFor.current === id) return;
+    seededFor.current = id;
+    const d = withPublishedFactors(stored);
     setDataset(d);
     setProductionInput(d.annualProductionTonnes > 0 ? String(d.annualProductionTonnes) : "");
-    setGaps(listGaps(id));
-    setSnapshot(activeSnapshot(id));
-  }, [decl, id]);
+  }, [stored, id]);
 
   const shipped = React.useMemo(() => {
     if (!decl) return { linked: 0, candidates: 0 };
@@ -177,7 +194,7 @@ export default function ActivityDataPage({ params }: { params: Promise<{ id: str
   }, [dataset]);
 
   if (isError) return <ErrorState onRetry={() => void refetch()} />;
-  if (!decl || !dataset) return <LoadingState />;
+  if (!decl || !dataset || gaps === undefined || snapshot === undefined) return <LoadingState />;
 
   const mutate = (next: ActivityDataset) => setDataset(next);
 
@@ -191,7 +208,7 @@ export default function ActivityDataPage({ params }: { params: Promise<{ id: str
       return;
     }
     save.run(() => {
-      saveDataset(next);
+      saveActivity.mutate({ dataset: next });
       toast({ message: "Activity data saved", detail: "Every figure keeps its provenance.", tone: "ok" });
     });
   };
@@ -723,11 +740,11 @@ export default function ActivityDataPage({ params }: { params: Promise<{ id: str
         period={dataset.period}
         monthsWithData={dataset.monthsCovered ?? []}
         gaps={gaps}
-        onGapsChange={setGaps}
+        onGapsChange={invalidateCbam}
         onMonthsChange={(months) => {
           const next = { ...dataset, monthsCovered: months };
           setDataset(next);
-          saveDataset(next);
+          saveActivity.mutate({ dataset: next });
         }}
         totalTCO2e={computedTotals.totalTCO2}
         enteredBy={USER.name}

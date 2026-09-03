@@ -21,6 +21,7 @@ from app.config import (
 from app.models.database import (
     DefaultEmissionFactor,
     PortalDeclaration,
+    SmartLink,
 )
 
 _logger = logging.getLogger(__name__)
@@ -193,3 +194,67 @@ class DatabaseRepository:
                     PortalDeclaration.id == declaration_id,
                 )
             )
+
+    # ── Smart links (docs/API-CONTRACT.md §3) ────────────────────
+    # One dict shape for both stores: the no-database mode keeps rows in this
+    # form on app.state, so the router never cares which store answered.
+
+    @staticmethod
+    def _smart_link_dict(row: SmartLink) -> dict[str, object]:
+        return {
+            "token": row.token,
+            "userId": str(row.user_id),
+            "declId": row.declaration_id,
+            "supplierId": row.supplier_id,
+            "month": row.month,
+            "expiresAt": int(row.expires_at.timestamp() * 1000),
+            "revokedAt": int(row.revoked_at.timestamp() * 1000)
+            if row.revoked_at
+            else None,
+            # None only on the just-inserted row, where created_at is the
+            # database's server_default and has not been read back.
+            "createdAt": int(row.created_at.timestamp() * 1000)
+            if row.created_at
+            else None,
+            "state": row.state,
+        }
+
+    def create_smart_link(
+        self,
+        user_id: uuid.UUID,
+        declaration_id: str,
+        supplier_id: str,
+        token: str,
+        month: str | None,
+        expires_at: datetime.datetime,
+    ) -> dict[str, object]:
+        with self.session_factory.begin() as session:
+            row = SmartLink(
+                token=token,
+                user_id=user_id,
+                declaration_id=declaration_id,
+                supplier_id=supplier_id,
+                month=month,
+                expires_at=expires_at,
+            )
+            session.add(row)
+        return self._smart_link_dict(row)
+
+    def get_smart_link(self, token: str) -> dict[str, object] | None:
+        with self.session_factory() as session:
+            row = session.get(SmartLink, token)
+            return self._smart_link_dict(row) if row else None
+
+    def list_smart_links(
+        self, user_id: uuid.UUID, declaration_id: str
+    ) -> list[dict[str, object]]:
+        with self.session_factory() as session:
+            rows = session.scalars(
+                select(SmartLink)
+                .where(
+                    SmartLink.user_id == user_id,
+                    SmartLink.declaration_id == declaration_id,
+                )
+                .order_by(SmartLink.created_at.desc())
+            ).all()
+            return [self._smart_link_dict(row) for row in rows]

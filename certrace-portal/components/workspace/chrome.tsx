@@ -508,17 +508,3 @@ export function Num({ children, className }: { children: React.ReactNode; classN
 
 export const fmt = (v: number, dp = 2): string =>
   Number.isFinite(v) ? v.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: dp }) : "—";
-
-/** A hook that re-reads localStorage-backed data after mount.
-
-    Every store in this build is browser-only, so the first server render has
-    nothing. Reading in an effect keeps hydration honest instead of rendering
-    a zero that flips to a real number a tick later. */
-export function useClientData<T>(read: () => T, deps: React.DependencyList = []): [T | null, () => void] {
-  const [value, setValue] = React.useState<T | null>(null);
-  const refresh = React.useCallback(() => setValue(read()), deps); // eslint-disable-line react-hooks/exhaustive-deps
-  React.useEffect(() => {
-    refresh();
-  }, [refresh]);
-  return [value, refresh];
-}

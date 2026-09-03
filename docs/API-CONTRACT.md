@@ -225,6 +225,34 @@ gen ให้ เพราะพอร์ทัลต้อง redirect ไป�
 
 `month` ใส่หรือไม่ใส่ก็ได้ — งานรายเดือนหนึ่งเดือนหนึ่งลิงก์ ตามที่พอร์ทัลทำอยู่
 
+**✅ backend ทำแล้ว (2026-09-03)** — `app/routers/links.py` + ตาราง `smart_links`
+(migration 009, FK ผูกกับ `portal_declarations` ลบ declaration = ลิงก์ตายตาม) ·
+token = `secrets.token_urlsafe(32)` · `expiresInDays` รับ 1–365 default 60 ·
+`month` ต้องเป็น `YYYY-MM` · base URL ของลิงก์อ่านจาก `CERTRACE_APP_BASE_URL`
+(default `https://app.certrace.co`) · `revoked_at` เก็บและเช็คแล้วตอน resolve
+แต่ยังไม่มี endpoint เพิกถอน (contract ยังไม่ได้นิยาม) · resolve ตอบ 404
+`TOKEN_NOT_FOUND` / 410 `TOKEN_EXPIRED` / 410 `TOKEN_REVOKED` และคืน `request`
+เฉพาะ slice ของซัพพลายเออร์คนนั้นจาก `requests[]` ในเอกสาร declaration ·
+`state` ที่ยังไม่มีใครกรอกคืนก้อนเปล่ารูปเดียวกับ `emptyState()` ไม่คืน `null`
+
+### `GET /api/v1/declarations/{id}/links` 🔒 (เพิ่ม 2026-09-03)
+
+ดึงลิงก์ทั้งหมดที่เคยออกของ declaration นั้น เรียงใหม่สุดก่อน — ฝั่งผู้ส่งออกใช้
+เอา token/url กลับมาหลังจาก response ตอน mint หายไปแล้ว (copy ส่งซ้ำ, เช็คว่า
+ใบไหนยังไม่หมดอายุ) **ไม่มี** `state` ของซัพพลายเออร์ในนี้ — อยากได้คำตอบให้ใช้
+submissions (งานถัดไป)
+
+```jsonc
+// 200
+{ "links": [
+  { "token": "kJ8…", "url": "https://app.certrace.co/s/kJ8…",
+    "supplierId": "d1", "month": "2026-03",
+    "expiresAt": 1772000000000, "revokedAt": null, "createdAt": 1770000000000 }
+] }
+```
+
+**✅ backend ทำแล้ว (2026-09-03)**
+
 ### `GET /api/v1/links/{token}` — **ไม่ต้อง auth**
 
 ซัพพลายเออร์ไม่มีบัญชี นี่คือ endpoint เดียวที่เปิดสาธารณะ

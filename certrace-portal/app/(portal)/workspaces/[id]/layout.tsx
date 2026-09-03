@@ -42,14 +42,11 @@ import {
   StateChip,
   TabStrip,
   tabKeyFromPath,
-  useClientData,
 } from "@/components/workspace/chrome";
 import { NodeStatusBadge, TIER_LABEL } from "@/components/tree-node-card";
 import { WorkspaceProvider, useWorkspace } from "@/components/workspace/provider";
-import { entityTabs, findChainNode, trackedParentChainHref, trackedParentOf, type TrackedParent } from "@/lib/tree-entity";
-import { buildSupplierPrecursorTree, computeNodeStatus } from "@/lib/supplier-tree";
-import { getWorkspace, type VerificationWorkspace } from "@/lib/workspace";
-import type { TreeNode } from "@/types/supplier-tree";
+import { entityTabs, trackedParentChainHref, type TrackedParent } from "@/lib/tree-entity";
+import { useChainCounts, useChainNode, useTrackedParent, useWorkspace as useWorkspaceQuery } from "@/lib/workspaces-query";
 import { useT, type TFunction } from "@/lib/i18n";
 
 /* ── Which of the three the current address is ─────────────────── */
@@ -145,41 +142,6 @@ function showsResponsibility(pathname: string, id: string): boolean {
   return true;
 }
 
-/* ── The chain's own counts ─────────────────────────────────────
-   What the four tabs cannot say at chain level, and what a reader standing
-   at the top of a chain actually wants: how deep does this go, and how much
-   of it is in trouble. Derived with computeNodeStatus() — the same function
-   the node pills use — so a "1 blocked" here is always the one red pill
-   below.
-
-   NOT a count of products, and not a count of plants: this chain has exactly
-   one of each by construction. `tiers` is how far the chain reaches — the
-   deepest precursor under the installation — and `suppliers` is how many
-   precursor rows are in it. */
-function chainCounts(roots: TreeNode[]): { suppliers: number; tiers: number; blocked: number; verified: number } {
-  let suppliers = 0;
-  let tiers = 0;
-  let blocked = 0;
-  let verified = 0;
-  const walk = (nodes: TreeNode[]) => {
-    for (const n of nodes) {
-      const s = computeNodeStatus(n);
-      if (s === "BLOCKED") blocked += 1;
-      if (s === "VERIFIED") verified += 1;
-      // The root installation is the exporter's own place in the chain, not
-      // somebody they have to chase — counting it as a supplier would put a
-      // permanent "1 supplier" on an estate that has invited nobody.
-      if (n.kind === "precursor") {
-        suppliers += 1;
-        tiers = Math.max(tiers, n.tier - 1);
-      }
-      walk(n.children);
-    }
-  };
-  walk(roots);
-  return { suppliers, tiers, blocked, verified };
-}
-
 function CountChip({ value, label, tone }: { value: number; label: string; tone?: "err" | "ok" }) {
   return (
     <span
@@ -235,7 +197,9 @@ function WorkspaceBar({ parent }: { parent: TrackedParent | null }) {
 function ChainBar({ parent }: { parent: TrackedParent | null }) {
   const t = useT();
   const { workspace } = useWorkspace();
-  const [counts] = useClientData(() => chainCounts(buildSupplierPrecursorTree(workspace.id)), [workspace.id]);
+  /* What the four tabs cannot say at chain level: how deep does this go, and
+     how much of it is in trouble. See useChainCounts in lib/workspaces-query.ts. */
+  const { data: counts } = useChainCounts(workspace.id);
 
   return (
     <IdentityBar
@@ -274,7 +238,7 @@ function ChainBar({ parent }: { parent: TrackedParent | null }) {
 function EntityBar({ nodeId }: { nodeId: string }) {
   const t = useT();
   const { workspace } = useWorkspace();
-  const [node] = useClientData(() => findChainNode(workspace.id, nodeId), [workspace.id, nodeId]);
+  const { data: node } = useChainNode(workspace.id, nodeId);
   /* NOT the parent chain. An entity page is one level inside THIS chain, so
      the level above it is this chain — the reader clicked a row on it to get
      here. The climb to the parent happens from the chain page itself. */
@@ -328,24 +292,21 @@ export default function WorkspaceLayout({ children, params }: { children: React.
   const { id } = React.use(params);
   const router = useRouter();
   const pathname = usePathname();
-  const [workspace, setWorkspace] = React.useState<VerificationWorkspace | null>(null);
-  const [checked, setChecked] = React.useState(false);
+  const workspaceQuery = useWorkspaceQuery(id);
+  const workspace = workspaceQuery.data ?? null;
   /* Which chain this workspace hangs in, if any. localStorage-backed like
-     everything else here, so it is read after mount — null on the first paint
-     means the back link starts as this workspace's own chain and settles onto
-     the parent's a tick later. That is the correct fallback rather than a
+     everything else here, so it resolves after mount — nothing on the first
+     paint means the back link starts as this workspace's own chain and settles
+     onto the parent's a tick later. That is the correct fallback rather than a
      flicker to fix: an untracked workspace never moves. */
-  const [parent, setParent] = React.useState<TrackedParent | null>(null);
+  const parent = useTrackedParent(id).data ?? null;
 
   React.useEffect(() => {
-    const found = getWorkspace(id);
-    setWorkspace(found);
-    setChecked(true);
-    if (!found) router.replace("/workspaces");
-    else setParent(trackedParentOf(id));
-  }, [id, router]);
+    // `null` is a resolved miss; while loading the data is still undefined.
+    if (workspaceQuery.data === null) router.replace("/workspaces");
+  }, [workspaceQuery.data, router]);
 
-  if (!checked || !workspace) return null;
+  if (!workspace) return null;
 
   const mode = modeFor(pathname, workspace.id);
 

@@ -32,13 +32,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ListTree } from "lucide-react";
 import { EmptyState } from "@/components/ui";
-import { FactGrid, Note, SectionCard, useClientData } from "@/components/workspace/chrome";
+import { FactGrid, Note, SectionCard } from "@/components/workspace/chrome";
 import { ChainEditor } from "@/components/workspace/chain-editor";
 import { TIER_LABEL } from "@/components/tree-node-card";
 import { ValueTypeBadge } from "@/components/precursor/status-chips";
 import { useWorkspace } from "@/components/workspace/provider";
-import { entityTabs, entityWorkspaceId, findChainNode } from "@/lib/tree-entity";
-import { DATA_ORIGIN_LABEL, PRECURSOR_ORIGIN_LABEL, getSupplier, totalTonnes } from "@/lib/precursor-suppliers";
+import { entityTabs, entityWorkspaceId } from "@/lib/tree-entity";
+import { DATA_ORIGIN_LABEL, PRECURSOR_ORIGIN_LABEL, totalTonnes } from "@/lib/precursor-suppliers";
+import { useChainNode } from "@/lib/workspaces-query";
+import { usePrecursorSupplier } from "@/lib/suppliers-query";
 import type { TreeNode } from "@/types/supplier-tree";
 import { useT } from "@/lib/i18n";
 
@@ -52,7 +54,7 @@ const dash = (v: React.ReactNode) => (v === "" || v == null ? "—" : v);
 function PrecursorBody({ node }: { node: TreeNode }) {
   const t = useT();
   const { workspace } = useWorkspace();
-  const [row] = useClientData(() => getSupplier(workspace.id, node.id), [workspace.id, node.id]);
+  const { data: row } = usePrecursorSupplier(workspace.id, node.id);
 
   if (!row) return null;
 
@@ -121,11 +123,11 @@ function EntityDetail({ nodeId }: { nodeId: string }) {
   const t = useT();
   const { workspace } = useWorkspace();
   const router = useRouter();
-  // Wrapped in an object so "not read yet" (null) and "read, and this node
-  // isn't in the chain" ({ node: null }) stay distinguishable — unwrapped,
-  // the first paint of every entity page would flash the not-found state.
-  const [found] = useClientData(() => ({ node: findChainNode(workspace.id, nodeId) }), [workspace.id, nodeId]);
-  const node = found?.node ?? null;
+  // Query semantics keep "not read yet" (undefined) and "read, and this node
+  // isn't in the chain" (null) distinguishable, so the first paint of an
+  // entity page never flashes the not-found state.
+  const { data: found } = useChainNode(workspace.id, nodeId);
+  const node = found ?? null;
 
   // A node that has a workspace of its own is that workspace — see the file
   // header. Redirect rather than render a shadow of it.
@@ -134,7 +136,7 @@ function EntityDetail({ nodeId }: { nodeId: string }) {
     if (ownWorkspace) router.replace(`/workspaces/${ownWorkspace}`);
   }, [ownWorkspace, router]);
 
-  if (found && node === null) {
+  if (found === null) {
     return (
       <EmptyState
         icon={<ListTree size={28} strokeWidth={1.25} />}
