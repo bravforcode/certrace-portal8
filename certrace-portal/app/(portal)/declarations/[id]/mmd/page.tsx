@@ -22,7 +22,9 @@ import { ArrowLeft, FileText, Download, Check, TriangleAlert, History, ChevronRi
 import { Card, Button, Eyebrow, Chip, inputClass, cn, useSaveState, SaveButton } from "@/components/ui";
 import { DatePicker, Select } from "@/components/controls";
 import { toast } from "@/components/toast";
-import { getDeclaration, USER, ORG, type Declaration } from "@/lib/data";
+import { USER, ORG, type Declaration } from "@/lib/data";
+import { useDeclaration } from "@/lib/declarations-query";
+import { ErrorState, LoadingState } from "@/components/query-state";
 import { getOrgIdentity } from "@/lib/org";
 import { getRecord } from "@/lib/supplier-records";
 import { countryName } from "@/lib/config";
@@ -61,7 +63,7 @@ export default function MmdPage({ params }: { params: Promise<{ id: string }> })
   const t = useT();
   const { id } = React.use(params);
   const router = useRouter();
-  const [decl, setDecl] = React.useState<Declaration | null>(null);
+  const { data: decl, isError, refetch } = useDeclaration(id);
   const [draft, setDraft] = React.useState<MmdDraft | null>(null);
   const [boundary, setBoundary] = React.useState(() => loadBoundary(id));
   const [versions, setVersions] = React.useState<MmdVersion[]>([]);
@@ -99,21 +101,24 @@ export default function MmdPage({ params }: { params: Promise<{ id: string }> })
   );
 
   React.useEffect(() => {
-    const found = getDeclaration(id);
-    if (!found) {
-      router.replace("/declarations");
-      return;
-    }
+    if (decl === null) router.replace("/declarations");
+  }, [decl, router]);
+
+  /* The pieces that live NEXT TO the declaration (localStorage stores,
+     drafts, snapshots) load once the query has it. */
+  React.useEffect(() => {
+    if (!decl) return;
+    const found = decl;
     const b = loadBoundary(id);
     const dr = loadDraft(id);
-    setDecl(found);
     setBoundary(b);
     setDraft(dr);
     setVersions(listVersions(id));
     setContent(rebuild(found, dr, b));
-  }, [id, router, rebuild]);
+  }, [decl, id, rebuild]);
 
-  if (!decl || !draft || !content) return null;
+  if (isError) return <ErrorState onRetry={() => void refetch()} />;
+  if (!decl || !draft || !content) return <LoadingState />;
 
   const issues = mmdIssues(content);
   /* Two different diffs, and conflating them is what made this screen say

@@ -19,6 +19,8 @@ process that a restart or a second instance would take away.
 from __future__ import annotations
 
 import datetime
+import hashlib
+import secrets
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -29,6 +31,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.config import REFRESH_TOKEN_TTL_DAYS
 from app.core.security import generate_reset_token, hash_password, verify_password
 from app.services.errors import AccountStoreUnavailable
 
@@ -75,10 +78,18 @@ _MEMORY_USERS: dict[str, dict[str, object]] = {
     },
 }
 
-# Structure: {email: {"token": str, "expires_at": datetime, "used": bool}}
+# Structure: {email: {"token": str, "expires_at": datetime, "used": bool,
+# "attempts": int}}. One entry per address — issuing overwrites, which is the
+# in-memory form of the invalidation the SQL path does explicitly.
 _MEMORY_RESET_TOKENS: dict[str, dict[str, object]] = {}
 
 RESET_TOKEN_TTL_MINUTES = 15
+
+# A 6-digit code holds 900k possibilities; what makes that safe is that a code
+# dies after this many wrong guesses, and issuing a new code retires the old
+# one — so an attacker gets a handful of tries per email, ever, not a keyspace
+# to walk.
+MAX_RESET_ATTEMPTS = 5
 
 # The one answer /forgot-password gives, whether or not the address is ours.
 # Anything that varies with existence turns the endpoint into a membership
@@ -90,6 +101,11 @@ GENERIC_RESET_MESSAGE = (
 # Said for a wrong password and for an address with no account alike, so the
 # endpoint cannot be used to enumerate customers either.
 INVALID_CREDENTIALS_MESSAGE = "Current password is incorrect."
+
+
+# No-database mode's refresh tokens: {token: {user_id, expires_at, used}}.
+# Plaintext keys are fine here — the dict dies with the process.
+_MEMORY_REFRESH_TOKENS: dict[str, dict[str, object]] = {}
 
 
 def _normalize(email: str) -> str:
@@ -347,6 +363,146 @@ def get_account(db: DatabaseRepository | None, user_id: str) -> Account | None:
     return None if row is None else _account_from_row(row)
 
 
+def mark_onboarded(db: DatabaseRepository | None, user_id: str) -> None:
+    """Record that this account finished the onboarding wizard.
+
+    One-way by design: the portal uses the flag to decide whether sign-in
+    lands on /onboarding/setup or straight on the dashboard, and nothing
+    un-finishes a wizard.
+    """
+
+    if db is None:
+        for record in _MEMORY_USERS.values():
+            if str(record["id"]) == user_id:
+                record["onboarded"] = True
+        return
+
+    with _account_session(db) as session:
+        session.execute(
+            text(
+                "UPDATE public.users SET onboarded = TRUE, updated_at = now() "
+                "WHERE id = :id"
+            ),
+            {"id": uuid.UUID(user_id)},
+        )
+        session.commit()
+
+
+# ── Refresh tokens ───────────────────────────────────────────
+# Opaque 256-bit secrets, not JWTs: their whole value is that the server can
+# say no to one, and that needs a row to point at. Stored hashed — a database
+# read must not hand out working credentials.
+
+
+def _refresh_hash(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def issue_refresh_token(db: DatabaseRepository | None, user_id: str) -> str:
+    token = secrets.token_urlsafe(32)
+    expires_at = _now() + datetime.timedelta(days=REFRESH_TOKEN_TTL_DAYS)
+
+    if db is None:
+        _MEMORY_REFRESH_TOKENS[token] = {
+            "user_id": user_id,
+            "expires_at": expires_at,
+            "used": False,
+        }
+        return token
+
+    with _account_session(db) as session:
+        session.execute(
+            text(
+                "INSERT INTO public.refresh_tokens (user_id, token_hash, expires_at) "
+                "VALUES (:user_id, :token_hash, :expires_at)"
+            ),
+            {
+                "user_id": uuid.UUID(user_id),
+                "token_hash": _refresh_hash(token),
+                "expires_at": expires_at,
+            },
+        )
+        session.commit()
+    return token
+
+
+def rotate_refresh_token(
+    db: DatabaseRepository | None, token: str
+) -> tuple[str, str] | None:
+    """Redeem a refresh token: ``(user_id, successor_token)`` or ``None``.
+
+    Single-use. The presented token is burned and a successor issued in the
+    same transaction, so a token that leaks yesterday is dead the moment its
+    rightful holder refreshes — and a burned token presented again simply
+    fails, the same as one that never existed.
+    """
+
+    token_clean = token.strip()
+    if not token_clean:
+        return None
+
+    if db is None:
+        record = _MEMORY_REFRESH_TOKENS.get(token_clean)
+        if record is None or record["used"] or record["expires_at"] <= _now():
+            return None
+        record["used"] = True
+        user_id = str(record["user_id"])
+        return user_id, issue_refresh_token(None, user_id)
+
+    successor = secrets.token_urlsafe(32)
+    expires_at = _now() + datetime.timedelta(days=REFRESH_TOKEN_TTL_DAYS)
+    with _account_session(db) as session:
+        row = session.execute(
+            text(
+                "UPDATE public.refresh_tokens SET used = TRUE "
+                "WHERE token_hash = :token_hash "
+                "AND used = FALSE AND expires_at > :now "
+                "RETURNING user_id"
+            ),
+            {"token_hash": _refresh_hash(token_clean), "now": _now()},
+        ).first()
+        if row is None:
+            return None
+        session.execute(
+            text(
+                "INSERT INTO public.refresh_tokens (user_id, token_hash, expires_at) "
+                "VALUES (:user_id, :token_hash, :expires_at)"
+            ),
+            {
+                "user_id": row[0],
+                "token_hash": _refresh_hash(successor),
+                "expires_at": expires_at,
+            },
+        )
+        session.commit()
+    return str(row[0]), successor
+
+
+def revoke_refresh_token(db: DatabaseRepository | None, token: str) -> None:
+    """Logout's half of revocation. Silently ignores a token we never issued —
+    the caller is leaving either way."""
+
+    token_clean = token.strip()
+    if not token_clean:
+        return
+
+    if db is None:
+        record = _MEMORY_REFRESH_TOKENS.get(token_clean)
+        if record is not None:
+            record["used"] = True
+        return
+
+    with _account_session(db) as session:
+        session.execute(
+            text(
+                "UPDATE public.refresh_tokens SET used = TRUE "
+                "WHERE token_hash = :token_hash"
+            ),
+            {"token_hash": _refresh_hash(token_clean)},
+        )
+        session.commit()
+
+
 def request_password_reset(
     db: DatabaseRepository | None,
     email: str,
@@ -371,12 +527,23 @@ def request_password_reset(
             "token": token,
             "expires_at": expires_at,
             "used": False,
+            "attempts": 0,
         }
         return True, GENERIC_RESET_MESSAGE, token
 
     # Written only to the database. Mirroring it into the dictionary as well
     # would make a code issued by one instance unredeemable on another.
     with _account_session(db) as session:
+        # A fresh code retires every code before it. Exactly one code is ever
+        # redeemable per address, so asking again cannot stack concurrently
+        # valid codes and multiply a guesser's odds.
+        session.execute(
+            text(
+                "UPDATE public.password_resets SET used = TRUE "
+                "WHERE LOWER(email) = :email AND used = FALSE"
+            ),
+            {"email": email_clean},
+        )
         session.execute(
             text(
                 "INSERT INTO public.password_resets (email, token, expires_at) "
@@ -398,26 +565,47 @@ def reset_user_password(
 
     email_clean = _normalize(email)
     token_clean = reset_token.strip()
-    new_hash = hash_password(new_password)
 
     if db is None:
-        return _reset_password_in_memory(email_clean, token_clean, new_hash)
+        return _reset_password_in_memory(email_clean, token_clean, new_password)
 
     # Redeeming the code and writing the password share one transaction: a
     # code must not be burned by an update that then fails to land.
     with _account_session(db) as session:
+        # The newest active code is the only one consulted — issuance retired
+        # the rest. Selecting it WITHOUT the token in the WHERE is what lets a
+        # wrong guess be counted against it.
         record = session.execute(
             text(
-                "SELECT id FROM public.password_resets "
-                "WHERE LOWER(email) = :email AND token = :token "
+                "SELECT id, token, attempts FROM public.password_resets "
+                "WHERE LOWER(email) = :email "
                 "AND used = FALSE AND expires_at > :now "
                 "ORDER BY created_at DESC LIMIT 1"
             ),
-            {"email": email_clean, "token": token_clean, "now": _now()},
+            {"email": email_clean, "now": _now()},
         ).first()
         if record is None:
             return False, "Invalid or expired reset verification token."
 
+        if not secrets.compare_digest(str(record[1]), token_clean):
+            # A wrong guess burns one of the code's lives; the last one burns
+            # the code. `used` rather than delete, so the row still tells the
+            # "exhausted" story apart from "never issued".
+            exhausted = int(record[2]) + 1 >= MAX_RESET_ATTEMPTS
+            session.execute(
+                text(
+                    "UPDATE public.password_resets "
+                    "SET attempts = attempts + 1, used = used OR :exhausted "
+                    "WHERE id = :id"
+                ),
+                {"id": record[0], "exhausted": exhausted},
+            )
+            session.commit()
+            return False, "Invalid or expired reset verification token."
+
+        # Hashing (600k PBKDF2 rounds) waits until the code has proven itself:
+        # done earlier it hands a guesser free CPU burn per attempt.
+        new_hash = hash_password(new_password)
         session.execute(
             text("UPDATE public.password_resets SET used = TRUE WHERE id = :id"),
             {"id": record[0]},
@@ -434,18 +622,20 @@ def reset_user_password(
 
 
 def _reset_password_in_memory(
-    email_clean: str, token_clean: str, new_hash: str
+    email_clean: str, token_clean: str, new_password: str
 ) -> tuple[bool, str]:
+    invalid = (False, "Invalid or expired reset verification token.")
     record = _MEMORY_RESET_TOKENS.get(email_clean)
-    if (
-        record is None
-        or record["token"] != token_clean
-        or record["used"]
-        or record["expires_at"] <= _now()
-    ):
-        return False, "Invalid or expired reset verification token."
+    if record is None or record["used"] or record["expires_at"] <= _now():
+        return invalid
+
+    if not secrets.compare_digest(str(record["token"]), token_clean):
+        record["attempts"] = int(record.get("attempts", 0)) + 1
+        if record["attempts"] >= MAX_RESET_ATTEMPTS:
+            record["used"] = True
+        return invalid
 
     record["used"] = True
     account = _MEMORY_USERS.setdefault(email_clean, _memory_record(email_clean, ""))
-    account["password_hash"] = new_hash
+    account["password_hash"] = hash_password(new_password)
     return True, "Password has been successfully reset."

@@ -60,7 +60,7 @@
 code ที่ฝั่งพอร์ทัลจะดักเป็นพิเศษ:
 `INVALID_CREDENTIALS` · `INVALID_RESET_TOKEN` · `EMAIL_TAKEN` ·
 `TOKEN_NOT_FOUND` · `TOKEN_EXPIRED` · `TOKEN_REVOKED` · `ALREADY_SUBMITTED` ·
-`DECLARATION_NOT_FOUND`
+`DECLARATION_NOT_FOUND` · `RATE_LIMITED` (429 — ยิงถี่เกิน หน้าต่าง 15 นาที)
 
 **เวลา** — ทุก timestamp เป็น epoch milliseconds (number) ให้ตรงกับที่พอร์ทัลใช้อยู่
 อย่าส่ง ISO string ปนมา
@@ -93,9 +93,43 @@ code ที่ฝั่งพอร์ทัลจะดักเป็นพิ
 
 คืน `{ "user": { … } }` — พอร์ทัลเรียกตอนโหลดหน้าแรกเพื่อเช็คว่า token ยังใช้ได้
 
+### `POST /api/auth/onboarded` 🔒 (เพิ่ม 2026-09-02)
+
+ไม่มี body — bearer บอกอยู่แล้วว่าบัญชีไหน ตั้ง `onboarded = true` ถาวรแล้วคืน
+`{ "user": { … } }` พอร์ทัลยิงตอน wizard จบ จากนั้น login/`/` จะพาเข้า
+`/dashboard` ตรง ๆ ไม่ผ่าน `/onboarding/setup` อีก (`/` เช็คค่าสดจาก `/me`)
+
+### `POST /api/auth/refresh` · `POST /api/auth/logout` (เพิ่ม 2026-09-02)
+
+Session แยกเป็นสองส่วนแล้ว: **access token (JWT) อายุ 1 ชั่วโมง** +
+**refresh token อายุ 7 วัน** (opaque 256-bit เก็บ hash ฝั่ง server — revoke ได้)
+ทุก response ของ register/login/refresh คืนทั้งคู่:
+
+```jsonc
+{ "accessToken": "eyJ…", "refreshToken": "…", "user": { … } }
+```
+
+- `POST /refresh` รับ `{ "refreshToken": "…" }` → คืน session ใหม่ทั้งชุด
+  **ใบเดิมตายทันทีที่ใช้** (single-use rotation) ใบตาย/หมดอายุ/มั่ว →
+  401 `INVALID_REFRESH_TOKEN`
+- `POST /logout` รับ `{ "refreshToken": "…" }` → revoke ฝั่ง server ตอบ 200 เสมอ
+- ฝั่งพอร์ทัล `lib/api/http.ts` จัดการเองหมด: เจอ 401 บนเส้น authed →
+  refresh หนึ่งครั้ง → ยิงซ้ำ → ถ้า refresh ตายด้วยค่อยเคลียร์ session
+  (migration 008 สร้างตาราง `refresh_tokens`)
+
 ### ของเดิมที่มีอยู่แล้ว
 
-`change-password` · `forgot-password` · `reset-password` ใช้ต่อได้
+`change-password` 🔒 · `forgot-password` · `reset-password` ใช้ต่อได้
+
+**✅ hardening รอบ 2026-09-02** —
+
+- `change-password` **ต้องแนบ bearer แล้ว** server เปลี่ยนรหัสของเจ้าของ token
+  เท่านั้น (email ใน body ถูกเมิน) — ปิด oracle เดารหัสแบบไม่ต้อง login
+- ทุก endpoint auth มี rate limit ต่ออีเมล หน้าต่าง 15 นาที เกินแล้วตอบ
+  429 `RATE_LIMITED`: register 5 · login 10 · forgot-password 5 ·
+  reset-password 10 · change-password 10
+- โค้ด reset: ขอใบใหม่ = ใบเก่าตายทันที (ใช้งานได้ทีละใบเดียว) และเดาผิดครบ
+  5 ครั้งโค้ดตาย ต้องขอใหม่ (migration 007 เพิ่มคอลัมน์ `attempts`)
 
 ~~**แต่ต้องแก้ก่อน:** `forgot-password` ห้ามคืน `resetToken` กลับมาใน response~~
 **✅ แก้แล้ว** — `AuthResponse` ไม่มีฟิลด์ `reset_token` อีกต่อไป รหัส 6 หลัก
@@ -119,8 +153,9 @@ code ที่ฝั่งพอร์ทัลจะดักเป็นพิ
 
 **ฝั่งพอร์ทัลต่อเสร็จแล้ว** — `/forgot-password` ยิง API จริง และมีหน้า
 `/reset-password` ใหม่สำหรับกรอกรหัส 6 หลัก + ตั้งรหัสผ่านใหม่
-(client อยู่ที่ `lib/api/auth.ts` — `requestPasswordReset` · `resetPassword` ·
-`changePassword` ทั้งสามส่ง `auth: false` ไม่แนบ bearer)
+(client อยู่ที่ `lib/api/auth.ts` — `requestPasswordReset` · `resetPassword`
+ส่ง `auth: false` ไม่แนบ bearer ส่วน `changePassword` แนบ bearer แล้วตาม
+hardening ด้านบน)
 
 **error ของสามตัวนี้ใช้ `{detail: {code, message}}` แล้ว** (เดิมเป็น string เปล่า):
 
@@ -154,6 +189,15 @@ backend ไม่ต้องรู้จักฟิลด์ข้างใน
 
 `id` ฝั่ง client เป็นคนสร้าง (`decl-<uuid>`) แล้วส่งมาใน POST — ไม่ต้องให้ server
 gen ให้ เพราะพอร์ทัลต้อง redirect ไปหน้ารายละเอียดทันทีหลังกดสร้าง
+
+**✅ ทำแล้วทั้งสองฝั่ง** — backend: `app/routers/declarations.py` + ตาราง
+`portal_declarations` (migration 006, PK = `(user_id, id)` เห็นเฉพาะของตัวเองโดย
+โครงสร้าง) · `PUT` เป็น upsert (id ฝั่ง client, retry ได้) · ลบแล้วลบซ้ำ = 204 ·
+404 ใช้ `DECLARATION_NOT_FOUND` · `updatedAt` server ประทับเป็น epoch ms ·
+เอกสารเกิน 512KB โดน 422 `INVALID_DECLARATION` — พอร์ทัล: หน้ารายละเอียดทั้งห้า
+อ่านผ่าน `lib/declarations-store.ts` (ตอนนี้ API-backed, localStorage ออกแล้ว)
+เมนูลบยิง `DELETE` จริง fixtures ใน `lib/data.ts` เหลือไว้เฉพาะ flow ซัพพลายเออร์
+เดโมที่จะย้ายพร้อม §3
 
 ---
 

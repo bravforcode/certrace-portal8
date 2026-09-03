@@ -7,6 +7,7 @@ import { ArrowRight } from "lucide-react";
 import { Button, Field, inputClass, cn } from "@/components/ui";
 import { AuthLayout, GoogleButton, Divider, GOOGLE_AUTH_ENABLED } from "@/components/auth-panel";
 import { EnglishOnly, useT } from "@/lib/i18n";
+import { apiConfigured, hasCode, isApiError, login } from "@/lib/api";
 
 /* Sign-in is English-only, like the rest of the auth screens — see
    EnglishOnly in lib/i18n.tsx. The EN/ไทย switcher starts on /onboarding,
@@ -23,6 +24,9 @@ export default function LoginPage() {
 function LoginScreen() {
   const t = useT();
   const router = useRouter();
+  const [email, setEmail] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [error, setError] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [googleLoading, setGoogleLoading] = React.useState(false);
 
@@ -32,11 +36,41 @@ function LoginScreen() {
      paths must not diverge: which flow a "Continue with Google" click starts
      is decided by the page it was clicked on, and on this page that is the
      sign-in flow, exactly as the identical button on /register starts the
-     create-account one. */
-  const submit = (e: React.FormEvent) => {
+     create-account one.
+
+     The email form authenticates for real when a backend is configured;
+     login() stores the session itself (see lib/api/auth.ts). On a laptop with
+     no NEXT_PUBLIC_API_BASE_URL the demo walkthrough stays as it was. */
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
+    setError("");
     setLoading(true);
-    window.setTimeout(() => router.push("/onboarding/setup"), 600);
+
+    if (!apiConfigured()) {
+      window.setTimeout(() => router.push("/onboarding/setup"), 600);
+      return;
+    }
+
+    try {
+      const session = await login({ email: email.trim(), password });
+      // Someone who already finished setup goes straight to work; the
+      // sign-in walkthrough is for accounts that never completed it. The
+      // flag comes from the server (markOnboarded), not localStorage, so it
+      // survives a new browser.
+      router.push(session.user.onboarded ? "/dashboard" : "/onboarding/setup");
+    } catch (cause) {
+      setError(
+        hasCode(cause, "INVALID_CREDENTIALS")
+          ? t("Email or password is incorrect.")
+          : hasCode(cause, "RATE_LIMITED")
+            ? t("Too many attempts. Please try again later.")
+            : isApiError(cause) && cause.retryable
+              ? t("We couldn't reach the server. Check your connection and try again.")
+              : t("Something went wrong signing you in. Please try again."),
+      );
+      setLoading(false);
+    }
   };
 
   const withGoogle = () => {
@@ -65,7 +99,15 @@ function LoginScreen() {
           heading, so it takes over the spacing that block was providing. */}
       <form onSubmit={submit} className={cn("space-y-4", GOOGLE_AUTH_ENABLED ? "mt-5" : "mt-7")}>
         <Field label={t("Work email")}>
-          <input className={inputClass} type="email" placeholder={t("you@company.com")} autoComplete="username" required />
+          <input
+            className={inputClass}
+            type="email"
+            placeholder={t("you@company.com")}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="username"
+            required
+          />
         </Field>
         <div>
           <div className="mb-2 flex items-center justify-between">
@@ -74,8 +116,17 @@ function LoginScreen() {
               {t("Forgot password?")}
             </Link>
           </div>
-          <input className={inputClass} type="password" placeholder="••••••••" autoComplete="current-password" required />
+          <input
+            className={inputClass}
+            type="password"
+            placeholder="••••••••"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            required
+          />
         </div>
+        {error && <p className="text-xs text-[#dc2626]">{error}</p>}
         <Button type="submit" className="w-full" disabled={loading}>
           {loading ? t("Signing in…") : t("Sign in")}
           {!loading && <ArrowRight size={15} strokeWidth={1.5} />}

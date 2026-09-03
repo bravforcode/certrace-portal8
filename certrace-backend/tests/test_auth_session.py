@@ -12,8 +12,8 @@ import itertools
 import pytest
 from fastapi.testclient import TestClient
 
-from app.core.tokens import issue_access_token
 import app.main as app_main
+from app.core.tokens import issue_access_token
 from app.main import create_app
 
 _counter = itertools.count()

@@ -22,7 +22,9 @@ import { ArrowLeft, ShieldCheck, Link2, CircleCheck, TriangleAlert, CircleX, Cop
 import { Card, Button, Eyebrow, Chip, cn } from "@/components/ui";
 import { toast } from "@/components/toast";
 import { ReadinessScore } from "@/components/cbam/readiness-score";
-import { getDeclaration, USER, type Declaration } from "@/lib/data";
+import { USER } from "@/lib/data";
+import { useDeclaration } from "@/lib/declarations-query";
+import { ErrorState, LoadingState } from "@/components/query-state";
 import { loadExporterState, rollup as buildRollup } from "@/lib/exporter-review";
 import { computeReadiness } from "@/lib/cbam/readiness-input";
 import { buildDossier, verifierShareToken, type Dossier } from "@/lib/cbam/dossier";
@@ -42,19 +44,21 @@ export default function VerificationDossierPage({ params }: { params: Promise<{ 
   const t = useT();
   const { id } = React.use(params);
   const router = useRouter();
-  const [decl, setDecl] = React.useState<Declaration | null>(null);
+  const { data: decl, isError, refetch } = useDeclaration(id);
   const [dossier, setDossier] = React.useState<Dossier | null>(null);
   const [snapshot, setSnapshot] = React.useState<CalculationSnapshot | null>(null);
   const [mmd, setMmd] = React.useState<MmdVersion | null>(null);
   const [copied, setCopied] = React.useState(false);
 
   React.useEffect(() => {
-    const found = getDeclaration(id);
-    if (!found) {
-      router.replace("/declarations");
-      return;
-    }
-    setDecl(found);
+    if (decl === null) router.replace("/declarations");
+  }, [decl, router]);
+
+  /* The pieces that live NEXT TO the declaration (localStorage stores,
+     drafts, snapshots) load once the query has it. */
+  React.useEffect(() => {
+    if (!decl) return;
+    const found = decl;
     const roll = buildRollup(found, loadExporterState(found.id));
     const snap = activeSnapshot(found.id);
     const mmdVersion = latestVersion(found.id);
@@ -66,9 +70,10 @@ export default function VerificationDossierPage({ params }: { params: Promise<{ 
     );
     setSnapshot(snap);
     setMmd(mmdVersion);
-  }, [id, router]);
+  }, [decl, id]);
 
-  if (!decl || !dossier) return null;
+  if (isError) return <ErrorState onRetry={() => void refetch()} />;
+  if (!decl || !dossier) return <LoadingState />;
 
   const copyLink = async () => {
     const url = `${window.location.origin}/verify/${verifierShareToken(decl.id)}`;

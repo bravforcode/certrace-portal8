@@ -9,6 +9,7 @@ import { AuthLayout, GoogleButton, Divider, PasswordStrength, GOOGLE_AUTH_ENABLE
 import { useProfile } from "@/lib/profile";
 import { EnglishOnly, useT } from "@/lib/i18n";
 import { LEGAL_PRIVACY_URL, LEGAL_TERMS_URL } from "@/lib/links";
+import { apiConfigured, hasCode, isApiError, register } from "@/lib/api";
 
 /* Enough to catch "somebody@" and "somebody@company" — the two shapes that
    look finished in the box and bounce every email we send. The real check is
@@ -65,6 +66,7 @@ function RegisterScreen() {
   const [password, setPassword] = React.useState("");
   const [confirm, setConfirm] = React.useState("");
   const [agreed, setAgreed] = React.useState(false);
+  const [error, setError] = React.useState("");
   const mismatch = confirm.length > 0 && confirm !== password;
 
   /* The button is dead until the form is actually complete — every field
@@ -79,17 +81,48 @@ function RegisterScreen() {
     confirm === password &&
     agreed;
 
-  const submit = (e: React.FormEvent) => {
+  // The typed name is the ONLY thing carried forward — everything else
+  // resets, so /onboarding asks for the company rather than offering the
+  // demo fixture's, which is how a wrong name gets accepted unread.
+  const carryNamesToOnboarding = () => {
+    update({ ...BLANK_SIGNUP, firstName: firstName.trim(), lastName: lastName.trim() });
+    router.push("/onboarding");
+  };
+
+  /* Creates the account for real when a backend is configured; register()
+     stores the session itself (see lib/api/auth.ts). Without a backend URL
+     the demo walkthrough stays as it was. */
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canSubmit) return;
+    if (!canSubmit || loading) return;
+    setError("");
     setLoading(true);
-    window.setTimeout(() => {
-      // The typed name is the ONLY thing carried forward — everything else
-      // resets, so /onboarding asks for the company rather than offering the
-      // demo fixture's, which is how a wrong name gets accepted unread.
-      update({ ...BLANK_SIGNUP, firstName: firstName.trim(), lastName: lastName.trim() });
-      router.push("/onboarding");
-    }, 700);
+
+    if (!apiConfigured()) {
+      window.setTimeout(carryNamesToOnboarding, 700);
+      return;
+    }
+
+    try {
+      await register({
+        email: email.trim(),
+        password,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+      });
+      carryNamesToOnboarding();
+    } catch (cause) {
+      setError(
+        hasCode(cause, "EMAIL_TAKEN")
+          ? t("An account with this email already exists. Try signing in instead.")
+          : hasCode(cause, "RATE_LIMITED")
+            ? t("Too many attempts. Please try again later.")
+            : isApiError(cause) && cause.retryable
+              ? t("We couldn't reach the server. Check your connection and try again.")
+              : t("Something went wrong creating your account. Please try again."),
+      );
+      setLoading(false);
+    }
   };
 
   /* Google hands back an identity, not a company record — so it clears the
@@ -225,6 +258,7 @@ function RegisterScreen() {
           </span>
         </label>
 
+        {error && <p className="text-xs text-[#dc2626]">{error}</p>}
         <Button type="submit" className="w-full" disabled={loading || !canSubmit}>
           {loading ? t("Creating account…") : t("Create account")}
           {!loading && <ArrowRight size={15} strokeWidth={1.5} />}

@@ -5,7 +5,6 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
 
 from sqlalchemy import (
     Boolean,
@@ -20,6 +19,7 @@ from sqlalchemy import (
     UniqueConstraint,
     false,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -49,9 +49,9 @@ class User(Base):
     )
     email: Mapped[str] = mapped_column(Text, nullable=False)
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
-    first_name: Mapped[Optional[str]] = mapped_column(Text)
-    last_name: Mapped[Optional[str]] = mapped_column(Text)
-    company_name: Mapped[Optional[str]] = mapped_column(Text)
+    first_name: Mapped[str | None] = mapped_column(Text)
+    last_name: Mapped[str | None] = mapped_column(Text)
+    company_name: Mapped[str | None] = mapped_column(Text)
     onboarded: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=false()
     )
@@ -89,7 +89,74 @@ class PasswordReset(Base):
     used: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=false()
     )
+    # Wrong guesses so far; the service burns the code at MAX_RESET_ATTEMPTS.
+    attempts: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
     created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class RefreshToken(Base):
+    """One issued refresh token, hashed at rest.
+
+    Single-use: redemption marks the row used and issues a successor, so the
+    week-long session is a chain of short-lived secrets, any link of which
+    logout can revoke.
+    """
+
+    __tablename__ = "refresh_tokens"
+    __table_args__ = (
+        UniqueConstraint("token_hash", name="refresh_tokens_token_hash_key"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=func.gen_random_uuid(),
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    token_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    used: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class PortalDeclaration(Base):
+    """One exporter's declaration document, stored whole.
+
+    The portal owns the shape (certrace-portal/lib/data.ts) and the backend
+    keeps it opaque, per docs/API-CONTRACT.md §2: the document lives in
+    ``doc`` as jsonb, and only what listing needs to sort and filter by is
+    broken out into columns. The id is minted client-side (``decl-<uuid>``),
+    so the primary key is (user_id, id): two accounts can never see — or
+    collide on — each other's rows.
+    """
+
+    __tablename__ = "portal_declarations"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    id: Mapped[str] = mapped_column(Text, primary_key=True)
+    name: Mapped[str | None] = mapped_column(Text)
+    period: Mapped[str | None] = mapped_column(Text)
+    step: Mapped[str | None] = mapped_column(Text)
+    doc: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
@@ -129,7 +196,7 @@ class DefaultEmissionFactor(Base):
         Text, nullable=False, default="UNSPECIFIED"
     )
     sector: Mapped[str] = mapped_column(Text, nullable=False)
-    route: Mapped[Optional[str]] = mapped_column(Text)
+    route: Mapped[str | None] = mapped_column(Text)
     specific_embedded_emissions: Mapped[Decimal] = mapped_column(
         Numeric(24, 12), nullable=False
     )
@@ -137,7 +204,7 @@ class DefaultEmissionFactor(Base):
     source_reference: Mapped[str] = mapped_column(Text, nullable=False)
     regulatory_data_version: Mapped[str] = mapped_column(Text, nullable=False)
     effective_from: Mapped[datetime] = mapped_column(Date, nullable=False)
-    effective_to: Mapped[Optional[datetime]] = mapped_column(Date)
+    effective_to: Mapped[datetime | None] = mapped_column(Date)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -222,7 +289,7 @@ class DeclarationAuditEvent(Base):
         ForeignKey("declarations.id", ondelete="CASCADE"), nullable=False
     )
     event_type: Mapped[str] = mapped_column(Text, nullable=False)
-    actor: Mapped[Optional[str]] = mapped_column(Text)
+    actor: Mapped[str | None] = mapped_column(Text)
     payload: Mapped[dict[str, object]] = mapped_column(
         JSONB, nullable=False, default=dict
     )

@@ -24,6 +24,10 @@ const KEY = "certrace:auth";
 
 export type Session = {
   accessToken: string;
+  /** Optional so a session stored before refresh tokens existed keeps
+      working until its access token dies — then the person signs in again
+      and picks one up. */
+  refreshToken?: string;
   user: AuthUser;
 };
 

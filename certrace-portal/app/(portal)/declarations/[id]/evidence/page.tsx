@@ -23,7 +23,9 @@ import { ArrowLeft, Paperclip, Upload, Trash2, Link2, TriangleAlert, Check } fro
 import { Card, Button, Eyebrow, Progress, EmptyState, OptionalTag, inputClass, cn } from "@/components/ui";
 import { Select } from "@/components/controls";
 import { toast } from "@/components/toast";
-import { getDeclaration, USER, type Declaration } from "@/lib/data";
+import { USER, type Declaration } from "@/lib/data";
+import { useDeclaration } from "@/lib/declarations-query";
+import { ErrorState, LoadingState } from "@/components/query-state";
 import { calendarYear, displayDate, type ReportingPeriod } from "@/lib/cbam/boundary";
 import { provenanceRefs, type ActivityDataset } from "@/lib/cbam/activity";
 import { loadDataset, saveDataset } from "@/lib/cbam/activity-store";
@@ -55,7 +57,7 @@ export default function EvidencePage({ params }: { params: Promise<{ id: string 
   const t = useT();
   const { id } = React.use(params);
   const router = useRouter();
-  const [decl, setDecl] = React.useState<Declaration | null>(null);
+  const { data: decl, isError, refetch } = useDeclaration(id);
   const [dataset, setDataset] = React.useState<ActivityDataset | null>(null);
   const [files, setFiles] = React.useState<EvidenceFile[]>([]);
   const [openFileId, setOpenFileId] = React.useState<string | null>(null);
@@ -63,17 +65,20 @@ export default function EvidencePage({ params }: { params: Promise<{ id: string 
   const [uploadCategory, setUploadCategory] = React.useState<EvidenceCategory>("utility_bill");
 
   React.useEffect(() => {
-    const found = getDeclaration(id);
-    if (!found) {
-      router.replace("/declarations");
-      return;
-    }
-    setDecl(found);
+    if (decl === null) router.replace("/declarations");
+  }, [decl, router]);
+
+  /* The pieces that live NEXT TO the declaration (localStorage stores,
+     drafts, snapshots) load once the query has it. */
+  React.useEffect(() => {
+    if (!decl) return;
+    const found = decl;
     setDataset(loadDataset(id, periodFor(found), USER.name));
     setFiles(listEvidence(id));
-  }, [id, router]);
+  }, [decl, id]);
 
-  if (!decl || !dataset) return null;
+  if (isError) return <ErrorState onRetry={() => void refetch()} />;
+  if (!decl || !dataset) return <LoadingState />;
 
   /* The coverage rows ARE the dataset's provenance records — one list, so a
      new kind of input can never quietly escape the evidence requirement. */

@@ -75,7 +75,7 @@ import {
 import { Button, Card, Chip, EmptyState, PageHeader, Progress, TagBadge, cn } from "@/components/ui";
 import { Select } from "@/components/controls";
 import { toast } from "@/components/toast";
-import { DotStrip, StateChip, useClientData } from "@/components/workspace/chrome";
+import { DotStrip, StateChip } from "@/components/workspace/chrome";
 import { WorkspaceMenu } from "@/components/workspace/workspace-menu";
 import { getCatalogProduct } from "@/lib/config";
 import { listInstallations } from "@/lib/installations";
@@ -84,13 +84,18 @@ import { listSuppliers } from "@/lib/precursor-suppliers";
 import { dotStates, workspaceReadiness, type TabState } from "@/lib/readiness";
 import {
   groupBySupplier,
-  listArchivedWorkspaces,
-  listWorkspaces,
   restoreWorkspace,
   routeLabel,
   type VerificationWorkspace,
 } from "@/lib/workspace";
-import { deleteWorkspaceDraft, loadWorkspaceDrafts, type WorkspaceDraft } from "@/lib/workspace-drafts";
+import { type WorkspaceDraft } from "@/lib/workspace-drafts";
+import {
+  useArchivedWorkspaces,
+  useDeleteWorkspaceDraft,
+  useInvalidateWorkspaces,
+  useWorkspaceDrafts,
+  useWorkspaces,
+} from "@/lib/store";
 import { useT } from "@/lib/i18n";
 
 type CardData = {
@@ -114,12 +119,9 @@ function toCards(workspaces: VerificationWorkspace[]): CardData[] {
   });
 }
 
-const buildCards = (): CardData[] => toCards(listWorkspaces());
 
-/* Read separately rather than filtered out of one list: listWorkspaces() is
-   the ACTIVE estate everywhere in the portal, and having this screen be the
-   one place that reads archived rows keeps that true. */
-const buildArchivedCards = (): CardData[] => toCards(listArchivedWorkspaces());
+
+
 
 /* ── Active or archived ─────────────────────────────────────────
    One screen, two scopes, and the archive is a SCOPE rather than a page of
@@ -144,18 +146,24 @@ const ROWS_PER_PAGE = 15;
 export default function WorkspacesPage() {
   const t = useT();
   const router = useRouter();
-  const [cards, refreshActive] = useClientData(buildCards);
-  const [archivedCards, refreshArchived] = useClientData(buildArchivedCards);
-  const [drafts, refreshDrafts] = useClientData(loadWorkspaceDrafts);
+  const { data: activeWorkspaces } = useWorkspaces();
+  const { data: archivedWorkspaces } = useArchivedWorkspaces();
+  const { data: drafts } = useWorkspaceDrafts();
+  const removeDraft = useDeleteWorkspaceDraft();
+  const cards = React.useMemo(
+    () => (activeWorkspaces ? toCards(activeWorkspaces) : null),
+    [activeWorkspaces],
+  );
+  const archivedCards = React.useMemo(
+    () => (archivedWorkspaces ? toCards(archivedWorkspaces) : null),
+    [archivedWorkspaces],
+  );
 
-  /* Archiving moves a card BETWEEN the two lists, so both are re-read on any
-     change. Refreshing only the one being looked at would leave the count on
-     the other pill stale — the exact number the reader is about to use to
-     decide whether the archive is worth opening. */
-  const refresh = React.useCallback(() => {
-    refreshActive();
-    refreshArchived();
-  }, [refreshActive, refreshArchived]);
+  /* Archiving moves a card BETWEEN the two lists; invalidating the whole
+     ["workspaces"] prefix refetches both, so neither pill's count can go
+     stale — the exact number the reader is about to use to decide whether
+     the archive is worth opening. */
+  const refresh = useInvalidateWorkspaces();
 
   const [query, setQuery] = React.useState("");
   const [good, setGood] = React.useState("");
@@ -275,8 +283,7 @@ export default function WorkspacesPage() {
   };
 
   const discardDraft = (id: string) => {
-    deleteWorkspaceDraft(id);
-    refreshDrafts();
+    removeDraft.mutate(id);
   };
 
   const from = filtered.length === 0 ? 0 : (page - 1) * perPage + 1;

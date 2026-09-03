@@ -82,7 +82,8 @@ def create_app(
     application.state.database = (
         DatabaseRepository(database_url) if database_url else None
     )
-    application.state.declarations = {}
+    # No-database home for portal declarations: {account id: {decl id: doc}}.
+    application.state.portal_declarations = {}
     # Without a database there are no real accounts to protect, so the
     # no-database mode gets an ephemeral key rather than a startup failure:
     # tokens work for the life of the process, which is all a local demo or a
@@ -97,7 +98,7 @@ def create_app(
             CORSMiddleware,
             allow_origins=list(configured_origins),
             allow_credentials=True,
-            allow_methods=["GET", "POST", "OPTIONS"],
+            allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
             allow_headers=["Accept", "Authorization", "Content-Type"],
             max_age=600,
         )

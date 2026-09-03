@@ -180,8 +180,15 @@ export type ReportRecord = {
 
 const ORG_PLAN = "trial" as const;
 
-/** Day the free trial started, ISO date. Only read when ORG_PLAN is "trial". */
-export const TRIAL_STARTED_ON = "2026-08-04";
+/** Day the free trial started, ISO date. Only read when ORG_PLAN is "trial".
+
+    Rolling — pinned five days back from today — because a hardcoded date is
+    a time bomb: the morning it aged past TRIAL_DAYS the whole demo portal
+    (and every store-write test under it) silently froze read-only. The ENDED
+    state is still one query param away: `?trialDay=31` (see lib/plan.ts). */
+export const TRIAL_STARTED_ON = new Date(Date.now() - 5 * 86_400_000)
+  .toISOString()
+  .slice(0, 10);
 
 export const ORG = {
   name: "Siam Steel Export Co.",

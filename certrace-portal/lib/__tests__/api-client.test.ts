@@ -210,6 +210,43 @@ test("a 401 from a public link route leaves the signed-in session alone", async 
   assert.equal(loadSession()?.accessToken, "good", "the link is dead, the exporter is not signed out");
 });
 
+/* ── the hour is up: refresh and replay ── */
+
+const A_USER = { id: "u1", email: "a@b.co", onboarded: true };
+
+test("an expired access token refreshes once and the call is replayed", async () => {
+  reset();
+  let served = 0;
+  const calls = stubServer(() => {
+    served += 1;
+    if (served === 1) return json({ detail: { code: "INVALID_CREDENTIALS", message: "expired" } }, 401);
+    if (served === 2) return json({ accessToken: "tok-new", refreshToken: "ref-new", user: A_USER });
+    return json({ declarations: [] });
+  });
+  saveSession({ accessToken: "tok-old", refreshToken: "ref-old", user: A_USER });
+
+  const declarations = await listDeclarations();
+
+  assert.deepEqual(declarations, []);
+  assert.equal(calls[1].url, "https://api.certrace.co/api/auth/refresh");
+  assert.deepEqual(JSON.parse(String(calls[1].init.body)), { refreshToken: "ref-old" });
+  /* The replay carries the NEW token, and the rotated pair is what survives. */
+  assert.equal(headerOf(calls[2], "Authorization"), "Bearer tok-new");
+  assert.equal(loadSession()?.refreshToken, "ref-new");
+});
+
+test("when the refresh token is dead too, the session is cleared and the 401 stands", async () => {
+  reset();
+  stubServer(() => json({ detail: { code: "INVALID_CREDENTIALS", message: "nope" } }, 401));
+  saveSession({ accessToken: "tok-old", refreshToken: "ref-dead", user: A_USER });
+
+  await assert.rejects(listDeclarations(), (cause: unknown) => {
+    assert.ok(cause instanceof ApiError && cause.status === 401);
+    return true;
+  });
+  assert.equal(loadSession(), null, "a session that cannot refresh is over");
+});
+
 /* ── the shapes the wiring will actually send ── */
 
 test("creating a declaration sends the portal's own object, id included", async () => {
@@ -278,7 +315,7 @@ test("asking for a reset code sends the address and the reader's language", asyn
   assert.equal(message, "If an account exists…");
 });
 
-test("the password routes never carry a session token", async () => {
+test("the reset routes never carry a session token", async () => {
   reset();
   const calls = stubServer(() => json({ success: true, message: "ok" }));
   /* Someone resetting a password may still have a stale session in this
@@ -288,11 +325,20 @@ test("the password routes never carry a session token", async () => {
 
   await requestPasswordReset({ email: "a@b.co" });
   await resetPassword({ email: "a@b.co", code: "482913", newPassword: "long-enough-1" });
-  await changePassword({ email: "a@b.co", currentPassword: "old", newPassword: "long-enough-1" });
 
   for (const call of calls) {
     assert.equal(headerOf(call, "Authorization"), undefined, call.url);
   }
+});
+
+test("changing a password carries the bearer — the token names whose it is", async () => {
+  reset();
+  const calls = stubServer(() => json({ success: true, message: "ok" }));
+  saveSession({ accessToken: "tok-123", user: { id: "u1", email: "a@b.co", onboarded: true } });
+
+  await changePassword({ email: "a@b.co", currentPassword: "old", newPassword: "long-enough-1" });
+
+  assert.equal(headerOf(calls[0], "Authorization"), "Bearer tok-123");
 });
 
 test("the reset call maps onto the endpoint's snake_case fields", async () => {

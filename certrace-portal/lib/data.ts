@@ -2,7 +2,6 @@
    Posture: a Thai steel exporter (Siam Steel Export Co.) filing CBAM for the EU,
    as of mid-June 2026. CBAM-only, steel-only — matches the launch gating in config.ts. */
 
-import { getCreatedDeclaration } from "./declarations-store";
 import { getCatalogProduct, getPlan } from "./config";
 
 export type SupplierStatus = "submitted" | "in_progress" | "overdue" | "not_started";
@@ -180,8 +179,15 @@ export type ReportRecord = {
 
 const ORG_PLAN = "trial" as const;
 
-/** Day the free trial started, ISO date. Only read when ORG_PLAN is "trial". */
-export const TRIAL_STARTED_ON = "2026-08-04";
+/** Day the free trial started, ISO date. Only read when ORG_PLAN is "trial".
+
+    Rolling — pinned five days back from today — because a hardcoded date is
+    a time bomb: the morning it aged past TRIAL_DAYS the whole demo portal
+    (and every store-write test under it) silently froze read-only. The ENDED
+    state is still one query param away: `?trialDay=31` (see lib/plan.ts). */
+export const TRIAL_STARTED_ON = new Date(Date.now() - 5 * 86_400_000)
+  .toISOString()
+  .slice(0, 10);
 
 export const ORG = {
   name: "Siam Steel Export Co.",
@@ -377,7 +383,11 @@ export const REPORTS: ReportRecord[] = [
   },
 ];
 
-export const getDeclaration = (id: string) => DECLARATIONS.find((d) => d.id === id) ?? getCreatedDeclaration(id) ?? undefined;
+/* Fixture lookup only. The account's real declarations come from the API —
+   lib/declarations-store.ts — which the declaration screens now read; this
+   stays for the supplier-directory and Smart-Link demo flows that still walk
+   the fixtures. */
+export const getDeclaration = (id: string) => DECLARATIONS.find((d) => d.id === id);
 
 export const supplierStatusMeta: Record<SupplierStatus, { label: string; tone: "ok" | "info" | "warn" | "err" | "muted" }> = {
   submitted: { label: "submitted", tone: "ok" },

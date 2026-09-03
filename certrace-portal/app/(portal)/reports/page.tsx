@@ -42,11 +42,12 @@
      fixture counted.
    ════════════════════════════════════════════════════════════ */
 
+import { useQuery } from "@tanstack/react-query";
 import { Download } from "lucide-react";
 import { Card, PageHeader, Stat, Eyebrow, Button } from "@/components/ui";
 import { toast } from "@/components/toast";
 import { useT } from "@/lib/i18n";
-import { StateChip, useClientData } from "@/components/workspace/chrome";
+import { StateChip } from "@/components/workspace/chrome";
 import { annualProductionFor } from "@/lib/monthly-data";
 import { trackedWorkspaceIndex, type PrecursorSupplier } from "@/lib/precursor-suppliers";
 import { workspaceReadiness } from "@/lib/readiness";
@@ -63,7 +64,10 @@ type Row = {
 
 export default function ReportsPage() {
   const t = useT();
-  const [rows] = useClientData<Row[]>(() => {
+  const { data: rows } = useQuery<Row[]>({
+    queryKey: ["workspaces", "reports"],
+    staleTime: 0,
+    queryFn: () => {
     const workspaces = listWorkspaces();
     const tracked = trackedWorkspaceIndex(workspaces);
     return workspaces.map((w) => ({
@@ -72,6 +76,7 @@ export default function ReportsPage() {
       production: annualProductionFor(w),
       trackedFor: tracked.get(w.id) ?? null,
     }));
+    },
   });
 
   const all = rows ?? [];
