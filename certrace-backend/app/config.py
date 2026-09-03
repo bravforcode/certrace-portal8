@@ -41,6 +41,15 @@ JWT_TTL_HOURS = 1
 # rotates the token, so the week is a ceiling, not a fixed credential's life.
 REFRESH_TOKEN_TTL_DAYS = 7
 
+# Default lifetime of a supplier smart link (docs/API-CONTRACT.md §3). Long
+# because the holder is a supplier without an account working at their own
+# pace; the exporter can shorten it per link via ``expiresInDays``.
+SMART_LINK_TTL_DAYS = 60
+
+# Where a minted smart link points. The portal serves /s/<token>; overridden
+# by CERTRACE_APP_BASE_URL for staging and local runs.
+APP_BASE_URL_DEFAULT = "https://app.certrace.co"
+
 SUPPORT_EMAIL = "contact@certrace.co"
 
 SERVICE_NAME = "certrace-backend"

@@ -9,9 +9,11 @@ from decimal import Decimal
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
+    Computed,
     Date,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Integer,
     Numeric,
     String,
@@ -153,6 +155,47 @@ class PortalDeclaration(Base):
     period: Mapped[str | None] = mapped_column(Text)
     step: Mapped[str | None] = mapped_column(Text)
     doc: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class SmartLink(Base):
+    """One server-issued supplier link (docs/API-CONTRACT.md §3).
+
+    The token is the primary key and the whole credential: 32 random bytes,
+    derived from nothing, so holding the row is the only way to resolve it.
+    ``state`` is the supplier's answer blob (§4), opaque here like the
+    declaration document it belongs to; null until the supplier first saves.
+    The composite FK means a deleted declaration takes its links with it.
+    """
+
+    __tablename__ = "smart_links"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["user_id", "declaration_id"],
+            ["portal_declarations.user_id", "portal_declarations.id"],
+            ondelete="CASCADE",
+        ),
+    )
+
+    token: Mapped[str] = mapped_column(Text, primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    declaration_id: Mapped[str] = mapped_column(Text, nullable=False)
+    supplier_id: Mapped[str] = mapped_column(Text, nullable=False)
+    month: Mapped[str | None] = mapped_column(Text)
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    state: Mapped[dict[str, object] | None] = mapped_column(JSONB)
+    # Generated from the blob (§4's queryable status), never written directly.
+    status: Mapped[str | None] = mapped_column(
+        Text, Computed("state->>'status'", persisted=True)
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
