@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Certrace — Smart Links",
-    "description": "Flow ครบวงจรของ supplier smart links (docs/API-CONTRACT.md §3)\n\nวิธีใช้:\n1. ตั้ง `baseUrl` ใน collection variables (default = http://localhost:8000)\n2. ยิง `1 Register` หรือ `2 Login` — jwt ถูกเก็บเข้า variable อัตโนมัติ\n3. ยิง `3 Create declaration` — สร้างเอกสารตัวอย่างที่มี request ของ supplier d1\n4. ยิง `4 Mint smart link` — token ถูกเก็บเข้า variable อัตโนมัติ\n5. ยิง `5 List minted links` — ดึง token ที่เคยออกกลับมา (ใบล่าสุดถูกเก็บเข้า variable)\n6. ยิง `6 Resolve link` — ไม่ใช้ auth เลย จำลองมุมมองซัพพลายเออร์\n\nคู่มือเต็ม: certrace-backend/docs/smart-links.md",
+    "description": "Flow ครบวงจรของ supplier smart links (docs/API-CONTRACT.md §3-§4)\n\nวิธีใช้:\n1. ตั้ง `baseUrl` ใน collection variables (default = http://localhost:8000)\n2. ยิง `1 Register` หรือ `2 Login` — jwt ถูกเก็บเข้า variable อัตโนมัติ\n3. ยิง `3 Create declaration` — สร้างเอกสารตัวอย่างที่มี request ของ supplier d1\n4. ยิง `4 Mint smart link` — token ถูกเก็บเข้า variable อัตโนมัติ\n5. ยิง `5 List minted links` — ดึง token ที่เคยออกกลับมา (ใบล่าสุดถูกเก็บเข้า variable)\n6. ยิง `6 Resolve link` — ไม่ใช้ auth เลย จำลองมุมมองซัพพลายเออร์\n7. ยิง `7 Save state` — ซัพพลายเออร์เซฟค้างระหว่างกรอก (ไม่ใช้ auth)\n8. ยิง `8 Submit` — ซัพพลายเออร์เซ็นส่ง server stamp version/เวลา/status ให้ (ไม่ใช้ auth)\n   ยิง `6 Resolve` ซ้ำเพื่อดูว่า state ที่เซฟ/ส่งถูกเก็บจริง\n\nคู่มือเต็ม: certrace-backend/docs/smart-links.md",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -204,7 +204,79 @@
       }
     },
     {
-      "name": "7 Resolve token มั่ว (ดูรูปแบบ error)",
+      "name": "7 Save state (ไม่ต้อง auth — ซัพพลายเออร์เซฟระหว่างกรอก)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 + เซฟแล้ว server คืน state กลับมา', () => {",
+              "    pm.response.to.have.status(200);",
+              "    const s = pm.response.json();",
+              "    pm.expect(s.status).to.eql('draft');",
+              "    pm.expect(s.token).to.eql(pm.collectionVariables.get('linkToken'));",
+              "    pm.expect(s.updatedAt).to.be.a('number');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": { "type": "noauth" },
+        "method": "PUT",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/links/{{linkToken}}/state",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "links", "{{linkToken}}", "state"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"state\": {\n    \"status\": \"draft\",\n    \"values\": { \"hrc.qty\": \"200\" }\n  }\n}"
+        },
+        "description": "Autosave ก้อน state ทั้งก้อน last-write-wins — server เขียนทับ token กับ updatedAt ให้เอง\n\nErrors: 404 TOKEN_NOT_FOUND · 410 TOKEN_EXPIRED · 410 TOKEN_REVOKED"
+      }
+    },
+    {
+      "name": "8 Submit (ไม่ต้อง auth — ซัพพลายเออร์เซ็นส่ง)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 + server stamp version/status/เวลาให้', () => {",
+              "    pm.response.to.have.status(200);",
+              "    const s = pm.response.json();",
+              "    pm.expect(s.status).to.eql('submitted');",
+              "    const v = s.versions[s.versions.length - 1];",
+              "    pm.expect(v.signedBy).to.eql('Niran T.');",
+              "    pm.expect(v.submittedAt).to.be.a('number');",
+              "    pm.expect(v.score).to.eql(88);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": { "type": "noauth" },
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/links/{{linkToken}}/submit",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "links", "{{linkToken}}", "submit"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"state\": { \"status\": \"draft\", \"values\": { \"hrc.qty\": \"200\" } },\n  \"attestation\": {\n    \"signatoryName\": \"Niran T.\",\n    \"signatoryRole\": \"Plant Manager\",\n    \"signedAt\": \"2026-05-01\",\n    \"statement\": \"I attest the reported figures are accurate.\"\n  },\n  \"check\": { \"score\": 88, \"warnings\": 2, \"critical\": 0, \"passable\": true }\n}"
+        },
+        "description": "เซ็นและส่ง — server เป็นคน stamp เลขเวอร์ชัน เวลา และ status=submitted (ไม่เชื่อค่าที่ browser ส่งมา) · signedBy/signedRole อ่านจาก attestation\n\nErrors: 404 TOKEN_NOT_FOUND · 410 TOKEN_EXPIRED · 410 TOKEN_REVOKED"
+      }
+    },
+    {
+      "name": "9 Resolve token มั่ว (ดูรูปแบบ error)",
       "event": [
         {
           "listen": "test",

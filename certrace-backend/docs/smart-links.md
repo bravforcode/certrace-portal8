@@ -175,6 +175,90 @@ curl http://localhost:8000/api/v1/links/kJ8f3…
 
 ---
 
+## 4 · เซฟระหว่างกรอก — `PUT /api/v1/links/{token}/state` (ไม่ต้อง auth)
+
+Autosave ของซัพพลายเออร์ — ส่ง state ทั้งก้อน last-write-wins เหมือน localStorage เดิม
+token คือ credential เส้นนี้ **ไม่แนบ** bearer
+
+### Request
+
+```jsonc
+{
+  "state": { /* SupplierState ทั้งก้อน — รูปเดียวกับที่ resolve คืน */ }
+}
+```
+
+### Response `200`
+
+คืน `state` ที่เก็บจริงกลับมา (bare blob ไม่ห่อ) — client เอาไปทับ copy ในเครื่องได้เลย
+server เขียนทับให้สองฟิลด์ที่เป็นของ server ไม่ใช่ของ browser:
+
+- `token` — ผูกกับ token ใน path เสมอ (blob จะอ้าง token อื่นไม่ได้)
+- `updatedAt` — นาฬิกาฝั่ง server (epoch ms)
+
+ฟิลด์ที่เหลือเก็บตามที่ส่งมา — blob นี้ opaque ฝั่ง server เหมือน declaration document
+
+### Errors
+
+เหมือน resolve (ข้อ 3): 404 `TOKEN_NOT_FOUND` · 410 `TOKEN_EXPIRED` · 410 `TOKEN_REVOKED`
+
+### ตัวอย่าง curl
+
+```bash
+curl -X PUT http://localhost:8000/api/v1/links/kJ8f3…/state \
+  -H "Content-Type: application/json" \
+  -d '{"state": {"status": "draft", "values": {"hrc.qty": "200"}}}'
+```
+
+---
+
+## 5 · เซ็นส่ง — `POST /api/v1/links/{token}/submit` (ไม่ต้อง auth)
+
+ซัพพลายเออร์เซ็นและส่งคำตอบสุดท้าย เส้นนี้ก็ **ไม่แนบ** bearer
+
+### Request
+
+```jsonc
+{
+  "state": { /* SupplierState ทั้งก้อน */ },
+  "attestation": {                 // ใครยืนยันตัวเลข — จำเป็น
+    "signatoryName": "Niran T.",
+    "signatoryRole": "Plant Manager",
+    "signedAt": "2026-05-01",
+    "statement": "…"               // ข้อความที่ตกลง เก็บ verbatim
+  },
+  "check": {                       // ผล AI check ที่พอร์ทัลรัน — null ได้
+    "score": 88, "warnings": 2, "critical": 0, "passable": true
+  }
+}
+```
+
+### Response `200`
+
+คืน `state` หลังส่ง — **ฟิลด์หลักฐาน server เป็นคน stamp** ไม่เชื่อค่าที่ browser ส่งมา:
+
+- `status` → `"submitted"`
+- ต่อ `versions[]` ด้วยเวอร์ชันใหม่: `n` = เวอร์ชันล่าสุด + 1, `submittedAt` = เวลา server,
+  `score`/`warnings` จาก `check`, `signedBy`/`signedRole` จาก `attestation`
+- เก็บ `attestation` และ `lastCheck` ตามที่ส่งมา · ต่อ event `kind: "submit"` ลง trail
+- เคลียร์ `unlocked`/`unlockedDocs`/`revisionNote` (ปิดลูป revision ถ้ามี)
+
+เหตุผลที่ server stamp เอง: verifier อ่านฟิลด์พวกนี้ เลขที่ browser เลือกเองไม่ใช่หลักฐาน
+
+### Errors
+
+เหมือน resolve (ข้อ 3): 404 `TOKEN_NOT_FOUND` · 410 `TOKEN_EXPIRED` · 410 `TOKEN_REVOKED`
+
+### ตัวอย่าง curl
+
+```bash
+curl -X POST http://localhost:8000/api/v1/links/kJ8f3…/submit \
+  -H "Content-Type: application/json" \
+  -d '{"state":{"status":"draft"},"attestation":{"signatoryName":"Niran T.","signatoryRole":"Plant Manager","signedAt":"2026-05-01","statement":"…"},"check":{"score":88,"warnings":2}}'
+```
+
+---
+
 ## รูปแบบ error กลาง
 
 ทุก error ตอบ body หน้าตาเดียวกันทั้ง API:
@@ -202,9 +286,10 @@ uvicorn main:app --reload
 
 ข้อมูลหายเมื่อ restart process — โหมดนี้มีไว้ demo/test เท่านั้น
 
-## ที่ยังไม่มีในรอบนี้ (ตาม contract §3, §6)
+## ที่ยังไม่มีในรอบนี้ (ตาม contract §6)
 
-- `PUT /api/v1/links/{token}/state` (ซัพพลายเออร์เซฟระหว่างกรอก) — งานถัดไป
-- `POST /api/v1/links/{token}/submit` — งานถัดไป
+- `GET /api/v1/declarations/{id}/submissions` (exporter ดูว่าใครส่งแล้ว) — งานถัดไป
+- `POST /api/v1/declarations/{id}/links/{token}/revision` (exporter ขอแก้) — งานถัดไป
 - endpoint เพิกถอน token (schema รองรับแล้ว แต่ contract ยังไม่นิยาม endpoint)
-- rate limiting บน `/links/{token}` — เลื่อนหลังวันที่ 6 โดยตั้งใจ
+- rate limiting + size cap บน `/links/{token}/*` — เลื่อนหลังวันที่ 6 โดยตั้งใจ
+  (เส้น save/submit เป็น public รับ blob ตรงเข้า DB ยังไม่จำกัดขนาด/อัตรา)

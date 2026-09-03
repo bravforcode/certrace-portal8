@@ -47,6 +47,16 @@ _DECLARATION_NOT_FOUND = HTTPException(
     },
 )
 
+_TOKEN_REVOKED = HTTPException(
+    status_code=status.HTTP_410_GONE,
+    detail={"code": "TOKEN_REVOKED", "message": "This link was revoked."},
+)
+
+_TOKEN_EXPIRED = HTTPException(
+    status_code=status.HTTP_410_GONE,
+    detail={"code": "TOKEN_EXPIRED", "message": "This link has expired."},
+)
+
 
 class CreateLinkRequest(BaseModel):
     supplier_id: str = Field(..., min_length=1, max_length=200, alias="supplierId")
@@ -56,6 +66,23 @@ class CreateLinkRequest(BaseModel):
     )
 
     model_config = {"populate_by_name": True}
+
+
+class SaveStateRequest(BaseModel):
+    # The supplier's answer blob is opaque here, like the declaration document:
+    # the portal owns its shape (certrace-portal/lib/supplier-store.ts), the
+    # server stores it whole and last-write-wins. A dict is the only guarantee.
+    state: dict[str, object]
+
+
+class SubmitRequest(BaseModel):
+    state: dict[str, object]
+    # Who stood behind the numbers. The server reads signer name/role from here
+    # into the version it stamps -- a browser-chosen signedBy is not evidence.
+    attestation: dict[str, object]
+    # The quality check the portal ran; null when it was skipped. Score and
+    # warning count are copied into the version for the verifier to read.
+    check: dict[str, object] | None = None
 
 
 def _now_ms() -> int:
@@ -95,6 +122,56 @@ def _declaration_doc(
     if database is not None:
         return database.get_portal_declaration(uuid.UUID(user_id), declaration_id)
     return request.app.state.portal_declarations.get(user_id, {}).get(declaration_id)
+
+
+def _live_link(
+    request: Request, token: str
+) -> tuple[dict[str, object], dict[str, object], object]:
+    """Resolve a token to its link and declaration, or raise the dead-link code.
+
+    The one gate every supplier-facing route shares: the token is the whole
+    credential, so not-found, revoked, expired and declaration-deleted must all
+    answer identically no matter which route asked. Returns the link row, the
+    declaration document it points at, and the database (or None).
+    """
+
+    database = request.app.state.database
+    link = (
+        database.get_smart_link(token)
+        if database is not None
+        else request.app.state.smart_links.get(token)
+    )
+    if link is None:
+        raise _TOKEN_NOT_FOUND
+    if link["revokedAt"] is not None:
+        raise _TOKEN_REVOKED
+    if _now_ms() >= link["expiresAt"]:
+        raise _TOKEN_EXPIRED
+    # The declaration was deleted after the link was minted. The SQL FK cascades
+    # the link row away, so DB mode never reaches here; the in-memory store does.
+    doc = _declaration_doc(request, link["userId"], link["declId"])
+    if doc is None:
+        raise _TOKEN_NOT_FOUND
+    return link, doc, database
+
+
+def _persist_state(
+    request: Request, database: object, token: str, state: dict[str, object]
+) -> dict[str, object]:
+    """Write the whole state blob back onto the link, last write wins.
+
+    Returns what was stored, which is what both save and submit hand back so the
+    portal's local copy is exactly the server's.
+    """
+
+    if database is not None:
+        updated = database.update_smart_link_state(token, state)
+        if updated is None:
+            # Lost the race to a declaration delete between check and write.
+            raise _TOKEN_NOT_FOUND
+        return updated["state"]
+    request.app.state.smart_links[token]["state"] = state
+    return state
 
 
 @router.post("/declarations/{declaration_id}/links", status_code=status.HTTP_201_CREATED)
@@ -192,32 +269,9 @@ def list_links(
 
 @router.get("/links/{token}")
 def resolve_link(token: str, request: Request) -> dict[str, object]:
-    """The one public endpoint: the token is the whole credential."""
+    """The one public read endpoint: the token is the whole credential."""
 
-    database = request.app.state.database
-    link = (
-        database.get_smart_link(token)
-        if database is not None
-        else request.app.state.smart_links.get(token)
-    )
-    if link is None:
-        raise _TOKEN_NOT_FOUND
-    if link["revokedAt"] is not None:
-        raise HTTPException(
-            status_code=status.HTTP_410_GONE,
-            detail={"code": "TOKEN_REVOKED", "message": "This link was revoked."},
-        )
-    if _now_ms() >= link["expiresAt"]:
-        raise HTTPException(
-            status_code=status.HTTP_410_GONE,
-            detail={"code": "TOKEN_EXPIRED", "message": "This link has expired."},
-        )
-
-    doc = _declaration_doc(request, link["userId"], link["declId"])
-    if doc is None:
-        # The declaration was deleted after the link was minted. The SQL FK
-        # cascades the row away; the in-memory store reaches this branch.
-        raise _TOKEN_NOT_FOUND
+    link, doc, database = _live_link(request, token)
 
     exporter = get_account(database, link["userId"])
     requests = doc.get("requests")
@@ -248,3 +302,88 @@ def resolve_link(token: str, request: Request) -> dict[str, object]:
         "request": {"products": products if isinstance(products, list) else []},
         "state": link["state"] or _empty_state(token),
     }
+
+
+@router.put("/links/{token}/state")
+def save_link_state(
+    token: str, body: SaveStateRequest, request: Request
+) -> dict[str, object]:
+    """Autosave while the supplier fills in. Whole blob, last write wins.
+
+    Public like resolve: the holder has no account, so this must work with no
+    session and must never depend on one. The blob is stored as given -- the
+    server only overrides the two fields it, not the browser, is the source of:
+    the token this state belongs to, and when it last moved.
+    """
+
+    _link, _doc, database = _live_link(request, token)
+
+    state = dict(body.state)
+    state["token"] = token  # the token is the path's, not the blob's to claim
+    state["updatedAt"] = _now_ms()  # server clock, so the client cannot lie
+    return _persist_state(request, database, token, state)
+
+
+@router.post("/links/{token}/submit")
+def submit_link(
+    token: str, body: SubmitRequest, request: Request
+) -> dict[str, object]:
+    """The supplier signs and submits. Server owns the evidence fields.
+
+    The blob arrives with the answers, but the version number, its timestamp,
+    the signer read off the attestation, and the status transition are stamped
+    here -- a verifier reads those, and a number the submitting browser chose is
+    not evidence of anything. Everything else in the blob is stored as given.
+    """
+
+    _link, _doc, database = _live_link(request, token)
+
+    state = dict(body.state)
+    now = _now_ms()
+
+    versions = state.get("versions")
+    versions = list(versions) if isinstance(versions, list) else []
+    last = versions[-1] if versions and isinstance(versions[-1], dict) else {}
+    last_n = last.get("n", 0)
+    check = body.check or {}
+    version: dict[str, object] = {
+        "n": (last_n if isinstance(last_n, int) else 0) + 1,
+        "submittedAt": now,
+        "score": check.get("score", 0),
+        "warnings": check.get("warnings", 0),
+        "signedBy": body.attestation.get("signatoryName", ""),
+        "signedRole": body.attestation.get("signatoryRole", ""),
+    }
+    # A resubmit after a revision carries the exporter's note into the version,
+    # mirroring the portal's own submit (components/supplier/context.tsx).
+    if state.get("status") == "revision_requested" and state.get("revisionNote"):
+        version["note"] = state["revisionNote"]
+
+    events = state.get("events")
+    events = list(events) if isinstance(events, list) else []
+    events.append(
+        {
+            "id": uuid.uuid4().hex,
+            "at": now,
+            "kind": "submit",
+            "text": (
+                f"Version {version['n']} signed by {version['signedBy']} "
+                f"({version['signedRole']}) and submitted -- score "
+                f"{version['score']}, {version['warnings']} warning"
+                f"{'' if version['warnings'] == 1 else 's'}"
+            ),
+        }
+    )
+
+    state["token"] = token
+    state["status"] = "submitted"
+    state["versions"] = versions + [version]
+    state["attestation"] = body.attestation
+    state["lastCheck"] = body.check
+    state["events"] = events
+    # A revision loop is now closed: nothing is unlocked and no note is pending.
+    state["unlocked"] = []
+    state["unlockedDocs"] = []
+    state["revisionNote"] = ""
+    state["updatedAt"] = now
+    return _persist_state(request, database, token, state)

@@ -324,3 +324,151 @@ def test_supplier_without_a_request_spec_gets_an_empty_ask() -> None:
 
     body = client.get(f"/api/v1/links/{token}").json()
     assert body["request"] == {"products": []}
+
+
+# ── Save / submit (docs/API-CONTRACT.md §4) ───────────────────────
+# The supplier has no account: these routes carry no Authorization header, and
+# the server owns the fields a verifier trusts.
+
+
+def _new_token(client: TestClient) -> str:
+    headers = _signed_in(client)
+    declaration_id = _declaration(client, headers)
+    return _mint(client, headers, declaration_id)["token"]
+
+
+def test_save_persists_and_resolve_reads_it_back() -> None:
+    client = _client()
+    token = _new_token(client)
+
+    saved = client.put(
+        f"/api/v1/links/{token}/state",
+        json={"state": {"status": "draft", "values": {"hrc.qty": "200"}}},
+    )
+    assert saved.status_code == 200, saved.text
+    body = saved.json()
+    # The blob comes back with the server's own token and timestamp stamped on.
+    assert body["status"] == "draft"
+    assert body["values"] == {"hrc.qty": "200"}
+    assert body["token"] == token
+    assert isinstance(body["updatedAt"], int)
+
+    # The autosave survives: resolving the link now returns the saved state,
+    # not the empty one.
+    resolved = client.get(f"/api/v1/links/{token}").json()
+    assert resolved["state"]["status"] == "draft"
+    assert resolved["state"]["values"] == {"hrc.qty": "200"}
+
+
+def test_save_ignores_a_blob_that_lies_about_its_token() -> None:
+    client = _client()
+    token = _new_token(client)
+
+    body = client.put(
+        f"/api/v1/links/{token}/state",
+        json={"state": {"token": "some-other-link", "status": "draft"}},
+    ).json()
+
+    # The path owns the token; a blob cannot claim to belong to another link.
+    assert body["token"] == token
+
+
+def test_save_takes_no_bearer_token() -> None:
+    client = _client()
+    token = _new_token(client)
+    # A stranger's session in this browser must never reach a public route.
+    intruder = _signed_in(client)
+
+    saved = client.put(
+        f"/api/v1/links/{token}/state",
+        json={"state": {"status": "draft"}},
+        headers=intruder,
+    )
+    assert saved.status_code == 200
+
+
+def test_submit_stamps_the_evidence_fields_the_server_owns() -> None:
+    client = _client()
+    token = _new_token(client)
+
+    submitted = client.post(
+        f"/api/v1/links/{token}/submit",
+        json={
+            # The browser's own status/versions are not trusted -- the server
+            # sets them. Send a wrong version number to prove it is ignored.
+            "state": {"status": "draft", "versions": [{"n": 7}], "values": {}},
+            "attestation": {
+                "signatoryName": "Niran T.",
+                "signatoryRole": "Plant Manager",
+                "signedAt": "2026-05-01",
+                "statement": "I attest…",
+            },
+            "check": {"score": 88, "warnings": 2, "critical": 0, "passable": True},
+        },
+    )
+    assert submitted.status_code == 200, submitted.text
+    state = submitted.json()
+
+    assert state["status"] == "submitted"
+    # Version number follows the last one (7), not restarts; server-stamped.
+    version = state["versions"][-1]
+    assert version["n"] == 8
+    assert version["score"] == 88
+    assert version["warnings"] == 2
+    assert version["signedBy"] == "Niran T."
+    assert version["signedRole"] == "Plant Manager"
+    assert isinstance(version["submittedAt"], int)
+    # The attestation is kept verbatim, and a submit event is on the trail.
+    assert state["attestation"]["signatoryName"] == "Niran T."
+    assert any(event["kind"] == "submit" for event in state["events"])
+
+    # The exporter side sees it: resolve now reports submitted.
+    resolved = client.get(f"/api/v1/links/{token}").json()
+    assert resolved["state"]["status"] == "submitted"
+
+
+def test_submit_survives_a_missing_check() -> None:
+    client = _client()
+    token = _new_token(client)
+
+    state = client.post(
+        f"/api/v1/links/{token}/submit",
+        json={
+            "state": {"status": "draft"},
+            "attestation": {"signatoryName": "A", "signatoryRole": "B"},
+            "check": None,
+        },
+    ).json()
+
+    version = state["versions"][-1]
+    assert version["score"] == 0
+    assert version["warnings"] == 0
+
+
+def test_dead_links_reject_save_and_submit() -> None:
+    client = _client()
+    good = _new_token(client)
+    submit_body = {
+        "state": {},
+        "attestation": {"signatoryName": "A", "signatoryRole": "B"},
+        "check": None,
+    }
+
+    # Unknown token: 404 on both.
+    assert (
+        client.put("/api/v1/links/nope/state", json={"state": {}}).status_code == 404
+    )
+    assert client.post("/api/v1/links/nope/submit", json=submit_body).status_code == 404
+
+    # Expired: 410 TOKEN_EXPIRED.
+    client.app.state.smart_links[good]["expiresAt"] = 1
+    expired = client.put(f"/api/v1/links/{good}/state", json={"state": {}})
+    assert expired.status_code == 410
+    assert expired.json()["detail"]["code"] == "TOKEN_EXPIRED"
+
+    # Revoked: 410 TOKEN_REVOKED (reset expiry so revocation is what bites).
+    client.app.state.smart_links[good]["expiresAt"] = int(time.time() * 1000) + _DAY_MS
+    client.app.state.smart_links[good]["revokedAt"] = 1
+    revoked = client.post(f"/api/v1/links/{good}/submit", json=submit_body)
+    assert revoked.status_code == 410
+    assert revoked.json()["detail"]["code"] == "TOKEN_REVOKED"
