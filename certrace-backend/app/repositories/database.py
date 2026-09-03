@@ -245,6 +245,25 @@ class DatabaseRepository:
             row = session.get(SmartLink, token)
             return self._smart_link_dict(row) if row else None
 
+    def update_smart_link_state(
+        self, token: str, state: dict[str, object]
+    ) -> dict[str, object] | None:
+        """Overwrite one link's state blob whole, or None if it is gone.
+
+        Save and submit both land here: the router computes the blob, the store
+        just holds it. None on a missing row lets the caller answer the same
+        dead-link code as a resolve -- a declaration deleted mid-flight cascades
+        the link away, so the write finds nothing.
+        """
+
+        with self.session_factory.begin() as session:
+            row = session.get(SmartLink, token)
+            if row is None:
+                return None
+            row.state = state
+            session.flush()
+            return self._smart_link_dict(row)
+
     def list_smart_links(
         self, user_id: uuid.UUID, declaration_id: str
     ) -> list[dict[str, object]]:
