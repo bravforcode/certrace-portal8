@@ -73,6 +73,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Button, Card, Chip, EmptyState, PageHeader, Progress, TagBadge, cn } from "@/components/ui";
+import { ErrorState, LoadingState } from "@/components/query-state";
 import { Select } from "@/components/controls";
 import { toast } from "@/components/toast";
 import { DotStrip, StateChip } from "@/components/workspace/chrome";
@@ -142,7 +143,7 @@ const ROWS_PER_PAGE = 15;
 export default function WorkspacesPage() {
   const t = useT();
   const router = useRouter();
-  const { data: activeWorkspaces } = useWorkspaces();
+  const { data: activeWorkspaces, isError, refetch } = useWorkspaces();
   const { data: archivedWorkspaces } = useArchivedWorkspaces();
   const { data: drafts } = useWorkspaceDrafts();
   const removeDraft = useDeleteWorkspaceDraft();
@@ -281,6 +282,11 @@ export default function WorkspacesPage() {
 
   const from = filtered.length === 0 ? 0 : (page - 1) * perPage + 1;
   const to = Math.min(page * perPage, filtered.length);
+
+  // Gated on the active list — the one this screen opens on. Archived and
+  // drafts load behind their own tabs and degrade to their own empty states.
+  if (isError) return <ErrorState onRetry={() => void refetch()} />;
+  if (activeWorkspaces === undefined) return <LoadingState />;
 
   return (
     <div className="space-y-8">

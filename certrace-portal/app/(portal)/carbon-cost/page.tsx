@@ -73,6 +73,7 @@ import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Coins, TrendingUp } from "lucide-react";
 import { cn, EmptyState, PageHeader } from "@/components/ui";
+import { ErrorState, LoadingState } from "@/components/query-state";
 import { Select } from "@/components/controls";
 import { useFormat, useT, type TFunction } from "@/lib/i18n";
 import { listWorkspaces, type VerificationWorkspace } from "@/lib/workspace";
@@ -110,7 +111,7 @@ function build(): Data {
 export default function CarbonCostPage() {
   const t = useT();
   const { number } = useFormat();
-  const { data: queried } = useQuery({ queryKey: ["workspaces", "carbon-cost"], queryFn: build, staleTime: 0 });
+  const { data: queried, isError, refetch } = useQuery({ queryKey: ["workspaces", "carbon-cost"], queryFn: build, staleTime: 0 });
   const data = queried ?? null;
   /* null until the first client read tells us which years exist — the newest
      one is then the landing state, because the year an exporter is working on
@@ -218,6 +219,9 @@ export default function CarbonCostPage() {
               count: production.months,
             });
 
+  if (isError) return <ErrorState onRetry={() => void refetch()} />;
+  if (data === null) return <LoadingState />;
+
   return (
     <div className="space-y-8">
       <PageHeader
@@ -228,7 +232,7 @@ export default function CarbonCostPage() {
         )}
       />
 
-      {data === null ? null : data.workspaces.length === 0 || activeYear == null ? (
+      {data.workspaces.length === 0 || activeYear == null ? (
         <EmptyState
           icon={<Coins size={28} strokeWidth={1.25} />}
           title={t("Nothing to show yet")}
