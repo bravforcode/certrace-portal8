@@ -18,7 +18,6 @@ export default function ForgotPasswordPage() {
     </EnglishOnly>
   );
 }
-
 /* ── What the person is being sent ──────────────────────────────
    A six-digit code, not a link. The backend generates one in
    app/core/security.py and mails it; there is no URL to click. The copy on

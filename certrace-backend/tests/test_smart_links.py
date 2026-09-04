@@ -599,6 +599,80 @@ def test_submissions_is_owner_scoped() -> None:
     assert response.json()["detail"]["code"] == "DECLARATION_NOT_FOUND"
 
 
+def test_revision_reopens_the_loop_the_supplier_reads() -> None:
+    client = _client()
+    headers = _signed_in(client)
+    declaration_id = _declaration(client, headers)
+    token = _mint(client, headers, declaration_id)["token"]
+
+    # Supplier submits first, so there is something to send back.
+    client.post(
+        f"/api/v1/links/{token}/submit",
+        json={
+            "state": {"status": "draft", "values": {"hrc.qty": "200"}},
+            "attestation": {"signatoryName": "Niran T.", "signatoryRole": "Plant Mgr"},
+            "check": {"score": 60, "warnings": 3},
+        },
+    )
+
+    revised = client.post(
+        f"/api/v1/declarations/{declaration_id}/links/{token}/revision",
+        json={"note": "Re-check the coil tonnage.", "unlocked": ["hrc.qty"], "unlockedDocs": ["mill-cert"]},
+        headers=headers,
+    )
+    assert revised.status_code == 200, revised.text
+    state = revised.json()
+
+    # Status flips back, the three fields are recorded, submitted answers survive.
+    assert state["status"] == "revision_requested"
+    assert state["unlocked"] == ["hrc.qty"]
+    assert state["unlockedDocs"] == ["mill-cert"]
+    assert state["revisionNote"] == "Re-check the coil tonnage."
+    assert state["values"] == {"hrc.qty": "200"}
+    assert any(event["kind"] == "revision_requested" for event in state["events"])
+
+    # The supplier's own /s/<token> read now shows the reopened loop.
+    resolved = client.get(f"/api/v1/links/{token}").json()
+    assert resolved["state"]["status"] == "revision_requested"
+    assert resolved["state"]["revisionNote"] == "Re-check the coil tonnage."
+
+    # A resubmit carries the note into the new version and closes the loop again.
+    resubmitted = client.post(
+        f"/api/v1/links/{token}/submit",
+        json={
+            "state": resolved["state"],
+            "attestation": {"signatoryName": "Niran T.", "signatoryRole": "Plant Mgr"},
+            "check": {"score": 95, "warnings": 0},
+        },
+    ).json()
+    assert resubmitted["status"] == "submitted"
+    assert resubmitted["unlocked"] == []
+    assert resubmitted["revisionNote"] == ""
+    assert resubmitted["versions"][-1]["note"] == "Re-check the coil tonnage."
+
+
+def test_revision_is_owner_scoped() -> None:
+    client = _client()
+    owner = _signed_in(client)
+    stranger = _signed_in(client)
+    declaration_id = _declaration(client, owner)
+    token = _mint(client, owner, declaration_id)["token"]
+
+    endpoint = f"/api/v1/declarations/{declaration_id}/links/{token}/revision"
+    body = {"note": "fix", "unlocked": [], "unlockedDocs": []}
+    # No session, a stranger, and the right token under the wrong declaration.
+    assert client.post(endpoint, json=body).status_code == 401
+    assert client.post(endpoint, json=body, headers=stranger).status_code == 404
+    assert (
+        client.post(
+            f"/api/v1/declarations/decl-other/links/{token}/revision",
+            json=body,
+            headers=owner,
+        ).status_code
+        == 404
+    )
+
+
 def test_dead_links_reject_save_and_submit() -> None:
     client = _client()
     good = _new_token(client)
