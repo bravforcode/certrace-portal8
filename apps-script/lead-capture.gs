@@ -40,7 +40,7 @@
 /* ── Settings ──────────────────────────────────────────────── */
 
 /** Tab to write to. Created on first post if missing. */
-var SHEET_NAME = 'Leads';
+var SHEET_NAME = 'Book a Demo';
 
 /**
  * Merge repeat submissions from the same person into one row instead of
@@ -102,7 +102,7 @@ var TEXT_COLUMNS = [
 ];
 
 /** Never write these to the sheet even if a client sends them. */
-var IGNORED_FIELDS = ['first_seen', 'last_seen'];
+var IGNORED_FIELDS = ['first_seen', 'last_seen', 'sheet', 'sheetName'];
 
 /* ── Entry points ──────────────────────────────────────────── */
 
@@ -118,14 +118,16 @@ function doPost(e) {
   }
 
   try {
-    var data = cleanParams_(e && e.parameter ? e.parameter : {});
+    var rawParams = e && e.parameter ? e.parameter : {};
+    var targetSheet = rawParams.sheet || rawParams.sheetName || SHEET_NAME;
+    var data = cleanParams_(rawParams);
     if (!hasAnyValue_(data)) return jsonOut_({ ok: false, error: 'empty submission' });
 
-    var sheet = getSheet_();
+    var sheet = getSheet_(targetSheet);
     var header = ensureHeader_(sheet, Object.keys(data));
     var result = UPSERT_ON_EMAIL ? upsert_(sheet, header, data) : append_(sheet, header, data);
 
-    return jsonOut_({ ok: true, action: result.action, row: result.row });
+    return jsonOut_({ ok: true, action: result.action, row: result.row, sheet: targetSheet });
   } catch (err) {
     // Surfaced in Executions (Apps Script console). The client is posting
     // no-cors and cannot see any of this.
@@ -137,17 +139,19 @@ function doPost(e) {
 }
 
 /** Opening the deployment URL in a browser should say something useful. */
-function doGet() {
-  return jsonOut_({ ok: true, service: 'certrace-lead-capture', sheet: SHEET_NAME });
+function doGet(e) {
+  var target = (e && e.parameter && (e.parameter.sheet || e.parameter.sheetName)) || SHEET_NAME;
+  return jsonOut_({ ok: true, service: 'certrace-lead-capture', sheet: target });
 }
 
 /* ── Sheet plumbing ────────────────────────────────────────── */
 
-function getSheet_() {
+function getSheet_(sheetName) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(SHEET_NAME);
+  var target = sheetName || SHEET_NAME;
+  var sheet = ss.getSheetByName(target);
   if (!sheet) {
-    sheet = ss.insertSheet(SHEET_NAME);
+    sheet = ss.insertSheet(target);
   }
   return sheet;
 }

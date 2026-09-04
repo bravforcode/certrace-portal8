@@ -16,7 +16,7 @@ on:
         description: Which apps to deploy
         type: choice
         default: changed
-        options: [changed, all, landing, portal, exporter-portal]
+        options: [changed, all, landing, portal]
 
 permissions:
   contents: read
@@ -46,28 +46,22 @@ jobs:
         env:
           REQUESTED: ${{ github.event_name == 'workflow_dispatch' && inputs.apps || 'changed' }}
           BEFORE: ${{ github.event.before }}
-          EXPORTER_PORTAL_URL: ${{ vars.EXPORTER_PORTAL_URL }}
         run: |
           set -euo pipefail
 
           # dir | worker | public URL used for the post-deploy header check.
-          # The exporter portal deploys to its own Worker and has no custom
-          # domain in this repo, so its URL comes from a repo variable; with
-          # none set, its deploy still runs and verification is skipped.
           declare -A DIR=(
             [landing]="landingpage/certrace-landing"
             [portal]="certrace-portal"
-            [exporter-portal]="certrace-exporter-portal"
           )
           declare -A URL=(
             [landing]="https://certrace.co/"
             [portal]="https://portal.certrace.co/"
-            [exporter-portal]="${EXPORTER_PORTAL_URL:-}"
           )
 
           selected=()
           if [ "$REQUESTED" = "all" ]; then
-            selected=(landing portal exporter-portal)
+            selected=(landing portal)
           elif [ "$REQUESTED" != "changed" ]; then
             selected=("$REQUESTED")
           else
@@ -76,16 +70,16 @@ jobs:
             if [ -z "${BEFORE:-}" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] \
                || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
               echo "No usable base commit — deploying every app."
-              selected=(landing portal exporter-portal)
+              selected=(landing portal)
             else
               changed="$(git diff --name-only "$BEFORE" "${{ github.sha }}")"
               echo "Changed files:"; echo "$changed" | sed 's/^/  /'
-              for app in landing portal exporter-portal; do
+              for app in landing portal; do
                 if grep -q "^${DIR[$app]}/" <<<"$changed"; then selected+=("$app"); fi
               done
               # The workflow itself changing means the deploy path changed.
               if grep -q "^\.github/workflows/deploy\.yml$" <<<"$changed"; then
-                selected=(landing portal exporter-portal)
+                selected=(landing portal)
               fi
             fi
           fi
