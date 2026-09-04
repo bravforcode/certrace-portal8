@@ -39,6 +39,7 @@ import {
   saveState,
   pushEvent,
   type DocState,
+  type SupplierState,
   type Version,
   type SubmissionStatus,
   type TrailEvent,
@@ -343,11 +344,39 @@ function deriveLifecycle(submitted: boolean, review: SupplierReview, version: nu
   return "submitted";
 }
 
-/** Resolve one supplier row into a reviewable submission (live or demo). */
-export function resolveSubmission(decl: Declaration, row: SupplierRow, exporter: ExporterDeclState): ReviewSubmission {
+/** The live status glance from GET /declarations/{id}/submissions, keyed by
+ *  supplierId. The exporter's browser may not hold a supplier's answers, but
+ *  the API knows the status transition — enough to keep the dashboard current. */
+export type LiveSubmission = { status: SubmissionStatus; version: number; updatedAt: number };
+export type LiveStatusMap = Map<string, LiveSubmission>;
+
+// Where a status sits in the fill-in journey, so the API's status only ever
+// moves the dashboard forward (a supplier really started/submitted) and never
+// back over what this browser already knows.
+const STATUS_RANK: Record<SubmissionStatus, number> = {
+  new: 0,
+  draft: 1,
+  in_check: 2,
+  revision_requested: 3,
+  submitted: 4,
+};
+
+/** Resolve one supplier row into a reviewable submission (live or demo).
+ *  `live` is the API's status glance (always cheap); `fullState` carries a
+ *  supplier's real answers, injected only for the one submission the exporter
+ *  has opened, so a link filled on the supplier's own machine is reviewable. */
+export function resolveSubmission(
+  decl: Declaration,
+  row: SupplierRow,
+  exporter: ExporterDeclState,
+  live?: LiveStatusMap,
+  fullState?: Map<string, SupplierState>,
+): ReviewSubmission {
   const token = makeToken(decl.id, row.id);
   const request = resolveRequest(token)!;
-  const ss = loadState(token);
+  // Server answers win when we have them (cross-browser review); otherwise the
+  // local copy, exactly as before.
+  const ss = fullState?.get(row.id) ?? loadState(token);
   const review = exporter.reviews[row.id] ?? defaultReview();
 
   let values: Record<string, string>;
@@ -447,8 +476,26 @@ export function resolveSubmission(decl: Declaration, row: SupplierRow, exporter:
   }
 
   const latest = versions[versions.length - 1];
-  const submitted = versions.length > 0;
-  const version = latest?.n ?? 0;
+  let submitted = versions.length > 0;
+  let version = latest?.n ?? 0;
+  let submittedAt = latest?.submittedAt ?? null;
+
+  /* Live status from the API's submissions feed. A supplier who filled the
+     Smart Link on their own machine left no copy in this browser, so `ss` is
+     empty here even though they really moved. Reflect the API's status —
+     draft, in_check, revision_requested or submitted — so the dashboard is
+     current, but only forward (STATUS_RANK) and only when there are no local
+     versions to contradict it, so a demo fixture is never regressed. */
+  const liveHere = live?.get(row.id);
+  if (liveHere && versions.length === 0 && STATUS_RANK[liveHere.status] > STATUS_RANK[supplierStatus]) {
+    supplierStatus = liveHere.status;
+    if (liveHere.status === "submitted") {
+      submitted = true;
+      version = liveHere.version || 1;
+      submittedAt = liveHere.updatedAt;
+    }
+  }
+
   const { lines, total } = emissionsFor(request, values);
   const freshness = assessFreshness({ sourceAt: dataAt, sourcePeriods: dataPeriods }, request.period);
   const access: AccessPolicy | undefined = record?.access;
@@ -466,7 +513,7 @@ export function resolveSubmission(decl: Declaration, row: SupplierRow, exporter:
     restrictedForVerifier: restrictedSections(access, "verifier"),
     submitted,
     version,
-    submittedAt: latest?.submittedAt ?? null,
+    submittedAt,
     signedBy: latest?.signedBy ?? null,
     signedRole: latest?.signedRole ?? null,
     supplierStatus,
@@ -482,8 +529,8 @@ export function resolveSubmission(decl: Declaration, row: SupplierRow, exporter:
   };
 }
 
-export function resolveSubmissions(decl: Declaration, exporter: ExporterDeclState): ReviewSubmission[] {
-  return decl.suppliers.map((row) => resolveSubmission(decl, row, exporter));
+export function resolveSubmissions(decl: Declaration, exporter: ExporterDeclState, live?: LiveStatusMap): ReviewSubmission[] {
+  return decl.suppliers.map((row) => resolveSubmission(decl, row, exporter, live));
 }
 
 /* ── Declaration-level roll-up ─────────────────────────────── */
@@ -505,8 +552,8 @@ export type ReviewRollup = {
   stage: DeclStage;
 };
 
-export function rollup(decl: Declaration, exporter: ExporterDeclState): ReviewRollup {
-  const submissions = resolveSubmissions(decl, exporter);
+export function rollup(decl: Declaration, exporter: ExporterDeclState, live?: LiveStatusMap): ReviewRollup {
+  const submissions = resolveSubmissions(decl, exporter, live);
   const counts: Record<Lifecycle, number> = { awaiting: 0, submitted: 0, in_review: 0, changes_requested: 0, approved: 0 };
   let reviewedEmissions = 0;
   let submittedEmissions = 0;

@@ -106,12 +106,15 @@ import {
   LIFECYCLE_META,
   exporterIdentity,
   datasetHash,
+  resolveSubmission,
   type ExporterDeclState,
   type ReviewSubmission,
   type ReviewRollup,
+  type LiveStatusMap,
   type DispatchRecipient,
   type DeclarationBuyerState,
 } from "@/lib/exporter-review";
+import { useSubmissions, useSubmissionState } from "@/lib/links-query";
 import { loadTeam, getTeamMember, type TeamMember } from "@/lib/team-store";
 import { FRESHNESS_META, SECTION_ACCESS, type Freshness } from "@/lib/supplier-records";
 import {
@@ -183,9 +186,9 @@ export function DeclarationWorkflow({ declaration }: { declaration: Declaration 
   const reg = getRegulation(declaration.regulation)!;
   const jur = getJurisdiction(declaration.origin)!;
 
-  // exporter state lives in localStorage — hydrate after mount to avoid a
-  // server/client mismatch, then re-read on focus so a supplier resubmission
-  // in another tab shows up here without a backend.
+  // The exporter's own review edits (approve, request revision) live in
+  // localStorage — hydrate after mount to avoid a server/client mismatch, then
+  // re-read on focus so an edit in another tab shows up here.
   const [exporter, setExporter] = React.useState<ExporterDeclState>(() => loadExporterState(declaration.id));
   const [mounted, setMounted] = React.useState(false);
   const [view, setView] = React.useState<View>("submissions");
@@ -199,7 +202,28 @@ export function DeclarationWorkflow({ declaration }: { declaration: Declaration 
     return () => window.removeEventListener("focus", refresh);
   }, [refresh]);
 
-  const roll: ReviewRollup = React.useMemo(() => (mounted ? buildRollup(declaration, exporter) : EMPTY_ROLL), [declaration, exporter, mounted]);
+  /* Supplier status is the API's, not this browser's — a supplier submits from
+     their own machine. TanStack owns the poll and the cache (one shared entry
+     per declaration), so this stays near-real time without a hand-rolled timer.
+     Rows arrive newest-first and a supplier may hold several links (per-month,
+     a re-mint); keep the first seen — the newest — as their dashboard status. */
+  const { data: submissions } = useSubmissions(declaration.id);
+  const live: LiveStatusMap = React.useMemo(() => {
+    const map: LiveStatusMap = new Map();
+    for (const r of submissions ?? []) {
+      if (!map.has(r.supplierId)) map.set(r.supplierId, { status: r.status, version: r.version, updatedAt: r.updatedAt });
+    }
+    return map;
+  }, [submissions]);
+  // The real (minted, random) token per supplier, so the review pane can fetch
+  // that one supplier's answers. Newest link wins, same as the status map.
+  const tokenBySupplier = React.useMemo(() => {
+    const map = new Map<string, string>();
+    for (const r of submissions ?? []) if (!map.has(r.supplierId)) map.set(r.supplierId, r.token);
+    return map;
+  }, [submissions]);
+
+  const roll: ReviewRollup = React.useMemo(() => (mounted ? buildRollup(declaration, exporter, live) : EMPTY_ROLL), [declaration, exporter, live, mounted]);
 
   /* The frozen calculation, when there is one. Everything downstream of
      sign-off reads from it rather than from live inputs — that is what makes
@@ -327,6 +351,20 @@ export function DeclarationWorkflow({ declaration }: { declaration: Declaration 
   );
 
   const open = openId ? roll.submissions.find((s) => s.supplier.id === openId) ?? null : null;
+
+  /* Cross-browser review. The list only carries status, so a submission the
+     supplier filled on their own machine opens here with no answers. When the
+     one being opened is submitted-but-empty, fetch its real state and re-resolve
+     just that submission with the answers in place; everything else, and the
+     same-browser case, is untouched. */
+  const openToken = open ? tokenBySupplier.get(open.supplier.id) : undefined;
+  const needsAnswers = Boolean(open && open.submitted && open.versions.length === 0 && openToken);
+  const { data: openState } = useSubmissionState(declaration.id, openToken, needsAnswers);
+  const openReviewed = React.useMemo(() => {
+    if (!open) return null;
+    if (!openState) return open;
+    return resolveSubmission(declaration, open.supplier, exporter, live, new Map([[open.supplier.id, openState]]));
+  }, [open, openState, declaration, exporter, live]);
 
   const goTo = (v: View) => {
     setView(v);
@@ -510,7 +548,7 @@ export function DeclarationWorkflow({ declaration }: { declaration: Declaration 
           <LockedPanel step={activeStep} steps={steps} onGo={goTo} />
         ) : view === "submissions" ? (
           open ? (
-            <SubmissionReview decl={declaration} sub={open} onChanged={setExporter} />
+            <SubmissionReview decl={declaration} sub={openReviewed ?? open} onChanged={setExporter} />
           ) : (
             <SubmissionsTab decl={declaration} roll={roll} exporter={exporter} onChanged={setExporter} onOpen={(id) => setOpenId(id)} />
           )
@@ -908,6 +946,11 @@ function SubmissionRow({ sub, lastReminded, onRemind, onOpen }: { sub: ReviewSub
             <span className="font-mono text-[10px] text-black/35">{sub.supplier.country}</span>
             {t(sub.supplier.material)}
             {sub.submitted && <span className="text-black/30">· v{sub.version}{sub.check ? ` · ${t("score")} ${sub.check.score}` : ""}</span>}
+            {/* Not submitted yet, but the API says they have started — surfaced
+                so "awaiting" reads as progress, not silence. Only the live feed
+                produces these; a local-only row stays "new". */}
+            {!sub.submitted && sub.supplierStatus === "draft" && <span className="text-black/30">· {t("filling in (draft)")}</span>}
+            {!sub.submitted && sub.supplierStatus === "in_check" && <span className="text-black/30">· {t("running quality check")}</span>}
             {!sub.submitted && lastReminded && !self && <span className="text-black/30">· {t("reminded {ago}", { ago: ago(lastReminded) })}</span>}
             {sub.submitted && sub.freshnessLevel !== "fresh" && sub.freshnessLevel !== "unknown" && (
               <FreshnessBadge level={sub.freshnessLevel} title={sub.freshness.message ?? undefined} />

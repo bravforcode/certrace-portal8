@@ -110,6 +110,16 @@ export async function listSubmissions(declId: string): Promise<SubmissionSummary
   return result.submissions ?? [];
 }
 
+/** The full answers behind one submission — the blob the review pane reads.
+    Fetched only when the exporter opens a submission, so a link filled on the
+    supplier's own machine is reviewable, not just visible as a status. */
+export async function getSubmissionState(declId: string, token: string): Promise<SupplierState> {
+  const result = await request<{ token: string; supplierId: string; state: SupplierState }>(
+    `/api/v1/declarations/${encodeURIComponent(declId)}/submissions/${encodeURIComponent(token)}`,
+  );
+  return result.state;
+}
+
 export type RevisionInput = {
   note: string;
   /** Value keys the supplier may edit again. */

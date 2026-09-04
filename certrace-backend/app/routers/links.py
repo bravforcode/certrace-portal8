@@ -155,6 +155,55 @@ def _live_link(
     return link, doc, database
 
 
+def _links_for(
+    request: Request, user_id: str, declaration_id: str
+) -> list[dict[str, object]]:
+    """Every link minted for one declaration, newest first, whichever store.
+
+    The list and submissions endpoints both start here -- same rows, different
+    projection -- so the DB-vs-memory branch is written once, not twice.
+    """
+
+    database = request.app.state.database
+    if database is not None:
+        return database.list_smart_links(uuid.UUID(user_id), declaration_id)
+    # Dict insertion order is mint order; reversed = newest first without
+    # tying on same-millisecond createdAt stamps.
+    return [
+        row
+        for row in reversed(request.app.state.smart_links.values())
+        if row["userId"] == user_id and row["declId"] == declaration_id
+    ]
+
+
+def _submission_summary(row: dict[str, object]) -> dict[str, object]:
+    """One link's state boiled down to what the exporter's dashboard reads.
+
+    Only the fields a "who has answered" glance needs -- status, the latest
+    version number and its score, and when it last moved. The answer blob
+    itself never leaves the server; this is a listing, not the answers.
+    """
+
+    state = row.get("state")
+    state = state if isinstance(state, dict) else {}
+    versions = state.get("versions")
+    versions = versions if isinstance(versions, list) else []
+    last = versions[-1] if versions and isinstance(versions[-1], dict) else {}
+    n = last.get("n")
+    score = last.get("score")
+    updated = state.get("updatedAt")
+    return {
+        "supplierId": row["supplierId"],
+        "token": row["token"],
+        "status": state.get("status") or "new",
+        "version": n if isinstance(n, int) else 0,
+        "score": score if isinstance(score, (int, float)) else None,
+        # Never saved: fall back to when the link was minted so the row still
+        # sorts and renders rather than carrying a null date.
+        "updatedAt": updated if isinstance(updated, int) else row.get("createdAt") or 0,
+    }
+
+
 def _persist_state(
     request: Request, database: object, token: str, state: dict[str, object]
 ) -> dict[str, object]:
@@ -240,17 +289,7 @@ def list_links(
     if _declaration_doc(request, account.id, declaration_id) is None:
         raise _DECLARATION_NOT_FOUND
 
-    database = request.app.state.database
-    if database is not None:
-        rows = database.list_smart_links(uuid.UUID(account.id), declaration_id)
-    else:
-        # Dict insertion order is mint order; reversed = newest first without
-        # tying on same-millisecond createdAt stamps.
-        rows = [
-            row
-            for row in reversed(request.app.state.smart_links.values())
-            if row["userId"] == account.id and row["declId"] == declaration_id
-        ]
+    rows = _links_for(request, account.id, declaration_id)
 
     base = request.app.state.app_base_url
     return {
@@ -266,6 +305,66 @@ def list_links(
             }
             for row in rows
         ]
+    }
+
+
+@router.get("/declarations/{declaration_id}/submissions")
+def list_submissions(
+    declaration_id: str,
+    request: Request,
+    account: Account = Depends(current_account),
+) -> dict[str, object]:
+    """The exporter's at-a-glance "who has answered", per docs/API-CONTRACT.md §3.
+
+    This is what the dashboard polls to watch a supplier's status change from
+    across a submit -- so it stays small: one row per link with just the fields
+    a status glance reads, never the answer blob. Owner-scoped like every
+    exporter route: asking about a declaration that is not yours answers exactly
+    like one that is not there.
+    """
+
+    if _declaration_doc(request, account.id, declaration_id) is None:
+        raise _DECLARATION_NOT_FOUND
+
+    rows = _links_for(request, account.id, declaration_id)
+    return {"submissions": [_submission_summary(row) for row in rows]}
+
+
+@router.get("/declarations/{declaration_id}/submissions/{token}")
+def get_submission_state(
+    declaration_id: str,
+    token: str,
+    request: Request,
+    account: Account = Depends(current_account),
+) -> dict[str, object]:
+    """One supplier's full answers, for the exporter's review pane.
+
+    The submissions list is a status glance; this is the blob behind one row,
+    fetched only when the exporter opens a submission to review it -- so a
+    supplier who filled the Smart Link on their own machine is still reviewable
+    here, not just visible as a status.
+
+    Owner-scoped: the link must belong to this declaration and this account, or
+    it answers like it is not there. Unlike the public resolve, this does NOT
+    gate on revoked/expired -- an exporter reviews what was submitted even after
+    they have closed the link.
+    """
+
+    if _declaration_doc(request, account.id, declaration_id) is None:
+        raise _DECLARATION_NOT_FOUND
+
+    database = request.app.state.database
+    link = (
+        database.get_smart_link(token)
+        if database is not None
+        else request.app.state.smart_links.get(token)
+    )
+    if link is None or link["userId"] != account.id or link["declId"] != declaration_id:
+        raise _TOKEN_NOT_FOUND
+    return {
+        "token": token,
+        "supplierId": link["supplierId"],
+        "state": link["state"] or _empty_state(token),
     }
 
 
