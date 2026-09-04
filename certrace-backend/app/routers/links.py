@@ -174,7 +174,9 @@ def _persist_state(
     return state
 
 
-@router.post("/declarations/{declaration_id}/links", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/declarations/{declaration_id}/links", status_code=status.HTTP_201_CREATED
+)
 def create_link(
     declaration_id: str,
     body: CreateLinkRequest,
@@ -269,7 +271,22 @@ def list_links(
 
 @router.get("/links/{token}")
 def resolve_link(token: str, request: Request) -> dict[str, object]:
-    """The one public read endpoint: the token is the whole credential."""
+    """The one public read endpoint: the token is the whole credential.
+
+    The supplier has no account and no copy of the declaration, so the response
+    carries everything their guided form is built from -- but only the parts
+    that are theirs to see. That is a SLICE, deliberately:
+
+      * declaration-level context the form needs (which regulation, the period,
+        the deadline, the exporter's note) -- shared, not secret,
+      * this one supplier's identity row (name, ref, country, criticality),
+      * this one supplier's request spec (the products/lots asked of them),
+      * their own saved state.
+
+    Never another supplier's row, never anyone's emissions figure or price,
+    never the whole declaration document. The portal rebuilds the questionnaire
+    from this with its own bundled config (lib/supplier.ts::buildFromPayload).
+    """
 
     link, doc, database = _live_link(request, token)
 
@@ -288,8 +305,24 @@ def resolve_link(token: str, request: Request) -> dict[str, object]:
     # spec's fields cannot be trusted to hold the contract's types.
     products = (spec or {}).get("products")
 
-    # Only this supplier's slice leaves the server: their request spec, the
-    # exporter's name, their own saved state. Never the declaration document.
+    # This supplier's own identity row -- pulled by id so no other supplier's
+    # row can leak, and its emissions figure is dropped even from the match.
+    suppliers = doc.get("suppliers")
+    row = (
+        next(
+            (
+                entry
+                for entry in (suppliers if isinstance(suppliers, list) else [])
+                if isinstance(entry, dict) and entry.get("id") == link["supplierId"]
+            ),
+            None,
+        )
+        or {}
+    )
+
+    included = doc.get("includedFieldIds")
+    due_in_days = doc.get("dueInDays")
+
     return {
         "token": token,
         "declId": link["declId"],
@@ -298,6 +331,30 @@ def resolve_link(token: str, request: Request) -> dict[str, object]:
         "expiresAt": link["expiresAt"],
         "exporter": {
             "companyName": (exporter.company_name if exporter else None) or ""
+        },
+        # Shared context the form is built from -- coerced to the contract's
+        # types because the source document is opaque and may not hold them.
+        "declaration": {
+            "name": doc.get("title") or doc.get("name") or "",
+            "regulation": doc.get("regulation") or "cbam",
+            "origin": doc.get("origin") or "",
+            "market": doc.get("market") or "",
+            "period": doc.get("period") or "",
+            "periodEnd": doc.get("periodEnd") or "",
+            "due": doc.get("due") or "",
+            "dueInDays": due_in_days if isinstance(due_in_days, int) else 0,
+            "kind": doc.get("kind") or "cbam",
+            "includedFieldIds": included if isinstance(included, list) else None,
+            "note": doc.get("notesToSuppliers") or "",
+        },
+        # Only this supplier's identity -- never their emissions figure.
+        "supplier": {
+            "name": row.get("name") or "",
+            "ref": row.get("ref") or "",
+            "country": row.get("country") or "",
+            "material": row.get("material") or "",
+            "critical": bool(row.get("critical")),
+            "selfSupplied": bool(row.get("selfSupplied")),
         },
         "request": {"products": products if isinstance(products, list) else []},
         "state": link["state"] or _empty_state(token),
@@ -325,9 +382,7 @@ def save_link_state(
 
 
 @router.post("/links/{token}/submit")
-def submit_link(
-    token: str, body: SubmitRequest, request: Request
-) -> dict[str, object]:
+def submit_link(token: str, body: SubmitRequest, request: Request) -> dict[str, object]:
     """The supplier signs and submits. Server owns the evidence fields.
 
     The blob arrives with the answers, but the version number, its timestamp,

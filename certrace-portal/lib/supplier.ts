@@ -14,7 +14,8 @@
    answers. Both are the seam where a real API would slot in.
    ════════════════════════════════════════════════════════════ */
 
-import { getDeclaration, type Declaration, type SupplierRow, type RequestLotSpec } from "./data";
+import { getDeclaration, type Declaration, type SupplierRow, type RequestLotSpec, type RequestProductSpec } from "./data";
+import type { LinkResolution } from "./api";
 import { getOrgIdentity } from "./org";
 import {
   getRegulation,
@@ -222,11 +223,99 @@ function productsFromSpec(decl: Declaration, row: SupplierRow): RequestProduct[]
 export function resolveRequest(token: string): SupplierRequest | null {
   const decoded = decodeToken(token);
   if (!decoded) return null;
-  const decl = getDeclaration(decoded.declId);
-  if (!decl) return null;
-  const row = decl.suppliers.find((s) => s.id === decoded.supplierId);
-  if (!row) return null;
+  return buildRequest(token, decoded.declId, decoded.supplierId, decoded.month);
+}
 
+/* Build a supplier's slice from ids the caller already holds. The local token
+   decode above uses this against bundled fixtures; buildFromPayload below uses
+   it against a server-resolved Smart Link. Both funnel through assembleRequest
+   so the questionnaire's shape is derived identically no matter the source. */
+export function buildRequest(
+  token: string,
+  declId: string,
+  supplierId: string,
+  month?: string,
+): SupplierRequest | null {
+  const decl = getDeclaration(declId);
+  if (!decl) return null;
+  const row = decl.suppliers.find((s) => s.id === supplierId);
+  if (!row) return null;
+  // Fixtures ARE the demo exporter, so the exporter identity is the local org.
+  const org = getOrgIdentity();
+  return assembleRequest(token, decl, row, month, { name: org.name, contact: org.contact, origin: org.origin });
+}
+
+/* Build the request from a server-resolved Smart Link (lib/api resolveLink).
+   A server token carries no ids and the supplier has no copy of the
+   declaration, so the resolve payload IS the source: its declaration slice and
+   this supplier's row become a synthetic Declaration that assembleRequest reads
+   exactly like a fixture one, and the CBAM fields/documents are then derived
+   locally from bundled config. Only the answer STATE comes over the wire. */
+export function buildFromPayload(token: string, res: LinkResolution): SupplierRequest | null {
+  const d = res.declaration;
+  if (!d) return null;
+
+  const products = Array.isArray(res.request?.products)
+    ? (res.request.products as RequestProductSpec[])
+    : [];
+
+  const row: SupplierRow = {
+    id: res.supplierId,
+    name: res.supplier?.name ?? "",
+    ref: res.supplier?.ref ?? "",
+    country: res.supplier?.country ?? "",
+    material: res.supplier?.material ?? "",
+    progress: 0,
+    status: "in_progress",
+    emissions: null,
+    updated: "",
+    critical: Boolean(res.supplier?.critical),
+    // A self-supplied row never gets a Smart Link (the exporter fills it in
+    // app), so a resolved link is by definition not self-supply.
+    selfSupplied: false,
+  };
+
+  const decl: Declaration = {
+    id: res.declId,
+    name: d.name,
+    title: d.name,
+    regulation: d.regulation,
+    origin: d.origin,
+    market: d.market,
+    sector: "",
+    period: d.period,
+    periodEnd: d.periodEnd || undefined,
+    due: d.due,
+    dueInDays: d.dueInDays,
+    step: "collect",
+    suppliers: [row],
+    totalEmbedded: null,
+    carbonPricePaid: null,
+    kind: d.kind,
+    includedFieldIds: d.includedFieldIds ?? undefined,
+    notesToSuppliers: d.note || undefined,
+    requests: products.length ? [{ supplierId: res.supplierId, products }] : undefined,
+  };
+
+  return assembleRequest(token, decl, row, res.month, {
+    name: res.exporter?.companyName ?? "",
+    // The resolve slice names the exporter but not a personal contact, and the
+    // supplier is not their customer — so no contact reaches this form.
+    contact: "",
+    origin: d.origin,
+  });
+}
+
+/* The shared core: a resolved declaration + one of its supplier rows + who the
+   exporter is → that supplier's full request. Everything here is bundled config
+   (regulations, catalogue, CBAM checklist) — no fixtures, no network. */
+function assembleRequest(
+  token: string,
+  decl: Declaration,
+  row: SupplierRow,
+  month: string | undefined,
+  exporter: { name: string; contact: string; origin: string },
+): SupplierRequest {
   const reg = getRegulation(decl.regulation) ?? getRegulation("cbam")!;
   const origin = getJurisdiction(decl.origin);
   const dest = getDestination(decl.market);
@@ -249,7 +338,6 @@ export function resolveRequest(token: string): SupplierRequest | null {
     ? resolved.filter((f) => (decl.kind === "buyer" ? included.includes(f.id) : f.required || included.includes(f.id)))
     : resolved;
 
-  const org = getOrgIdentity();
   const sectorLabel = sectorLabelFor(products.map((p) => p.product));
 
   return {
@@ -260,13 +348,13 @@ export function resolveRequest(token: string): SupplierRequest | null {
     // A self-supplied row IS the exporter — resolve its identity live from the
     // org profile so a rename in Settings reaches this form like every other
     // output (lib/org.ts), instead of freezing the name at creation time.
-    supplierName: row.selfSupplied ? org.name : row.name,
+    supplierName: row.selfSupplied ? exporter.name : row.name,
     supplierRef: row.ref,
-    supplierCountry: row.selfSupplied ? org.origin : row.country,
+    supplierCountry: row.selfSupplied ? exporter.origin : row.country,
     critical: row.critical,
     selfSupplied: Boolean(row.selfSupplied),
-    exporterName: org.name,
-    exporterContact: org.contact,
+    exporterName: exporter.name,
+    exporterContact: exporter.contact,
     regulationId: reg.id,
     regulationShort: reg.short,
     regulationFull: reg.full,
@@ -287,9 +375,9 @@ export function resolveRequest(token: string): SupplierRequest | null {
     documents: requestedDocsFor(products.map((p) => p.product)),
     /* A month in the token IS the cadence signal — there is no second place
        to store it that could disagree with the link the supplier clicked. */
-    cadence: decoded.month ? "monthly" : "once",
-    month: decoded.month,
-    workspaceId: monthlySeriesWorkspace(decoded.declId, decoded.supplierId) ?? undefined,
+    cadence: month ? "monthly" : "once",
+    month,
+    workspaceId: monthlySeriesWorkspace(decl.id, row.id) ?? undefined,
   };
 }
 

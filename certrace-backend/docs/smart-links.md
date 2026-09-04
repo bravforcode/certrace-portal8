@@ -135,6 +135,32 @@ Endpoint สาธารณะตัวเดียวของระบบ — 
   "exporter": {
     "companyName": "Siam Steel Export Co."   // "" ถ้าบัญชีผู้ส่งออกไม่ได้กรอกชื่อบริษัท
   },
+  // ── context ของ declaration ที่พอร์ทัลใช้ "สร้างฟอร์ม" (ไม่ใช่ความลับ) ──
+  // ซัพพลายเออร์ไม่มีสำเนา declaration และดึงเองไม่ได้ (endpoint นั้น authed)
+  // slice นี้คือทุกอย่างที่ certrace-portal/lib/supplier.ts::buildFromPayload
+  // ต้องใช้ประกอบ CBAM checklist + เอกสาร + งวด/เดดไลน์ จาก config ในเครื่อง
+  "declaration": {
+    "name": "CBAM Q2 2026",
+    "regulation": "cbam",             // regulation id
+    "origin": "TH",                   // jurisdiction code
+    "market": "EU",                   // destination market code
+    "period": "Q2 2026",
+    "periodEnd": "2026-06-30",        // "" ถ้าไม่มี bounds
+    "due": "31 Aug 2026",             // label เดดไลน์
+    "dueInDays": 45,
+    "kind": "cbam",                   // "cbam" | "buyer" — คุมการ filter fields
+    "includedFieldIds": ["carbon-price"], // null = เอา default set
+    "note": "Report at installation level." // notesToSuppliers, "" ถ้าไม่มี
+  },
+  // ── identity ของซัพพลายเออร์คนนี้เท่านั้น — ไม่มีตัวเลข emissions ────
+  "supplier": {
+    "name": "Siam Yamato Steel",
+    "ref": "#0418",
+    "country": "TH",
+    "material": "Hot-rolled coil",
+    "critical": true,
+    "selfSupplied": false
+  },
   "request": {
     // เฉพาะ slice ของซัพพลายเออร์คนนี้ จาก requests[] ใน declaration
     // รูปเดียวกับ SupplierRequestSpec.products (certrace-portal/lib/data.ts)
@@ -157,7 +183,10 @@ Endpoint สาธารณะตัวเดียวของระบบ — 
   `emptyState()` ใน `certrace-portal/lib/supplier-store.ts` (`status: "new"`,
   `values: {}`, `versions: []`, …) client ไม่ต้องแยกเคส
 - `request.products` เป็น array เสมอ — ซัพพลายเออร์ที่ไม่มี spec ในเอกสารได้ `[]`
-- response **ไม่มี** ข้อมูลซัพพลายเออร์รายอื่น ราคา หรือเอกสาร declaration ทั้งก้อน
+  (พอร์ทัล fallback ไปสังเคราะห์จาก `supplier.material`)
+- `declaration` + `supplier` เป็น **slice** — พอสร้างฟอร์มได้ แต่:
+  response **ไม่มี** row ของซัพพลายเออร์รายอื่น, ตัวเลข emissions ของใคร,
+  ราคา หรือเอกสาร declaration ทั้งก้อน
 
 ### Errors
 

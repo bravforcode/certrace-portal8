@@ -49,6 +49,7 @@ import {
   type StaleVerdict,
 } from "@/lib/supplier-records";
 import { runQualityCheck, type CheckResult } from "@/lib/ai-check";
+import { useSaveLinkState, useSubmitLink } from "@/lib/links-query";
 import { toast } from "@/components/toast";
 import { useT } from "@/lib/i18n";
 
@@ -149,18 +150,42 @@ export const useSupplier = () => {
   return v;
 };
 
-export function SupplierProvider({ req, children }: { req: SupplierRequest; children: React.ReactNode }) {
+export function SupplierProvider({
+  req,
+  initialState,
+  children,
+}: {
+  req: SupplierRequest;
+  /* Server-backed mode: the state resolved from the API for a real Smart Link.
+     When present it IS the source of truth — no localStorage read, no
+     carried-forward pre-fill (that reads a local record a real supplier has
+     none of) — and every change autosaves back to the server. Absent = the
+     localStorage demo path, unchanged. */
+  initialState?: SupplierState;
+  children: React.ReactNode;
+}) {
   const t = useT();
+  const apiMode = initialState != null;
+  const saveMutation = useSaveLinkState(req.token);
+  const submitMutation = useSubmitLink(req.token);
   // Start from an empty state on BOTH server and client so the first render
   // matches (no hydration mismatch); the mount effect below loads the real
-  // localStorage state right after.
-  const [state, setState] = React.useState<SupplierState>(() => emptyState(req.token));
+  // localStorage state right after. In API mode the server state seeds it
+  // directly — it arrived on the client, so there is no SSR to mismatch.
+  const [state, setState] = React.useState<SupplierState>(() => initialState ?? emptyState(req.token));
   const [view, setView] = React.useState<View>("landing");
   const sections = React.useMemo(() => sectionsForRequest(req), [req]);
 
-  // hydrate from storage once on mount (avoids SSR/client mismatch)
-  const hydrated = React.useRef(false);
+  // hydrate from storage once on mount (avoids SSR/client mismatch). In API mode
+  // the state is already the server's, so treat it as hydrated from the start.
+  const hydrated = React.useRef(apiMode);
   React.useEffect(() => {
+    if (apiMode) {
+      // Server state already seeded; just land on the right view for it.
+      if (initialState.status === "submitted") setView("done");
+      else if (initialState.status === "revision_requested") setView("overview");
+      return;
+    }
     if (hydrated.current) return;
     hydrated.current = true;
     const loaded = loadState(req.token);
@@ -203,14 +228,33 @@ export function SupplierProvider({ req, children }: { req: SupplierRequest; chil
     // returning supplier with a submitted/revision request lands on the hub
     if (loaded.status === "submitted") setView("done");
     else if (loaded.status === "revision_requested") setView("overview");
+    // Runs on the resolved request; apiMode/initialState are fixed for a given
+    // link, so re-running on their identity is neither wanted nor possible.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [req]);
 
   // persist on every change + reflect a cloud-style autosave status. We always
   // write to localStorage; the status copy mirrors "synced when online, not
   // synced when offline" so the supplier can trust their progress is kept.
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("idle");
+  const firstPersist = React.useRef(true);
   React.useEffect(() => {
     if (!hydrated.current) return;
+    if (apiMode) {
+      // Once submitted the form is read-only; the submit POST is the only writer
+      // of that state, so there is nothing to autosave.
+      if (state.status === "submitted") return;
+      // Skip the first run: that state IS what we just resolved, re-PUTting it
+      // on open would be a pointless write.
+      if (firstPersist.current) {
+        firstPersist.current = false;
+        return;
+      }
+      // Debounced so a burst of keystrokes is one request. The mutation carries
+      // durability (retry + offline-pause); `saveStatus` is driven off it below.
+      const id = setTimeout(() => saveMutation.mutate(state), 800);
+      return () => clearTimeout(id);
+    }
     saveState(state);
     if (typeof navigator !== "undefined" && navigator.onLine === false) {
       setSaveStatus("offline");
@@ -219,7 +263,20 @@ export function SupplierProvider({ req, children }: { req: SupplierRequest; chil
     setSaveStatus("saving");
     const t = setTimeout(() => setSaveStatus("saved"), 600);
     return () => clearTimeout(t);
+    // Persist fires on state change only; apiMode/req.token/mutate are fixed per
+    // link (mutate is referentially stable), so re-running on them is unwanted.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
+
+  // API mode: mirror the autosave mutation's lifecycle into the header status.
+  // isPaused = queued while offline (networkMode 'online'), will resume on
+  // reconnect; isError = retries exhausted. Demo mode drives status itself above.
+  React.useEffect(() => {
+    if (!apiMode) return;
+    if (saveMutation.isPaused || saveMutation.isError) setSaveStatus("offline");
+    else if (saveMutation.isPending) setSaveStatus("saving");
+    else if (saveMutation.isSuccess) setSaveStatus("saved");
+  }, [apiMode, saveMutation.isPaused, saveMutation.isError, saveMutation.isPending, saveMutation.isSuccess]);
 
   // React to the browser going on/offline so the indicator stays honest.
   React.useEffect(() => {
@@ -490,9 +547,35 @@ export function SupplierProvider({ req, children }: { req: SupplierRequest; chil
         // submitting IS the confirmation that carried figures still hold
         carried: s.carried ? { ...s.carried, acknowledgedAt: s.carried.acknowledgedAt ?? Date.now() } : null,
       };
-      /* Distil the submission into the company's own record. The declaration
-         keeps the ask; the DATA now outlives it, ready to answer the next
-         request from this or any other exporter. */
+      const trail = `Version ${n} signed by ${signedBy} (${role}) and submitted — score ${result.score}, ${result.warnings} warning${result.warnings === 1 ? "" : "s"}`;
+
+      if (apiMode) {
+        /* The server owns the evidence fields — the version number, its
+           timestamp, the signer read off the attestation, the status. Send the
+           PRE-submit state so the server appends the version (sending our
+           optimistic one would double it), and reconcile with the authoritative
+           blob it returns. Reflect the optimistic state now so the Done view
+           renders without waiting on the round trip; the autosave effect skips
+           it because status is already "submitted". */
+        setState(pushEvent(submitted, "submit", trail));
+        submitMutation.mutate(
+          { state: s, attestation, check: result },
+          {
+            onSuccess: (server) => setState(server),
+            // Retries exhausted: roll back to pre-submit so the Done view does
+            // not show a "submitted" the server never received — they re-sign.
+            onError: () => {
+              setState(s);
+              toast({ message: "Submission failed", detail: "We could not reach the server. Please try signing again.", tone: "err" });
+            },
+          },
+        );
+        return;
+      }
+
+      /* Demo path: no server, so distil the submission into the company's own
+         local record. The declaration keeps the ask; the DATA now outlives it,
+         ready to answer the next request from this or any other exporter. */
       writeSubmissionToRecord(req, submitted, {
         declId: req.declId,
         declName: req.declName,
@@ -500,15 +583,9 @@ export function SupplierProvider({ req, children }: { req: SupplierRequest; chil
         periodEnd: req.periodEnd,
         selfSupplied: req.selfSupplied,
       });
-      setState(
-        pushEvent(
-          submitted,
-          "submit",
-          `Version ${n} signed by ${signedBy} (${role}) and submitted — score ${result.score}, ${result.warnings} warning${result.warnings === 1 ? "" : "s"}`,
-        ),
-      );
+      setState(pushEvent(submitted, "submit", trail));
     },
-    [req, state],
+    [req, state, apiMode, submitMutation],
   );
 
   // Demo only: simulate the exporter requesting a revision of specific fields and

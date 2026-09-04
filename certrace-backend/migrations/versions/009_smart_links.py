@@ -41,9 +41,7 @@ def upgrade() -> None:
         # §4 wants status queryable without opening the blob. Generated, so it
         # can never disagree with state->>'status'; index it when the
         # submissions listing lands and measurably needs one.
-        sa.Column(
-            "status", sa.Text(), sa.Computed("state->>'status'", persisted=True)
-        ),
+        sa.Column("status", sa.Text(), sa.Computed("state->>'status'", persisted=True)),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),

@@ -7,6 +7,7 @@
 
 import * as React from "react";
 import type { SupplierRequest } from "@/lib/supplier";
+import type { SupplierState } from "@/lib/supplier-store";
 import { SupplierProvider, useSupplier } from "./context";
 import { SupplierShell } from "./shell";
 import { FormView } from "./form-view";
@@ -40,9 +41,9 @@ function CurrentView() {
   }
 }
 
-export function SupplierPortal({ req }: { req: SupplierRequest }) {
+export function SupplierPortal({ req, initialState }: { req: SupplierRequest; initialState?: SupplierState }) {
   return (
-    <SupplierProvider req={req}>
+    <SupplierProvider req={req} initialState={initialState}>
       <SupplierShell>
         <CurrentView />
       </SupplierShell>
