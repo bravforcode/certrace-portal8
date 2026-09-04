@@ -47,6 +47,7 @@ import { NodeStatusBadge, TIER_LABEL } from "@/components/tree-node-card";
 import { WorkspaceProvider, useWorkspace } from "@/components/workspace/provider";
 import { entityTabs, trackedParentChainHref, type TrackedParent } from "@/lib/tree-entity";
 import { useChainCounts, useChainNode, useTrackedParent, useWorkspace as useWorkspaceQuery } from "@/lib/workspaces-query";
+import { ErrorState, LoadingState } from "@/components/query-state";
 import { useT, type TFunction } from "@/lib/i18n";
 
 /* ── Which of the three the current address is ─────────────────── */
@@ -306,7 +307,11 @@ export default function WorkspaceLayout({ children, params }: { children: React.
     if (workspaceQuery.data === null) router.replace("/workspaces");
   }, [workspaceQuery.data, router]);
 
-  if (!workspace) return null;
+  // `null` is a resolved miss (the effect above redirects); undefined is still
+  // loading. Surface the two query states here, once, for every tab that hangs
+  // off this layout rather than in each child page.
+  if (workspaceQuery.isError) return <ErrorState onRetry={() => void workspaceQuery.refetch()} />;
+  if (!workspace) return <LoadingState />;
 
   const mode = modeFor(pathname, workspace.id);
 

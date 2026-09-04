@@ -47,6 +47,7 @@
 import * as React from "react";
 import { ArrowUpRight, Check, Copy, Link2, Send } from "lucide-react";
 import { Button, ButtonLink, Card, Chip, EmptyState, FilterChip, PageHeader, Progress, StatusDot, Modal, cn, useFlash } from "@/components/ui";
+import { ErrorState, LoadingState } from "@/components/query-state";
 import { ActionButton } from "@/components/chain-actions";
 import { useQueryClient } from "@tanstack/react-query";
 import { MONTH_STATUS_LABEL } from "@/lib/monthly-data";
@@ -95,7 +96,7 @@ export default function SmartLinksPage() {
      refresh — there is no local copy of a row to keep in step, and nothing to
      patch in place. The send mutations invalidate SMART_LINKS_KEY, which
      re-runs the derivation; no hand-wired refresh callback needed. */
-  const { data: links } = useSmartLinks();
+  const { data: links, isError, refetch } = useSmartLinks();
 
   const [state, setState] = React.useState<StateFilter>("all");
   const [kind, setKind] = React.useState<KindFilter>("all");
@@ -108,6 +109,9 @@ export default function SmartLinksPage() {
   const shown = all.filter((l) => (state === "all" || l.state === state) && (kind === "all" || l.kind === kind));
   const open = openId ? all.find((l) => l.id === openId) ?? null : null;
 
+  if (isError) return <ErrorState onRetry={() => void refetch()} />;
+  if (links === undefined) return <LoadingState />;
+
   return (
     <div className="space-y-8">
       <PageHeader
@@ -116,7 +120,7 @@ export default function SmartLinksPage() {
         lead={t("A workspace asks for twelve months of readings and a verified figure from each of its precursor suppliers. Each of those asks is a link somebody opens and fills in — this is all of them, from every workspace, with where each one stands.")}
       />
 
-      {links === undefined ? null : all.length === 0 ? (
+      {all.length === 0 ? (
         <EmptyState
           icon={<Link2 size={28} strokeWidth={1.25} />}
           title={t("No links yet")}

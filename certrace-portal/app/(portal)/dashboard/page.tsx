@@ -52,6 +52,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { LayoutGrid, Plus } from "lucide-react";
 import { Button, EmptyState, Eyebrow, PageHeader, cn } from "@/components/ui";
+import { ErrorState } from "@/components/query-state";
 import { USER } from "@/lib/data";
 import { useT } from "@/lib/i18n";
 import { actionQueueFor, type ActionItem } from "@/lib/cbam/action-queue";
@@ -183,9 +184,11 @@ function build(): DashboardData {
 
 export default function DashboardPage() {
   const t = useT();
-  const { data: queried } = useQuery({ queryKey: ["workspaces", "dashboard"], queryFn: build, staleTime: 0 });
+  const { data: queried, isError, refetch } = useQuery({ queryKey: ["workspaces", "dashboard"], queryFn: build, staleTime: 0 });
   const data = queried ?? null;
   const year = new Date().getFullYear();
+
+  if (isError) return <ErrorState onRetry={() => void refetch()} />;
 
   return (
     <div className="space-y-8">
