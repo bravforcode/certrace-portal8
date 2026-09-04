@@ -27,7 +27,6 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import {
   ArrowRight,
   Bell,
@@ -37,6 +36,7 @@ import {
   ChevronRight,
   ExternalLink,
   Factory,
+  Link2,
   Mail,
   Package,
   ShieldCheck,
@@ -47,6 +47,7 @@ import { Button, Card, EmptyState, Modal, Stat, TagBadge, cn } from "@/component
 import { DotStrip, StateChip } from "@/components/workspace/chrome";
 import { ProductPicker } from "@/components/workspace/product-picker";
 import { toast } from "@/components/toast";
+import { apiConfigured, createSmartLink } from "@/lib/api";
 import { lastReminderAt, loadExporterState, remindSupplier } from "@/lib/exporter-review";
 import { COUNTRIES, getCatalogProduct } from "@/lib/config";
 import type { Declaration } from "@/lib/data";
@@ -216,12 +217,14 @@ function ReportRow({ status, onOpen, onResolve }: { status: AnnualReportStatus; 
 
 /* ── One supplier and everything they owe ───────────────────── */
 function SupplierBlock({
+  declId,
   group,
   onOpenReport,
   onResolve,
   onRemind,
   lastReminded,
 }: {
+  declId: string;
   group: SupplierGroup;
   onOpenReport: (s: AnnualReportStatus) => void;
   onResolve: (s: AnnualReportStatus, productId: string) => void;
@@ -229,6 +232,27 @@ function SupplierBlock({
   lastReminded: number | null;
 }) {
   const [open, setOpen] = React.useState(true);
+  const [linking, setLinking] = React.useState(false);
+  const [linked, setLinked] = React.useState(false);
+
+  /* Mint THIS supplier's Smart Link and copy it. The server is the only issuer
+     (32 random bytes, stored mapping, expiry) — so this is a call, not a token
+     built in the browser. The url it returns is the /s/<token> the supplier
+     opens to reach their own slice of this declaration and its saved state. */
+  const copyLink = async () => {
+    setLinking(true);
+    try {
+      const link = await createSmartLink(declId, { supplierId: group.supplierId });
+      if (typeof navigator !== "undefined" && navigator.clipboard) await navigator.clipboard.writeText(link.url);
+      setLinked(true);
+      setTimeout(() => setLinked(false), 2000);
+      toast({ message: `Smart Link ready for ${group.supplierName}`, detail: "Copied to your clipboard — paste it wherever you reach them.", tone: "ok" });
+    } catch {
+      toast({ message: "Couldn't create the link", detail: "Check your connection and try again.", tone: "err" });
+    } finally {
+      setLinking(false);
+    }
+  };
 
   // Reports only. A supplier who provides nothing but scrap owes nothing, and
   // a "send reminder" button beside their name is a request for data that does
@@ -270,6 +294,11 @@ function SupplierBlock({
         {!group.selfSupplied && !inputOnly && (
           <span className="flex flex-none items-center gap-2">
             {lastReminded && <span className="text-[11px] text-black/35">Reminded {ago(lastReminded)}</span>}
+            {apiConfigured() && (
+              <Button size="sm" variant="secondary" onClick={copyLink} disabled={linking}>
+                {linked ? <Check size={13} strokeWidth={2} /> : <Link2 size={13} strokeWidth={1.5} />} {linked ? "Copied" : "Copy link"}
+              </Button>
+            )}
             <Button size="sm" variant="secondary" onClick={onRemind} disabled={monthsOwed === 0 && anyStarted}>
               <Bell size={13} strokeWidth={1.5} /> {monthsOwed === 0 && anyStarted ? "Nothing owed" : "Send reminder"}
             </Button>
@@ -436,6 +465,7 @@ export function DeclarationHierarchy({
             {groups.map((g) => (
               <SupplierBlock
                 key={g.supplierId}
+                declId={declaration.id}
                 group={g}
                 onOpenReport={open}
                 onResolve={resolve}

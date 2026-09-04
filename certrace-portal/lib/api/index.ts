@@ -37,6 +37,7 @@ export {
   register,
   login,
   me,
+  markOnboarded,
   logout,
   requestPasswordReset,
   resetPassword,
@@ -62,6 +63,7 @@ export {
 
 export {
   createSmartLink,
+  getSubmissionState,
   listSubmissions,
   requestRevision,
   resolveLink,

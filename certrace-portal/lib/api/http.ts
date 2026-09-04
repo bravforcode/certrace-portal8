@@ -23,7 +23,7 @@
 
 import { apiBaseUrl, apiFetch, apiTimeoutMs } from "./config";
 import { ApiError } from "./errors";
-import { accessToken, clearSession } from "./session";
+import { accessToken, clearSession, loadSession, saveSession, type Session } from "./session";
 
 export type RequestOptions = {
   method?: "GET" | "POST" | "PUT" | "DELETE";
@@ -68,7 +68,74 @@ async function toApiError(response: Response): Promise<ApiError> {
   return new ApiError(code, message, response.status);
 }
 
+/* ── Expired access tokens heal themselves ──────────────────────
+   The access JWT lives an hour; the session lives a week, in the refresh
+   token. A 401 on an authenticated route is therefore usually just "the hour
+   is up": trade the refresh token for a new pair, replay the request once.
+   Only when that trade fails — revoked, expired, never existed — is the
+   person actually signed out, and the session is cleared HERE, centrally.
+
+   One refresh at a time: a page mounting five data calls gets five 401s at
+   once, and five racing rotations would burn each other's tokens (each trade
+   kills the token the next one holds). */
+let refreshInFlight: Promise<boolean> | null = null;
+
+async function tradeRefreshToken(refreshToken: string): Promise<boolean> {
+  try {
+    const rotated = await perform<Session & { refreshToken: string }>(
+      "/api/auth/refresh",
+      { method: "POST", body: { refreshToken }, auth: false },
+    );
+    saveSession({
+      accessToken: rotated.accessToken,
+      refreshToken: rotated.refreshToken,
+      user: rotated.user,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function refreshSession(): Promise<boolean> {
+  const refreshToken = loadSession()?.refreshToken;
+  if (!refreshToken) return Promise.resolve(false);
+  if (!refreshInFlight) {
+    const attempt = tradeRefreshToken(refreshToken);
+    refreshInFlight = attempt;
+    /* Cleared by identity, not blindly: were a second attempt ever started
+       before this settles, its own cleanup must not be wiped out. */
+    void attempt.finally(() => {
+      if (refreshInFlight === attempt) refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
+}
+
+const isUnauthorized = (cause: unknown): boolean =>
+  cause instanceof ApiError && cause.status === 401;
+
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const { auth = true } = options;
+  try {
+    return await perform<T>(path, options);
+  } catch (cause) {
+    if (!auth || !isUnauthorized(cause)) throw cause;
+    if (await refreshSession()) {
+      try {
+        return await perform<T>(path, options);
+      } catch (retryCause) {
+        /* A 401 on a token minted seconds ago is not about the token. */
+        if (isUnauthorized(retryCause)) clearSession();
+        throw retryCause;
+      }
+    }
+    clearSession();
+    throw cause;
+  }
+}
+
+async function perform<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = "GET", body, auth = true, signal, timeoutMs = apiTimeoutMs() } = options;
 
   const headers: Record<string, string> = { Accept: "application/json" };
@@ -108,13 +175,8 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     signal?.removeEventListener("abort", abortFromCaller);
   }
 
-  if (response.status === 401 && auth) {
-    /* The token is no good. Drop it here so the next call does not resend it —
-       but only on authenticated routes: a 401 from a public Smart Link route
-       says something about the link, not about who is signed in. */
-    clearSession();
-  }
-
+  /* A 401 is NOT handled here: request() above turns it into one refresh
+     attempt and a replay, and clears the session only when that fails. */
   if (!response.ok) throw await toApiError(response);
 
   if (response.status === 204) return undefined as T;

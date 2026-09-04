@@ -49,6 +49,7 @@ import {
   ContactFields,
   useSetupDraft,
 } from "@/components/onboarding/shared";
+import { apiConfigured, markOnboarded } from "@/lib/api";
 import { useProfile } from "@/lib/profile";
 import { useT } from "@/lib/i18n";
 import { PREF_KEY, ALL_ON } from "@/lib/notification-prefs";
@@ -109,6 +110,10 @@ export default function SignInSetupPage() {
     if (!setupValid) return;
     runSave(() => {
       update({ ...toPatch(), onboarded: true });
+      /* Told to the server too (fire-and-forget): the server-side flag is
+         what routes the NEXT sign-in straight to /dashboard, and
+         localStorage does not follow the person to a new browser. */
+      if (apiConfigured()) void markOnboarded().catch(() => {});
       // Nothing here asks about notification preferences — everything on by default.
       window.localStorage.setItem(PREF_KEY, JSON.stringify(ALL_ON));
       setStep(2);

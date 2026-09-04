@@ -54,22 +54,25 @@ import {
   emptyInstallation,
   installationsForSupplier,
   isInstallationComplete,
-  ownInstallations,
-  saveInstallation,
   type Installation,
 } from "@/lib/installations";
-import { getSupplierCompany, listSupplierCompanies, type SupplierCompany } from "@/lib/supplier-companies";
-import { createWorkspace, dueDayOptions, knownInstallations, listWorkspaces, routesForCategory, type Installation as InstallationOption } from "@/lib/workspace";
-import { cnCodeCap, yearCap, type CapState } from "@/lib/plan";
+import {
+  useInstallationsForSupplier,
+  useInvalidateInstallations,
+  useOwnInstallations,
+  useSaveInstallation,
+} from "@/lib/installations-query";
+import { getSupplierCompany } from "@/lib/supplier-companies";
+import { useInvalidateSupplierCompanies, useSavePrecursorSupplier, useSupplierCompanies } from "@/lib/suppliers-query";
+import { dueDayOptions, routesForCategory } from "@/lib/workspace";
+import { useCaps, useCreateWorkspace, useDeleteWorkspaceDraft, useSaveWorkspaceDraft, useWorkspaces } from "@/lib/workspaces-query";
 import { PlanCapNotice } from "@/components/plan-cap-notice";
-import { getSupplier, saveSupplier } from "@/lib/precursor-suppliers";
+import { getSupplier } from "@/lib/precursor-suppliers";
 import { useT } from "@/lib/i18n";
 import {
-  deleteWorkspaceDraft,
   draftId,
   getWorkspaceDraft,
   isWorthSaving,
-  saveWorkspaceDraft,
   type WorkspaceWizardSnapshot,
 } from "@/lib/workspace-drafts";
 
@@ -160,13 +163,13 @@ function NewWorkspaceFlow() {
   const [supplierChoice, setSupplierChoice] = React.useState<"" | "self" | "other">("");
   const [installationId, setInstallationId] = React.useState("");
   const [installationName, setInstallationName] = React.useState("");
-  const [options, setOptions] = React.useState<InstallationOption[]>([]);
 
   /* THE EXPORTER'S OWN SITES, PLURAL. A company with a billet plant and a
      rolling mill has two, and the flow that assumed one made the second be
      entered as a third party — so its months went "out" to a supplier who was
      the exporter themselves. */
-  const [own, setOwn] = React.useState<Installation[]>([]);
+  const ownData = useOwnInstallations().data;
+  const own = React.useMemo(() => ownData ?? [], [ownData]);
   const [ownDraft, setOwnDraft] = React.useState<Installation>(() => emptyInstallation(true));
   const [addingOwn, setAddingOwn] = React.useState(false);
 
@@ -176,7 +179,7 @@ function NewWorkspaceFlow() {
      of one mill ended up as two unrelated sites with no screen able to answer
      "everything outstanding at G J Steel". */
   const [supplierId, setSupplierId] = React.useState("");
-  const [suppliers, setSuppliers] = React.useState<SupplierCompany[]>([]);
+  const suppliers = useSupplierCompanies().data ?? [];
   const [addingSupplier, setAddingSupplier] = React.useState(false);
   const [adding, setAdding] = React.useState(false);
 
@@ -187,6 +190,14 @@ function NewWorkspaceFlow() {
   const [dueDay, setDueDay] = React.useState(15);
   const [creating, setCreating] = React.useState(false);
 
+  const createWs = useCreateWorkspace();
+  const saveDraft = useSaveWorkspaceDraft();
+  const deleteDraft = useDeleteWorkspaceDraft();
+  const saveOwnSite = useSaveInstallation();
+  const savePrecursor = useSavePrecursorSupplier();
+  const invalidateInstallations = useInvalidateInstallations();
+  const invalidateSupplierCompanies = useInvalidateSupplierCompanies();
+
   /* ── What the plan still has room for ─────────────────────
      A workspace spends a CN CODE and a REPORTING YEAR — but only when it
      brings a NEW one. A second plant making the same good in the same year
@@ -195,25 +206,31 @@ function NewWorkspaceFlow() {
      count, and re-using either is never blocked.
 
      Measured after mount, because the estate lives in localStorage. */
-  const [estate, setEstate] = React.useState<{ codes: Set<string>; years: Set<number>; codeCap: CapState; yearCap: CapState } | null>(null);
+  const liveWorkspaces = useWorkspaces().data;
+  const caps = useCaps().data;
+  const estate = React.useMemo(
+    () =>
+      liveWorkspaces && caps
+        ? {
+            codes: new Set(liveWorkspaces.map((w) => w.cnCode.trim()).filter(Boolean)),
+            years: new Set(liveWorkspaces.map((w) => w.year)),
+            codeCap: caps.cnCodes,
+            yearCap: caps.years,
+          }
+        : null,
+    [liveWorkspaces, caps],
+  );
 
   const isSelf = supplierChoice === "self";
 
-  /* Load the estate, the exporter's own sites, the suppliers, and any draft. */
+  /* The own-site edit buffer is seeded from the query once it lands. */
+  const ownFirst = ownData?.[0];
   React.useEffect(() => {
-    setOptions(knownInstallations());
-    const mine = ownInstallations();
-    setOwn(mine);
-    setOwnDraft(mine[0] ?? emptyInstallation(true));
-    setSuppliers(listSupplierCompanies());
-    const live = listWorkspaces();
-    setEstate({
-      codes: new Set(live.map((w) => w.cnCode.trim()).filter(Boolean)),
-      years: new Set(live.map((w) => w.year)),
-      codeCap: cnCodeCap(),
-      yearCap: yearCap(),
-    });
+    if (ownFirst) setOwnDraft(ownFirst);
+  }, [ownFirst]);
 
+  /* Seed the wizard from a resumed draft — or the precursor that sent us. */
+  React.useEffect(() => {
     const draft = resumeId ? getWorkspaceDraft(resumeId) : null;
     if (draft) {
       const s = draft.snapshot;
@@ -246,13 +263,10 @@ function NewWorkspaceFlow() {
 
   const supplier = supplierId ? (suppliers.find((s) => s.id === supplierId) ?? getSupplierCompany(supplierId)) : null;
 
-  /* The plants belonging to the chosen supplier. Recomputed from the store
-     rather than filtered off `options`, because a plant added in the popup a
-     second ago is in the store before it is in the picker's list. */
-  const [supplierPlants, setSupplierPlants] = React.useState<Installation[]>([]);
-  React.useEffect(() => {
-    setSupplierPlants(supplierId ? installationsForSupplier(supplierId) : []);
-  }, [supplierId, options]);
+  /* The plants belonging to the chosen supplier. A query rather than a filter
+     off the known-installations list, because a plant added in the popup a
+     second ago must be in the picker the moment the save invalidates. */
+  const supplierPlants = useInstallationsForSupplier(supplierId).data ?? [];
 
   /* Changing supplier drops the plant chosen under the previous one — carrying
      it through would file a year of one mill's data against another. */
@@ -264,7 +278,10 @@ function NewWorkspaceFlow() {
   }, [supplierId, supplierChoice]);
 
   const product = productId ? getCatalogProduct(productId) : undefined;
-  const routes = product ? routesForCategory(aggregatedGoodsCategory(product)) : [];
+  const routes = React.useMemo(
+    () => (product ? routesForCategory(aggregatedGoodsCategory(product)) : []),
+    [product],
+  );
 
   /* Null until measured — an unmeasured estate never blocks, so a slow load
      cannot stop a workspace the account is entitled to. */
@@ -334,11 +351,15 @@ function NewWorkspaceFlow() {
   const commitOwnIfNeeded = () => {
     if (!isSelf || !ownNeedsFilling) return;
     if (!canSaveInstallation(ownDraft, undefined, true)) return;
-    const saved = saveInstallation({ ...ownDraft, self: true });
-    setOwn(ownInstallations());
-    setInstallationId(saved.id);
-    setInstallationName(saved.name);
-    setOptions(knownInstallations());
+    saveOwnSite.mutate(
+      { ...ownDraft, self: true },
+      {
+        onSuccess: (saved) => {
+          setInstallationId(saved.id);
+          setInstallationName(saved.name);
+        },
+      },
+    );
   };
 
   const next = () => {
@@ -371,7 +392,7 @@ function NewWorkspaceFlow() {
   const close = () => {
     const s = snapshot();
     if (isWorthSaving(s)) {
-      saveWorkspaceDraft({
+      saveDraft.mutate({
         id,
         updatedAt: Date.now(),
         snapshot: s,
@@ -399,43 +420,49 @@ function NewWorkspaceFlow() {
     if (!installationId.trim() || !productId || !route || creating || planBlocked) return;
     setCreating(true);
     window.setTimeout(() => {
-      const ws = createWorkspace({
-        installationId: installationId.trim(),
-        installationName: installationName.trim(),
-        productId,
-        productionRoute: route,
-        year,
-        selfSupplied: isSelf,
-        // Denormalised at creation, like productName and cnCode: a supplier can
-        // be renamed, and a workspace already handed to a verifier must keep
-        // saying what it said.
-        supplierId: isSelf ? undefined : supplierId || undefined,
-        supplierName: isSelf ? undefined : supplier?.name,
-        schedule: { dueDay },
-      });
-      // Stamp the link back onto the precursor row that sent us here, so its
-      // Tree card offers "Open workspace" from now on rather than a second
-      // "Create workspace" for the same entity.
-      if (fromPrecursor?.supplier) {
-        saveSupplier({ ...fromPrecursor.supplier, linkedWorkspaceId: ws.id });
-      }
-      deleteWorkspaceDraft(id);
-      /* WHERE THE FINISHED WORKSPACE OPENS DEPENDS ON WHAT WAS JUST CREATED.
+      createWs.mutate(
+        {
+          installationId: installationId.trim(),
+          installationName: installationName.trim(),
+          productId,
+          productionRoute: route,
+          year,
+          selfSupplied: isSelf,
+          // Denormalised at creation, like productName and cnCode: a supplier can
+          // be renamed, and a workspace already handed to a verifier must keep
+          // saying what it said.
+          supplierId: isSelf ? undefined : supplierId || undefined,
+          supplierName: isSelf ? undefined : supplier?.name,
+          schedule: { dueDay },
+        },
+        {
+          onSuccess: (ws) => {
+            // Stamp the link back onto the precursor row that sent us here, so its
+            // Tree card offers "Open workspace" from now on rather than a second
+            // "Create workspace" for the same entity.
+            if (fromPrecursor?.supplier) {
+              savePrecursor.mutate({ ...fromPrecursor.supplier, linkedWorkspaceId: ws.id });
+            }
+            deleteDraft.mutate(id);
+            /* WHERE THE FINISHED WORKSPACE OPENS DEPENDS ON WHAT WAS JUST CREATED.
 
-         From the estate, this flow creates a NEW PRODUCT, and a product's own
-         page is its chain: the reader's next move is to hang suppliers under
-         it, so it opens on /tree.
+               From the estate, this flow creates a NEW PRODUCT, and a product's own
+               page is its chain: the reader's next move is to hang suppliers under
+               it, so it opens on /tree.
 
-         From "Track report" on a precursor, it creates that precursor's own
-         report — and the report is the four tabs. Landing on /tree instead
-         put a chain of one node in front of them, and made the first visit a
-         different page from every later one: Track report on the same row
-         from then on resolves to `/workspaces/<linked>` (see
-         TrackReportAction in components/chain-actions.tsx), which is the
-         Overview. Same row, same button, one page on the first press and
-         another on the second. It is the Overview both times now — the same
-         page the chain's own root installation opens on. */
-      router.push(fromPrecursor ? `/workspaces/${ws.id}` : `/workspaces/${ws.id}/tree`);
+               From "Track report" on a precursor, it creates that precursor's own
+               report — and the report is the four tabs. Landing on /tree instead
+               put a chain of one node in front of them, and made the first visit a
+               different page from every later one: Track report on the same row
+               from then on resolves to `/workspaces/<linked>` (see
+               TrackReportAction in components/chain-actions.tsx), which is the
+               Overview. Same row, same button, one page on the first press and
+               another on the second. It is the Overview both times now — the same
+               page the chain's own root installation opens on. */
+            router.push(fromPrecursor ? `/workspaces/${ws.id}` : `/workspaces/${ws.id}/tree`);
+          },
+        },
+      );
     }, 550);
   };
 
@@ -640,7 +667,7 @@ function NewWorkspaceFlow() {
               open={addingSupplier}
               onClose={() => setAddingSupplier(false)}
               onSaved={(saved) => {
-                setSuppliers(listSupplierCompanies());
+                invalidateSupplierCompanies();
                 setSupplierId(saved.id);
                 setInstallationId("");
                 setInstallationName("");
@@ -660,8 +687,7 @@ function NewWorkspaceFlow() {
               requireEmail
               title={supplier ? `Add an installation for ${supplier.name}` : "Add an installation"}
               onSaved={(saved) => {
-                setOptions(knownInstallations());
-                setSupplierPlants(installationsForSupplier(supplierId));
+                invalidateInstallations();
                 setInstallationId(saved.id);
                 setInstallationName(saved.name);
               }}
@@ -676,8 +702,7 @@ function NewWorkspaceFlow() {
               title={t("Add another site of ours")}
               lead={t("A second plant you operate yourself. Its months land in your own inbox, exactly like the first.")}
               onSaved={(saved) => {
-                setOwn(ownInstallations());
-                setOptions(knownInstallations());
+                invalidateInstallations();
                 setInstallationId(saved.id);
                 setInstallationName(saved.name);
               }}

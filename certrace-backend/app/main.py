@@ -10,6 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import (
+    APP_BASE_URL_DEFAULT,
+    APP_BASE_URL_ENV,
     CORS_ALLOWED_ORIGINS_ENV,
     EMAIL_LOGO_URL_ENV,
     JWT_SECRET_ENV,
@@ -21,7 +23,7 @@ from app.core.cors import (
     validate_cors_origin,
 )
 from app.repositories.database import DatabaseRepository
-from app.routers import auth, calculations, declarations, health
+from app.routers import auth, calculations, declarations, health, links
 from app.services.email import EmailTransport, transport_from_env
 from app.services.errors import AccountStoreUnavailable
 
@@ -82,7 +84,14 @@ def create_app(
     application.state.database = (
         DatabaseRepository(database_url) if database_url else None
     )
-    application.state.declarations = {}
+    # No-database home for portal declarations: {account id: {decl id: doc}}.
+    application.state.portal_declarations = {}
+    # No-database home for supplier smart links: {token: link dict}.
+    application.state.smart_links = {}
+    # Minted links point at the portal, not at this API.
+    application.state.app_base_url = (
+        load_env_file_value(APP_BASE_URL_ENV) or APP_BASE_URL_DEFAULT
+    ).rstrip("/")
     # Without a database there are no real accounts to protect, so the
     # no-database mode gets an ephemeral key rather than a startup failure:
     # tokens work for the life of the process, which is all a local demo or a
@@ -97,7 +106,7 @@ def create_app(
             CORSMiddleware,
             allow_origins=list(configured_origins),
             allow_credentials=True,
-            allow_methods=["GET", "POST", "OPTIONS"],
+            allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
             allow_headers=["Accept", "Authorization", "Content-Type"],
             max_age=600,
         )
@@ -109,4 +118,5 @@ def create_app(
     application.include_router(auth.router)
     application.include_router(calculations.router)
     application.include_router(declarations.router)
+    application.include_router(links.router)
     return application

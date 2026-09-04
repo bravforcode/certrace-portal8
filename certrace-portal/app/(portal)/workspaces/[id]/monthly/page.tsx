@@ -48,13 +48,10 @@ import { useWorkspace } from "@/components/workspace/provider";
 import {
   DUE_STATE_LABEL,
   countdownFor,
-  dispatchesFor,
   dueDateFor,
   dueStateFor,
   effectiveDueDay,
   formatDate,
-  markMonthReminded,
-  markMonthSent,
   reminderState,
   requestDateFor,
   type DueState,
@@ -66,16 +63,27 @@ import {
   monthCounts,
   monthIssues,
   monthResult,
-  monthsForWorkspace,
   MONTH_STATUS_LABEL,
   type MonthlyEntry,
 } from "@/lib/monthly-data";
-import { REVIEW_STATE_LABEL, formatSubmissionDate, submissionVersion, submissionsFor, type MonthSubmission } from "@/lib/month-submission";
-import { dueDayOptions, monthName, scheduleFor, updateWorkspace } from "@/lib/workspace";
+import { REVIEW_STATE_LABEL, formatSubmissionDate, submissionVersion } from "@/lib/month-submission";
+import { dueDayOptions, monthName, scheduleFor } from "@/lib/workspace";
 import { workspaceLinkFor } from "@/lib/workspace-link";
-import { listSuppliers, totalTonnes, type PrecursorSupplier } from "@/lib/precursor-suppliers";
-import { annualEvidence, evidenceForMonth } from "@/lib/workspace-evidence";
-import { electricitySupplyLabel, finalVersionCovering, latestVersion, loadDraft, mmdIssues } from "@/lib/workspace-mmd";
+import { totalTonnes } from "@/lib/precursor-suppliers";
+import { electricitySupplyLabel, mmdIssues } from "@/lib/workspace-mmd";
+import {
+  useDispatches,
+  useEvidence,
+  useFinalMmdVersion,
+  useLatestMmdVersion,
+  useMarkMonthReminded,
+  useMarkMonthSent,
+  useMmdDraft,
+  useMonths,
+  useSubmissions,
+} from "@/lib/workspace-data-query";
+import { usePrecursorSuppliers } from "@/lib/suppliers-query";
+import { useUpdateWorkspace } from "@/lib/workspaces-query";
 import { useT } from "@/lib/i18n";
 
 const STATUS_STYLE: Record<MonthlyEntry["status"], string> = {
@@ -118,19 +126,16 @@ const ordinal = (n: number) => {
 
 export default function MonthlyDataPage() {
   const t = useT();
-  const { workspace, readiness, refresh } = useWorkspace();
+  const { workspace, refresh } = useWorkspace();
   const router = useRouter();
-  const [entries, setEntries] = React.useState<MonthlyEntry[] | null>(null);
-  const [dispatch, setDispatch] = React.useState<Record<string, MonthDispatch>>({});
-  const [submissions, setSubmissions] = React.useState<Record<string, MonthSubmission>>({});
+  const { data: entries } = useMonths(workspace);
+  const { data: dispatch } = useDispatches(workspace.id);
+  const { data: submissions } = useSubmissions(workspace.id);
+  const updateWs = useUpdateWorkspace();
+  const markSent = useMarkMonthSent();
+  const markReminded = useMarkMonthReminded();
 
   const schedule = scheduleFor(workspace);
-
-  React.useEffect(() => {
-    setEntries(monthsForWorkspace(workspace));
-    setDispatch(dispatchesFor(workspace.id));
-    setSubmissions(submissionsFor(workspace.id));
-  }, [workspace, readiness]);
 
   const production = entries ? annualProductionFor(workspace) : null;
   const thisMonth = new Date().toISOString().slice(0, 7);
@@ -141,8 +146,9 @@ export default function MonthlyDataPage() {
      lives on the dispatch record, and every reader goes through
      effectiveDueDay(). */
   const setSchedule = (patch: Partial<typeof schedule>) => {
-    updateWorkspace(workspace.id, { schedule: { ...schedule, ...patch } });
-    refresh();
+    // refresh() in onSuccess: the provider's workspace is context state, not a
+    // query, so invalidation alone would leave the Select showing the old day.
+    updateWs.mutate({ id: workspace.id, patch: { schedule: { ...schedule, ...patch } } }, { onSuccess: refresh });
   };
 
   /* NO TOAST ON SEND OR COPY. Both are pressed on a card in a grid of twelve,
@@ -159,13 +165,11 @@ export default function MonthlyDataPage() {
      clipboard at the time. Copy link is right beside it and is the press that
      means "give me the link"; this one means "ask for this month". */
   const send = (month: string) => {
-    markMonthSent(workspace.id, month, schedule.dueDay);
-    setDispatch(dispatchesFor(workspace.id));
+    markSent.mutate({ workspaceId: workspace.id, month, dueDay: schedule.dueDay });
   };
 
   const remind = (month: string) => {
-    markMonthReminded(workspace.id, month);
-    setDispatch(dispatchesFor(workspace.id));
+    markReminded.mutate({ workspaceId: workspace.id, month });
     toast({
       message: `Reminder logged for ${monthName(month)}`,
       detail: `You can chase this month again in ${6} hours.`,
@@ -251,14 +255,14 @@ export default function MonthlyDataPage() {
         </div>
 
         {/* ── 3 · Twelve months you can act on ──────────────── */}
-        {entries === null ? null : (
+        {entries === undefined ? null : (
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {entries.map((e) => (
               <MonthBox
                 key={e.month}
                 entry={e}
                 current={e.month === thisMonth}
-                dispatch={dispatch[e.month] ?? null}
+                dispatch={dispatch?.[e.month] ?? null}
                 scheduleDueDay={schedule.dueDay}
                 onOpen={() => router.push(`/workspaces/${workspace.id}/monthly/${e.month}`)}
                 onSend={() => send(e.month)}
@@ -278,7 +282,7 @@ export default function MonthlyDataPage() {
         title={t("Monthly data")}
         blurb={t("The same twelve months as a column of numbers — the shape for checking a year rather than opening a month. The review column is where each one stands with you.")}
       >
-        {entries === null ? null : (
+        {entries === undefined ? null : (
           <div className="-mx-2 overflow-x-auto">
             <table className="w-full min-w-[900px] border-collapse">
               <thead>
@@ -302,7 +306,7 @@ export default function MonthlyDataPage() {
                 {entries.map((e) => {
                   const res = monthResult(e);
                   const see = indicativeMonthlySEE(e);
-                  const sub = submissions[e.month];
+                  const sub = submissions?.[e.month];
                   const state = sub?.state ?? "open";
                   const version = sub ? submissionVersion(sub) : null;
                   return (
@@ -394,12 +398,9 @@ export default function MonthlyDataPage() {
    precursor, and the last one is what the month adds up to. */
 function PrecursorsByMonth() {
   const t = useT();
-  const { workspace, readiness } = useWorkspace();
-  const [rows, setRows] = React.useState<PrecursorSupplier[] | null>(null);
-
-  React.useEffect(() => {
-    setRows(listSuppliers(workspace.id).filter((s) => s.parentId === null));
-  }, [workspace, readiness]);
+  const { workspace } = useWorkspace();
+  const { data: suppliers } = usePrecursorSuppliers(workspace.id);
+  const rows = React.useMemo(() => suppliers?.filter((s) => s.parentId === null) ?? null, [suppliers]);
 
   const months = React.useMemo(
     () => Array.from({ length: 12 }, (_, i) => `${workspace.year}-${String(i + 1).padStart(2, "0")}`),
@@ -492,25 +493,26 @@ function PrecursorsByMonth() {
    click away, in the month it belongs to. */
 function DocumentsByMonth() {
   const t = useT();
-  const { workspace, readiness } = useWorkspace();
-  const [rows, setRows] = React.useState<{ month: string; count: number; latest: string | null; kinds: number }[] | null>(null);
+  const { workspace } = useWorkspace();
+  const { data: evidence } = useEvidence(workspace.id);
 
-  React.useEffect(() => {
+  // One query, both cuts: the list is already sorted newest-first, so the
+  // month filter keeps evidenceForMonth's order and !month is annualEvidence.
+  const rows = React.useMemo(() => {
+    if (evidence === undefined) return null;
     const months = Array.from({ length: 12 }, (_, i) => `${workspace.year}-${String(i + 1).padStart(2, "0")}`);
-    setRows(
-      months.map((month) => {
-        const items = evidenceForMonth(workspace.id, month);
-        return {
-          month,
-          count: items.length,
-          latest: items.length ? (items[0].capturedAt ?? null) : null,
-          kinds: new Set(items.flatMap((i) => i.fieldKeys)).size,
-        };
-      }),
-    );
-  }, [workspace, readiness]);
+    return months.map((month) => {
+      const items = evidence.filter((e) => e.month === month);
+      return {
+        month,
+        count: items.length,
+        latest: items.length ? (items[0].capturedAt ?? null) : null,
+        kinds: new Set(items.flatMap((i) => i.fieldKeys)).size,
+      };
+    });
+  }, [evidence, workspace.year]);
 
-  const annual = React.useMemo(() => (rows === null ? 0 : annualEvidence(workspace.id).length), [rows, workspace.id]);
+  const annual = evidence?.filter((e) => !e.month).length ?? 0;
 
   if (rows === null) return null;
 
@@ -825,13 +827,14 @@ type MmdRow = {
 
 function MmdByMonth() {
   const t = useT();
-  const { workspace, readiness } = useWorkspace();
-  const [rows, setRows] = React.useState<MmdRow[] | null>(null);
+  const { workspace } = useWorkspace();
+  const { data: draft } = useMmdDraft(workspace.id, workspace.periodStart, workspace.periodEnd);
+  const { data: finalised } = useFinalMmdVersion(workspace.id, workspace.periodStart, workspace.periodEnd);
+  const { data: latest } = useLatestMmdVersion(workspace.id);
 
-  React.useEffect(() => {
-    const draft = loadDraft(workspace.id, workspace.periodStart, workspace.periodEnd);
-    const finalised = finalVersionCovering(workspace.id, workspace.periodStart, workspace.periodEnd);
-    const latest = latestVersion(workspace.id);
+  const rows = React.useMemo<MmdRow[] | null>(() => {
+    // undefined is "still loading"; null is a loaded "no version exists".
+    if (draft === undefined || finalised === undefined || latest === undefined) return null;
     /* THE CONTENT IN FORCE FOR A MONTH IS THE FINALISED VERSION'S, not the
        draft's, when one exists — a verifier asking what March was reported
        under is asking about the stamped document, and reading the live draft
@@ -839,22 +842,20 @@ function MmdByMonth() {
     const inForce = finalised ? finalised.content : draft;
     const open = mmdIssues(draft).length;
     const months = Array.from({ length: 12 }, (_, i) => `${workspace.year}-${String(i + 1).padStart(2, "0")}`);
-    setRows(
-      months.map((month) => ({
-        month,
-        version: finalised ? `v${finalised.n}` : latest ? `v${latest.n} (superseded)` : "Draft",
-        final: Boolean(finalised),
-        open,
-        boundary: inForce.boundaryDescription.trim().length > 0,
-        processes: inForce.processesIncluded.length,
-        fuels: inForce.fuelTypeIds.length,
-        supply: inForce.electricitySupply
-          ? electricitySupplyLabel(inForce.electricitySupply, inForce.electricitySupplyOther)
-          : "",
-        gaps: inForce.dataGaps.length,
-      })),
-    );
-  }, [workspace, readiness]);
+    return months.map((month) => ({
+      month,
+      version: finalised ? `v${finalised.n}` : latest ? `v${latest.n} (superseded)` : "Draft",
+      final: Boolean(finalised),
+      open,
+      boundary: inForce.boundaryDescription.trim().length > 0,
+      processes: inForce.processesIncluded.length,
+      fuels: inForce.fuelTypeIds.length,
+      supply: inForce.electricitySupply
+        ? electricitySupplyLabel(inForce.electricitySupply, inForce.electricitySupplyOther)
+        : "",
+      gaps: inForce.dataGaps.length,
+    }));
+  }, [draft, finalised, latest, workspace.year]);
 
   return (
     <SectionCard

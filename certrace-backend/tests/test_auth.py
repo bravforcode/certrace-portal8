@@ -8,6 +8,7 @@ from conftest import ExplodingTransport, RecordingTransport
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import OperationalError
 
+from app.core.tokens import issue_access_token
 from app.main import create_app
 from app.services.email import EmailDeliveryError
 
@@ -17,6 +18,16 @@ def _app_with_mail() -> tuple[TestClient, RecordingTransport]:
 
     transport = RecordingTransport()
     return TestClient(create_app(email_transport=transport)), transport
+
+
+def _bearer(client: TestClient, email: str, password: str) -> dict[str, str]:
+    """Sign in and shape the token as /change-password now requires it."""
+
+    response = client.post(
+        "/api/auth/login", json={"email": email, "password": password}
+    )
+    assert response.status_code == 200, response.text
+    return {"Authorization": f"Bearer {response.json()['accessToken']}"}
 
 
 def _code_from(transport: RecordingTransport) -> str:
@@ -34,20 +45,23 @@ def _code_from(transport: RecordingTransport) -> str:
 def test_change_password_success() -> None:
     app = create_app()
     client = TestClient(app)
+    headers = _bearer(client, "wasawat@siamsteel.co.th", "demo-password")
 
     payload = {
         "email": "wasawat@siamsteel.co.th",
         "current_password": "demo-password",
         "new_password": "new-secure-password-123",
     }
-    response = client.post("/api/auth/change-password", json=payload)
+    response = client.post("/api/auth/change-password", json=payload, headers=headers)
     assert response.status_code == 200
     data = response.json()
     assert data["success"] is True
     assert "Password updated" in data["message"]
 
     # Verify old password no longer works
-    fail_response = client.post("/api/auth/change-password", json=payload)
+    fail_response = client.post(
+        "/api/auth/change-password", json=payload, headers=headers
+    )
     assert fail_response.status_code == 400
     detail = fail_response.json()["detail"]
     assert detail["code"] == "INVALID_CREDENTIALS"
@@ -59,20 +73,73 @@ def test_change_password_success() -> None:
         "current_password": "new-secure-password-123",
         "new_password": "demo-password",
     }
-    restore_response = client.post("/api/auth/change-password", json=new_payload)
+    restore_response = client.post(
+        "/api/auth/change-password", json=new_payload, headers=headers
+    )
     assert restore_response.status_code == 200
+
+
+def test_change_password_requires_a_token() -> None:
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/auth/change-password",
+        json={
+            "email": "wasawat@siamsteel.co.th",
+            "current_password": "demo-password",
+            "new_password": "new-secure-password-123",
+        },
+    )
+
+    assert response.status_code == 401
+
+
+def test_change_password_moves_the_callers_own_account_only() -> None:
+    """The body's email is ignored: the token names whose password changes."""
+
+    client = TestClient(create_app())
+    headers = _bearer(client, "wasawat@siamsteel.co.th", "demo-password")
+
+    response = client.post(
+        "/api/auth/change-password",
+        json={
+            "email": "demo@certrace.com",  # somebody else
+            "current_password": "demo-password",
+            "new_password": "temporarily-different-1",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 200
+
+    # demo@certrace.com is untouched; the caller's own password moved.
+    other = client.post(
+        "/api/auth/login",
+        json={"email": "demo@certrace.com", "password": "demo-password"},
+    )
+    assert other.status_code == 200
+    restore = client.post(
+        "/api/auth/change-password",
+        json={
+            "email": "wasawat@siamsteel.co.th",
+            "current_password": "temporarily-different-1",
+            "new_password": "demo-password",
+        },
+        headers=headers,
+    )
+    assert restore.status_code == 200
 
 
 def test_change_password_invalid_current() -> None:
     app = create_app()
     client = TestClient(app)
+    headers = _bearer(client, "wasawat@siamsteel.co.th", "demo-password")
 
     payload = {
         "email": "wasawat@siamsteel.co.th",
         "current_password": "wrong-password",
         "new_password": "new-secure-password-123",
     }
-    response = client.post("/api/auth/change-password", json=payload)
+    response = client.post("/api/auth/change-password", json=payload, headers=headers)
     assert response.status_code == 400
     detail = response.json()["detail"]
     assert detail["code"] == "INVALID_CREDENTIALS"
@@ -159,6 +226,7 @@ def test_completing_a_reset_confirms_by_email() -> None:
 
 def test_changing_a_password_sends_a_confirmation() -> None:
     client, transport = _app_with_mail()
+    headers = _bearer(client, "wasawat@siamsteel.co.th", "demo-password")
 
     response = client.post(
         "/api/auth/change-password",
@@ -167,6 +235,7 @@ def test_changing_a_password_sends_a_confirmation() -> None:
             "current_password": "demo-password",
             "new_password": "temporary-password-42",
         },
+        headers=headers,
     )
     assert response.status_code == 200
     assert transport.last.to == "wasawat@siamsteel.co.th"
@@ -179,14 +248,15 @@ def test_changing_a_password_sends_a_confirmation() -> None:
             "current_password": "temporary-password-42",
             "new_password": "demo-password",
         },
+        headers=headers,
     )
     assert restore.status_code == 200
 
 
-def test_change_password_for_an_unknown_address_sends_nothing() -> None:
-    """In the no-database mode change_user_password claims an unknown address
-    on the spot. The router must not turn that into a security notice mailed
-    to a stranger."""
+def test_change_password_for_a_stranger_sends_nothing() -> None:
+    """No token, no work: the unauthenticated probe that used to claim an
+    unknown address in the no-database mode now stops at the door — and no
+    security notice goes to anyone."""
 
     client, transport = _app_with_mail()
 
@@ -199,7 +269,7 @@ def test_change_password_for_an_unknown_address_sends_nothing() -> None:
         },
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 401
     assert transport.sent == []
 
 
@@ -229,7 +299,16 @@ def test_change_password_reports_the_outage_instead_of_using_memory() -> None:
     report success for a write that never reached PostgreSQL.
     """
 
-    client = _client_with_broken_database()
+    app = create_app()
+    # A well-signed token for a real-shaped subject: the outage must surface
+    # while resolving the bearer, not be mistaken for a bad credential.
+    token = issue_access_token(
+        app.state.jwt_secret,
+        user_id="00000000-0000-4000-8000-000000000002",
+        email="demo@certrace.com",
+    )
+    app.state.database = BrokenDatabase()
+    client = TestClient(app, raise_server_exceptions=False)
 
     response = client.post(
         "/api/auth/change-password",
@@ -238,6 +317,7 @@ def test_change_password_reports_the_outage_instead_of_using_memory() -> None:
             "current_password": "demo-password",
             "new_password": "new-secure-password-123",
         },
+        headers={"Authorization": f"Bearer {token}"},
     )
 
     assert response.status_code == 503

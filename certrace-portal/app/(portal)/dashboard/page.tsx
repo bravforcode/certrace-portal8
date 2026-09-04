@@ -48,10 +48,10 @@
    ════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { LayoutGrid, Plus } from "lucide-react";
 import { Button, EmptyState, Eyebrow, PageHeader, cn } from "@/components/ui";
-import { useClientData } from "@/components/workspace/chrome";
 import { USER } from "@/lib/data";
 import { useT } from "@/lib/i18n";
 import { actionQueueFor, type ActionItem } from "@/lib/cbam/action-queue";
@@ -183,7 +183,8 @@ function build(): DashboardData {
 
 export default function DashboardPage() {
   const t = useT();
-  const [data] = useClientData(build);
+  const { data: queried } = useQuery({ queryKey: ["workspaces", "dashboard"], queryFn: build, staleTime: 0 });
+  const data = queried ?? null;
   const year = new Date().getFullYear();
 
   return (

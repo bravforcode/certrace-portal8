@@ -20,7 +20,6 @@ import {
   type SupplierProfile,
   type SupplierRow,
 } from "./data";
-import { loadCreatedDeclarations } from "./declarations-store";
 
 const KEY = "certrace:supplier-directory";
 
@@ -78,7 +77,7 @@ export function findDirectorySupplier(company: string): DirectorySupplier | unde
    from it yet. Client-side only — it reads localStorage. */
 export function listSupplierRows(): SupplierRow[] {
   const rows = new Map<string, SupplierRow>();
-  for (const r of getUniqueSuppliersFrom([...DECLARATIONS, ...loadCreatedDeclarations()])) {
+  for (const r of getUniqueSuppliersFrom(DECLARATIONS)) {
     rows.set(directoryKey(r.name), r);
   }
   for (const d of listDirectory()) {
@@ -104,7 +103,7 @@ export function listSupplierRows(): SupplierRow[] {
     invited a minute ago in the wizard opens instead of 404-ing — they just
     have nothing collected against them yet. */
 export function getSupplierProfileClient(slug: string): SupplierProfile | null {
-  const fromDeclarations = getSupplierProfileFrom(slug, [...DECLARATIONS, ...loadCreatedDeclarations()], listDirectory());
+  const fromDeclarations = getSupplierProfileFrom(slug, DECLARATIONS, listDirectory());
   if (fromDeclarations) return fromDeclarations;
 
   const d = listDirectory().find((s) => supplierSlug(s.company) === slug);

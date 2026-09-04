@@ -34,6 +34,7 @@ import { Dropdown } from "./controls";
 import { CertraceLogo } from "./logo";
 import { Toaster } from "./toast";
 import { USER, NOTIFICATIONS, type Notice } from "@/lib/data";
+import { logout } from "@/lib/api";
 import { LANGUAGES, useLanguage, useT } from "@/lib/i18n";
 import { FEATURE_REQUEST_URL, GUIDE_VIDEO_URL, SOCIAL_LINE_URL } from "@/lib/links";
 import { useProfile } from "@/lib/profile";
@@ -272,6 +273,10 @@ function AccountMenu() {
 
   const signOut = () => {
     setSigningOut(true);
+    // Clears localStorage and revokes the refresh token server-side
+    // (fire-and-forget) — see logout() in lib/api/auth.ts. Without this the
+    // session survived the button and / bounced straight back to /dashboard.
+    logout();
     window.setTimeout(() => router.push("/login"), 600);
   };
 

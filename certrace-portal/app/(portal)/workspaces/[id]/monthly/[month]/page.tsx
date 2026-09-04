@@ -69,29 +69,36 @@ import Link from "next/link";
 import { Copy, TriangleAlert } from "lucide-react";
 import { AutoSaveBadge, Button, useAutoSave } from "@/components/ui";
 import { toast } from "@/components/toast";
-import { loadDraft, saveDraft, type WorkspaceMmdContent } from "@/lib/workspace-mmd";
+import { type WorkspaceMmdContent } from "@/lib/workspace-mmd";
 import { syncFromMmd, syncFromMonth } from "@/lib/mmd-sync";
 import { Note, SectionCard, fmt } from "@/components/workspace/chrome";
 import { MonthReviewBar } from "@/components/workspace/month-review";
 import { RevisionRequestPanel } from "@/components/workspace/revision-request";
 import { DocumentsStep, InstallationStep, MmdStep, MonthlyStep, PrecursorStep } from "@/components/supplier/month-steps";
 import { useWorkspace } from "@/components/workspace/provider";
-import { markExporterEdited, submissionFor, type MonthSubmission } from "@/lib/month-submission";
-import { emptyInstallation, getInstallation, saveInstallation, type Installation } from "@/lib/installations";
+import { emptyInstallation, type Installation } from "@/lib/installations";
+import { useInstallation, useSaveInstallation } from "@/lib/installations-query";
 import {
   copyFromPreviousMonth,
   emptyMonth,
   fuelEvidenceKey,
   fuelTypeLabel,
-  getMonth,
   hasPreviousMonthSetup,
   monthIssues,
   monthResult,
-  saveMonth,
   type FuelEntry,
   type MonthlyEntry,
 } from "@/lib/monthly-data";
-import { listSuppliers, saveSupplier, type PrecursorSupplier } from "@/lib/precursor-suppliers";
+import { type PrecursorSupplier } from "@/lib/precursor-suppliers";
+import { usePrecursorSuppliers, useSavePrecursorSupplier } from "@/lib/suppliers-query";
+import {
+  useMarkExporterEdited,
+  useMmdDraft,
+  useMonth,
+  useSaveMmdDraft,
+  useSaveMonth,
+  useSubmission,
+} from "@/lib/workspace-data-query";
 import { coverageForMonth, reconcileFuelEvidence } from "@/lib/workspace-evidence";
 import { workspaceRequiresIndirectEmissions } from "@/lib/cbam/product-category-rules";
 import { monthNameLong } from "@/lib/workspace";
@@ -102,26 +109,32 @@ export default function MonthEditorPage({ params }: { params: Promise<{ id: stri
   const { month } = React.use(params);
   const { workspace, refresh } = useWorkspace();
 
-  /* Everything the month is made of, loaded exactly as the supplier flow
-     loads it — same stores, same fallbacks, so the two screens cannot start
-     from different pictures of the same month. */
+  /* Everything the month is made of, read exactly as the supplier flow reads
+     it — same stores, now through the same query cache, so the two screens
+     cannot start from different pictures of the same month, and every write
+     invalidates its way back to both. */
+  const { data: savedMonth } = useMonth(workspace.id, month);
+  const { data: savedMmd } = useMmdDraft(workspace.id, workspace.periodStart, workspace.periodEnd);
+  const { data: savedInstallation } = useInstallation(workspace.installationId);
+  const { data: precursorRows } = usePrecursorSuppliers(workspace.id);
+  const { data: submission } = useSubmission(workspace.id, month);
+  const saveMonthMutation = useSaveMonth();
+  const saveMmdDraft = useSaveMmdDraft();
+  const saveInstallationMutation = useSaveInstallation();
+  const savePrecursor = useSavePrecursorSupplier();
+  const markEdited = useMarkExporterEdited();
+
+  /* Edit buffers over those reads — typing stays synchronous, the autosave
+     below writes through the mutations, and the effect after it reseeds the
+     buffers whenever the store moves underneath. */
   const [entry, setEntry] = React.useState<MonthlyEntry | null>(null);
   const [mmd, setMmd] = React.useState<WorkspaceMmdContent | null>(null);
   const [installation, setInstallation] = React.useState<Installation | null>(null);
-  const [precursors, setPrecursors] = React.useState<PrecursorSupplier[]>([]);
-  const [submission, setSubmission] = React.useState<MonthSubmission | null>(null);
   const [unlocked, setUnlocked] = React.useState(false);
 
   React.useEffect(() => {
-    setEntry(getMonth(workspace.id, month) ?? emptyMonth(workspace.id, month));
-    setMmd(loadDraft(workspace.id, workspace.periodStart, workspace.periodEnd));
-    setInstallation(
-      getInstallation(workspace.installationId) ?? { ...emptyInstallation(), id: workspace.installationId, name: workspace.installationName },
-    );
-    setPrecursors(listSuppliers(workspace.id).filter((s) => s.parentId === null));
-    setSubmission(submissionFor(workspace.id, month));
     setUnlocked(false);
-  }, [workspace.id, workspace.installationId, workspace.installationName, workspace.periodStart, workspace.periodEnd, month]);
+  }, [workspace.id, month]);
 
   /* A month nobody has submitted is just a form — it opens editable, because
      there is no other way in. Once submitted it opens FIXED, and Edit is a
@@ -132,23 +145,43 @@ export default function MonthEditorPage({ params }: { params: Promise<{ id: stri
   const autosave = useAutoSave(
     { entry, mmd, installation },
     (v) => {
-      if (v.entry) saveMonth(v.entry);
-      if (v.mmd) saveDraft(workspace.id, v.mmd);
+      if (v.entry) saveMonthMutation.mutate(v.entry);
+      if (v.mmd) saveMmdDraft.mutate({ workspaceId: workspace.id, content: v.mmd });
       /* THE INSTALLATION IS ONE RECORD, NOT TWO COPIES. Writing it here is
          what makes the exporter's correction reach the supplier's link, in the
          same way the supplier's correction reaches this page. */
-      if (v.installation && v.installation.name.trim() && v.installation.id.trim()) saveInstallation(v.installation);
+      if (v.installation && v.installation.name.trim() && v.installation.id.trim()) saveInstallationMutation.mutate(v.installation);
       // Editing a month somebody else attested to VOIDS that attestation —
       // their name must not travel onto figures they have not seen.
-      if (hasSubmission) setSubmission(markExporterEdited(workspace.id, month));
+      if (hasSubmission) markEdited.mutate({ workspaceId: workspace.id, month });
       refresh();
     },
     { enabled: Boolean(entry) && !readOnly },
   );
 
-  const reloadPrecursors = React.useCallback(() => {
-    setPrecursors(listSuppliers(workspace.id).filter((s) => s.parentId === null));
-  }, [workspace.id]);
+  /* The buffers resync whenever the query data changes — after a reopen, an
+     approved edit, a save from the supplier's side — but NEVER while this
+     screen holds keystrokes the autosave has not written yet: the refetch a
+     nearby write triggers would hand back the pre-keystroke month and erase
+     them. The status is read through a ref so the resync fires on data
+     arriving, not on the autosave's own transitions. */
+  const autosaveStatus = React.useRef(autosave.status);
+  autosaveStatus.current = autosave.status;
+  React.useEffect(() => {
+    if (autosaveStatus.current === "pending" || autosaveStatus.current === "saving") return;
+    if (savedMonth !== undefined) setEntry(savedMonth ?? emptyMonth(workspace.id, month));
+    if (savedMmd) setMmd(savedMmd);
+    // Empty installationId disables useInstallation, leaving its data undefined
+    // forever; fabricate the blank record so the page is not gated on it for good.
+    if (!workspace.installationId)
+      setInstallation({ ...emptyInstallation(), id: workspace.installationId, name: workspace.installationName });
+    else if (savedInstallation !== undefined)
+      setInstallation(
+        savedInstallation ?? { ...emptyInstallation(), id: workspace.installationId, name: workspace.installationName },
+      );
+  }, [savedMonth, savedMmd, savedInstallation, workspace.id, workspace.installationId, workspace.installationName, month]);
+
+  const precursors = React.useMemo(() => (precursorRows ?? []).filter((s) => s.parentId === null), [precursorRows]);
 
   /** Which fuels had a supporting document a moment ago — see
       `reconcileFuelEvidence`. Seeded on load, because "was covered" cannot be
@@ -252,11 +285,10 @@ export default function MonthEditorPage({ params }: { params: Promise<{ id: stri
 
   const setPrecursorMonth = (row: PrecursorSupplier, tonnes: number | undefined) => {
     const others = (row.monthlyQuantities ?? []).filter((q) => q.month !== month);
-    saveSupplier({
+    savePrecursor.mutate({
       ...row,
       monthlyQuantities: tonnes == null ? others : [...others, { month, tonnes }].sort((a, b) => a.month.localeCompare(b.month)),
     });
-    reloadPrecursors();
     refresh();
   };
 
@@ -355,10 +387,11 @@ export default function MonthEditorPage({ params }: { params: Promise<{ id: stri
           locked={readOnly}
           canEdit={hasSubmission}
           onUnlock={() => setUnlocked(true)}
-          onChanged={setSubmission}
+          /* The bar writes to the store itself; refresh() invalidates the
+             subtree, so the submission and the reloaded month both come back
+             through the queries above. */
+          onChanged={() => refresh()}
           onReopened={() => {
-            const reloaded = getMonth(workspace.id, month);
-            if (reloaded) setEntry(reloaded);
             setUnlocked(false);
             refresh();
           }}
@@ -374,10 +407,8 @@ export default function MonthEditorPage({ params }: { params: Promise<{ id: stri
              edit request has a supplier on the other end of it — telling the
              exporter there is nobody to send it back to would be false. */
           disabled={submission.state === "open"}
-          onChanged={setSubmission}
+          onChanged={() => refresh()}
           onReopened={() => {
-            const reloaded = getMonth(workspace.id, month);
-            if (reloaded) setEntry(reloaded);
             setUnlocked(false);
             refresh();
           }}

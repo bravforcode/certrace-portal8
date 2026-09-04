@@ -80,7 +80,16 @@ class AuthUser(BaseModel):
 
 class SessionResponse(BaseModel):
     access_token: str = Field(..., serialization_alias="accessToken")
+    refresh_token: str = Field(..., serialization_alias="refreshToken")
     user: AuthUser
+
+
+class RefreshRequest(BaseModel):
+    """Body for /refresh and /logout — the refresh token IS the credential."""
+
+    refresh_token: str = Field(..., min_length=16, alias="refreshToken")
+
+    model_config = {"populate_by_name": True}
 
 
 class MeResponse(BaseModel):

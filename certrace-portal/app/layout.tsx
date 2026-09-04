@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Sans, IBM_Plex_Sans_Thai, Geist, Geist_Mono, Courier_Prime } from "next/font/google";
+import { QueryProvider } from "@/components/query-provider";
 import { LanguageProvider } from "@/lib/i18n";
 import { ProfileProvider } from "@/lib/profile";
 import "./globals.css";
@@ -59,9 +60,11 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body
         className={`${plex.variable} ${plexThai.variable} ${geist.variable} ${geistMono.variable} ${courier.variable} antialiased`}
       >
-        <LanguageProvider>
-          <ProfileProvider>{children}</ProfileProvider>
-        </LanguageProvider>
+        <QueryProvider>
+          <LanguageProvider>
+            <ProfileProvider>{children}</ProfileProvider>
+          </LanguageProvider>
+        </QueryProvider>
       </body>
     </html>
   );

@@ -8,6 +8,7 @@ import { Select } from "@/components/controls";
 import { PhoneField } from "@/components/phone-field";
 import { LanguageToggle } from "@/components/lang-toggle";
 import { CertraceLogo } from "@/components/logo";
+import { apiConfigured, markOnboarded } from "@/lib/api";
 import { useProfile } from "@/lib/profile";
 import { PRODUCT_SECTORS } from "@/lib/config";
 import { JOB_TITLES, JOB_TITLE_OPTIONS, jobTitleIncomplete, jobTitleValue } from "@/lib/job-titles";
@@ -310,6 +311,9 @@ export default function OnboardingPage() {
         lineId,
         onboarded: true,
       });
+      /* Told to the server too (fire-and-forget): the server-side flag is
+         what routes the next sign-in straight to /dashboard. */
+      if (apiConfigured()) void markOnboarded().catch(() => {});
       // Onboarding doesn't ask about notification preferences — everything on by default.
       window.localStorage.setItem(PREF_KEY, JSON.stringify(ALL_ON));
       /* Ends on the completion page, NOT in the product: the account is

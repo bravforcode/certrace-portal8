@@ -619,28 +619,11 @@ def test_invalid_calculation_input_returns_structured_422(monkeypatch) -> None:
     assert response.json()["detail"]["code"] == "NON_POSITIVE_VALUE"
 
 
-def test_declarations_can_store_a_draft_calculation_preview(monkeypatch) -> None:
+def test_declarations_require_a_signed_in_account(monkeypatch) -> None:
+    # The CRUD behaviour itself lives in tests/test_declarations_portal.py;
+    # this pins the door: the routes exist and answer 401, never data.
     monkeypatch.delenv(CORS_ALLOWED_ORIGINS_ENV, raising=False)
     client = TestClient(create_app())
 
-    response = client.post(
-        "/api/v1/declarations",
-        json={
-            "declarant_name": "Sudawan",
-            "cn_code": "72083900",
-            "reporting_year": 2026,
-            "calculation": {
-                "trace_id": "decl:test",
-                "sector": "IRON_STEEL",
-                "route": "EAF",
-                "production": {"value": "100", "unit": "TNE"},
-            },
-        },
-    )
-
-    assert response.status_code == 201
-    created = response.json()
-    assert created["id"] == "decl_000001"
-    assert created["status"] == "DRAFT_CALCULATION_PREVIEW"
-    listed = client.get("/api/v1/declarations")
-    assert listed.json()["declarations"][0]["id"] == created["id"]
+    assert client.get("/api/v1/declarations").status_code == 401
+    assert client.post("/api/v1/declarations", json={"id": "decl-x"}).status_code == 401

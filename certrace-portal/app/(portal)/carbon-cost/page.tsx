@@ -70,10 +70,10 @@
    ════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Coins, TrendingUp } from "lucide-react";
 import { cn, EmptyState, PageHeader } from "@/components/ui";
 import { Select } from "@/components/controls";
-import { useClientData } from "@/components/workspace/chrome";
 import { useFormat, useT, type TFunction } from "@/lib/i18n";
 import { listWorkspaces, type VerificationWorkspace } from "@/lib/workspace";
 import type { WorkspaceSEE } from "@/lib/workspace-see";
@@ -110,7 +110,8 @@ function build(): Data {
 export default function CarbonCostPage() {
   const t = useT();
   const { number } = useFormat();
-  const [data] = useClientData(build);
+  const { data: queried } = useQuery({ queryKey: ["workspaces", "carbon-cost"], queryFn: build, staleTime: 0 });
+  const data = queried ?? null;
   /* null until the first client read tells us which years exist — the newest
      one is then the landing state, because the year an exporter is working on
      is overwhelmingly the current one. Held as state rather than derived so a

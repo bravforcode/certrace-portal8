@@ -20,22 +20,27 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Paperclip, Upload, Trash2, Link2, TriangleAlert, Check } from "lucide-react";
-import { Card, Button, Eyebrow, Progress, EmptyState, OptionalTag, inputClass, cn } from "@/components/ui";
+import { Card, Button, Eyebrow, Progress, EmptyState, OptionalTag, cn } from "@/components/ui";
 import { Select } from "@/components/controls";
 import { toast } from "@/components/toast";
-import { getDeclaration, USER, type Declaration } from "@/lib/data";
+import { USER, type Declaration } from "@/lib/data";
+import { useDeclaration } from "@/lib/declarations-query";
+import { ErrorState, LoadingState } from "@/components/query-state";
 import { calendarYear, displayDate, type ReportingPeriod } from "@/lib/cbam/boundary";
 import { provenanceRefs, type ActivityDataset } from "@/lib/cbam/activity";
-import { loadDataset, saveDataset } from "@/lib/cbam/activity-store";
+import {
+  useActivityDataset,
+  useSaveActivityDataset,
+  useEvidence,
+  useAddEvidence,
+  useRemoveEvidence,
+} from "@/lib/cbam/cbam-query";
 import { useT } from "@/lib/i18n";
 import {
-  addEvidence,
   categoryForKey,
   coverage,
   dependents,
   hashBytes,
-  listEvidence,
-  removeEvidence,
   uid,
   EVIDENCE_CATEGORIES,
   EVIDENCE_CATEGORY_LABEL,
@@ -55,25 +60,24 @@ export default function EvidencePage({ params }: { params: Promise<{ id: string 
   const t = useT();
   const { id } = React.use(params);
   const router = useRouter();
-  const [decl, setDecl] = React.useState<Declaration | null>(null);
-  const [dataset, setDataset] = React.useState<ActivityDataset | null>(null);
-  const [files, setFiles] = React.useState<EvidenceFile[]>([]);
+  const { data: decl, isError, refetch } = useDeclaration(id);
+  /* The pieces that live NEXT TO the declaration (localStorage stores,
+     drafts, snapshots) load once the query has it. */
+  const { data: dataset } = useActivityDataset(id, decl ? periodFor(decl) : undefined, USER.name);
+  const { data: files } = useEvidence(id);
+  const saveDataset = useSaveActivityDataset();
+  const addEvidence = useAddEvidence();
+  const removeEvidence = useRemoveEvidence();
   const [openFileId, setOpenFileId] = React.useState<string | null>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [uploadCategory, setUploadCategory] = React.useState<EvidenceCategory>("utility_bill");
 
   React.useEffect(() => {
-    const found = getDeclaration(id);
-    if (!found) {
-      router.replace("/declarations");
-      return;
-    }
-    setDecl(found);
-    setDataset(loadDataset(id, periodFor(found), USER.name));
-    setFiles(listEvidence(id));
-  }, [id, router]);
+    if (decl === null) router.replace("/declarations");
+  }, [decl, router]);
 
-  if (!decl || !dataset) return null;
+  if (isError) return <ErrorState onRetry={() => void refetch()} />;
+  if (!decl || !dataset || !files) return <LoadingState />;
 
   /* The coverage rows ARE the dataset's provenance records — one list, so a
      new kind of input can never quietly escape the evidence requirement. */
@@ -106,8 +110,7 @@ export default function EvidencePage({ params }: { params: Promise<{ id: string 
       const p = next.processEmissions.find((x) => x.id === entryId);
       if (p) set(p.provenance);
     }
-    setDataset(next);
-    saveDataset(next);
+    saveDataset.mutate({ dataset: next });
   };
 
   const onUpload = async (fileList: FileList | null) => {
@@ -137,7 +140,7 @@ export default function EvidencePage({ params }: { params: Promise<{ id: string 
         hash,
         dataUrl,
       };
-      setFiles(addEvidence(entry));
+      addEvidence.mutate(entry);
       if (!dataUrl) {
         toast({
           message: `${f.name} registered`,
@@ -149,8 +152,6 @@ export default function EvidencePage({ params }: { params: Promise<{ id: string 
     if (inputRef.current) inputRef.current.value = "";
   };
 
-  const openFile = openFileId ? files.find((f) => f.id === openFileId) ?? null : null;
-  const openFileDependents = openFile ? dependents(cov.rows, openFile.id) : [];
 
   const grouped = EVIDENCE_CATEGORIES.map((cat) => ({ cat, items: files.filter((f) => f.type === cat) })).filter((g) => g.items.length > 0);
 
@@ -313,7 +314,7 @@ export default function EvidencePage({ params }: { params: Promise<{ id: string 
                             <button
                               aria-label={t("Remove document")}
                               onClick={() => {
-                                setFiles(removeEvidence(decl.id, f.id));
+                                removeEvidence.mutate({ declarationId: decl.id, id: f.id });
                                 toast({
                                   message: `${f.name} removed`,
                                   detail: deps.length > 0 ? `${deps.length} figure${deps.length === 1 ? "" : "s"} now unevidenced.` : undefined,

@@ -19,33 +19,37 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, FileText, Download, Check, TriangleAlert, History, ChevronRight } from "lucide-react";
-import { Card, Button, Eyebrow, Chip, inputClass, cn, useSaveState, SaveButton } from "@/components/ui";
+import { Card, Button, Eyebrow, inputClass, cn, useSaveState, SaveButton } from "@/components/ui";
 import { DatePicker, Select } from "@/components/controls";
 import { toast } from "@/components/toast";
-import { getDeclaration, USER, ORG, type Declaration } from "@/lib/data";
+import { USER, ORG, type Declaration } from "@/lib/data";
+import { useDeclaration } from "@/lib/declarations-query";
+import { ErrorState, LoadingState } from "@/components/query-state";
 import { getOrgIdentity } from "@/lib/org";
 import { getRecord } from "@/lib/supplier-records";
 import { countryName } from "@/lib/config";
-import { PROCESS_STEPS, PROCESS_STEP_LABEL, PROCESS_STEP_HINT, calendarYear, displayDate, type ProcessStep, type ReportingPeriod } from "@/lib/cbam/boundary";
-import { loadBoundary, saveBoundary, setStep } from "@/lib/cbam/boundary-store";
-import { loadDataset } from "@/lib/cbam/activity-store";
-import { listGaps } from "@/lib/cbam/data-gaps";
+import { PROCESS_STEPS, PROCESS_STEP_LABEL, PROCESS_STEP_HINT, calendarYear, displayDate, type Boundary, type ProcessStep, type ReportingPeriod } from "@/lib/cbam/boundary";
+import { setStep } from "@/lib/cbam/boundary-store";
+import {
+  useActivityDataset,
+  useBoundary,
+  useDataGaps,
+  useFinaliseMmdVersion,
+  useMmdDraft,
+  useMmdVersions,
+  useSaveBoundary,
+  useSaveMmdDraft,
+} from "@/lib/cbam/cbam-query";
 import {
   generateMmd,
   mmdIssues,
   diffVersions,
-  loadDraft,
-  saveDraft,
-  listVersions,
   latestVersion,
-  finaliseVersion,
   QUALITY_ASSURANCE_OPTIONS,
   QUALITY_ASSURANCE_LABEL,
   MMD_SECTION_TITLE,
   MMD_SECTION_BLURB,
-  type MmdContent,
   type MmdDraft,
-  type MmdVersion,
   type MmdChange,
   type QualityAssurance,
 } from "@/lib/cbam/mmd";
@@ -61,59 +65,72 @@ export default function MmdPage({ params }: { params: Promise<{ id: string }> })
   const t = useT();
   const { id } = React.use(params);
   const router = useRouter();
-  const [decl, setDecl] = React.useState<Declaration | null>(null);
+  const { data: decl, isError, refetch } = useDeclaration(id);
+  const period = React.useMemo(() => (decl ? periodFor(decl) : undefined), [decl]);
+  /* The pieces that live NEXT TO the declaration (localStorage stores,
+     drafts, snapshots) come from the cbam query cache — any mutation
+     invalidates the declaration's subtree and everything below refetches. */
+  const { data: savedDraft } = useMmdDraft(id);
+  const { data: savedBoundary } = useBoundary(id);
+  const { data: versions } = useMmdVersions(id);
+  const { data: dataset } = useActivityDataset(id, period, USER.name);
+  const { data: gaps } = useDataGaps(id);
+  const saveMmdDraft = useSaveMmdDraft();
+  const saveBoundaryMutation = useSaveBoundary();
+  const finaliseMmd = useFinaliseMmdVersion();
+  /* Edit buffers for the two genuinely human sections — seeded from the
+     query cache, kept local so typing stays synchronous, autosaved through
+     the mutations above. */
   const [draft, setDraft] = React.useState<MmdDraft | null>(null);
-  const [boundary, setBoundary] = React.useState(() => loadBoundary(id));
-  const [versions, setVersions] = React.useState<MmdVersion[]>([]);
-  const [content, setContent] = React.useState<MmdContent | null>(null);
+  const [boundary, setBoundary] = React.useState<Boundary | null>(null);
   const save = useSaveState();
 
-  const rebuild = React.useCallback(
-    (d: Declaration, dr: MmdDraft, b: ReturnType<typeof loadBoundary>) => {
-      const org = getOrgIdentity();
-      const period = periodFor(d);
-      const dataset = loadDataset(d.id, period, USER.name);
-      /* The exporter's own installation details already exist — they answered
-         them once as a self-supply record. Asking again here would be exactly
-         the defect the build spec's closing note describes. */
-      const own = getRecord(org.name);
-      const inst = own?.installation ?? {};
-      return generateMmd({
-        declarationId: d.id,
-        installation: {
-          installationName: inst["inst-name"] || org.name,
-          operator: org.name,
-          country: countryName(inst["inst-country"] || org.origin),
-          address: inst["inst-address"] ?? "",
-          unlocode: inst["inst-unlocode"] ?? "",
-          coordinates: inst["inst-coords"] ?? "",
-        },
-        boundary: b,
-        period,
-        dataset,
-        gaps: listGaps(d.id),
-        draft: { qa: dr.qa, measurement: dr.measurement, overrides: dr.overrides },
-      });
-    },
-    [],
-  );
+  /* Seed the buffers ONCE per declaration. updateDraft/updateBoundary already
+     keep local state in step with each write, so reseeding on every refetch
+     buys nothing — and since each mutation invalidates the whole ["cbam", id]
+     subtree, an unguarded reseed would hand back the just-written value and
+     clobber any keystroke typed in the in-flight window. The ref lets a real
+     declaration change (navigation) reseed. */
+  const seededFor = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (!savedDraft || !savedBoundary || seededFor.current === id) return;
+    seededFor.current = id;
+    setDraft(savedDraft);
+    setBoundary(savedBoundary);
+  }, [savedDraft, savedBoundary, id]);
 
   React.useEffect(() => {
-    const found = getDeclaration(id);
-    if (!found) {
-      router.replace("/declarations");
-      return;
-    }
-    const b = loadBoundary(id);
-    const dr = loadDraft(id);
-    setDecl(found);
-    setBoundary(b);
-    setDraft(dr);
-    setVersions(listVersions(id));
-    setContent(rebuild(found, dr, b));
-  }, [id, router, rebuild]);
+    if (decl === null) router.replace("/declarations");
+  }, [decl, router]);
 
-  if (!decl || !draft || !content) return null;
+  const content = React.useMemo(() => {
+    if (!decl || !draft || !boundary || !period || !dataset || !gaps) return null;
+    const org = getOrgIdentity();
+    /* The exporter's own installation details already exist — they answered
+       them once as a self-supply record. Asking again here would be exactly
+       the defect the build spec's closing note describes. */
+    const own = getRecord(org.name);
+    const inst = own?.installation ?? {};
+    return generateMmd({
+      declarationId: decl.id,
+      installation: {
+        installationName: inst["inst-name"] || org.name,
+        operator: org.name,
+        country: countryName(inst["inst-country"] || org.origin),
+        address: inst["inst-address"] ?? "",
+        unlocode: inst["inst-unlocode"] ?? "",
+        coordinates: inst["inst-coords"] ?? "",
+      },
+      boundary,
+      period,
+      dataset,
+      gaps,
+      draft: { qa: draft.qa, measurement: draft.measurement, overrides: draft.overrides },
+    });
+  }, [decl, draft, boundary, period, dataset, gaps]);
+
+  if (isError) return <ErrorState onRetry={() => void refetch()} />;
+  if (!decl || !draft || !boundary || !versions || !content) return <LoadingState />;
 
   const issues = mmdIssues(content);
   /* Two different diffs, and conflating them is what made this screen say
@@ -126,9 +143,8 @@ export default function MmdPage({ params }: { params: Promise<{ id: string }> })
      PENDING — what has changed since the latest version but has not been
      finalised. That is the exporter's own working state, and it is what the
      next version will record. */
-  const versionsSoFar = listVersions(decl.id);
-  const previous = versionsSoFar.length ? versionsSoFar[versionsSoFar.length - 1] : null;
-  const priorToPrevious = versionsSoFar.length > 1 ? versionsSoFar[versionsSoFar.length - 2] : null;
+  const previous = versions.length ? versions[versions.length - 1] : null;
+  const priorToPrevious = versions.length > 1 ? versions[versions.length - 2] : null;
   const releasedChanges = priorToPrevious && previous ? diffVersions(priorToPrevious.content, previous.content) : [];
   const pendingChanges = previous ? diffVersions(previous.content, content) : [];
   /* The PDF carries the released change list when there is one — the document
@@ -136,34 +152,37 @@ export default function MmdPage({ params }: { params: Promise<{ id: string }> })
   const changes = priorToPrevious ? releasedChanges : pendingChanges;
 
   const updateDraft = (next: MmdDraft) => {
-    const saved = saveDraft(next);
-    setDraft(saved);
-    setContent(rebuild(decl, saved, boundary));
+    setDraft(next);
+    saveMmdDraft.mutate(next);
   };
 
   const updateBoundary = (step: ProcessStep, bucket: "included" | "excluded" | "undecided") => {
-    const next = saveBoundary(setStep(boundary, step, bucket), USER.name);
+    const next = setStep(boundary, step, bucket);
     setBoundary(next);
-    setContent(rebuild(decl, draft, next));
+    saveBoundaryMutation.mutate({ boundary: next, updatedBy: USER.name });
   };
 
   const updateBoundaryDescription = (description: string) => {
-    const next = saveBoundary({ ...boundary, description }, USER.name);
+    const next = { ...boundary, description };
     setBoundary(next);
-    setContent(rebuild(decl, draft, next));
+    saveBoundaryMutation.mutate({ boundary: next, updatedBy: USER.name });
   };
 
   const finalise = () => {
     save.run(() => {
-      const v = finaliseVersion(decl.id, content, USER.name);
-      setVersions(listVersions(decl.id));
-      toast({
-        message: `MMD version ${v.n} finalised`,
-        detail: previous
-          ? `${pendingChanges.length} change${pendingChanges.length === 1 ? "" : "s"} recorded against version ${previous.n}.`
-          : "First version — this becomes next year's baseline.",
-        tone: "ok",
-      });
+      finaliseMmd.mutate(
+        { declarationId: decl.id, content, author: USER.name },
+        {
+          onSuccess: (v) =>
+            toast({
+              message: `MMD version ${v.n} finalised`,
+              detail: previous
+                ? `${pendingChanges.length} change${pendingChanges.length === 1 ? "" : "s"} recorded against version ${previous.n}.`
+                : "First version — this becomes next year's baseline.",
+              tone: "ok",
+            }),
+        },
+      );
     });
   };
 

@@ -27,7 +27,8 @@ import { useRouter } from "next/navigation";
 import { DeclarationHierarchy } from "@/components/declaration-hierarchy";
 import { DeclarationWorkflow } from "@/components/declaration-workflow";
 import { cn } from "@/components/ui";
-import { getDeclaration, type Declaration } from "@/lib/data";
+import { useDeclaration } from "@/lib/declarations-query";
+import { ErrorState, LoadingState } from "@/components/query-state";
 import { useT } from "@/lib/i18n";
 
 type View = "reports" | "workflow";
@@ -36,20 +37,15 @@ export default function DeclarationDetailPage({ params }: { params: Promise<{ id
   const t = useT();
   const { id } = React.use(params);
   const router = useRouter();
-  const [declaration, setDeclaration] = React.useState<Declaration | null>(() => getDeclaration(id) ?? null);
+  const { data: declaration, isError, refetch } = useDeclaration(id);
   const [view, setView] = React.useState<View>("reports");
 
   React.useEffect(() => {
-    if (declaration) return;
-    const found = getDeclaration(id);
-    if (found) {
-      setDeclaration(found);
-    } else {
-      router.replace("/declarations");
-    }
-  }, [id, declaration, router]);
+    if (declaration === null) router.replace("/declarations");
+  }, [declaration, router]);
 
-  if (!declaration) return null;
+  if (isError) return <ErrorState onRetry={() => void refetch()} />;
+  if (!declaration) return <LoadingState />;
 
   return (
     <div className="space-y-5">
