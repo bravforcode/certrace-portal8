@@ -60,7 +60,8 @@ _TOKEN_EXPIRED = HTTPException(
 
 class CreateLinkRequest(BaseModel):
     supplier_id: str = Field(..., min_length=1, max_length=200, alias="supplierId")
-    month: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}$")
+    # YYYY-MM, and a real month -- 2026-13 / 2026-00 are not links worth minting.
+    month: str | None = Field(default=None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
     expires_in_days: int = Field(
         default=SMART_LINK_TTL_DAYS, ge=1, le=365, alias="expiresInDays"
     )
@@ -83,6 +84,14 @@ class SubmitRequest(BaseModel):
     # The quality check the portal ran; null when it was skipped. Score and
     # warning count are copied into the version for the verifier to read.
     check: dict[str, object] | None = None
+
+
+class RevisionRequest(BaseModel):
+    # Why it is going back, and exactly which values and docs the supplier may
+    # touch again -- everything else stays locked at what they submitted.
+    note: str = Field(default="", max_length=4000)
+    unlocked: list[str] = Field(default_factory=list)
+    unlockedDocs: list[str] = Field(default_factory=list)
 
 
 def _now_ms() -> int:
@@ -153,6 +162,29 @@ def _live_link(
     if doc is None:
         raise _TOKEN_NOT_FOUND
     return link, doc, database
+
+
+def _owned_link(
+    request: Request, account_id: str, declaration_id: str, token: str
+) -> tuple[dict[str, object], object]:
+    """The link for this token, but only if it is this account's and this
+    declaration's -- otherwise the same not-there code as any bad token.
+
+    The exporter's counterpart to ``_live_link``: owner-scoped, and deliberately
+    NOT gated on revoked/expired, so reviewing a submission and sending it back
+    for changes both reach a link even after the exporter has closed it. Returns
+    the link row and the database (or None).
+    """
+
+    database = request.app.state.database
+    link = (
+        database.get_smart_link(token)
+        if database is not None
+        else request.app.state.smart_links.get(token)
+    )
+    if link is None or link["userId"] != account_id or link["declId"] != declaration_id:
+        raise _TOKEN_NOT_FOUND
+    return link, database
 
 
 def _links_for(
@@ -353,19 +385,72 @@ def get_submission_state(
     if _declaration_doc(request, account.id, declaration_id) is None:
         raise _DECLARATION_NOT_FOUND
 
-    database = request.app.state.database
-    link = (
-        database.get_smart_link(token)
-        if database is not None
-        else request.app.state.smart_links.get(token)
-    )
-    if link is None or link["userId"] != account.id or link["declId"] != declaration_id:
-        raise _TOKEN_NOT_FOUND
+    link, _database = _owned_link(request, account.id, declaration_id, token)
     return {
         "token": token,
         "supplierId": link["supplierId"],
         "state": link["state"] or _empty_state(token),
     }
+
+
+@router.post("/declarations/{declaration_id}/links/{token}/revision")
+def request_revision(
+    declaration_id: str,
+    token: str,
+    body: RevisionRequest,
+    request: Request,
+    account: Account = Depends(current_account),
+) -> dict[str, object]:
+    """The exporter sends a submission back for changes, per docs/API-CONTRACT.md §3.
+
+    The mirror of submit: submit set status "submitted", this sets it back to
+    "revision_requested" and records the note plus exactly which values and docs
+    the supplier may edit again. The supplier's next submit reads ``revisionNote``
+    into the version it stamps, closing the loop. Owner-scoped like the review
+    pane, and like it not gated on revoked/expired -- an exporter can reopen a
+    submission they already closed.
+    """
+
+    if _declaration_doc(request, account.id, declaration_id) is None:
+        raise _DECLARATION_NOT_FOUND
+
+    link, database = _owned_link(request, account.id, declaration_id, token)
+
+    # Start from what the supplier last saved, never null, so the fields the
+    # server does not own (values, docs, versions) survive the round trip.
+    state = dict(link["state"] or _empty_state(token))
+    now = _now_ms()
+
+    fields = len(body.unlocked)
+    docs = len(body.unlockedDocs)
+    events = state.get("events")
+    events = list(events) if isinstance(events, list) else []
+    events.append(
+        {
+            "id": uuid.uuid4().hex,
+            "at": now,
+            "kind": "revision_requested",
+            "text": (
+                f"Revision requested on {fields} field"
+                f"{'' if fields == 1 else 's'}"
+                + (
+                    f" and {docs} document{'' if docs == 1 else 's'}"
+                    if docs
+                    else ""
+                )
+                + (f' -- "{body.note}"' if body.note else "")
+            ),
+        }
+    )
+
+    state["token"] = token
+    state["status"] = "revision_requested"
+    state["unlocked"] = list(body.unlocked)
+    state["unlockedDocs"] = list(body.unlockedDocs)
+    state["revisionNote"] = body.note
+    state["events"] = events
+    state["updatedAt"] = now
+    return _persist_state(request, database, token, state)
 
 
 @router.get("/links/{token}")

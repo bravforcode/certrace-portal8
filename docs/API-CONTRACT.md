@@ -303,6 +303,9 @@ submissions (งานถัดไป)
 ผู้ส่งออกขอให้แก้ รับ `{ "note": "…", "unlocked": ["…"], "unlockedDocs": ["…"] }`
 → server เซ็ต `status = "revision_requested"` แล้วเขียนสามฟิลด์นั้นลง state
 
+**✅ backend ทำแล้ว (2026-09-04)** — `app/routers/links.py::request_revision`
+คืน `SupplierState` ทั้งก้อน (เหมือน submit/save) และ append event `revision_requested`
+
 ### `GET /api/v1/declarations/{id}/submissions` 🔒
 
 หน้าจอฝั่งผู้ส่งออกใช้อันนี้ดูว่าใครส่งแล้วบ้าง — ต้องเบา เรียกบ่อย
