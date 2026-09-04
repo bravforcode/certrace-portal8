@@ -7,7 +7,8 @@ import { ArrowRight } from "lucide-react";
 import { Button, Field, inputClass, cn } from "@/components/ui";
 import { AuthLayout, GoogleButton, Divider, GOOGLE_AUTH_ENABLED } from "@/components/auth-panel";
 import { EnglishOnly, useT } from "@/lib/i18n";
-import { apiConfigured, hasCode, isApiError, login } from "@/lib/api";
+import { apiConfigured, login } from "@/lib/api";
+import { EMAIL_RE, signInDestination, signInError } from "@/lib/auth-flow";
 
 /* Sign-in is English-only, like the rest of the auth screens — see
    EnglishOnly in lib/i18n.tsx. The EN/ไทย switcher starts on /onboarding,
@@ -24,11 +25,18 @@ export default function LoginPage() {
 function LoginScreen() {
   const t = useT();
   const router = useRouter();
+  const [loading, setLoading] = React.useState(false);
+  const [googleLoading, setGoogleLoading] = React.useState(false);
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [error, setError] = React.useState("");
-  const [loading, setLoading] = React.useState(false);
-  const [googleLoading, setGoogleLoading] = React.useState(false);
+
+  /* No length rule on the password here. `required` and an eight-character
+     minimum belong on /register, where the password is being CHOSEN; on this
+     screen the only authority on whether it is right is the server, and a
+     button that refuses to submit a short one just fails an existing account
+     locally with no way to find out why. */
+  const canSubmit = EMAIL_RE.test(email.trim()) && password.length > 0;
 
   /* ── Both buttons land in the same place ───────────────────────
      Signing in — with the email form or with Google — opens the SIGN-IN
@@ -36,39 +44,32 @@ function LoginScreen() {
      paths must not diverge: which flow a "Continue with Google" click starts
      is decided by the page it was clicked on, and on this page that is the
      sign-in flow, exactly as the identical button on /register starts the
-     create-account one.
-
-     The email form authenticates for real when a backend is configured;
-     login() stores the session itself (see lib/api/auth.ts). On a laptop with
-     no NEXT_PUBLIC_API_BASE_URL the demo walkthrough stays as it was. */
+     create-account one. The one account that goes elsewhere is one that never
+     finished signing up — see signInDestination in lib/auth-flow. */
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (loading) return;
-    setError("");
+    if (!canSubmit || loading) return;
     setLoading(true);
+    setError("");
 
+    /* No backend pointed at this build — the demo, and any laptop without
+       .env.local. Walk the path this screen has always walked rather than
+       failing on a URL nobody has set. See apiConfigured() in lib/api. */
     if (!apiConfigured()) {
       window.setTimeout(() => router.push("/onboarding/setup"), 600);
       return;
     }
 
     try {
+      /* `login` stores the session itself — the token is in localStorage
+         before this line returns, so the next screen's requests carry it. */
       const session = await login({ email: email.trim(), password });
-      // Someone who already finished setup goes straight to work; the
-      // sign-in walkthrough is for accounts that never completed it. The
-      // flag comes from the server (markOnboarded), not localStorage, so it
-      // survives a new browser.
-      router.push(session.user.onboarded ? "/dashboard" : "/onboarding/setup");
+      router.push(signInDestination(session.user));
+      /* Loading stays ON through the push. Clearing it here would flash an
+         enabled form for the frame between the state update and the route
+         change — long enough to click "Sign in" a second time. */
     } catch (cause) {
-      setError(
-        hasCode(cause, "INVALID_CREDENTIALS")
-          ? t("Email or password is incorrect.")
-          : hasCode(cause, "RATE_LIMITED")
-            ? t("Too many attempts. Please try again later.")
-            : isApiError(cause) && cause.retryable
-              ? t("We couldn't reach the server. Check your connection and try again.")
-              : t("Something went wrong signing you in. Please try again."),
-      );
+      setError(t(signInError(cause)));
       setLoading(false);
     }
   };
@@ -126,8 +127,11 @@ function LoginScreen() {
             required
           />
         </div>
+        {/* Over the button, not under a field: "email or password is
+            incorrect" is deliberately unable to say which one, and hanging it
+            on the email box would answer a question the server refused to. */}
         {error && <p className="text-xs text-[#dc2626]">{error}</p>}
-        <Button type="submit" className="w-full" disabled={loading}>
+        <Button type="submit" className="w-full" disabled={loading || !canSubmit}>
           {loading ? t("Signing in…") : t("Sign in")}
           {!loading && <ArrowRight size={15} strokeWidth={1.5} />}
         </Button>

@@ -14,7 +14,7 @@
 import { canonicalZone, detectZone } from "./timezones";
 
 export const SHEET_SYNC_URL =
-  "https://script.google.com/macros/s/AKfycbyg7GkOopgK_nZqZ8V25HIaGazawP39kphMHUpkVFnAA0mQKeB8_UxDqM2dxp4G3_ckKg/exec";
+  "https://script.google.com/macros/s/AKfycbw1a_Oib5RIaBbSXLjURY4BGU3HP4GT62YuiRn-sE-TXs6bpY989MA-w5vB5RkC-DAe/exec";
 
 /**
  * The visitor's zone, plus whether it was actually read or fell back.
