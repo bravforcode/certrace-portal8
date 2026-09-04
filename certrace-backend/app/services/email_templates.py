@@ -70,13 +70,27 @@ class Button:
 
 
 @dataclass(frozen=True)
+class Callout:
+    """One short figure the reader has to act on -- a date, a countdown.
+
+    Not a ``CodeBox``: that one is sized for a value copied digit by digit
+    into another window, and a due date set in 30px monospace with a code's
+    letter-spacing reads as something to retype rather than something to
+    diarise. This is the quieter box -- same paper, left aligned, one line.
+    """
+
+    label: str
+    value: str
+
+
+@dataclass(frozen=True)
 class Note:
     """The "if this wasn't you" line. Quieter, and last."""
 
     text: str
 
 
-Block = Union[Paragraph, CodeBox, Button, Note]
+Block = Union[Paragraph, CodeBox, Callout, Button, Note]
 
 
 @dataclass(frozen=True)
@@ -171,9 +185,293 @@ _PASSWORD_CHANGED_TH = Message(
     ),
 )
 
+# ── Supplier data collection ──────────────────────
+# These three go to someone who does not have a Certrace account and did not
+# ask to hear from us -- a supplier's plant manager, chased on behalf of their
+# customer. So each of them names that customer in the subject line, says what
+# the data is for, and offers a way out that is not silence. A chase sequence
+# that only ever repeats itself is how a supplier stops opening the mail.
+#
+# The link is per supplier and per period (``lib/monthly-requests.ts``), which
+# is why the note asks them not to forward it rather than trusting them not to.
+
+_SUPPLIER_DATA_REQUEST_EN = Message(
+    subject="{exporter_name} needs your {period_label} production data",
+    heading="A data request from {exporter_name}.",
+    blocks=(
+        Paragraph(
+            "{exporter_name} is preparing an EU CBAM declaration covering goods "
+            "they bought from {supplier_name}, and needs the production and "
+            "emissions figures behind your {period_label} deliveries."
+        ),
+        Callout(label="Due", value="{due_date}"),
+        Button(label="Open the form", url="{link_url}"),
+        Paragraph(
+            "The form asks only for what the declaration needs and saves as you "
+            "go, so you can stop partway and come back. What you enter goes to "
+            "{exporter_name} and to nobody else."
+        ),
+        Note(
+            "This link is specific to {supplier_name} and to {period_label}, so "
+            "please do not forward it. If a colleague is the right person to "
+            "fill it in, reply to this email and we will send it to them."
+        ),
+    ),
+)
+
+_SUPPLIER_DATA_REQUEST_TH = Message(
+    subject="{exporter_name} ขอข้อมูลการผลิตประจำ{period_label}",
+    heading="คำขอข้อมูลจาก {exporter_name}",
+    blocks=(
+        Paragraph(
+            "{exporter_name} กำลังจัดทำรายงาน CBAM ของสหภาพยุโรป "
+            "สำหรับสินค้าที่รับซื้อจาก {supplier_name} "
+            "จึงขอข้อมูลปริมาณการผลิตและการปล่อยคาร์บอนของรอบ{period_label}"
+        ),
+        Callout(label="กำหนดส่ง", value="{due_date}"),
+        Button(label="เปิดแบบฟอร์ม", url="{link_url}"),
+        Paragraph(
+            "แบบฟอร์มถามเฉพาะข้อมูลที่รายงานต้องใช้ และบันทึกให้อัตโนมัติระหว่างกรอก "
+            "หยุดกลางคันแล้วกลับมากรอกต่อได้ ข้อมูลที่กรอกจะส่งถึง {exporter_name} เท่านั้น "
+            "ไม่ถูกเปิดเผยกับผู้อื่น"
+        ),
+        Note(
+            "ลิงก์นี้ใช้ได้เฉพาะ {supplier_name} และเฉพาะรอบ{period_label} "
+            "กรุณาอย่าส่งต่อ หากมีเพื่อนร่วมงานที่เหมาะจะเป็นผู้กรอกมากกว่า "
+            "กรุณาตอบกลับอีเมลนี้ แล้วเราจะส่งลิงก์ให้ผู้นั้นโดยตรง"
+        ),
+    ),
+)
+
+_SUPPLIER_REMINDER_EN = Message(
+    subject="Reminder: {period_label} data for {exporter_name} is due {due_date}",
+    heading="Your {period_label} data is still open.",
+    blocks=(
+        Paragraph(
+            "{exporter_name} is still waiting on the production and emissions "
+            "figures for your {period_label} deliveries. Nothing has come "
+            "through yet."
+        ),
+        Callout(label="Days left", value="{days_left}"),
+        Button(label="Finish the form", url="{link_url}"),
+        Paragraph(
+            "If you have already started, your answers are still saved — the "
+            "link opens where you left off."
+        ),
+        Note(
+            "Already sent these figures another way, or this is not yours to "
+            "fill in? Reply to this email and we will stop asking about "
+            "{period_label}."
+        ),
+    ),
+)
+
+_SUPPLIER_REMINDER_TH = Message(
+    subject="แจ้งเตือน: ข้อมูลรอบ{period_label} สำหรับ {exporter_name} ครบกำหนด {due_date}",
+    heading="ข้อมูลรอบ{period_label} ยังไม่ได้ส่ง",
+    blocks=(
+        Paragraph(
+            "{exporter_name} ยังรอข้อมูลปริมาณการผลิตและการปล่อยคาร์บอน "
+            "ของรอบ{period_label} อยู่ ขณะนี้ยังไม่ได้รับข้อมูลใด ๆ"
+        ),
+        Callout(label="เหลืออีก (วัน)", value="{days_left}"),
+        Button(label="กรอกแบบฟอร์มต่อ", url="{link_url}"),
+        Paragraph(
+            "หากเริ่มกรอกไว้แล้ว ข้อมูลยังถูกบันทึกอยู่ "
+            "เปิดลิงก์แล้วจะกลับไปยังจุดที่ค้างไว้"
+        ),
+        Note(
+            "หากส่งข้อมูลชุดนี้ให้ทางช่องทางอื่นไปแล้ว "
+            "หรือท่านไม่ใช่ผู้รับผิดชอบในการกรอก กรุณาตอบกลับอีเมลนี้ "
+            "แล้วเราจะหยุดติดตามรอบ{period_label}"
+        ),
+    ),
+)
+
+# The overdue mail is the one that has to offer a real alternative. Under CBAM
+# an exporter with no supplier figure may fall back to the EU default value --
+# worse for the supplier's own numbers and dearer for the exporter, but the
+# filing proceeds. Saying so turns "chase again" into a decision the supplier
+# can actually close, which is the only thing that ends a chase sequence.
+_SUPPLIER_OVERDUE_EN = Message(
+    subject="Overdue: {period_label} data for {exporter_name}",
+    heading="Your {period_label} data is past its date.",
+    blocks=(
+        Paragraph(
+            "The {period_label} figures {exporter_name} asked for were due on "
+            "{due_date} and have not arrived. Their CBAM declaration cannot be "
+            "completed without them."
+        ),
+        Callout(label="Days overdue", value="{days_overdue}"),
+        Button(label="Open the form", url="{link_url}"),
+        Paragraph(
+            "If these figures are not going to come, telling us is more useful "
+            "than silence. {exporter_name} can fall back to the EU default "
+            "values for your goods — that costs them more and reports your "
+            "plant as dirtier than it is, but it lets the filing go ahead."
+        ),
+        Note(
+            "Reply to this email to say the data is coming, or that it is not. "
+            "Either answer stops the reminders."
+        ),
+    ),
+)
+
+_SUPPLIER_OVERDUE_TH = Message(
+    subject="เกินกำหนด: ข้อมูลรอบ{period_label} สำหรับ {exporter_name}",
+    heading="ข้อมูลรอบ{period_label} เกินกำหนดแล้ว",
+    blocks=(
+        Paragraph(
+            "ข้อมูลรอบ{period_label} ที่ {exporter_name} ขอไว้ "
+            "ครบกำหนดเมื่อ {due_date} และยังไม่ได้รับ "
+            "ทำให้รายงาน CBAM ของบริษัทดังกล่าวยังจัดทำไม่เสร็จ"
+        ),
+        Callout(label="เกินกำหนดมาแล้ว (วัน)", value="{days_overdue}"),
+        Button(label="เปิดแบบฟอร์ม", url="{link_url}"),
+        Paragraph(
+            "หากข้อมูลชุดนี้ส่งให้ไม่ได้ การแจ้งกลับมามีประโยชน์กว่าการเงียบ "
+            "เพราะ {exporter_name} สามารถใช้ค่าเริ่มต้น (default value) "
+            "ของสหภาพยุโรปแทนได้ ซึ่งทำให้ต้นทุนของผู้ซื้อสูงขึ้น "
+            "และทำให้โรงงานของท่านถูกรายงานว่าปล่อยคาร์บอนสูงกว่าความเป็นจริง "
+            "แต่อย่างน้อยการยื่นรายงานก็เดินหน้าต่อได้"
+        ),
+        Note(
+            "กรุณาตอบกลับอีเมลนี้เพื่อแจ้งว่าจะส่งข้อมูลให้ หรือส่งให้ไม่ได้ "
+            "ไม่ว่าคำตอบใด ระบบจะหยุดส่งการแจ้งเตือน"
+        ),
+    ),
+)
+
+
+# ── Trial expiry ──────────────────────────────
+# WHY THESE TWO CANNOT BE MUTED. When the trial runs out the product says
+# nothing: ``certrace-portal/lib/plan.ts`` locks the account into a reading
+# room on purpose, with no banner and no dialog, because a "your trial ended"
+# ribbon repeated on forty screens is forty things to translate. That decision
+# is only defensible if the warning arrives somewhere, and the only somewhere
+# left is here. ``notifications.py`` carries the always-on flag that holds it.
+#
+# Why the ending mail names supplier chasing in particular: the lock also stops
+# outbound supplier reminders, so a period still sitting with a supplier
+# quietly stops being chased on the day the trial ends. That is the one
+# consequence an exporter cannot see coming from inside the product.
+
+_TRIAL_ENDING_EN = Message(
+    subject="Your Certrace trial ends in {days_left} days",
+    heading="Your trial ends on {ends_on}.",
+    blocks=(
+        Paragraph(
+            "The {trial_days}-day Certrace trial for {org_name} ends on "
+            "{ends_on}. Nothing you have built goes anywhere — every workspace, "
+            "supplier answer and draft declaration stays exactly as it is."
+        ),
+        Callout(label="Days left", value="{days_left}"),
+        Paragraph(
+            "What changes is that the account becomes read-only. You can still "
+            "open and read all of it; adding, editing, sending and downloading "
+            "stop. Supplier chasing stops with it — so any period still out "
+            "with a supplier is worth closing before {ends_on}."
+        ),
+        Button(label="Choose a plan", url="{billing_url}"),
+        Note(
+            "Pricing is quoted per account rather than sold at a checkout, so "
+            "picking a tier is a short conversation. Reply here and we will "
+            "sort it out."
+        ),
+    ),
+)
+
+_TRIAL_ENDING_TH = Message(
+    subject="ทดลองใช้ Certrace จะหมดอายุในอีก {days_left} วัน",
+    heading="ช่วงทดลองใช้จะสิ้นสุดวันที่ {ends_on}",
+    blocks=(
+        Paragraph(
+            "ช่วงทดลองใช้ Certrace {trial_days} วัน ของ {org_name} "
+            "จะสิ้นสุดในวันที่ {ends_on} ข้อมูลที่ทำไว้ทั้งหมดยังอยู่ครบ "
+            "ทั้ง workspace คำตอบจากซัพพลายเออร์ และร่างรายงาน"
+        ),
+        Callout(label="เหลืออีก (วัน)", value="{days_left}"),
+        Paragraph(
+            "สิ่งที่เปลี่ยนไปคือบัญชีจะกลายเป็นโหมดอ่านอย่างเดียว "
+            "ยังเปิดดูข้อมูลทั้งหมดได้ แต่จะเพิ่ม แก้ไข ส่ง และดาวน์โหลดไม่ได้ "
+            "รวมถึงระบบจะหยุดติดตามซัพพลายเออร์ด้วย "
+            "ดังนั้นรอบไหนที่ยังค้างอยู่กับซัพพลายเออร์ ควรเร่งปิดให้เสร็จก่อนวันที่ {ends_on}"
+        ),
+        Button(label="เลือกแพ็กเกจ", url="{billing_url}"),
+        Note(
+            "ราคาเสนอเป็นรายบัญชี ไม่ได้ขายผ่านหน้าชำระเงิน "
+            "การเลือกแพ็กเกจจึงเป็นการพูดคุยสั้น ๆ ตอบกลับอีเมลนี้ได้เลย"
+        ),
+    ),
+)
+
+_TRIAL_ENDED_EN = Message(
+    subject="Your Certrace trial has ended",
+    heading="Your account is now read-only.",
+    blocks=(
+        Paragraph(
+            "The {trial_days}-day trial for {org_name} ended on {ends_on}. "
+            "Nothing has been deleted. Every workspace, supplier answer and "
+            "draft declaration is still there, and you can still open and read "
+            "all of it."
+        ),
+        Paragraph(
+            "What no longer works: adding or editing data, sending supplier "
+            "requests, and downloading declarations. Any supplier link still "
+            "outstanding has stopped chasing, so a period left open will stay "
+            "open until the account is on a plan."
+        ),
+        Button(label="Choose a plan", url="{billing_url}"),
+        Note(
+            "Picking a tier puts it all back the way it was — there is no "
+            "migration and nothing to restore. Reply here or talk to sales."
+        ),
+    ),
+)
+
+_TRIAL_ENDED_TH = Message(
+    subject="ช่วงทดลองใช้ Certrace สิ้นสุดแล้ว",
+    heading="บัญชีของคุณอยู่ในโหมดอ่านอย่างเดียวแล้ว",
+    blocks=(
+        Paragraph(
+            "ช่วงทดลองใช้ {trial_days} วัน ของ {org_name} "
+            "สิ้นสุดเมื่อวันที่ {ends_on} ไม่มีข้อมูลใดถูกลบ "
+            "ทั้ง workspace คำตอบจากซัพพลายเออร์ และร่างรายงาน "
+            "ยังอยู่ครบ และยังเปิดอ่านได้ทั้งหมด"
+        ),
+        Paragraph(
+            "สิ่งที่ทำไม่ได้แล้วคือ การเพิ่มหรือแก้ไขข้อมูล "
+            "การส่งคำขอไปยังซัพพลายเออร์ และการดาวน์โหลดรายงาน "
+            "ลิงก์ที่ยังค้างอยู่กับซัพพลายเออร์จะหยุดติดตาม "
+            "รอบที่เปิดค้างไว้จึงจะค้างอยู่อย่างนั้นจนกว่าบัญชีจะเปลี่ยนไปใช้แพ็กเกจ"
+        ),
+        Button(label="เลือกแพ็กเกจ", url="{billing_url}"),
+        Note(
+            "เมื่อเลือกแพ็กเกจแล้ว ทุกอย่างจะกลับมาใช้งานได้เหมือนเดิมทันที "
+            "ไม่ต้องย้ายข้อมูลและไม่ต้องกู้คืนอะไร "
+            "ตอบกลับอีเมลนี้หรือติดต่อฝ่ายขายได้เลย"
+        ),
+    ),
+)
+
+
 TEMPLATES: dict[str, dict[str, Message]] = {
     "password_reset": {"en": _PASSWORD_RESET_EN, "th": _PASSWORD_RESET_TH},
     "password_changed": {"en": _PASSWORD_CHANGED_EN, "th": _PASSWORD_CHANGED_TH},
+    "supplier_data_request": {
+        "en": _SUPPLIER_DATA_REQUEST_EN,
+        "th": _SUPPLIER_DATA_REQUEST_TH,
+    },
+    "supplier_submission_reminder": {
+        "en": _SUPPLIER_REMINDER_EN,
+        "th": _SUPPLIER_REMINDER_TH,
+    },
+    "supplier_submission_overdue": {
+        "en": _SUPPLIER_OVERDUE_EN,
+        "th": _SUPPLIER_OVERDUE_TH,
+    },
+    "trial_ending": {"en": _TRIAL_ENDING_EN, "th": _TRIAL_ENDING_TH},
+    "trial_ended": {"en": _TRIAL_ENDED_EN, "th": _TRIAL_ENDED_TH},
 }
 
 
@@ -237,6 +535,10 @@ def _fill_block(block: Block, context: Mapping[str, object], key: str) -> Block:
         return CodeBox(
             _fill(block.label, context, key), _fill(block.value, context, key)
         )
+    if isinstance(block, Callout):
+        return Callout(
+            _fill(block.label, context, key), _fill(block.value, context, key)
+        )
     return Button(_fill(block.label, context, key), _fill(block.url, context, key))
 
 
@@ -296,6 +598,19 @@ def _block_html(block: Block) -> str:
             f'letter-spacing:0.22em;color:{_INK};">{html.escape(block.value)}</div>'
             f"</td></tr></table>"
         )
+    if isinstance(block, Callout):
+        return (
+            f'<table role="presentation" border="0" cellpadding="0" cellspacing="0" '
+            f'style="margin:0 0 20px;"><tr><td style="background-color:'
+            f"{_PAGE_BACKGROUND};border:1px solid {_CARD_BORDER};border-radius:4px;"
+            f'padding:12px 18px;">'
+            f'<span style="font-size:11px;letter-spacing:0.12em;text-transform:uppercase;'
+            f'color:{_MUTED_INK};">{html.escape(block.label)}</span>'
+            f'<span style="color:{_MUTED_INK};"> &nbsp;</span>'
+            f'<span style="font-size:16px;font-weight:600;color:{_INK};">'
+            f"{html.escape(block.value)}</span>"
+            f"</td></tr></table>"
+        )
     if isinstance(block, Button):
         return (
             f'<p style="margin:0 0 20px;"><a href="{html.escape(block.url, quote=True)}" '
@@ -319,6 +634,8 @@ def _to_text(heading: str, blocks: Sequence[Block]) -> str:
         if isinstance(block, Paragraph):
             lines.extend([block.text, ""])
         elif isinstance(block, CodeBox):
+            lines.extend([f"{block.label}: {block.value}", ""])
+        elif isinstance(block, Callout):
             lines.extend([f"{block.label}: {block.value}", ""])
         elif isinstance(block, Button):
             lines.extend([f"{block.label}: {block.url}", ""])

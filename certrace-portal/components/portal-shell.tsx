@@ -32,7 +32,6 @@ import { cn, StatusDot } from "./ui";
 import { SupplyChainNav, workspaceIdFromPath } from "./workspace/supply-chain-nav";
 import { Dropdown } from "./controls";
 import { CertraceLogo } from "./logo";
-import { LanguageToggle } from "./lang-toggle";
 import { Toaster } from "./toast";
 import { USER, NOTIFICATIONS, type Notice } from "@/lib/data";
 import { logout } from "@/lib/api";
@@ -435,7 +434,6 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="ml-auto flex items-center gap-2 md:gap-3">
-            <LanguageToggle className="hidden md:inline-flex mr-2" />
             <NotificationsBell />
             <AccountMenu />
           </div>

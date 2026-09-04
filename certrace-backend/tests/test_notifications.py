@@ -27,6 +27,23 @@ RESET_CONTEXT = {
     "expires_in_minutes": 15,
 }
 
+REMINDER_CONTEXT = {
+    "supplier_name": "Xingda Steel Cord (Thailand)",
+    "exporter_name": "Siam Steel",
+    "period_label": "March 2026",
+    "due_date": "10 April 2026",
+    "days_left": 3,
+    "link_url": "https://app.certrace.co/s/tok_9f2a",
+}
+
+TRIAL_CONTEXT = {
+    "org_name": "Siam Steel",
+    "trial_days": 30,
+    "ends_on": "3 September 2026",
+    "days_left": 5,
+    "billing_url": "https://app.certrace.co/billing",
+}
+
 
 # ── Templates ─────────────────────────────────────────────────
 
@@ -95,6 +112,66 @@ def test_logo_is_included_only_when_configured() -> None:
 
     assert "<img" not in without.html
     assert 'src="https://certrace.co/l.png"' in with_logo.html
+
+
+def test_a_reminders_link_survives_into_the_plain_text_part() -> None:
+    """A supplier who cannot see HTML still has to be able to reach the form.
+
+    The button is the whole point of the message; a text part that renders the
+    label and drops the URL is a reminder to do something with no way to do it.
+    """
+
+    rendered = email_templates.render(
+        "supplier_submission_reminder", "en", REMINDER_CONTEXT
+    )
+
+    assert "https://app.certrace.co/s/tok_9f2a" in rendered.html
+    assert "https://app.certrace.co/s/tok_9f2a" in rendered.text
+    assert "March 2026" in rendered.subject
+
+
+def test_a_callout_figure_is_in_both_parts() -> None:
+    rendered = email_templates.render("trial_ending", "en", TRIAL_CONTEXT)
+
+    assert "Days left" in rendered.html
+    assert "Days left: 5" in rendered.text
+
+
+def test_supplier_reminders_name_the_exporter_in_every_locale() -> None:
+    """The supplier has no relationship with us -- only with their customer.
+    A subject line that leads with Certrace reads as spam to them.
+    """
+
+    for locale in email_templates.SUPPORTED_LOCALES:
+        for key in (
+            "supplier_data_request",
+            "supplier_submission_reminder",
+            "supplier_submission_overdue",
+        ):
+            context = {**REMINDER_CONTEXT, "days_overdue": 4}
+            rendered = email_templates.render(key, locale, context)
+            assert "Siam Steel" in rendered.subject, (key, locale)
+
+
+def test_a_supplier_name_is_escaped_in_html() -> None:
+    """Supplier names are typed by the exporter, so they are user input."""
+
+    rendered = email_templates.render(
+        "supplier_submission_reminder",
+        "en",
+        {**REMINDER_CONTEXT, "supplier_name": "<script>alert(1)</script>"},
+    )
+
+    assert "<script>" not in rendered.html
+
+
+def test_thai_trial_copy_is_thai() -> None:
+    english = email_templates.render("trial_ending", "en", TRIAL_CONTEXT)
+    thai = email_templates.render("trial_ending", "th", TRIAL_CONTEXT)
+
+    assert thai.subject != english.subject
+    assert "\u0e17\u0e14\u0e25\u0e2d\u0e07\u0e43\u0e0a\u0e49" in thai.subject
+    assert 'lang="th"' in thai.html
 
 
 # ── Catalog ───────────────────────────────────────────────────
@@ -189,6 +266,48 @@ def test_categories_match_the_portal_preference_keys() -> None:
         "documents",
         "product",
     }
+
+
+def test_an_exporters_preferences_cannot_silence_their_own_supplier_chasing() -> None:
+    """The "suppliers" row governs what the EXPORTER is told about suppliers.
+
+    Reading it as consent to write to the supplier would mean an exporter who
+    mutes their own digest stops collecting data and is never told why.
+    """
+
+    transport = RecordingTransport()
+
+    provider_id = notifications.send(
+        transport,
+        notifications.SUPPLIER_SUBMISSION_REMINDER,
+        to="plant@xingdathai.com",
+        locale="th",
+        context=REMINDER_CONTEXT,
+        preferences={"suppliers": False},
+    )
+
+    assert provider_id == "recorded-1"
+    assert len(transport.sent) == 1
+
+
+def test_trial_expiry_ignores_the_product_preference() -> None:
+    """Nothing in the product says the trial ended -- portal lib/plan.ts locks
+    the account silently on purpose. Muting "product updates" must not be a way
+    to lose an account without notice."""
+
+    transport = RecordingTransport()
+
+    for notification in (notifications.TRIAL_ENDING, notifications.TRIAL_ENDED):
+        notifications.send(
+            transport,
+            notification,
+            to="a@b.co",
+            locale="en",
+            context=TRIAL_CONTEXT,
+            preferences={"product": False},
+        )
+
+    assert len(transport.sent) == 2
 
 
 def test_every_catalog_entry_has_copy_in_every_locale() -> None:
