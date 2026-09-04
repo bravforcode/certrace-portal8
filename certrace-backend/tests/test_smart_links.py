@@ -495,6 +495,110 @@ def test_submit_survives_a_missing_check() -> None:
     assert version["warnings"] == 0
 
 
+def test_submissions_shows_the_exporter_who_answered() -> None:
+    client = _client()
+    headers = _signed_in(client)
+    declaration_id = _declaration(client, headers)
+    # Two links: d1 submits, d2 is minted but never opened.
+    d1_token = _mint(client, headers, declaration_id)["token"]
+    _mint(client, headers, declaration_id, supplierId="d2")
+
+    endpoint = f"/api/v1/declarations/{declaration_id}/submissions"
+    # Before anyone submits: both links show, both "new", no answers leaked.
+    fresh = client.get(endpoint, headers=headers).json()["submissions"]
+    assert {row["supplierId"] for row in fresh} == {"d1", "d2"}
+    assert all(row["status"] == "new" and row["version"] == 0 for row in fresh)
+    assert all("state" not in row and "values" not in row for row in fresh)
+
+    client.post(
+        f"/api/v1/links/{d1_token}/submit",
+        json={
+            "state": {"status": "draft"},
+            "attestation": {"signatoryName": "Niran T.", "signatoryRole": "Plant Mgr"},
+            "check": {"score": 92, "warnings": 0},
+        },
+    )
+
+    # The dashboard's next poll sees d1 flip to submitted with its score; d2 has
+    # not moved.
+    rows = {r["supplierId"]: r for r in client.get(endpoint, headers=headers).json()["submissions"]}
+    assert rows["d1"]["status"] == "submitted"
+    assert rows["d1"]["token"] == d1_token
+    assert rows["d1"]["version"] == 1
+    assert rows["d1"]["score"] == 92
+    assert isinstance(rows["d1"]["updatedAt"], int)
+    assert rows["d2"]["status"] == "new"
+
+
+def test_exporter_reads_one_submissions_full_answers() -> None:
+    client = _client()
+    headers = _signed_in(client)
+    declaration_id = _declaration(client, headers)
+    token = _mint(client, headers, declaration_id)["token"]
+
+    client.post(
+        f"/api/v1/links/{token}/submit",
+        json={
+            "state": {"status": "draft", "values": {"hrc.qty": "200"}},
+            "attestation": {"signatoryName": "Niran T.", "signatoryRole": "Plant Mgr"},
+            "check": {"score": 92, "warnings": 0},
+        },
+    )
+
+    # The exporter opens the submission: the full answer blob, not just status.
+    endpoint = f"/api/v1/declarations/{declaration_id}/submissions/{token}"
+    body = client.get(endpoint, headers=headers).json()
+    assert body["supplierId"] == "d1"
+    assert body["state"]["status"] == "submitted"
+    assert body["state"]["values"] == {"hrc.qty": "200"}
+    assert body["state"]["versions"][-1]["score"] == 92
+
+    # Never opened yet: an empty state, never null, so the pane never handles null.
+    other = _mint(client, headers, declaration_id, supplierId="d2")["token"]
+    empty = client.get(
+        f"/api/v1/declarations/{declaration_id}/submissions/{other}", headers=headers
+    ).json()
+    assert empty["state"]["status"] == "new"
+
+    # Still reviewable after the link is revoked — closing a link does not erase
+    # what was already submitted through it.
+    client.app.state.smart_links[token]["revokedAt"] = 1
+    assert client.get(endpoint, headers=headers).status_code == 200
+
+
+def test_reading_a_submission_is_owner_scoped() -> None:
+    client = _client()
+    owner = _signed_in(client)
+    stranger = _signed_in(client)
+    declaration_id = _declaration(client, owner)
+    token = _mint(client, owner, declaration_id)["token"]
+
+    endpoint = f"/api/v1/declarations/{declaration_id}/submissions/{token}"
+    assert client.get(endpoint).status_code == 401
+    # A stranger, and the right token asked under the wrong declaration, both 404.
+    assert client.get(endpoint, headers=stranger).status_code == 404
+    assert (
+        client.get(
+            f"/api/v1/declarations/decl-other/submissions/{token}", headers=owner
+        ).status_code
+        == 404
+    )
+
+
+def test_submissions_is_owner_scoped() -> None:
+    client = _client()
+    owner = _signed_in(client)
+    stranger = _signed_in(client)
+    declaration_id = _declaration(client, owner)
+
+    endpoint = f"/api/v1/declarations/{declaration_id}/submissions"
+    assert client.get(endpoint).status_code == 401
+
+    response = client.get(endpoint, headers=stranger)
+    assert response.status_code == 404
+    assert response.json()["detail"]["code"] == "DECLARATION_NOT_FOUND"
+
+
 def test_dead_links_reject_save_and_submit() -> None:
     client = _client()
     good = _new_token(client)

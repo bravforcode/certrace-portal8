@@ -63,6 +63,7 @@ export {
 
 export {
   createSmartLink,
+  getSubmissionState,
   listSubmissions,
   requestRevision,
   resolveLink,
