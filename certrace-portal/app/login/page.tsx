@@ -7,6 +7,8 @@ import { ArrowRight } from "lucide-react";
 import { Button, Field, inputClass, cn } from "@/components/ui";
 import { AuthLayout, GoogleButton, Divider, GOOGLE_AUTH_ENABLED } from "@/components/auth-panel";
 import { EnglishOnly, useT } from "@/lib/i18n";
+import { apiConfigured, login } from "@/lib/api";
+import { EMAIL_RE, signInDestination, signInError } from "@/lib/auth-flow";
 
 /* Sign-in is English-only, like the rest of the auth screens — see
    EnglishOnly in lib/i18n.tsx. The EN/ไทย switcher starts on /onboarding,
@@ -25,6 +27,16 @@ function LoginScreen() {
   const router = useRouter();
   const [loading, setLoading] = React.useState(false);
   const [googleLoading, setGoogleLoading] = React.useState(false);
+  const [email, setEmail] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [error, setError] = React.useState("");
+
+  /* No length rule on the password here. `required` and an eight-character
+     minimum belong on /register, where the password is being CHOSEN; on this
+     screen the only authority on whether it is right is the server, and a
+     button that refuses to submit a short one just fails an existing account
+     locally with no way to find out why. */
+  const canSubmit = EMAIL_RE.test(email.trim()) && password.length > 0;
 
   /* ── Both buttons land in the same place ───────────────────────
      Signing in — with the email form or with Google — opens the SIGN-IN
@@ -32,11 +44,34 @@ function LoginScreen() {
      paths must not diverge: which flow a "Continue with Google" click starts
      is decided by the page it was clicked on, and on this page that is the
      sign-in flow, exactly as the identical button on /register starts the
-     create-account one. */
-  const submit = (e: React.FormEvent) => {
+     create-account one. The one account that goes elsewhere is one that never
+     finished signing up — see signInDestination in lib/auth-flow. */
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canSubmit || loading) return;
     setLoading(true);
-    window.setTimeout(() => router.push("/onboarding/setup"), 600);
+    setError("");
+
+    /* No backend pointed at this build — the demo, and any laptop without
+       .env.local. Walk the path this screen has always walked rather than
+       failing on a URL nobody has set. See apiConfigured() in lib/api. */
+    if (!apiConfigured()) {
+      window.setTimeout(() => router.push("/onboarding/setup"), 600);
+      return;
+    }
+
+    try {
+      /* `login` stores the session itself — the token is in localStorage
+         before this line returns, so the next screen's requests carry it. */
+      const session = await login({ email: email.trim(), password });
+      router.push(signInDestination(session.user));
+      /* Loading stays ON through the push. Clearing it here would flash an
+         enabled form for the frame between the state update and the route
+         change — long enough to click "Sign in" a second time. */
+    } catch (cause) {
+      setError(t(signInError(cause)));
+      setLoading(false);
+    }
   };
 
   const withGoogle = () => {
@@ -65,7 +100,15 @@ function LoginScreen() {
           heading, so it takes over the spacing that block was providing. */}
       <form onSubmit={submit} className={cn("space-y-4", GOOGLE_AUTH_ENABLED ? "mt-5" : "mt-7")}>
         <Field label={t("Work email")}>
-          <input className={inputClass} type="email" placeholder={t("you@company.com")} autoComplete="username" required />
+          <input
+            className={inputClass}
+            type="email"
+            placeholder={t("you@company.com")}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="username"
+            required
+          />
         </Field>
         <div>
           <div className="mb-2 flex items-center justify-between">
@@ -74,9 +117,21 @@ function LoginScreen() {
               {t("Forgot password?")}
             </Link>
           </div>
-          <input className={inputClass} type="password" placeholder="••••••••" autoComplete="current-password" required />
+          <input
+            className={inputClass}
+            type="password"
+            placeholder="••••••••"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            required
+          />
         </div>
-        <Button type="submit" className="w-full" disabled={loading}>
+        {/* Over the button, not under a field: "email or password is
+            incorrect" is deliberately unable to say which one, and hanging it
+            on the email box would answer a question the server refused to. */}
+        {error && <p className="text-xs text-[#dc2626]">{error}</p>}
+        <Button type="submit" className="w-full" disabled={loading || !canSubmit}>
           {loading ? t("Signing in…") : t("Sign in")}
           {!loading && <ArrowRight size={15} strokeWidth={1.5} />}
         </Button>

@@ -94,6 +94,48 @@ class PasswordReset(Base):
     )
 
 
+class NotificationDelivery(Base):
+    """One reminder that has gone out, so it never goes out twice.
+
+    A row is written BEFORE the message is handed to the provider -- the
+    insert is what claims the send, and the unique index below is what makes
+    two runs racing on the same rung resolve to one winner rather than two
+    emails. ``app/services/reminders.py`` deletes the row again if delivery
+    fails, so a provider outage does not permanently consume a rung.
+
+    Rows are kept after a successful send; they ARE the schedule's memory.
+    Pruning them re-sends the ladder.
+    """
+
+    __tablename__ = "notification_deliveries"
+    __table_args__ = (
+        UniqueConstraint(
+            "subject_id",
+            "occasion",
+            name="notification_deliveries_subject_occasion_key",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=func.gen_random_uuid(),
+    )
+    # What the reminder is about: a Smart Link token for a supplier month, an
+    # account id for a trial. Opaque here on purpose -- this table must not
+    # need a foreign key into stores that do not exist on the server yet.
+    subject_id: Mapped[str] = mapped_column(Text, nullable=False)
+    # One rung of one ladder: "supplier_submission_overdue@+5". Built by
+    # ``reminder_schedule.Step.occasion``; changing that format re-sends.
+    occasion: Mapped[str] = mapped_column(Text, nullable=False)
+    notification_key: Mapped[str] = mapped_column(Text, nullable=False)
+    recipient: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
 class DefaultEmissionFactor(Base):
     __tablename__ = "default_emission_factors"
     __table_args__ = (

@@ -9,11 +9,10 @@ import { AuthLayout, GoogleButton, Divider, PasswordStrength, GOOGLE_AUTH_ENABLE
 import { useProfile } from "@/lib/profile";
 import { EnglishOnly, useT } from "@/lib/i18n";
 import { LEGAL_PRIVACY_URL, LEGAL_TERMS_URL } from "@/lib/links";
+import { apiConfigured, register } from "@/lib/api";
+import { EMAIL_RE, signUpError, type SignUpFailure } from "@/lib/auth-flow";
 
-/* Enough to catch "somebody@" and "somebody@company" — the two shapes that
-   look finished in the box and bounce every email we send. The real check is
-   the confirmation mail; this one only stops the button lying. */
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const NO_ERROR: SignUpFailure = { message: "", field: null };
 
 /* ── What a brand-new account starts with: nothing ──────────────
    The profile store ships preloaded with the demo organisation so the rest of
@@ -65,6 +64,7 @@ function RegisterScreen() {
   const [password, setPassword] = React.useState("");
   const [confirm, setConfirm] = React.useState("");
   const [agreed, setAgreed] = React.useState(false);
+  const [error, setError] = React.useState<SignUpFailure>(NO_ERROR);
   const mismatch = confirm.length > 0 && confirm !== password;
 
   /* The button is dead until the form is actually complete — every field
@@ -79,17 +79,47 @@ function RegisterScreen() {
     confirm === password &&
     agreed;
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canSubmit) return;
+    if (!canSubmit || loading) return;
     setLoading(true);
-    window.setTimeout(() => {
-      // The typed name is the ONLY thing carried forward — everything else
-      // resets, so /onboarding asks for the company rather than offering the
-      // demo fixture's, which is how a wrong name gets accepted unread.
-      update({ ...BLANK_SIGNUP, firstName: firstName.trim(), lastName: lastName.trim() });
+    setError(NO_ERROR);
+
+    // The typed name is the ONLY thing carried forward — everything else
+    // resets, so /onboarding asks for the company rather than offering the
+    // demo fixture's, which is how a wrong name gets accepted unread.
+    const profile = { ...BLANK_SIGNUP, firstName: firstName.trim(), lastName: lastName.trim() };
+
+    /* No backend pointed at this build — the demo, and any laptop without
+       .env.local. Same simulated path /login takes. See apiConfigured(). */
+    if (!apiConfigured()) {
+      window.setTimeout(() => {
+        update(profile);
+        router.push("/onboarding");
+      }, 700);
+      return;
+    }
+
+    try {
+      /* The company is NOT sent: this form never asks for it (see the note
+         above), and /onboarding is where it gets its one spelling. */
+      await register({
+        email: email.trim(),
+        password,
+        firstName: profile.firstName,
+        lastName: profile.lastName,
+      });
+      /* Only now. `update` wipes the demo organisation out of the profile
+         store, and doing that before the server has agreed to create the
+         account leaves a rejected signup — a taken address, a dead network —
+         sitting on a blanked portal it never got an account for. */
+      update(profile);
       router.push("/onboarding");
-    }, 700);
+      // Loading stays on through the push; see the note on /login.
+    } catch (cause) {
+      setError(signUpError(cause));
+      setLoading(false);
+    }
   };
 
   /* Google hands back an identity, not a company record — so it clears the
@@ -167,10 +197,19 @@ function RegisterScreen() {
             type="email"
             placeholder={t("you@company.com")}
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              /* The complaint was about the address that was there. Editing it
+                 makes the message stale, and a red line under a box someone is
+                 mid-way through fixing reads as a second, new problem. */
+              if (error.field === "email") setError(NO_ERROR);
+            }}
             autoComplete="email"
             required
           />
+          {error.field === "email" && (
+            <span className="mt-1.5 block text-xs text-[#dc2626]">{t(error.message)}</span>
+          )}
         </Field>
         <Field label={t("Password")}>
           <input
@@ -224,6 +263,12 @@ function RegisterScreen() {
             .
           </span>
         </label>
+
+        {/* Anything not about one field goes here, where the eye already is
+            when the button did nothing. */}
+        {error.field === null && error.message && (
+          <p className="text-xs text-[#dc2626]">{t(error.message)}</p>
+        )}
 
         <Button type="submit" className="w-full" disabled={loading || !canSubmit}>
           {loading ? t("Creating account…") : t("Create account")}

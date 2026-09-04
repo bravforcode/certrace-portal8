@@ -48,6 +48,14 @@ class NotificationType:
     # screen already renders the security row as locked; this is the same rule
     # on the server, where it is the one that actually holds.
     always_on: bool = False
+    # The recipient is not the account holder -- a supplier being asked for
+    # figures on their customer's behalf. Account preferences are the wrong
+    # question for these: the "suppliers" row in Settings governs what the
+    # EXPORTER is told about their suppliers, and reading it as permission to
+    # write to the supplier means an exporter who mutes their own digest
+    # silently stops their own data collection. Recipients outside the account
+    # opt out by replying, which every one of these emails invites.
+    to_third_party: bool = False
 
 
 PASSWORD_RESET = NotificationType(
@@ -62,9 +70,66 @@ PASSWORD_CHANGED = NotificationType(
     always_on=True,
 )
 
+# ── Supplier data collection ──────────────────────
+# All three go out to the supplier, not to the exporter -- see
+# ``to_third_party``. Which one to send is a question about the request's age,
+# and it belongs to whatever schedules the chase, not here.
+
+SUPPLIER_DATA_REQUEST = NotificationType(
+    key="supplier_data_request",
+    category=Category.SUPPLIERS,
+    to_third_party=True,
+)
+
+SUPPLIER_SUBMISSION_REMINDER = NotificationType(
+    key="supplier_submission_reminder",
+    category=Category.SUPPLIERS,
+    to_third_party=True,
+)
+
+SUPPLIER_SUBMISSION_OVERDUE = NotificationType(
+    key="supplier_submission_overdue",
+    category=Category.SUPPLIERS,
+    to_third_party=True,
+)
+
+
+# ── Trial expiry ──────────────────────────────────
+# Filed under PRODUCT because it is the closest of the six the portal offers,
+# and pinned always-on because the category is the wrong lever: "product
+# updates" is a row people turn off to hear less from us, and the cost of
+# turning it off must not be an account that goes read-only without warning.
+# The product itself is silent about the lock by design (portal lib/plan.ts),
+# so these two emails are the whole of the notice.
+#
+# If a `billing` row ever lands in the portal's PrefKey union, these move to it
+# and the always-on flag stays: an expiry notice is account-safety in the same
+# sense a password change is.
+
+TRIAL_ENDING = NotificationType(
+    key="trial_ending",
+    category=Category.PRODUCT,
+    always_on=True,
+)
+
+TRIAL_ENDED = NotificationType(
+    key="trial_ended",
+    category=Category.PRODUCT,
+    always_on=True,
+)
+
+
 CATALOG: dict[str, NotificationType] = {
     notification.key: notification
-    for notification in (PASSWORD_RESET, PASSWORD_CHANGED)
+    for notification in (
+        PASSWORD_RESET,
+        PASSWORD_CHANGED,
+        SUPPLIER_DATA_REQUEST,
+        SUPPLIER_SUBMISSION_REMINDER,
+        SUPPLIER_SUBMISSION_OVERDUE,
+        TRIAL_ENDING,
+        TRIAL_ENDED,
+    )
 }
 
 
@@ -78,9 +143,13 @@ def is_muted(
     normal case today, because they live in the browser. Unknown means send:
     silently dropping a password reset because we could not find a preference
     is a worse failure than one unwanted email.
+
+    A ``to_third_party`` message is never muted here even when preferences are
+    supplied, because the preferences on hand belong to the account, and the
+    recipient is not in it.
     """
 
-    if notification.always_on or preferences is None:
+    if notification.always_on or notification.to_third_party or preferences is None:
         return False
     return preferences.get(notification.category.value, True) is False
 
@@ -106,7 +175,7 @@ def send(
         _LOGGER.info(
             "Skipped %s for %s: category %s is off.",
             notification.key,
-            _redact(to),
+            redact_address(to),
             notification.category.value,
         )
         return None
@@ -125,7 +194,7 @@ def send(
     _LOGGER.info(
         "Sent %s to %s (provider id %s).",
         notification.key,
-        _redact(to),
+        redact_address(to),
         provider_id,
     )
     return provider_id
@@ -161,15 +230,15 @@ def send_quietly(
         )
     except EmailDeliveryError as error:
         _LOGGER.error(
-            "Could not send %s to %s: %s", notification.key, _redact(to), error
+            "Could not send %s to %s: %s", notification.key, redact_address(to), error
         )
     except Exception:  # noqa: BLE001 - a background task must not die silently
         _LOGGER.exception(
-            "Unexpected failure sending %s to %s", notification.key, _redact(to)
+            "Unexpected failure sending %s to %s", notification.key, redact_address(to)
         )
 
 
-def _redact(address: str) -> str:
+def redact_address(address: str) -> str:
     """Enough of an address to trace a support ticket, not enough to leak a list."""
 
     local, separator, domain = address.partition("@")

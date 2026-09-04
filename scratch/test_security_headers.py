@@ -16,7 +16,6 @@ REQUIRED_HEADERS = [
 CONFIG_PATHS = [
     r"d:\1tb\certrace\landingpage\certrace-landing\next.config.ts",
     r"d:\1tb\certrace\certrace-portal\next.config.ts",
-    r"d:\1tb\certrace\certrace-exporter-portal\next.config.ts",
     r"d:\1tb\certrace\certrace-admin-portal\next.config.ts",
 ]
 
