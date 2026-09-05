@@ -134,9 +134,7 @@ class InMemoryDeliveryLog:
 
     def occasions_for(self, subject_id: str) -> set[str]:
         return {
-            occasion
-            for subject, occasion in self._claimed
-            if subject == subject_id
+            occasion for subject, occasion in self._claimed if subject == subject_id
         }
 
     def claim(self, subject_id: str, occasion: str, recipient: str) -> bool:
@@ -193,11 +191,7 @@ def run(
     or a one-shot.
     """
 
-    if (
-        not dry_run
-        and not allow_unrecorded
-        and isinstance(log, InMemoryDeliveryLog)
-    ):
+    if not dry_run and not allow_unrecorded and isinstance(log, InMemoryDeliveryLog):
         raise RuntimeError(
             "Refusing to send against an in-memory delivery log: it forgets "
             "every send at restart, so reminders would repeat. Configure a "
@@ -273,7 +267,9 @@ def _deliver(
 ) -> None:
     if dry_run:
         summary.sent += 1
-        summary.delivered.append((step.occasion, notifications.redact_address(recipient)))
+        summary.delivered.append(
+            (step.occasion, notifications.redact_address(recipient))
+        )
         return
 
     if not log.claim(subject_id, step.occasion, recipient):
@@ -318,9 +314,7 @@ def _deliver(
 # that fired, so a run that catches up late reports the real number of days.
 
 
-def _supplier_context(
-    request: SupplierRequest, today: date
-) -> dict[str, object]:
+def _supplier_context(request: SupplierRequest, today: date) -> dict[str, object]:
     remaining = reminder_schedule.days_between(request.due_date, today)
     return {
         "supplier_name": request.supplier_name,
