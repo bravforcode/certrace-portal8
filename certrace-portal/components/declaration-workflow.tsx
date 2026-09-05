@@ -88,6 +88,7 @@ import {
   approveSubmission,
   approveAllSubmissions,
   requestRevision,
+  recordRevisionDecision,
   toggleReviewer,
   setRecipients as persistRecipients,
   pushToO3CI,
@@ -114,7 +115,8 @@ import {
   type DispatchRecipient,
   type DeclarationBuyerState,
 } from "@/lib/exporter-review";
-import { useSubmissions, useSubmissionState } from "@/lib/links-query";
+import { useSubmissions, useSubmissionState, useRequestRevision } from "@/lib/links-query";
+import { apiConfigured } from "@/lib/api";
 import { loadTeam, getTeamMember, type TeamMember } from "@/lib/team-store";
 import { FRESHNESS_META, SECTION_ACCESS, type Freshness } from "@/lib/supplier-records";
 import {
@@ -548,7 +550,7 @@ export function DeclarationWorkflow({ declaration }: { declaration: Declaration 
           <LockedPanel step={activeStep} steps={steps} onGo={goTo} />
         ) : view === "submissions" ? (
           open ? (
-            <SubmissionReview decl={declaration} sub={openReviewed ?? open} onChanged={setExporter} />
+            <SubmissionReview decl={declaration} sub={openReviewed ?? open} token={openToken} onChanged={setExporter} />
           ) : (
             <SubmissionsTab decl={declaration} roll={roll} exporter={exporter} onChanged={setExporter} onOpen={(id) => setOpenId(id)} />
           )
@@ -1029,11 +1031,48 @@ function FreshnessBadge({ level, title }: { level: Freshness; title?: string }) 
 }
 
 /* ════════════════════════ Submission review ════════════════════════ */
-function SubmissionReview({ decl, sub, onChanged }: { decl: Declaration; sub: ReviewSubmission; onChanged: (s: ExporterDeclState) => void }) {
+function SubmissionReview({
+  decl,
+  sub,
+  token,
+  onChanged,
+}: {
+  decl: Declaration;
+  sub: ReviewSubmission;
+  /* This supplier's server-minted Smart Link token, when there is a backend
+     and they have one. Absent = the demo path, where the supplier's state is
+     in this same browser. */
+  token: string | undefined;
+  onChanged: (s: ExporterDeclState) => void;
+}) {
   const t = useT();
   const { lang } = useLanguage();
   const [showRevision, setShowRevision] = React.useState(false);
   const meta = LIFECYCLE_META[sub.lifecycle];
+  const revision = useRequestRevision(decl.id);
+
+  /* Two halves, and only in the demo do both live here. Server-backed: the
+     supplier's half is a call — and it goes FIRST, because the exporter's
+     record must not say "changes requested" for a request the supplier will
+     never see. A failure leaves the form open with the selection intact (the
+     mutation cache toasts it) so the send can simply be retried. */
+  const sendRevision = async (payload: { fields: string[]; docs: string[]; comment: string }) => {
+    if (apiConfigured() && token) {
+      try {
+        await revision.mutateAsync({
+          token,
+          input: { note: payload.comment, unlocked: payload.fields, unlockedDocs: payload.docs },
+        });
+      } catch {
+        return;
+      }
+      onChanged(recordRevisionDecision(decl.id, sub.supplier.id, sub.version, payload));
+    } else {
+      onChanged(requestRevision(decl.id, sub.supplier.id, sub.version, payload));
+    }
+    setShowRevision(false);
+    toast({ message: "Revision requested", detail: `${sub.supplier.name}'s Smart Link reopened the flagged items — they'll be emailed.`, tone: "info" });
+  };
 
   const approve = () => {
     onChanged(approveSubmission(decl.id, sub.supplier.id, sub.version));
@@ -1103,15 +1142,7 @@ function SubmissionReview({ decl, sub, onChanged }: { decl: Declaration; sub: Re
 
       {/* Decision */}
       {showRevision ? (
-        <RevisionForm
-          sub={sub}
-          onCancel={() => setShowRevision(false)}
-          onSubmit={(payload) => {
-            onChanged(requestRevision(decl.id, sub.supplier.id, sub.version, payload));
-            setShowRevision(false);
-            toast({ message: "Revision requested", detail: `${sub.supplier.name}'s Smart Link reopened the flagged items — they'll be emailed.`, tone: "info" });
-          }}
-        />
+        <RevisionForm sub={sub} onCancel={() => setShowRevision(false)} onSubmit={sendRevision} />
       ) : (
         <Card className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
@@ -1429,8 +1460,9 @@ function ReviewerPicker({ decl, sub, onChanged }: { decl: Declaration; sub: Revi
 }
 
 /* Request revision — pick specific fields + docs + a comment */
-function RevisionForm({ sub, onCancel, onSubmit }: { sub: ReviewSubmission; onCancel: () => void; onSubmit: (p: { fields: string[]; docs: string[]; comment: string }) => void }) {
+function RevisionForm({ sub, onCancel, onSubmit }: { sub: ReviewSubmission; onCancel: () => void; onSubmit: (p: { fields: string[]; docs: string[]; comment: string }) => Promise<void> }) {
   const t = useT();
+  const [sending, setSending] = React.useState(false);
   const sections = sectionsForRequest(sub.request);
   const [fields, setFields] = React.useState<Set<string>>(new Set(sub.review.unlockedFields));
   const [docs, setDocs] = React.useState<Set<string>>(new Set(sub.review.unlockedDocs));
@@ -1510,9 +1542,23 @@ function RevisionForm({ sub, onCancel, onSubmit }: { sub: ReviewSubmission; onCa
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-black/[0.06] pt-4">
         <span className="text-[11px] text-black/40">{total} item{total === 1 ? "" : "s"} selected{!comment.trim() && total > 0 ? " · add a comment to send" : ""}</span>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={onCancel}>{t("Cancel")}</Button>
-          <Button size="sm" disabled={!valid} onClick={() => onSubmit({ fields: [...fields], docs: [...docs], comment: comment.trim() })}>
-            <Send size={14} strokeWidth={1.5} /> {t("Send revision request")}
+          <Button variant="ghost" size="sm" onClick={onCancel} disabled={sending}>{t("Cancel")}</Button>
+          {/* Server-backed, this is a network round trip: hold the button down
+              for it so an impatient second click cannot post the request twice
+              and leave the supplier's trail with a duplicate entry. */}
+          <Button
+            size="sm"
+            disabled={!valid || sending}
+            onClick={async () => {
+              setSending(true);
+              try {
+                await onSubmit({ fields: [...fields], docs: [...docs], comment: comment.trim() });
+              } finally {
+                setSending(false);
+              }
+            }}
+          >
+            <Send size={14} strokeWidth={1.5} /> {sending ? t("Sending…") : t("Send revision request")}
           </Button>
         </div>
       </div>
