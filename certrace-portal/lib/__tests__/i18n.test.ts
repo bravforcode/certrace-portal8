@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { LANGUAGES, translate, localeFor, storedLang } from "../i18n";
+import { LANGUAGES, translate, localeFor, storedLang, preferredLang } from "../i18n";
 import { TH } from "../i18n-th";
 
 test("supported languages list has en and th with correct labels and glyphs", () => {
@@ -49,6 +49,52 @@ test("translate interpolates variables correctly in EN and TH", () => {
 test("storedLang safely returns en in node environment without localStorage", () => {
   // window is undefined in standard Node.js environment
   assert.equal(storedLang(), "en");
+});
+
+/* ── which language a page opens in ──────────────────────────────
+   A supplier reaches a Smart Link with no account and no previous visit, so
+   there is nothing on file to read a preference from and the browser's own
+   list is the only signal there is. */
+
+test("a saved choice always wins, whatever the browser asks for", () => {
+  assert.equal(preferredLang("en", ["th-TH", "th"]), "en");
+  assert.equal(preferredLang("th", ["en-GB"]), "th");
+});
+
+test("a Thai browser opens in Thai, in every shape the tag comes in", () => {
+  assert.equal(preferredLang(null, ["th"]), "th");
+  assert.equal(preferredLang(null, ["th-TH"]), "th");
+  // Region, script and extension subtags all hang off the same language subtag.
+  assert.equal(preferredLang(null, ["th-TH-u-nu-thai"]), "th");
+  // Case is not significant in a language tag; a browser is free to send any.
+  assert.equal(preferredLang(null, ["TH-th"]), "th");
+});
+
+test("the list is ordered, so the first language we speak wins", () => {
+  /* The case the Browser pane itself reports: English first, Thai also
+     installed. That reader asked for English and gets it — answering in Thai
+     would overrule a preference they actually stated, and it is a common
+     shape (an English-locale OS with Thai added). */
+  assert.equal(preferredLang(null, ["en-US", "th"]), "en");
+  assert.equal(preferredLang(null, ["th-TH", "en-GB"]), "th");
+});
+
+test("a language we do not speak is skipped, not answered in", () => {
+  assert.equal(preferredLang(null, ["ja-JP", "th-TH", "en"]), "th");
+  assert.equal(preferredLang(null, ["ja-JP", "ko"]), "en");
+});
+
+test("nothing to go on opens in English, the language the product is written in", () => {
+  assert.equal(preferredLang(null, []), "en");
+  assert.equal(preferredLang(null, [undefined]), "en");
+  // Not a Thai tag: `tha` is ISO 639-2, which no browser sends, and matching
+  // on a bare prefix would also catch invented tags like `thq`.
+  assert.equal(preferredLang(null, ["tha"]), "en");
+});
+
+test("a junk value in storage is ignored rather than trusted", () => {
+  assert.equal(preferredLang("klingon", ["th"]), "th");
+  assert.equal(preferredLang("", ["en"]), "en");
 });
 
 test("portal navigation and action items are translated into Thai in dictionary", () => {
