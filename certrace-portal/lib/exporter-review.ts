@@ -653,6 +653,35 @@ export function approveAllSubmissions(declId: string): ExporterDeclState {
 /** Step 7/8 — the handoff. Records the exporter's decision AND writes the
     revision into the supplier's own store so the smartlink reopens exactly the
     requested fields/documents (everything else stays locked). */
+/** The EXPORTER's half of a revision request: their own record of the decision
+    — lifecycle, comment, which items they reopened — under
+    `certrace:exporter:<declId>`. Nothing in docs/API-CONTRACT.md carries the
+    exporter's review state, so this half stays local in both modes.
+
+    Split out from requestRevision below because the SUPPLIER's half does not:
+    when a backend is wired up the supplier's state lives on the server, and
+    writing it here would reopen the link in this browser only — see
+    useRequestRevision in lib/links-query.ts. */
+export function recordRevisionDecision(
+  declId: string,
+  supplierId: string,
+  version: number,
+  payload: { fields: string[]; docs: string[]; comment: string },
+): ExporterDeclState {
+  return mutateReview(declId, supplierId, (r) => ({
+    ...r,
+    decision: "changes_requested",
+    decidedVersion: version,
+    decidedAt: Date.now(),
+    comment: payload.comment,
+    unlockedFields: payload.fields,
+    unlockedDocs: payload.docs,
+  }));
+}
+
+/** Demo path (no backend): write BOTH halves locally. The supplier's store is
+    in this same browser, so unlocking the fields here is what the smartlink
+    reads back. */
 export function requestRevision(
   declId: string,
   supplierId: string,
@@ -667,15 +696,7 @@ export function requestRevision(
     `${exporterIdentity().contact} requested a revision on ${payload.fields.length} field${payload.fields.length === 1 ? "" : "s"}${payload.docs.length ? ` and ${payload.docs.length} document${payload.docs.length === 1 ? "" : "s"}` : ""} — "${payload.comment}"`,
   );
   saveState(next);
-  return mutateReview(declId, supplierId, (r) => ({
-    ...r,
-    decision: "changes_requested",
-    decidedVersion: version,
-    decidedAt: Date.now(),
-    comment: payload.comment,
-    unlockedFields: payload.fields,
-    unlockedDocs: payload.docs,
-  }));
+  return recordRevisionDecision(declId, supplierId, version, payload);
 }
 
 export function markSummaryGenerated(declId: string): ExporterDeclState {

@@ -19,10 +19,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getSubmissionState,
   listSubmissions,
+  requestRevision,
   resolveLink,
   saveLinkState,
   submitLink,
   type LinkResolution,
+  type RevisionInput,
   type SubmissionSummary,
   type SubmitInput,
 } from "./api";
@@ -33,6 +35,10 @@ const linkKey = (token: string | undefined) => [...LINK_KEY, token] as const;
 
 const SUBMISSIONS_KEY = ["submissions"] as const;
 export const submissionsKey = (declId: string | undefined) => [...SUBMISSIONS_KEY, declId] as const;
+/* Nested under the declaration's key on purpose — one supplier's answers are
+   part of that declaration's cache — which is why anything invalidating the
+   feed alone has to say `exact`. */
+export const submissionStateKey = (declId: string, token: string | undefined) => [...submissionsKey(declId), token, "state"] as const;
 
 /** The exporter's "who has answered" feed for one declaration.
 
@@ -62,7 +68,7 @@ export function useSubmissions(declId: string | undefined) {
     token — reopening the same supplier does not refetch. */
 export function useSubmissionState(declId: string, token: string | undefined, enabled: boolean) {
   return useQuery<SupplierState>({
-    queryKey: [...submissionsKey(declId), token, "state"] as const,
+    queryKey: submissionStateKey(declId, token),
     queryFn: () => getSubmissionState(declId, token ?? ""),
     enabled: enabled && Boolean(token),
     staleTime: 30_000,
@@ -101,6 +107,33 @@ export function useSaveLinkState(token: string) {
     mutationFn: (state: SupplierState) => saveLinkState(token, state),
     retry: 3,
     onSuccess: (state) => sync(state),
+  });
+}
+
+/** The exporter sends a submission back for changes.
+
+    The supplier's state is the SERVER's — they filled the link on their own
+    machine — so the server is what has to flip `status` to
+    `revision_requested`, store the unlocked fields and docs, and append the
+    trail event. A localStorage write here would reopen the link in the
+    exporter's browser and nowhere else, which is exactly the way this loop
+    used to break: the supplier reopens their link, the server still says
+    `submitted`, and nothing is editable.
+
+    The exporter's own record of the decision stays local — see
+    recordRevisionDecision in lib/exporter-review.ts. */
+export function useRequestRevision(declId: string) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: ({ token, input }: { token: string; input: RevisionInput }) => requestRevision(declId, token, input),
+    onSuccess: (state, { token }) => {
+      // The review pane reads the answers through this key, and the server
+      // just returned the authoritative state — seed it rather than refetch.
+      client.setQueryData<SupplierState>(submissionStateKey(declId, token), state);
+      // The status the submissions feed carries is now stale. `exact` because
+      // that key is a prefix of the one just seeded.
+      client.invalidateQueries({ queryKey: submissionsKey(declId), exact: true });
+    },
   });
 }
 
