@@ -51,12 +51,52 @@ const LangContext = React.createContext<{ lang: LangCode; setLang: (l: LangCode)
 
 const STORAGE_KEY = "certrace:lang";
 
+/* ── Which language to open in ──────────────────────────────────
+   A supplier arrives on a Smart Link with no account, no profile and no
+   previous visit — there is nothing on file to read a preference from, and the
+   only person who can fix a page that opened in the wrong language is them,
+   with a control they first have to find. The browser already carries the
+   answer, so ask it.
+
+   A SAVED choice always wins, and only an explicit switch is ever saved (see
+   setLang). Detection stays a fallback rather than becoming a stored value:
+   writing it down would turn a guess into a decision the reader never made,
+   and one they could then only undo by finding the toggle anyway.
+
+   The list is ORDERED, and the first entry we speak wins — not the first Thai
+   entry anywhere in it. `["en-US", "th"]` is a reader who would rather have
+   English and can also read Thai, and handing them Thai overrules a preference
+   they stated. It is the commoner shape than it looks: an English-locale OS
+   with Thai added is what a lot of Thai machines report.
+
+   Only the language subtag is compared, so region, script and extension
+   subtags come along for free — `th`, `th-TH` and `th-TH-u-nu-thai` are all
+   Thai. A language we do not speak is skipped rather than answered in, and a
+   list with nothing we speak in it — or no list at all — is English, the
+   language the product is written in. */
+export function preferredLang(saved: string | null | undefined, tags: readonly (string | undefined)[]): LangCode {
+  if (saved === "en" || saved === "th") return saved;
+  for (const tag of tags) {
+    const subtag = tag?.toLowerCase().split("-")[0];
+    if (subtag === "th" || subtag === "en") return subtag;
+  }
+  return "en";
+}
+
+/** The browser's own ordered preference list, or nothing to go on off-browser. */
+function browserTags(): readonly (string | undefined)[] {
+  if (typeof navigator === "undefined") return [];
+  return navigator.languages?.length ? navigator.languages : [navigator.language];
+}
+
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [lang, setLangState] = React.useState<LangCode>("en");
 
+  /* Runs after the first paint on purpose: the server has neither the saved
+     choice nor the browser's list, so deciding here — and only here — is what
+     keeps the first client render identical to the HTML that came down. */
   React.useEffect(() => {
-    const saved = window.localStorage.getItem(STORAGE_KEY);
-    if (saved === "en" || saved === "th") setLangState(saved);
+    setLangState(preferredLang(window.localStorage.getItem(STORAGE_KEY), browserTags()));
   }, []);
 
   const setLang = React.useCallback((l: LangCode) => {
@@ -141,9 +181,13 @@ export function useT(): TFunction {
 
    Storage can throw (Safari private mode, a browser set to block site data),
    so the fallback is the default language, never an exception. */
+/* The language for code that runs OUTSIDE React and so cannot read the
+   context — the mutation cache's error toast, mainly. Same rule as the
+   provider, or a Thai reader gets a Thai screen with an English failure on it,
+   which is the one sentence they most need to understand. */
 export function storedLang(): LangCode {
   try {
-    return window.localStorage.getItem(STORAGE_KEY) === "th" ? "th" : "en";
+    return preferredLang(window.localStorage.getItem(STORAGE_KEY), browserTags());
   } catch {
     return "en";
   }
