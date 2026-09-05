@@ -52,7 +52,7 @@ import {
 import { apiConfigured, markOnboarded } from "@/lib/api";
 import { useProfile } from "@/lib/profile";
 import { useT } from "@/lib/i18n";
-import { PREF_KEY, ALL_ON } from "@/lib/notification-prefs";
+import { ALL_ON, saveNotificationPrefs } from "@/lib/notification-prefs";
 
 const STEPS = [
   { key: "welcome", label: "Welcome" },
@@ -115,7 +115,7 @@ export default function SignInSetupPage() {
          localStorage does not follow the person to a new browser. */
       if (apiConfigured()) void markOnboarded().catch(() => {});
       // Nothing here asks about notification preferences — everything on by default.
-      window.localStorage.setItem(PREF_KEY, JSON.stringify(ALL_ON));
+      saveNotificationPrefs(ALL_ON);
       setStep(2);
     });
   };

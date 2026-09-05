@@ -13,7 +13,7 @@ import { useProfile } from "@/lib/profile";
 import { PRODUCT_SECTORS } from "@/lib/config";
 import { JOB_TITLES, JOB_TITLE_OPTIONS, jobTitleIncomplete, jobTitleValue } from "@/lib/job-titles";
 import { useT } from "@/lib/i18n";
-import { PREF_KEY, ALL_ON } from "@/lib/notification-prefs";
+import { ALL_ON, saveNotificationPrefs } from "@/lib/notification-prefs";
 import { isValidPhone } from "@/lib/dial-codes";
 
 const errInput = "border-[#f87171]/60 focus:border-[#f87171]";
@@ -315,7 +315,7 @@ export default function OnboardingPage() {
          what routes the next sign-in straight to /dashboard. */
       if (apiConfigured()) void markOnboarded().catch(() => {});
       // Onboarding doesn't ask about notification preferences — everything on by default.
-      window.localStorage.setItem(PREF_KEY, JSON.stringify(ALL_ON));
+      saveNotificationPrefs(ALL_ON);
       /* Ends on the completion page, NOT in the product: the account is
          queued for a free trial that a person sets up and confirms by email,
          so a door into the dashboard here would contradict what that page

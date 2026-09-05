@@ -69,7 +69,7 @@ import type { ActivityDataset } from "@/lib/cbam/activity";
 import type { GoodsCategory } from "@/lib/cbam/engine";
 import { USER } from "@/lib/data";
 import { Declaration } from "@/lib/data";
-import { getRegulation, getJurisdiction, getCatalogProduct, type ResolvedCbamField } from "@/lib/config";
+import { regulationOf, jurisdictionOf, getCatalogProduct, type ResolvedCbamField } from "@/lib/config";
 import { downloadPackage, downloadXmlFile } from "@/lib/download";
 import { validateForRegistry, buildCbamXml } from "@/lib/cbam-xml";
 import { formatPrecursors } from "@/lib/precursors";
@@ -185,8 +185,8 @@ const EMPTY_ROLL: ReviewRollup = {
 export function DeclarationWorkflow({ declaration }: { declaration: Declaration }) {
   const router = useRouter();
   const t = useT();
-  const reg = getRegulation(declaration.regulation)!;
-  const jur = getJurisdiction(declaration.origin)!;
+  const reg = regulationOf(declaration.regulation);
+  const jur = jurisdictionOf(declaration.origin);
 
   // The exporter's own review edits (approve, request revision) live in
   // localStorage — hydrate after mount to avoid a server/client mismatch, then
@@ -1926,8 +1926,8 @@ function ReportTab({
   onOpenSubmission: (supplierId: string) => void;
 }) {
   const t = useT();
-  const reg = getRegulation(decl.regulation)!;
-  const jur = getJurisdiction(decl.origin)!;
+  const reg = regulationOf(decl.regulation);
+  const jur = jurisdictionOf(decl.origin);
   const approved = roll.submissions.filter((s) => s.lifecycle === "approved");
   const generated = Boolean(exporter.packageGeneratedAt);
   // The sealed package must match the live approved dataset — a resubmission
@@ -2353,7 +2353,7 @@ function DispatchTab({
   onOpenSubmission: (supplierId: string) => void;
 }) {
   const t = useT();
-  const reg = getRegulation(decl.regulation)!;
+  const reg = regulationOf(decl.regulation);
   const recipients = exporter.recipients;
   const dispatch = exporter.dispatch;
   const buyers = resolveBuyers(decl, exporter);
@@ -2513,8 +2513,8 @@ function BuyerDispatchPanel({
   const t = useT();
   const [adding, setAdding] = React.useState(false);
   const [form, setForm] = React.useState({ name: "", eori: "", email: "", contact: "" });
-  const reg = getRegulation(decl.regulation)!;
-  const jur = getJurisdiction(decl.origin)!;
+  const reg = regulationOf(decl.regulation);
+  const jur = jurisdictionOf(decl.origin);
   const approved = roll.submissions.filter((s) => s.lifecycle === "approved");
 
   /* Exactly what one buyer receives — the approved dataset with each supplier's

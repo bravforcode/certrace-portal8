@@ -27,7 +27,7 @@ import { Select, Portal } from "@/components/controls";
 import { USER } from "@/lib/data";
 import { PRODUCT_SECTORS } from "@/lib/config";
 import { useProfile, generateUsername } from "@/lib/profile";
-import { type PrefKey, PREF_KEY } from "@/lib/notification-prefs";
+import { type PrefKey, PREF_KEY, saveNotificationPrefs } from "@/lib/notification-prefs";
 import { JOB_TITLES, JOB_TITLE_OPTIONS } from "@/lib/job-titles";
 import { useT } from "@/lib/i18n";
 import { LEGAL_PRIVACY_URL, LEGAL_TERMS_URL } from "@/lib/links";
@@ -628,7 +628,7 @@ function NotificationsTab() {
   const toggle = (key: PrefKey, value: boolean) => {
     setPrefs((prev) => {
       const next = { ...prev, [key]: value };
-      window.localStorage.setItem(PREF_KEY, JSON.stringify(next));
+      saveNotificationPrefs(next);
       return next;
     });
   };
@@ -884,7 +884,17 @@ function CookieModal({ onClose }: { onClose: () => void }) {
     return () => window.clearTimeout(t);
   }, [state, onClose]);
 
-  const save = () => run(() => window.localStorage.setItem(COOKIE_KEY, JSON.stringify({ analytics, marketing })));
+  // Guarded: a raw setItem here throws in private mode, and because it runs
+  // inside useSaveState's timer the "saved" state never fires — the modal's
+  // auto-close waits on it, so the throw would trap the user in a spinning modal.
+  const save = () =>
+    run(() => {
+      try {
+        window.localStorage.setItem(COOKIE_KEY, JSON.stringify({ analytics, marketing }));
+      } catch {
+        /* private mode / storage blocked — close anyway, best-effort */
+      }
+    });
 
   // Portaled to <body> — this modal is rendered inside the tab's `.ct-enter`
   // wrapper, whose entrance animation leaves a lingering `transform` (fill-mode:
