@@ -266,9 +266,7 @@ def test_a_dry_run_reports_without_claiming_or_sending() -> None:
     log = reminders.InMemoryDeliveryLog()
     source = FakeSource(requests=[a_request()])
 
-    summary = run(
-        transport, source, today=date(2026, 4, 8), log=log, dry_run=True
-    )
+    summary = run(transport, source, today=date(2026, 4, 8), log=log, dry_run=True)
 
     assert summary.sent == 1
     assert transport.sent == []

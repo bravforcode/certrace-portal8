@@ -433,11 +433,7 @@ def request_revision(
             "text": (
                 f"Revision requested on {fields} field"
                 f"{'' if fields == 1 else 's'}"
-                + (
-                    f" and {docs} document{'' if docs == 1 else 's'}"
-                    if docs
-                    else ""
-                )
+                + (f" and {docs} document{'' if docs == 1 else 's'}" if docs else "")
                 + (f' -- "{body.note}"' if body.note else "")
             ),
         }

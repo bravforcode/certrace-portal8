@@ -52,9 +52,7 @@ class DatabaseDeliveryLog:
                 NotificationDelivery(
                     subject_id=subject_id,
                     occasion=occasion,
-                    notification_key=(
-                        notification.key if notification else occasion
-                    ),
+                    notification_key=(notification.key if notification else occasion),
                     recipient=recipient,
                 )
             )
