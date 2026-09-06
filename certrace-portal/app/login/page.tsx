@@ -5,9 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { Button, Field, inputClass, cn } from "@/components/ui";
-import { AuthLayout, GoogleButton, Divider, GOOGLE_AUTH_ENABLED } from "@/components/auth-panel";
+import { AuthLayout, GoogleButton, Divider, GOOGLE_AUTH_ENABLED, AuthUnavailable } from "@/components/auth-panel";
 import { EnglishOnly, useT } from "@/lib/i18n";
-import { apiConfigured, login } from "@/lib/api";
+import { authUnavailable, demoModeEnabled, login } from "@/lib/api";
 import { EMAIL_RE, signInDestination, signInError } from "@/lib/auth-flow";
 
 /* Sign-in is English-only, like the rest of the auth screens — see
@@ -38,6 +38,11 @@ function LoginScreen() {
      locally with no way to find out why. */
   const canSubmit = EMAIL_RE.test(email.trim()) && password.length > 0;
 
+  /* Build-time truth, identical on the server and in the browser, so this
+     switch cannot cause a hydration mismatch the way a localStorage read
+     would. */
+  const unavailable = authUnavailable();
+
   /* ── Both buttons land in the same place ───────────────────────
      Signing in — with the email form or with Google — opens the SIGN-IN
      onboarding at /onboarding/setup, never the dashboard directly. The two
@@ -52,11 +57,22 @@ function LoginScreen() {
     setLoading(true);
     setError("");
 
-    /* No backend pointed at this build — the demo, and any laptop without
-       .env.local. Walk the path this screen has always walked rather than
-       failing on a URL nobody has set. See apiConfigured() in lib/api. */
-    if (!apiConfigured()) {
+    /* `next dev`, or a build that asked for the demo by name. Walk the path
+       this screen has always walked rather than failing on a URL nobody has
+       set. A production build with no backend does NOT land here — it never
+       renders this form at all. See demoModeEnabled() in lib/api. */
+    if (demoModeEnabled()) {
       window.setTimeout(() => router.push("/onboarding/setup"), 600);
+      return;
+    }
+
+    /* Belt and braces for the case the form is somehow reachable without a
+       backend: never walk the simulated path from a build that did not ask
+       for it. The render below already replaces the form, so getting here
+       means something upstream changed and this is the safe end of it. */
+    if (authUnavailable()) {
+      setError(t("Sign-in isn't available on this deployment yet."));
+      setLoading(false);
       return;
     }
 
@@ -74,7 +90,12 @@ function LoginScreen() {
     }
   };
 
+  /* Simulated too — there is no OAuth client yet, which is why the button is
+     hidden (GOOGLE_AUTH_ENABLED). It carries the same gate as the form anyway:
+     the day that flag flips back on, a build with no backend must not have a
+     second, quieter way in. */
   const withGoogle = () => {
+    if (!demoModeEnabled()) return;
     setGoogleLoading(true);
     window.setTimeout(() => router.push("/onboarding/setup"), 900);
   };
@@ -89,7 +110,12 @@ function LoginScreen() {
         {t("Sign in to continue.")}
       </h2>
 
-      {GOOGLE_AUTH_ENABLED && (
+      {/* Nothing behind this build: the credential form is replaced, not
+          disabled, and the "create an account" line below goes with it —
+          there are no accounts to create either. See AuthUnavailable. */}
+      {unavailable && <AuthUnavailable />}
+
+      {!unavailable && GOOGLE_AUTH_ENABLED && (
         <div className="mt-7 space-y-4">
           <GoogleButton onClick={withGoogle} loading={googleLoading} />
           <Divider label={t("or sign in with email")} />
@@ -98,6 +124,7 @@ function LoginScreen() {
 
       {/* With the Google block hidden the form is the first thing under the
           heading, so it takes over the spacing that block was providing. */}
+      {!unavailable && (
       <form onSubmit={submit} className={cn("space-y-4", GOOGLE_AUTH_ENABLED ? "mt-5" : "mt-7")}>
         <Field label={t("Work email")}>
           <input
@@ -136,13 +163,16 @@ function LoginScreen() {
           {!loading && <ArrowRight size={15} strokeWidth={1.5} />}
         </Button>
       </form>
+      )}
 
-      <p className="mt-6 text-center text-[13px] text-black/45">
-        {t("New to Certrace?")}{" "}
-        <Link href="/register" className="text-black/70 underline-offset-2 hover:text-black hover:underline">
-          {t("Create an account")}
-        </Link>
-      </p>
+      {!unavailable && (
+        <p className="mt-6 text-center text-[13px] text-black/45">
+          {t("New to Certrace?")}{" "}
+          <Link href="/register" className="text-black/70 underline-offset-2 hover:text-black hover:underline">
+            {t("Create an account")}
+          </Link>
+        </p>
+      )}
 
     </AuthLayout>
   );

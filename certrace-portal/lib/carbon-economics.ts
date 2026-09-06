@@ -179,7 +179,14 @@ export function computeCost(facts: ComplianceFacts, pricing: CertificatePricing 
       };
     });
 
-    const supplierGrossCost = sf.chargeableTCO2e * price;
+    /* Priced off the PRODUCTS, never off sf.chargeableTCO2e. The engine
+       rounds a supplier's chargeable tonnes to a whole tonne
+       (compliance-engine.ts) while leaving each product's un-rounded, so
+       multiplying the rounded figure by the price puts up to half a tonne of
+       cost — ~EUR 41 at EUR 82/t, per supplier — between a supplier's total
+       and the sum of the lines printed underneath it. An exporter reading the
+       breakdown adds the rows up, and the answer has to match. */
+    const supplierGrossCost = products.reduce((a, p) => a + p.grossCostEUR, 0);
     /* The engine already values the carbon price the supplier paid, but at its
        own proxy rate. Re-scale it to the price actually being modelled so the
        deduction doesn't drift when the exporter changes the certificate price. */

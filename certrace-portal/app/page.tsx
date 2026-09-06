@@ -10,7 +10,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { apiConfigured, isSignedIn, me } from "@/lib/api";
+import { apiConfigured, demoModeEnabled, isSignedIn, me } from "@/lib/api";
 
 export default function Home() {
   const router = useRouter();
@@ -25,9 +25,16 @@ export default function Home() {
       go("/login");
       return;
     }
-    if (!apiConfigured()) {
+    if (demoModeEnabled()) {
       // Demo laptop: a stored demo session is as signed-in as it gets.
       go("/dashboard");
+      return;
+    }
+    if (!apiConfigured()) {
+      /* Signed-in-looking, but this build has no backend and no sanctioned
+         demo — the stored session was minted by something that is no longer
+         trusted here. /login is honest about what is on offer. */
+      go("/login");
       return;
     }
     me()
