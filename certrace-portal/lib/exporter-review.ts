@@ -29,7 +29,7 @@ import { type Declaration, type SupplierRow, getDeclaration } from "./data";
 import { getOrgIdentity } from "./org";
 import {
   makeToken,
-  resolveRequest,
+  buildRequestFrom,
   valueKey,
   type SupplierRequest,
   type RequestDocAsk,
@@ -162,7 +162,18 @@ export function loadExporterState(declId: string): ExporterDeclState {
   try {
     const raw = window.localStorage.getItem(keyFor(declId));
     if (!raw) return empty;
-    return { ...empty, ...(JSON.parse(raw) as ExporterDeclState), declId };
+    // Deep-default the nested objects: a shallow spread lets a partial/legacy
+    // persisted blob drop `dispatch.acknowledgedAt` or a `recipients` key, and
+    // the component then does `acknowledgedAt[k]` / `Object.entries(...)` on
+    // undefined. Merge each nested default under the stored value.
+    const stored = JSON.parse(raw) as Partial<ExporterDeclState>;
+    return {
+      ...empty,
+      ...stored,
+      declId,
+      recipients: { ...empty.recipients, ...stored.recipients },
+      dispatch: { ...empty.dispatch, ...stored.dispatch },
+    };
   } catch {
     return empty;
   }
@@ -373,7 +384,10 @@ export function resolveSubmission(
   fullState?: Map<string, SupplierState>,
 ): ReviewSubmission {
   const token = makeToken(decl.id, row.id);
-  const request = resolveRequest(token)!;
+  // Built from the decl in hand, not re-looked-up from fixtures: a server-backed
+  // declaration is not in getDeclaration()'s bundled set, and the old
+  // resolveRequest(token)! returned null for it, crashing here on mount.
+  const request = buildRequestFrom(token, decl, row);
   // Server answers win when we have them (cross-browser review); otherwise the
   // local copy, exactly as before.
   const ss = fullState?.get(row.id) ?? loadState(token);

@@ -612,6 +612,15 @@ export const PLAN_COLOPHON = ["Certrace · EU CBAM compliance for exporters", "P
 export const getRegulation = (id: string) => REGULATIONS.find((r) => r.id === id);
 export const getJurisdiction = (code: string) => JURISDICTIONS.find((j) => j.code === code);
 export const getSector = (id: string) => PRODUCT_SECTORS.find((p) => p.id === id);
+
+/* Total variants for render paths that must show SOMETHING. The find-helpers
+   above return undefined off-catalog; today the pickers only offer cbam/TH so
+   the workflow's `getRegulation(...)!` never fired — but an imported or
+   future-added regulation/jurisdiction id would turn that `!` into a crash.
+   These fall back to CBAM (the only regulation this product implements) and the
+   first known jurisdiction instead of asserting. */
+export const regulationOf = (id: string) => getRegulation(id) ?? getRegulation("cbam")!;
+export const jurisdictionOf = (code: string) => getJurisdiction(code) ?? JURISDICTIONS[0];
 /** Any plan an account can be ON, including the trial — which is why this
     does not just search PLANS. PLANS is what is for SALE. */
 export const getPlan = (id: string) => (id === TRIAL_PLAN.id ? TRIAL_PLAN : PLANS.find((p) => p.id === id));

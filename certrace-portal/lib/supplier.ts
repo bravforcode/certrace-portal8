@@ -240,6 +240,16 @@ export function buildRequest(
   if (!decl) return null;
   const row = decl.suppliers.find((s) => s.id === supplierId);
   if (!row) return null;
+  return buildRequestFrom(token, decl, row, month);
+}
+
+/* Build the request when the caller ALREADY holds the declaration and row —
+   the exporter-review path does, since it walks `decl.suppliers`. Skipping the
+   getDeclaration() re-lookup is not just leaner: getDeclaration only knows the
+   bundled fixtures, so a server-backed declaration (id `decl-<uuid>`) is absent
+   from it and the old round-trip returned null, crashing the review tab. With
+   the decl in hand there is nothing to look up and nothing to be absent. */
+export function buildRequestFrom(token: string, decl: Declaration, row: SupplierRow, month?: string): SupplierRequest {
   // Fixtures ARE the demo exporter, so the exporter identity is the local org.
   const org = getOrgIdentity();
   return assembleRequest(token, decl, row, month, { name: org.name, contact: org.contact, origin: org.origin });

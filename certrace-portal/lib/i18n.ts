@@ -101,7 +101,13 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   const setLang = React.useCallback((l: LangCode) => {
     setLangState(l);
-    window.localStorage.setItem(STORAGE_KEY, l);
+    // Guarded like storedLang(): setItem throws in private mode. Swallow so the
+    // language still switches in-memory and the <html lang> swap below still runs.
+    try {
+      window.localStorage.setItem(STORAGE_KEY, l);
+    } catch {
+      /* persistence best-effort */
+    }
     document.documentElement.lang = l;
   }, []);
 

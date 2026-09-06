@@ -14,3 +14,17 @@ export const ALL_ON: Record<PrefKey, boolean> = {
   documents: true,
   product: true,
 };
+
+/* The one guarded writer both consumers (Settings and onboarding) go through,
+   so nobody re-inlines a raw setItem. localStorage.setItem throws in Safari
+   private mode and when site-data is blocked; persistence here is best-effort,
+   so a failure is swallowed — the caller's in-memory state still updates, and
+   onboarding still advances instead of wedging on the throw. */
+export function saveNotificationPrefs(prefs: Record<PrefKey, boolean>): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(PREF_KEY, JSON.stringify(prefs));
+  } catch {
+    /* private mode / storage blocked — keep going */
+  }
+}
