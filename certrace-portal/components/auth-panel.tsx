@@ -182,3 +182,36 @@ export function PasswordStrength({ value }: { value: string }) {
     </div>
   );
 }
+
+/* ── Nothing to sign in to ─────────────────────────────────────
+   Rendered in PLACE OF the form when the build has neither a backend nor a
+   sanctioned demo — `authUnavailable()` in lib/api/config.ts.
+
+   Replaced rather than disabled, on purpose. A live-looking password box that
+   goes nowhere invites a returning exporter to type their real password into a
+   page with nothing behind it; a greyed-out one invites them to hunt for the
+   thing they must be doing wrong. Neither is true, and both are worse than
+   saying it plainly: accounts are not open on this deployment yet.
+
+   No retry, no "try again later" spinner — nothing about this resolves by
+   waiting on the client. The way out is the public site, which the wordmark
+   above already links to. */
+export function AuthUnavailable({ lead }: { lead?: string }) {
+  const t = useT();
+  return (
+    <div className="mt-7 rounded-xl border border-black/10 bg-black/[0.015] px-5 py-5">
+      <div className="flex items-center gap-2.5">
+        <StatusDot tone="warn" />
+        <p className="text-[11px] uppercase tracking-[0.1em] text-black/55">
+          {t("Not open yet")}
+        </p>
+      </div>
+      <p className="mt-3 text-[13px] leading-relaxed text-black/60">
+        {lead ?? t("Accounts aren't open on this deployment yet — there's no sign-in to complete.")}
+      </p>
+      <p className="mt-3 text-[13px] leading-relaxed text-black/45">
+        {t("If you're expecting access, the exporter who invited you can tell you when the portal opens.")}
+      </p>
+    </div>
+  );
+}

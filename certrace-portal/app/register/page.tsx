@@ -5,11 +5,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Check } from "lucide-react";
 import { Button, Field, inputClass, cn } from "@/components/ui";
-import { AuthLayout, GoogleButton, Divider, PasswordStrength, GOOGLE_AUTH_ENABLED } from "@/components/auth-panel";
+import { AuthLayout, GoogleButton, Divider, PasswordStrength, GOOGLE_AUTH_ENABLED, AuthUnavailable } from "@/components/auth-panel";
 import { useProfile } from "@/lib/profile";
 import { EnglishOnly, useT } from "@/lib/i18n";
 import { LEGAL_PRIVACY_URL, LEGAL_TERMS_URL } from "@/lib/links";
-import { apiConfigured, register } from "@/lib/api";
+import { authUnavailable, demoModeEnabled, register } from "@/lib/api";
 import { EMAIL_RE, signUpError, type SignUpFailure } from "@/lib/auth-flow";
 
 const NO_ERROR: SignUpFailure = { message: "", field: null };
@@ -79,6 +79,10 @@ function RegisterScreen() {
     confirm === password &&
     agreed;
 
+  /* Build-time truth, identical on the server and in the browser, so this
+     switch cannot cause a hydration mismatch. See authUnavailable() in lib/api. */
+  const unavailable = authUnavailable();
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit || loading) return;
@@ -90,9 +94,10 @@ function RegisterScreen() {
     // demo fixture's, which is how a wrong name gets accepted unread.
     const profile = { ...BLANK_SIGNUP, firstName: firstName.trim(), lastName: lastName.trim() };
 
-    /* No backend pointed at this build — the demo, and any laptop without
-       .env.local. Same simulated path /login takes. See apiConfigured(). */
-    if (!apiConfigured()) {
+    /* `next dev`, or a build that asked for the demo by name. Same simulated
+       path /login takes. A production build with no backend never renders this
+       form — see demoModeEnabled() and authUnavailable() in lib/api. */
+    if (demoModeEnabled()) {
       window.setTimeout(() => {
         update(profile);
         router.push("/onboarding");
@@ -129,6 +134,9 @@ function RegisterScreen() {
      Kiakittiwong / Head of Export Ops / Steel & iron" pre-ticked on a form
      whose whole job is to ask. */
   const withGoogle = () => {
+    /* Same gate as the form: hidden today (GOOGLE_AUTH_ENABLED), but a build
+       with no backend must not gain a second way in the day it comes back. */
+    if (!demoModeEnabled()) return;
     setGoogleLoading(true);
     window.setTimeout(() => {
       update(BLANK_SIGNUP);
@@ -144,7 +152,13 @@ function RegisterScreen() {
       </h2>
       <p className="mt-2 text-sm text-black/45">{t("One account per company. Add teammates as seats once you're in.")}</p>
 
-      {GOOGLE_AUTH_ENABLED && (
+      {/* No backend and no sanctioned demo: there is no account to create,
+          so the form goes rather than pretending otherwise. */}
+      {unavailable && (
+        <AuthUnavailable lead={t("Accounts aren't open on this deployment yet — there's nothing to create here.")} />
+      )}
+
+      {!unavailable && GOOGLE_AUTH_ENABLED && (
         <div className="mt-4 space-y-2 lg:mt-7 lg:space-y-4">
           <GoogleButton onClick={withGoogle} loading={googleLoading} label={t("Sign up with Google")} />
           <Divider label={t("or sign up with email")} />
@@ -152,6 +166,7 @@ function RegisterScreen() {
       )}
 
       {/* Takes over the hidden block's spacing, at both breakpoints. */}
+      {!unavailable && (
       <form
         onSubmit={submit}
         className={cn(
@@ -275,6 +290,7 @@ function RegisterScreen() {
           {!loading && <ArrowRight size={15} strokeWidth={1.5} />}
         </Button>
       </form>
+      )}
 
       <p className="mt-3 text-center text-[13px] text-black/45 lg:mt-6">
         {t("Already have an account?")}{" "}
