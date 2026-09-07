@@ -50,6 +50,9 @@ const securityHeaders = securityHeadersFromFile();
 const nextConfig: NextConfig = {
   // Pin the workspace root (there's another lockfile in the home dir).
   outputFileTracingRoot: import.meta.dirname,
+  env: {
+    NEXT_PUBLIC_DEMO_MODE: process.env.NEXT_PUBLIC_DEMO_MODE || "1",
+  },
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },
