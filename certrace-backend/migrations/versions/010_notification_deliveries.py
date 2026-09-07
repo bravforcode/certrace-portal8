@@ -10,8 +10,8 @@ RLS follows revision 004: enabled with no policies, so PostgREST over the anon
 key sees nothing. The rows carry recipient addresses, which is exactly the kind
 of list that must not be publishable.
 
-Revision ID: 006
-Revises: 005
+Revision ID: 010
+Revises: 009
 Create Date: 2026-09-03
 """
 
@@ -19,8 +19,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision = "006"
-down_revision = "005"
+revision = "010"
+down_revision = "009"
 branch_labels = None
 depends_on = None
 
