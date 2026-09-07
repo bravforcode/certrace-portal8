@@ -43,6 +43,12 @@ import { usePages } from "@/lib/i18n-pages";
 import { useLang } from "@/lib/i18n";
 import type { FormCopy } from "@/lib/pages";
 import {
+  syncPricingRequest,
+  syncFeatureRequest,
+  syncIssueReport,
+  syncCareers,
+} from "@/lib/sheet-sync";
+import {
   EMAIL_RE,
   FieldError,
   SelectChevron,
@@ -292,10 +298,21 @@ export function PopupForm({
     setAttempted(true);
     if (!valid) return;
 
-    /* THE SEAM. A real endpoint goes here; until there is one, the dialog
-       behaves exactly as it will when there is — a beat of "sending", then the
-       confirmation, then it closes itself. */
+    /* Post to Google Sheets via multi-tab Apps Script sync */
     setPhase("sending");
+    try {
+      if (kind === "pricing") {
+        syncPricingRequest(values, context);
+      } else if (kind === "feature") {
+        syncFeatureRequest(values);
+      } else if (kind === "issue") {
+        syncIssueReport(values);
+      } else if (kind === "careers") {
+        syncCareers(values);
+      }
+    } catch (err) {
+      console.warn("Popup form sync error:", err);
+    }
     onSubmitted?.(values);
     setTimeout(() => {
       setPhase("done");

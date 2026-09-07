@@ -55,6 +55,7 @@ import { SIGNUP_URL } from "@/lib/site";
 import { lookupCn, normaliseCn, type CbamGood } from "@/lib/cbam-cn-codes";
 import { capLabel } from "./pricing-plans";
 import { PopupForm } from "./popup-form";
+import { syncCbamEngineLead } from "@/lib/sheet-sync";
 import { PixelIcon } from "./pixel-icon";
 import { BlurHeading, TagBadge } from "./ui";
 import { inputBase, inputOk, labelClass, SelectChevron } from "./form-fields";
@@ -530,7 +531,29 @@ export function CnCalculator() {
         kind="calculate"
         open={calcOpen}
         onClose={() => setCalcOpen(false)}
-        onSubmitted={setLead}
+        onSubmitted={(leadValues) => {
+          setLead(leadValues);
+          try {
+            syncCbamEngineLead({
+              name: leadValues.name || "",
+              email: leadValues.email || "",
+              phone: leadValues.phone || "",
+              company: leadValues.company || "",
+              role: leadValues.role || "",
+              cnCount: result.codes,
+              productsCount: result.products,
+              sitesCount: sites,
+              sectors: sectorNames,
+              recommendedPlan: tier.id,
+              cnCodes: rows
+                .map((r) => r.code.trim())
+                .filter(Boolean)
+                .join(", "),
+            });
+          } catch (err) {
+            console.warn("Failed to sync CBAM engine lead:", err);
+          }
+        }}
       />
 
       <PopupForm
