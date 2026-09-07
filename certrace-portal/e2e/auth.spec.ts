@@ -1,11 +1,9 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Authentication & Route Guarding", () => {
-  test.beforeEach(async ({ page }) => {
-    // Start with a clean local state
-    await page.addInitScript(() => {
-      window.localStorage.clear();
-    });
+  test.beforeEach(async ({ context }) => {
+    // Ensure clean state per test
+    await context.clearCookies();
   });
 
   test("1. Root redirect: unauthenticated user on / is redirected to /login", async ({ page }) => {
