@@ -42,7 +42,7 @@ const { saveSession, loadSession, accessToken } = await import("../api/session")
 const { login, register, requestPasswordReset, resetPassword, changePassword } = await import(
   "../api/auth"
 );
-const { resolveLink, saveLinkState, submitLink, createSmartLink } = await import("../api/links");
+const { resolveLink, saveLinkState, submitLink, createSmartLink, requestRevision } = await import("../api/links");
 const { listDeclarations, createDeclaration, removeDeclaration } = await import("../api/declarations");
 
 type Captured = { url: string; init: RequestInit };
@@ -293,6 +293,33 @@ test("minting a Smart Link posts to the declaration that owns it", async () => {
     month: "2026-03",
     expiresInDays: 60,
   });
+});
+
+test("a revision request is signed and names the token in the path, not the body", async () => {
+  reset();
+  const calls = stubServer(() => json({ token: "kJ8", status: "revision_requested" }));
+  saveSession({ accessToken: "tok", user: { id: "u1", email: "a@b.co", onboarded: true } });
+
+  const state = await requestRevision("decl-1", "kJ8", {
+    note: "Confirm actual vs default.",
+    unlocked: ["direct_emissions"],
+    unlockedDocs: ["mill_test_certificate"],
+  });
+
+  assert.equal(calls[0].url, "https://api.certrace.co/api/v1/declarations/decl-1/links/kJ8/revision");
+  assert.equal(calls[0].init.method, "POST");
+  /* The exporter half of the smartlink, unlike the supplier's three calls, is
+     an account action — it must carry the bearer or anyone holding a token
+     could reopen someone else's submission. */
+  assert.equal(headerOf(calls[0], "Authorization"), "Bearer tok");
+  assert.deepEqual(JSON.parse(String(calls[0].init.body)), {
+    note: "Confirm actual vs default.",
+    unlocked: ["direct_emissions"],
+    unlockedDocs: ["mill_test_certificate"],
+  });
+  /* The server answers with the whole state, same as submit and save, so the
+     caller can seed its cache instead of refetching what it just changed. */
+  assert.equal(state.status, "revision_requested");
 });
 
 test("hasCode narrows to the codes a screen cares about", () => {

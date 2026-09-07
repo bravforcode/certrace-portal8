@@ -11,6 +11,7 @@ import Link from "next/link";
 import { ArrowLeft, Building2, CalendarDays, ShieldCheck } from "lucide-react";
 import { cn, EnglishOnlyNotice, StatusDot } from "@/components/ui";
 import { CertraceLogo } from "@/components/logo";
+import { LanguageToggle } from "@/components/lang-toggle";
 import { monthNameLong } from "@/lib/workspace";
 import { useSupplier, type View, type SaveStatus } from "./context";
 import type { SubmissionStatus } from "@/lib/supplier-store";
@@ -113,6 +114,15 @@ export function SupplierShell({ children }: { children: React.ReactNode }) {
               <span className="block text-[11px] text-black/40">{req.selfSupplied ? t("Reporting as") : t("Requested by")}</span>
               <span className="block text-[12px] text-black/70">{req.exporterName}</span>
             </span>
+            {/* Last, and on every breakpoint. The supplier has no account and
+                so no saved preference — the page opened in whatever their
+                browser asked for, and this is the only way to say otherwise.
+                So it outranks the chips beside it for staying visible: those
+                repeat what the page says elsewhere, this exists nowhere else.
+                It sits at the end because the corner is where a language
+                control is looked for, and because everything to its left is
+                about the request rather than about reading it. */}
+            <LanguageToggle size="sm" />
           </div>
         </div>
 

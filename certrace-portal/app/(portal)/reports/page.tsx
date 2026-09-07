@@ -44,7 +44,8 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Download } from "lucide-react";
-import { Card, PageHeader, Stat, Eyebrow, Button } from "@/components/ui";
+import { Card, EmptyState, PageHeader, Stat, Eyebrow, Button } from "@/components/ui";
+import { ErrorState, LoadingState } from "@/components/query-state";
 import { toast } from "@/components/toast";
 import { useT } from "@/lib/i18n";
 import { StateChip } from "@/components/workspace/chrome";
@@ -64,7 +65,7 @@ type Row = {
 
 export default function ReportsPage() {
   const t = useT();
-  const { data: rows } = useQuery<Row[]>({
+  const { data: rows, isError, refetch } = useQuery<Row[]>({
     queryKey: ["workspaces", "reports"],
     staleTime: 0,
     queryFn: () => {
@@ -79,7 +80,10 @@ export default function ReportsPage() {
     },
   });
 
-  const all = rows ?? [];
+  if (isError) return <ErrorState onRetry={() => void refetch()} />;
+  if (!rows) return <LoadingState />;
+
+  const all = rows;
   const own = all.filter((r) => !r.trackedFor);
   const forPrecursors = all.filter((r) => r.trackedFor);
   const ready = all.filter((r) => r.readiness.overall === "complete").length;
@@ -115,7 +119,7 @@ export default function ReportsPage() {
         lead={t("Every product you track gets a report — your own, and any supplier's you have started tracking. Each is built from that product's months, so it always says what its workspace says today.")}
       />
 
-      {rows !== null && all.length > 0 && (
+      {all.length > 0 && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <Card className="p-5">
             <Stat value={all.length} label={t("Reports")} sub={t("one per product")} />
@@ -129,12 +133,11 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {rows === null ? null : all.length === 0 ? (
-        <Card className="p-6">
-          <p className="text-[13px] leading-relaxed text-black/45">
-            {t("No reports yet. Create a workspace for a product, or press Track report on a supplier in a chain, and it appears here.")}
-          </p>
-        </Card>
+      {all.length === 0 ? (
+        <EmptyState
+          title={t("No reports yet")}
+          body={t("Create a workspace for a product, or press Track report on a supplier in a chain, and it appears here.")}
+        />
       ) : (
         <>
           <Group

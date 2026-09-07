@@ -5,9 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, ArrowLeft, MailCheck, X } from "lucide-react";
 import { Button, Field, inputClass, Card, Eyebrow } from "@/components/ui";
-import { AuthLayout } from "@/components/auth-panel";
+import { AuthLayout, AuthUnavailable } from "@/components/auth-panel";
 import { EnglishOnly, storedLang, useT } from "@/lib/i18n";
-import { apiConfigured, isApiError, requestPasswordReset } from "@/lib/api";
+import { authUnavailable, demoModeEnabled, isApiError, requestPasswordReset } from "@/lib/api";
 import { EMAIL_RE, rememberResetEmail } from "@/lib/password-reset";
 
 // English-only, like /login and /register — see EnglishOnly in lib/i18n.tsx.
@@ -43,13 +43,18 @@ function ForgotPasswordScreen() {
   const address = email.trim();
   const canSubmit = EMAIL_RE.test(address);
 
+  /* Build-time truth, so it cannot cause a hydration mismatch. There are no
+     accounts on a build with no backend, so there is no password to reset. */
+  const unavailable = authUnavailable();
+
   const send = React.useCallback(async (): Promise<boolean> => {
     setError("");
 
-    /* No backend pointed at this build — the demo, and any laptop without
-       .env.local. Show the same screen it has always shown rather than an
-       error about a URL nobody has set. See apiConfigured() in lib/api. */
-    if (!apiConfigured()) {
+    /* `next dev`, or a build that asked for the demo by name. Show the same
+       screen it has always shown rather than an error about a URL nobody has
+       set. A production build with no backend never renders this form — see
+       demoModeEnabled() in lib/api. */
+    if (demoModeEnabled()) {
       await new Promise((resolve) => window.setTimeout(resolve, 700));
       return true;
     }
@@ -107,6 +112,13 @@ function ForgotPasswordScreen() {
       </h2>
       <p className="mt-2 text-sm text-black/45">{t("Enter the email on your account and we'll send a code to reset it.")}</p>
 
+      {/* Nothing can send that email, and a form that silently succeeds
+          leaves someone waiting on a code that was never generated. */}
+      {unavailable && (
+        <AuthUnavailable lead={t("Accounts aren't open on this deployment yet — there's no password to reset.")} />
+      )}
+
+      {!unavailable && (
       <form onSubmit={submit} className="mt-7 space-y-4">
         <Field label={t("Work email")}>
           <input
@@ -125,13 +137,16 @@ function ForgotPasswordScreen() {
           {!loading && <ArrowRight size={15} strokeWidth={1.5} />}
         </Button>
       </form>
+      )}
 
-      <p className="mt-6 text-center text-[13px] text-black/45">
-        {t("Already have a code?")}{" "}
-        <Link href="/reset-password" className="text-black/70 underline-offset-2 hover:text-black hover:underline">
-          {t("Enter it here")}
-        </Link>
-      </p>
+      {!unavailable && (
+        <p className="mt-6 text-center text-[13px] text-black/45">
+          {t("Already have a code?")}{" "}
+          <Link href="/reset-password" className="text-black/70 underline-offset-2 hover:text-black hover:underline">
+            {t("Enter it here")}
+          </Link>
+        </p>
+      )}
 
       {sent && (
         <SentModal

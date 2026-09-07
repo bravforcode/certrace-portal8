@@ -24,6 +24,7 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { ArrowRight, Building2, Calendar, ChevronLeft, ChevronRight, Factory, Plus, Search, TriangleAlert } from "lucide-react";
 import { Card, FilterChip, PageHeader, Button, Stat, inputClass, cn } from "@/components/ui";
+import { ErrorState, LoadingState } from "@/components/query-state";
 import { SupplierModal } from "@/components/workspace/supplier-form";
 import { LinkStatusChip, ValueTypeBadge } from "@/components/precursor/status-chips";
 import { listSupplierRows } from "@/lib/supplier-directory";
@@ -72,8 +73,8 @@ export default function SuppliersPage() {
   /* Page-shaped rows, but cached under the ["suppliers"] prefix so a
      directory add or workspace change elsewhere refetches them — the job the
      old reload() callback did by hand, minus the hand. */
-  const { data: rows } = useQuery({ queryKey: ["suppliers", "overview"], queryFn: build, staleTime: 0 });
-  const { data: precursorRows } = useQuery({
+  const { data: rows, isError: rowsError, refetch: refetchRows } = useQuery({ queryKey: ["suppliers", "overview"], queryFn: build, staleTime: 0 });
+  const { data: precursorRows, isError: precursorError, refetch: refetchPrecursor } = useQuery({
     queryKey: ["suppliers", "precursor"],
     queryFn: buildPrecursorRows,
     staleTime: 0,
@@ -88,6 +89,11 @@ export default function SuppliersPage() {
   const filtered = all.filter((r) => r.supplier.name.toLowerCase().includes(query.trim().toLowerCase()));
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   React.useEffect(() => setPage(1), [query]);
+
+  if (rowsError || precursorError)
+    return <ErrorState onRetry={() => { void refetchRows(); void refetchPrecursor(); }} />;
+  if (!rows || !precursorRows) return <LoadingState />;
+
   const safePage = Math.min(page, pageCount);
   const pageRows = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 

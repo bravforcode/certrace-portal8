@@ -187,7 +187,14 @@ export function useNotificationRead() {
   const markRead = React.useCallback((ids: string[]) => {
     setReadIds((prev) => {
       const next = Array.from(new Set([...prev, ...ids]));
-      window.localStorage.setItem(READ_KEY, JSON.stringify(next));
+      // Guarded: setItem throws in private mode, and this runs inside a state
+      // updater (render-phase) with no error boundary above the shell — an
+      // uncaught throw here white-screens every authenticated page.
+      try {
+        window.localStorage.setItem(READ_KEY, JSON.stringify(next));
+      } catch {
+        /* best-effort: unread badge just won't persist across reloads */
+      }
       return next;
     });
   }, []);

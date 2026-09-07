@@ -36,6 +36,7 @@ import * as React from "react";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, Building2, Download, FileText, Mail, Pencil, Phone, Plus } from "lucide-react";
 import { Card, Button, Eyebrow, Stat, StatusDot, cn } from "@/components/ui";
+import { ErrorState, LoadingState } from "@/components/query-state";
 import { toast } from "@/components/toast";
 import { InstallationModal } from "@/components/workspace/installation-form";
 import { SupplierModal } from "@/components/workspace/supplier-form";
@@ -94,9 +95,9 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
   const t = useT();
   const { id } = React.use(params);
 
-  const { data: supplier } = useSupplierCompany(id);
-  const { data: plantsData } = useInstallationsForSupplier(supplier?.id);
-  const { data: workspaces } = useWorkspaces();
+  const { data: supplier, isError: supplierError, refetch: refetchSupplier } = useSupplierCompany(id);
+  const { data: plantsData, isError: plantsError, refetch: refetchPlants } = useInstallationsForSupplier(supplier?.id);
+  const { data: workspaces, isError: workspacesError, refetch: refetchWorkspaces } = useWorkspaces();
   const invalidateSupplierCompanies = useInvalidateSupplierCompanies();
   const invalidateInstallations = useInvalidateInstallations();
 
@@ -109,8 +110,11 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
     [supplier, workspaces],
   );
 
+  if (supplierError || plantsError || workspacesError)
+    return <ErrorState onRetry={() => { void refetchSupplier(); void refetchPlants(); void refetchWorkspaces(); }} />;
+
   // undefined = still resolving (the old `resolved` flag); null = not found.
-  if (supplier === undefined) return null;
+  if (supplier === undefined) return <LoadingState />;
 
   if (!supplier) {
     return (
@@ -130,7 +134,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
   }
 
   // Same atomic first paint as the old reload(): nothing until every store answered.
-  if (plantsData === undefined || workspaces === undefined) return null;
+  if (plantsData === undefined || workspaces === undefined) return <LoadingState />;
   const plants = plantsData;
 
   const monthsSent = goods.reduce((a, g) => a + g.months.length, 0);

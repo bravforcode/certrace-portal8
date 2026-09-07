@@ -120,6 +120,16 @@ export const TH: Record<string, string> = {
   "a supplier": "ซัพพลายเออร์",
   "No reports yet. Create a workspace for a product, or press Track report on a supplier in a chain, and it appears here.":
     "ยังไม่มีรายงาน สร้างพื้นที่ทำงานให้สินค้า หรือกด Track report ที่ซัพพลายเออร์ในห่วงโซ่ แล้วรายงานจะปรากฏที่นี่",
+  "No reports yet": "ยังไม่มีรายงาน",
+  "Create a workspace for a product, or press Track report on a supplier in a chain, and it appears here.":
+    "สร้างพื้นที่ทำงานให้สินค้า หรือกด Track report ที่ซัพพลายเออร์ในห่วงโซ่ แล้วรายงานจะปรากฏที่นี่",
+  "That didn't save.": "บันทึกไม่สำเร็จ",
+  "Check your connection and try again — nothing was lost on your side.":
+    "ตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง — ข้อมูลฝั่งคุณไม่ได้สูญหาย",
+  "Loading…": "กำลังโหลด…",
+  "We couldn't reach the server.": "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้",
+  "Check your connection and try again.": "ตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง",
+  "Try again": "ลองอีกครั้ง",
   "Blocked — one of the tabs has a figure that cannot be worked out yet.":
     "ติดขัด — มีแท็บหนึ่งที่ยังคำนวณตัวเลขไม่ได้",
   "Ready. Downloads clean.": "พร้อมแล้ว ดาวน์โหลดได้โดยไม่มีตราประทับ DRAFT",

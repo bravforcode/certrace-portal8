@@ -56,9 +56,7 @@ def upgrade() -> None:
     # occasion), and that index serves this lookup by prefix -- so there is
     # deliberately no second index here.
 
-    op.execute(
-        "alter table public.notification_deliveries enable row level security"
-    )
+    op.execute("alter table public.notification_deliveries enable row level security")
 
 
 def downgrade() -> None:

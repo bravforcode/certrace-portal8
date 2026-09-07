@@ -521,7 +521,10 @@ def test_submissions_shows_the_exporter_who_answered() -> None:
 
     # The dashboard's next poll sees d1 flip to submitted with its score; d2 has
     # not moved.
-    rows = {r["supplierId"]: r for r in client.get(endpoint, headers=headers).json()["submissions"]}
+    rows = {
+        r["supplierId"]: r
+        for r in client.get(endpoint, headers=headers).json()["submissions"]
+    }
     assert rows["d1"]["status"] == "submitted"
     assert rows["d1"]["token"] == d1_token
     assert rows["d1"]["version"] == 1
@@ -617,7 +620,11 @@ def test_revision_reopens_the_loop_the_supplier_reads() -> None:
 
     revised = client.post(
         f"/api/v1/declarations/{declaration_id}/links/{token}/revision",
-        json={"note": "Re-check the coil tonnage.", "unlocked": ["hrc.qty"], "unlockedDocs": ["mill-cert"]},
+        json={
+            "note": "Re-check the coil tonnage.",
+            "unlocked": ["hrc.qty"],
+            "unlockedDocs": ["mill-cert"],
+        },
         headers=headers,
     )
     assert revised.status_code == 200, revised.text

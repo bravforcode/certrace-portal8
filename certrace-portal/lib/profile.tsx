@@ -102,7 +102,13 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
   const update = React.useCallback((patch: Partial<Profile>) => {
     setProfile((prev) => {
       const next = { ...prev, ...patch };
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      // Guarded: setItem throws in private mode, and this runs inside a state
+      // updater (render-phase) — an uncaught throw white-screens the page.
+      try {
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        /* best-effort: profile edit stays in-memory this session */
+      }
       return next;
     });
   }, []);

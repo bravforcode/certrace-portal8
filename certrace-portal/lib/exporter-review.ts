@@ -29,7 +29,7 @@ import { type Declaration, type SupplierRow, getDeclaration } from "./data";
 import { getOrgIdentity } from "./org";
 import {
   makeToken,
-  resolveRequest,
+  buildRequestFrom,
   valueKey,
   type SupplierRequest,
   type RequestDocAsk,
@@ -162,7 +162,18 @@ export function loadExporterState(declId: string): ExporterDeclState {
   try {
     const raw = window.localStorage.getItem(keyFor(declId));
     if (!raw) return empty;
-    return { ...empty, ...(JSON.parse(raw) as ExporterDeclState), declId };
+    // Deep-default the nested objects: a shallow spread lets a partial/legacy
+    // persisted blob drop `dispatch.acknowledgedAt` or a `recipients` key, and
+    // the component then does `acknowledgedAt[k]` / `Object.entries(...)` on
+    // undefined. Merge each nested default under the stored value.
+    const stored = JSON.parse(raw) as Partial<ExporterDeclState>;
+    return {
+      ...empty,
+      ...stored,
+      declId,
+      recipients: { ...empty.recipients, ...stored.recipients },
+      dispatch: { ...empty.dispatch, ...stored.dispatch },
+    };
   } catch {
     return empty;
   }
@@ -373,7 +384,10 @@ export function resolveSubmission(
   fullState?: Map<string, SupplierState>,
 ): ReviewSubmission {
   const token = makeToken(decl.id, row.id);
-  const request = resolveRequest(token)!;
+  // Built from the decl in hand, not re-looked-up from fixtures: a server-backed
+  // declaration is not in getDeclaration()'s bundled set, and the old
+  // resolveRequest(token)! returned null for it, crashing here on mount.
+  const request = buildRequestFrom(token, decl, row);
   // Server answers win when we have them (cross-browser review); otherwise the
   // local copy, exactly as before.
   const ss = fullState?.get(row.id) ?? loadState(token);
@@ -653,6 +667,35 @@ export function approveAllSubmissions(declId: string): ExporterDeclState {
 /** Step 7/8 — the handoff. Records the exporter's decision AND writes the
     revision into the supplier's own store so the smartlink reopens exactly the
     requested fields/documents (everything else stays locked). */
+/** The EXPORTER's half of a revision request: their own record of the decision
+    — lifecycle, comment, which items they reopened — under
+    `certrace:exporter:<declId>`. Nothing in docs/API-CONTRACT.md carries the
+    exporter's review state, so this half stays local in both modes.
+
+    Split out from requestRevision below because the SUPPLIER's half does not:
+    when a backend is wired up the supplier's state lives on the server, and
+    writing it here would reopen the link in this browser only — see
+    useRequestRevision in lib/links-query.ts. */
+export function recordRevisionDecision(
+  declId: string,
+  supplierId: string,
+  version: number,
+  payload: { fields: string[]; docs: string[]; comment: string },
+): ExporterDeclState {
+  return mutateReview(declId, supplierId, (r) => ({
+    ...r,
+    decision: "changes_requested",
+    decidedVersion: version,
+    decidedAt: Date.now(),
+    comment: payload.comment,
+    unlockedFields: payload.fields,
+    unlockedDocs: payload.docs,
+  }));
+}
+
+/** Demo path (no backend): write BOTH halves locally. The supplier's store is
+    in this same browser, so unlocking the fields here is what the smartlink
+    reads back. */
 export function requestRevision(
   declId: string,
   supplierId: string,
@@ -667,15 +710,7 @@ export function requestRevision(
     `${exporterIdentity().contact} requested a revision on ${payload.fields.length} field${payload.fields.length === 1 ? "" : "s"}${payload.docs.length ? ` and ${payload.docs.length} document${payload.docs.length === 1 ? "" : "s"}` : ""} — "${payload.comment}"`,
   );
   saveState(next);
-  return mutateReview(declId, supplierId, (r) => ({
-    ...r,
-    decision: "changes_requested",
-    decidedVersion: version,
-    decidedAt: Date.now(),
-    comment: payload.comment,
-    unlockedFields: payload.fields,
-    unlockedDocs: payload.docs,
-  }));
+  return recordRevisionDecision(declId, supplierId, version, payload);
 }
 
 export function markSummaryGenerated(declId: string): ExporterDeclState {

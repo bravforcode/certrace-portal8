@@ -43,6 +43,7 @@ import * as React from "react";
 import Link from "next/link";
 import { Plus, ShieldCheck, User, Crown, UserPlus, X } from "lucide-react";
 import { Card, PageHeader, Button, Chip, StatusLabel, Eyebrow, Stat, Tone } from "@/components/ui";
+import { ErrorState, LoadingState } from "@/components/query-state";
 import { AddMemberModal } from "@/components/add-member-modal";
 import { toast } from "@/components/toast";
 import { SEATS, Seat, SeatRole } from "@/lib/data";
@@ -105,6 +106,9 @@ export default function TeamPage() {
      be answering for the boot-time one. */
   const { plan } = useAccount();
   const cap = seatCap(used);
+
+  if (team.isError) return <ErrorState onRetry={() => void team.refetch()} />;
+  if (team.data === undefined) return <LoadingState />;
 
   const removeSeat = (s: Seat) => {
     if (armed !== s.id) {

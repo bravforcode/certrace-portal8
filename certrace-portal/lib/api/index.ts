@@ -17,7 +17,7 @@
 
 export { ApiError, isApiError, hasCode, isDeadLink, DEAD_LINK_CODES, TRANSPORT_CODES } from "./errors";
 
-export { configureApi, apiBaseUrl, apiConfigured, apiTimeoutMs } from "./config";
+export { configureApi, apiBaseUrl, apiConfigured, apiTimeoutMs, demoModeEnabled, authUnavailable } from "./config";
 export type { ApiConfig } from "./config";
 
 export { request } from "./http";

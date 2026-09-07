@@ -4,9 +4,9 @@ import * as React from "react";
 import Link from "next/link";
 import { ArrowRight, ArrowLeft, ShieldCheck } from "lucide-react";
 import { Button, ButtonLink, Field, inputClass, Eyebrow } from "@/components/ui";
-import { AuthLayout, PasswordStrength } from "@/components/auth-panel";
+import { AuthLayout, PasswordStrength, AuthUnavailable } from "@/components/auth-panel";
 import { EnglishOnly, storedLang, useT } from "@/lib/i18n";
-import { apiConfigured, hasCode, isApiError, resetPassword } from "@/lib/api";
+import { authUnavailable, demoModeEnabled, hasCode, isApiError, resetPassword } from "@/lib/api";
 import { CODE_RE, EMAIL_RE, forgetResetEmail, recallResetEmail } from "@/lib/password-reset";
 
 // English-only, like the rest of the auth screens — see lib/i18n.tsx.
@@ -53,15 +53,20 @@ function ResetPasswordScreen() {
   const canSubmit =
     EMAIL_RE.test(address) && CODE_RE.test(code) && password.length >= 8 && confirm === password;
 
+  /* Build-time truth, so it cannot cause a hydration mismatch. No backend
+     issued the code being typed here, and nothing could accept it. */
+  const unavailable = authUnavailable();
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit || loading) return;
     setLoading(true);
     setError("");
 
-    /* No backend on this build — same simulated path /forgot-password takes,
-       so the demo walks end to end. See apiConfigured() in lib/api. */
-    if (!apiConfigured()) {
+    /* `next dev`, or a build that asked for the demo by name — same simulated
+       path /forgot-password takes, so the demo walks end to end. A production
+       build with no backend never renders this form. See demoModeEnabled(). */
+    if (demoModeEnabled()) {
       await new Promise((resolve) => window.setTimeout(resolve, 700));
       setLoading(false);
       finish();
@@ -115,6 +120,11 @@ function ResetPasswordScreen() {
         {t("Type the six-digit code from the email, then choose a new password.")}
       </p>
 
+      {unavailable && (
+        <AuthUnavailable lead={t("Accounts aren't open on this deployment yet — there's no code to verify.")} />
+      )}
+
+      {!unavailable && (
       <form onSubmit={submit} className="mt-7 space-y-4">
         <Field label={t("Work email")}>
           <input
@@ -181,13 +191,16 @@ function ResetPasswordScreen() {
           {!loading && <ArrowRight size={15} strokeWidth={1.5} />}
         </Button>
       </form>
+      )}
 
-      <p className="mt-6 text-center text-[13px] text-black/45">
-        {t("Code expired or never arrived?")}{" "}
-        <Link href="/forgot-password" className="text-black/70 underline-offset-2 hover:text-black hover:underline">
-          {t("Send a new one")}
-        </Link>
-      </p>
+      {!unavailable && (
+        <p className="mt-6 text-center text-[13px] text-black/45">
+          {t("Code expired or never arrived?")}{" "}
+          <Link href="/forgot-password" className="text-black/70 underline-offset-2 hover:text-black hover:underline">
+            {t("Send a new one")}
+          </Link>
+        </p>
+      )}
     </AuthLayout>
   );
 }
