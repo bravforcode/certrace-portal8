@@ -1,11 +1,12 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Full End-to-End Journey: certrace.co -> Portal -> Supplier Intake", () => {
-  test("should start from certrace.co landing page, navigate into portal, complete onboarding, and open supplier portal", async ({ page, context }) => {
-    // 1. Intercept cross-origin link to app.certrace.dev and redirect to local portal (localhost:3000)
+  test("should start from certrace.co landing page, navigate into portal, complete onboarding, and open supplier portal", async ({ page, context, baseURL }) => {
+    const portalBase = baseURL || "https://portal.certrace.co";
+    // 1. Intercept cross-origin link to app.certrace.dev and redirect to current portal
     await context.route("https://app.certrace.dev/**", async (route) => {
       const targetUrl = new URL(route.request().url());
-      const localUrl = `http://localhost:3000${targetUrl.pathname}${targetUrl.search}`;
+      const localUrl = `${portalBase}${targetUrl.pathname}${targetUrl.search}`;
       await route.fulfill({
         status: 302,
         headers: {
@@ -102,7 +103,7 @@ test.describe("Full End-to-End Journey: certrace.co -> Portal -> Supplier Intake
     await expect(page.locator("body")).toContainText(/Smart Links/i, { timeout: 15_000 });
 
     // 9. Open Supplier Portal intake link as an external supplier
-    const supplierLinkUrl = "http://localhost:3000/s/ZGVjLTAwMXxzMQ";
+    const supplierLinkUrl = `${portalBase}/s/ZGVjLTAwMXxzMQ`;
     await page.goto(supplierLinkUrl);
     await expect(page).toHaveURL(/\/s\/ZGVjLTAwMXxzMQ/);
     await expect(page.locator("body")).toContainText(/Certrace|Supplier/i);
