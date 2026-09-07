@@ -8,6 +8,7 @@
    client-side stores in this app (notification reads, cookie prefs). */
 
 import * as React from "react";
+import { demoModeEnabled, loadSession, onSessionChange, type AuthUser } from "./api";
 import { USER, ORG } from "./data";
 
 export type Profile = {
@@ -82,16 +83,26 @@ const ProfileContext = React.createContext<{
    *  SSR-hydration-safe) localStorage read finishes captures the hardcoded
    *  default forever, even after the real value loads a moment later. */
   loaded: boolean;
+  /** True when this browser actually has a saved profile, false while every
+   *  field is still DEFAULT_PROFILE — i.e. the demo fixture's identity.
+   *  Callers that show a person's name need the difference: a signed-in
+   *  exporter on a fresh browser has no saved profile yet, and the fixture
+   *  name must lose to the one on their session. */
+  stored: boolean;
 } | null>(null);
 
 export function ProfileProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = React.useState<Profile>(DEFAULT_PROFILE);
   const [loaded, setLoaded] = React.useState(false);
+  const [stored, setStored] = React.useState(false);
 
   React.useEffect(() => {
     try {
       const saved = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "null");
-      if (saved) setProfile((p) => ({ ...p, ...saved }));
+      if (saved) {
+        setProfile((p) => ({ ...p, ...saved }));
+        setStored(true);
+      }
     } catch {
       /* ignore malformed local state */
     } finally {
@@ -111,9 +122,14 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
       }
       return next;
     });
+    // A save is what makes this browser's profile real — see `stored`.
+    setStored(true);
   }, []);
 
-  const value = React.useMemo(() => ({ profile, update, loaded }), [profile, update, loaded]);
+  const value = React.useMemo(
+    () => ({ profile, update, loaded, stored }),
+    [profile, update, loaded, stored],
+  );
   return <ProfileContext.Provider value={value}>{children}</ProfileContext.Provider>;
 }
 
@@ -121,6 +137,44 @@ export function useProfile() {
   const ctx = React.useContext(ProfileContext);
   if (!ctx) throw new Error("useProfile must be used within a ProfileProvider");
   return ctx;
+}
+
+/** Who is actually signed in, straight from the session — or null before the
+ *  first effect runs, and for a signed-out reader.
+ *
+ *  Read in an effect, never during render: the session lives in localStorage,
+ *  which the server cannot see — the same hydration discipline RequireSession
+ *  and AccountProvider already follow. */
+export function useSessionUser(): AuthUser | null {
+  const [user, setUser] = React.useState<AuthUser | null>(null);
+
+  React.useEffect(() => {
+    const read = () => setUser(loadSession()?.user ?? null);
+    read();
+    return onSessionChange(read);
+  }, []);
+
+  return user;
+}
+
+/** The signed-in address — the session's, never the fixture's.
+ *
+ *  `USER.email` is demo furniture. On a build with a backend the real address
+ *  arrives with the session at sign-in, and it is the only one that should
+ *  ever appear in the chrome; a portal that shows a paying exporter someone
+ *  else's address is not a cosmetic bug, it is a reason to doubt whose data is
+ *  on the screen.
+ *
+ *  Empty until it is known, so the first paint shows nothing rather than
+ *  flashing a stranger's address, and callers render the row only when there
+ *  is something true to put in it. */
+export function useAccountEmail(): string {
+  const user = useSessionUser();
+  // No session and no backend = the local demo, where the fixture IS the
+  // account. No session WITH a backend means signed out; show nothing.
+  const [demo, setDemo] = React.useState(false);
+  React.useEffect(() => setDemo(demoModeEnabled()), []);
+  return user?.email ?? (demo ? USER.email : "");
 }
 
 /** first.first-3-letters-of-last, e.g. "Wasawat" + "Kiakittiwong" -> "wasawat.kia" */

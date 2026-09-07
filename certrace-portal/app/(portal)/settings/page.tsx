@@ -26,7 +26,7 @@ import { Card, PageHeader, Eyebrow, Field, inputClass, Chip, Button, Switch, Sav
 import { Select, Portal } from "@/components/controls";
 import { USER } from "@/lib/data";
 import { PRODUCT_SECTORS } from "@/lib/config";
-import { useProfile, generateUsername } from "@/lib/profile";
+import { useAccountEmail, useProfile, generateUsername } from "@/lib/profile";
 import { type PrefKey, PREF_KEY, saveNotificationPrefs } from "@/lib/notification-prefs";
 import { JOB_TITLES, JOB_TITLE_OPTIONS } from "@/lib/job-titles";
 import { useT } from "@/lib/i18n";
@@ -420,6 +420,7 @@ function OwnInstallationCard() {
 function ProfileTab() {
   const t = useT();
   const { profile, update, loaded } = useProfile();
+  const accountEmail = useAccountEmail();
   const [firstName, setFirstName] = React.useState(profile.firstName);
   const [lastName, setLastName] = React.useState(profile.lastName);
   const isPreset = JOB_TITLES.includes(profile.jobTitle);
@@ -544,7 +545,7 @@ function ProfileTab() {
             <Mail size={15} strokeWidth={1.5} />
           </span>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[13px] text-black/75">{USER.email}</div>
+            <div className="truncate text-[13px] text-black/75">{accountEmail || "—"}</div>
             <div className="text-[11px] text-black/35">{t("Primary — used to sign in and receive alerts.")}</div>
           </div>
         </div>
