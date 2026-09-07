@@ -49,7 +49,7 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       { url: "/brand/favicon-32.png", type: "image/png", sizes: "32x32" },
-      { url: "/brand/certrace-icon-ink.svg", type: "image/svg+xml" },
+      { url: "/brand/favicon.svg", type: "image/svg+xml" },
     ],
   },
 };
