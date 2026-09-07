@@ -86,6 +86,7 @@ import { PrecursorRiskWidget, type PrecursorRiskRow } from "@/components/dashboa
 import { ActivityFeed } from "@/components/dashboard/activity-feed";
 import { YearAtAGlance, YearAtAGlanceSkeleton, type GlanceStats } from "@/components/dashboard/year-at-a-glance";
 import { RequestBoard, type RequestBoardStats } from "@/components/dashboard/request-board";
+import { useProfile, useSessionUser } from "@/lib/profile";
 
 type DashboardData = {
   workspaces: VerificationWorkspace[];
@@ -184,6 +185,18 @@ function build(): DashboardData {
 
 export default function DashboardPage() {
   const t = useT();
+  /* The greeting is the first line a signed-in exporter reads; USER.name is a
+     fixture, and greeting someone by a stranger's name undermines every
+     number under it. Profile first — it is what Settings edits. Then the
+     session, which is all a fresh browser has before the local profile is
+     written. The fixture is last, and only the demo ever reaches it. */
+  const { profile, stored } = useProfile();
+  const sessionUser = useSessionUser();
+  const firstName =
+    (stored ? profile.firstName.trim() : "") ||
+    sessionUser?.firstName?.trim() ||
+    profile.firstName.trim() ||
+    USER.name.split(" ")[0];
   const { data: queried, isError, refetch } = useQuery({ queryKey: ["workspaces", "dashboard"], queryFn: build, staleTime: 0 });
   const data = queried ?? null;
   const year = new Date().getFullYear();
@@ -194,7 +207,7 @@ export default function DashboardPage() {
     <div className="space-y-8">
       <PageHeader
         eyebrow={t("Overview")}
-        title={t("Good afternoon, {name}.", { name: USER.name.split(" ")[0] })}
+        title={t("Good afternoon, {name}.", { name: firstName })}
         lead={t("Everything that needs you, what it is worth avoiding, and where every product stands.")}
         actions={
           <Link href="/workspaces/new">

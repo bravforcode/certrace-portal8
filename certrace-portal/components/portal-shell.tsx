@@ -33,11 +33,11 @@ import { SupplyChainNav, workspaceIdFromPath } from "./workspace/supply-chain-na
 import { Dropdown } from "./controls";
 import { CertraceLogo } from "./logo";
 import { Toaster } from "./toast";
-import { USER, NOTIFICATIONS, type Notice } from "@/lib/data";
+import { NOTIFICATIONS, type Notice } from "@/lib/data";
 import { logout } from "@/lib/api";
 import { LANGUAGES, useLanguage, useT } from "@/lib/i18n";
 import { FEATURE_REQUEST_URL, GUIDE_VIDEO_URL, SOCIAL_LINE_URL } from "@/lib/links";
-import { useProfile } from "@/lib/profile";
+import { useAccountEmail, useProfile, useSessionUser } from "@/lib/profile";
 import { seatCap } from "@/lib/plan";
 import { useAccount } from "./account-lock";
 
@@ -274,8 +274,16 @@ function AccountMenu() {
   const router = useRouter();
   const { t } = useLanguage();
   const { lang, setLang } = useLanguage();
-  const { profile } = useProfile();
-  const fullName = `${profile.firstName} ${profile.lastName}`.trim();
+  const { profile, stored } = useProfile();
+  const sessionUser = useSessionUser();
+  /* A SAVED profile wins — Settings edits it, and a rename there has to show
+     up here. Without one, the session's name is the truth: a fresh sign-in on
+     a second machine has no local profile yet, and the unsaved default is the
+     demo fixture's name, which is nobody. */
+  const savedName = stored ? `${profile.firstName} ${profile.lastName}`.trim() : "";
+  const sessionName = `${sessionUser?.firstName ?? ""} ${sessionUser?.lastName ?? ""}`.trim();
+  const fullName = savedName || sessionName || `${profile.firstName} ${profile.lastName}`.trim();
+  const accountEmail = useAccountEmail();
   const [signingOut, setSigningOut] = React.useState(false);
 
   const signOut = () => {
@@ -305,7 +313,7 @@ function AccountMenu() {
         <>
           <div className="border-b border-black/[0.06] px-3 py-3">
             <div className="text-[13px] text-black/80">{fullName}</div>
-            <div className="mt-0.5 truncate text-[11px] text-black/40">{USER.email}</div>
+            {accountEmail && <div className="mt-0.5 truncate text-[11px] text-black/40">{accountEmail}</div>}
           </div>
           <div className="py-1">
             <Link href="/settings?tab=organisation" onClick={close} className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] text-black/70 hover:bg-[#fafaf8]">
