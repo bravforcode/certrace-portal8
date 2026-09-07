@@ -259,8 +259,9 @@ function initialStatus_(sheetName, data) {
   if (data.hasOwnProperty('Status') && data.Status) {
     return data.Status;
   }
+  var sLower = String(sheetName || '').trim().toLowerCase();
   // 'Book a Demo' uses dropdown: Confirming, confirmed, Session Done and move to , Cancle
-  if (sheetName === 'Book a Demo') {
+  if (sLower.indexOf('demo') !== -1 || sLower === '') {
     return 'Confirming';
   }
   return 'New';
@@ -285,11 +286,21 @@ function append_(sheet, header, data, sheetName) {
   try {
     sheet.getRange(target, 1, 1, row.length).setValues([row]);
   } catch (err) {
-    // If strict data validation rejects the Status value, retry with empty string in Status
+    // If strict data validation rejects the Status value, retry with 'Confirming' or clear rule
     var statusIdx = header.indexOf('Status');
     if (statusIdx !== -1) {
-      row[statusIdx] = '';
-      sheet.getRange(target, 1, 1, row.length).setValues([row]);
+      try {
+        row[statusIdx] = 'Confirming';
+        sheet.getRange(target, 1, 1, row.length).setValues([row]);
+      } catch (err2) {
+        try {
+          var cell = sheet.getRange(target, statusIdx + 1);
+          cell.clearDataValidations();
+          sheet.getRange(target, 1, 1, row.length).setValues([row]);
+        } catch (err3) {
+          throw err;
+        }
+      }
     } else {
       throw err;
     }
@@ -355,11 +366,21 @@ function upsert_(sheet, header, data, sheetName) {
   try {
     sheet.getRange(match, 1, 1, merged.length).setValues([merged]);
   } catch (err) {
-    // If strict data validation rejects the Status value, retry with empty string in Status
+    // If strict data validation rejects the Status value, retry with 'Confirming' or clear rule
     var statusIdx = header.indexOf('Status');
-    if (statusIdx !== -1 && !data.hasOwnProperty('Status')) {
-      merged[statusIdx] = '';
-      sheet.getRange(match, 1, 1, merged.length).setValues([merged]);
+    if (statusIdx !== -1) {
+      try {
+        merged[statusIdx] = 'Confirming';
+        sheet.getRange(match, 1, 1, merged.length).setValues([merged]);
+      } catch (err2) {
+        try {
+          var cell = sheet.getRange(match, statusIdx + 1);
+          cell.clearDataValidations();
+          sheet.getRange(match, 1, 1, merged.length).setValues([merged]);
+        } catch (err3) {
+          throw err;
+        }
+      }
     } else {
       throw err;
     }

@@ -23,17 +23,30 @@
    several number lengths; anything not listed falls back to DEFAULT_LEN. */
 export const DEFAULT_LEN: [number, number] = [6, 14];
 
+/**
+ * Strips non-digits and removes duplicate country dial code prefix if typed/pasted
+ * into the national number input (e.g. "+66 81 234 5678" -> "812345678").
+ */
+export function cleanNationalDigits(phone: string, dial: string, maxLen?: number): string {
+  let digits = phone.replace(/\D/g, "");
+  const dialDigits = dial.replace(/\D/g, "");
+  if (dialDigits && digits.startsWith(dialDigits) && (!maxLen || digits.length > maxLen)) {
+    digits = digits.slice(dialDigits.length);
+  }
+  return digits;
+}
+
 export const DIAL_CODES: {
   iso: string;
   name: string;
   dial: string;
   len?: [number, number];
 }[] = [
-  { iso: "TH", name: "Thailand", dial: "+66", len: [8, 9] },
-  { iso: "AE", name: "United Arab Emirates", dial: "+971", len: [8, 9] },
+  { iso: "TH", name: "Thailand", dial: "+66", len: [8, 10] },
+  { iso: "AE", name: "United Arab Emirates", dial: "+971", len: [8, 10] },
   { iso: "AR", name: "Argentina", dial: "+54", len: [10, 11] },
   { iso: "AT", name: "Austria", dial: "+43", len: [10, 13] },
-  { iso: "AU", name: "Australia", dial: "+61", len: [9, 9] },
+  { iso: "AU", name: "Australia", dial: "+61", len: [9, 10] },
   { iso: "BD", name: "Bangladesh", dial: "+880", len: [10, 10] },
   { iso: "BE", name: "Belgium", dial: "+32", len: [8, 9] },
   { iso: "BG", name: "Bulgaria", dial: "+359", len: [8, 9] },
@@ -50,8 +63,8 @@ export const DIAL_CODES: {
   { iso: "EG", name: "Egypt", dial: "+20", len: [10, 10] },
   { iso: "ES", name: "Spain", dial: "+34", len: [9, 9] },
   { iso: "FI", name: "Finland", dial: "+358", len: [9, 10] },
-  { iso: "FR", name: "France", dial: "+33", len: [9, 9] },
-  { iso: "GB", name: "United Kingdom", dial: "+44", len: [10, 10] },
+  { iso: "FR", name: "France", dial: "+33", len: [9, 10] },
+  { iso: "GB", name: "United Kingdom", dial: "+44", len: [10, 11] },
   { iso: "GR", name: "Greece", dial: "+30", len: [10, 10] },
   { iso: "HK", name: "Hong Kong", dial: "+852", len: [8, 8] },
   { iso: "HR", name: "Croatia", dial: "+385", len: [8, 9] },
