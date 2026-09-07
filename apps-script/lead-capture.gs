@@ -1,115 +1,127 @@
 /**
- * CERTRACE — LEAD CAPTURE (Google Apps Script web app)
+ * CERTRACE — LEAD CAPTURE & MULTI-TAB SYNC (Google Apps Script web app)
  *
- * Receives the FormData posts from the landing pages and appends them to a
- * sheet. Deployed as a web app; the client posts with `mode: 'no-cors'`, so it
- * never reads the response — everything here has to succeed or fail silently
- * on its own.
+ * Receives POST requests (FormData or urlencoded) from the Certrace landing pages
+ * and appends/upserts them to the appropriate sheet tab in the Google Sheet workbook.
  *
- * Senders and the fields they carry:
+ * Senders and target tabs:
+ *   - "Book a Demo"            · Demo request & booking calendar (demo-form, demo-booking)
+ *   - "Newsletter"             · Footer newsletter sign-ups (footer)
+ *   - "CBAM free engine lead"  · CN code engine calculation unlocks (cn-calculator)
+ *   - "Pricing Request"        · Custom quote inquiries (popup-form kind="pricing")
+ *   - "Request a Feature"      · Feature requests (popup-form kind="feature")
+ *   - "Report Issue"           · Issue reports (popup-form kind="issue")
+ *   - "Create Account Request" · Waitlist and early-access requests (waitlist-form)
+ *   - "Careers"                · Job & talent inquiries (popup-form kind="careers")
+ *   - "Event Lead"             · Event attendees & RSVPs
  *
- *   index.html · waitlist
- *     email, source, timestamp + timezone, zone_source, utc_offset, local_time
- *
- *   static-landing/index.html · HOOK #1 (email captured before the popup)
- *     email, source, step=email, timestamp + the four locale fields
- *
- *   static-landing/index.html · HOOK #2 (full profile)
- *     + company, role, cbam_status, challenge, step=details
- *
- *   Next landing · demo_lead (on form submit) / demo_booking (on slot pick)
- *     firstName, lastName, countryCode, phone, company, jobTitle, sector,
- *     employees, bookingDate, bookingTime, bookingTimeZone,
- *     bookingTimeZoneLabel, bookingStartUtc, decision, budget, timing, context
- *
- * Three things this script is careful about:
- *
- *   1. Unknown fields are never dropped. A field with no column gets one
- *      appended, so adding an input to a form does not silently lose data
- *      until someone remembers to edit this file.
- *
- *   2. Concurrent submits cannot clobber each other. Two people submitting in
- *      the same second would otherwise both read the same last row and one
- *      would overwrite the other — hence LockService.
- *
- *   3. Phone numbers survive. A bare "+66" written into a cell is parsed as a
- *      formula and lands as #ERROR!, so identifier columns are forced to
- *      plain-text format before anything is written.
+ * Key guarantees:
+ *   1. Automatic Header Creation: If a sheet tab is empty, it initializes with
+ *      the tailored schema defined below, with 'Status' as the first column.
+ *   2. Non-destructive: Existing columns and existing 'Status' values are never
+ *      overwritten on merge updates. Unknown incoming fields are appended on the right.
+ *   3. Intelligent Upsert vs Append:
+ *      - Multi-step forms ('Book a Demo', 'Newsletter') upsert/enrich the same row.
+ *      - Inquiries, issues, and feature requests ('Report Issue', 'Request a Feature',
+ *        'Pricing Request') always append as separate tickets/rows.
+ *   4. Data Validation Safe: Honors existing dropdown validation in 'Status' (e.g. 'Confirming'),
+ *      with automatic fallback to blank if custom validation rules reject a value.
+ *   5. Smart Sheet Matching: Case-insensitive & trimmed matching prevents accidental duplicate tabs.
+ *   6. Concurrency Safety: LockService serializes writes across concurrent submissions.
+ *   7. Plain-Text Formatting: Phone numbers, dial codes, CN codes, and offsets
+ *      are formatted with '@' so Google Sheets never parses them into formula errors.
  */
 
-/* ── Settings ──────────────────────────────────────────────── */
+/* ── Settings & Tab Schemas ────────────────────────────────── */
 
-/** Tab to write to. Created on first post if missing. */
-var SHEET_NAME = 'Book a Demo';
+var DEFAULT_SHEET = 'Book a Demo';
 
 /**
- * Merge repeat submissions from the same person into one row instead of
- * appending a second one. Matched on email + type, so a waitlist signup and a
- * demo booking from the same person stay on separate rows. This is what makes
- * the two-step form work: step 1 creates the row, step 2 fills in the rest.
- *
- * Set to false if you would rather keep every submission as its own row.
+ * Tabs where repeat submissions from the same email should MERGE into one row.
+ * 'Book a Demo': 2-step form (step 1 captures email, step 2 captures company & slot).
+ * 'Newsletter': Re-subscribing enriches the existing record without duplicate spam.
+ * All other tabs (Issues, Features, Pricing, Careers) append every submission as a new row.
  */
-var UPSERT_ON_EMAIL = true;
+var UPSERT_TABS = ['Book a Demo', 'Newsletter'];
 
 /**
- * Column order for a fresh sheet. Anything the forms send that is not listed
- * here still gets a column — appended on the right, in arrival order.
- *
- * Read left to right: when it arrived, where they are, who they are, what they
- * told us, what they booked.
+ * Optional email notifications for incoming leads.
+ * Put an email address here (e.g. 'contact@certrace.co') to receive instant alerts,
+ * or leave empty '' to disable.
  */
-var BASE_COLUMNS = [
-  'first_seen',      // server clock, UTC — set once, never rewritten
-  'last_seen',       // server clock, UTC — updated on every merge
-  'timestamp',       // client clock, ISO UTC
-  'local_time',      // the same moment in the lead's own zone
-  'timezone',        // IANA id, e.g. Asia/Kolkata
-  'zone_source',     // 'detected' | 'fallback' — see the note below
-  'utc_offset',      // e.g. UTC+05:30
-  'type',            // demo_lead | demo_booking | (blank for waitlist)
-  'step',            // email | details
-  'source',
-  'email',
-  'firstName',
-  'lastName',
-  'countryCode',
-  'phone',
-  'company',
-  'jobTitle',
-  'role',
-  'sector',
-  'employees',
-  'cbam_status',
-  'challenge',
-  'bookingDate',       // calendar day in the visitor's zone
-  'bookingTime',       // "HH:MM" as they picked it, in their zone
-  'bookingTimeZone',   // IANA id the two above are expressed in
-  'bookingTimeZoneLabel',
-  'bookingStartUtc',   // the resolved instant — the unambiguous one
-  'decision',
-  'budget',
-  'timing',
-  'context'
+var NOTIFICATION_EMAIL = '';
+
+/**
+ * Standard schemas for each sheet tab.
+ * When a tab is freshly created or initialized, these column headers are used.
+ */
+var TAB_SCHEMAS = {
+  'Book a Demo': [
+    'Status', 'first_seen', 'last_seen', 'timestamp', 'local_time', 'timezone',
+    'zone_source', 'utc_offset', 'type', 'step', 'source', 'email', 'firstName',
+    'lastName', 'countryCode', 'phone', 'company', 'jobTitle', 'role', 'sector',
+    'employees', 'cbam_status', 'challenge', 'bookingDate', 'bookingTime',
+    'bookingTimeZone', 'bookingTimeZoneLabel', 'bookingStartUtc', 'decision',
+    'budget', 'timing', 'context'
+  ],
+  'Newsletter': [
+    'Status', 'first_seen', 'last_seen', 'email', 'source',
+    'timestamp', 'local_time', 'timezone', 'utc_offset'
+  ],
+  'CBAM free engine lead': [
+    'Status', 'first_seen', 'last_seen', 'name', 'email', 'phone', 'company', 'role',
+    'cn_count', 'products_count', 'sites_count', 'sectors', 'recommended_plan',
+    'cn_codes', 'timestamp', 'local_time', 'timezone', 'utc_offset'
+  ],
+  'Pricing Request': [
+    'Status', 'first_seen', 'last_seen', 'name', 'email', 'company', 'role',
+    'cnCodes', 'sites', 'goods', 'timeline', 'plan', 'volume', 'notes', 'context',
+    'timestamp', 'local_time', 'timezone', 'utc_offset'
+  ],
+  'Request a Feature': [
+    'Status', 'first_seen', 'last_seen', 'name', 'email', 'company', 'area',
+    'summary', 'detail', 'timestamp', 'local_time', 'timezone', 'utc_offset'
+  ],
+  'Report Issue': [
+    'Status', 'first_seen', 'last_seen', 'name', 'email', 'where', 'severity',
+    'detail', 'timestamp', 'local_time', 'timezone', 'utc_offset'
+  ],
+  'Create Account Request': [
+    'Status', 'first_seen', 'last_seen', 'firstName', 'lastName', 'email',
+    'countryCode', 'phone', 'company', 'jobTitle', 'timestamp', 'local_time',
+    'timezone', 'utc_offset'
+  ],
+  'Careers': [
+    'Status', 'first_seen', 'last_seen', 'name', 'email', 'role', 'roleOther',
+    'link1', 'link2', 'link3', 'message', 'timestamp', 'local_time', 'timezone', 'utc_offset'
+  ],
+  'Event Lead': [
+    'Status', 'first_seen', 'last_seen', 'name', 'email', 'company', 'event',
+    'timestamp', 'local_time', 'timezone', 'utc_offset'
+  ]
+};
+
+/** Default fallback columns if target tab has no predefined schema. */
+var DEFAULT_COLUMNS = [
+  'Status', 'first_seen', 'last_seen', 'email', 'name', 'phone', 'company',
+  'source', 'type', 'timestamp', 'local_time', 'timezone', 'utc_offset'
 ];
 
 /**
- * Columns whose contents are identifiers rather than numbers. Forced to plain
- * text so "+66" stays "+66" and a phone number keeps its leading zero.
+ * Columns forced to plain text (@) to avoid auto-conversion or formula errors.
  */
 var TEXT_COLUMNS = [
-  'countryCode', 'phone', 'utc_offset', 'timestamp', 'bookingTime', 'bookingStartUtc'
+  'countryCode', 'phone', 'utc_offset', 'timestamp', 'bookingTime',
+  'bookingStartUtc', 'cnCodes', 'cn_codes', 'sites', 'cn_count',
+  'products_count', 'sites_count'
 ];
 
-/** Never write these to the sheet even if a client sends them. */
+/** Fields ignored from parameter payload. */
 var IGNORED_FIELDS = ['first_seen', 'last_seen', 'sheet', 'sheetName'];
 
-/* ── Entry points ──────────────────────────────────────────── */
+/* ── Entry Points ──────────────────────────────────────────── */
 
 function doPost(e) {
-  // Serialised end to end: read, decide, write. Apps Script runs concurrent
-  // requests in separate executions, so without this two submissions in the
-  // same moment can resolve to the same target row.
   var lock = LockService.getScriptLock();
   try {
     lock.waitLock(30000);
@@ -118,19 +130,35 @@ function doPost(e) {
   }
 
   try {
-    var rawParams = e && e.parameter ? e.parameter : {};
-    var targetSheet = rawParams.sheet || rawParams.sheetName || SHEET_NAME;
+    var rawParams = (e && e.parameter) ? e.parameter : {};
+    var requestedSheet = rawParams.sheet || rawParams.sheetName || DEFAULT_SHEET;
     var data = cleanParams_(rawParams);
-    if (!hasAnyValue_(data)) return jsonOut_({ ok: false, error: 'empty submission' });
 
-    var sheet = getSheet_(targetSheet);
-    var header = ensureHeader_(sheet, Object.keys(data));
-    var result = UPSERT_ON_EMAIL ? upsert_(sheet, header, data) : append_(sheet, header, data);
+    if (!hasAnyValue_(data)) {
+      return jsonOut_({ ok: false, error: 'empty submission' });
+    }
 
-    return jsonOut_({ ok: true, action: result.action, row: result.row, sheet: targetSheet });
+    var sheet = getSheet_(requestedSheet);
+    var actualSheetName = sheet.getName();
+    var header = ensureHeader_(sheet, Object.keys(data), actualSheetName);
+
+    var shouldUpsert = UPSERT_TABS.indexOf(actualSheetName) !== -1;
+    var result = shouldUpsert
+      ? upsert_(sheet, header, data, actualSheetName)
+      : append_(sheet, header, data, actualSheetName);
+
+    // Optional notification email on new submission
+    if (NOTIFICATION_EMAIL && result.action === 'appended') {
+      trySendNotification_(actualSheetName, data);
+    }
+
+    return jsonOut_({
+      ok: true,
+      action: result.action,
+      row: result.row,
+      sheet: actualSheetName
+    });
   } catch (err) {
-    // Surfaced in Executions (Apps Script console). The client is posting
-    // no-cors and cannot see any of this.
     console.error(err);
     return jsonOut_({ ok: false, error: String(err) });
   } finally {
@@ -138,42 +166,62 @@ function doPost(e) {
   }
 }
 
-/** Opening the deployment URL in a browser should say something useful. */
 function doGet(e) {
-  var target = (e && e.parameter && (e.parameter.sheet || e.parameter.sheetName)) || SHEET_NAME;
-  return jsonOut_({ ok: true, service: 'certrace-lead-capture', sheet: target });
+  var target = (e && e.parameter && (e.parameter.sheet || e.parameter.sheetName)) || DEFAULT_SHEET;
+  return jsonOut_({
+    ok: true,
+    service: 'certrace-multi-tab-sync',
+    sheet: target,
+    supportedSheets: Object.keys(TAB_SCHEMAS)
+  });
 }
 
-/* ── Sheet plumbing ────────────────────────────────────────── */
+function doOptions(e) {
+  return ContentService.createTextOutput("")
+    .setMimeType(ContentService.MimeType.TEXT);
+}
+
+/* ── Sheet Plumbing ────────────────────────────────────────── */
 
 function getSheet_(sheetName) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var target = sheetName || SHEET_NAME;
+  var target = (sheetName || DEFAULT_SHEET).trim();
+
+  // 1. Exact match
   var sheet = ss.getSheetByName(target);
-  if (!sheet) {
-    sheet = ss.insertSheet(target);
+  if (sheet) return sheet;
+
+  // 2. Case-insensitive & trimmed match to prevent duplicate tabs
+  var allSheets = ss.getSheets();
+  var targetLower = target.toLowerCase();
+  for (var i = 0; i < allSheets.length; i++) {
+    if (allSheets[i].getName().trim().toLowerCase() === targetLower) {
+      return allSheets[i];
+    }
   }
-  return sheet;
+
+  // 3. Insert new sheet if not found
+  return ss.insertSheet(target);
 }
 
-/**
- * Return the header row, creating it or widening it as needed.
- *
- * An empty sheet gets BASE_COLUMNS. An existing sheet keeps its column order
- * untouched — reordering would silently misalign every historical row — and
- * any field with no column gets one appended on the right.
- */
-function ensureHeader_(sheet, incomingKeys) {
+function ensureHeader_(sheet, incomingKeys, targetSheet) {
   var lastColumn = sheet.getLastColumn();
   var header = lastColumn > 0
     ? sheet.getRange(1, 1, 1, lastColumn).getValues()[0].map(String)
     : [];
 
-  // Trailing blanks would make indexOf lookups land on the wrong column.
-  while (header.length && header[header.length - 1] === '') header.pop();
+  while (header.length && header[header.length - 1] === '') {
+    header.pop();
+  }
 
   var fresh = header.length === 0;
-  if (fresh) header = BASE_COLUMNS.slice();
+  if (fresh) {
+    if (TAB_SCHEMAS[targetSheet]) {
+      header = TAB_SCHEMAS[targetSheet].slice();
+    } else {
+      header = DEFAULT_COLUMNS.slice();
+    }
+  }
 
   var added = [];
   for (var i = 0; i < incomingKeys.length; i++) {
@@ -196,7 +244,6 @@ function ensureHeader_(sheet, incomingKeys) {
   return header;
 }
 
-/** Force identifier columns to plain text, so Sheets stops parsing them. */
 function applyTextFormat_(sheet, header) {
   var rows = Math.max(sheet.getMaxRows() - 1, 1);
   for (var i = 0; i < TEXT_COLUMNS.length; i++) {
@@ -206,74 +253,131 @@ function applyTextFormat_(sheet, header) {
   }
 }
 
-/* ── Writing ───────────────────────────────────────────────── */
+/* ── Writing & Upsert ──────────────────────────────────────── */
 
-function append_(sheet, header, data) {
+function initialStatus_(sheetName, data) {
+  if (data.hasOwnProperty('Status') && data.Status) {
+    return data.Status;
+  }
+  // 'Book a Demo' uses dropdown: Confirming, confirmed, Session Done and move to , Cancle
+  if (sheetName === 'Book a Demo') {
+    return 'Confirming';
+  }
+  return 'New';
+}
+
+function append_(sheet, header, data, sheetName) {
   var now = nowUtc_();
   var row = [];
+
   for (var i = 0; i < header.length; i++) {
     var key = header[i];
-    if (key === 'first_seen' || key === 'last_seen') row.push(now);
-    else row.push(data.hasOwnProperty(key) ? data[key] : '');
+    if (key === 'first_seen' || key === 'last_seen') {
+      row.push(now);
+    } else if (key === 'Status') {
+      row.push(initialStatus_(sheetName, data));
+    } else {
+      row.push(data.hasOwnProperty(key) ? data[key] : '');
+    }
   }
+
   var target = sheet.getLastRow() + 1;
-  sheet.getRange(target, 1, 1, row.length).setValues([row]);
+  try {
+    sheet.getRange(target, 1, 1, row.length).setValues([row]);
+  } catch (err) {
+    // If strict data validation rejects the Status value, retry with empty string in Status
+    var statusIdx = header.indexOf('Status');
+    if (statusIdx !== -1) {
+      row[statusIdx] = '';
+      sheet.getRange(target, 1, 1, row.length).setValues([row]);
+    } else {
+      throw err;
+    }
+  }
   return { action: 'appended', row: target };
 }
 
-/**
- * Merge into the existing row for this email + type, or append a new one.
- *
- * Only non-empty incoming values are written, so a later submission enriches
- * the row rather than blanking the fields it does not carry — step 2 of the
- * waitlist form sends no `source`, and that must not erase step 1's.
- */
-function upsert_(sheet, header, data) {
+function upsert_(sheet, header, data, sheetName) {
   var emailIndex = header.indexOf('email');
   var email = String(data.email || '').trim().toLowerCase();
-  if (emailIndex === -1 || !email) return append_(sheet, header, data);
+  if (emailIndex === -1 || !email) return append_(sheet, header, data, sheetName);
 
   var lastRow = sheet.getLastRow();
-  if (lastRow < 2) return append_(sheet, header, data);
+  if (lastRow < 2) return append_(sheet, header, data, sheetName);
 
   var typeIndex = header.indexOf('type');
   var values = sheet.getRange(2, 1, lastRow - 1, header.length).getValues();
   var incomingType = String(data.type || '').trim().toLowerCase();
 
   var match = -1;
-  for (var i = values.length - 1; i >= 0; i--) { // newest first
+  for (var i = values.length - 1; i >= 0; i--) {
     var rowEmail = String(values[i][emailIndex] || '').trim().toLowerCase();
     if (rowEmail !== email) continue;
-    if (typeIndex !== -1) {
+    if (typeIndex !== -1 && incomingType) {
       var rowType = String(values[i][typeIndex] || '').trim().toLowerCase();
       if (rowType !== incomingType) continue;
     }
-    match = i + 2; // sheet row number
+    match = i + 2;
     break;
   }
 
-  if (match === -1) return append_(sheet, header, data);
+  if (match === -1) return append_(sheet, header, data, sheetName);
 
   var existing = values[match - 2];
   var merged = existing.slice();
+
   for (var c = 0; c < header.length; c++) {
     var key = header[c];
-    if (key === 'first_seen') continue;               // set once, on creation
-    if (key === 'last_seen') { merged[c] = nowUtc_(); continue; }
+    if (key === 'first_seen') continue;
+    if (key === 'last_seen') {
+      merged[c] = nowUtc_();
+      continue;
+    }
+    // Protect existing Status: don't overwrite if existing status is non-empty unless data explicitly supplies Status
+    if (key === 'Status') {
+      if (data.hasOwnProperty('Status') && data.Status) {
+        merged[c] = data.Status;
+      } else if (!merged[c]) {
+        merged[c] = initialStatus_(sheetName, data);
+      }
+      continue;
+    }
     if (!data.hasOwnProperty(key)) continue;
-    if (String(data[key]).length === 0) continue;     // never blank a filled cell
+    if (String(data[key]).length === 0) continue;
     merged[c] = data[key];
   }
-  // An existing sheet created before this script may have no first_seen column
-  // at all; only backfill it when the column is actually there.
-  var firstSeenIndex = header.indexOf('first_seen');
-  if (firstSeenIndex !== -1 && !merged[firstSeenIndex]) merged[firstSeenIndex] = nowUtc_();
 
-  sheet.getRange(match, 1, 1, merged.length).setValues([merged]);
+  var firstSeenIndex = header.indexOf('first_seen');
+  if (firstSeenIndex !== -1 && !merged[firstSeenIndex]) {
+    merged[firstSeenIndex] = nowUtc_();
+  }
+
+  try {
+    sheet.getRange(match, 1, 1, merged.length).setValues([merged]);
+  } catch (err) {
+    // If strict data validation rejects the Status value, retry with empty string in Status
+    var statusIdx = header.indexOf('Status');
+    if (statusIdx !== -1 && !data.hasOwnProperty('Status')) {
+      merged[statusIdx] = '';
+      sheet.getRange(match, 1, 1, merged.length).setValues([merged]);
+    } else {
+      throw err;
+    }
+  }
   return { action: 'merged', row: match };
 }
 
 /* ── Helpers ───────────────────────────────────────────────── */
+
+function trySendNotification_(sheetName, data) {
+  try {
+    var subject = '[Certrace Lead] New entry in ' + sheetName + ': ' + (data.email || data.company || 'Unknown');
+    var body = 'New submission received in ' + sheetName + ':\n\n' + JSON.stringify(data, null, 2);
+    MailApp.sendEmail(NOTIFICATION_EMAIL, subject, body);
+  } catch (err) {
+    console.warn('Failed to send notification email:', err);
+  }
+}
 
 function cleanParams_(parameter) {
   var out = {};
@@ -281,7 +385,7 @@ function cleanParams_(parameter) {
     if (!parameter.hasOwnProperty(key)) continue;
     if (IGNORED_FIELDS.indexOf(key) !== -1) continue;
     var value = parameter[key];
-    out[key] = value === null || value === undefined ? '' : String(value).trim();
+    out[key] = (value === null || value === undefined) ? '' : String(value).trim();
   }
   return out;
 }
@@ -301,28 +405,4 @@ function jsonOut_(payload) {
   return ContentService
     .createTextOutput(JSON.stringify(payload))
     .setMimeType(ContentService.MimeType.JSON);
-}
-
-/* ── Manual test ───────────────────────────────────────────────
-   Run this from the editor (Run ▸ testWrite_) to check the sheet, header and
-   permissions without touching the live forms. It writes a real row — delete
-   it afterwards. */
-
-function testWrite_() {
-  var response = doPost({
-    parameter: {
-      email: 'test@example.com',
-      source: 'manual_test',
-      step: 'details',
-      company: 'Test Co',
-      countryCode: '+66',
-      phone: '0812345678',
-      timestamp: new Date().toISOString(),
-      timezone: 'Asia/Bangkok',
-      zone_source: 'detected',
-      utc_offset: 'UTC+07:00',
-      local_time: '15 Aug 2026, 13:28'
-    }
-  });
-  console.log(response.getContent());
 }

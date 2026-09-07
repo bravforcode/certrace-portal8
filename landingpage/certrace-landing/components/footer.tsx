@@ -42,6 +42,7 @@ import Link from "next/link";
 import { CertraceLogo } from "./logo";
 import { LanguageSwitch } from "./navbar";
 import { PopupForm, type PopupFormKind } from "./popup-form";
+import { syncNewsletter } from "@/lib/sheet-sync";
 import { useId, useState } from "react";
 
 /* LINE's mark is a rounded-square badge with a white speech balloon and the
@@ -159,6 +160,7 @@ function Newsletter() {
       return;
     }
     setError(false);
+    syncNewsletter(email);
     setDone(true);
   }
 

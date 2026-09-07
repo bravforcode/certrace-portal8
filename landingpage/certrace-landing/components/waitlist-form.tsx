@@ -5,6 +5,7 @@ import { useState } from "react";
 import { CONTACT_EMAIL } from "@/lib/content";
 import { useLang } from "@/lib/i18n";
 import { AnimateCard, BlurHeading, TagBadge } from "@/components/ui";
+import { syncWaitlist } from "@/lib/sheet-sync";
 import {
   DEFAULT_LEN,
   DIAL_CODES,
@@ -105,6 +106,19 @@ export function WaitlistForm() {
     setSubmitAttempted(true);
     if (!valid) return;
     setConfirmedEmail(form.email.trim());
+    try {
+      syncWaitlist({
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        email: form.email.trim(),
+        countryCode: country.dial,
+        phone: form.phone.trim(),
+        company: form.company.trim(),
+        jobTitle: form.jobTitle,
+      });
+    } catch (err) {
+      console.warn("Waitlist sync failed:", err);
+    }
     setSubmitted(true);
   };
 
