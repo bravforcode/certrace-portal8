@@ -53,13 +53,14 @@ export default function SupplierLinkPage() {
 function ApiSupplierLink({ token }: { token: string }) {
   const { data, isPending, isError } = useSmartLink(token);
 
-  // A dead link (404/410), a network give-up, or a payload too thin to build a
-  // form from, all land on the same "ask for a new link" page.
+  const localReq = React.useMemo(() => resolveRequest(token), [token]);
   const req = React.useMemo(() => (data ? buildFromPayload(token, data) : null), [data, token]);
 
+  if (isPending && !localReq) return <LoadingLink />;
+  if (data && req) return <SupplierPortal req={req} initialState={data.state} />;
+  if (localReq) return <SupplierPortal req={localReq} />;
   if (isPending) return <LoadingLink />;
-  if (isError || !data || !req) return <InvalidLink />;
-  return <SupplierPortal req={req} initialState={data.state} />;
+  return <InvalidLink showDemo />;
 }
 
 /* ── No backend: the fixtures-only demo path, unchanged ───────────── */
