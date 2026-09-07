@@ -12,6 +12,7 @@ import {
   FieldError,
   PERSONAL_EMAIL_DOMAINS,
   SelectChevron,
+  cleanNationalDigits,
   inputBad,
   inputBase,
   inputOk,
@@ -115,8 +116,8 @@ export function DemoForm() {
     errors.email = c.form.errors.emailPersonal;
   }
 
-  const digits = form.phone.replace(/\D/g, "");
   const [minLen, maxLen] = country.len ?? DEFAULT_LEN;
+  const digits = cleanNationalDigits(form.phone, country.dial, maxLen);
   if (!digits) {
     errors.phone = c.form.errors.phoneDigits;
   } else if (digits.length < minLen || digits.length > maxLen) {

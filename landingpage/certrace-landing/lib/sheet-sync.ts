@@ -101,8 +101,9 @@ export function postToSheet(
     }
   }
 
-  if ((!targetSheet || targetSheet === "Book a Demo") && !payload.Status) {
-    payload.Status = "Confirming";
+  if (!payload.Status) {
+    const isDemo = !targetSheet || targetSheet.toLowerCase().includes("demo");
+    payload.Status = isDemo ? "Confirming" : "New";
   }
 
   const body = new FormData();
