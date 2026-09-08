@@ -2,12 +2,13 @@ import type { MetadataRoute } from "next";
 import { ARTICLES } from "@/lib/cbam-guide";
 import { EVENTS } from "@/lib/events";
 import { UPDATES } from "@/lib/updates";
+import { SITE_URL } from "@/lib/site";
 
 /* The site map. Added with the CBAM hub: twelve guide pages that exist to be
    found are worth nothing if a crawler has to discover them by walking the
    nav, and the guides carry the newest dates on the site. */
 
-const BASE = "https://certrace.co";
+const BASE = SITE_URL;
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const today = new Date();

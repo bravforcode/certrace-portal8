@@ -17,8 +17,9 @@ import { ArticleCover } from "@/components/article-cover";
 import { BackLink, PageShell } from "@/components/page-shell";
 import { articleBySlug } from "@/lib/cbam-guide";
 import { CBAM_EN } from "@/lib/cbam-guide-en";
+import { JsonLd, ORG_ID, breadcrumbNode } from "@/components/json-ld";
 import { useCbamGuide } from "@/lib/use-cbam-guide";
-import { SIGNUP_URL } from "@/lib/site";
+import { OG_IMAGE, SIGNUP_URL, siteUrl } from "@/lib/site";
 import Link from "next/link";
 
 /* An id a heading can be linked to, and the table of contents can point at.
@@ -60,16 +61,16 @@ export default function CbamArticlePage({ params }: { params: Promise<{ slug: st
         datePublished: meta.updated,
         dateModified: meta.updated,
         inLanguage: "en",
-        author: { "@type": "Organization", name: "Certrace" },
-        publisher: {
-          "@type": "Organization",
-          name: "Certrace",
-          url: "https://certrace.co",
-        },
+        /* Pointed at by @id rather than restated: the publisher is declared
+           once, on the root layout, so a change of name or of social accounts
+           cannot leave a second copy of the organisation behind here. */
+        author: { "@id": ORG_ID },
+        publisher: { "@id": ORG_ID },
+        image: siteUrl(OG_IMAGE),
         about: { "@type": "Thing", name: "EU Carbon Border Adjustment Mechanism" },
         mainEntityOfPage: {
           "@type": "WebPage",
-          "@id": `https://certrace.co/about-cbam/${slug}`,
+          "@id": siteUrl(`/about-cbam/${slug}`),
         },
       },
       {
@@ -80,19 +81,11 @@ export default function CbamArticlePage({ params }: { params: Promise<{ slug: st
           acceptedAnswer: { "@type": "Answer", text: f.a },
         })),
       },
-      {
-        "@type": "BreadcrumbList",
-        itemListElement: [
-          { "@type": "ListItem", position: 1, name: "Certrace", item: "https://certrace.co" },
-          {
-            "@type": "ListItem",
-            position: 2,
-            name: "About CBAM",
-            item: "https://certrace.co/about-cbam",
-          },
-          { "@type": "ListItem", position: 3, name: en.title },
-        ],
-      },
+      breadcrumbNode([
+        { name: "Certrace", path: "" },
+        { name: "About CBAM", path: "/about-cbam" },
+        { name: en.title },
+      ]),
     ],
   };
 
@@ -102,10 +95,7 @@ export default function CbamArticlePage({ params }: { params: Promise<{ slug: st
 
   return (
     <PageShell>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      <JsonLd data={jsonLd} />
 
       <article>
         <section className="px-6 pt-32 pb-10 md:px-12 md:pt-40 lg:px-20">

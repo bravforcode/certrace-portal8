@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { SITE_URL, siteUrl } from "@/lib/site";
 
 /* Deliberately permissive, including to the answer engines. The CBAM guides
    are written to be quoted — a page that answers a question in its first
@@ -7,7 +8,7 @@ import type { MetadataRoute } from "next";
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: [{ userAgent: "*", allow: "/" }],
-    sitemap: "https://certrace.co/sitemap.xml",
-    host: "https://certrace.co",
+    sitemap: siteUrl("/sitemap.xml"),
+    host: SITE_URL,
   };
 }

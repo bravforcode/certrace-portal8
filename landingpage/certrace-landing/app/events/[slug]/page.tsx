@@ -12,6 +12,7 @@ import Image from "next/image";
 import { BackLink, PageCta, PageShell } from "@/components/page-shell";
 import { eventBySlug, googleCalendarUrl, isUpcoming } from "@/lib/events";
 import { formatRange } from "@/lib/format-date";
+import { siteUrl } from "@/lib/site";
 import { useLang } from "@/lib/i18n";
 import { usePages } from "@/lib/i18n-pages";
 
@@ -37,7 +38,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ slug: st
   }
 
   const soon = isUpcoming(ev);
-  const calendarUrl = googleCalendarUrl(ev, t.name, `${t.summary}\n\nhttps://certrace.co/events/${ev.slug}`);
+  const calendarUrl = googleCalendarUrl(ev, t.name, `${t.summary}\n\n${siteUrl(`/events/${ev.slug}`)}`);
 
   return (
     <PageShell>

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ARTICLES, articleBySlug } from "@/lib/cbam-guide";
 import { CBAM_EN } from "@/lib/cbam-guide-en";
+import { OG_IMAGE } from "@/lib/site";
 
 /* Metadata is generated on the server, from the English dictionary.
 
@@ -26,7 +27,9 @@ export async function generateMetadata({
   if (!meta || !text) return {};
 
   return {
-    title: text.metaTitle,
+    /* Absolute: these titles are written to a length that already fits a search
+       result, and the brand appended to one would push it past the truncation. */
+    title: { absolute: text.metaTitle },
     description: text.metaDescription,
     alternates: { canonical: `/about-cbam/${slug}` },
     openGraph: {
@@ -35,11 +38,14 @@ export async function generateMetadata({
       type: "article",
       publishedTime: meta.updated,
       modifiedTime: meta.updated,
+      /* Restated because a child's `openGraph` replaces the root block whole. */
+      images: [{ url: OG_IMAGE, width: 1200, height: 630 }],
     },
     twitter: {
       card: "summary_large_image",
       title: text.metaTitle,
       description: text.metaDescription,
+      images: [OG_IMAGE],
     },
   };
 }

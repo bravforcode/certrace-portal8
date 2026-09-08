@@ -7,6 +7,8 @@ import {
   Courier_Prime,
 } from "next/font/google";
 import { LanguageProvider } from "@/lib/i18n";
+import { JsonLd, organizationNode, webSiteNode } from "@/components/json-ld";
+import { OG_IMAGE, SITE_URL } from "@/lib/site";
 import "./globals.css";
 
 /* `latin-ext` carries the Turkish letters — ğ, ş, ı and the dotted capital İ
@@ -62,7 +64,20 @@ const courierPrime = Courier_Prime({
 });
 
 export const metadata: Metadata = {
-  title: "Certrace — CBAM Proof Infrastructure for Exporters",
+  /* THE BASE EVERY RELATIVE METADATA URL IS RESOLVED AGAINST. Without it Next
+     falls back to http://localhost:3000, which is what the production site was
+     doing: canonical links shipped as bare paths and the Open Graph image path
+     had nothing to resolve into an absolute URL — and an OG image that is not
+     absolute is no OG image at all to Facebook, LinkedIn, X or Slack. */
+  metadataBase: new URL(SITE_URL),
+  /* `template` is what gives every page a title without each one restating the
+     brand. A child that sets `title: "Pricing"` gets "Pricing — Certrace"; the
+     several that set a full title of their own still win, because a child's
+     absolute title replaces the template rather than nesting inside it. */
+  title: {
+    default: "Certrace — CBAM Proof Infrastructure for Exporters",
+    template: "%s — Certrace",
+  },
   description:
     "Buyers don't wait for the best supplier — they pick whoever proves it first. Certrace is the AI workflow platform built on the exporter's side: Smart Link supplier invites, fill-once profiles, automatic quality checks, the CBAM calculation engine, a carbon benchmark, and a report package that's ready before your buyer asks.",
   keywords: [
@@ -81,19 +96,47 @@ export const metadata: Metadata = {
     icon: "/brand/favicon-32.png",
   },
   authors: [{ name: "Certrace" }],
+  /* Search Console and Bing Webmaster Tools each want to see a token in the
+     head before they will show this site's index coverage. Both are set as
+     build-time env vars rather than committed, because they are per-property
+     and a stale one in the source is worse than none. Leave them unset and no
+     tag is emitted. */
+  verification: {
+    ...(process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION
+      ? { google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION }
+      : {}),
+    ...(process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION
+      ? { other: { "msvalidate.01": process.env.NEXT_PUBLIC_BING_SITE_VERIFICATION } }
+      : {}),
+  },
+  /* The homepage's own canonical. It is stated here rather than left to Next
+     because every other route sets one, and a site where one page in fifteen
+     has no canonical is a site whose homepage can be indexed twice — once with
+     a tracking parameter on it. Child layouts override this; none inherits it. */
+  alternates: { canonical: "/" },
   openGraph: {
     title: "Certrace — CBAM Proof Infrastructure for Exporters",
     description:
       "Every other platform in this space sells to the EU importer. Certrace is built for the exporter: collect supplier carbon data once, calculate it into the EU's format, and keep an audit-ready report standing by.",
-    url: "https://certrace.com",
+    url: SITE_URL,
     siteName: "Certrace",
     type: "website",
+    locale: "en_US",
+    images: [
+      {
+        url: OG_IMAGE,
+        width: 1200,
+        height: 630,
+        alt: "Certrace — CBAM proof infrastructure for exporters",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Certrace — CBAM Proof Infrastructure for Exporters",
     description:
       "Buyers don't wait for the best supplier. They pick whoever proves it first.",
+    images: [OG_IMAGE],
   },
 };
 
@@ -110,6 +153,10 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${ibmPlexSans.variable} ${ibmPlexSansThai.variable} ${ibmPlexSansDevanagari.variable} ${courierPrime.variable} font-sans antialiased`}
       >
+        {/* Publisher and site identity, stated once for every page under this
+            layout. Page-level nodes point at these by @id rather than
+            repeating them. */}
+        <JsonLd data={{ "@context": "https://schema.org", "@graph": [organizationNode, webSiteNode] }} />
         <LanguageProvider>{children}</LanguageProvider>
       </body>
     </html>
