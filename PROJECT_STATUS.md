@@ -28,7 +28,8 @@
 
 **`portal.certrace.co` ที่เปิดอยู่ตอนนี้ ล็อกอินด้วยรหัสอะไรก็ผ่าน**
 
-[`wrangler.jsonc:46`](certrace-portal/wrangler.jsonc:46) ตั้ง `NEXT_PUBLIC_DEMO_MODE: "1"` และ [`next.config.ts:54`](certrace-portal/next.config.ts:54) ก็ default เป็น `"1"` เหมือนกัน
+ตัวที่ทำให้ demo mode ติดไปกับ build คือ [`next.config.ts:54`](certrace-portal/next.config.ts:54) ที่ default เป็น `"1"` — CI ไม่ได้ตั้งตัวแปรนี้ ([`deploy.yml:115`](.github/workflows/deploy.yml:115)) และไม่มีไฟล์ `.env` ในรีโป ค่า `"1"` จึงถูกฝังเข้า bundle ทุกครั้งที่ deploy
+ส่วน [`wrangler.jsonc:46`](certrace-portal/wrangler.jsonc:46) ที่ตั้ง `NEXT_PUBLIC_DEMO_MODE: "1"` ไว้ **ไม่มีผลอะไรเลย** — ดู ⚠️ ใน R2
 ส่วน `NEXT_PUBLIC_API_BASE_URL` ยังไม่ได้ตั้ง แปลว่าพอร์ทัลบนโดเมนจริงยังเป็น **เดโมที่ข้อมูลอยู่ใน localStorage ของเบราว์เซอร์คนเปิด** ทั้งหมด
 
 อันนี้ตั้งใจ — เพราะยังไม่มี backend ให้ต่อ (ดู R1) และโค้ดกันไว้แล้วว่าถ้า **ไม่มี** backend และ **ไม่มี** ธงนี้ จะไม่ยอมให้ใครล็อกอินเลย ([`lib/api/config.ts:69`](certrace-portal/lib/api/config.ts:69) มีเทสต์คุมที่ [`demo-mode.test.ts`](certrace-portal/lib/__tests__/demo-mode.test.ts))
@@ -91,8 +92,13 @@
 
 #### **R2. พอร์ทัล production ยังวิ่งใน demo mode**
 ดูหัวข้อ 🚨 ด้านบน ทำทันทีที่ R1 เสร็จ
-*   [ ] **โบ๊ท:** ตั้ง `NEXT_PUBLIC_API_BASE_URL=https://api.certrace.co` ใน [`wrangler.jsonc`](certrace-portal/wrangler.jsonc)
-*   [ ] **โบ๊ท:** เอา `NEXT_PUBLIC_DEMO_MODE` ออกจาก `wrangler.jsonc` และเปลี่ยน default ใน [`next.config.ts:54`](certrace-portal/next.config.ts:54) จาก `"1"` เป็นค่าว่าง
+> ⚠️ **`NEXT_PUBLIC_*` ตั้งใน `wrangler.jsonc` ไม่มีผล** — Next ฝังค่าเหล่านี้เป็นค่าคงที่ตอน build ส่วน `vars` ของ wrangler เป็น runtime binding ของ Worker ที่มาถึงหลังการแทนค่าไปแล้ว และโค้ดที่อ่านค่าเหล่านี้ ([`config.ts:29`](certrace-portal/lib/api/config.ts:29)) ถูกเรียกจากหน้า `"use client"` ทั้งหมด
+> ถ้าตั้งผิดที่ อาการคือพอร์ทัลยังวิ่ง demo เหมือนเดิม ไม่ error ไม่มีอะไรฟ้อง — หาสาเหตุยากมาก
+
+*   [ ] **โบ๊ท:** ตั้ง `NEXT_PUBLIC_API_BASE_URL=https://api.certrace.co` ใน **build environment** — เพิ่มใน `env:` block ของ [`deploy.yml:115`](.github/workflows/deploy.yml:115) หรือทำเป็น repository variable ไม่ใช่ `wrangler.jsonc`
+*   [ ] **โบ๊ท:** เปลี่ยน default ใน [`next.config.ts:54`](certrace-portal/next.config.ts:54) จาก `"1"` เป็นค่าว่าง — **นี่คือสวิตช์ตัวจริงที่ปิด demo mode** ข้ออื่นไม่มีผลถ้าไม่ทำข้อนี้
+*   [ ] **โบ๊ท:** ลบ `NEXT_PUBLIC_DEMO_MODE` ออกจาก [`wrangler.jsonc:46`](certrace-portal/wrangler.jsonc:46) เป็นการเก็บกวาดเฉย ๆ เพราะไม่เคยมีผลอยู่แล้ว
+*   [ ] **โบ๊ท:** หลัง deploy เช็คว่าปิดจริง — เปิด `https://portal.certrace.co/login` ต้องเห็นแผง "Not open yet" แทนช่องกรอกรหัสผ่าน (ก่อน R1 เสร็จ) หรือล็อกอินด้วยบัญชีจริงได้ (หลัง R1 เสร็จ)
 *   [ ] **โบ๊ท & เฟิน:** รัน `npm run test:e2e:prod` ยิงโฟลว์จริงบนโดเมนจริง แล้วเดินด้วยมืออีกรอบ: สร้าง declaration → ส่งลิงก์ → เปิดจากอีกเครื่อง → กรอก → ส่งกลับ
 
 #### **R3. ค่า EU default factor ยังเป็นไฟล์ตัวอย่าง**
