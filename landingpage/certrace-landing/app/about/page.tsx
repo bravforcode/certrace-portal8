@@ -44,19 +44,17 @@ export default function AboutPage() {
                 key={`${member.name}-${i}`}
                 className="flex flex-col rounded-2xl border border-black/[0.07] bg-white/70 p-6"
               >
-                {/* A real portrait where we have one, an initial where we do
-                    not. Same 44px circle either way, so a row of cards does
-                    not change height when a photo lands. */}
+                {/* Team portrait or fallback initial */}
                 {member.photo ? (
                   <Image
                     src={member.photo}
                     alt={member.name}
-                    width={88}
-                    height={88}
-                    className="h-11 w-11 shrink-0 rounded-full border border-black/[0.08] object-cover object-top grayscale"
+                    width={160}
+                    height={160}
+                    className="h-16 w-16 sm:h-20 sm:w-20 shrink-0 rounded-full border border-black/[0.08] object-cover object-center grayscale shadow-sm"
                   />
                 ) : (
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-black/[0.08] bg-[#faf9f7] text-sm font-light text-black/35">
+                  <div className="flex h-16 w-16 sm:h-20 sm:w-20 shrink-0 items-center justify-center rounded-full border border-black/[0.08] bg-[#faf9f7] text-lg font-light text-black/35">
                     {member.name.slice(0, 1)}
                   </div>
                 )}
