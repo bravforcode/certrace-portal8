@@ -69,7 +69,7 @@ export function PortalFrame({
         <span className="h-[5px] w-[5px] rounded-full bg-black/15" />
         <span className="h-[5px] w-[5px] rounded-full bg-black/15" />
         <span className="ml-2 truncate text-[7px] tracking-[0.1em] text-black/25" style={PIXEL}>
-          app.certrace.dev
+          portal.certrace.co
         </span>
       </div>
 

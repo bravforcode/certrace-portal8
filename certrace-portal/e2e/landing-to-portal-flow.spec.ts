@@ -3,17 +3,28 @@ import { test, expect } from "@playwright/test";
 test.describe("Full End-to-End Journey: certrace.co -> Portal -> Supplier Intake", () => {
   test("should start from certrace.co landing page, navigate into portal, complete onboarding, and open supplier portal", async ({ page, context, baseURL }) => {
     const portalBase = baseURL || "https://portal.certrace.co";
-    // 1. Intercept cross-origin link to app.certrace.dev and redirect to current portal
-    await context.route("https://app.certrace.dev/**", async (route) => {
-      const targetUrl = new URL(route.request().url());
-      const localUrl = `${portalBase}${targetUrl.pathname}${targetUrl.search}`;
-      await route.fulfill({
-        status: 302,
-        headers: {
-          Location: localUrl,
-        },
+    /* 1. The landing page links to the portal by absolute URL, so point those
+       links at whichever portal this run targets — a localhost build, usually.
+
+       BOTH ORIGINS ARE REWRITTEN. The deployed landing page still carries the
+       old app.certrace.dev links until it is redeployed, while a fresh build
+       carries portal.certrace.co; a run that handled only one of them would
+       walk out to the live portal without noticing. The origin this run is
+       already aiming at is skipped, or the 302 would point at itself and the
+       browser would follow it forever. */
+    for (const origin of ["https://app.certrace.dev", "https://portal.certrace.co"]) {
+      if (portalBase.startsWith(origin)) continue;
+      await context.route(`${origin}/**`, async (route) => {
+        const targetUrl = new URL(route.request().url());
+        const localUrl = `${portalBase}${targetUrl.pathname}${targetUrl.search}`;
+        await route.fulfill({
+          status: 302,
+          headers: {
+            Location: localUrl,
+          },
+        });
       });
-    });
+    }
 
     // 2. Visit live certrace.co landing page
     await page.goto("https://certrace.co", { waitUntil: "domcontentloaded" });

@@ -13,7 +13,9 @@
  *   - "Report Issue"           · Issue reports (popup-form kind="issue")
  *   - "Create Account Request" · Waitlist and early-access requests (waitlist-form)
  *   - "Careers"                · Job & talent inquiries (popup-form kind="careers")
- *   - "Event Lead"             · Event attendees & RSVPs
+ *   - "Event Lead"             · Event attendees & RSVPs. No form posts here:
+ *                                this tab is filled in by hand at events, and the
+ *                                schema below is what those columns should be.
  *
  * Key guarantees:
  *   1. Automatic Header Creation: If a sheet tab is empty, it initializes with
@@ -22,6 +24,8 @@
  *      overwritten on merge updates. Unknown incoming fields are appended on the right.
  *   3. Intelligent Upsert vs Append:
  *      - Multi-step forms ('Book a Demo', 'Newsletter') upsert/enrich the same row.
+ *        The demo form and the booking dialog land on ONE row per email, with
+ *        'step' counting how far that lead got (see DEMO_JOURNEY).
  *      - Inquiries, issues, and feature requests ('Report Issue', 'Request a Feature',
  *        'Pricing Request') always append as separate tickets/rows.
  *   4. Data Validation Safe: Honors existing dropdown validation in 'Status' (e.g. 'Confirming'),
@@ -38,11 +42,21 @@ var DEFAULT_SHEET = 'Book a Demo';
 
 /**
  * Tabs where repeat submissions from the same email should MERGE into one row.
- * 'Book a Demo': 2-step form (step 1 captures email, step 2 captures company & slot).
+ * 'Book a Demo': 2-step flow (step 1 is the contact form, step 2 the booking dialog).
  * 'Newsletter': Re-subscribing enriches the existing record without duplicate spam.
  * All other tabs (Issues, Features, Pricing, Careers) append every submission as a new row.
  */
 var UPSERT_TABS = ['Book a Demo', 'Newsletter'];
+
+/**
+ * The 'Book a Demo' journey, in the order a visitor walks it: the contact form
+ * posts 'demo_lead', then the booking dialog posts 'demo_booking' for the same
+ * person minutes later. The upsert used to require an exact 'type' match, so
+ * those two posts filed one visitor as two rows. They now merge onto one row,
+ * with 'type' and 'step' holding the FURTHEST stage reached — a post that
+ * arrives late, or out of order, never walks the record backwards.
+ */
+var DEMO_JOURNEY = ['demo_lead', 'demo_booking'];
 
 /**
  * Optional email notifications for incoming leads.
@@ -66,45 +80,50 @@ var TAB_SCHEMAS = {
   ],
   'Newsletter': [
     'Status', 'first_seen', 'last_seen', 'email', 'source',
-    'timestamp', 'local_time', 'timezone', 'utc_offset'
+    'timestamp', 'local_time', 'timezone', 'zone_source', 'utc_offset'
   ],
   'CBAM free engine lead': [
     'Status', 'first_seen', 'last_seen', 'name', 'email', 'phone', 'company', 'role',
     'cn_count', 'products_count', 'sites_count', 'sectors', 'recommended_plan',
-    'cn_codes', 'timestamp', 'local_time', 'timezone', 'utc_offset'
+    'cn_codes', 'source', 'timestamp', 'local_time', 'timezone', 'zone_source',
+    'utc_offset'
   ],
   'Pricing Request': [
     'Status', 'first_seen', 'last_seen', 'name', 'email', 'company', 'role',
     'cnCodes', 'sites', 'goods', 'timeline', 'plan', 'volume', 'notes', 'context',
-    'timestamp', 'local_time', 'timezone', 'utc_offset'
+    'source', 'timestamp', 'local_time', 'timezone', 'zone_source', 'utc_offset'
   ],
   'Request a Feature': [
     'Status', 'first_seen', 'last_seen', 'name', 'email', 'company', 'area',
-    'summary', 'detail', 'timestamp', 'local_time', 'timezone', 'utc_offset'
+    'areaOther', 'summary', 'detail', 'source', 'timestamp', 'local_time',
+    'timezone', 'zone_source', 'utc_offset'
   ],
   'Report Issue': [
-    'Status', 'first_seen', 'last_seen', 'name', 'email', 'where', 'severity',
-    'detail', 'timestamp', 'local_time', 'timezone', 'utc_offset'
+    'Status', 'first_seen', 'last_seen', 'name', 'email', 'where', 'whereOther',
+    'severity', 'detail', 'source', 'timestamp', 'local_time', 'timezone',
+    'zone_source', 'utc_offset'
   ],
   'Create Account Request': [
     'Status', 'first_seen', 'last_seen', 'firstName', 'lastName', 'email',
-    'countryCode', 'phone', 'company', 'jobTitle', 'timestamp', 'local_time',
-    'timezone', 'utc_offset'
+    'countryCode', 'phone', 'company', 'jobTitle', 'source', 'timestamp',
+    'local_time', 'timezone', 'zone_source', 'utc_offset'
   ],
   'Careers': [
     'Status', 'first_seen', 'last_seen', 'name', 'email', 'role', 'roleOther',
-    'link1', 'link2', 'link3', 'message', 'timestamp', 'local_time', 'timezone', 'utc_offset'
+    'link1', 'link2', 'link3', 'message', 'source', 'timestamp', 'local_time',
+    'timezone', 'zone_source', 'utc_offset'
   ],
   'Event Lead': [
     'Status', 'first_seen', 'last_seen', 'name', 'email', 'company', 'event',
-    'timestamp', 'local_time', 'timezone', 'utc_offset'
+    'source', 'timestamp', 'local_time', 'timezone', 'zone_source', 'utc_offset'
   ]
 };
 
 /** Default fallback columns if target tab has no predefined schema. */
 var DEFAULT_COLUMNS = [
   'Status', 'first_seen', 'last_seen', 'email', 'name', 'phone', 'company',
-  'source', 'type', 'timestamp', 'local_time', 'timezone', 'utc_offset'
+  'source', 'type', 'timestamp', 'local_time', 'timezone', 'zone_source',
+  'utc_offset'
 ];
 
 /**
@@ -186,22 +205,28 @@ function doOptions(e) {
 function getSheet_(sheetName) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var target = (sheetName || DEFAULT_SHEET).trim();
+  // A missing tab is created at the END of the workbook rather than wherever
+  // insertSheet's default would drop it, so a tab born from a live submission
+  // never lands in the middle of the hand-kept tabs.
+  return findSheet_(ss, target) || ss.insertSheet(target, ss.getNumSheets());
+}
 
-  // 1. Exact match
+/**
+ * Exact match first, then case-insensitive and trimmed, so a stray 'careers'
+ * or ' Newsletter' can never open a second tab beside the real one.
+ */
+function findSheet_(ss, target) {
   var sheet = ss.getSheetByName(target);
   if (sheet) return sheet;
 
-  // 2. Case-insensitive & trimmed match to prevent duplicate tabs
   var allSheets = ss.getSheets();
-  var targetLower = target.toLowerCase();
+  var targetLower = String(target || '').trim().toLowerCase();
   for (var i = 0; i < allSheets.length; i++) {
     if (allSheets[i].getName().trim().toLowerCase() === targetLower) {
       return allSheets[i];
     }
   }
-
-  // 3. Insert new sheet if not found
-  return ss.insertSheet(target);
+  return null;
 }
 
 function ensureHeader_(sheet, incomingKeys, targetSheet) {
@@ -253,7 +278,57 @@ function applyTextFormat_(sheet, header) {
   }
 }
 
+/* ── One-off Setup ─────────────────────────────────────────── */
+
+/**
+ * Brings the workbook up to date with TAB_SCHEMAS: creates any tab that is
+ * missing, and writes the header row on any tab that is still empty. Tabs that
+ * already hold data are left exactly as they are — this never rewrites or
+ * reorders an existing header.
+ *
+ * Run it by hand from the Apps Script editor (Run > setupTabs) after adding a
+ * schema above. The alternative is waiting for a real submission to create the
+ * tab, which files somebody's actual application into an unprepared sheet.
+ *
+ * Safe to run as often as you like: it only ever adds what is missing.
+ *
+ * Note it adds no dropdown to 'Status'. Only 'Book a Demo' has one today, and
+ * its list is a sales process somebody decided on; the stages a job applicant
+ * or an issue moves through are the same kind of decision, so they are left to
+ * be set on the sheet rather than guessed at here.
+ */
+function setupTabs() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var names = Object.keys(TAB_SCHEMAS);
+  var created = [];
+  var initialized = [];
+
+  for (var i = 0; i < names.length; i++) {
+    var name = names[i];
+    var sheet = findSheet_(ss, name);
+    if (!sheet) {
+      sheet = ss.insertSheet(name, ss.getNumSheets());
+      created.push(name);
+    } else if (sheet.getLastRow() === 0) {
+      initialized.push(name);
+    }
+    ensureHeader_(sheet, [], sheet.getName());
+  }
+
+  var report = 'setupTabs: ' +
+    (created.length ? 'created ' + created.join(', ') : 'no tabs missing') +
+    '; ' +
+    (initialized.length ? 'wrote headers on ' + initialized.join(', ') : 'no empty tabs to initialize');
+  console.log(report);
+  return report;
+}
+
 /* ── Writing & Upsert ──────────────────────────────────────── */
+
+/** 1-based position in DEMO_JOURNEY; 0 for a type that is not part of it. */
+function journeyStep_(type) {
+  return DEMO_JOURNEY.indexOf(String(type || '').trim().toLowerCase()) + 1;
+}
 
 function initialStatus_(sheetName, data) {
   if (data.hasOwnProperty('Status') && data.Status) {
@@ -277,6 +352,8 @@ function append_(sheet, header, data, sheetName) {
       row.push(now);
     } else if (key === 'Status') {
       row.push(initialStatus_(sheetName, data));
+    } else if (key === 'step' && !data.step && journeyStep_(data.type)) {
+      row.push(journeyStep_(data.type));
     } else {
       row.push(data.hasOwnProperty(key) ? data[key] : '');
     }
@@ -326,7 +403,8 @@ function upsert_(sheet, header, data, sheetName) {
     if (rowEmail !== email) continue;
     if (typeIndex !== -1 && incomingType) {
       var rowType = String(values[i][typeIndex] || '').trim().toLowerCase();
-      if (rowType !== incomingType) continue;
+      var sameJourney = journeyStep_(rowType) > 0 && journeyStep_(incomingType) > 0;
+      if (rowType !== incomingType && !sameJourney) continue;
     }
     match = i + 2;
     break;
@@ -351,6 +429,16 @@ function upsert_(sheet, header, data, sheetName) {
       } else if (!merged[c]) {
         merged[c] = initialStatus_(sheetName, data);
       }
+      continue;
+    }
+    // 'type' and 'step' record how far this lead got, so a demo_lead landing
+    // after its own demo_booking must not demote the row back to step 1.
+    if (key === 'type' && journeyStep_(data.type)) {
+      if (journeyStep_(data.type) >= journeyStep_(merged[c])) merged[c] = data.type;
+      continue;
+    }
+    if (key === 'step' && journeyStep_(data.type)) {
+      merged[c] = Math.max(journeyStep_(data.type), Number(merged[c]) || 0);
       continue;
     }
     if (!data.hasOwnProperty(key)) continue;

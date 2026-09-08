@@ -12,9 +12,16 @@
    — a visitor who has no account yet must not land on a password field.
 
    Overridable at build time so a staging site can point at a staging portal
-   without a code change. */
+   without a code change.
+
+   THE DEFAULT HAS TO BE THE REAL PORTAL. It used to be app.certrace.dev, a
+   domain nobody ever registered — it answers NXDOMAIN — and with no env var
+   setting it anywhere in this repo, every LOG IN and every FREE TRIAL button
+   on the site led to a browser error page. The portal is deployed at
+   portal.certrace.co (certrace-portal/playwright.config.ts, TESTING.md), and
+   /login and /register are its real routes. */
 const APP_ORIGIN =
-  process.env.NEXT_PUBLIC_APP_ORIGIN?.replace(/\/$/, "") ?? "https://app.certrace.dev";
+  process.env.NEXT_PUBLIC_APP_ORIGIN?.replace(/\/$/, "") ?? "https://portal.certrace.co";
 
 export const LOGIN_URL = `${APP_ORIGIN}/login`;
 export const SIGNUP_URL = `${APP_ORIGIN}/register`;
