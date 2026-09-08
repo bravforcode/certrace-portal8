@@ -1369,6 +1369,7 @@ export const TH: Record<string, string> = {
   "A few answers are still missing — the fields in red.": "ยังมีข้อมูลที่ยังไม่ได้กรอก ดูที่ช่องซึ่งเป็นสีแดง",
   "Save and continue": "บันทึกและดำเนินการต่อ",
   "Still to answer:": "ยังต้องกรอก:",
+  "and {count} more": "และอีก {count} ช่อง",
   "Saving your details…": "กำลังบันทึกข้อมูลของคุณ…",
   "Select jurisdiction": "เลือกเขตอำนาจที่ดำเนินกิจการ",
   "Select currency": "เลือกสกุลเงิน",
