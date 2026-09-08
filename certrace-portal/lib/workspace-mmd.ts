@@ -1080,9 +1080,10 @@ export const mmdComplete = (c: WorkspaceMmdContent): boolean => mmdIssues(c).len
    on the full list would put a wall in front of them that nothing on their
    screen can take down.
 
-   So the step gate reads THIS. Same rules, same messages, same field keys —
-   filtered to the fields the supplier's form actually renders. One list, one
-   filter, so the two can never disagree about what is required. */
+   So the supplier's quality check reads THIS — `runMonthQualityCheck` picks the
+   list by audience (lib/month-quality.ts). Same rules, same messages, same
+   field keys, filtered to the fields the supplier's form actually renders. One
+   list, one filter, so the two can never disagree about what is required. */
 const SUPPLIER_MMD_EXCLUDED = ["period", "diagram", "reviewerName"];
 
 export const supplierMmdIssues = (c: WorkspaceMmdContent): MmdIssue[] =>

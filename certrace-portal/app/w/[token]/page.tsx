@@ -319,6 +319,9 @@ function Flow({ req }: { req: WorkspaceRequest }) {
       peers,
       documentCount,
       installationGaps: installation ? missingFields(installation) : [],
+      /* This form IS the supplier's. The three methodology rules they are never
+         shown must not be able to block their signature. */
+      audience: "supplier",
     });
   }, [entry, mmd, precursors, month, peers, documentCount, installation]);
 
