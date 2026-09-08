@@ -33,7 +33,7 @@
 
 import { fuelTypeLabel, monthIssues, monthResult, type MonthlyEntry } from "./monthly-data";
 import { kgPerUnit } from "./cbam/fuel-defaults";
-import { mmdIssues, type WorkspaceMmdContent } from "./workspace-mmd";
+import { mmdIssues, supplierMmdIssues, type WorkspaceMmdContent } from "./workspace-mmd";
 import type { PrecursorSupplier } from "./precursor-suppliers";
 
 export type FindingKind = "mandatory" | "validation" | "anomaly" | "consistency";
@@ -99,10 +99,25 @@ export type QualityInput = {
   documentCount: number;
   /** whether the installation record a verifier will ask about is complete */
   installationGaps: string[];
+  /* ── Who is reading this report ──────────────────────────────
+     The methodology rules are not all answerable by both sides. The reporting
+     period is the workspace's, and the quality-assurance reviewer and the
+     installation diagram are the exporter's — none of the three is rendered on
+     the supplier's form. Running the full list against a supplier produced
+     mandatory findings with nothing on screen that could clear them, which
+     `canSubmit` then refused to submit against: a month filled in perfectly
+     and unsendable forever.
+
+     So the audience picks the rule list. Same rules, same messages, same field
+     keys — `supplierMmdIssues` is `mmdIssues` minus the three (see
+     lib/workspace-mmd.ts), so the two can never disagree about what a shared
+     rule says. Required rather than defaulted, because a caller that has not
+     said who is reading has not thought about it. */
+  audience: "supplier" | "exporter";
 };
 
 export function runMonthQualityCheck(input: QualityInput): QualityReport {
-  const { entry, mmd, precursors, peers, documentCount, installationGaps } = input;
+  const { entry, mmd, precursors, peers, documentCount, installationGaps, audience } = input;
   const findings: QualityFinding[] = [];
 
   /* ── 1 · Installation ──────────────────────────────────────── */
@@ -117,7 +132,7 @@ export function runMonthQualityCheck(input: QualityInput): QualityReport {
   }
 
   /* ── 2 · Methodology ───────────────────────────────────────── */
-  for (const issue of mmdIssues(mmd)) {
+  for (const issue of (audience === "supplier" ? supplierMmdIssues : mmdIssues)(mmd)) {
     findings.push({
       kind: "mandatory",
       step: "mmd",

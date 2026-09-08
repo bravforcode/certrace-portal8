@@ -47,6 +47,7 @@ import {
   OrganisationFields,
   ProfileFields,
   ContactFields,
+  MissingHint,
   useSetupDraft,
 } from "@/components/onboarding/shared";
 import { apiConfigured, markOnboarded } from "@/lib/api";
@@ -97,7 +98,7 @@ export default function SignInSetupPage() {
   const router = useRouter();
   const t = useT();
   const { profile, update } = useProfile();
-  const { draft, set, orgValid, profileValid, contactValid, phoneValid, toPatch } = useSetupDraft();
+  const { draft, set, orgValid, profileValid, contactValid, phoneValid, missing, toPatch } = useSetupDraft();
   const [step, setStep] = React.useState(0);
   const { state: saveState, run: runSave } = useSaveState();
 
@@ -131,14 +132,19 @@ export default function SignInSetupPage() {
           {step > 0 && step < 3 ? <BackButton onClick={goBack} /> : <span />}
           {step === 0 && <NextButton onClick={() => setStep(1)} label={t("Get started")} />}
           {step === 1 && (
-            <SaveButton
-              state={saveState}
-              onClick={saveAndContinue}
-              disabled={!setupValid}
-              idleLabel={t("Save and continue")}
-              savingLabel={t("Saving your details…")}
-              savedLabel={t("Saved")}
-            />
+            /* The hint rides with the button rather than under the form, so a
+               refusal and its reason are read in one glance. */
+            <div className="flex items-center gap-3">
+              <MissingHint items={missing} />
+              <SaveButton
+                state={saveState}
+                onClick={saveAndContinue}
+                disabled={!setupValid}
+                idleLabel={t("Save and continue")}
+                savingLabel={t("Saving your details…")}
+                savedLabel={t("Saved")}
+              />
+            </div>
           )}
           {step === 2 && <NextButton onClick={() => setStep(3)} label={t("Continue")} />}
           {step === 3 && (

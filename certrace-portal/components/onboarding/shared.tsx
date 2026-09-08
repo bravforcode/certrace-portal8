@@ -223,6 +223,35 @@ export function NextButton({ onClick, label, disabled }: { onClick: () => void; 
   );
 }
 
+/* ── What the disabled button will not say ────────────────
+   `missing` is computed above and, until this existed, was never rendered: the
+   step refused to continue and named nothing, on a form of twelve boxes. The
+   two answers people arrive at the end without — the phone number and the
+   LINE ID — carry no inline error while they are still EMPTY, only once
+   something unusable has been typed, so there was no signal anywhere on the
+   screen. Somebody who believes they answered everything has no move left.
+
+   It sits in the FOOTER, beside the control that is refusing, not under the
+   fields. The summary list that used to live under the form was removed for
+   repeating what each field's own label already said (see
+   app/onboarding/setup/page.tsx) — this is one line at the point of refusal,
+   which is the half that was missing rather than the half that was noise.
+
+   Three names, then a count. A footer that lists eight fields is the wall
+   again in a different font. */
+export function MissingHint({ items }: { items: string[] }) {
+  const t = useT();
+  if (items.length === 0) return null;
+  const named = items.slice(0, 3).map((i) => t(i));
+  const rest = items.length - named.length;
+  return (
+    <span className="max-w-[220px] text-right text-[11px] leading-snug text-black/40">
+      {t("Still to answer:")} {named.join(", ")}
+      {rest > 0 ? ` ${t("and {count} more", { count: rest })}` : ""}
+    </span>
+  );
+}
+
 export function StepHeader({ eyebrow, body }: { eyebrow: string; body: string }) {
   return (
     <div>
