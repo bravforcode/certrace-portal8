@@ -292,6 +292,10 @@ def test_calculates_bf_bof_with_precursor_and_scrap(monkeypatch) -> None:
             "unit": "TCO2E_PER_TNE",
         },
         "formula": "weightedAverageEmbeddedEmission = sum(inputMass_i x specificEmbeddedEmission_i) / sum(inputMass_i); scrap specificEmbeddedEmission = 0",
+        # Since precursors became a tree, the masses have to say what they
+        # cover: a ratio per tonne of a parent is not a weight and cannot be
+        # added to one.
+        "basis": "Top-level precursors only. Deeper tiers are ratios per tonne of their parent and are already inside each top-level SEE.",
     }
     assert payload["warnings"] == [
         {

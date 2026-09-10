@@ -16,7 +16,7 @@ on:
         description: Which apps to deploy
         type: choice
         default: changed
-        options: [changed, all, landing, portal]
+        options: [changed, all, landing, portal, backend]
 
 permissions:
   contents: read
@@ -34,6 +34,7 @@ jobs:
     outputs:
       matrix: ${{ steps.pick.outputs.matrix }}
       any: ${{ steps.pick.outputs.any }}
+      backend: ${{ steps.pick.outputs.backend }}
     steps:
       - name: Check out repository
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
@@ -59,9 +60,17 @@ jobs:
             [portal]="https://portal.certrace.co/"
           )
 
+          # The backend is not a Cloudflare Worker: it ships to Cloud Run from its
+          # own job, so it is tracked as a flag beside the matrix, never inside
+          # it. An entry with no DIR/URL would build an empty Node project.
+          backend=false
+
           selected=()
           if [ "$REQUESTED" = "all" ]; then
             selected=(landing portal)
+            backend=true
+          elif [ "$REQUESTED" = "backend" ]; then
+            backend=true
           elif [ "$REQUESTED" != "changed" ]; then
             selected=("$REQUESTED")
           else
@@ -71,15 +80,18 @@ jobs:
                || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
               echo "No usable base commit — deploying every app."
               selected=(landing portal)
+              backend=true
             else
               changed="$(git diff --name-only "$BEFORE" "${{ github.sha }}")"
               echo "Changed files:"; echo "$changed" | sed 's/^/  /'
               for app in landing portal; do
                 if grep -q "^${DIR[$app]}/" <<<"$changed"; then selected+=("$app"); fi
               done
+              if grep -q "^certrace-backend/" <<<"$changed"; then backend=true; fi
               # The workflow itself changing means the deploy path changed.
               if grep -q "^\.github/workflows/deploy\.yml$" <<<"$changed"; then
                 selected=(landing portal)
+                backend=true
               fi
             fi
           fi
@@ -87,16 +99,220 @@ jobs:
           # De-duplicate while keeping order.
           mapfile -t selected < <(printf '%s\n' "${selected[@]:-}" | awk 'NF && !seen[$0]++')
 
+          # "${selected[@]:-}" on an empty array expands to one empty string,
+          # and DIR[""] under set -u aborts the job. A merge that touches only
+          # docs, or a dispatch for the backend alone, selects no Worker at all
+          # and has to leave here with an empty matrix, not a red X.
           entries=()
-          for app in "${selected[@]:-}"; do
-            entries+=("$(printf '{"name":"%s","dir":"%s","url":"%s"}' "$app" "${DIR[$app]}" "${URL[$app]}")")
-          done
+          if [ ${#selected[@]} -gt 0 ]; then
+            for app in "${selected[@]}"; do
+              entries+=("$(printf '{"name":"%s","dir":"%s","url":"%s"}' "$app" "${DIR[$app]}" "${URL[$app]}")")
+            done
+          fi
           matrix="$(printf '%s\n' "${entries[@]:-}" | paste -sd, -)"
           matrix="{\"include\":[${matrix}]}"
 
-          echo "Deploying: ${selected[*]:-(nothing)}"
+          echo "Deploying apps: ${selected[*]:-(nothing)}"
+          echo "Deploying backend: $backend"
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
           echo "any=$([ ${#selected[@]} -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+          echo "backend=$backend" >> "$GITHUB_OUTPUT"
+
+  backend:
+    name: Deploy backend to Cloud Run
+    needs: plan
+    if: needs.plan.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    permissions:
+      contents: read
+      # Workload Identity Federation: GitHub mints a short-lived OIDC token that
+      # Google exchanges for credentials. No JSON service-account key is stored
+      # in this repository, and nothing minted here outlives the run.
+      id-token: write
+    defaults:
+      run:
+        working-directory: certrace-backend
+    env:
+      PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      REGION: ${{ vars.GCP_REGION || 'asia-southeast1' }}
+      SERVICE: ${{ vars.GCP_SERVICE || 'certrace-backend' }}
+      REPOSITORY: ${{ vars.GCP_ARTIFACT_REPOSITORY || 'certrace' }}
+      WIF_PROVIDER: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+      DEPLOY_SA: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+      RUNTIME_SA: ${{ vars.GCP_RUNTIME_SERVICE_ACCOUNT }}
+      PORTAL_ORIGIN: ${{ vars.PORTAL_ORIGIN || 'https://portal.certrace.co' }}
+      API_URL: ${{ vars.API_URL || 'https://api.certrace.co' }}
+      EMAIL_SENDER: ${{ vars.CERTRACE_EMAIL_SENDER || 'Certrace <contact@certrace.co>' }}
+      EMAIL_REPLY_TO: ${{ vars.CERTRACE_EMAIL_REPLY_TO || 'contact@certrace.co' }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+
+      - name: Decide whether Cloud Run is wired up yet
+        id: gate
+        shell: bash
+        run: |
+          # Until someone provisions the GCP side, a backend change must not
+          # fail every merge to main. Skip loudly instead: the moment these
+          # variables exist, this job starts shipping with no further edit.
+          missing=()
+          [ -n "${PROJECT_ID:-}" ] || missing+=(GCP_PROJECT_ID)
+          [ -n "${WIF_PROVIDER:-}" ] || missing+=(GCP_WORKLOAD_IDENTITY_PROVIDER)
+          [ -n "${DEPLOY_SA:-}" ] || missing+=(GCP_DEPLOY_SERVICE_ACCOUNT)
+          [ -n "${RUNTIME_SA:-}" ] || missing+=(GCP_RUNTIME_SERVICE_ACCOUNT)
+
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::notice title=Backend not deployed::Skipping Cloud Run. Missing repository variables: ${missing[*]}. See certrace-backend/README.md, Deploy to Google Cloud Run."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Python 3.13
+        if: steps.gate.outputs.ready == 'true'
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: |
+            certrace-backend/requirements.txt
+            certrace-backend/requirements-test.txt
+
+      - name: Install runtime and test dependencies
+        if: steps.gate.outputs.ready == 'true'
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt -r requirements-test.txt
+
+      - name: Run FastAPI tests
+        if: steps.gate.outputs.ready == 'true'
+        # The same gate the portal and landing jobs apply: nothing ships that
+        # cannot pass its own suite, even though CI already ran it on the PR.
+        run: python -m pytest -q
+
+      - name: Authenticate to Google Cloud
+        if: steps.gate.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v gcloud >/dev/null; then
+            echo "::error::gcloud is missing from this runner image. Pin google-github-actions/setup-gcloud by SHA if that ever changes."
+            exit 1
+          fi
+
+          # Exchange the run's OIDC token for Google credentials. Both files are
+          # runner-local, never echoed, and die with the workspace.
+          curl -sS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=https://iam.googleapis.com/${WIF_PROVIDER}" \
+            | python -c 'import json,sys; sys.stdout.write(json.load(sys.stdin)["value"])' \
+            > "${RUNNER_TEMP}/oidc-token"
+
+          gcloud iam workload-identity-pools create-cred-config "${WIF_PROVIDER}" \
+            --service-account="${DEPLOY_SA}" \
+            --credential-source-file="${RUNNER_TEMP}/oidc-token" \
+            --output-file="${RUNNER_TEMP}/gcp-credentials.json"
+
+          gcloud auth login --cred-file="${RUNNER_TEMP}/gcp-credentials.json" --quiet
+          gcloud config set project "${PROJECT_ID}" --quiet
+          gcloud auth list
+
+      - name: Build an immutable image
+        if: steps.gate.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Tagged with the commit, never :latest — the migration job and the
+          # serving revision have to be provably the same build.
+          image="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${SERVICE}:${GITHUB_SHA::7}"
+          gcloud builds submit --quiet --tag "$image" .
+          echo "IMAGE_TAG=$image" >> "$GITHUB_ENV"
+
+      - name: Migrate the database
+        if: steps.gate.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Alembic runs as its own job on that same image, never in the web
+          # container's start command: a failed migration must not take the
+          # serving revision down with it. migrations/env.py imports the models
+          # and not create_app, so no signing key is bound here.
+          gcloud run jobs deploy "${SERVICE}-migrate" \
+            --quiet \
+            --image="${IMAGE_TAG}" \
+            --region="${REGION}" \
+            --service-account="${RUNTIME_SA}" \
+            --set-secrets="DATABASE_URL=certrace-database-url:latest" \
+            --command=python --args=-m,alembic,upgrade,head \
+            --max-retries=1 --task-timeout=10m
+          gcloud run jobs execute "${SERVICE}-migrate" --region="${REGION}" --wait
+
+      - name: Deploy the service
+        if: steps.gate.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # ^|^ switches --set-env-vars to a pipe delimiter, because the sender
+          # address contains a comma and the default delimiter splits it in half.
+          #
+          # CERTRACE_APP_BASE_URL is the value with no error mode: leave it out
+          # and the service still starts, still passes every probe, and mints
+          # supplier smart links pointing at the default https://app.certrace.co,
+          # a host that does not exist. The portal is what serves /s/<token>.
+          gcloud run deploy "${SERVICE}" \
+            --quiet \
+            --image="${IMAGE_TAG}" \
+            --region="${REGION}" \
+            --service-account="${RUNTIME_SA}" \
+            --allow-unauthenticated \
+            --set-secrets="DATABASE_URL=certrace-database-url:latest,CERTRACE_JWT_SECRET=certrace-jwt-secret:latest,RESEND_API_KEY=certrace-resend-api-key:latest" \
+            --set-env-vars="^|^CERTRACE_CORS_ALLOWED_ORIGINS=${PORTAL_ORIGIN}|CERTRACE_APP_BASE_URL=${PORTAL_ORIGIN}|CERTRACE_REQUIRE_DATABASE=true|CERTRACE_ENABLE_API_DOCS=false|CERTRACE_EMAIL_DELIVERY=resend|CERTRACE_EMAIL_SENDER=${EMAIL_SENDER}|CERTRACE_EMAIL_REPLY_TO=${EMAIL_REPLY_TO}|DATABASE_POOL_SIZE=2|DATABASE_MAX_OVERFLOW=0" \
+            --cpu=1 --memory=512Mi --concurrency=8 \
+            --min=0 --max=3 \
+            --startup-probe="httpGet.path=/healthz,initialDelaySeconds=0,timeoutSeconds=3,periodSeconds=5,failureThreshold=12"
+
+      - name: Verify the live API answers on its own domain
+        if: steps.gate.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -uo pipefail
+          # The service URL proves the revision came up. api.certrace.co proves
+          # the domain mapping and the record in front of it still point here —
+          # the failure that catches is a 403 from an edge with nothing behind
+          # it, which reads like the application rejecting the call.
+          service_url="$(gcloud run services describe "${SERVICE}" --region="${REGION}" --format='value(status.url)')"
+          for url in "$service_url" "$API_URL"; do
+            code=000
+            for attempt in 1 2 3 4 5 6; do
+              code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 30 "${url}/readyz")" || code=000
+              if [ "$code" = "200" ]; then
+                echo "${url}/readyz — 200 after $attempt attempt(s)"
+                break
+              fi
+              echo "attempt $attempt: ${url}/readyz returned $code"
+              sleep 10
+            done
+            if [ "$code" != "200" ]; then
+              echo "::error title=Backend deployed but not answering::${url}/readyz returned $code"
+              echo "503 from the service URL is the database: CERTRACE_REQUIRE_DATABASE=true and the pooled URI is unreachable."
+              echo "403 on ${API_URL} is the edge: the Cloud Run domain mapping or the DNS record is missing (certrace-backend/README.md)."
+              exit 1
+            fi
+          done
+
+          # A preflight the portal's real origin can pass. Without this the
+          # first symptom is a login that fails in the browser with nothing
+          # whatsoever in the server log.
+          allow="$(curl -sS -o /dev/null -D - --max-time 30 -X OPTIONS "${API_URL}/api/auth/login" \
+            -H "Origin: ${PORTAL_ORIGIN}" -H 'Access-Control-Request-Method: POST' \
+            | tr -d '\r' | grep -i '^access-control-allow-origin:')" || allow=""
+          if [ -z "$allow" ]; then
+            echo "::error title=CORS blocks the portal::${API_URL} did not allow ${PORTAL_ORIGIN}."
+            echo "CERTRACE_CORS_ALLOWED_ORIGINS must list that exact origin — scheme and host, no path, no wildcard."
+            exit 1
+          fi
+          echo "$allow"
 
   deploy:
     name: Deploy ${{ matrix.name }}

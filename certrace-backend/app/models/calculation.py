@@ -14,6 +14,24 @@ UnitCode = Literal[
     "MWH",
     "TCO2E_PER_MWH",
     "FRACTION",
+    # Fuel is invoiced in volume or mass and its emission factor is published
+    # per unit of ENERGY, so the two only meet through a net calorific value.
+    # Reading 0.0561 tCO2/GJ as tCO2/m3 overstates a gas row by roughly 25x,
+    # which is why the conversion is named here rather than done by a caller.
+    # The mirror of these units is FuelUnit in certrace-portal/lib/cbam/units.ts.
+    "GJ",
+    "TCO2E_PER_GJ",
+    "MTQ",
+    "KGM",
+    "LTR",
+    "GJ_PER_TNE",
+    "GJ_PER_MTQ",
+    "GJ_PER_KGM",
+    "GJ_PER_LTR",
+    # Tonnes of a precursor per tonne of its PARENT's output. Top-level
+    # precursors arrive as absolute tonnes; everything deeper in the tree is a
+    # ratio, because a tier states what it consumes per tonne of what it makes.
+    "TNE_PER_TNE",
     "KGM_CF4_PER_TNE_AL_PER_AEM",
     "KGM_CF4_PER_TNE_AL_PER_MILLIVOLT",
     "TNE_C2F6_PER_TNE_CF4",
@@ -34,12 +52,49 @@ class MeasuredValue(BaseModel):
 
 
 class SourceStreamInput(BaseModel):
+    """One combustion or process source stream.
+
+    Two shapes are accepted and they are not interchangeable:
+
+      MASS      activity in TNE with an emission factor in TCO2E_PER_TNE, and
+                no calorific value. The original shape, unchanged.
+      ENERGY    activity in GJ, or in TNE/MTQ/KGM/LTR together with a
+                ``net_calorific_value`` in GJ per that same unit, with an
+                emission factor in TCO2E_PER_GJ.
+
+    A quantity in volume or mass with no calorific value is refused rather
+    than converted with a standard value: substituting one would put the
+    assumption that most often moves the answer outside the audit trace.
+    """
+
     model_config = ConfigDict(extra="forbid")
     id: str = Field(min_length=1)
     activity: MeasuredValue
     emission_factor: MeasuredValue
+    net_calorific_value: MeasuredValue | None = None
     oxidation_factor: MeasuredValue | None = None
     conversion_factor: MeasuredValue | None = None
+    evidence_reference: str | None = None
+
+
+class ProcessEmissionInput(BaseModel):
+    """Mass balance over a carbon-bearing input: E = mass x carbonContent x 44/12.
+
+    Kept apart from ``SourceStreamInput`` on purpose. The same number could be
+    smuggled through a source stream by putting 3.664 in the emission-factor
+    field, but the trace would then claim a standard calculation over an
+    emission factor when what happened was a mass balance over a carbon
+    content -- and the trace is the product here.
+
+    The conversion constant is not an input: it is fixed by EU MRR (EU)
+    2018/2066 and stated by the engine, so nobody can file a declaration
+    against a private value of 44/12.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+    id: str = Field(min_length=1)
+    mass: MeasuredValue
+    carbon_content: MeasuredValue
     evidence_reference: str | None = None
 
 
@@ -65,6 +120,19 @@ class AluminiumPfcInput(BaseModel):
 
 
 class PrecursorInput(BaseModel):
+    """One precursor, and everything that went into it.
+
+    ``quantity`` is absolute tonnes at the top level and TNE_PER_TNE below it:
+    a tier states what it consumes per tonne of what it makes, which is how
+    the EU template expresses a bill of materials.
+
+    ``own_process_specific_emissions`` is what THIS tier emitted itself -- its
+    furnace, its reheat -- as opposed to what it carried in from its children.
+    A node with children ignores its declared or default figure entirely and
+    resolves to own process plus the tiers below it, matching
+    ``seeForNode`` in certrace-portal/lib/cbam/precursor-tree.ts.
+    """
+
     model_config = ConfigDict(extra="forbid")
     id: str = Field(min_length=1)
     method: PrecursorMethod
@@ -72,8 +140,10 @@ class PrecursorInput(BaseModel):
     cn_code: str | None = None
     country_of_origin: str | None = None
     actual_specific_embedded_emissions: MeasuredValue | None = None
+    own_process_specific_emissions: MeasuredValue | None = None
     default_year: int | None = None
     evidence_reference: str | None = None
+    children: list["PrecursorInput"] = Field(default_factory=list)
 
 
 class CalculationRequest(BaseModel):
@@ -84,6 +154,7 @@ class CalculationRequest(BaseModel):
     route: Route
     production: MeasuredValue
     source_streams: list[SourceStreamInput] = Field(default_factory=list)
+    process_emissions: list[ProcessEmissionInput] = Field(default_factory=list)
     electricity: ElectricityInput | None = None
     aluminium_pfc: AluminiumPfcInput | None = None
     precursors: list[PrecursorInput] = Field(default_factory=list)

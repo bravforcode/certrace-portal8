@@ -6,7 +6,7 @@
 
 ## 🗺️ ภาพรวมสถาปัตยกรรม (System Architecture Overview)
 
-ระบบ Certrace ถูกแบ่งออกเป็น **4 ส่วนหลัก** เพื่อแยกหน้าที่ออกจากกันอย่างชัดเจน (Separation of Concerns):
+ระบบ Certrace ถูกแบ่งออกเป็น **3 ส่วนหลัก** เพื่อแยกหน้าที่ออกจากกันอย่างชัดเจน (Separation of Concerns):
 
 ```mermaid
 graph TD
@@ -16,7 +16,6 @@ graph TD
 
     subgraph ระบบหน้าบ้านของผู้ใช้งาน (Frontend Apps)
         CP[Customer Portal - Exporters & Suppliers]
-        AP[Admin Portal - Internal Staff]
     end
 
     subgraph ระบบประมวลผลหลังบ้าน (Backend & DB)
@@ -26,8 +25,7 @@ graph TD
 
     LP -- 1. ลงทะเบียนและจองเวลา --> LP
     CP -- 2. ดึง/ส่งข้อมูลการรายงานภาษี --> BE
-    AP -- 3. ตรวจสอบข้อมูลและช่วยเหลือลูกค้า --> BE
-    BE -- 4. บันทึกและดึงข้อมูล --> DB
+    BE -- 3. บันทึกและดึงข้อมูล --> DB
 ```
 
 ---
@@ -61,34 +59,20 @@ graph TD
 
 ---
 
-### 👑 3. Admin Portal (ระบบหลังบ้านสำหรับผู้ดูแลระบบ)
-*   **ที่อยู่โฟลเดอร์:** [certrace-admin-portal](file:///d:/1tb/certrace/certrace-admin-portal)
-*   **มีไว้ทำไม (Purpose):** 
-    *   เป็นเครื่องมือใช้งานภายในของทีมผู้ดูแลระบบ Certrace เพื่อบริการจัดการลูกค้า และทำภารกิจสนับสนุนการใช้งาน (Customer Support)
-*   **หน้าที่หลัก (Key Features):**
-    *   **Organization Directory:** ค้นหา ดูสถานะ และจัดการแผนการจ่ายเงิน (Billing Plan) ของแต่ละบริษัทลูกค้า
-    *   **Declaration Queue:** ตรวจเช็คข้อมูลการส่งออกของลูกค้า เพื่อช่วยยืนยันความถูกต้องก่อนการส่งรายงานไปยุโรป
-    *   **Customer Tickets:** ระบบรับ-ตอบคำถามด้านการใช้งานและความช่วยเหลือทางเทคนิค
-    *   **Regulatory Drafts:** ระบบเขียนและอัปเดตแบบร่างข้อบังคับ CBAM ที่พึ่งประกาศใหม่จากทาง EU
-*   **เทคโนโลยีที่ใช้ (Tech Stack):** 
-    *   Next.js (React), TypeScript, TailwindCSS
-
----
-
-### ⚙️ 4. Compliance Backend API (ระบบประมวลผลหลัก)
+### ⚙️ 3. Compliance Backend API (ระบบประมวลผลหลัก)
 *   **ที่อยู่โฟลเดอร์:** [certrace-backend](file:///d:/1tb/certrace/certrace-backend)
 *   **มีไว้ทำไม (Purpose):** 
-    *   เป็นสมองส่วนกลางในการคิดคำนวณ รักษาความปลอดภัยของข้อมูล และติดต่อจัดการกับฐานข้อมูลของทั้ง Customer Portal และ Admin Portal
+    *   เป็นสมองส่วนกลางในการคิดคำนวณ รักษาความปลอดภัยของข้อมูล และติดต่อจัดการกับฐานข้อมูลให้ Customer Portal
 *   **หน้าที่หลัก (Key Features):**
     *   **CBAM Calculation Engine:** ประมวลผลและคำนวณหาปริมาณ Embedded Carbon (ค่าการปล่อยคาร์บอนแฝง) ตามเกณฑ์ทางเคมีและพลังงานของ EU
-    *   **Database Management:** คัดลอกและบันทึกข้อมูลความสัมพันธ์ในฐานข้อมูล (PostgreSQL) ตามไฟล์ [schema.sql](file:///d:/1tb/certrace/certrace-backend/schema.sql)
+    *   **Database Management:** บันทึกข้อมูลความสัมพันธ์ในฐานข้อมูล (PostgreSQL) โดยมี alembic migration ใน [certrace-backend/migrations/versions](certrace-backend/migrations/versions) เป็น source of truth ชุดเดียวของ schema
     *   **Authentication & Security:** จัดการแฮชรหัสผ่านของผู้ใช้ (PBKDF2) และออก JWT Token สำหรับตรวจสอบสิทธิ์การเข้าใช้งาน API
 *   **เทคโนโลยีที่ใช้ (Tech Stack):** 
     *   Python 3, FastAPI, PostgreSQL (`psycopg2`), JWT (PyJWT)
 
 ---
 
-### 📧 5. Outreach & Data Scripts (ระบบอัตโนมัติหาลูกค้า)
+### 📧 4. Outreach & Data Scripts (ระบบอัตโนมัติหาลูกค้า)
 *   **ที่อยู่ไฟล์ในโฟลเดอร์หลัก:** [send_emails.py](file:///d:/1tb/certrace/send_emails.py), [send_interview_invites.py](file:///d:/1tb/certrace/send_interview_invites.py)
 *   **มีไว้ทำไม (Purpose):** 
     *   ใช้สำหรับรันแบบอัตโนมัติในการดึงข้อมูลจากใบรายชื่อบริษัทผู้ส่งออกเหล็กและอลูมิเนียมในไทย ส่งอีเมลแนะนำแบรนด์/ชวนสัมภาษณ์
