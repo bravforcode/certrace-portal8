@@ -2,8 +2,9 @@
 
 ไฟล์นี้สรุปว่า **โค้ดในรีโปตอนนี้ทำอะไรได้จริงบ้าง** และเหลืออะไรที่ โบ๊ท กับ เฟิน ต้องลุยต่อก่อนปล่อยให้ Design Partner ใช้งานจริง
 
-> อัปเดตล่าสุด: 7 ก.ย. 2026 — ไล่อ่านจากโค้ดจริงทั้งรีโป + ยิงเช็คโดเมน production จริง ไม่ได้อ่านจากแผนงาน
-> รอบก่อน (30 ส.ค.) ประเมินไว้ 65% ซึ่งตกยุคไปมาก — 70 คอมมิตหลังจากนั้นปิด Blocker เดิมไปเกือบทั้งหมด
+> อัปเดตล่าสุด: 10 ก.ย. 2026 — เพิ่ม job deploy backend ใน `deploy.yml` และเขียนสูตร Cloud Run ใน README ใหม่ให้ครบ
+> ฐานของไฟล์นี้ยังเป็นการไล่อ่านโค้ดจริงทั้งรีโปเมื่อ 7 ก.ย. + ยิงเช็คโดเมน production จริง ไม่ได้อ่านจากแผนงาน
+> รอบ 30 ส.ค. ประเมินไว้ 65% ซึ่งตกยุคไปมาก — 70 คอมมิตหลังจากนั้นปิด Blocker เดิมไปเกือบทั้งหมด
 
 ---
 
@@ -47,11 +48,11 @@
 | **Portal — การเชื่อมต่อข้อมูล** | 🟡 60% | auth, declarations, smart links ต่อ API จริงแล้วผ่าน [`lib/api/`](certrace-portal/lib/api) + TanStack Query | team / workspace / profile / monthly-requests ยังเป็น localStorage (ตั้งใจเลื่อน — ดู D2) |
 | **Backend — Auth** | 🟢 100% | `register` `login` `me` `refresh` `logout` `change/forgot/reset-password` + JWT + refresh token + rate limit หน้าต่าง 15 นาที | — |
 | **Backend — Smart Links** | 🟢 100% | สร้าง / resolve / save state / submit / ขอแก้ไข / ดูรายการที่ส่งมา — token ออกจากเซิร์ฟเวอร์ มีวันหมดอายุ | — |
-| **Backend — เครื่องคำนวณ CBAM** | 🟡 85% | คำนวณ source stream / electricity / PFC / precursor พร้อม audit trace + **golden fixture เทียบกับเครื่องฝั่งพอร์ทัลแล้ว** | ครอบคลุม 2 ใน 4 เส้นของ fixture (ขาดเส้น direct/ค่าความร้อนเชื้อเพลิง) + ค่า default factor ตัวจริง |
+| **Backend — เครื่องคำนวณ CBAM** | 🟢 100%* | คำนวณครบ **ทั้ง 4 เส้น** ของ fixture แล้ว (10 ก.ย.) — เชื้อเพลิงผ่านค่าความร้อน, process emission แบบ mass balance, indirect, precursor หลายชั้น พร้อม audit trace ทุกเส้น | \* ตัวเครื่องครบแล้ว แต่ยังต้องรอ **ค่า default factor ตัวจริง** (R3) ถึงจะใช้กับสินค้านอก 2 CN code ได้ |
 | **Backend — อีเมลแจ้งเตือน** | 🟡 85% | เทมเพลต 7 แบบ, delivery log กันส่งซ้ำด้วย unique index, job รันเตือนตามตาราง | job ยังต่อกับ `NullSource` = ยังไม่ส่งอะไรเลย เพราะข้อมูลคำขอยังอยู่ใน localStorage (ดู R4) |
-| **Deploy** | 🟡 60% | [`deploy.yml`](.github/workflows/deploy.yml) ยิง landing + portal ขึ้น Cloudflare อัตโนมัติทุก merge เข้า main พร้อมเช็ค security header ที่ปลายทาง | **ไม่มี job สำหรับ backend** และ `api.certrace.co` ยังเป็น DNS เปล่า |
+| **Deploy** | 🟡 75% | [`deploy.yml`](.github/workflows/deploy.yml) ยิง landing + portal ขึ้น Cloudflare อัตโนมัติทุก merge เข้า main พร้อมเช็ค security header ที่ปลายทาง + **มี job `backend` ยิงขึ้น Cloud Run แล้ว** (build → migration job → deploy → เช็ค `/readyz` + CORS) | job นั้นยัง **skip ตัวเองอยู่** เพราะ repository variable ฝั่ง GCP ยังไม่มีใครตั้ง และ `api.certrace.co` ยังเป็น DNS เปล่า |
 | **CI / คุณภาพโค้ด** | 🟢 100% | lint, typecheck, unit test, npm audit, pip-audit, CodeQL, secret scan, Playwright E2E | — |
-| **Admin Portal** | 🔴 Deprecated | ตัดออกจากขอบเขต MVP ไม่ได้อยู่ใน CI และไม่ได้ deploy | ลบโฟลเดอร์ `certrace-admin-portal` ทิ้งได้เลย |
+| **Admin Portal** | ⚫ ลบแล้ว | ตัดออกจากขอบเขต MVP ตั้งแต่ต้น ไม่เคยอยู่ใน CI และไม่เคย deploy — ลบโฟลเดอร์ทิ้งแล้ว 10 ก.ย. | — (ยังอยู่ใน git history ถ้าวันหนึ่งจะรื้อกลับมา) |
 
 ---
 
@@ -62,7 +63,7 @@
     *   [x] **Smart link ฝั่งเซิร์ฟเวอร์** — [`app/routers/links.py`](certrace-backend/app/routers/links.py) + migration `009_smart_links` ซัพพลายเออร์กรอกจากเครื่องตัวเอง แล้วผู้ส่งออกเห็นจริง
     *   [x] **Declarations ตามความหมายของพอร์ทัล** — CRUD ครบที่ [`app/routers/declarations.py`](certrace-backend/app/routers/declarations.py) (migration `006_portal_declarations`)
     *   [x] **อุดช่องโหว่ auth ทั้งสองจุดของรอบก่อน** — `/forgot-password` ส่งโค้ดทางอีเมลแล้ว ไม่คืน token ใน response อีก และ in-memory store ถูกล็อกไว้เฉพาะโหมดไม่มี `DATABASE_URL` เท่านั้น ถ้าต่อ DB แล้วล้มจะ raise ไม่ตกไปใช้ memory เงียบๆ ([`auth_service.py`](certrace-backend/app/services/auth_service.py) — อ่าน docstring บนหัวไฟล์)
-    *   [x] **Schema เหลือชุดเดียว** — alembic เดินถึง `010_notification_deliveries` แล้ว `schema.sql` เหลือเป็นซากที่ไม่มีใครเรียก
+    *   [x] **Schema เหลือชุดเดียว** — alembic เดินถึง `010_notification_deliveries` ส่วน `schema.sql` ที่เป็นซากถูกลบทิ้งแล้ว 10 ก.ย.
     *   [x] **อีเมลแจ้งเตือน** — เทมเพลต, transport, delivery log กันส่งซ้ำ, ตารางเตือนซัพพลายเออร์ ([`services/reminders.py`](certrace-backend/app/services/reminders.py), [`services/reminder_schedule.py`](certrace-backend/app/services/reminder_schedule.py))
     *   [x] **เทสต์ 14 ไฟล์** ครอบคลุม auth hardening, refresh, smart links, onboarding, notifications, reminders, parity
 *   **หน้าบ้านพอร์ทัล (Next.js 15 + React 19)**
@@ -83,12 +84,22 @@
 ## 🔴 2. เหลืออะไร — เรียงตามที่บล็อกกันอยู่
 
 #### **R1. Backend ยังไม่ได้ deploy — ตัวนี้บล็อกทุกอย่างที่เหลือ**
-ยิง `https://api.certrace.co/health` ตอนนี้ได้ **403 จาก Cloudflare** ซึ่งคือหน้า DNS record เปล่า ไม่มี service อยู่หลัง
-โค้ดพร้อมหมดแล้ว: Dockerfile, Procfile, alembic, และสูตร Cloud Run เขียนไว้ครบที่ [`certrace-backend/README.md:258`](certrace-backend/README.md:258) เหลือแค่ลงมือ
-*   [ ] **เฟิน:** เตรียม Postgres (Supabase / Neon / Cloud SQL) แล้วรัน migration ผ่าน Cloud Run Job ตามสูตรใน README
-*   [ ] **เฟิน:** deploy service แล้วตั้ง env: `CERTRACE_REQUIRE_DATABASE=true`, `CERTRACE_CORS_ALLOWED_ORIGINS=https://portal.certrace.co`, `CERTRACE_ENABLE_API_DOCS=false`, `RESEND_API_KEY`
-*   [ ] **เฟิน:** ตั้ง body size limit อย่างน้อย 8 MB ตามที่ [API contract](docs/API-CONTRACT.md) ระบุ ไม่งั้นเซฟพังตอนมีไฟล์แนบหลายอัน
-*   [ ] เพิ่ม job deploy backend ใน [`deploy.yml`](.github/workflows/deploy.yml) (ตอนนี้มีแค่ landing กับ portal)
+ยิง `https://api.certrace.co/readyz` ตอนนี้ได้ **403 จาก Cloudflare** ซึ่งคือหน้า DNS record เปล่า ไม่มี service อยู่หลัง
+โค้ดพร้อมหมดแล้ว: Dockerfile, Procfile, alembic, สูตร Cloud Run ที่ [`certrace-backend/README.md:260`](certrace-backend/README.md:260) และตั้งแต่ 10 ก.ย. **ท่อ deploy อัตโนมัติก็เขียนเสร็จแล้ว** — เหลือแค่ของจริงฝั่ง GCP ที่ต้องมีคนเปิดคอนโซลทำ
+
+ทำครั้งแรกด้วยมือหนึ่งรอบ จากนั้น job `backend` ใน [`deploy.yml`](.github/workflows/deploy.yml) จะรับช่วงต่อทุก merge ที่แตะ `certrace-backend/` (ตอนนี้มันเห็นว่า variable ยังไม่ครบ เลย skip ตัวเองพร้อมโน้ตบอกว่าขาดตัวไหน — ไม่ทำให้ main แดง)
+
+*   [ ] **เฟิน:** เตรียม Postgres (Supabase / Neon / Cloud SQL) แล้วยัด pooled URI เข้า Secret Manager
+*   [ ] **เฟิน:** สร้าง secret ให้ครบ **3 ตัว** — `certrace-database-url`, `certrace-jwt-secret`, `certrace-resend-api-key`
+*   [ ] **เฟิน:** รัน migration ผ่าน Cloud Run Job แล้ว deploy service ตามสูตรใน README (env ครบอยู่ในคำสั่งเดียวที่นั่นแล้ว)
+*   [ ] **เฟิน:** ทำ domain mapping `api.certrace.co` → Cloud Run แล้วตั้ง record ใน Cloudflare เป็น **DNS only** (เมฆเทา) — ถ้าเปิด proxy สีส้ม managed certificate จะจับมือไม่สำเร็จ
+*   [ ] **โบ๊ท:** ตั้ง repository variable 4 ตัวที่บังคับ (`GCP_PROJECT_ID`, `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_DEPLOY_SERVICE_ACCOUNT`, `GCP_RUNTIME_SERVICE_ACCOUNT`) ตามตารางใน [README §Deploy from CI](certrace-backend/README.md:446) — ตั้งเสร็จเมื่อไหร่ merge ถัดไปยิงขึ้นเองเลย
+*   [x] เพิ่ม job deploy backend ใน [`deploy.yml`](.github/workflows/deploy.yml) — ทำแล้ว 10 ก.ย. (pytest → build image ติดแท็ก commit → Cloud Run Job รัน alembic → deploy service → เช็ค `/readyz` ทั้ง service URL และโดเมนจริง + ยิง preflight CORS ด้วย Origin ของพอร์ทัล)
+*   [x] ~~ตั้ง body size limit 8 MB~~ — ไม่ต้องทำอะไร Cloud Run รับ body ได้ถึง 32 MiB อยู่แล้ว ตัวที่ต้องระวังคือ proxy ที่มาคั่นข้างหน้าเท่านั้น
+
+> ⚠️ **สองตัวแปรที่ลืมแล้วเจ็บ** (เพิ่งเพิ่มเข้าตาราง env ของ README รอบนี้)
+> `CERTRACE_JWT_SECRET` — ไม่มีแล้ว **แอปไม่ start เลย** ถ้ามี `DATABASE_URL` ([`main.py:59`](certrace-backend/app/main.py:59)) อาการคือ revision ไม่ผ่าน startup probe
+> `CERTRACE_APP_BASE_URL` — อันนี้ร้ายกว่า เพราะ**ไม่มีอาการอะไรเลย** ไม่ตั้งแล้ว service ยังขึ้นปกติ ผ่าน probe ปกติ แต่ smart link ทุกอันที่ mint ออกไปจะชี้ไป `https://app.certrace.co` ตาม default ([`config.py:51`](certrace-backend/app/config.py:51)) ซึ่งเป็นโดเมนที่ไม่มีอยู่จริง กว่าจะรู้ตัวคือตอนซัพพลายเออร์กดลิงก์ในอีเมลที่เราส่งไปแล้ว — ต้องตั้งเป็น `https://portal.certrace.co`
 
 #### **R2. พอร์ทัล production ยังวิ่งใน demo mode**
 ดูหัวข้อ 🚨 ด้านบน ทำทันทีที่ R1 เสร็จ
@@ -119,10 +130,12 @@
 
 ## 🟡 3. ต้องตัดสินใจ
 
-#### **D1. เครื่องคำนวณสองตัว — คืบไปเยอะแล้ว แต่ยังไม่จบ**
-ตอนนี้มี golden fixture กลางที่ทั้งสองฝั่งอ่านไฟล์เดียวกัน ([`docs/fixtures/golden-eaf-2026.json`](docs/fixtures/golden-eaf-2026.json)) และมีเทสต์ parity ทั้งสองข้าง
-สถานะจริง: เครื่องฝั่ง backend แสดงได้ **2 ใน 4 เส้นการปล่อย** ของ fixture (เส้น indirect กับ precursor ตรงกันแบบ exact) เส้นที่ขาดคือ direct ซึ่งต้องสอนเรื่องค่าความร้อนเชื้อเพลิงก่อน
-*   [ ] ตัดสินใจว่าจะปิดช่องว่างให้ backend เป็น source of truth ก่อนรับลูกค้าที่จ่ายเงิน หรือปล่อยให้พอร์ทัลคำนวณต่อไปในรอบ MVP (แนะนำ: ปล่อยไว้ก่อน เพราะ parity test จับ regression ให้อยู่แล้ว)
+#### **D1. เครื่องคำนวณสองตัว — ✅ ปิดช่องว่างแล้ว 10 ก.ย.**
+golden fixture กลางที่ทั้งสองฝั่งอ่านไฟล์เดียวกัน ([`docs/fixtures/golden-eaf-2026.json`](docs/fixtures/golden-eaf-2026.json)) ยังอยู่ และ **backend คำนวณครบทั้ง 4 เส้นแล้ว** ตัวเลขตรงกับพอร์ทัลทุกเส้น
+*   [x] **เชื้อเพลิง** — เพิ่มหน่วย `GJ` / `MTQ` / `KGM` / `LTR` และค่าความร้อน (`net_calorific_value`) เข้าโมเดล ถ้าส่งปริมาณที่วัดมาโดยไม่มีค่าความร้อนจะ **ปฏิเสธ ไม่เดาค่ามาตรฐานให้** (ก๊าซธรรมชาติ 0.0561 tCO2/GJ ถ้าอ่านผิดเป็น tCO2/m³ ตัวเลขบานขึ้นราว 25 เท่า)
+*   [x] **Process emission** — เพิ่ม input แยกพร้อม trace method `MASS_BALANCE` และค่าคงที่ `CO2_PER_C = 3.664` ที่ผู้เรียก **ตั้งเองไม่ได้** จะได้ไม่มีใครยื่นด้วยค่า 44/12 ของตัวเอง
+*   [x] **Precursor หลายชั้น** — มี `children` + ค่าการปล่อยของชั้นตัวเอง คำนวณจากล่างขึ้นบน กันวงจรและจำกัดความลึก 10 ชั้นเท่าฝั่งพอร์ทัล
+*   [ ] **ตัดสินใจ:** จะย้ายให้ backend เป็น source of truth ของตัวเลขที่ยื่นจริงเมื่อไหร่ — ตอนนี้พอร์ทัลยังเป็นคนคำนวณสิ่งที่ลูกค้าเห็น ความพร้อมมีแล้ว เหลือแค่ตัดสินใจว่าจะสลับตอนไหน
 
 #### **D2. Store ที่ยังไม่ได้ย้ายขึ้นเซิร์ฟเวอร์**
 `team-store`, `workspace-*`, `profile`, `monthly-requests`, `precursor-suppliers`, evidence ยังเป็น localStorage ทั้งหมด
@@ -130,8 +143,10 @@
 *   [ ] ยืนยันว่ายังยอมรับได้ — ผลคือข้อมูลทีม/โปรไฟล์/คำขอรายเดือนผูกกับเบราว์เซอร์เครื่องเดียว ย้ายเครื่องแล้วหาย (และทำให้ R4 ทำงานไม่ได้)
 
 #### **D3. เศษที่ค้างในรีโป**
-*   [ ] ลบ `certrace-admin-portal` (deprecated ไม่อยู่ใน CI ไม่ได้ deploy)
-*   [ ] ลบ [`certrace-backend/schema.sql`](certrace-backend/schema.sql) (ไม่มีใครเรียกแล้ว alembic เป็น source of truth)
+*   [x] ลบ `certrace-admin-portal` — ทำแล้ว 10 ก.ย. (47 ไฟล์ ไม่มีอะไรนอกโฟลเดอร์อ้างถึงนอกจากเอกสาร)
+*   [x] ลบ `certrace-backend/schema.sql` — ทำแล้ว 10 ก.ย.
+    > ⚠️ ตอนลบเจอว่ามันไม่ใช่ซากเฉยๆ: ในนั้นมี 13 ตารางที่ **ไม่เคยถูก migrate เลย** — 5 ตัวเป็นของ admin portal ที่ลบไปแล้ว แต่อีก 6 ตัว (`organizations`, `profiles`, `team_members`, `supplier_states`, `exporter_decl_states`, `directory_suppliers`) คือหน้าตาที่เคยออกแบบไว้ให้ store ที่ตอนนี้ยังอยู่ใน localStorage ตาม D2 พอดี
+    > ไม่ได้หายไปไหน — `git show HEAD:certrace-backend/schema.sql` ดึงกลับมาอ่านได้ตลอด และตอนจะทำ D2/R4 จริงควรเปิดดูก่อนออกแบบใหม่
 *   [ ] venv ในเครื่องเป็น Python 3.9 ทำให้ `pytest` ในเครื่องรันไม่ได้ (รีโปตั้งเป้า 3.13 และ CI ใช้ 3.13) — ตั้ง venv ใหม่ถ้าจะดีบั๊ก backend ในเครื่อง
 
 ---
