@@ -25,7 +25,9 @@ import { SplashScreen } from "@/components/splash-screen";
 import { AnimateCard, BlurHeading, TagBadge, handleMouseGlow } from "@/components/ui";
 import { DATE_LOCALE, HERO_VIDEO_ID, useLang } from "@/lib/i18n";
 import { usePages } from "@/lib/i18n-pages";
-import { SIGNUP_URL } from "@/lib/site";
+import { SIGNUP_URL, SITE_URL, siteUrl } from "@/lib/site";
+import { CONTENT } from "@/lib/content";
+import { JsonLd, ORG_ID, WEBSITE_ID } from "@/components/json-ld";
 
 const AUDIENCE_LINKS: { id: string; href: string; live: boolean; delay: number }[] =
   [
@@ -99,6 +101,51 @@ function CtaBarField() {
   );
 }
 
+/* Built once at module scope — it depends on nothing that renders. */
+const HOME_JSON_LD = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebPage",
+      "@id": `${SITE_URL}/#webpage`,
+      url: SITE_URL,
+      name: "Certrace — CBAM Proof Infrastructure for Exporters",
+      isPartOf: { "@id": WEBSITE_ID },
+      about: { "@id": ORG_ID },
+      primaryImageOfPage: siteUrl("/brand/og-cover.png"),
+      inLanguage: "en",
+    },
+    {
+      "@type": "FAQPage",
+      "@id": `${SITE_URL}/#faq`,
+      mainEntity: CONTENT.en.faq.items.map((item) => ({
+        "@type": "Question",
+        name: item.q,
+        acceptedAnswer: { "@type": "Answer", text: item.a },
+      })),
+    },
+    {
+      /* The product, distinct from the company. `offers` states only that a
+         free trial exists — the plan prices live on /pricing and are stated
+         there, not duplicated into a node that would go stale silently. */
+      "@type": "SoftwareApplication",
+      "@id": `${SITE_URL}/#software`,
+      name: "Certrace",
+      applicationCategory: "BusinessApplication",
+      operatingSystem: "Web",
+      url: SITE_URL,
+      publisher: { "@id": ORG_ID },
+      featureList: [
+        "Smart Link supplier data collection",
+        "CBAM embedded-emissions calculation engine",
+        "Annex IV communication template and XML",
+        "Carbon benchmark against CBAM certificate cost",
+        "Audit-ready CBAM report package",
+      ],
+    },
+  ],
+};
+
 export default function HomePage() {
   const { lang, c } = useLang();
   const p = usePages();
@@ -119,6 +166,13 @@ export default function HomePage() {
       id="top"
       className="bg-[#F5F4F0] text-[#111] min-h-screen font-sans antialiased"
     >
+      {/* The homepage's own graph: the page itself, and the FAQ block further
+          down marked up so a search engine can answer from it directly. The
+          questions are read from the English dictionary rather than from `c`,
+          because the markup describes the canonical page and must not change
+          when a reader switches the interface to Thai. */}
+      <JsonLd data={HOME_JSON_LD} />
+
       <SplashScreen onDone={onSplashDone} />
       <Navbar />
 

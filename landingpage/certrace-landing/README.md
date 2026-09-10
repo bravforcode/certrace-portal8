@@ -47,3 +47,50 @@ npm run build  # production build
 - `faq.tsx` — accordion
 
 See `IMAGE-CONCEPTS.md` for AI-image upgrade prompts per visual slot.
+
+## Search visibility
+
+What the code already does, on every build:
+
+- **`app/sitemap.ts` → `/sitemap.xml`** — all 14 static routes plus every CBAM
+  guide, event and update, each with the date its own content was last touched.
+- **`app/robots.ts` → `/robots.txt`** — open to everything, answer engines
+  included. See the caveat below: Cloudflare can add rules of its own on top.
+- **Canonicals** — one per route, absolute, resolved from `metadataBase` in
+  `app/layout.tsx`, which reads `SITE_URL` in `lib/site.ts`. That constant is
+  the only place the public origin is written.
+- **Open Graph / Twitter cards** — `public/brand/og-cover.png` (1200×630) is the
+  site-wide card; event and update pages send their own photograph instead.
+  NOTE: a route that declares `openGraph` at all **replaces** the root block
+  rather than extending it, so any new route that sets one must name an image.
+- **Structured data** (`components/json-ld.tsx`) — Organization and WebSite on
+  every page, plus FAQPage + SoftwareApplication on the homepage, Article +
+  FAQPage on each guide, Event on each event, NewsArticle on each update, and
+  a breadcrumb trail on all three detail routes.
+- **Titles** — the root layout carries a `"%s — Certrace"` template, so a route
+  sets its own bare name (`"Pricing"`) and never repeats the brand. The
+  template reaches direct children only; the `[slug]` routes therefore set an
+  absolute title of their own.
+
+What no amount of code can do, and has to be done once by hand:
+
+1. **Google Search Console** — add `https://certrace.co` as a domain property,
+   verify by DNS TXT in Cloudflare (or set `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION`
+   and redeploy), then submit `https://certrace.co/sitemap.xml`. Nothing
+   reports on indexing until this exists. Bing Webmaster Tools is the same job
+   with `NEXT_PUBLIC_BING_SITE_VERIFICATION`, and can import from Google.
+2. **Check Cloudflare's managed robots.txt.** The live `/robots.txt` currently
+   serves a Cloudflare-injected block ahead of ours that carries
+   `Disallow: /` for GPTBot, ClaudeBot, CCBot, Google-Extended,
+   meta-externalagent and Bytespider. That is a dashboard setting
+   (AI Crawl Control / robots.txt managed content), not this repo, and it is
+   the opposite of what `app/robots.ts` intends: the guides are written to be
+   quoted by answer engines. Decide it deliberately, in the dashboard.
+   `Google-Extended` does not affect ordinary Google Search ranking; `GPTBot`
+   and `ClaudeBot` decide whether ChatGPT and Claude can read the site.
+3. **Links from sites that already rank.** Everything above makes the site
+   legible; it does not make it authoritative. The listings worth having are
+   the ones an exporter searching for CBAM help already lands on — trade
+   associations, TGO/BOI/DITP directories, university and event pages that
+   list us as a participant (the `/events` entries are real, so ask each
+   organiser for the link).
