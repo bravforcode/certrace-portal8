@@ -335,10 +335,20 @@ backend เก็บเป็น `jsonb` ทั้งก้อน โดยแ�
 }
 ```
 
-**ข้อจำกัดที่ยอมรับในรอบนี้:** `docs[].files[].dataUrl` เป็น base64 ของไฟล์
-ถ้าไฟล์ใหญ่เกิน ~1.5 MB พอร์ทัลจะเก็บแค่ชื่อกับขนาด รอบนี้ยังไม่ทำ upload pipeline
-จริง แต่ **backend ต้องตั้ง body size limit ให้รับได้อย่างน้อย 8 MB**
-ไม่งั้นการเซฟจะพังตอนมีไฟล์แนบหลายอัน
+**อัปเดต 10 ก.ย. — ข้อจำกัดนี้ปิดไปแล้ว ดู §7**
+
+เดิม `docs[].files[].dataUrl` เป็น base64 ของไฟล์ ถ้าใหญ่เกิน ~1.5 MB พอร์ทัลเก็บแค่ชื่อกับขนาด
+ตอนนี้ไฟล์ขึ้นเซิร์ฟเวอร์แล้ว และใน state เหลือแค่ `docs[].files[].fileId` อ้างถึงมัน
+
+| ฟิลด์ | เมื่อไหร่ที่ใช้ |
+| :-- | :-- |
+| `fileId` | มี backend — ไฟล์อยู่บนเซิร์ฟเวอร์ ใหญ่ได้ถึงลิมิตที่ประกาศไว้ |
+| `dataUrl` | demo mode ที่ไม่มีเซิร์ฟเวอร์ให้เก็บ ยังตันที่ ~1.5 MB เหมือนเดิม |
+| ไม่มีทั้งคู่ | ไฟล์ที่แนบไว้ตั้งแต่ก่อนมีท่อนี้ เหลือแค่ชื่อ |
+
+ทั้งสามแบบต้องอ่านได้หมด — ของเก่าที่บันทึกไว้แล้วต้องไม่พังเพราะรูปแบบใหม่
+
+**body size limit ยังต้องรับได้อย่างน้อย 8 MB** เพราะ state ที่มี `dataUrl` เก่าปนอยู่ยังเซฟผ่าน endpoint เดิม
 
 ---
 
@@ -368,7 +378,44 @@ backend เก็บเป็น `jsonb` ทั้งก้อน โดยแ�
 
 - RBAC ฝั่งเซิร์ฟเวอร์ (ตอนนี้แค่ "เป็นเจ้าของหรือไม่เป็น")
 - Team members / seats เป็น API แยก (ยังอยู่ในก้อน state)
-- Upload pipeline จริงและ antivirus scan
+- Antivirus scan ของไฟล์ที่อัปโหลด (ตัว upload pipeline เองทำแล้ว — §7)
 - Audit trail แบบ hash-chain
 - Rate limiting บน `/links/{token}`
 - Google OAuth
+
+---
+
+## 7 · Evidence files (ทำแล้ว 10 ก.ย.)
+
+ไฟล์ขึ้นไปทั้งก้อนเป็น **raw body** ไม่ใช่ JSON และไม่ใช่ multipart — ชื่อไฟล์อยู่ใน query string
+ชนิดไฟล์อยู่ใน `Content-Type` ซึ่งเป็นสองอย่างที่เบราว์เซอร์รู้อยู่แล้วจากตัว `File`
+
+| Method | Path | ใคร |
+| :-- | :-- | :-- |
+| `GET` | `/api/v1/uploads/limits` | ใครก็ได้ ไม่ต้องล็อกอิน |
+| `POST` | `/api/v1/declarations/{id}/files?filename=&docId=` | ผู้ส่งออก (Bearer) |
+| `GET` | `/api/v1/declarations/{id}/files` | ผู้ส่งออก |
+| `GET` · `DELETE` | `/api/v1/files/{fileId}` | ผู้ส่งออก |
+| `POST` | `/api/v1/links/{token}/files?filename=&docId=` | ซัพพลายเออร์ (token เท่านั้น) |
+| `GET` | `/api/v1/links/{token}/files` | ซัพพลายเออร์ |
+| `GET` | `/api/v1/links/{token}/files/{fileId}` | ซัพพลายเออร์ |
+
+**สิ่งที่เซิร์ฟเวอร์ปฏิเสธ** (ทุกอันตอบ 422 พร้อม `code`)
+
+| code | เมื่อไหร่ |
+| :-- | :-- |
+| `FILE_TOO_LARGE` | เกินลิมิต (ค่าเริ่มต้น 15 MB ตั้งได้ที่ `CERTRACE_MAX_UPLOAD_BYTES`) |
+| `FILE_EMPTY` | body ว่าง |
+| `FILE_TYPE_NOT_ALLOWED` | ไม่ใช่ pdf / png / jpeg / csv / xlsx |
+| `FILE_CONTENT_MISMATCH` | ประกาศชนิดมาอย่าง แต่ magic bytes เป็นอีกอย่าง |
+
+**กติกาที่ต้องไม่พลาด**
+
+- token ของ smart link **ไม่ใช่บัญชี** — ผู้ถือ token อ่านได้เฉพาะไฟล์ที่ตัวเองอัปผ่าน link นั้น ไม่ใช่ทั้ง declaration
+- ไฟล์ของคนอื่นตอบ **404 ไม่ใช่ 403** — 403 เท่ากับยืนยันว่า id นั้นมีจริง
+- ดาวน์โหลดเสิร์ฟเป็น `attachment` เสมอ ไม่เคย inline — เอกสารของคนอื่นต้องไม่ได้ render ใน origin ของเรา
+- `sha256` คำนวณฝั่งเซิร์ฟเวอร์ ไม่ใช่ในเบราว์เซอร์ (ของเดิมพิสูจน์ได้แค่ว่าเบราว์เซอร์เลือกจะบอกอะไร)
+- revoke link แล้ว **ไฟล์ไม่หาย** — ซัพพลายเออร์ทำงานไปแล้ว FK เป็น `SET NULL` ไม่ใช่ `CASCADE`
+
+**ที่เก็บจริงตอนนี้เป็น PostgreSQL ไม่ใช่ bucket** — ตั้งใจ และมี `ObjectStore` คั่นไว้แล้วให้ย้ายไป bucket ได้โดยไม่ต้องแก้ route
+เหตุผลกับราคาที่ต้องจ่ายเขียนไว้ครบใน [`app/services/file_store.py`](../certrace-backend/app/services/file_store.py)

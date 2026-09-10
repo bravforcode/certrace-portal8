@@ -27,11 +27,27 @@ export type SupplierProfile = {
 };
 
 export type DocStatus = "missing" | "uploaded";
-/* `dataUrl` carries the actual file bytes (base64) for files up to ~1.5 MB so
-   the exporter can genuinely retrieve the evidence — not just its filename.
-   Larger files keep name+size only (storage quota) and must be transferred
-   out-of-band until a real upload pipeline exists. */
-export type UploadedFile = { name: string; size: number; addedAt: number; dataUrl?: string };
+/* Two ways the bytes can exist, and which one is used depends on whether
+   there is a backend to talk to:
+
+   `fileId`   the file is ON THE SERVER (lib/api/files.ts). This is the real
+              path: any size up to the published limit, the hash computed
+              where the bytes landed, and the exporter fetches it rather than
+              being handed a copy that travelled through a JSON blob.
+   `dataUrl`  base64 of the file, inline. The fallback for demo mode, where
+              there is no server to hold anything. Still capped at ~1.5 MB by
+              the browser's storage quota, and still loses everything larger —
+              which is exactly the limitation `fileId` exists to end.
+
+   Neither is required: a row with only name and size is a file somebody
+   attached before either path could keep it, and it stays readable. */
+export type UploadedFile = {
+  name: string;
+  size: number;
+  addedAt: number;
+  fileId?: string;
+  dataUrl?: string;
+};
 /** One requested document slot can hold several files (multi-page certs, etc.).
     `status` stays "uploaded" while ≥1 file is attached, so the AI check and the
     completion matrix keep reading it the same way. */

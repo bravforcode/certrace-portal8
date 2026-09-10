@@ -22,6 +22,7 @@ from app.models.database import (
     DefaultEmissionFactor,
     PortalDeclaration,
     SmartLink,
+    UploadedFile,
 )
 
 _logger = logging.getLogger(__name__)
@@ -277,3 +278,112 @@ class DatabaseRepository:
                 .order_by(SmartLink.created_at.desc())
             ).all()
             return [self._smart_link_dict(row) for row in rows]
+
+    # ── Evidence files (PROJECT_STATUS.md R5) ────────────────────
+    # Same shape from both stores, like smart links: the no-database mode keeps
+    # these dicts on app.state so the routes never branch on which one answered.
+    # Metadata and bytes are read separately on purpose - a listing must not
+    # drag every certificate through memory to render a filename.
+
+    @staticmethod
+    def _uploaded_file_dict(row: UploadedFile) -> dict[str, object]:
+        return {
+            "id": str(row.id),
+            "userId": str(row.user_id),
+            "declId": row.declaration_id,
+            "docId": row.doc_id,
+            "uploadedViaToken": row.uploaded_via_token,
+            "filename": row.filename,
+            "contentType": row.content_type,
+            "sizeBytes": int(row.size_bytes),
+            "sha256": row.sha256,
+            "storageKey": row.storage_key,
+            "createdAt": int(row.created_at.timestamp() * 1000)
+            if row.created_at
+            else None,
+        }
+
+    def create_uploaded_file(
+        self,
+        user_id: uuid.UUID,
+        declaration_id: str,
+        doc_id: str | None,
+        uploaded_via_token: str | None,
+        filename: str,
+        content_type: str,
+        size_bytes: int,
+        sha256: str,
+        storage_key: str,
+        data: bytes,
+    ) -> dict[str, object]:
+        with self.session_factory.begin() as session:
+            row = UploadedFile(
+                user_id=user_id,
+                declaration_id=declaration_id,
+                doc_id=doc_id,
+                uploaded_via_token=uploaded_via_token,
+                filename=filename,
+                content_type=content_type,
+                size_bytes=size_bytes,
+                sha256=sha256,
+                storage_key=storage_key,
+                data=data,
+            )
+            session.add(row)
+            session.flush()
+            session.refresh(row)
+            return self._uploaded_file_dict(row)
+
+    def get_uploaded_file(self, file_id: uuid.UUID) -> dict[str, object] | None:
+        with self.session_factory() as session:
+            row = session.get(UploadedFile, file_id)
+            return self._uploaded_file_dict(row) if row else None
+
+    def list_uploaded_files(
+        self, user_id: uuid.UUID, declaration_id: str
+    ) -> list[dict[str, object]]:
+        with self.session_factory() as session:
+            rows = session.scalars(
+                select(UploadedFile)
+                .where(
+                    UploadedFile.user_id == user_id,
+                    UploadedFile.declaration_id == declaration_id,
+                )
+                .order_by(UploadedFile.created_at.desc())
+            ).all()
+            return [self._uploaded_file_dict(row) for row in rows]
+
+    def delete_uploaded_file(self, file_id: uuid.UUID) -> bool:
+        with self.session_factory.begin() as session:
+            row = session.get(UploadedFile, file_id)
+            if row is None:
+                return False
+            session.delete(row)
+            return True
+
+    # The three ObjectStore operations, addressed by storage key rather than by
+    # row id: that is the interface a bucket will implement, so nothing above
+    # this line has to know which one is holding the bytes.
+
+    def put_file_bytes(self, storage_key: str, data: bytes) -> None:
+        with self.session_factory.begin() as session:
+            row = session.scalars(
+                select(UploadedFile).where(UploadedFile.storage_key == storage_key)
+            ).one_or_none()
+            if row is not None:
+                row.data = data
+
+    def get_file_bytes(self, storage_key: str) -> bytes | None:
+        with self.session_factory() as session:
+            row = session.scalars(
+                select(UploadedFile).where(UploadedFile.storage_key == storage_key)
+            ).one_or_none()
+            return bytes(row.data) if row is not None and row.data is not None else None
+
+    def delete_file_bytes(self, storage_key: str) -> None:
+        with self.session_factory.begin() as session:
+            row = session.scalars(
+                select(UploadedFile).where(UploadedFile.storage_key == storage_key)
+            ).one_or_none()
+            if row is not None:
+                row.data = None

@@ -8,6 +8,7 @@ from decimal import Decimal
 from typing import Optional
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
     Computed,
@@ -16,6 +17,7 @@ from sqlalchemy import (
     ForeignKey,
     ForeignKeyConstraint,
     Integer,
+    LargeBinary,
     Numeric,
     String,
     Text,
@@ -243,6 +245,63 @@ class SmartLink(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
     updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class UploadedFile(Base):
+    """One piece of evidence, metadata and bytes in the same row.
+
+    Before this table a certificate lived as a base64 data URL inside the
+    supplier's answer blob in one browser's localStorage, and anything past
+    ~1.5 MB was reduced to its filename. Most mill certificates are larger
+    than that, so the document a verifier would ask for was the one the portal
+    discarded.
+
+    ``storage_key`` is already path-shaped
+    (``declarations/{id}/{random}/{name}``) because the bytes belong in a
+    bucket eventually. When they move, ``data`` empties and the key starts
+    addressing an object instead - see app/services/file_store.py.
+
+    ``uploaded_via_token`` records the smart link a supplier uploaded through,
+    which is what lets that supplier read their own file back without an
+    account while keeping them away from everyone else's.
+
+    The composite FK means deleting a declaration takes its evidence with it,
+    exactly as it takes its links.
+    """
+
+    __tablename__ = "uploaded_files"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["user_id", "declaration_id"],
+            ["portal_declarations.user_id", "portal_declarations.id"],
+            ondelete="CASCADE",
+        ),
+        CheckConstraint("size_bytes > 0", name="uploaded_files_size_positive"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    declaration_id: Mapped[str] = mapped_column(Text, nullable=False)
+    # Which requested document slot this file answers, when it answers one.
+    # Opaque here, like every other id the portal owns.
+    doc_id: Mapped[Optional[str]] = mapped_column(Text)
+    uploaded_via_token: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("smart_links.token", ondelete="SET NULL")
+    )
+    filename: Mapped[str] = mapped_column(Text, nullable=False)
+    content_type: Mapped[str] = mapped_column(Text, nullable=False)
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    # sha-256 of the contents, computed server-side. The portal used to hash
+    # in the browser, which proved only what the browser chose to say.
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    storage_key: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    # Null once the bytes live in a bucket rather than in this row.
+    data: Mapped[Optional[bytes]] = mapped_column(LargeBinary)
+    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 

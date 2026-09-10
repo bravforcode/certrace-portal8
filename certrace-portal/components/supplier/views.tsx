@@ -418,7 +418,9 @@ const fmtSize = (b: number) => (b < 1024 ? `${b} B` : b < 1024 * 1024 ? `${(b / 
 
 function DocRow({ d }: { d: RequestDocAsk }) {
   const t = useT();
-  const { state, addFiles, removeFile, isDocEditable, flaggedDocs, focusDocId, clearDocFocus } = useSupplier();
+  const { state, uploadFiles, removeFile, isDocEditable, flaggedDocs, focusDocId, clearDocFocus } = useSupplier();
+  const [busy, setBusy] = React.useState(false);
+  const [refused, setRefused] = React.useState<{ name: string; reason: string }[]>([]);
   const files = state.docs[d.id]?.files ?? [];
   const uploaded = files.length > 0;
   const editable = isDocEditable(d.id);
@@ -441,25 +443,21 @@ function DocRow({ d }: { d: RequestDocAsk }) {
   }, [isTarget, clearDocFocus]);
 
   const ring = fs ? cn("transition-shadow duration-700", pulse ? fs.ringStrong : fs.ring) : "";
+  /* The bytes leave here for the server (lib/api/files.ts) — this view no
+     longer reads files itself. What it still owns is telling someone that a
+     file was refused, and by which name: an upload that vanishes silently is
+     how a supplier arrives at the deadline believing they attached something. */
   const onPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const list = Array.from(e.target.files ?? []);
     e.target.value = ""; // let the same file be re-picked later
-    // Keep the real bytes for files up to 1.5 MB so the exporter can retrieve
-    // the evidence; bigger files record name + size only (storage quota).
-    const MAX_INLINE = 1_500_000;
-    const picked = await Promise.all(
-      list.map(
-        (f) =>
-          new Promise<{ name: string; size: number; dataUrl?: string }>((resolve) => {
-            if (f.size > MAX_INLINE) return resolve({ name: f.name, size: f.size });
-            const reader = new FileReader();
-            reader.onload = () => resolve({ name: f.name, size: f.size, dataUrl: typeof reader.result === "string" ? reader.result : undefined });
-            reader.onerror = () => resolve({ name: f.name, size: f.size });
-            reader.readAsDataURL(f);
-          }),
-      ),
-    );
-    addFiles(d.id, picked);
+    if (list.length === 0) return;
+    setRefused([]);
+    setBusy(true);
+    try {
+      setRefused(await uploadFiles(d.id, list));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -500,16 +498,34 @@ function DocRow({ d }: { d: RequestDocAsk }) {
 
             {editable ? (
               <>
-                <input ref={inputRef} type="file" multiple onChange={onPick} className="hidden" aria-label={t("Upload {document}", { document: t(d.label) })} />
+                <input ref={inputRef} type="file" multiple onChange={onPick} disabled={busy} className="hidden" aria-label={t("Upload {document}", { document: t(d.label) })} />
                 <button
                   onClick={() => inputRef.current?.click()}
-                  className="mt-2 inline-flex items-center gap-1.5 rounded-xl border border-dashed border-black/15 px-3.5 py-2 text-[12px] text-black/55 hover:border-black/30 hover:text-black"
+                  disabled={busy}
+                  className="mt-2 inline-flex items-center gap-1.5 rounded-xl border border-dashed border-black/15 px-3.5 py-2 text-[12px] text-black/55 hover:border-black/30 hover:text-black disabled:cursor-wait disabled:opacity-60"
                 >
-                  <Upload size={13} strokeWidth={1.5} /> {uploaded ? "Add more files" : "Upload file(s)"}
+                  <Upload size={13} strokeWidth={1.5} />{" "}
+                  {busy ? t("Uploading…") : uploaded ? t("Add more files") : t("Upload file(s)")}
                 </button>
               </>
             ) : (
               <p className="mt-2 text-[11px] text-black/40">{t("Locked — not part of this revision.")}</p>
+            )}
+
+            {/* A refused file, by name and by reason. The server's message is
+                the one shown: it is the only one that knows whether this was a
+                size, a type, or a file that was not what it claimed. */}
+            {refused.length > 0 && (
+              <ul className="mt-2 space-y-1">
+                {refused.map((r) => (
+                  <li key={r.name} className="flex items-start gap-1.5 text-[11.5px] leading-relaxed text-[#b42318]">
+                    <CircleX size={12} strokeWidth={1.8} className="mt-[2px] flex-none" />
+                    <span>
+                      <span className="font-medium">{r.name}</span> — {r.reason}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             )}
 
             {flag && (

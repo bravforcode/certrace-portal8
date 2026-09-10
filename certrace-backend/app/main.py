@@ -23,9 +23,10 @@ from app.core.cors import (
     validate_cors_origin,
 )
 from app.repositories.database import DatabaseRepository
-from app.routers import auth, calculations, declarations, health, links
+from app.routers import auth, calculations, declarations, files, health, links
 from app.services.email import EmailTransport, transport_from_env
 from app.services.errors import AccountStoreUnavailable
+from app.services.file_store import DatabaseObjectStore, InMemoryObjectStore
 
 
 async def _account_store_unavailable_handler(
@@ -88,6 +89,18 @@ def create_app(
     application.state.portal_declarations = {}
     # No-database home for supplier smart links: {token: link dict}.
     application.state.smart_links = {}
+    # No-database home for evidence metadata: {file id: row dict}. The bytes
+    # sit in the object store beside it.
+    application.state.uploaded_files = {}
+    # Where evidence bytes live. With a database that is a column on the row;
+    # without one it is a dict that dies with the process, which is what a
+    # local demo wants and what CERTRACE_REQUIRE_DATABASE keeps out of
+    # production. Either way the routes only ever see ObjectStore.
+    application.state.file_store = (
+        DatabaseObjectStore(application.state.database)
+        if application.state.database is not None
+        else InMemoryObjectStore()
+    )
     # Minted links point at the portal, not at this API.
     application.state.app_base_url = (
         load_env_file_value(APP_BASE_URL_ENV) or APP_BASE_URL_DEFAULT
@@ -119,4 +132,5 @@ def create_app(
     application.include_router(calculations.router)
     application.include_router(declarations.router)
     application.include_router(links.router)
+    application.include_router(files.router)
     return application

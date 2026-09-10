@@ -29,6 +29,22 @@ export type RequestOptions = {
   method?: "GET" | "POST" | "PUT" | "DELETE";
   /** Serialized as JSON. Omit for GET/DELETE. */
   body?: unknown;
+  /* ── Evidence uploads ──────────────────────────────────────────
+     A file goes up as the raw body with its own content type, not as JSON and
+     not as multipart: base64 inside JSON costs a third more bytes for nothing,
+     and multipart would add a second place for a filename to be stated. The
+     server reads the type from the header and the name from the query string
+     (docs/API-CONTRACT.md §7).
+
+     `rawBody` and `body` are mutually exclusive; passing both is a caller bug
+     and throws rather than silently picking one. */
+  rawBody?: Blob | ArrayBuffer | Uint8Array;
+  /** Content type for `rawBody`. Required with it — the server refuses an
+      upload whose declared type does not match its bytes, and a Blob with no
+      type would be declared as nothing at all. */
+  contentType?: string;
+  /** Answer as a Blob rather than JSON, for downloading a stored file. */
+  responseType?: "json" | "blob";
   /** Send the bearer token. Defaults to true — pass false for the public Smart Link routes. */
   auth?: boolean;
   /** Caller's own cancellation, honoured alongside the timeout. */
@@ -136,10 +152,26 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 }
 
 async function perform<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = "GET", body, auth = true, signal, timeoutMs = apiTimeoutMs() } = options;
+  const {
+    method = "GET",
+    body,
+    rawBody,
+    contentType,
+    responseType = "json",
+    auth = true,
+    signal,
+    timeoutMs = apiTimeoutMs(),
+  } = options;
 
-  const headers: Record<string, string> = { Accept: "application/json" };
+  if (body !== undefined && rawBody !== undefined) {
+    throw new ApiError("BAD_REQUEST", "A request carries either a JSON body or a raw body, not both.");
+  }
+
+  const headers: Record<string, string> = {
+    Accept: responseType === "blob" ? "*/*" : "application/json",
+  };
   if (body !== undefined) headers["Content-Type"] = "application/json";
+  if (rawBody !== undefined && contentType) headers["Content-Type"] = contentType;
 
   if (auth) {
     const token = accessToken();
@@ -159,7 +191,7 @@ async function perform<T>(path: string, options: RequestOptions = {}): Promise<T
     response = await apiFetch()(`${apiBaseUrl()}${path}`, {
       method,
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body: rawBody !== undefined ? (rawBody as BodyInit) : body === undefined ? undefined : JSON.stringify(body),
       signal: controller.signal,
     });
   } catch {
@@ -180,6 +212,14 @@ async function perform<T>(path: string, options: RequestOptions = {}): Promise<T
   if (!response.ok) throw await toApiError(response);
 
   if (response.status === 204) return undefined as T;
+
+  if (responseType === "blob") {
+    try {
+      return (await response.blob()) as T;
+    } catch {
+      throw new ApiError("BAD_RESPONSE", "That file could not be read from the response.", response.status);
+    }
+  }
 
   try {
     return (await response.json()) as T;
