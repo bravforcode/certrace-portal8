@@ -104,6 +104,13 @@ Three modules, deliberately separate ([why](app/services/email.py)):
 | `app/services/email.py` | Talking to Resend — retries, timeouts, the dev transports. |
 | `app/services/email_templates.py` | What each message says, in English and Thai. |
 | `app/services/notifications.py` | Which message goes to whom, and when we stay quiet. |
+| `app/services/reminder_source.py` | What the nightly run is allowed to chase. |
+
+`python -m app.jobs.send_reminders` reads the `reminder_subjects` the portal
+registers when an exporter sends a monthly ask (`docs/API-CONTRACT.md` §8).
+With no `DATABASE_URL` it still finds nothing and sends nothing, which is what
+`--dry-run` on a laptop should do. Trial reminders stay empty until plans are
+modelled server-side.
 
 Categories match `certrace-portal/lib/notification-prefs.ts` one for one, so
 the preference check is already written for the day preferences move off the
