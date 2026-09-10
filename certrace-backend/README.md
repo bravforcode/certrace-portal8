@@ -88,6 +88,8 @@ In Git Bash, the same commands are:
 | `CERTRACE_EMAIL_SENDER` | Only to send mail | From address, on a domain verified in Resend, e.g. `Certrace <contact@certrace.co>`. |
 | `CERTRACE_EMAIL_REPLY_TO` | No | Reply-to address, when it differs from the sender. |
 | `CERTRACE_EMAIL_LOGO_URL` | No | Public PNG/JPG shown at the top of each email. Omit for no logo. |
+| `CERTRACE_JWT_SECRET` | Yes whenever `DATABASE_URL` is set | HS256 signing key for portal session tokens. Startup fails without it rather than sign with a key that changes on every restart and instance. Generate with `python -c "import secrets; print(secrets.token_urlsafe(48))"`. |
+| `CERTRACE_APP_BASE_URL` | No (default `https://app.certrace.co`) | Where minted supplier smart links point — the portal serving `/s/<token>`, never this API. The default is **not** the live portal: production must set `https://portal.certrace.co` or every link mailed to a supplier lands on a host that does not exist. |
 
 `.env` is ignored by Git. Use [`.env.example`](.env.example) as the safe,
 committable template.
@@ -261,6 +263,13 @@ The included `Dockerfile` runs one Uvicorn worker as a non-root user, listens on
 Cloud Run's injected `PORT`, and does not copy `.env` or tests into the image.
 Run the commands below from `certrace-backend/`.
 
+**Do this once by hand, then let CI take over.** Every merge to `main` that
+touches `certrace-backend/` runs the same build, migration, and deploy from
+[`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) — see
+[Deploy from CI](#deploy-from-ci) at the end of this section. What follows is
+what that job does, in the order it does it, and what only a human can do:
+create the secrets, and map the domain.
+
 Choose a region near both users and the Supabase database, then set the shell
 variables for your project. These examples use Bangkok's nearby Cloud Run region:
 
@@ -280,16 +289,30 @@ gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudb
 gcloud artifacts repositories create "$REPOSITORY" --repository-format=docker --location="$REGION"
 ```
 
-Create a dedicated runtime identity and grant it access to one Secret Manager
-secret containing the complete pooled Supabase URI:
+Create a dedicated runtime identity and grant it access to the three secrets the
+service reads. `DATABASE_URL` holds the complete pooled Supabase URI;
+`CERTRACE_JWT_SECRET` signs portal sessions and the app refuses to start without
+it once a database is configured; `RESEND_API_KEY` is the same credential the
+outreach script at the repository root uses:
 
 ```bash
 gcloud iam service-accounts create certrace-backend-runner --display-name="Certrace backend Cloud Run"
+
 printf '%s' 'postgresql://REPLACE_WITH_REAL_POOLED_URI' | gcloud secrets create certrace-database-url --data-file=-
-gcloud secrets add-iam-policy-binding certrace-database-url \
-  --member="serviceAccount:certrace-backend-runner@${PROJECT_ID}.iam.gserviceaccount.com" \
-  --role="roles/secretmanager.secretAccessor"
+python -c "import secrets; print(secrets.token_urlsafe(48), end='')" | gcloud secrets create certrace-jwt-secret --data-file=-
+printf '%s' 're_REPLACE_WITH_REAL_KEY' | gcloud secrets create certrace-resend-api-key --data-file=-
+
+for secret in certrace-database-url certrace-jwt-secret certrace-resend-api-key; do
+  gcloud secrets add-iam-policy-binding "$secret" \
+    --member="serviceAccount:certrace-backend-runner@${PROJECT_ID}.iam.gserviceaccount.com" \
+    --role="roles/secretmanager.secretAccessor"
+done
 ```
+
+`end=''` on the key matters: a trailing newline inside the secret is invisible
+in every console and dashboard, travels into the signing key, and produces a
+service whose tokens are all valid — until someone regenerates the secret
+without it and every session breaks at once.
 
 Build an immutable image:
 
@@ -300,7 +323,9 @@ export IMAGE_TAG="${IMAGE}:$(git rev-parse --short HEAD)"
 
 Do not run Alembic in the web container startup command. Create or update a
 Cloud Run Job using the same immutable image, then execute it before deploying
-the web revision that needs the new schema:
+the web revision that needs the new schema. The job needs only the database URI
+— [`migrations/env.py`](migrations/env.py) imports the models, never
+`create_app`, so no signing key is bound here:
 
 ```bash
 gcloud run jobs deploy certrace-backend-migrate \
@@ -313,42 +338,172 @@ gcloud run jobs deploy certrace-backend-migrate \
 gcloud run jobs execute certrace-backend-migrate --region="$REGION" --wait
 ```
 
-Deploy the service as private by default. Replace the CORS value with the exact
-production portal origin; multiple origins are comma-separated without wildcard
-hosts:
+Then deploy the service. Every value below is load-bearing; the two that fail
+quietly are called out underneath:
 
 ```bash
 gcloud run deploy "$SERVICE" \
   --image="$IMAGE_TAG" \
   --region="$REGION" \
   --service-account="certrace-backend-runner@${PROJECT_ID}.iam.gserviceaccount.com" \
-  --no-allow-unauthenticated \
-  --set-secrets="DATABASE_URL=certrace-database-url:1" \
-  --set-env-vars="CERTRACE_CORS_ALLOWED_ORIGINS=https://portal.example.com,CERTRACE_REQUIRE_DATABASE=true,CERTRACE_ENABLE_API_DOCS=false,DATABASE_POOL_SIZE=2,DATABASE_MAX_OVERFLOW=0" \
+  --allow-unauthenticated \
+  --set-secrets="DATABASE_URL=certrace-database-url:1,CERTRACE_JWT_SECRET=certrace-jwt-secret:1,RESEND_API_KEY=certrace-resend-api-key:1" \
+  --set-env-vars="^|^CERTRACE_CORS_ALLOWED_ORIGINS=https://portal.certrace.co|CERTRACE_APP_BASE_URL=https://portal.certrace.co|CERTRACE_REQUIRE_DATABASE=true|CERTRACE_ENABLE_API_DOCS=false|CERTRACE_EMAIL_DELIVERY=resend|CERTRACE_EMAIL_SENDER=Certrace <contact@certrace.co>|CERTRACE_EMAIL_REPLY_TO=contact@certrace.co|DATABASE_POOL_SIZE=2|DATABASE_MAX_OVERFLOW=0" \
   --cpu=1 --memory=512Mi --concurrency=8 \
   --min=0 --max=3 \
   --startup-probe="httpGet.path=/healthz,initialDelaySeconds=0,timeoutSeconds=3,periodSeconds=5,failureThreshold=12"
 ```
 
-The current Certrace portal is explicitly a browser-local readiness demo and
-does not have an identity authority or server-side tenant authorization. Keep
-the service private until those controls exist. A public browser client cannot
-use Cloud Run IAM directly as an end-user authentication system. Before changing
-to `--allow-unauthenticated`, implement and test application-level authentication,
-organization scoping on every database query, and role/action authorization.
+`^|^` switches `--set-env-vars` to a pipe delimiter, because the sender address
+contains a comma. With the default delimiter gcloud splits
+`Certrace <contact@certrace.co>` in half and the deploy fails on a malformed
+pair.
 
-Smoke-test the deployed revision:
+`CERTRACE_APP_BASE_URL` is the one with no error mode. Leave it out and the
+service still starts, still passes every probe, and mints supplier smart links
+pointing at the default `https://app.certrace.co` — a host that does not exist.
+Nobody finds out until a supplier opens the link in the mail we sent them. The
+portal is what serves `/s/<token>`, so this is the portal origin, never the
+API's.
+
+`--allow-unauthenticated` is required here, not a shortcut. The portal is a
+browser client and cannot present a Cloud Run IAM identity token, so a private
+service would refuse every request it makes. An earlier version of this file
+said to keep the service private because the portal had no identity authority of
+its own; that is no longer true. The API issues and verifies its own JWTs
+([`app/core/tokens.py`](app/core/tokens.py)), rotates refresh tokens
+server-side, rate-limits the auth routes, and puts every exporter-facing route
+behind `current_account`
+([`app/routers/declarations.py`](app/routers/declarations.py),
+[`app/routers/links.py`](app/routers/links.py)). What is still missing is
+role/action authorization: today the only question the server asks is whether
+the caller owns the row. That gap is tracked in
+[`PROJECT_STATUS.md`](../PROJECT_STATUS.md) §5 and is a prerequisite for paying
+customers, not for a design partner.
+
+Smoke-test the deployed revision. The service exposes `/`, `/healthz`, and
+`/readyz`. There is no `/health` — asking for one gets a 404 that reads like a
+dead service:
 
 ```bash
 export SERVICE_URL="$(gcloud run services describe "$SERVICE" --region="$REGION" --format='value(status.url)')"
-export ID_TOKEN="$(gcloud auth print-identity-token)"
-curl --fail --show-error -H "Authorization: Bearer $ID_TOKEN" "$SERVICE_URL/healthz"
-curl --fail --show-error -H "Authorization: Bearer $ID_TOKEN" "$SERVICE_URL/readyz"
+curl --fail --show-error "$SERVICE_URL/healthz"
+curl --fail --show-error "$SERVICE_URL/readyz"
 ```
+
+`/readyz` is the one that matters: it returns 503 when
+`CERTRACE_REQUIRE_DATABASE=true` and the pooled URI cannot be reached, which is
+the usual first-deploy outcome when the Supabase password or the
+`?sslmode=require` suffix is wrong.
+
+### Point `api.certrace.co` at the service
+
+Until this is done the hostname resolves to a Cloudflare record with nothing
+behind it and every call returns 403 from the edge — which reads like an
+application rejection and is not one:
+
+```bash
+gcloud beta run domain-mappings create --service="$SERVICE" --domain=api.certrace.co --region="$REGION"
+```
+
+Add the records it prints to Cloudflare DNS as **DNS only** (grey cloud).
+Proxying Cloud Run through the orange cloud breaks the managed certificate
+handshake while the mapping is still provisioning. Then confirm the portal's own
+origin is what CORS allows; a mismatch here surfaces in the browser as a failed
+preflight with nothing at all in the server log:
+
+```bash
+curl -sS -o /dev/null -D - -X OPTIONS https://api.certrace.co/api/auth/login \
+  -H 'Origin: https://portal.certrace.co' \
+  -H 'Access-Control-Request-Method: POST' | grep -i access-control
+```
+
+### Request size
+
+[`docs/API-CONTRACT.md`](../docs/API-CONTRACT.md) §4 requires the API to accept
+at least 8 MB, because supplier evidence still travels as base64 inside the
+smart-link save payload. Cloud Run caps an HTTP/1 request body at 32 MiB, so
+there is nothing to configure on the service itself — the limit to watch is
+whatever proxy ends up in front of it.
+
+### Secret versions
+
+The commands above pin `:1` because a hand-run deploy is a moment you are
+watching: you choose when a rotated secret goes live. CI uses `:latest` instead,
+so rotating a key is one `gcloud secrets versions add` plus a redeploy rather
+than a pull request against the workflow. Cloud Run resolves the version when an
+instance starts, so a rotation reaches the service on the next deploy or the
+next cold start, not instantly.
+
+### Connection budget
 
 With the defaults above, the target PostgreSQL usage is approximately six pooled
 connections (`3 instances * 2 connections`); Cloud Run documents that the
 configured maximum can be exceeded briefly during some events. Leave headroom
 in the Supabase pooler limit before increasing `--max`, concurrency, or the
-database pool settings. Use a pinned Secret Manager version and update the
-service/job when rotating it.
+database pool settings.
+
+### Deploy from CI
+
+The `backend` job in [`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml)
+runs the whole sequence above — tests, image, migration job, service, then a
+check that `api.certrace.co` answers and that CORS lets the portal in. It
+authenticates with Workload Identity Federation, so no service-account key is
+stored in the repository; the token it uses is minted per run and expires with
+it.
+
+Until the repository variables below exist the job skips with a notice instead
+of failing, so a backend change never turns `main` red before GCP is
+provisioned. Fill them in and the next merge ships.
+
+Create the pool and the identity GitHub impersonates:
+
+```bash
+gcloud iam workload-identity-pools create github --location=global --display-name="GitHub Actions"
+gcloud iam workload-identity-pools providers create-oidc github \
+  --location=global --workload-identity-pool=github \
+  --issuer-uri="https://token.actions.githubusercontent.com" \
+  --attribute-mapping="google.subject=assertion.sub,attribute.repository=assertion.repository" \
+  --attribute-condition="assertion.repository=='certrace/Certrace'"
+
+gcloud iam service-accounts create certrace-deployer --display-name="Certrace GitHub deploys"
+export POOL="$(gcloud iam workload-identity-pools describe github --location=global --format='value(name)')"
+gcloud iam service-accounts add-iam-policy-binding "certrace-deployer@${PROJECT_ID}.iam.gserviceaccount.com" \
+  --role=roles/iam.workloadIdentityUser \
+  --member="principalSet://iam.googleapis.com/${POOL}/attribute.repository/certrace/Certrace"
+```
+
+The `--attribute-condition` is what stops any other repository on GitHub from
+requesting a token for this account. Do not drop it — and keep the capital C:
+GitHub sends the repository name exactly as it stores it (`certrace/Certrace`),
+and the comparison is case-sensitive.
+
+`certrace-deployer` needs `roles/run.admin`, `roles/cloudbuild.builds.editor`,
+`roles/artifactregistry.writer`, and `roles/iam.serviceAccountUser` on
+`certrace-backend-runner` (that last one is what lets it deploy a service that
+*runs as* the runtime account). The runtime account keeps only
+`roles/secretmanager.secretAccessor` on the three secrets — a deploy identity
+that could also read secrets would make every workflow change a secret-exposure
+question.
+
+Then set these under **Settings → Secrets and variables → Actions → Variables**.
+They are repository *variables*, not secrets: none is confidential, and having
+them readable in the log is what makes a failed deploy diagnosable.
+
+| Variable | Example | Notes |
+| --- | --- | --- |
+| `GCP_PROJECT_ID` | `certrace-prod` | Required. |
+| `GCP_WORKLOAD_IDENTITY_PROVIDER` | `projects/123456789/locations/global/workloadIdentityPools/github/providers/github` | Required. Full resource name, numeric project number. |
+| `GCP_DEPLOY_SERVICE_ACCOUNT` | `certrace-deployer@certrace-prod.iam.gserviceaccount.com` | Required. The identity GitHub impersonates. |
+| `GCP_RUNTIME_SERVICE_ACCOUNT` | `certrace-backend-runner@certrace-prod.iam.gserviceaccount.com` | Required. The identity the service runs as. |
+| `GCP_REGION` | `asia-southeast1` | Optional, defaults to `asia-southeast1`. |
+| `GCP_SERVICE` | `certrace-backend` | Optional, defaults to `certrace-backend`. |
+| `GCP_ARTIFACT_REPOSITORY` | `certrace` | Optional, defaults to `certrace`. |
+| `PORTAL_ORIGIN` | `https://portal.certrace.co` | Optional. Sets both the CORS allowlist and where smart links point. |
+| `API_URL` | `https://api.certrace.co` | Optional. The domain the post-deploy check calls. |
+| `CERTRACE_EMAIL_SENDER` | `Certrace <contact@certrace.co>` | Optional. Must be on a Resend-verified domain. |
+| `CERTRACE_EMAIL_REPLY_TO` | `contact@certrace.co` | Optional. |
+
+To ship the backend without touching its files — after rotating a secret, say —
+run the workflow from the Actions tab and pick `backend` under *Which apps to
+deploy*.
