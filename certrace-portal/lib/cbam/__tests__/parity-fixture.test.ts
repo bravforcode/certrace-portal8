@@ -54,7 +54,10 @@ type Fixture = {
   };
   expected: Record<string, number | boolean>;
   tolerance: { ratio: number; mass: number; currency: number };
-  backend: { unsupported: { line: string; reason: string }[] };
+  backend: {
+    unsupported: { line: string; reason: string }[];
+    closed: { line: string; closedOn: string; how: string; guard: string }[];
+  };
 };
 
 const fixture = JSON.parse(readFileSync(FIXTURE_PATH, "utf8")) as Fixture;
@@ -202,15 +205,30 @@ test("golden.ts expectations match the shared fixture", () => {
 
 /* ── 3 · The gap register is not decoration ───────────────────── */
 
-test("the backend gap register still names the lines the portal alone can produce", () => {
-  const lines = fixture.backend.unsupported.map((u) => u.line);
+test("the backend gap register accounts for every line, closed or open", () => {
+  /* Until 2026-09-10 this asserted the opposite: that fuel combustion and
+     process emissions were still portal-only. They are not — the backend now
+     produces both, and certrace-backend/tests/test_parity_golden.py holds it
+     to the same shared expectations this file reads.
 
-  /* If someone empties this list without moving the arithmetic, the two
-     engines are being declared equivalent on paper only — and the backend
-     parity test is the one that proves otherwise. Keep them pointing at each
-     other. */
-  assert.ok(lines.includes("fuelTCO2"), "fuel combustion is still portal-only");
-  assert.ok(lines.includes("processTCO2"), "process emissions are still portal-only");
+     What has to stay true is that the register keeps describing reality. A
+     line cannot be in both halves, and neither half may become a list of
+     labels: whoever picks this up next has to be able to tell what was
+     actually moved from what was merely renamed. */
+  const closed = fixture.backend.closed.map((c) => c.line);
+  const open = fixture.backend.unsupported.map((u) => u.line);
+
+  assert.ok(closed.includes("fuelTCO2"), "fuel combustion is recorded as closed");
+  assert.ok(closed.includes("processTCO2"), "process emissions are recorded as closed");
+  assert.ok(closed.includes("multi-tier precursors"), "multi-tier precursors are recorded as closed");
+
+  for (const line of closed) {
+    assert.ok(!open.includes(line), `"${line}" is listed as both closed and unsupported`);
+  }
+  for (const entry of fixture.backend.closed) {
+    assert.ok(entry.how.length > 40, `closed gap "${entry.line}" needs to say what moved, not just that it did`);
+    assert.ok(entry.guard.length > 20, `closed gap "${entry.line}" names no guard holding it closed`);
+  }
   for (const entry of fixture.backend.unsupported) {
     assert.ok(entry.reason.length > 40, `gap "${entry.line}" needs a reason a reader can act on, not a label`);
   }

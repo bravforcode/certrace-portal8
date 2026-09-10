@@ -8,7 +8,6 @@
   "route": "EAF",
   "goodsCategory": "Iron & Steel",
   "reportingYear": 2026,
-
   "inputs": {
     "production": {
       "value": 10500,
@@ -74,9 +73,21 @@
       }
     ],
     "shipments": [
-      { "buyer": "Buyer A", "date": "2026-01-18", "quantityTonnes": 45.2 },
-      { "buyer": "Buyer A", "date": "2026-02-09", "quantityTonnes": 38.7 },
-      { "buyer": "Buyer A", "date": "2026-03-22", "quantityTonnes": 52.1 }
+      {
+        "buyer": "Buyer A",
+        "date": "2026-01-18",
+        "quantityTonnes": 45.2
+      },
+      {
+        "buyer": "Buyer A",
+        "date": "2026-02-09",
+        "quantityTonnes": 38.7
+      },
+      {
+        "buyer": "Buyer A",
+        "date": "2026-03-22",
+        "quantityTonnes": 52.1
+      }
     ],
     "exposure": {
       "status": "BOTH INPUTS UNRESOLVED - spec 9. The arithmetic is pinned here so a later change to an engine cannot move it silently; the two numbers themselves are placeholders and must not be quoted to a customer.",
@@ -85,7 +96,6 @@
       "markup": 0.1
     }
   },
-
   "expected": {
     "fuelEnergyGJ": 5699.04,
     "fuelTCO2": 319.7161,
@@ -106,88 +116,145 @@
     "exposureTCO2e": 168.2125,
     "exposureCurrency": 13877.53
   },
-
   "tolerance": {
-    "ratio": 0.000001,
+    "ratio": 1e-06,
     "mass": 0.0001,
     "currency": 0.01
   },
-
   "backend": {
-    "status": "PARTIAL - the backend reproduces the indirect and precursor lines exactly and cannot express the direct ones at all. Do not make the backend the source of truth for a filed figure until `unsupported` below is empty.",
-
+    "status": "COVERED - the backend reproduces all four emission lines of this fixture: fuel combustion through a net calorific value, process emissions through a mass balance, indirect electricity, and precursors including multi-tier chains. What it still does not do is listed under `unsupported`, and none of it is an emission line.",
     "mapping": [
-      "Precursor quantities are ABSOLUTE TONNES in the backend request and PER TONNE OF OUTPUT in the fixture, so each is multiplied by production: scrap 1.08 x 10500 = 11340 t, pig iron 0.05 x 10500 = 525 t. The backend then divides by production again, so the contribution is identical - this is a change of units, not of arithmetic.",
-      "The backend returns decimal STRINGS at 80 significant digits. Every covered line below is asserted as an exact decimal equality, not within a tolerance: if the two engines are to swap places, they have to agree completely, not nearly."
+      "Precursor quantities are ABSOLUTE TONNES in the backend request and PER TONNE OF OUTPUT in the fixture, so each is multiplied by production: scrap 1.08 x 10500 = 11340 t, pig iron 0.05 x 10500 = 525 t. The backend then divides by production again, so the contribution is identical - this is a change of units, not of arithmetic. Below the top level the backend uses TNE_PER_TNE, the same ratio the fixture states.",
+      "The fuel row travels in its metered unit with the calorific value beside it (148800 MTQ x 0.0383 GJ_PER_MTQ), never pre-converted by the caller: the conversion that most often goes wrong belongs inside the audit trace, not upstream of it.",
+      "The backend returns decimal STRINGS at 80 significant digits. `covered` below is asserted as exact decimal equality. `coveredWithinTolerance` is asserted against `tolerance`, and only for lines where the shared expectation is itself a rounded figure - 319.7161 is the display form of 319.716144, and no engine can equal it exactly without being wrong."
     ],
-
     "request": {
       "trace_id": "parity:golden-eaf-2026",
       "reporting_year": 2026,
       "sector": "IRON_STEEL",
       "route": "EAF",
-      "production": { "value": "10500", "unit": "TNE" },
+      "production": {
+        "value": "10500",
+        "unit": "TNE"
+      },
+      "source_streams": [
+        {
+          "id": "gas",
+          "activity": {
+            "value": "148800",
+            "unit": "MTQ"
+          },
+          "net_calorific_value": {
+            "value": "0.0383",
+            "unit": "GJ_PER_MTQ"
+          },
+          "emission_factor": {
+            "value": "0.0561",
+            "unit": "TCO2E_PER_GJ"
+          },
+          "oxidation_factor": {
+            "value": "1.0",
+            "unit": "FRACTION"
+          },
+          "evidence_reference": "12 monthly gas invoices 2026"
+        }
+      ],
+      "process_emissions": [
+        {
+          "id": "electrode",
+          "mass": {
+            "value": "22.05",
+            "unit": "TNE"
+          },
+          "carbon_content": {
+            "value": "1.0",
+            "unit": "FRACTION"
+          },
+          "evidence_reference": "Procurement records 2026"
+        }
+      ],
       "electricity": {
-        "electricity": { "value": "4725", "unit": "MWH" },
-        "emission_factor": { "value": "0.4999", "unit": "TCO2E_PER_MWH" },
+        "electricity": {
+          "value": "4725",
+          "unit": "MWH"
+        },
+        "emission_factor": {
+          "value": "0.4999",
+          "unit": "TCO2E_PER_MWH"
+        },
         "evidence_reference": "12 monthly utility bills 2026"
       },
       "precursors": [
         {
           "id": "scrap",
           "method": "SCRAP",
-          "quantity": { "value": "11340", "unit": "TNE" },
+          "quantity": {
+            "value": "11340",
+            "unit": "TNE"
+          },
           "cn_code": "72044990"
         },
         {
           "id": "pigiron",
           "method": "ACTUAL",
-          "quantity": { "value": "525", "unit": "TNE" },
+          "quantity": {
+            "value": "525",
+            "unit": "TNE"
+          },
           "cn_code": "72011090",
-          "actual_specific_embedded_emissions": { "value": "1.9", "unit": "TCO2E_PER_TNE" }
+          "actual_specific_embedded_emissions": {
+            "value": "1.9",
+            "unit": "TCO2E_PER_TNE"
+          }
         }
       ]
     },
-
     "covered": {
       "indirectEmissions": "indirectTCO2",
       "indirectSpecificEmissions": "indirectSpecific",
-      "precursorSpecificEmissions": "precursorSpecific"
+      "precursorSpecificEmissions": "precursorSpecific",
+      "directEmissionsComponents.processEmissions": "processTCO2",
+      "directEmissionsComponents.fuelEnergyContent": "fuelEnergyGJ"
     },
-
-    "expectedPartial": {
-      "ownProcessSpecificEmissions": "0",
-      "reportedSpecificEmbeddedEmissions": "0.319955",
-      "chargeableSpecificEmbeddedEmissions": "0.095",
-      "note": "Both totals are the fixture's totals MINUS the whole direct line, because the two direct rows cannot be sent at all. They are pinned so that closing a gap below visibly moves them."
+    "coveredWithinTolerance": {
+      "directEmissionsComponents.fuelCombustion": "fuelTCO2",
+      "directEmissions": "directTCO2",
+      "ownProcessSpecificEmissions": "directSpecific",
+      "reportedSpecificEmbeddedEmissions": "reportedSpecific",
+      "chargeableSpecificEmbeddedEmissions": "chargeableSpecific"
     },
-
-    "unsupported": [
+    "closed": [
       {
         "line": "fuelTCO2",
-        "reason": "The fuel row is 148,800 m3 with an NCV of 0.0383 GJ/m3 and a factor of 0.0561 tCO2/GJ. UnitCode in app/models/calculation.py has no energy unit and no NCV field, so a source stream can only be tonnes x tCO2e/tonne. Pre-converting on the client would put the conversion that most often goes wrong outside the audit trace, which is the one thing the backend exists to hold.",
-        "closedBy": "Add GJ and an NCV to the source-stream model, mirroring certrace-portal/lib/cbam/units.ts toGJ.",
-        "guard": "POST a source stream with unit GJ - it must still be rejected."
+        "closedOn": "2026-09-10",
+        "how": "GJ, the metered units MTQ/KGM/LTR/TNE and their GJ_PER_* calorific values were added to UnitCode, and SourceStreamInput gained net_calorific_value. A quantity in a metered unit with no calorific value is refused rather than converted with a standard value, mirroring toGJ in certrace-portal/lib/cbam/units.ts.",
+        "guard": "POST a metered quantity with no net_calorific_value - it must be refused with CALORIFIC_VALUE_REQUIRED, and GJ together with a calorific value with CALORIFIC_VALUE_NOT_APPLICABLE."
       },
       {
         "line": "processTCO2",
-        "reason": "Mass balance: 22.05 t x 1.00 carbon content x 3.664. The backend has no process-emission input type, and the model forbids extra fields. It could be smuggled in as a source stream with the emission factor set to 3.664, but the trace would then claim a standard calculation over an emission factor rather than a mass balance over a carbon content.",
-        "closedBy": "Add a process-emission input with its own trace method, carrying CO2_PER_C as a named constant.",
-        "guard": "POST process_emissions - it must still be rejected as an unknown field."
+        "closedOn": "2026-09-10",
+        "how": "ProcessEmissionInput with its own MASS_BALANCE trace method, carrying CO2_PER_C = 3.664 as an engine constant with its source rather than as a caller-supplied emission factor.",
+        "guard": "The trace for the electrode row must say MASS_BALANCE and name CO2_PER_C with its regulatory source."
       },
       {
         "line": "multi-tier precursors",
-        "reason": "This fixture is deliberately one tier deep, so it does not exercise the difference - but PrecursorInput has no children and no own-process figure, and real chains are two to four tiers. A tree entered in the portal cannot round-trip.",
-        "closedBy": "Give PrecursorInput children and an own-process term, or port certrace-portal/lib/cbam/leontief.ts.",
-        "guard": "POST a precursor carrying children - it must still be rejected as an unknown field."
-      },
+        "closedOn": "2026-09-10",
+        "how": "PrecursorInput gained children and own_process_specific_emissions, resolved depth-first: SEE(n) = ownProcess(n) + sum over children of qty x SEE(child), with scrap short-circuiting to zero. Mirrors seeForNode in certrace-portal/lib/cbam/precursor-tree.ts, including the rule that a node with children ignores its own declared figure.",
+        "guard": "A cycle must be refused with PRECURSOR_CYCLE and a chain deeper than 10 tiers with PRECURSOR_DEPTH_EXCEEDED - the same cap as MAX_PRECURSOR_DEPTH in the portal."
+      }
+    ],
+    "unsupported": [
       {
         "line": "massBalanceYieldPct",
-        "reason": "materialMix reports scrapRatio over total input mass, which is a different question from the mass-balance yield the portal shows. Neither is wrong; they are simply not the same number and must not be compared."
+        "reason": "materialMix reports scrapRatio over total input mass, which is a different question from the mass-balance yield the portal shows. Neither is wrong; they are simply not the same number and must not be compared. The backend's masses cover top-level precursors only, because everything deeper is a ratio per tonne of its parent rather than a weight."
       },
       {
         "line": "buyerATCO2e / exposure",
-        "reason": "Formulas 5 and 6 are commercial, not MRV. They live only in the portal today. Listed here so that nobody reads their absence from the backend as an oversight."
+        "reason": "Formulas 5 and 6 are commercial, not MRV: per-buyer allocation and certificate exposure depend on shipment records and a certificate price, neither of which the calculation API is given. They live only in the portal today. Listed here so that nobody reads their absence from the backend as an oversight."
+      },
+      {
+        "line": "negative own-process figures",
+        "reason": "The portal reads a negative ownProcessSee as zero, because a browser must not throw in the middle of a form. The backend refuses the request instead. Both agree on every valid input; they differ only in what happens to an invalid one, and that difference is deliberate - an audit engine that silently rewrites an input is worse than one that says no."
       }
     ]
   }
