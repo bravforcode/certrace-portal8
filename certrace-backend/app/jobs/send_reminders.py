@@ -72,21 +72,32 @@ def _build_log(database_url: str | None) -> reminders.DeliveryLog:
     return DatabaseDeliveryLog(repository.session_factory)
 
 
-def _source() -> reminders.ReminderSource:
+def _source(database_url: str | None) -> reminders.ReminderSource:
     """Where the outstanding work comes from.
 
-    ``NullSource`` today, and that is not an oversight: supplier requests are
-    still held in the portal's ``localStorage``
-    (``certrace-portal/lib/monthly-requests.ts``) and the trial clock is a
-    fixture in ``lib/data.ts``, so the server has nothing to query. When those
-    move behind the API, one adapter implementing ``ReminderSource`` is the
-    only change this job needs -- the ladder, the claim and the copy are done.
+    With a database, the ``reminder_subjects`` the portal registers when it
+    sends an ask (PROJECT_STATUS.md R4). That table is the adapter this
+    docstring used to promise: the ladder, the claim and the copy were already
+    done, and only the source was missing.
 
-    Until then the job runs green and sends nothing, which is what a scheduler
-    with no data should do.
+    Without one, still ``NullSource``: a run against no database has nothing to
+    query, and it should say nothing rather than invent something. That is also
+    what ``--dry-run`` on a laptop hits, which is the point of keeping it.
+
+    Trial reminders stay empty either way - plans are not modelled server-side,
+    and a trial date invented here would email people about an expiry the
+    product does not enforce. See app/services/reminder_source.py.
     """
 
-    return reminders.NullSource()
+    if not database_url:
+        return reminders.NullSource()
+
+    # Imported here for the same reason as the delivery log below: --dry-run
+    # against no database should not need SQLAlchemy installed.
+    from app.repositories.database import DatabaseRepository
+    from app.services.reminder_source import DatabaseReminderSource
+
+    return DatabaseReminderSource(DatabaseRepository(database_url))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -143,12 +154,16 @@ def main(argv: list[str] | None = None) -> int:
         _LOGGER.error("Email is not configured: %s", error)
         return EXIT_MISCONFIGURED
 
-    log = _build_log(load_env_file_value(DATABASE_URL_ENV))
+    # Read once: the log and the source must agree about whether there is a
+    # database, or a run could find work in one and forget what it sent in the
+    # other - which is how a supplier gets the same chase every night.
+    database_url = load_env_file_value(DATABASE_URL_ENV)
+    log = _build_log(database_url)
 
     try:
         summary = reminders.run(
             transport=transport,
-            source=_source(),
+            source=_source(database_url),
             log=log,
             today=today,
             logo_url=load_env_file_value("CERTRACE_EMAIL_LOGO_URL"),

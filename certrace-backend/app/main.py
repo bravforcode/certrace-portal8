@@ -23,7 +23,15 @@ from app.core.cors import (
     validate_cors_origin,
 )
 from app.repositories.database import DatabaseRepository
-from app.routers import auth, calculations, declarations, files, health, links
+from app.routers import (
+    auth,
+    calculations,
+    declarations,
+    files,
+    health,
+    links,
+    reminders,
+)
 from app.services.email import EmailTransport, transport_from_env
 from app.services.errors import AccountStoreUnavailable
 from app.services.file_store import DatabaseObjectStore, InMemoryObjectStore
@@ -96,6 +104,11 @@ def create_app(
     # without one it is a dict that dies with the process, which is what a
     # local demo wants and what CERTRACE_REQUIRE_DATABASE keeps out of
     # production. Either way the routes only ever see ObjectStore.
+    # The reminder job's store, named separately from `database` because that
+    # is what this seam actually is: routes ask for the store they need, and a
+    # test can hand them one without also turning the account store into a
+    # database it never configured.
+    application.state.reminder_store = application.state.database
     application.state.file_store = (
         DatabaseObjectStore(application.state.database)
         if application.state.database is not None
@@ -133,4 +146,5 @@ def create_app(
     application.include_router(declarations.router)
     application.include_router(links.router)
     application.include_router(files.router)
+    application.include_router(reminders.router)
     return application
