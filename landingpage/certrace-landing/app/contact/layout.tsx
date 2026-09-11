@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Contact Certrace",
+  title: "Contact",
   description:
     "Email, LINE Official, and every other way to reach the Certrace team in Bangkok.",
   alternates: { canonical: "/contact" },

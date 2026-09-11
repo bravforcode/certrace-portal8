@@ -128,3 +128,27 @@ export const SOCIALS: Social[] = [
     contact page both draw from this, so LINE can never be duplicated into the
     row it was deliberately pulled out of. */
 export const FEED_SOCIALS = SOCIALS.filter((s) => !s.line);
+
+/* ── Where this site lives ──────────────────────────────────
+   THE ONE PLACE THE PUBLIC ORIGIN IS WRITTEN. robots.txt, the sitemap, every
+   canonical link, the Open Graph URLs and the JSON-LD @ids all resolve from
+   this constant, so the site can never tell a crawler two different stories
+   about which address is the real one — which is exactly what it used to do:
+   robots.ts and sitemap.ts said certrace.co while the root layout's
+   `openGraph.url` said certrace.com, a domain this project does not serve.
+
+   It is also what `metadataBase` in app/layout.tsx is set from. Without that,
+   Next resolves a relative `alternates.canonical` against http://localhost:3000
+   and the production HTML shipped `<link rel="canonical" href="/about-cbam">`
+   — a relative canonical most crawlers do resolve, but nothing that reads Open
+   Graph does the same for an image path. */
+export const SITE_URL = "https://certrace.co";
+
+/** Absolute URL for a site path — JSON-LD `@id`s and anything else that has to
+    be an absolute address rather than a Next-resolved relative one. */
+export const siteUrl = (path = "") => `${SITE_URL}${path}`;
+
+/** The Open Graph card, 1200×630, shipped as a real file rather than generated
+    per request: every document this site serves is rendered by a Cloudflare
+    Worker, and a static asset costs that Worker nothing. */
+export const OG_IMAGE = "/brand/og-cover.png";

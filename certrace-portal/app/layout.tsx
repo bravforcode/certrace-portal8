@@ -52,6 +52,11 @@ export const metadata: Metadata = {
       { url: "/brand/favicon.svg", type: "image/svg+xml" },
     ],
   },
+  /* Belt and braces with app/robots.ts: robots.txt asks a crawler not to fetch
+     these pages, this tag tells one that arrived by a link anyway not to index
+     what it found — which is the case that matters for a supplier Smart Link
+     pasted into a public chat. */
+  robots: { index: false, follow: false, nocache: true },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
