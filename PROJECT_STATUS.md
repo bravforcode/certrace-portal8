@@ -85,7 +85,7 @@
 
 #### **R1. Backend ยังไม่ได้ deploy — ตัวนี้บล็อกทุกอย่างที่เหลือ**
 ยิง `https://api.certrace.co/readyz` ตอนนี้ได้ **403 จาก Cloudflare** ซึ่งคือหน้า DNS record เปล่า ไม่มี service อยู่หลัง
-โค้ดพร้อมหมดแล้ว: Dockerfile, Procfile, alembic, สูตร Cloud Run ที่ [`certrace-backend/README.md:260`](certrace-backend/README.md:260) และตั้งแต่ 10 ก.ย. **ท่อ deploy อัตโนมัติก็เขียนเสร็จแล้ว** — เหลือแค่ของจริงฝั่ง GCP ที่ต้องมีคนเปิดคอนโซลทำ
+โค้ดพร้อมหมดแล้ว: Dockerfile, Procfile, alembic, สูตร Cloud Run ที่ [`certrace-backend/README.md:268`](certrace-backend/README.md:268) และตั้งแต่ 10 ก.ย. **ท่อ deploy อัตโนมัติก็เขียนเสร็จแล้ว** — เหลือแค่ของจริงฝั่ง GCP ที่ต้องมีคนเปิดคอนโซลทำ
 
 ทำครั้งแรกด้วยมือหนึ่งรอบ จากนั้น job `backend` ใน [`deploy.yml`](.github/workflows/deploy.yml) จะรับช่วงต่อทุก merge ที่แตะ `certrace-backend/` (ตอนนี้มันเห็นว่า variable ยังไม่ครบ เลย skip ตัวเองพร้อมโน้ตบอกว่าขาดตัวไหน — ไม่ทำให้ main แดง)
 
@@ -93,12 +93,12 @@
 *   [ ] **เฟิน:** สร้าง secret ให้ครบ **3 ตัว** — `certrace-database-url`, `certrace-jwt-secret`, `certrace-resend-api-key`
 *   [ ] **เฟิน:** รัน migration ผ่าน Cloud Run Job แล้ว deploy service ตามสูตรใน README (env ครบอยู่ในคำสั่งเดียวที่นั่นแล้ว)
 *   [ ] **เฟิน:** ทำ domain mapping `api.certrace.co` → Cloud Run แล้วตั้ง record ใน Cloudflare เป็น **DNS only** (เมฆเทา) — ถ้าเปิด proxy สีส้ม managed certificate จะจับมือไม่สำเร็จ
-*   [ ] **โบ๊ท:** ตั้ง repository variable 4 ตัวที่บังคับ (`GCP_PROJECT_ID`, `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_DEPLOY_SERVICE_ACCOUNT`, `GCP_RUNTIME_SERVICE_ACCOUNT`) ตามตารางใน [README §Deploy from CI](certrace-backend/README.md:446) — ตั้งเสร็จเมื่อไหร่ merge ถัดไปยิงขึ้นเองเลย
+*   [ ] **โบ๊ท:** ตั้ง repository variable 4 ตัวที่บังคับ (`GCP_PROJECT_ID`, `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_DEPLOY_SERVICE_ACCOUNT`, `GCP_RUNTIME_SERVICE_ACCOUNT`) ตามตารางใน [README §Deploy from CI](certrace-backend/README.md:454) — ตั้งเสร็จเมื่อไหร่ merge ถัดไปยิงขึ้นเองเลย
 *   [x] เพิ่ม job deploy backend ใน [`deploy.yml`](.github/workflows/deploy.yml) — ทำแล้ว 10 ก.ย. (pytest → build image ติดแท็ก commit → Cloud Run Job รัน alembic → deploy service → เช็ค `/readyz` ทั้ง service URL และโดเมนจริง + ยิง preflight CORS ด้วย Origin ของพอร์ทัล)
 *   [x] ~~ตั้ง body size limit 8 MB~~ — ไม่ต้องทำอะไร Cloud Run รับ body ได้ถึง 32 MiB อยู่แล้ว ตัวที่ต้องระวังคือ proxy ที่มาคั่นข้างหน้าเท่านั้น
 
 > ⚠️ **สองตัวแปรที่ลืมแล้วเจ็บ** (เพิ่งเพิ่มเข้าตาราง env ของ README รอบนี้)
-> `CERTRACE_JWT_SECRET` — ไม่มีแล้ว **แอปไม่ start เลย** ถ้ามี `DATABASE_URL` ([`main.py:59`](certrace-backend/app/main.py:59)) อาการคือ revision ไม่ผ่าน startup probe
+> `CERTRACE_JWT_SECRET` — ไม่มีแล้ว **แอปไม่ start เลย** ถ้ามี `DATABASE_URL` ([`main.py:68`](certrace-backend/app/main.py:68)) อาการคือ revision ไม่ผ่าน startup probe
 > `CERTRACE_APP_BASE_URL` — อันนี้ร้ายกว่า เพราะ**ไม่มีอาการอะไรเลย** ไม่ตั้งแล้ว service ยังขึ้นปกติ ผ่าน probe ปกติ แต่ smart link ทุกอันที่ mint ออกไปจะชี้ไป `https://app.certrace.co` ตาม default ([`config.py:51`](certrace-backend/app/config.py:51)) ซึ่งเป็นโดเมนที่ไม่มีอยู่จริง กว่าจะรู้ตัวคือตอนซัพพลายเออร์กดลิงก์ในอีเมลที่เราส่งไปแล้ว — ต้องตั้งเป็น `https://portal.certrace.co`
 
 #### **R2. พอร์ทัล production ยังวิ่งใน demo mode**
@@ -117,14 +117,27 @@
 *   [ ] **เฟิน:** ทำตาราง EU default values ให้ครบ CN code ที่เรารองรับ แล้ว import ด้วย `import_default_factors.py`
 *   [ ] **เฟิน & โบ๊ท:** เอาตัวเลขจริงมากรอกเทียบกับที่เคยคำนวณใน Excel
 
-#### **R4. อีเมลเตือนซัพพลายเออร์ยังไม่ส่งอะไรเลย**
-[`app/jobs/send_reminders.py`](certrace-backend/app/jobs/send_reminders.py) ต่อกับ `NullSource` เพราะคำขอข้อมูลรายเดือนยังอยู่ใน [`lib/monthly-requests.ts`](certrace-portal/lib/monthly-requests.ts) บนเบราว์เซอร์ — เซิร์ฟเวอร์ไม่มีอะไรให้ query
-ตัวกลไกถูกทั้งหมดแล้ว (กันส่งซ้ำ, ปล่อย claim เมื่อส่งไม่สำเร็จ) ขาดแค่แหล่งข้อมูล
-*   [ ] ย้าย `monthly-requests` ไปหลัง API แล้วสลับ `NullSource` เป็น source จริง
+#### **R4. อีเมลเตือนซัพพลายเออร์ — ✅ ต่อ source จริงแล้ว 10 ก.ย.**
+[`app/jobs/send_reminders.py`](certrace-backend/app/jobs/send_reminders.py) เคยต่อกับ `NullSource` กลไกถูกหมดแล้ว (กันส่งซ้ำ, ปล่อย claim เมื่อส่งไม่สำเร็จ) ขาดแค่แหล่งข้อมูล — ตอนนี้มีแล้ว
 
-#### **R5. อัปโหลดไฟล์ยังไม่มีที่เก็บจริง**
-ไฟล์ยังเก็บเป็น base64 ใน localStorage ได้ราว 1.5 MB ที่ใหญ่กว่านั้นเก็บแค่ชื่อ+ขนาด — ใบเซอร์จริงส่วนใหญ่ใหญ่กว่านี้และจะหาย
-*   [ ] ทำ upload pipeline (bucket + signed URL + จำกัดชนิด/ขนาดไฟล์) **หรือ** ตัดสินใจรับข้อจำกัดนี้กับ Design Partner รายแรกไปก่อน แล้วบอกเขาตรงๆ
+> ⚠️ **สิ่งที่เจอตอนลงมือ:** ข้อนี้เขียนไว้ว่า "ย้าย `monthly-requests` ไปหลัง API" แต่ของจริงกระจายอยู่ **3 store** ไม่ใช่อันเดียว — `workspace` (เดือน+กำหนดส่ง), `supplier-companies` (**อีเมลที่จะส่งไปหา**) และ `month-dispatch` (ส่งไปหรือยัง) ส่วน `monthly-requests` เป็นของเก่าที่ workspace มาแทนแล้ว
+> ถ้าย้ายทั้งกองก็คือทำ D2 ทั้งข้อ ซึ่งยังเป็นเรื่องที่ต้องตัดสินใจอยู่ เลยเลือกให้พอร์ทัล**ลงทะเบียนเฉพาะสิ่งที่ job ต้องใช้**ตอนกดส่งแทน
+
+*   [x] ตาราง `reminder_subjects` + 5 endpoint ([API contract §8](docs/API-CONTRACT.md)) — พอร์ทัลบอกเซิร์ฟเวอร์ว่า "ขอเดือนนี้จากรายนี้ ส่งไปที่อีเมลนี้ ครบกำหนดวันนี้"
+*   [x] `DatabaseReminderSource` แทน `NullSource` เมื่อมี `DATABASE_URL` — บันได/การ claim/ข้อความไม่ต้องแก้อะไรเลย ตรงตามที่ docstring เดิมเขียนไว้ว่าจะเหลือแค่ adapter เดียว
+*   [x] พอร์ทัลต่อแล้ว — กดส่งเดือน = ลงทะเบียน + ทำเครื่องหมายว่าส่ง, ซัพพลายเออร์ตอบ = ปิดการตาม
+*   [ ] **อีเมลเตือน trial ยังส่งไม่ได้** — plan/billing ยังไม่มีฝั่งเซิร์ฟเวอร์เลย ถ้าเดาวันหมดอายุเองจะกลายเป็นส่งเรื่องที่ระบบไม่ได้บังคับใช้จริง
+*   [ ] ต้องรอ **R1** ถึงจะส่งจริง — endpoint พวกนี้ตอบ 503 ถ้าไม่มีฐานข้อมูล (ตั้งใจ: เก็บใน memory = รับลงทะเบียนทุกอันแล้วไม่ตามใครเลย)
+
+#### **R5. อัปโหลดไฟล์ — ✅ ทำแล้ว 10 ก.ย.**
+เดิมไฟล์เก็บเป็น base64 ใน localStorage ตันที่ ~1.5 MB ที่ใหญ่กว่านั้นเหลือแค่ชื่อ+ขนาด — ใบเซอร์จริงส่วนใหญ่ใหญ่กว่านั้นและหายไปเลย
+*   [x] **ท่ออัปโหลดจริง** — endpoint ครบทั้งฝั่งผู้ส่งออกและซัพพลายเออร์ ([API contract §7](docs/API-CONTRACT.md)) ไฟล์ขึ้นไปเป็น raw body ไม่ใช่ base64
+*   [x] **จำกัดชนิดและขนาด** — pdf / png / jpeg / csv / xlsx, ค่าเริ่มต้น 15 MB และ**เช็ค magic bytes** ว่าตรงกับชนิดที่ประกาศมาจริง
+*   [x] **สิทธิ์** — token ของ smart link อ่านได้เฉพาะไฟล์ที่ตัวเองอัป, ไฟล์คนอื่นตอบ 404 ไม่ใช่ 403, ดาวน์โหลดเป็น attachment เสมอ
+*   [x] **พอร์ทัลต่อแล้ว** — ซัพพลายเออร์อัปขึ้นเซิร์ฟเวอร์เมื่อมี backend / ตกกลับไป base64 ตอน demo mode และผู้ส่งออกกดโหลดไฟล์กลับมาได้
+*   [ ] **ตัดสินใจ:** ตอนนี้ไบต์เก็บใน PostgreSQL ไม่ใช่ bucket — ตั้งใจ เพราะยังไม่มี bucket และ Design Partner ติดอยู่ตอนนี้ มี `ObjectStore` คั่นไว้ให้ย้ายทีหลังโดยไม่ต้องแก้ route
+    > ราคาที่จ่าย: ไฟล์ 15 MB คือ 15 MB ในฐานข้อมูล ในทุก backup และในทุก dump ระดับไม่กี่ร้อยใบไม่มีปัญหา ระดับหลักหมื่นใบต้องย้ายจริง
+*   [ ] Antivirus scan ยังไม่มี (อยู่ในรายการ post-MVP)
 
 ---
 

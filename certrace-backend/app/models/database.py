@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
     Computed,
@@ -16,6 +17,7 @@ from sqlalchemy import (
     ForeignKey,
     ForeignKeyConstraint,
     Integer,
+    LargeBinary,
     Numeric,
     String,
     Text,
@@ -239,6 +241,133 @@ class SmartLink(Base):
     status: Mapped[Optional[str]] = mapped_column(
         Text, Computed("state->>'status'", persisted=True)
     )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class UploadedFile(Base):
+    """One piece of evidence, metadata and bytes in the same row.
+
+    Before this table a certificate lived as a base64 data URL inside the
+    supplier's answer blob in one browser's localStorage, and anything past
+    ~1.5 MB was reduced to its filename. Most mill certificates are larger
+    than that, so the document a verifier would ask for was the one the portal
+    discarded.
+
+    ``storage_key`` is already path-shaped
+    (``declarations/{id}/{random}/{name}``) because the bytes belong in a
+    bucket eventually. When they move, ``data`` empties and the key starts
+    addressing an object instead - see app/services/file_store.py.
+
+    ``uploaded_via_token`` records the smart link a supplier uploaded through,
+    which is what lets that supplier read their own file back without an
+    account while keeping them away from everyone else's.
+
+    The composite FK means deleting a declaration takes its evidence with it,
+    exactly as it takes its links.
+    """
+
+    __tablename__ = "uploaded_files"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["user_id", "declaration_id"],
+            ["portal_declarations.user_id", "portal_declarations.id"],
+            ondelete="CASCADE",
+        ),
+        CheckConstraint("size_bytes > 0", name="uploaded_files_size_positive"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    declaration_id: Mapped[str] = mapped_column(Text, nullable=False)
+    # Which requested document slot this file answers, when it answers one.
+    # Opaque here, like every other id the portal owns.
+    doc_id: Mapped[Optional[str]] = mapped_column(Text)
+    uploaded_via_token: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("smart_links.token", ondelete="SET NULL")
+    )
+    filename: Mapped[str] = mapped_column(Text, nullable=False)
+    content_type: Mapped[str] = mapped_column(Text, nullable=False)
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    # sha-256 of the contents, computed server-side. The portal used to hash
+    # in the browser, which proved only what the browser chose to say.
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    storage_key: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    # Null once the bytes live in a bucket rather than in this row.
+    data: Mapped[Optional[bytes]] = mapped_column(LargeBinary)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class ReminderSubject(Base):
+    """One outstanding ask the server is allowed to chase.
+
+    PROJECT_STATUS.md R4: the reminder job was wired to ``NullSource`` and sent
+    nothing, because everything it needed to write an email lived in one
+    browser's localStorage. Three different stores, in fact - the workspace
+    holds the month and the deadline, ``supplier-companies`` holds the address
+    to write to, and ``month-dispatch`` holds whether it has been asked yet.
+
+    Rather than migrate that whole estate (that is D2, and still open), the
+    portal registers the ONE thing the job needs at the moment it sends: who
+    to chase, about what, and by when. What arrives here is deliberately
+    denormalised and already written for a reader - ``period_label`` is
+    "March 2026", not a date to be formatted by a job that would have to know
+    the recipient's language to do it.
+
+    ``subject_key`` is the portal's own id for the ask ("w:<workspace>:<month>"),
+    stable across re-sends, and it is what the delivery log keys on - so the
+    rung that has already gone out stays gone out even if this row is updated.
+
+    A row stops being chased when ``answered_at`` or ``cancelled_at`` is set.
+    Neither is a delete: "we chased this four times and they answered on the
+    fifth" is the history that tells an exporter whether a supplier is worth
+    keeping, and it is gone forever if the row goes with the answer.
+    """
+
+    __tablename__ = "reminder_subjects"
+    __table_args__ = (
+        UniqueConstraint("user_id", "subject_key", name="reminder_subjects_key_unique"),
+        CheckConstraint("resend_count >= 0", name="reminder_subjects_resend_positive"),
+        CheckConstraint(
+            "position('@' in recipient) > 1", name="reminder_subjects_recipient_shape"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    subject_key: Mapped[str] = mapped_column(Text, nullable=False)
+    recipient: Mapped[str] = mapped_column(Text, nullable=False)
+    supplier_name: Mapped[str] = mapped_column(Text, nullable=False)
+    period_label: Mapped[str] = mapped_column(Text, nullable=False)
+    due_date: Mapped[date] = mapped_column(Date, nullable=False)
+    link_url: Mapped[str] = mapped_column(Text, nullable=False)
+    locale: Mapped[Optional[str]] = mapped_column(Text)
+    # The exporter's trial has run out, so their account cannot accept a
+    # submission. The ladder still has something to say - it just must not walk
+    # a supplier to a form their customer cannot receive.
+    account_locked: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=false()
+    )
+    # Null until the exporter actually sends. An ask that was drafted and never
+    # sent must never be chased: the supplier has not heard from anyone.
+    sent_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    resend_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default=text("0")
+    )
+    answered_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    cancelled_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

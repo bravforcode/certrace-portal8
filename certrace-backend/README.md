@@ -89,6 +89,7 @@ In Git Bash, the same commands are:
 | `CERTRACE_EMAIL_REPLY_TO` | No | Reply-to address, when it differs from the sender. |
 | `CERTRACE_EMAIL_LOGO_URL` | No | Public PNG/JPG shown at the top of each email. Omit for no logo. |
 | `CERTRACE_JWT_SECRET` | Yes whenever `DATABASE_URL` is set | HS256 signing key for portal session tokens. Startup fails without it rather than sign with a key that changes on every restart and instance. Generate with `python -c "import secrets; print(secrets.token_urlsafe(48))"`. |
+| `CERTRACE_MAX_UPLOAD_BYTES` | No (default `15728640`, i.e. 15 MB) | Largest evidence file accepted. The ceiling is memory, not the platform: Cloud Run caps a request body at 32 MiB, but eight concurrent uploads at the limit have to fit in 512 MiB alongside everything else. Raise it and raise `--memory` with it. |
 | `CERTRACE_APP_BASE_URL` | No (default `https://app.certrace.co`) | Where minted supplier smart links point — the portal serving `/s/<token>`, never this API. The default is **not** the live portal: production must set `https://portal.certrace.co` or every link mailed to a supplier lands on a host that does not exist. |
 
 `.env` is ignored by Git. Use [`.env.example`](.env.example) as the safe,
@@ -103,6 +104,13 @@ Three modules, deliberately separate ([why](app/services/email.py)):
 | `app/services/email.py` | Talking to Resend — retries, timeouts, the dev transports. |
 | `app/services/email_templates.py` | What each message says, in English and Thai. |
 | `app/services/notifications.py` | Which message goes to whom, and when we stay quiet. |
+| `app/services/reminder_source.py` | What the nightly run is allowed to chase. |
+
+`python -m app.jobs.send_reminders` reads the `reminder_subjects` the portal
+registers when an exporter sends a monthly ask (`docs/API-CONTRACT.md` §8).
+With no `DATABASE_URL` it still finds nothing and sends nothing, which is what
+`--dry-run` on a laptop should do. Trial reminders stay empty until plans are
+modelled server-side.
 
 Categories match `certrace-portal/lib/notification-prefs.ts` one for one, so
 the preference check is already written for the day preferences move off the

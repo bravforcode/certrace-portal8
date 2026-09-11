@@ -21,7 +21,10 @@ from app.config import (
 from app.models.database import (
     DefaultEmissionFactor,
     PortalDeclaration,
+    ReminderSubject,
     SmartLink,
+    UploadedFile,
+    User,
 )
 
 _logger = logging.getLogger(__name__)
@@ -277,3 +280,280 @@ class DatabaseRepository:
                 .order_by(SmartLink.created_at.desc())
             ).all()
             return [self._smart_link_dict(row) for row in rows]
+
+    # ── Evidence files (PROJECT_STATUS.md R5) ────────────────────
+    # Same shape from both stores, like smart links: the no-database mode keeps
+    # these dicts on app.state so the routes never branch on which one answered.
+    # Metadata and bytes are read separately on purpose - a listing must not
+    # drag every certificate through memory to render a filename.
+
+    @staticmethod
+    def _uploaded_file_dict(row: UploadedFile) -> dict[str, object]:
+        return {
+            "id": str(row.id),
+            "userId": str(row.user_id),
+            "declId": row.declaration_id,
+            "docId": row.doc_id,
+            "uploadedViaToken": row.uploaded_via_token,
+            "filename": row.filename,
+            "contentType": row.content_type,
+            "sizeBytes": int(row.size_bytes),
+            "sha256": row.sha256,
+            "storageKey": row.storage_key,
+            "createdAt": int(row.created_at.timestamp() * 1000)
+            if row.created_at
+            else None,
+        }
+
+    def create_uploaded_file(
+        self,
+        user_id: uuid.UUID,
+        declaration_id: str,
+        doc_id: str | None,
+        uploaded_via_token: str | None,
+        filename: str,
+        content_type: str,
+        size_bytes: int,
+        sha256: str,
+        storage_key: str,
+        data: bytes,
+    ) -> dict[str, object]:
+        with self.session_factory.begin() as session:
+            row = UploadedFile(
+                user_id=user_id,
+                declaration_id=declaration_id,
+                doc_id=doc_id,
+                uploaded_via_token=uploaded_via_token,
+                filename=filename,
+                content_type=content_type,
+                size_bytes=size_bytes,
+                sha256=sha256,
+                storage_key=storage_key,
+                data=data,
+            )
+            session.add(row)
+            session.flush()
+            session.refresh(row)
+            return self._uploaded_file_dict(row)
+
+    def get_uploaded_file(self, file_id: uuid.UUID) -> dict[str, object] | None:
+        with self.session_factory() as session:
+            row = session.get(UploadedFile, file_id)
+            return self._uploaded_file_dict(row) if row else None
+
+    def list_uploaded_files(
+        self, user_id: uuid.UUID, declaration_id: str
+    ) -> list[dict[str, object]]:
+        with self.session_factory() as session:
+            rows = session.scalars(
+                select(UploadedFile)
+                .where(
+                    UploadedFile.user_id == user_id,
+                    UploadedFile.declaration_id == declaration_id,
+                )
+                .order_by(UploadedFile.created_at.desc())
+            ).all()
+            return [self._uploaded_file_dict(row) for row in rows]
+
+    def delete_uploaded_file(self, file_id: uuid.UUID) -> bool:
+        with self.session_factory.begin() as session:
+            row = session.get(UploadedFile, file_id)
+            if row is None:
+                return False
+            session.delete(row)
+            return True
+
+    # The three ObjectStore operations, addressed by storage key rather than by
+    # row id: that is the interface a bucket will implement, so nothing above
+    # this line has to know which one is holding the bytes.
+
+    def put_file_bytes(self, storage_key: str, data: bytes) -> None:
+        with self.session_factory.begin() as session:
+            row = session.scalars(
+                select(UploadedFile).where(UploadedFile.storage_key == storage_key)
+            ).one_or_none()
+            if row is not None:
+                row.data = data
+
+    def get_file_bytes(self, storage_key: str) -> bytes | None:
+        with self.session_factory() as session:
+            row = session.scalars(
+                select(UploadedFile).where(UploadedFile.storage_key == storage_key)
+            ).one_or_none()
+            return bytes(row.data) if row is not None and row.data is not None else None
+
+    def delete_file_bytes(self, storage_key: str) -> None:
+        with self.session_factory.begin() as session:
+            row = session.scalars(
+                select(UploadedFile).where(UploadedFile.storage_key == storage_key)
+            ).one_or_none()
+            if row is not None:
+                row.data = None
+
+    # ── Reminder subjects (PROJECT_STATUS.md R4) ─────────────────
+    # What the nightly job is allowed to chase. Registered by the portal at the
+    # moment it sends, because the portal is where the workspace, the supplier
+    # contact and the deadline still live (D2).
+
+    @staticmethod
+    def _reminder_subject_dict(row: ReminderSubject) -> dict[str, object]:
+        return {
+            "id": str(row.id),
+            "userId": str(row.user_id),
+            "subjectKey": row.subject_key,
+            "recipient": row.recipient,
+            "supplierName": row.supplier_name,
+            "periodLabel": row.period_label,
+            "dueDate": row.due_date.isoformat(),
+            "linkUrl": row.link_url,
+            "locale": row.locale,
+            "accountLocked": row.account_locked,
+            "sentAt": int(row.sent_at.timestamp() * 1000) if row.sent_at else None,
+            "resendCount": int(row.resend_count),
+            "answeredAt": int(row.answered_at.timestamp() * 1000)
+            if row.answered_at
+            else None,
+            "cancelledAt": int(row.cancelled_at.timestamp() * 1000)
+            if row.cancelled_at
+            else None,
+        }
+
+    def upsert_reminder_subject(
+        self,
+        user_id: uuid.UUID,
+        subject_key: str,
+        recipient: str,
+        supplier_name: str,
+        period_label: str,
+        due_date: datetime.date,
+        link_url: str,
+        locale: str | None,
+        account_locked: bool,
+    ) -> dict[str, object]:
+        """Register or refresh one ask.
+
+        Deliberately does NOT touch sent_at, resend_count or answered_at: those
+        are the history of what actually happened, and re-registering an ask
+        after editing a deadline must not un-send it.
+        """
+
+        with self.session_factory.begin() as session:
+            row = session.scalars(
+                select(ReminderSubject).where(
+                    ReminderSubject.user_id == user_id,
+                    ReminderSubject.subject_key == subject_key,
+                )
+            ).one_or_none()
+            if row is None:
+                row = ReminderSubject(
+                    user_id=user_id,
+                    subject_key=subject_key,
+                    recipient=recipient,
+                    supplier_name=supplier_name,
+                    period_label=period_label,
+                    due_date=due_date,
+                    link_url=link_url,
+                    locale=locale,
+                    account_locked=account_locked,
+                )
+                session.add(row)
+            else:
+                row.recipient = recipient
+                row.supplier_name = supplier_name
+                row.period_label = period_label
+                row.due_date = due_date
+                row.link_url = link_url
+                row.locale = locale
+                row.account_locked = account_locked
+                # An ask that was cancelled and then registered again is a
+                # live ask; anything else would need a second endpoint to undo.
+                row.cancelled_at = None
+            session.flush()
+            session.refresh(row)
+            return self._reminder_subject_dict(row)
+
+    def _touch_reminder_subject(
+        self, user_id: uuid.UUID, subject_key: str, apply
+    ) -> dict[str, object] | None:
+        with self.session_factory.begin() as session:
+            row = session.scalars(
+                select(ReminderSubject).where(
+                    ReminderSubject.user_id == user_id,
+                    ReminderSubject.subject_key == subject_key,
+                )
+            ).one_or_none()
+            if row is None:
+                return None
+            apply(row)
+            session.flush()
+            session.refresh(row)
+            return self._reminder_subject_dict(row)
+
+    def mark_reminder_subject_sent(
+        self, user_id: uuid.UUID, subject_key: str, when: datetime.datetime
+    ) -> dict[str, object] | None:
+        def apply(row: ReminderSubject) -> None:
+            if row.sent_at is None:
+                row.sent_at = when
+            else:
+                # The first send is not a re-send. "Sent once last week" and
+                # "chased three times and still nothing" are different
+                # conversations, and the count is what tells them apart.
+                row.resend_count = int(row.resend_count) + 1
+
+        return self._touch_reminder_subject(user_id, subject_key, apply)
+
+    def mark_reminder_subject_answered(
+        self, user_id: uuid.UUID, subject_key: str, when: datetime.datetime
+    ) -> dict[str, object] | None:
+        def apply(row: ReminderSubject) -> None:
+            row.answered_at = when
+
+        return self._touch_reminder_subject(user_id, subject_key, apply)
+
+    def cancel_reminder_subject(
+        self, user_id: uuid.UUID, subject_key: str, when: datetime.datetime
+    ) -> dict[str, object] | None:
+        def apply(row: ReminderSubject) -> None:
+            row.cancelled_at = when
+
+        return self._touch_reminder_subject(user_id, subject_key, apply)
+
+    def list_reminder_subjects(self, user_id: uuid.UUID) -> list[dict[str, object]]:
+        with self.session_factory() as session:
+            rows = session.scalars(
+                select(ReminderSubject)
+                .where(ReminderSubject.user_id == user_id)
+                .order_by(ReminderSubject.due_date)
+            ).all()
+            return [self._reminder_subject_dict(row) for row in rows]
+
+    def open_reminder_subjects(self) -> list[dict[str, object]]:
+        """Every unanswered ask across every account, for the nightly job.
+
+        Not scoped to one account on purpose - this is the one query in the
+        repository whose caller is a scheduled process rather than a request,
+        and it is the only place the exporter's own name is joined in, because
+        the email says who is asking.
+
+        Never sent means never chased: a supplier who has not heard from anyone
+        must not receive a reminder about a request that does not exist yet.
+        """
+
+        with self.session_factory() as session:
+            rows = session.execute(
+                select(ReminderSubject, User.company_name, User.email)
+                .join(User, User.id == ReminderSubject.user_id)
+                .where(
+                    ReminderSubject.answered_at.is_(None),
+                    ReminderSubject.cancelled_at.is_(None),
+                    ReminderSubject.sent_at.is_not(None),
+                )
+                .order_by(ReminderSubject.due_date)
+            ).all()
+            out: list[dict[str, object]] = []
+            for row, company_name, email in rows:
+                item = self._reminder_subject_dict(row)
+                item["exporterName"] = company_name or email
+                out.append(item)
+            return out

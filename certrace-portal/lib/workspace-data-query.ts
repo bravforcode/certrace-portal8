@@ -27,6 +27,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getCarbonPrice, saveCarbonPrice, type CarbonPriceRecord } from "./carbon-price";
 import type { TFunction } from "./i18n";
 import { dispatchesFor, markMonthReminded, markMonthSent } from "./month-dispatch";
+import { registerMonthAnswered, registerMonthSent } from "./reminder-registration";
 import {
   approveEditRequest,
   assignReviewer,
@@ -177,10 +178,20 @@ export function useDispatches(workspaceId: string | undefined) {
   });
 }
 
+/* Sending a month does two things now. The local record is what every screen
+   reads and it is written FIRST, synchronously — the exporter has sent the
+   link, and nothing about a network call may make the product say otherwise.
+   Registering the ask with the server is the second, best-effort half: it is
+   what lets the nightly job chase a month nobody answers (R4), and when it
+   fails it fails quietly and heals on the next chase. See
+   lib/reminder-registration.ts. */
 export const useMarkMonthSent = () =>
   useWorkspaceWrite(
-    ({ workspaceId, month, dueDay }: { workspaceId: string; month: string; dueDay?: number }) =>
-      markMonthSent(workspaceId, month, dueDay),
+    ({ workspaceId, month, dueDay, locale }: { workspaceId: string; month: string; dueDay?: number; locale?: string }) => {
+      const dispatch = markMonthSent(workspaceId, month, dueDay);
+      void registerMonthSent(workspaceId, month, locale);
+      return dispatch;
+    },
     true,
   );
 
@@ -209,10 +220,15 @@ export function useSubmission(workspaceId: string | undefined, month: string | u
   });
 }
 
+/* An answered month stops being chased. Closing it here rather than on a
+   schedule means the supplier who replied this morning is not chased tonight
+   — which is the reminder nobody forgives, because they did the work. */
 export const useSubmitWithAttestation = () =>
-  useWorkspaceWrite(({ workspaceId, month, attestation }: { workspaceId: string; month: string; attestation: Attestation }) =>
-    submitWithAttestation(workspaceId, month, attestation),
-  );
+  useWorkspaceWrite(({ workspaceId, month, attestation }: { workspaceId: string; month: string; attestation: Attestation }) => {
+    const submission = submitWithAttestation(workspaceId, month, attestation);
+    void registerMonthAnswered(workspaceId, month);
+    return submission;
+  });
 
 export const useMarkExporterEdited = () =>
   useWorkspaceWrite(({ workspaceId, month }: { workspaceId: string; month: string }) => markExporterEdited(workspaceId, month));

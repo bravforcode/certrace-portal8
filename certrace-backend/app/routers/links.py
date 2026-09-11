@@ -133,10 +133,13 @@ def _declaration_doc(
     return request.app.state.portal_declarations.get(user_id, {}).get(declaration_id)
 
 
-def _live_link(
+def live_link(
     request: Request, token: str
 ) -> tuple[dict[str, object], dict[str, object], object]:
     """Resolve a token to its link and declaration, or raise the dead-link code.
+
+    Public because the evidence routes need the same gate: see
+    app/routers/files.py, where a supplier uploads against a live link.
 
     The one gate every supplier-facing route shares: the token is the whole
     credential, so not-found, revoked, expired and declaration-deleted must all
@@ -170,7 +173,7 @@ def _owned_link(
     """The link for this token, but only if it is this account's and this
     declaration's -- otherwise the same not-there code as any bad token.
 
-    The exporter's counterpart to ``_live_link``: owner-scoped, and deliberately
+    The exporter's counterpart to ``live_link``: owner-scoped, and deliberately
     NOT gated on revoked/expired, so reviewing a submission and sending it back
     for changes both reach a link even after the exporter has closed it. Returns
     the link row and the database (or None).
@@ -468,7 +471,7 @@ def resolve_link(token: str, request: Request) -> dict[str, object]:
     from this with its own bundled config (lib/supplier.ts::buildFromPayload).
     """
 
-    link, doc, database = _live_link(request, token)
+    link, doc, database = live_link(request, token)
 
     exporter = get_account(database, link["userId"])
     requests = doc.get("requests")
@@ -553,7 +556,7 @@ def save_link_state(
     the token this state belongs to, and when it last moved.
     """
 
-    _link, _doc, database = _live_link(request, token)
+    _link, _doc, database = live_link(request, token)
 
     state = dict(body.state)
     state["token"] = token  # the token is the path's, not the blob's to claim
@@ -571,7 +574,7 @@ def submit_link(token: str, body: SubmitRequest, request: Request) -> dict[str, 
     not evidence of anything. Everything else in the blob is stored as given.
     """
 
-    _link, _doc, database = _live_link(request, token)
+    _link, _doc, database = live_link(request, token)
 
     state = dict(body.state)
     now = _now_ms()

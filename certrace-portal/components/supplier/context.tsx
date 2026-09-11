@@ -20,6 +20,9 @@ import {
   verificationRequired,
 } from "@/lib/supplier";
 import { isComplexGood } from "@/lib/config";
+import { apiConfigured } from "@/lib/api/config";
+import { uploadLinkFile } from "@/lib/api/files";
+import { INLINE_BYTES_LIMIT } from "@/lib/cbam/evidence";
 import { precursorContribution } from "@/lib/precursors";
 import { stampElectricityUnit } from "@/lib/cbam/electricity-migration";
 import {
@@ -82,7 +85,11 @@ type Ctx = {
   autoValue: (fieldId: string, productId?: string) => string | null;
 
   // documents (multi-file)
-  addFiles: (docId: string, files: { name: string; size: number; dataUrl?: string }[]) => void;
+  addFiles: (docId: string, files: { name: string; size: number; fileId?: string; dataUrl?: string }[]) => void;
+  /** Put real files behind a document slot: to the server when there is one,
+      inline as base64 when there is not. Resolves with whatever was refused,
+      so the view can say which file and why rather than dropping it. */
+  uploadFiles: (docId: string, files: File[]) => Promise<{ name: string; reason: string }[]>;
   removeFile: (docId: string, index: number) => void;
   clearDoc: (docId: string) => void;
   isDocEditable: (docId: string) => boolean;
@@ -364,12 +371,15 @@ export function SupplierProvider({
 
   /* ── documents (multi-file) ──────────────────────────────── */
   const addFiles = React.useCallback(
-    (docId: string, files: { name: string; size: number; dataUrl?: string }[]) => {
+    (docId: string, files: { name: string; size: number; fileId?: string; dataUrl?: string }[]) => {
       if (files.length === 0) return;
       const label = req.documents.find((d) => d.id === docId)?.label ?? docId;
       setState((s) => {
         const existing = s.docs[docId]?.files ?? [];
-        const merged = [...existing, ...files.map((f) => ({ name: f.name, size: f.size, dataUrl: f.dataUrl, addedAt: Date.now() }))];
+        const merged = [
+          ...existing,
+          ...files.map((f) => ({ name: f.name, size: f.size, fileId: f.fileId, dataUrl: f.dataUrl, addedAt: Date.now() })),
+        ];
         const next = {
           ...s,
           docs: { ...s.docs, [docId]: { id: docId, status: "uploaded" as const, files: merged } },
@@ -380,6 +390,60 @@ export function SupplierProvider({
     },
     [req.documents],
   );
+  /* ── Where a certificate actually goes ─────────────────────
+     With a backend, the bytes go to it and the state keeps a reference. That
+     is the whole of R5: before it, a file over ~1.5 MB reached the exporter
+     as a filename and a size, and mill certificates are mostly over it.
+
+     Without one — demo mode — the old inline path stands, cap and all. It is
+     not a fallback anyone should ship to a customer; it is what lets the demo
+     keep working with no server behind it.
+
+     Failures come back rather than throwing: one refused file out of four
+     must not lose the other three, and "why" belongs next to the file that
+     was refused. */
+  const uploadFiles = React.useCallback(
+    async (docId: string, files: File[]): Promise<{ name: string; reason: string }[]> => {
+      if (files.length === 0) return [];
+      const accepted: { name: string; size: number; fileId?: string; dataUrl?: string }[] = [];
+      const refused: { name: string; reason: string }[] = [];
+
+      for (const file of files) {
+        if (apiConfigured()) {
+          try {
+            const stored = await uploadLinkFile(req.token, file, docId);
+            accepted.push({ name: stored.filename, size: stored.sizeBytes, fileId: stored.id });
+          } catch (cause) {
+            refused.push({
+              name: file.name,
+              reason: cause instanceof Error ? cause.message : "That file could not be uploaded.",
+            });
+          }
+          continue;
+        }
+
+        /* Demo mode: no server, so the bytes ride along inline or not at all.
+           Over the cap the row keeps name and size, which is what the exporter
+           saw for every large file before this pipeline existed. */
+        if (file.size > INLINE_BYTES_LIMIT) {
+          accepted.push({ name: file.name, size: file.size });
+          continue;
+        }
+        const dataUrl = await new Promise<string | undefined>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : undefined);
+          reader.onerror = () => resolve(undefined);
+          reader.readAsDataURL(file);
+        });
+        accepted.push({ name: file.name, size: file.size, dataUrl });
+      }
+
+      if (accepted.length) addFiles(docId, accepted);
+      return refused;
+    },
+    [addFiles, req.token],
+  );
+
   const removeFile = React.useCallback(
     (docId: string, index: number) => {
       const label = req.documents.find((d) => d.id === docId)?.label ?? docId;
@@ -821,6 +885,7 @@ export function SupplierProvider({
     isEditable,
     autoValue,
     addFiles,
+    uploadFiles,
     removeFile,
     clearDoc,
     isDocEditable,

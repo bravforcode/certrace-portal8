@@ -138,6 +138,8 @@ import { computeComplianceFacts, yearFromPeriod, type ComplianceFacts } from "@/
 import { buildSupplierChapters, buildSignOff, packageSummaryData, packageHistoryData } from "@/lib/package-data";
 import { buildIntelligence, type IntelligenceReport } from "@/lib/compliance-intelligence";
 import { useT, useLanguage, localeFor, type TFunction } from "@/lib/i18n";
+import { downloadFile, saveBlobAs } from "@/lib/api/files";
+import type { UploadedFile } from "@/lib/supplier-store";
 
 /* The four steps of the flow, in the order a real exporter walks them, plus
    two always-available insight views. */
@@ -1310,6 +1312,62 @@ function SubmittedData({ sub }: { sub: ReviewSubmission }) {
   );
 }
 
+/* One attached file, however it happens to be stored.
+
+   Three states, and the middle one is the point of R5:
+
+     fileId   on the server. Fetched with the exporter's own credential and
+              handed over as a download, which a plain href cannot do because
+              it cannot carry an Authorization header.
+     dataUrl  inline base64, from demo mode or from before the pipeline
+              existed. Still a direct link.
+     neither  a file attached when it was too big to keep and there was
+              nowhere to put it. The name is all that was ever kept, and
+              saying so is better than a link that downloads nothing. */
+function EvidenceFileLink({ file }: { file: UploadedFile }) {
+  const t = useT();
+  const [busy, setBusy] = React.useState(false);
+  const [failed, setFailed] = React.useState<string | null>(null);
+
+  if (file.fileId) {
+    const fetchIt = async () => {
+      setFailed(null);
+      setBusy(true);
+      try {
+        saveBlobAs(await downloadFile(file.fileId as string), file.name);
+      } catch (cause) {
+        setFailed(cause instanceof Error ? cause.message : t("That file could not be downloaded."));
+      } finally {
+        setBusy(false);
+      }
+    };
+    return (
+      <button
+        type="button"
+        onClick={fetchIt}
+        disabled={busy}
+        title={failed ?? t("Download this file")}
+        className={cn(
+          "underline decoration-black/20 underline-offset-2 hover:text-black hover:decoration-black/50 disabled:cursor-wait",
+          failed && "text-[#b42318] decoration-[#b42318]/40",
+        )}
+      >
+        {busy ? `${file.name}…` : file.name}
+      </button>
+    );
+  }
+
+  if (file.dataUrl) {
+    return (
+      <a href={file.dataUrl} download={file.name} className="underline decoration-black/20 underline-offset-2 hover:text-black hover:decoration-black/50" title={t("Download this file")}>
+        {file.name}
+      </a>
+    );
+  }
+
+  return <span title={t("Only the name of this file was kept - ask the supplier to attach it again")}>{file.name}</span>;
+}
+
 function SectionBlock({ section, sub, displayValue }: { section: SupplierSection; sub: ReviewSubmission; displayValue: (f: ResolvedCbamField, p?: string) => string }) {
   const t = useT();
   if (section.scope === "docs") {
@@ -1330,15 +1388,9 @@ function SectionBlock({ section, sub, displayValue }: { section: SupplierSection
                 {uploaded ? (
                   <span className="flex flex-wrap items-center gap-1.5 font-mono text-[10px] text-black/35">
                     {files.length === 0 && "uploaded"}
-                    {files.map((f, i) =>
-                      f.dataUrl ? (
-                        <a key={i} href={f.dataUrl} download={f.name} className="underline decoration-black/20 underline-offset-2 hover:text-black hover:decoration-black/50" title={t("Download this file")}>
-                          {f.name}
-                        </a>
-                      ) : (
-                        <span key={i} title={t("File larger than the inline limit - request it out-of-band")}>{f.name}</span>
-                      ),
-                    )}
+                    {files.map((f, i) => (
+                      <EvidenceFileLink key={i} file={f} />
+                    ))}
                   </span>
                 ) : (
                   <span className="font-mono text-[10px] text-black/35">{t("not attached")}</span>
