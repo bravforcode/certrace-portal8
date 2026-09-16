@@ -7,12 +7,6 @@ certrace-portal/test-results/
 certrace-portal/playwright-report/
 certrace-portal/.open-next/
 
-# Admin Next.js
-certrace-admin-portal/node_modules/
-certrace-admin-portal/.next/
-certrace-admin-portal/out/
-certrace-admin-portal/.env*.local
-
 # Python virtualenv & cache
 certrace-backend/.venv/
 certrace-backend/__pycache__/
