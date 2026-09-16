@@ -2,8 +2,9 @@
 
 ไฟล์นี้สรุปว่า **โค้ดในรีโปตอนนี้ทำอะไรได้จริงบ้าง** และเหลืออะไรที่ โบ๊ท กับ เฟิน ต้องลุยต่อก่อนปล่อยให้ Design Partner ใช้งานจริง
 
-> อัปเดตล่าสุด: 16 ก.ย. 2026 — **R1 และ R2 ปิดแล้ว** backend ขึ้นของจริง พอร์ทัลออกจาก demo mode แล้ว
-> รอบนี้ยิงเช็ค production จริงทุกข้อ (`api.certrace.co/readyz` ตอบ 200 `databaseConfigured: true`, preflight CORS ผ่าน, CSP `connect-src` มี `https://api.certrace.co`) + อ่าน `gh run list` / `gh api .../actions/secrets` ไม่ได้อ่านจากแผนงาน
+> อัปเดตล่าสุด: 16 ก.ย. 2026 (รอบบ่าย) — **R1 ปิดแล้ว ส่วน R2 เปิดใหม่** backend ขึ้นของจริง แต่ **พอร์ทัลบนโดเมนจริงยังล็อกอินด้วยรหัสอะไรก็ได้** แก้ในโค้ดแล้วรอ deploy พิสูจน์
+> รอบเช้าปิด R2 ด้วยการอนุมานจาก CSP header ว่า build มี `NEXT_PUBLIC_API_BASE_URL` — **ผิด** ลองล็อกอินตรงๆ ด้วยรหัสมั่วแล้วเข้าได้ ดู R2 ว่าทำไมหลักฐานนั้นเชื่อไม่ได้
+> รอบนี้ยิงเช็ค production จริง (`api.certrace.co/readyz` ตอบ 200 `databaseConfigured: true`, preflight CORS ผ่าน) + อ่าน `gh run list` / `gh api .../actions/secrets` ไม่ได้อ่านจากแผนงาน
 > รอบ 10 ก.ย. เขียนไว้ว่า R1 ยังไม่ได้ deploy และ `api.certrace.co` เป็น DNS เปล่า — ตกยุคไปแล้วทั้งคู่
 > ⚠️ ของใหม่ที่ต้องรู้: **ท่อ deploy อัตโนมัติยังไม่เคยส่งอะไรขึ้นเลยสักครั้ง** ทุกอย่างที่ขึ้นไปแล้วขึ้นด้วยมือ — ดูหัวข้อ 🚨 ใหม่ด้านล่าง
 
@@ -30,7 +31,13 @@
 
 ## 🚨 เรื่องที่ต้องรู้ก่อนอย่างอื่น
 
-**ท่อ deploy อัตโนมัติไม่เคยส่งอะไรขึ้นไปเลยสักครั้ง — ของที่อยู่บนโดเมนจริงตอนนี้ขึ้นด้วยมือทั้งหมด**
+**1) `portal.certrace.co` ตอนนี้ใส่รหัสอะไรก็ล็อกอินผ่าน**
+
+build ที่เสิร์ฟอยู่ไม่มี `NEXT_PUBLIC_API_BASE_URL` → `apiConfigured()` เป็น false → `demoModeEnabled()` เป็น true → หน้า login ยอมรับทุกรหัส โค้ดแก้แล้วทั้งสามจุด (ดู R2) **แต่ยังไม่ได้ deploy** จนกว่าจะ deploy พอร์ทัลบนโดเมนจริงยังเปิดอยู่ ใครเดาโดเมนถูกก็เข้าไปเห็นข้างในได้
+
+> ปิดข้อนี้ได้ทางเดียว: deploy แล้วลองล็อกอินด้วยรหัสมั่ว **ต้องไม่ผ่าน** ห้ามปิดด้วยการอ่าน CSP header แบบรอบที่แล้ว
+
+**2) ท่อ deploy อัตโนมัติไม่เคยส่งอะไรขึ้นไปเลยสักครั้ง — ของที่อยู่บนโดเมนจริงตอนนี้ขึ้นด้วยมือทั้งหมด**
 
 `gh api repos/:owner/:repo/actions/secrets` และ `.../actions/variables` **คืนค่าว่างทั้งคู่** ทั้งระดับรีโปและระดับ environment `production` แปลว่าไม่มี `CLOUDFLARE_API_TOKEN`, ไม่มี `CLOUDFLARE_ACCOUNT_ID`, ไม่มี `EXPORTER_PORTAL_URL` และไม่มี `GCP_*` สักตัว
 
@@ -54,7 +61,7 @@
 | **Landing Page** | 🟢 100% | Next.js 15 หลายภาษา, ฟอร์มยิงเข้า Google Sheets แยกแท็บ, `certrace.co` ตอบ 200 | deploy ยังต้องทำด้วยมือ (ดู 🚨) |
 | **Outreach Scripts** | 🟢 100% | ยืนยันโดเมนบน Resend, ยิงเมลหา Design Partners ชุดแรกแล้ว | สแตนบายมอนิเตอร์ตอบกลับ |
 | **Portal — หน้าจอ/UX** | 🟢 100% | ครบทุกหน้า, responsive, 2 ภาษา, เหลือพอร์ทัลเดียวแล้ว (โฟลเดอร์ซ้ำถูกลบ), empty/loading/error state ครบ | — |
-| **Portal — การเชื่อมต่อข้อมูล** | 🟡 70% | auth, declarations, smart links, ไฟล์แนบ, reminder subjects ต่อ API จริงแล้วผ่าน [`lib/api/`](certrace-portal/lib/api) + TanStack Query และ**build บนโดเมนจริงชี้มาที่ `api.certrace.co` แล้ว** | team / workspace / profile / monthly-requests ยังเป็น localStorage (ตั้งใจเลื่อน — ดู D2) · ไม่มี route guard และ `/api/auth/me` ไม่มีใครเรียก (ดู D4) |
+| **Portal — การเชื่อมต่อข้อมูล** | 🟡 70% | auth, declarations, smart links, ไฟล์แนบ, reminder subjects ต่อ API จริงแล้วผ่าน [`lib/api/`](certrace-portal/lib/api) + TanStack Query | 🔴 **build บนโดเมนจริงยังไม่ชี้ไป `api.certrace.co` → ยังเป็น demo mode รับรหัสอะไรก็ได้ (R2)** · team / workspace / profile / monthly-requests ยังเป็น localStorage (ตั้งใจเลื่อน — ดู D2) · ไม่มี route guard และ `/api/auth/me` ไม่มีใครเรียก (ดู D4) |
 | **Backend — Auth** | 🟢 100% | `register` `login` `me` `refresh` `logout` `change/forgot/reset-password` + JWT + refresh token + rate limit หน้าต่าง 15 นาที | — |
 | **Backend — Smart Links** | 🟢 100% | สร้าง / resolve / save state / submit / ขอแก้ไข / ดูรายการที่ส่งมา — token ออกจากเซิร์ฟเวอร์ มีวันหมดอายุ | — |
 | **Backend — เครื่องคำนวณ CBAM** | 🟢 100%* | คำนวณครบ **ทั้ง 4 เส้น** ของ fixture แล้ว (10 ก.ย.) — เชื้อเพลิงผ่านค่าความร้อน, process emission แบบ mass balance, indirect, precursor หลายชั้น พร้อม audit trace ทุกเส้น | \* ตัวเครื่องครบแล้ว แต่ยังต้องรอ **ค่า default factor ตัวจริง** (R3) ถึงจะใช้กับสินค้านอก 2 CN code ได้ |
@@ -119,22 +126,25 @@
 > `CERTRACE_JWT_SECRET` — ไม่มีแล้ว **แอปไม่ start เลย** ถ้ามี `DATABASE_URL` ([`main.py:68`](certrace-backend/app/main.py:68)) อาการคือ revision ไม่ผ่าน startup probe
 > `CERTRACE_APP_BASE_URL` — อันนี้ร้ายกว่า เพราะ**ไม่มีอาการอะไรเลย** ไม่ตั้งแล้ว service ยังขึ้นปกติ ผ่าน probe ปกติ แต่ smart link ทุกอันที่ mint ออกไปจะชี้ไป `https://app.certrace.co` ตาม default ([`config.py:51`](certrace-backend/app/config.py:51)) ซึ่งเป็นโดเมนที่ไม่มีอยู่จริง กว่าจะรู้ตัวคือตอนซัพพลายเออร์กดลิงก์ในอีเมลที่เราส่งไปแล้ว — ต้องตั้งเป็น `https://portal.certrace.co`
 
-#### **R2. พอร์ทัล production ออกจาก demo mode แล้ว — ✅ ปิด 16 ก.ย.**
-หลักฐานที่ยิงเช็คได้จากข้างนอก: response header ของ `https://portal.certrace.co/login` มี
+#### **R2. พอร์ทัล production ยังรับรหัสอะไรก็ได้ — 🔴 เปิดใหม่ 16 ก.ย. แก้ในโค้ดแล้ว รอ deploy พิสูจน์**
+**ข้อนี้เคยถูกปิดไปแล้วรอบเช้า แล้วปรากฏว่าปิดผิด** — ลองล็อกอิน `portal.certrace.co` ด้วยรหัสมั่ว **แล้วเข้าได้** นั่นแปลว่า `demoModeEnabled()` ยังเป็น true บนโดเมนจริง คือ `apiConfigured()` เป็น false คือ build ที่เสิร์ฟอยู่ **ไม่มี** `NEXT_PUBLIC_API_BASE_URL`
 
-```
-connect-src 'self' https://api.anthropic.com https://api.certrace.co
-```
+หลักฐานที่ใช้ปิดรอบก่อนคือ CSP ของ `/login` มี `connect-src ... https://api.certrace.co` ซึ่งค่านั้นมาจาก [`build-csp-headers.mjs:154`](certrace-portal/scripts/build-csp-headers.mjs:154) ที่อ่าน `NEXT_PUBLIC_API_BASE_URL` ตอน build จึงสรุปว่า build ต้องมีค่านี้แน่ๆ **เหตุผลถูก แต่ข้อสรุปผิด** และนี่คือบทเรียนของข้อนี้:
 
-ค่านั้นถูกสร้างโดย [`build-csp-headers.mjs:154`](certrace-portal/scripts/build-csp-headers.mjs:154) ซึ่งอ่าน `NEXT_PUBLIC_API_BASE_URL` **ตอน build เท่านั้น** ถ้าตัวแปรไม่ถูกตั้ง โฮสต์นั้นจะไม่มีทางโผล่ใน CSP เลย — แปลว่า build ที่อยู่บนโดเมนจริงมีค่านี้แน่นอน
-เมื่อ `apiConfigured()` เป็น true แล้ว `demoModeEnabled()` คืน `false` ทันทีที่บรรทัดแรก ([`config.ts:67`](certrace-portal/lib/api/config.ts:67) — *"A real backend always wins"*) **ไม่ต้องไปแก้ default ใน `next.config.ts` ก็ปิดแล้ว**
+*   header กับ bundle **มาจากคนละที่** — header เสิร์ฟจาก asset layer ([`public/_headers`](certrace-portal/public/_headers)) ส่วนหน้าที่ล็อกอินได้มาจาก bundle ทั้งคู่ขึ้นด้วยมือ ไม่มีอะไรรับประกันว่ามาจาก build เดียวกัน
+*   **หลักฐานทางอ้อมไม่ใช่การทดสอบ** ข้อนี้ทดสอบตรงๆ ได้ในสิบวินาที (กรอกรหัสมั่ว) แต่รอบก่อนเลือกอนุมานจาก header แทน
 
-> ⚠️ **`NEXT_PUBLIC_*` ตั้งใน `wrangler.jsonc` ไม่มีผล** — Next ฝังค่าเหล่านี้เป็นค่าคงที่ตอน build ส่วน `vars` ของ wrangler เป็น runtime binding ของ Worker ที่มาถึงหลังการแทนค่าไปแล้ว ข้อนี้ยังจริงอยู่ ถ้าวันหนึ่งย้ายไปตั้งที่นั่นจะเงียบสนิทไม่มีอะไรฟ้อง
+**ต้นเหตุจริงคือ default `"1"`** ใน [`next.config.ts:54`](certrace-portal/next.config.ts:54) — `env` block นี้ฝังค่าลง bundle ตอน build ทุก build ที่ไม่ได้สั่งเป็นอย่างอื่นจึงเปิด demo mode ให้เอง ไม่ใช่ "กับดักที่รอวันเกิด" อย่างที่เขียนไว้รอบก่อน แต่มันเกิดไปแล้ว
 
-*   [x] `NEXT_PUBLIC_API_BASE_URL=https://api.certrace.co` เข้าไปอยู่ใน build แล้ว
-*   [x] demo mode ปิดแล้วบนโดเมนจริง — ปิดโดยผลของ `apiConfigured()` ไม่ใช่โดยการแก้ธง
-*   [ ] **เก็บกวาด:** default `"1"` ใน [`next.config.ts:54`](certrace-portal/next.config.ts:54) ยังอยู่ ตอนนี้ไม่มีพิษเพราะ backend ชนะเสมอ **แต่มันเป็นกับดัก** — วันไหน build หลุดไปโดยไม่มี `NEXT_PUBLIC_API_BASE_URL` (เช่นตอนที่ท่อ CI เริ่มทำงานแล้วลืมใส่ env) พอร์ทัลจะกลับไปรับรหัสอะไรก็ได้เงียบๆ เปลี่ยนเป็นค่าว่างซะ
-*   [ ] **เก็บกวาด:** ลบ `NEXT_PUBLIC_DEMO_MODE` ออกจาก [`wrangler.jsonc:46`](certrace-portal/wrangler.jsonc:46) — ไม่เคยมีผล แต่ทำให้คนอ่านเข้าใจผิด
+> ⚠️ **`NEXT_PUBLIC_*` ตั้งใน `wrangler.jsonc` ไม่มีผล** — Next ฝังค่าเหล่านี้เป็นค่าคงที่ตอน build ส่วน `vars` ของ wrangler เป็น runtime binding ของ Worker ที่มาถึงหลังการแทนค่าไปแล้ว
+
+*   [x] **default เปลี่ยนเป็นค่าว่างแล้ว** ([`next.config.ts:54`](certrace-portal/next.config.ts:54)) — demo mode ต้องขอเองด้วย `NEXT_PUBLIC_DEMO_MODE=1` เท่านั้น
+*   [x] **ตั้ง `NEXT_PUBLIC_API_BASE_URL` ใน env ของ step build** ใน [`deploy.yml`](.github/workflows/deploy.yml) — อ่านจาก repository **secret** `API_URL` ตั้งเฉพาะ portal, landing ได้ค่าว่าง
+*   [x] **ไม่ใส่ค่า fallback** — ถ้า `API_URL` ว่าง job portal ตายที่ step `Fail early if the portal has no backend to point at` ก่อน build ด้วยซ้ำ เพราะ URL ที่ "ดูน่าจะถูก" ฝังลง bundle ไปแล้วแก้ไม่ได้จนกว่าจะ build ใหม่ และอาการจะไปโผล่ในเบราว์เซอร์ของลูกค้าไม่ใช่ใน log
+*   [ ] **ต้องมี secret `API_URL` บน GitHub ก่อน merge แรก** (ดู R6) — `gh api` ระดับ repo และ environment `production` ยังคืนค่าว่างทั้งคู่ ถ้าตั้งไว้ระดับ org จะมองไม่เห็นจากบัญชีที่ใช้อยู่ (มีแค่ `read:org`) ต้องยืนยันด้วยตาเอง ชื่อต้องเป็น `API_URL` เป๊ะ
+*   [x] **ลบ `vars` ทิ้งจาก [`wrangler.jsonc`](certrace-portal/wrangler.jsonc)** พร้อมคอมเมนต์อธิบายว่าทำไมห้ามเอากลับมา
+*   [ ] **ยังพิสูจน์ไม่ได้จนกว่าจะ deploy** — ของบนโดเมนจริงตอนนี้ยังเป็นตัวเก่าที่รับรหัสมั่วอยู่ **ข้อนี้ปิดได้ก็ต่อเมื่อลองกรอกรหัสมั่วแล้วไม่ผ่าน** ห้ามปิดด้วยการอ่าน header อีก
+    > ถ้าหลัง deploy แล้วขึ้นว่า "ใช้งานไม่ได้" แทนที่จะเป็นรหัสผิด นั่นคือคนละอาการ: `apiConfigured()` เป็น false → env ไม่เข้า build หรือ backend ต่อไม่ติด แต่เป็นอาการที่ปลอดภัย (`authUnavailable()` ไม่ปล่อยใครเข้า)
 *   [ ] **โบ๊ท & เฟิน:** รัน `npm run test:e2e:prod` ยิงโฟลว์จริงบนโดเมนจริง แล้วเดินด้วยมืออีกรอบ: สมัคร → สร้าง declaration → ส่งลิงก์ → เปิดจากอีกเครื่อง → กรอก → **อัปใบเซอร์** (ตัวนี้จะพิสูจน์ `011` ไปในตัว) → ส่งกลับ ← **นี่คืองานที่เหลือจริงของ R2**
 
 #### **R3. ค่า EU default factor ยังเป็นไฟล์ตัวอย่าง**
@@ -172,7 +182,8 @@ connect-src 'self' https://api.anthropic.com https://api.certrace.co
 ดูหัวข้อ 🚨 ตอนนี้ทุกอย่างที่อยู่บนโดเมนจริงขึ้นด้วยมือ ซึ่งแปลว่า **ไม่มีใครรู้ว่าของบน production ตรงกับ main หรือเปล่า** ทุกการแก้นับจากนี้ต้องมีคนจำให้ได้ว่าต้อง deploy เอง ถ้าลืม อาการคือแก้บั๊กแล้วบั๊กยังอยู่
 
 *   [ ] **โบ๊ท:** ใส่ `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` (Settings → Secrets and variables → Actions) — ปลดล็อก landing + portal
-*   [ ] **โบ๊ท:** ใส่ `NEXT_PUBLIC_API_BASE_URL=https://api.certrace.co` เป็น repository **variable** แล้วอ้างใน `env:` ของ job portal — **ห้ามลืม** ถ้า CI เริ่ม build เองแล้วไม่มีค่านี้ พอร์ทัลจะถอยกลับไป demo mode เงียบๆ (ดู R2)
+*   [ ] **โบ๊ท:** ใส่ `API_URL=https://api.certrace.co` เป็น repository **secret** (Settings → Secrets and variables → Actions → **Secrets** ไม่ใช่แท็บ Variables) — ฝั่ง workflow ต่อสายให้แล้ว (`env:` ของ step deploy ใน [`deploy.yml`](.github/workflows/deploy.yml)) เหลือแค่ค่า **ไม่มี fallback โดยเจตนา** ไม่ตั้ง = job portal ตายตั้งแต่ step แรก ดีกว่าปล่อยให้ build ผ่านแล้วพอร์ทัลยิง API ไม่ออกโดยไม่มีอะไรฟ้อง
+    > หมายเหตุ: ค่านี้ไม่ลับจริง มันถูกฝังลง JS bundle ที่ใครก็โหลดไปอ่านได้ เก็บเป็น secret จึงได้แค่ mask ใน log ของ Actions — แลกมากับการที่ debug ยากขึ้น เพราะดูจาก log ไม่ได้ว่า build ชี้ไปโฮสต์ไหน ถ้าวันหนึ่งเปลี่ยนใจ ย้ายไป Variables แล้วสลับ `secrets.API_URL` เป็น `vars.API_URL` สองที่ใน `deploy.yml`
 *   [ ] **โบ๊ท:** ใส่ `EXPORTER_PORTAL_URL` เป็น repository variable — ขาดตัวนี้ step เช็ค security header จะ `exit 0` แล้ว deploy ผ่านทั้งที่ header อาจไม่ติด
 *   [ ] **โบ๊ท:** ใส่ `GCP_*` 4 ตัวตาม [README §Deploy from CI](certrace-backend/README.md:454) — ปลดล็อก backend + ทำให้ alembic รันเองทุก deploy (แก้ปัญหา migration ค้างตั้งแต่ต้นทาง)
 *   [ ] **โบ๊ท:** เช็ค Settings → Billing ว่าโควตา Actions เหลือเท่าไหร่ — run `plan` ที่ตายใน 2 วินาทีตั้งแต่ 11 ก.ย. เข้าได้กับอาการโควตาหมด
@@ -204,7 +215,7 @@ golden fixture กลางที่ทั้งสองฝั่งอ่า�
     > อัปเดต 16 ก.ย.: ข้อนี้เคยเขียนว่า "ทำให้ R4 ทำงานไม่ได้" — ไม่จริงแล้ว R4 เลี่ยงไปโดยให้พอร์ทัล**ลงทะเบียนเฉพาะสิ่งที่ job ต้องใช้** (`reminder_subjects`) ตอนกดส่ง แทนที่จะย้ายทั้ง 3 store ขึ้นเซิร์ฟเวอร์ ตัวอีเมลเตือนจึงไม่รอ D2 อีกต่อไป แต่ที่ยังจริงคือย้ายเครื่องแล้วข้อมูลที่เหลือหาย
 
 #### **D4. Session ฝั่งพอร์ทัลยังไม่มียาม — 🔴 ใหม่ 16 ก.ย.**
-ตอนที่ยังเป็น demo mode ข้อนี้ไม่มีความหมาย ตอนนี้มีบัญชีจริงหลัง `api.certrace.co` แล้วมันเริ่มมีความหมาย
+ข้อนี้จะเริ่มมีความหมายก็ต่อเมื่อพอร์ทัลบนโดเมนจริงต่อ `api.certrace.co` แล้วเท่านั้น — ตราบใดที่ยังเป็น demo mode (R2) การไม่มียามไม่ใช่ประเด็น เพราะหน้า login ก็ปล่อยทุกคนเข้าอยู่ดี
 *   [ ] [`middleware.ts`](certrace-portal/middleware.ts) มีแต่เรื่อง CSP/matcher **ไม่มี redirect ตอนไม่ได้ล็อกอิน** — เปิด URL หน้าในตรงๆ ไม่มีอะไรกั้นที่ชั้น routing
 *   [ ] `/api/auth/me` ประกาศไว้ที่ [`lib/api/auth.ts:98`](certrace-portal/lib/api/auth.ts:98) แต่ **ไม่มีใครเรียกเลยทั้งรีโป** → โหลดหน้ามาไม่เคยยืนยันกับเซิร์ฟเวอร์ว่า session ยังใช้ได้, ธง `onboarded` ที่ backend เก็บไว้ไม่เคยถูกอ่าน, onboarding ยังตัดสินจาก localStorage อย่างเดียว
 *   [ ] ผลที่เห็นได้จริง: token หมดอายุหรือถูก revoke แล้ว UI ยังทำเหมือนล็อกอินอยู่จนกว่าจะมี request แรกเด้ง 401
@@ -223,19 +234,20 @@ golden fixture กลางที่ทั้งสองฝั่งอ่า�
 
 ## 📌 4. เส้นทางที่แนะนำ
 
-R1, R2, R4, R5 ปิดไปหมดแล้ว รายการเดิมจึงตกยุคทั้งตาราง นี่คือลำดับใหม่:
+R1, R4, R5 ปิดแล้ว ส่วน R2 กลับมาเป็นข้อแรกเพราะเป็นช่องโหว่ที่เปิดอยู่จริงตอนนี้:
 
 | ลำดับ | งาน | ประเมินเวลา |
 | :---: | :--- | :--- |
-| 1 | **เดิน end-to-end บนโดเมนจริงหนึ่งรอบเต็ม** สมัคร → declaration → ส่งลิงก์ → เปิดอีกเครื่อง → **อัปใบเซอร์** → ส่งกลับ (R2) — จะพิสูจน์ `011`/`012` ว่าถูก migrate จริงไปในตัว | ~ครึ่งวัน |
-| 2 | ใส่ secret/variable ให้ท่อ deploy ทำงาน (R6) — หลังจากนี้ไม่ต้องจำว่าต้อง deploy เอง | ~1–2 ชม. |
-| 3 | เก็บกวาด default `"1"` ของ demo mode ไม่ให้เป็นกับดักของข้อ 2 (R2) | ~15 นาที |
+| 1 | **deploy พอร์ทัลแล้วยืนยันว่ารหัสมั่วเข้าไม่ได้** (R2) — โค้ดแก้แล้ว แต่ของบนโดเมนจริงยังเป็นตัวเก่าที่ใครก็เข้าได้ | ~30 นาที |
+| 2 | **เดิน end-to-end บนโดเมนจริงหนึ่งรอบเต็ม** สมัคร → declaration → ส่งลิงก์ → เปิดอีกเครื่อง → **อัปใบเซอร์** → ส่งกลับ — จะพิสูจน์ `011`/`012` ว่าถูก migrate จริงไปในตัว | ~ครึ่งวัน |
+| 3 | ใส่ secret/variable ให้ท่อ deploy ทำงาน (R6) — หลังจากนี้ไม่ต้องจำว่าต้อง deploy เอง | ~1–2 ชม. |
 | 4 | Import default factor ชุดจริง (R3) | รอเฟิน |
 | 5 | Route guard + เรียก `/me` ตอนโหลด (D4) | ~ครึ่งวัน |
 | 6 | ตัดสินใจ D1 (ใครเป็นเจ้าของตัวเลขที่ยื่นจริง) และ D2 (store ที่ยังอยู่ localStorage) | คุยกัน |
 
-**ข้อ 1 คือสิ่งเดียวที่กั้นระหว่าง "ของขึ้นครบแล้ว" กับ "รู้ว่าของที่ขึ้นใช้ได้จริง"** — ตอนนี้ทั้งสามชั้นขึ้นแล้วแต่ยังไม่มีใครเดินทะลุจากต้นจนจบสักครั้ง
-**ข้อ 2 คือสิ่งเดียวที่กั้นระหว่าง "ใช้ได้วันนี้" กับ "ยังใช้ได้อยู่หลังแก้ครั้งหน้า"**
+**ข้อ 1 ทำก่อนทุกอย่าง** — ตราบใดที่ยังไม่ deploy พอร์ทัลบนโดเมนจริงเปิดให้ใครก็ได้เข้าไปเห็นข้อมูลข้างใน
+**ข้อ 2 คือสิ่งเดียวที่กั้นระหว่าง "ของขึ้นครบแล้ว" กับ "รู้ว่าของที่ขึ้นใช้ได้จริง"** — ตอนนี้ทั้งสามชั้นขึ้นแล้วแต่ยังไม่มีใครเดินทะลุจากต้นจนจบสักครั้ง
+**ข้อ 3 คือสิ่งเดียวที่กั้นระหว่าง "ใช้ได้วันนี้" กับ "ยังใช้ได้อยู่หลังแก้ครั้งหน้า"**
 
 ---
 
@@ -261,7 +273,8 @@ R1, R2, R4, R5 ปิดไปหมดแล้ว รายการเดิ�
 | Auth ฝั่งเซิร์ฟเวอร์ | [certrace-backend/app/routers/auth.py](certrace-backend/app/routers/auth.py) |
 | Smart link ฝั่งเซิร์ฟเวอร์ | [certrace-backend/app/routers/links.py](certrace-backend/app/routers/links.py) |
 | API client ฝั่งพอร์ทัล | [certrace-portal/lib/api/](certrace-portal/lib/api) |
-| ธง demo mode | [certrace-portal/lib/api/config.ts](certrace-portal/lib/api/config.ts) |
+| ธง demo mode — ตรรกะ | [certrace-portal/lib/api/config.ts](certrace-portal/lib/api/config.ts) |
+| ธง demo mode — **ค่าที่ถูกฝังลง build จริง** | [certrace-portal/next.config.ts](certrace-portal/next.config.ts) + `env:` ของ step deploy ใน [.github/workflows/deploy.yml](.github/workflows/deploy.yml) |
 | เครื่องคำนวณ backend | [certrace-backend/app/services/mrv_engine.py](certrace-backend/app/services/mrv_engine.py) |
 | เครื่องคำนวณ frontend | [certrace-portal/lib/cbam/engine.ts](certrace-portal/lib/cbam/engine.ts) |
 | Fixture กลางที่ใช้เทียบสองเครื่อง | [docs/fixtures/golden-eaf-2026.json](docs/fixtures/golden-eaf-2026.json) |

@@ -346,6 +346,31 @@ jobs:
             exit 1
           fi
 
+      - name: Fail early if the portal has no backend to point at
+        # No default on purpose: a wrong-but-plausible URL baked into the bundle
+        # is worse than a red X, because the build succeeds and the breakage
+        # only shows up in someone's browser. An unset secret stops the deploy
+        # here instead of shipping a portal whose every API call goes nowhere.
+        #
+        # `if:` tests the matrix, not the secret — the `secrets` context is not
+        # available in step conditions, which is why the emptiness check is a
+        # shell test on an env var rather than part of the `if` above.
+        if: matrix.name == 'portal'
+        env:
+          API_BASE: ${{ secrets.API_URL }}
+        run: |
+          if [ -z "${API_BASE:-}" ]; then
+            echo "::error title=API_URL is not set::The portal build needs it — add the API_URL secret (Settings → Secrets and variables → Actions → Secrets) set to https://api.certrace.co."
+            exit 1
+          fi
+          # Nothing derived from the value is echoed: masking only covers the
+          # exact string, so printing a slice of it would defeat the point of
+          # keeping it a secret. The shape check is what this step can report.
+          case "$API_BASE" in
+            https://*) echo "API_URL is set and is an https origin." ;;
+            *) echo "::error title=API_URL is not an https URL::The value must start with https:// — a bare host or an http:// origin bakes a broken URL into the bundle."; exit 1 ;;
+          esac
+
       - name: Set up Node.js 22 LTS
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
@@ -363,6 +388,14 @@ jobs:
         run: npm run test:unit --if-present
 
       - name: Deploy to Cloudflare
+        env:
+          # This has to be here, in the BUILD environment, and nowhere else.
+          # Next inlines NEXT_PUBLIC_* into the bundle while `npm run deploy`
+          # builds; the same name in wrangler.jsonc `vars` would arrive at
+          # request time and change nothing. Shipped unset, the portal built
+          # with apiConfigured() === false, and /login signed in anyone who
+          # typed a password. Landing has no backend, so it gets an empty value.
+          NEXT_PUBLIC_API_BASE_URL: ${{ matrix.name == 'portal' && secrets.API_URL || '' }}
         run: npm run deploy
 
       - name: Verify the live response carries the security headers
