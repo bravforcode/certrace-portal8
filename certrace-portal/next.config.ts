@@ -50,8 +50,13 @@ const securityHeaders = securityHeadersFromFile();
 const nextConfig: NextConfig = {
   // Pin the workspace root (there's another lockfile in the home dir).
   outputFileTracingRoot: import.meta.dirname,
+  /* Empty, not "1". This default is the real switch: it is inlined into the
+     bundle at build time, so defaulting it to "1" turned demoModeEnabled() on
+     for every build that did not explicitly say otherwise — including
+     portal.certrace.co, where it meant /login accepted any password. A demo
+     deployment opts in by setting NEXT_PUBLIC_DEMO_MODE=1 in its build env. */
   env: {
-    NEXT_PUBLIC_DEMO_MODE: process.env.NEXT_PUBLIC_DEMO_MODE || "1",
+    NEXT_PUBLIC_DEMO_MODE: process.env.NEXT_PUBLIC_DEMO_MODE || "",
   },
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
