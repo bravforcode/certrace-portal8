@@ -51,7 +51,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { CornerDownRight, Factory, ListTree, Plus } from "lucide-react";
+import { ArrowLeft, CornerDownRight, Factory, ListTree, Plus } from "lucide-react";
 import { cn } from "@/components/ui";
 import { useT } from "@/lib/i18n";
 import { entityHref } from "@/lib/tree-entity";
@@ -118,11 +118,19 @@ export function SupplyChainNav({ workspaceId, onNavigate }: { workspaceId: strin
 
   return (
     <nav className="flex flex-col gap-0.5" aria-label={t("Supply chain")}>
-      {/* NO "Verification workspaces" row above this one. The pinned header
-          already carries a back control pointing one level up, and a second
-          arrow in the sidebar made the reader choose which of two things
-          undid the click they just made. The estate is one click away in the
-          wordmark and in the header's own back link. */}
+      {/* A way out of the workspace from the sidebar itself. This row was
+          left out once, on the grounds that the header already carries a
+          back link — but that link scrolls away and is not in the phone
+          menu, and in prototype testing people looked for the exit where the
+          rest of the navigation lives. */}
+      <Link
+        href="/workspaces"
+        onClick={onNavigate}
+        className="mb-2 flex items-center gap-2 border-b border-black/[0.06] px-3 pb-3 pt-1 text-[12.5px] text-black/55 transition-colors hover:text-black"
+      >
+        <ArrowLeft size={14} strokeWidth={1.5} className="flex-none" />
+        {t("Verification workspaces")}
+      </Link>
 
       {/* Same destination as the Supply Chain button in the tab strip. */}
       <Link
