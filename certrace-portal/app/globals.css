@@ -323,3 +323,28 @@ html[data-account-locked="1"] main :is(button, input, textarea, select):not([dat
 html[data-account-locked="1"] main :is(input, textarea, select):not([data-lock="allow"]) {
   user-select: none;
 }
+
+/* ── Readable greys ─────────────────────────────────────────────────
+   The secondary text shades (`text-black/25` … `/55`) sat between 1.8:1 and
+   3.9:1 against the page — below WCAG AA's 4.5:1 for body text — and they
+   are mostly used on 11–12px labels, hints and dates, where faint and small
+   compound. Thai, with its thin marks, suffered most.
+
+   Each shade moves up by the same kind of step, so the order between them
+   (primary > secondary > hint) survives: every one of them now reads at
+   4.6:1 or better, except `/25`, which the portal uses for chevrons and
+   separators — it lands above 3:1, the bar for non-text graphics.
+
+   Inside the utilities layer, after Tailwind's own, with the specificity of
+   a single class (`:where` adds none): it replaces the base shade, while
+   `hover:`, `group-hover:` and `disabled:` variants — one step more specific —
+   still win, so links still darken on hover and disabled controls stay pale. */
+@layer utilities {
+  .text-black\/25:where(:not(:disabled)) { color: rgb(0 0 0 / 0.45); }
+  .text-black\/30:where(:not(:disabled)) { color: rgb(0 0 0 / 0.55); }
+  .text-black\/35:where(:not(:disabled)) { color: rgb(0 0 0 / 0.57); }
+  .text-black\/40:where(:not(:disabled)) { color: rgb(0 0 0 / 0.6); }
+  .text-black\/45:where(:not(:disabled)) { color: rgb(0 0 0 / 0.62); }
+  .text-black\/50:where(:not(:disabled)) { color: rgb(0 0 0 / 0.64); }
+  .text-black\/55:where(:not(:disabled)) { color: rgb(0 0 0 / 0.66); }
+}
