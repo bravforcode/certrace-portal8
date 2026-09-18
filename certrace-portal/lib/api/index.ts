@@ -45,13 +45,15 @@ export {
 } from "./auth";
 export {
   beginGoogleSignIn,
-  completeGoogleSignIn,
+  beginGoogleLink,
+  completeGoogleCallback,
   googleAuthorizeUrl,
   googleSignInEnabled,
+  pendingGoogleIntent,
   GoogleCallbackError,
   GOOGLE_CALLBACK_PATH,
 } from "./google";
-export type { GoogleCallbackProblem } from "./google";
+export type { GoogleCallbackProblem, GoogleCallbackResult, GoogleIntent } from "./google";
 export type {
   AuthUser,
   RegisterInput,

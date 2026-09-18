@@ -31,7 +31,7 @@
 
 import { apiConfigured } from "./config";
 import { request } from "./http";
-import { saveSession, type Session } from "./session";
+import { loadSession, saveSession, type Session } from "./session";
 import type { AuthUser } from "./auth";
 
 const GOOGLE_AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth";
@@ -47,7 +47,11 @@ const clientId = (): string => (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "").
     backend to verify the answer. Either alone would be a button that fails. */
 export const googleSignInEnabled = (): boolean => clientId().length > 0 && apiConfigured();
 
-type Pending = { state: string; nonce: string };
+/** What the round trip is for. "link" connects Google to the account that is
+    already signed in (Settings) and keeps its password; "signin" opens one. */
+export type GoogleIntent = "signin" | "link";
+
+type Pending = { state: string; nonce: string; intent?: GoogleIntent };
 
 function randomToken(): string {
   const bytes = new Uint8Array(24);
@@ -56,7 +60,7 @@ function randomToken(): string {
 }
 
 /** The URL that starts a sign-in. Separate from the redirect so it can be tested. */
-export function googleAuthorizeUrl(origin: string, pending: Pending): string {
+export function googleAuthorizeUrl(origin: string, pending: Pending, loginHint?: string): string {
   const params = new URLSearchParams({
     client_id: clientId(),
     redirect_uri: `${origin}${GOOGLE_CALLBACK_PATH}`,
@@ -69,13 +73,25 @@ export function googleAuthorizeUrl(origin: string, pending: Pending): string {
     // else's Google must not silently open THEIR Certrace account.
     prompt: "select_account",
   });
+  // Connecting from Settings: point Google at the account's own address, since
+  // the backend only accepts a Google account with the same email.
+  if (loginHint) params.set("login_hint", loginHint);
   return `${GOOGLE_AUTHORIZE_URL}?${params.toString()}`;
 }
 
 export function beginGoogleSignIn(): void {
-  const pending: Pending = { state: randomToken(), nonce: randomToken() };
+  startRoundTrip({ state: randomToken(), nonce: randomToken(), intent: "signin" });
+}
+
+/** Settings → "Connect Google". Needs a signed-in session; comes back through
+    the same /auth/google page, which sends the person back to Settings. */
+export function beginGoogleLink(accountEmail: string): void {
+  startRoundTrip({ state: randomToken(), nonce: randomToken(), intent: "link" }, accountEmail);
+}
+
+function startRoundTrip(pending: Pending, loginHint?: string): void {
   sessionStorage.setItem(PENDING_KEY, JSON.stringify(pending));
-  window.location.assign(googleAuthorizeUrl(window.location.origin, pending));
+  window.location.assign(googleAuthorizeUrl(window.location.origin, pending, loginHint));
 }
 
 /** Why a callback could not be completed, before or without asking the backend. */
@@ -89,26 +105,42 @@ export class GoogleCallbackError extends Error {
   }
 }
 
+/** What the in-flight round trip is for, without consuming it — so the
+    callback page knows where "back" goes even when the attempt then fails. */
+export function pendingGoogleIntent(): GoogleIntent {
+  try {
+    const raw = sessionStorage.getItem(PENDING_KEY);
+    return raw && (JSON.parse(raw) as Partial<Pending>).intent === "link" ? "link" : "signin";
+  } catch {
+    return "signin";
+  }
+}
+
 function takePending(): Pending | null {
   try {
     const raw = sessionStorage.getItem(PENDING_KEY);
     sessionStorage.removeItem(PENDING_KEY);
     const parsed = raw ? (JSON.parse(raw) as Partial<Pending>) : null;
-    return parsed?.state && parsed.nonce ? { state: parsed.state, nonce: parsed.nonce } : null;
+    if (!parsed?.state || !parsed.nonce) return null;
+    return { state: parsed.state, nonce: parsed.nonce, intent: parsed.intent === "link" ? "link" : "signin" };
   } catch {
     return null;
   }
 }
 
+export type GoogleCallbackResult = { intent: "signin"; session: Session } | { intent: "link"; user: AuthUser };
+
 /**
- * Finishes a sign-in from the callback URL's fragment: checks `state`, trades
- * the ID token for a Certrace session, and stores it — like `login` does.
+ * Finishes a round trip from the callback URL's fragment: checks `state`,
+ * then either trades the ID token for a Certrace session and stores it (like
+ * `login` does), or — for "link" — connects Google to the signed-in account
+ * and refreshes the stored user.
  *
  * Throws GoogleCallbackError for a callback that never reaches the backend,
- * and the backend's ApiError (INVALID_GOOGLE_TOKEN, GOOGLE_ACCOUNT_CONFLICT…)
- * for one it refused.
+ * and the backend's ApiError (INVALID_GOOGLE_TOKEN, GOOGLE_ACCOUNT_CONFLICT,
+ * GOOGLE_EMAIL_MISMATCH…) for one it refused.
  */
-export async function completeGoogleSignIn(fragment: string): Promise<Session> {
+export async function completeGoogleCallback(fragment: string): Promise<GoogleCallbackResult> {
   const params = new URLSearchParams(fragment.replace(/^#/, ""));
   const pending = takePending();
 
@@ -119,6 +151,17 @@ export async function completeGoogleSignIn(fragment: string): Promise<Session> {
   const idToken = params.get("id_token");
   if (!idToken || params.get("state") !== pending.state) throw new GoogleCallbackError("invalid");
 
+  if (pending.intent === "link") {
+    // Carries the bearer: the backend links Google to the token holder.
+    const { user } = await request<{ user: AuthUser }>("/api/auth/google/link", {
+      method: "POST",
+      body: { idToken, nonce: pending.nonce },
+    });
+    const current = loadSession();
+    if (current) saveSession({ ...current, user });
+    return { intent: "link", user };
+  }
+
   const result = await request<{ accessToken: string; refreshToken: string; user: AuthUser }>("/api/auth/google", {
     method: "POST",
     body: { idToken, nonce: pending.nonce },
@@ -126,5 +169,5 @@ export async function completeGoogleSignIn(fragment: string): Promise<Session> {
   });
   const session: Session = { accessToken: result.accessToken, refreshToken: result.refreshToken, user: result.user };
   saveSession(session);
-  return session;
+  return { intent: "signin", session };
 }

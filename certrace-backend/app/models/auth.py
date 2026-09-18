@@ -89,6 +89,7 @@ class AuthUser(BaseModel):
     first_name: str | None = Field(default=None, serialization_alias="firstName")
     last_name: str | None = Field(default=None, serialization_alias="lastName")
     company_name: str | None = Field(default=None, serialization_alias="companyName")
+    google_linked: bool = Field(default=False, serialization_alias="googleLinked")
 
 
 class SessionResponse(BaseModel):

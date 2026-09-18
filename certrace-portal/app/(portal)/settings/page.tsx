@@ -38,6 +38,7 @@ import { CAP_LABEL } from "@/lib/plan";
 import { useCaps, useInvalidateCaps, useInvalidateWorkspaces } from "@/lib/workspaces-query";
 import { useAccount } from "@/components/account-lock";
 import { PlanCapNotice } from "@/components/plan-cap-notice";
+import { beginGoogleLink, googleSignInEnabled, loadSession, onSessionChange } from "@/lib/api";
 
 // Mock "the only password that verifies" — matches the pre-filled demo
 // password on /login, since there's no real auth backend in this MVP.
@@ -702,6 +703,8 @@ function PrivacyTab() {
 
   return (
     <div className="space-y-6">
+      {googleSignInEnabled() && <GoogleConnectCard />}
+
       <Card className="p-6">
         <Eyebrow>{t("Change password")}</Eyebrow>
         <form onSubmit={attemptUpdate} noValidate className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -825,6 +828,63 @@ function PrivacyTab() {
 
       {cookiesOpen && <CookieModal onClose={() => setCookiesOpen(false)} />}
     </div>
+  );
+}
+
+/* ── Connect Google ───────────────────────────────────────────────
+   For an account that signs in with a password and wants Google as a second
+   way in. Connecting from HERE keeps the password — the person has proved
+   both the password (they are signed in with it) and the mailbox (Google
+   verifies the same address). Choosing Google on /login instead, for an
+   address that already has a password account, retires the password: that
+   path cannot tell the owner from whoever registered the address first. The
+   copy says so, because it is the one thing about the two buttons a person
+   would otherwise find out by losing a password.
+
+   The state comes from the stored session (`googleLinked`, which the backend
+   sends on every sign-in and on the link itself), read as primitives so
+   useSyncExternalStore gets a stable snapshot. */
+function GoogleConnectCard() {
+  const t = useT();
+  const searchParams = useSearchParams();
+  const linked = React.useSyncExternalStore(onSessionChange, () => loadSession()?.user.googleLinked === true, () => false);
+  const email = React.useSyncExternalStore(onSessionChange, () => loadSession()?.user.email ?? "", () => "");
+  const [leaving, setLeaving] = React.useState(false);
+  const justConnected = searchParams.get("google") === "connected";
+
+  return (
+    <Card className="p-6">
+      <Eyebrow>{t("Sign-in with Google")}</Eyebrow>
+      <div className="mt-3 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+        <div className="max-w-md">
+          {linked ? (
+            <p className="text-[13px] leading-relaxed text-black/60">
+              {t("Your Google account {email} is connected. You can sign in with Google or with your password.", { email })}
+            </p>
+          ) : (
+            <p className="text-[13px] leading-relaxed text-black/60">
+              {t("Connect the Google account for {email} to sign in with one click. Your password keeps working.", { email })}
+            </p>
+          )}
+          {justConnected && linked && <p className="mt-2 text-[12px] text-[#047857]">{t("Google connected.")}</p>}
+        </div>
+        {linked ? (
+          <Chip tone="ok">{t("Connected")}</Chip>
+        ) : (
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={leaving || !email}
+            onClick={() => {
+              setLeaving(true);
+              beginGoogleLink(email);
+            }}
+          >
+            {leaving ? t("Connecting…") : t("Connect Google")}
+          </Button>
+        )}
+      </div>
+    </Card>
   );
 }
 

@@ -128,6 +128,84 @@ def test_email_linked_to_another_google_account_is_refused() -> None:
     assert response.json()["detail"]["code"] == "GOOGLE_ACCOUNT_CONFLICT"
 
 
+# ── Connecting Google from Settings (/google/link) ────────────
+
+
+def _registered(client: TestClient, email: str) -> dict:
+    return client.post(
+        "/api/auth/register", json={"email": email, "password": "a-good-password-1"}
+    ).json()
+
+
+def _link(client: TestClient, access_token: str, account_email: str, **overrides):
+    nonce = secrets.token_urlsafe(24)
+    token = _id_token(overrides.pop("email", account_email), nonce=nonce, **overrides)
+    return client.post(
+        "/api/auth/google/link",
+        json={"idToken": token, "nonce": nonce},
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+
+
+def test_link_keeps_the_password_and_google_then_opens_the_same_account() -> None:
+    client = _client()
+    email = _fresh_email()
+    session = _registered(client, email)
+    assert session["user"]["googleLinked"] is False
+
+    response = _link(client, session["accessToken"], email)
+
+    assert response.status_code == 200
+    assert response.json()["user"]["googleLinked"] is True
+    # Both ways in now work, and they open one account.
+    login = client.post(
+        "/api/auth/login", json={"email": email, "password": "a-good-password-1"}
+    )
+    assert login.status_code == 200
+    via_google = _sign_in(client, email)
+    assert via_google.json()["user"]["id"] == session["user"]["id"]
+    # Signing in through the already-linked Google does not retire the password.
+    again = client.post(
+        "/api/auth/login", json={"email": email, "password": "a-good-password-1"}
+    )
+    assert again.status_code == 200
+
+
+def test_link_needs_a_signed_in_session() -> None:
+    nonce = secrets.token_urlsafe(24)
+    response = _client().post(
+        "/api/auth/google/link",
+        json={"idToken": _id_token(_fresh_email(), nonce=nonce), "nonce": nonce},
+    )
+
+    assert response.status_code == 401
+
+
+def test_link_refuses_a_google_account_with_another_email() -> None:
+    client = _client()
+    email = _fresh_email()
+    session = _registered(client, email)
+
+    response = _link(
+        client, session["accessToken"], email, email="someone-else@gmail.com"
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"]["code"] == "GOOGLE_EMAIL_MISMATCH"
+
+
+def test_link_refuses_a_second_google_account_on_the_same_certrace_one() -> None:
+    client = _client()
+    email = _fresh_email()
+    session = _registered(client, email)
+    assert _link(client, session["accessToken"], email).status_code == 200
+
+    response = _link(client, session["accessToken"], email, sub="another-google")
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "GOOGLE_ACCOUNT_CONFLICT"
+
+
 @pytest.mark.parametrize(
     "overrides",
     [
