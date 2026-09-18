@@ -27,6 +27,10 @@ except ModuleNotFoundError:  # pragma: no cover - runtime dependency guard.
 VALID_SECTORS = {"IRON_STEEL", "ALUMINIUM"}
 VALID_UNITS = {"TCO2E_PER_TNE"}
 SUPPORTED_CHAPTERS = ("72", "73", "76")
+# The Commission does not always publish a default at full CN8 - some
+# headings only ever get one figure for the whole 4- or 6-digit heading
+# (BACK-10). Matches the CHECK constraint on default_emission_factors.
+VALID_CODE_LENGTHS = (4, 6, 8)
 
 HEADER_ALIASES = {
     "cn": "cn_code",
@@ -126,9 +130,9 @@ def parse_default_factor_row(
     steel_aluminium_only: bool,
 ) -> DefaultFactorRow:
     cn_code = require_value(row, "cn_code", row_number).replace(" ", "")
-    if len(cn_code) != 8 or not cn_code.isdigit():
+    if len(cn_code) not in VALID_CODE_LENGTHS or not cn_code.isdigit():
         raise ImportValidationError(
-            f"Row {row_number}: cn_code must be exactly 8 digits."
+            f"Row {row_number}: cn_code must be 4, 6, or 8 digits."
         )
     if steel_aluminium_only and not cn_code.startswith(SUPPORTED_CHAPTERS):
         raise ImportValidationError(
