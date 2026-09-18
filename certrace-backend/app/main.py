@@ -14,9 +14,11 @@ from app.config import (
     APP_BASE_URL_ENV,
     CORS_ALLOWED_ORIGINS_ENV,
     EMAIL_LOGO_URL_ENV,
+    GOOGLE_CLIENT_ID_ENV,
     JWT_SECRET_ENV,
     load_env_file_value,
 )
+from app.core.google_identity import KeyResolver
 from app.core.cors import (
     SecurityHeadersMiddleware,
     parse_cors_origins,
@@ -64,6 +66,8 @@ def create_app(
     enable_api_docs: bool = True,
     email_transport: EmailTransport | None = None,
     jwt_secret: str | None = None,
+    google_client_id: str | None = None,
+    google_key_resolver: KeyResolver | None = None,
 ) -> FastAPI:
     signing_secret = jwt_secret or load_env_file_value(JWT_SECRET_ENV)
     if database_url and not signing_secret:
@@ -123,6 +127,12 @@ def create_app(
     # tokens work for the life of the process, which is all a local demo or a
     # test needs.
     application.state.jwt_secret = signing_secret or secrets.token_urlsafe(32)
+    application.state.google_client_id = google_client_id or load_env_file_value(
+        GOOGLE_CLIENT_ID_ENV
+    )
+    # Tests hand in a resolver for their own signing key; everywhere else the
+    # verifier fetches Google's published keys itself.
+    application.state.google_key_resolver = google_key_resolver
     # Injected in tests so a suite never depends on a network or a key; built
     # from the environment everywhere else. See app/services/email.py.
     application.state.email_transport = email_transport or transport_from_env()

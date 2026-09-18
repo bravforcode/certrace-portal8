@@ -5,6 +5,7 @@ import { StatusDot, cn } from "./ui";
 import { CertraceLogo } from "./logo";
 import { useT } from "@/lib/i18n";
 import { MARKETING_SITE_URL } from "@/lib/links";
+import { googleSignInEnabled } from "@/lib/api";
 
 /* ── The brand-panel sub-line ───────────────────────────────────
    The default is the copy /register and /forgot-password carry, and it stays
@@ -106,20 +107,18 @@ export function AuthLayout({ children, description }: { children: React.ReactNod
   );
 }
 
-/* ── Google sign-in: off for launch ────────────────────────────
-   There is no OAuth client registered for Certrace yet, so the button could
-   only ever pretend: click it and you are signed in as nobody, which is worse
-   than not offering it. Hidden rather than deleted because it is coming back —
-   flipping this to true restores the button, its divider and both handlers,
-   which are all still here and still wired.
+/* ── Google sign-in: on where it can really work ──────────────────
+   Shown only when the build has both an OAuth client id
+   (NEXT_PUBLIC_GOOGLE_CLIENT_ID) and a backend to verify Google's answer —
+   see googleSignInEnabled in lib/api/google.ts. A button that could only
+   pretend (sign you in as nobody) is worse than no button, which is why a
+   demo build without a backend does not get one.
 
    One flag for both screens on purpose. /login and /register each render their
    own copy, and a launch that shipped the button on one and not the other
-   would look like a bug on whichever page you saw second.
-
-   Typed as boolean, not inferred as `false`, so the code behind the flag stays
-   type-checked instead of narrowing to a branch the compiler treats as dead. */
-export const GOOGLE_AUTH_ENABLED: boolean = false;
+   would look like a bug on whichever page you saw second. Build-time values
+   only, so the server render and the browser agree. */
+export const GOOGLE_AUTH_ENABLED: boolean = googleSignInEnabled();
 
 /* "G" glyph drawn in brand-neutral strokes — no imported logo asset, just the
    universally-recognised four-colour mark so the button reads instantly. */

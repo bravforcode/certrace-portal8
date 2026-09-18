@@ -43,6 +43,15 @@ export {
   resetPassword,
   changePassword,
 } from "./auth";
+export {
+  beginGoogleSignIn,
+  completeGoogleSignIn,
+  googleAuthorizeUrl,
+  googleSignInEnabled,
+  GoogleCallbackError,
+  GOOGLE_CALLBACK_PATH,
+} from "./google";
+export type { GoogleCallbackProblem } from "./google";
 export type {
   AuthUser,
   RegisterInput,

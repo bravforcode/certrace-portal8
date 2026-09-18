@@ -21,12 +21,14 @@ from dataclasses import replace
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 
 from app.config import SUPPORT_EMAIL
+from app.core.google_identity import GoogleTokenError, verify_google_id_token
 from app.core.tokens import TokenError, issue_access_token, read_access_token
 from app.models.auth import (
     AuthResponse,
     AuthUser,
     ChangePasswordRequest,
     ForgotPasswordRequest,
+    GoogleSignInRequest,
     LoginRequest,
     MeResponse,
     RefreshRequest,
@@ -39,6 +41,7 @@ from app.services.auth_service import (
     RESET_TOKEN_TTL_MINUTES,
     Account,
     EmailAlreadyRegistered,
+    GoogleAccountConflict,
     authenticate_user,
     change_user_password,
     get_account,
@@ -49,6 +52,7 @@ from app.services.auth_service import (
     reset_user_password,
     revoke_refresh_token,
     rotate_refresh_token,
+    sign_in_with_google,
 )
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -262,6 +266,60 @@ def login(payload: LoginRequest, request: Request) -> SessionResponse:
                 "message": "Email or password is incorrect.",
             },
         )
+    return _session_response(request, account)
+
+
+@router.post("/google", response_model=SessionResponse)
+def google_sign_in(payload: GoogleSignInRequest, request: Request) -> SessionResponse:
+    """Sign in (or up) with a Google ID token.
+
+    Finds, links or creates the account — see auth_service.sign_in_with_google
+    for the three cases and why linking retires an old password. The session
+    handed back is the same one /login hands back, so nothing downstream knows
+    or cares how the person proved who they are.
+    """
+
+    client_id = getattr(request.app.state, "google_client_id", None)
+    if not client_id:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "GOOGLE_NOT_CONFIGURED",
+                "message": "Sign in with Google is not configured on this server.",
+            },
+        )
+    resolver = getattr(request.app.state, "google_key_resolver", None)
+    try:
+        identity = verify_google_id_token(
+            payload.id_token,
+            client_id=client_id,
+            nonce=payload.nonce,
+            **({"key_resolver": resolver} if resolver else {}),
+        )
+    except GoogleTokenError as exc:
+        # One answer for every way a token can fail: the reason is for our
+        # logs, not for whoever is presenting tokens to find out which check
+        # they got past.
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "code": "INVALID_GOOGLE_TOKEN",
+                "message": "Google sign-in could not be verified. Please try again.",
+            },
+        ) from exc
+
+    try:
+        account = sign_in_with_google(
+            getattr(request.app.state, "database", None), identity
+        )
+    except GoogleAccountConflict as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "GOOGLE_ACCOUNT_CONFLICT",
+                "message": "This email is linked to a different Google account.",
+            },
+        ) from exc
     return _session_response(request, account)
 
 

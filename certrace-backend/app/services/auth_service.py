@@ -32,6 +32,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.config import REFRESH_TOKEN_TTL_DAYS
+from app.core.google_identity import GoogleIdentity
 from app.core.security import generate_reset_token, hash_password, verify_password
 from app.services.errors import AccountStoreUnavailable
 
@@ -338,6 +339,137 @@ def authenticate_user(
     if row is None or not verify_password(password, row[6]):
         return None
     return _account_from_row(row)
+
+
+# ── Sign in with Google ──────────────────────────────────────
+
+
+class GoogleAccountConflict(Exception):
+    """The address belongs to an account already tied to a DIFFERENT Google
+    account. Linking again would let whoever holds that address on Google
+    today walk into an account someone else opened with it yesterday."""
+
+
+def _unusable_password_hash() -> str:
+    """A real hash of a secret nobody is ever told. ``password_hash`` is NOT
+    NULL, and a hash no password matches is the honest value for an account
+    that signs in with Google: the password form simply never opens it, and
+    forgot-password (which proves the mailbox) can still give it one."""
+
+    return hash_password(secrets.token_urlsafe(32))
+
+
+def sign_in_with_google(
+    db: DatabaseRepository | None, identity: GoogleIdentity
+) -> Account:
+    """The account a verified Google identity opens — found, linked or created.
+
+    Three cases, in order:
+
+    1. Google's subject id is already on an account: that account.
+    2. No account has it, but one holds the (Google-verified) email: link it.
+       This is the moment that needs care. Signup has never proved mailbox
+       ownership, so that account's password may have been set by someone who
+       registered the address before its owner arrived. Linking retires the
+       password and every live session; the owner keeps the account and its
+       data, and can set a password again through forgot-password, which does
+       prove the mailbox.
+    3. Nothing: a new account, un-onboarded, named from the Google profile.
+    """
+
+    if db is None:
+        return _sign_in_with_google_in_memory(identity)
+
+    with _account_session(db) as session:
+        row = session.execute(
+            text(
+                f"SELECT {_ACCOUNT_COLUMNS} FROM public.users WHERE google_sub = :sub"
+            ),
+            {"sub": identity.sub},
+        ).first()
+        if row is not None:
+            return _account_from_row(row)
+
+        existing = session.execute(
+            text(
+                f"SELECT {_ACCOUNT_COLUMNS}, google_sub FROM public.users "
+                "WHERE LOWER(email) = :email FOR UPDATE"
+            ),
+            {"email": identity.email},
+        ).first()
+        if existing is not None:
+            if existing[7] is not None:
+                raise GoogleAccountConflict(identity.email)
+            session.execute(
+                text(
+                    "UPDATE public.users SET google_sub = :sub, "
+                    "password_hash = :unusable, updated_at = now() WHERE id = :id"
+                ),
+                {
+                    "sub": identity.sub,
+                    "unusable": _unusable_password_hash(),
+                    "id": existing[0],
+                },
+            )
+            session.execute(
+                text(
+                    "UPDATE public.refresh_tokens SET used = TRUE WHERE user_id = :id"
+                ),
+                {"id": existing[0]},
+            )
+            session.commit()
+            return _account_from_row(existing)
+
+        created = session.execute(
+            text(
+                "INSERT INTO public.users "
+                "(email, password_hash, first_name, last_name, onboarded, google_sub) "
+                "VALUES (:email, :password_hash, :first_name, :last_name, false, :sub) "
+                "ON CONFLICT DO NOTHING "
+                f"RETURNING {_ACCOUNT_COLUMNS}"
+            ),
+            {
+                "email": identity.email,
+                "password_hash": _unusable_password_hash(),
+                "first_name": identity.given_name,
+                "last_name": identity.family_name,
+                "sub": identity.sub,
+            },
+        ).first()
+        session.commit()
+    if created is None:
+        # Lost a race with a signup or a second tab on the same address. The
+        # row exists now, so going round once more takes case 1 or 2.
+        return sign_in_with_google(db, identity)
+    return _account_from_row(created)
+
+
+def _sign_in_with_google_in_memory(identity: GoogleIdentity) -> Account:
+    for email_clean, record in _MEMORY_USERS.items():
+        if record.get("google_sub") == identity.sub:
+            return _account_from_memory(email_clean, record)
+
+    record = _MEMORY_USERS.get(identity.email)
+    if record is not None:
+        if record.get("google_sub") is not None:
+            raise GoogleAccountConflict(identity.email)
+        record["google_sub"] = identity.sub
+        record["password_hash"] = _unusable_password_hash()
+        for token in _MEMORY_REFRESH_TOKENS.values():
+            if token["user_id"] == record["id"]:
+                token["used"] = True
+        return _account_from_memory(identity.email, record)
+
+    record = _memory_record(
+        identity.email,
+        _unusable_password_hash(),
+        onboarded=False,
+        first_name=identity.given_name,
+        last_name=identity.family_name,
+    )
+    record["google_sub"] = identity.sub
+    _MEMORY_USERS[identity.email] = record
+    return _account_from_memory(identity.email, record)
 
 
 def get_account(db: DatabaseRepository | None, user_id: str) -> Account | None:
