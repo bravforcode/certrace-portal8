@@ -42,9 +42,7 @@ from app.config import load_positive_int
 
 # The one content type whose ZIP magic is not enough on its own -- see
 # ``_looks_like_xlsx`` and its use in ``validate``.
-_OOXML_SPREADSHEET = (
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-)
+_OOXML_SPREADSHEET = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 # Cloud Run caps an HTTP/1 request body at 32 MiB and the service runs with
 # 512 MiB of memory at a concurrency of 8, so the ceiling here is memory, not
