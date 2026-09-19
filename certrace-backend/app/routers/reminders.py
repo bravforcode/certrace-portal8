@@ -79,10 +79,9 @@ def _validated_link_url(raw: str) -> str:
         except ValueError:
             loopback = False
         if hostname.lower() != "localhost" and not loopback:
-            raise ValueError(
-                "A reminder link over plain http is limited to localhost."
-            )
+            raise ValueError("A reminder link over plain http is limited to localhost.")
     return value
+
 
 router = APIRouter(prefix="/api/v1/reminder-subjects", tags=["reminders"])
 
@@ -121,12 +120,12 @@ class RegisterSubject(BaseModel):
     due_date: datetime.date = Field(..., alias="dueDate")
     link_url: str = Field(..., min_length=1, max_length=2000, alias="linkUrl")
     locale: str | None = Field(default=None, max_length=20)
+    account_locked: bool = Field(default=False, alias="accountLocked")
 
     @field_validator("link_url")
     @classmethod
     def _check_link_url(cls, value: str) -> str:
         return _validated_link_url(value)
-    account_locked: bool = Field(default=False, alias="accountLocked")
 
 
 def _store(request: Request):
