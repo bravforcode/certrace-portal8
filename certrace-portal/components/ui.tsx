@@ -488,6 +488,7 @@ export function NumberInput({
   disabled,
   invalid,
   className,
+  inputClassName,
   ariaLabel,
 }: {
   value: number | undefined | null;
@@ -501,6 +502,8 @@ export function NumberInput({
   disabled?: boolean;
   invalid?: boolean;
   className?: string;
+  /** classes for the input box itself (className styles the wrapper) */
+  inputClassName?: string;
   ariaLabel?: string;
 }) {
   const external = value == null || Number.isNaN(value) ? "" : String(value);
@@ -553,7 +556,7 @@ export function NumberInput({
     <div className={className}>
       <div className="relative">
         <input
-          className={cn(inputClass, (invalid || over || under) && "border-[#dc2626]", unit && "pr-14")}
+          className={cn(inputClass, inputClassName, (invalid || over || under) && "border-[#dc2626]", unit && "pr-14")}
           inputMode="decimal"
           autoComplete="off"
           aria-label={ariaLabel}
@@ -723,6 +726,7 @@ export function Modal({
   footer,
   children,
   width = "max-w-2xl",
+  className,
 }: {
   open: boolean;
   onClose: () => void;
@@ -732,6 +736,8 @@ export function Modal({
   footer?: React.ReactNode;
   children: React.ReactNode;
   width?: string;
+  /** extra classes on the dialog panel */
+  className?: string;
 }) {
   const t = useT();
   const [mounted, setMounted] = React.useState(false);
@@ -762,6 +768,7 @@ export function Modal({
         className={cn(
           "ct-enter flex max-h-[calc(100dvh-2rem)] w-full flex-col rounded-2xl border border-black/[0.07] bg-white sm:max-h-[calc(100dvh-3rem)]",
           width,
+          className,
         )}
         style={{ boxShadow: "0 24px 64px rgba(0,0,0,0.16)" }}
       >

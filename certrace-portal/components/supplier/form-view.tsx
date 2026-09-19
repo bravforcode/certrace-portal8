@@ -1,5 +1,8 @@
 "use client";
 
+import { AiFillBadge, AiFillRunBanner } from "@/components/intake/ai-badge";
+import { AI_INPUT_CLASS, useAiFill } from "@/lib/ai-fill";
+
 /* The regulation-specific questionnaire (flow step 1). Generated entirely from
    the request's resolved CBAM fields — installation-level sections are filled
    once, goods/emissions sections repeat per product. Exporter-supplied context
@@ -119,11 +122,13 @@ const SECTION_ICON: Record<string, React.ElementType> = {
 
 function FieldControl({ field, productId }: { field: ResolvedCbamField; productId?: string }) {
   const t = useT();
-  const { getValue, setValue, isEditable, autoValue, flagged, focusKey, clearFocus, carriedKeys, carriedPending } = useSupplier();
+  const { req, getValue, setValue, isEditable, autoValue, flagged, focusKey, clearFocus, carriedKeys, carriedPending } = useSupplier();
   const auto = autoValue(field.id, productId);
   const key = valueKey(field.id, productId);
   const editable = isEditable(key);
   const value = getValue(field.id, productId);
+  // PROTOTYPE: blue while the box still holds what smart intake wrote.
+  const ai = useAiFill(`sup:${req.token}`, key, value);
   /* Pre-filled from this company's own record rather than typed for this
      request. Marked until confirmed, because an unmarked carried-over number
      is indistinguishable from one somebody actually checked this period. */
@@ -191,6 +196,7 @@ function FieldControl({ field, productId }: { field: ResolvedCbamField; productI
           <History size={8} strokeWidth={1.8} /> {t("carried over")}
         </span>
       )}
+      {ai && <AiFillBadge source={ai.source} />}
     </span>
   );
 
@@ -252,7 +258,7 @@ function FieldControl({ field, productId }: { field: ResolvedCbamField; productI
           value={value}
           onChange={(e) => setValue(field.id, productId, e.target.value)}
           placeholder="0.00"
-          className={cn(inputClass, "pr-20", !editable && "cursor-not-allowed opacity-60")}
+          className={cn(inputClass, "pr-20", ai && AI_INPUT_CLASS, !editable && "cursor-not-allowed opacity-60")}
         />
         {UNIT[field.id] && (
           <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 font-mono text-[11px] text-black/35">{UNIT[field.id]}</span>
@@ -266,7 +272,7 @@ function FieldControl({ field, productId }: { field: ResolvedCbamField; productI
         value={value}
         onChange={(e) => setValue(field.id, productId, e.target.value)}
         placeholder={placeholder}
-        className={cn(inputClass, !editable && "cursor-not-allowed opacity-60")}
+        className={cn(inputClass, ai && AI_INPUT_CLASS, !editable && "cursor-not-allowed opacity-60")}
       />
     );
   }
@@ -724,6 +730,10 @@ export function FormView() {
           Generated from exactly what {req.exporterName} needs for {req.regulationShort}. The greyed fields are locked context they provided — you fill the rest. Everything saves as you type.
         </p>
       </div>
+
+      {/* PROTOTYPE: smart upload just filled values here; the page scrolls to
+          the first of them itself, so the banner does not pull the view up. */}
+      <AiFillRunBanner scope={`sup:${req.token}`} scroll={false} />
 
       {isRevision && (
         <Card className="border-[#2563eb]/30 bg-[#eff6ff] p-4">
