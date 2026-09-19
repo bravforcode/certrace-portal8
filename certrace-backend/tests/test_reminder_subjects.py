@@ -305,6 +305,36 @@ def test_an_address_that_cannot_be_written_to_is_refused(client) -> None:
     assert response.status_code == 422
 
 
+@pytest.mark.parametrize(
+    "link_url",
+    [
+        "javascript:alert(1)",
+        "data:text/html,<h1>x</h1>",
+        "file:///etc/passwd",
+        "ftp://mill.example/report",
+        "http://phishing.example/steal",  # plain http, non-loopback host
+        "https://user:pass@portal.certrace.co/w/tok",  # embedded credentials
+        "https://portal.certrace.co/w/ tok",  # whitespace
+    ],
+)
+def test_a_dangerous_link_is_refused(client, link_url) -> None:
+    """The link becomes a clickable button in a Certrace-branded email, so a
+    scheme other than https (bar http to localhost) or an embedded credential
+    would let a signed-in exporter aim our own mail at a phishing target."""
+
+    headers = _signed_in(client)
+    response = _register(client, headers, linkUrl=link_url)
+    assert response.status_code == 422
+
+
+def test_a_localhost_http_link_is_allowed(client) -> None:
+    """Plain http survives only for local runs and tests, mirroring cors.py."""
+
+    headers = _signed_in(client)
+    response = _register(client, headers, linkUrl="http://localhost:3000/w/tok_9f2a")
+    assert response.status_code == 200
+
+
 # ── Without a database ────────────────────────────────────────────────────
 
 
