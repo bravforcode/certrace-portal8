@@ -31,12 +31,20 @@ bucket becomes the point of a sprint rather than a nice-to-have.
 from __future__ import annotations
 
 import hashlib
+import io
 import re
 import unicodedata
 import uuid
+import zipfile
 from typing import Protocol
 
 from app.config import load_positive_int
+
+# The one content type whose ZIP magic is not enough on its own -- see
+# ``_looks_like_xlsx`` and its use in ``validate``.
+_OOXML_SPREADSHEET = (
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+)
 
 # Cloud Run caps an HTTP/1 request body at 32 MiB and the service runs with
 # 512 MiB of memory at a concurrency of 8, so the ceiling here is memory, not
@@ -118,6 +126,27 @@ def normalise_content_type(raw: str | None) -> str:
     return (raw or "").split(";", 1)[0].strip().lower()
 
 
+def _looks_like_xlsx(data: bytes) -> bool:
+    """Whether a ZIP is actually an OOXML workbook, not just any ZIP.
+
+    The PK magic bytes only say "this is a ZIP" -- a .docx, a .jar, an APK, or
+    a zip bomb renamed .xlsx all start the same way and would otherwise be
+    accepted as a spreadsheet a verifier is meant to trust. A real .xlsx
+    carries ``[Content_Types].xml`` and an ``xl/`` part; reading the central
+    directory to confirm that touches only the archive's index, not its
+    (possibly hostile) compressed contents.
+    """
+
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            names = archive.namelist()
+    except zipfile.BadZipFile:
+        return False
+    return "[Content_Types].xml" in names and any(
+        name.startswith("xl/") for name in names
+    )
+
+
 def validate(content_type: str, data: bytes) -> str:
     """Refuse anything that cannot be stored, and return the accepted type.
 
@@ -158,10 +187,29 @@ def validate(content_type: str, data: bytes) -> str:
             f"The file was sent as {media_type} but its contents are not "
             f"{media_type}. Re-export it, or upload it under its real type.",
         )
+    if media_type == _OOXML_SPREADSHEET and not _looks_like_xlsx(data):
+        # The PK magic passed, so this is a ZIP -- but not every ZIP is a
+        # workbook. Confirm the OOXML structure so a docx, an archive, or a
+        # zip bomb cannot masquerade as the spreadsheet a verifier will open.
+        raise FileRejected(
+            "FILE_CONTENT_MISMATCH",
+            "That file was sent as an Excel workbook but is not one. "
+            "Re-export it from a spreadsheet, or upload it under its real type.",
+        )
     if media_type == "text/csv" and b"\x00" in data[:8192]:
         # CSV has no signature to check, so the one thing worth asserting is
         # that it is text at all - a NUL early on means a binary file was
         # labelled as a spreadsheet export.
+        #
+        # Deliberately NOT rejected or altered here: a cell beginning = + - @
+        # (spreadsheet formula injection). Refusing it would turn away
+        # legitimate exports that happen to lead with those characters, and
+        # rewriting the bytes would break the promise this module is built on
+        # -- evidence is stored exactly as received (see the module docstring).
+        # The residual risk is a verifier opening a hostile CSV in a
+        # spreadsheet; it is contained by serving every download as an
+        # attachment under a deny-all CSP (see routers/files.py), and is
+        # accepted knowingly rather than papered over.
         raise FileRejected(
             "FILE_CONTENT_MISMATCH",
             "That file was sent as text/csv but contains binary data.",
