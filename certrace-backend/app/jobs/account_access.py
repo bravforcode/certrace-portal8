@@ -1,9 +1,19 @@
-"""Withdraw or restore one account's access to the platform.
+"""Withdraw, restore or erase one account, and read what was done to it.
 
     python -m app.jobs.account_access --email a@b.co --suspend \
         --reason "invoice 2026-0412, 15 days past the §6.4 notice"
     python -m app.jobs.account_access --email a@b.co --restore
+    python -m app.jobs.account_access --email a@b.co --history
+    python -m app.jobs.account_access --account-id <uuid> --history
+    python -m app.jobs.account_access --email a@b.co --anonymise --yes \
+        --reason "terminated 2026-08-01, export window closed"
     python -m app.jobs.account_access --email a@b.co --suspend --reason x --dry-run
+
+Every action writes a row to ``account_audit_events`` in the same transaction,
+so ``--history`` answers "who did what to this account, and why" without
+anyone having to remember. After an anonymisation there is no address left to
+name the account by, which is what ``--account-id`` is for: the trail outlives
+the identity, and has to stay reachable.
 
 ── Why a command and not an endpoint ───────────────────────────
 Because there is no one to authenticate. Suspension is a staff action, and
@@ -17,29 +27,41 @@ built.
 
 What it does NOT do, so nobody assumes otherwise:
 
-  · It does not delete or anonymise anything. Privacy §11.2 gives a customer
-    thirty days to export after termination, and that is a separate operation
-    against a separate clock -- this one is reversible on purpose.
   · It does not email the customer. §20.4 wants notice "where reasonably
     practicable", and notice for non-payment belongs in the billing thread a
     human is already having, not in an automated message from the platform
     that just locked them out.
-  · It does not revoke supplier links row by row. They stop resolving while
-    the owner is suspended and resume when the suspension is lifted -- see
-    app/routers/links.py.
+  · A suspension does not revoke supplier links row by row. They stop
+    resolving while the owner is suspended and resume when the suspension is
+    lifted -- see app/routers/links.py. An anonymisation does revoke them,
+    because there is no relationship left to restore.
+  · An anonymisation does not delete the exporter's declarations unless
+    --purge-customer-data says so. Some of that is sealed evidence the
+    customer may be legally required to keep (Terms §12.4), and only they can
+    say whether they still need it.
+
+── The one-way door ────────────────────────────────────────────
+--anonymise cannot be undone: the address, the name and the company come out
+of the row, every reset code and refresh token is deleted, and the account can
+never be signed into again. It therefore refuses until the account has been
+suspended for the thirty days Terms §9.5 gives the customer to export, unless
+--force says otherwise, and it refuses without --yes.
 
 ── Exit codes ──────────────────────────────────────────────────
-0  the account is now in the state asked for
+0  the account is now in the state asked for (or the history was printed)
 1  the command could not run (no database configured, bad arguments)
 2  no account for that address -- nothing was changed
+3  the account is real but not in a state this action allows
 
 The split matters when this is run from a script: 1 is "fix the invocation",
-2 is "check the address", and neither is "it worked".
+2 is "check the address", 3 is "the export window is still open, or it is
+already anonymised", and none of them is "it worked".
 """
 
 from __future__ import annotations
 
 import argparse
+import getpass
 import logging
 import sys
 
@@ -51,6 +73,20 @@ _LOGGER = logging.getLogger("certrace.account_access")
 EXIT_OK = 0
 EXIT_MISCONFIGURED = 1
 EXIT_NO_SUCH_ACCOUNT = 2
+# The account is real but not in a state this action allows -- an
+# anonymisation inside the export window, or anything against an account
+# already anonymised.
+EXIT_NOT_ELIGIBLE = 3
+
+
+def _default_actor() -> str:
+    """Who to record when nobody says. The shell user is a weak claim, and it
+    is still better than "unknown": it narrows a later question to one laptop."""
+
+    try:
+        return getpass.getuser()
+    except Exception:  # pragma: no cover - getuser needs an environment
+        return "unknown"
 
 
 def _repository(database_url: str):
@@ -65,12 +101,21 @@ def _repository(database_url: str):
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m app.jobs.account_access",
-        description="Suspend or restore one customer account.",
+        description=(
+            "Suspend, restore or anonymise one customer account, or read its history."
+        ),
     )
-    parser.add_argument(
+    subject = parser.add_mutually_exclusive_group(required=True)
+    subject.add_argument(
         "--email",
-        required=True,
         help="The account holder's address, as they registered it.",
+    )
+    subject.add_argument(
+        "--account-id",
+        help=(
+            "The account's uuid. The only way to reach an anonymised account: "
+            "its address is gone, and its audit trail is not."
+        ),
     )
     action = parser.add_mutually_exclusive_group(required=True)
     action.add_argument(
@@ -83,12 +128,54 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Put the account back in service (Terms §20.4).",
     )
+    action.add_argument(
+        "--anonymise",
+        "--anonymize",
+        dest="anonymise",
+        action="store_true",
+        help=(
+            "Scrub the identity for good (Privacy §11.2). Needs --yes, and "
+            "the export window to have closed."
+        ),
+    )
+    action.add_argument(
+        "--history",
+        action="store_true",
+        help="Print what has been done to this account, newest first.",
+    )
     parser.add_argument(
         "--reason",
         help=(
             "Required with --suspend. Recorded on the account for a later "
             "dispute, never shown to the customer. Name the invoice or the "
             "report that prompted it."
+        ),
+    )
+    parser.add_argument(
+        "--actor",
+        default=_default_actor(),
+        help="Who is running this, for the audit record. Defaults to the shell user.",
+    )
+    parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="Confirm an irreversible action. Required with --anonymise.",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help=(
+            "Waive the thirty-day export window (Terms §9.5). For the customer "
+            "who asks to be erased now and has nothing left to export."
+        ),
+    )
+    parser.add_argument(
+        "--purge-customer-data",
+        action="store_true",
+        help=(
+            "With --anonymise, also delete the declarations, supplier links "
+            "and uploaded evidence. Some of it may be a record the customer "
+            "is required to keep -- ask before using this."
         ),
     )
     parser.add_argument(
@@ -106,6 +193,14 @@ def main(argv: list[str] | None = None) -> int:
         format="%(levelname)s %(name)s: %(message)s",
         stream=sys.stderr,
     )
+
+    if args.anonymise and not args.yes:
+        _LOGGER.error(
+            "--anonymise is irreversible: the address, the name and the "
+            "company come out of the row and cannot be put back. Add --yes "
+            "when that is what you mean."
+        )
+        return EXIT_MISCONFIGURED
 
     if args.suspend and not (args.reason or "").strip():
         # A suspension with no recorded reason is the one this command exists
@@ -127,13 +222,41 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_MISCONFIGURED
 
     db = _repository(database_url)
-    account = auth_service.find_account_by_email(db, args.email)
+    subject_label = args.email or args.account_id
+    account = (
+        auth_service.find_account_by_email(db, args.email)
+        if args.email
+        else auth_service.get_account(db, args.account_id)
+    )
     if account is None:
-        _LOGGER.error("No account for %s. Nothing changed.", args.email)
+        _LOGGER.error("No account for %s. Nothing changed.", subject_label)
         return EXIT_NO_SUCH_ACCOUNT
 
+    if args.history:
+        events = auth_service.account_history(db, account.id)
+        if not events:
+            _LOGGER.info("Nothing recorded against %s (%s).", account.email, account.id)
+            return EXIT_OK
+        _LOGGER.info("History for %s (%s), newest first:", account.email, account.id)
+        for event in events:
+            _LOGGER.info(
+                "  %s  %-10s by %s%s  %s",
+                event.created_at.isoformat(timespec="seconds"),
+                event.event,
+                event.actor,
+                f" -- {event.reason}" if event.reason else "",
+                event.details or "",
+            )
+        return EXIT_OK
+
     if args.dry_run:
-        target = "SUSPENDED" if args.suspend else "ACTIVE"
+        target = (
+            "SUSPENDED"
+            if args.suspend
+            else "ANONYMISED"
+            if args.anonymise
+            else "ACTIVE"
+        )
         _LOGGER.info(
             "Would move %s (%s) from %s to %s.",
             account.email,
@@ -141,13 +264,52 @@ def main(argv: list[str] | None = None) -> int:
             account.status,
             target,
         )
+        if args.anonymise and args.purge_customer_data:
+            _LOGGER.info("Would also delete their declarations, links and evidence.")
+        return EXIT_OK
+
+    if args.anonymise:
+        try:
+            erased = auth_service.anonymise_account(
+                db,
+                account.id,
+                actor=args.actor,
+                reason=args.reason,
+                purge_customer_data=args.purge_customer_data,
+                force=args.force,
+            )
+        except auth_service.AccountNotEligible as error:
+            _LOGGER.error("%s Nothing changed.", error)
+            return EXIT_NOT_ELIGIBLE
+        if erased is None:
+            _LOGGER.error("No account for %s. Nothing changed.", subject_label)
+            return EXIT_NO_SUCH_ACCOUNT
+        _LOGGER.info(
+            "Anonymised %s. Refresh tokens deleted: %d. Reset codes deleted: "
+            "%d. Supplier links revoked: %d. Reminder subjects deleted: %d. "
+            "Declarations deleted: %s",
+            erased.account_id,
+            erased.refresh_tokens_deleted,
+            erased.reset_codes_deleted,
+            erased.supplier_links_revoked,
+            erased.reminder_subjects_deleted,
+            "none (kept)"
+            if erased.customer_data_purged is None
+            else erased.customer_data_purged,
+        )
         return EXIT_OK
 
     if args.suspend:
-        result = auth_service.suspend_account(db, account.id, reason=args.reason)
+        try:
+            result = auth_service.suspend_account(
+                db, account.id, reason=args.reason, actor=args.actor
+            )
+        except auth_service.AccountNotEligible as error:
+            _LOGGER.error("%s Nothing changed.", error)
+            return EXIT_NOT_ELIGIBLE
         if result is None:
             # Deleted between the lookup and the write.
-            _LOGGER.error("No account for %s. Nothing changed.", args.email)
+            _LOGGER.error("No account for %s. Nothing changed.", subject_label)
             return EXIT_NO_SUCH_ACCOUNT
         _LOGGER.info(
             "Suspended %s (%s). Refresh tokens burned: %d. Supplier links that "
@@ -168,9 +330,13 @@ def main(argv: list[str] | None = None) -> int:
         )
         return EXIT_OK
 
-    restored = auth_service.restore_account(db, account.id)
+    try:
+        restored = auth_service.restore_account(db, account.id, actor=args.actor)
+    except auth_service.AccountNotEligible as error:
+        _LOGGER.error("%s Nothing changed.", error)
+        return EXIT_NOT_ELIGIBLE
     if restored is None:
-        _LOGGER.error("No account for %s. Nothing changed.", args.email)
+        _LOGGER.error("No account for %s. Nothing changed.", subject_label)
         return EXIT_NO_SUCH_ACCOUNT
     _LOGGER.info(
         "Restored %s (%s). They sign in again to get a session; their supplier "

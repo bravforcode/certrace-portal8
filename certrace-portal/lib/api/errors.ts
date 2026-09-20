@@ -42,6 +42,15 @@ export function hasCode(value: unknown, ...codes: string[]): boolean {
   return isApiError(value) && codes.includes(value.code);
 }
 
+/* ── The account the server has stopped serving ────────────────
+   403, not 401: the session is intact and the password is right, but the
+   account is suspended (Terms §20.4). The HTTP layer must not treat it as a
+   dead token — see lib/api/suspension.ts. */
+export const ACCOUNT_SUSPENDED = "ACCOUNT_SUSPENDED";
+
+export const isAccountSuspended = (value: unknown): boolean =>
+  hasCode(value, ACCOUNT_SUSPENDED);
+
 /* A Smart Link that no longer opens — all three mean the same thing to the
    supplier looking at the screen ("this link is no good, ask for another"),
    so the UI branches on the group rather than on each code. */

@@ -208,6 +208,11 @@ def current_account(request: Request) -> Account:
     # rather than when the access token happens to age out.
     if account.is_suspended:
         raise _suspended()
+    # An anonymised account is not a suspended one: there is nobody left to
+    # contact support, and no state a payment could change. "Sign in again" is
+    # the truthful answer, and it is one they can never satisfy.
+    if not account.is_active:
+        raise _unauthorized()
     return account
 
 
@@ -293,8 +298,19 @@ def login(payload: LoginRequest, request: Request) -> SessionResponse:
         )
     # Checked after the password, not before: a suspended account must not be
     # a way to learn that an address is ours without holding its credentials.
+    # (An anonymised account cannot reach here at all -- its address is gone
+    # and no password verifies against what replaced its hash -- but the same
+    # gate covers it rather than relying on that.)
     if account.is_suspended:
         raise _suspended()
+    if not account.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={
+                "code": "INVALID_CREDENTIALS",
+                "message": "Email or password is incorrect.",
+            },
+        )
     return _session_response(request, account)
 
 
@@ -345,6 +361,8 @@ def refresh_session(payload: RefreshRequest, request: Request) -> SessionRespons
     # raced a refresh ends the session rather than extending it by a week.
     if account.is_suspended:
         raise _suspended()
+    if not account.is_active:
+        raise _unauthorized()
     token = issue_access_token(
         _signing_secret(request), user_id=account.id, email=account.email
     )

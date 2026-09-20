@@ -3,8 +3,9 @@
 Built without a database, like the declarations suite: the in-memory store on
 ``app.state.smart_links`` is under test, and it keeps the exact dict shape the
 SQL repository returns, so the handlers exercised here are the ones production
-runs. Expiry and revocation are tested by editing that store directly -- there
-is deliberately no endpoint that ages or revokes a link yet.
+runs. Expiry is tested by editing that store directly -- there is deliberately no
+endpoint that ages a link. Revocation has one now (``/revoke``), and the tests
+for it are at the bottom of this file.
 """
 
 from __future__ import annotations
@@ -705,3 +706,80 @@ def test_dead_links_reject_save_and_submit() -> None:
     revoked = client.post(f"/api/v1/links/{good}/submit", json=submit_body)
     assert revoked.status_code == 410
     assert revoked.json()["detail"]["code"] == "TOKEN_REVOKED"
+
+
+# ── Revoking a link (docs/API-CONTRACT.md §3) ────────────────
+
+
+def test_revoking_a_link_kills_it_for_the_supplier() -> None:
+    client = _client()
+    headers = _signed_in(client)
+    declaration_id = _declaration(client, headers)
+    token = _mint(client, headers, declaration_id)["token"]
+    assert client.get(f"/api/v1/links/{token}").status_code == 200
+
+    revoked = client.post(
+        f"/api/v1/declarations/{declaration_id}/links/{token}/revoke",
+        headers=headers,
+    )
+
+    assert revoked.status_code == 200
+    assert revoked.json()["revokedAt"] is not None
+    dead = client.get(f"/api/v1/links/{token}")
+    assert dead.status_code == 410
+    assert dead.json()["detail"]["code"] == "TOKEN_REVOKED"
+
+
+def test_revoking_twice_keeps_the_first_date() -> None:
+    client = _client()
+    headers = _signed_in(client)
+    declaration_id = _declaration(client, headers)
+    token = _mint(client, headers, declaration_id)["token"]
+    path = f"/api/v1/declarations/{declaration_id}/links/{token}/revoke"
+
+    first = client.post(path, headers=headers).json()["revokedAt"]
+    second = client.post(path, headers=headers).json()["revokedAt"]
+
+    # When the supplier lost access is evidence; a second click is not a new
+    # fact about it.
+    assert first == second
+
+
+def test_revoking_needs_your_own_link() -> None:
+    client = _client()
+    owner = _signed_in(client)
+    stranger = _signed_in(client)
+    declaration_id = _declaration(client, owner)
+    token = _mint(client, owner, declaration_id)["token"]
+
+    response = client.post(
+        f"/api/v1/declarations/{declaration_id}/links/{token}/revoke",
+        headers=stranger,
+    )
+
+    # A stranger asking about someone else's declaration gets the same answer
+    # as one asking about a declaration that does not exist.
+    assert response.status_code == 404
+    assert response.json()["detail"]["code"] == "DECLARATION_NOT_FOUND"
+    # And the link they tried to kill is untouched.
+    assert client.get(f"/api/v1/links/{token}").status_code == 200
+
+
+def test_revoking_keeps_what_the_supplier_already_submitted() -> None:
+    client = _client()
+    headers = _signed_in(client)
+    declaration_id = _declaration(client, headers)
+    token = _mint(client, headers, declaration_id)["token"]
+    client.put(f"/api/v1/links/{token}/state", json={"state": {"values": {"a": 1}}})
+
+    client.post(
+        f"/api/v1/declarations/{declaration_id}/links/{token}/revoke",
+        headers=headers,
+    )
+
+    # The link is the way in, not the work. The exporter still reviews what
+    # came in before they closed it.
+    submissions = client.get(
+        f"/api/v1/declarations/{declaration_id}/submissions", headers=headers
+    ).json()["submissions"]
+    assert [row["token"] for row in submissions] == [token]

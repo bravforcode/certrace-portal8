@@ -45,8 +45,11 @@ class User(Base):
     __table_args__ = (
         CheckConstraint("position('@' in email) > 1", name="users_email_shape_check"),
         CheckConstraint(
-            "(status = 'ACTIVE' AND suspended_at IS NULL) "
-            "OR (status = 'SUSPENDED' AND suspended_at IS NOT NULL)",
+            "(status = 'ACTIVE' AND suspended_at IS NULL "
+            "AND anonymised_at IS NULL) "
+            "OR (status = 'SUSPENDED' AND suspended_at IS NOT NULL "
+            "AND anonymised_at IS NULL) "
+            "OR (status = 'ANONYMISED' AND anonymised_at IS NOT NULL)",
             name="users_status_check",
         ),
     )
@@ -65,16 +68,21 @@ class User(Base):
     onboarded: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=false()
     )
-    # ACTIVE or SUSPENDED (revision 013). Suspension withdraws access without
-    # touching the account's work: deleting the row would cascade the
-    # declarations, links and evidence away, which is not what Terms §20.4
-    # means by suspending access, and not something a paid invoice can undo.
+    # ACTIVE, SUSPENDED (revision 013) or ANONYMISED (014). Suspension
+    # withdraws access without touching the account's work: deleting the row
+    # would cascade the declarations, links and evidence away, which is not
+    # what Terms §20.4 means by suspending access, and not something a paid
+    # invoice can undo. Anonymisation is the end of the relationship.
     status: Mapped[str] = mapped_column(
         Text, nullable=False, server_default=text("'ACTIVE'")
     )
     suspended_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     # Our record of why, for a later dispute. Never rendered to the customer.
     suspension_reason: Mapped[Optional[str]] = mapped_column(Text)
+    # Set when the identifying fields were scrubbed (revision 014). The row
+    # stays so everything keyed on its id still resolves; what it says about a
+    # person does not. One-way: nothing restores an anonymised account.
+    anonymised_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -112,6 +120,49 @@ class PasswordReset(Base):
     # Wrong guesses so far; the service burns the code at MAX_RESET_ATTEMPTS.
     attempts: Mapped[int] = mapped_column(
         Integer, nullable=False, default=0, server_default=text("0")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class AccountAuditEvent(Base):
+    """One staff action against one account, kept for as long as we exist.
+
+    This is the answer to "who cut them off, when, and why" six months after
+    the fact, which is the question a §6.4 dispute turns on and the one thing
+    revision 013 could not answer.
+
+    No email address lives here, deliberately: the log has to outlive
+    anonymisation, and an address in it would hand back the identity that was
+    just scrubbed out of ``users``. The subject is the account id, and
+    ``user_id`` survives a hard delete as NULL rather than taking the record
+    with it.
+    """
+
+    __tablename__ = "account_audit_events"
+    __table_args__ = (
+        CheckConstraint(
+            "event in ('SUSPENDED', 'RESTORED', 'ANONYMISED')",
+            name="account_audit_events_event_check",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        server_default=func.gen_random_uuid(),
+    )
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    event: Mapped[str] = mapped_column(Text, nullable=False)
+    # Free text: there are no staff accounts to point a foreign key at yet.
+    actor: Mapped[str] = mapped_column(Text, nullable=False)
+    reason: Mapped[Optional[str]] = mapped_column(Text)
+    details: Mapped[dict[str, object]] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

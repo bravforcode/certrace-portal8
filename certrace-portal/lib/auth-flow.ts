@@ -12,7 +12,7 @@
    nobody notices until a customer reads it.
    ════════════════════════════════════════════════════════════ */
 
-import { hasCode, isApiError, type AuthUser } from "@/lib/api";
+import { hasCode, isAccountSuspended, isApiError, type AuthUser } from "@/lib/api";
 
 /* Enough to catch "somebody@" and "somebody@company" — the two shapes that
    look finished in the box and bounce every email we send. The real check is
@@ -47,6 +47,12 @@ function transportFailure(cause: unknown): string | null {
  */
 export function signInError(cause: unknown): string {
   if (hasCode(cause, "INVALID_CREDENTIALS")) return "Email or password is incorrect.";
+  /* The one failure whose sentence the SERVER owns. A suspension (Terms
+     §20.4) is refused after the password is checked, so the person reading
+     this typed it correctly — telling them to check it would send them round
+     a loop that cannot end. The server's message names where to take it up,
+     and it is the only thing on this screen that can help. */
+  if (isAccountSuspended(cause) && isApiError(cause)) return cause.message;
   return transportFailure(cause) ?? "We couldn't sign you in. Please try again.";
 }
 

@@ -14,13 +14,23 @@ test here.
 
 from __future__ import annotations
 
+import datetime
 import itertools
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.config import SUPPORT_EMAIL
 from app.main import create_app
-from app.services.auth_service import restore_account, suspend_account
+from app.services.auth_service import (
+    _MEMORY_USERS,
+    AccountNotEligible,
+    account_history,
+    anonymise_account,
+    get_account,
+    restore_account,
+    suspend_account,
+)
 
 _counter = itertools.count()
 
@@ -217,3 +227,162 @@ def test_suspending_an_address_we_do_not_hold_changes_nothing() -> None:
         is None
     )
     assert restore_account(None, "00000000-0000-4000-8000-00000000dead") is None
+
+
+# ── The audit trail (revision 014) ───────────────────────────
+
+
+def test_every_action_is_recorded_with_who_and_why() -> None:
+    client = _client()
+    session = _register(client, _fresh_email())
+    user_id = session["user"]["id"]
+
+    suspend_account(None, user_id, reason=_REASON, actor="fern@certrace.co")
+    restore_account(None, user_id, actor="wasawat@certrace.co")
+
+    history = account_history(None, user_id)
+    # Newest first: the question this answers is "what happened to this
+    # account", and the last thing to happen is the part being asked about.
+    assert [event.event for event in history] == ["RESTORED", "SUSPENDED"]
+    assert history[0].actor == "wasawat@certrace.co"
+    assert history[1].actor == "fern@certrace.co"
+    assert history[1].reason == _REASON
+    assert history[1].details["refresh_tokens_revoked"] == 1
+    # A restore has no reason to record -- the cause being resolved is the
+    # reason, and §20.4 asks for the access back, not for an essay.
+    assert history[0].reason is None
+
+
+def test_the_audit_trail_names_no_email() -> None:
+    client = _client()
+    email = _fresh_email()
+    session = _register(client, email)
+    user_id = session["user"]["id"]
+
+    suspend_account(None, user_id, reason=_REASON, actor="fern@certrace.co")
+
+    # It has to survive anonymisation; an address in it would hand back the
+    # identity that anonymisation just removed.
+    recorded = repr(account_history(None, user_id))
+    assert email not in recorded
+
+
+# ── Anonymisation (Privacy §11.2) ────────────────────────────
+
+
+def _suspended_days_ago(user_id: str, days: int) -> None:
+    """Backdate the suspension, so the export window can be tested at all."""
+
+    for record in _MEMORY_USERS.values():
+        if str(record["id"]) == user_id:
+            record["suspended_at"] = datetime.datetime.now(
+                datetime.timezone.utc
+            ) - datetime.timedelta(days=days)
+            return
+    raise AssertionError("no such account")
+
+
+def test_an_account_inside_the_export_window_is_not_anonymised() -> None:
+    client = _client()
+    session = _register(client, _fresh_email())
+    user_id = session["user"]["id"]
+    suspend_account(None, user_id, reason=_REASON)
+    _suspended_days_ago(user_id, 29)
+
+    with pytest.raises(AccountNotEligible) as refused:
+        anonymise_account(None, user_id)
+
+    # Terms §9.5 promises thirty days to export. Scrubbing on day 29 destroys
+    # a record the customer was told they could still take.
+    assert "29 days ago" in str(refused.value)
+    assert "1 to go" in str(refused.value)
+
+
+def test_a_live_account_is_not_anonymised_by_accident() -> None:
+    client = _client()
+    session = _register(client, _fresh_email())
+
+    with pytest.raises(AccountNotEligible):
+        anonymise_account(None, session["user"]["id"])
+
+
+def test_the_window_can_be_waived_for_someone_who_asks_to_be_erased() -> None:
+    client = _client()
+    session = _register(client, _fresh_email())
+
+    result = anonymise_account(None, session["user"]["id"], force=True)
+
+    assert result is not None
+    assert account_history(None, session["user"]["id"])[0].details["forced"] is True
+
+
+def test_anonymising_takes_the_identity_out_and_leaves_the_id() -> None:
+    client = _client()
+    email = _fresh_email()
+    session = _register(client, email)
+    user_id = session["user"]["id"]
+    suspend_account(None, user_id, reason=_REASON)
+    _suspended_days_ago(user_id, 31)
+
+    result = anonymise_account(None, user_id, actor="fern@certrace.co")
+
+    assert result is not None and result.refresh_tokens_deleted == 1
+    account = get_account(None, user_id)
+    # The row is still there -- everything keyed on the id still resolves --
+    # but nothing on it names a person or a company.
+    assert account is not None
+    assert account.status == "ANONYMISED"
+    assert email not in account.email
+    assert account.first_name is None and account.company_name is None
+    assert account.suspension_reason is None
+
+
+def test_an_anonymised_account_cannot_be_signed_into_or_reset() -> None:
+    client = _client()
+    email = _fresh_email()
+    session = _register(client, email)
+    anonymise_account(None, session["user"]["id"], force=True)
+
+    signin = client.post(
+        "/api/auth/login", json={"email": email, "password": "a-good-password-1"}
+    )
+    # The address is gone from the store, so this is the ordinary "no such
+    # account" answer rather than anything that confirms they were ever here.
+    assert signin.status_code == 401
+    assert signin.json()["detail"]["code"] == "INVALID_CREDENTIALS"
+
+    # And the token they were holding is no longer a way in either.
+    me = client.get(
+        "/api/auth/me",
+        headers={"Authorization": f"Bearer {session['accessToken']}"},
+    )
+    assert me.status_code == 401
+
+
+def test_an_anonymised_account_cannot_be_suspended_or_restored() -> None:
+    client = _client()
+    session = _register(client, _fresh_email())
+    user_id = session["user"]["id"]
+    anonymise_account(None, user_id, force=True)
+
+    # One-way door: nothing puts an identity back, so nothing pretends to.
+    for action in (
+        lambda: suspend_account(None, user_id, reason=_REASON),
+        lambda: restore_account(None, user_id),
+    ):
+        with pytest.raises(AccountNotEligible):
+            action()
+
+
+def test_anonymising_twice_is_not_an_error() -> None:
+    client = _client()
+    session = _register(client, _fresh_email())
+    user_id = session["user"]["id"]
+    anonymise_account(None, user_id, force=True)
+
+    again = anonymise_account(None, user_id, force=True)
+
+    # "Make sure this person is gone" has to be safe to run twice, and the
+    # second run has nothing left to take.
+    assert again is not None and again.refresh_tokens_deleted == 0
+    assert [e.event for e in account_history(None, user_id)].count("ANONYMISED") == 1
