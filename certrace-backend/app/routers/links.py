@@ -159,6 +159,16 @@ def live_link(
         raise _TOKEN_REVOKED
     if _now_ms() >= link["expiresAt"]:
         raise _TOKEN_EXPIRED
+    # A suspended exporter's links stop resolving with the account (Terms
+    # §20.4: access withdrawn "in whole or in part"). Checked here rather than
+    # by stamping revoked_at across their rows, because suspension is meant to
+    # be lifted: a paid invoice restores every link as it was, instead of
+    # leaving the exporter to re-send one to every supplier. The supplier sees
+    # the ordinary revoked answer -- they are not our customer, and whose
+    # invoice is unpaid is not theirs to learn.
+    owner = get_account(database, str(link["userId"]))
+    if owner is not None and owner.is_suspended:
+        raise _TOKEN_REVOKED
     # The declaration was deleted after the link was minted. The SQL FK cascades
     # the link row away, so DB mode never reaches here; the in-memory store does.
     doc = _declaration_doc(request, link["userId"], link["declId"])

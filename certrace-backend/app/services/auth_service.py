@@ -39,6 +39,14 @@ if TYPE_CHECKING:
     from app.repositories.database import DatabaseRepository
 
 
+# The two states an account can be in (revision 013). Suspension is the
+# reversible half of Terms §20.4: access stops, the work stays. Anything that
+# ends the relationship for good is deletion or anonymisation, which is a
+# different operation with a different retention story (Privacy §11.2).
+ACCOUNT_ACTIVE = "ACTIVE"
+ACCOUNT_SUSPENDED = "SUSPENDED"
+
+
 @dataclass(frozen=True)
 class Account:
     """One account, as both stores hand it back and the router renders it."""
@@ -49,6 +57,31 @@ class Account:
     first_name: str | None = None
     last_name: str | None = None
     company_name: str | None = None
+    status: str = ACCOUNT_ACTIVE
+    # Why access was withdrawn, for our own record. The router never puts this
+    # in a response: it is written for a billing dispute, not for the customer.
+    suspension_reason: str | None = None
+
+    @property
+    def is_suspended(self) -> bool:
+        return self.status == ACCOUNT_SUSPENDED
+
+
+@dataclass(frozen=True)
+class SuspensionResult:
+    """What one suspension actually did, for the operator running it.
+
+    ``supplier_links_blocked`` counts links that were live at that moment and
+    stop resolving from it. They are counted rather than stamped revoked: a
+    suspension for non-payment is meant to be lifted, and revoking the rows
+    would leave the exporter re-sending a link to every supplier after paying
+    an invoice. See ``app/routers/links.py``, where resolution checks the
+    owner's status.
+    """
+
+    account: Account
+    refresh_tokens_revoked: int
+    supplier_links_blocked: int
 
 
 class EmailAlreadyRegistered(Exception):
@@ -218,6 +251,9 @@ def _memory_record(
         "first_name": first_name,
         "last_name": last_name,
         "company_name": company_name,
+        "status": ACCOUNT_ACTIVE,
+        "suspended_at": None,
+        "suspension_reason": None,
     }
 
 
@@ -229,11 +265,18 @@ def _account_from_memory(email_clean: str, record: dict[str, object]) -> Account
         first_name=record["first_name"],  # type: ignore[arg-type]
         last_name=record["last_name"],  # type: ignore[arg-type]
         company_name=record["company_name"],  # type: ignore[arg-type]
+        # .get, not [..]: the demo accounts above are written by hand and
+        # predate the column.
+        status=str(record.get("status") or ACCOUNT_ACTIVE),
+        suspension_reason=record.get("suspension_reason"),  # type: ignore[arg-type]
     )
 
 
+# password_hash stays last so callers can read it as row[-1] without this list
+# having to stay the same length as they grow.
 _ACCOUNT_COLUMNS = (
-    "id, email, onboarded, first_name, last_name, company_name, password_hash"
+    "id, email, onboarded, first_name, last_name, company_name, "
+    "status, suspension_reason, password_hash"
 )
 
 
@@ -245,6 +288,8 @@ def _account_from_row(row: object) -> Account:
         first_name=row[3],  # type: ignore[index]
         last_name=row[4],  # type: ignore[index]
         company_name=row[5],  # type: ignore[index]
+        status=str(row[6] or ACCOUNT_ACTIVE),  # type: ignore[index]
+        suspension_reason=row[7],  # type: ignore[index]
     )
 
 
@@ -335,7 +380,7 @@ def authenticate_user(
             ),
             {"email": email_clean},
         ).first()
-    if row is None or not verify_password(password, row[6]):
+    if row is None or not verify_password(password, row[-1]):
         return None
     return _account_from_row(row)
 
@@ -386,6 +431,148 @@ def mark_onboarded(db: DatabaseRepository | None, user_id: str) -> None:
             {"id": uuid.UUID(user_id)},
         )
         session.commit()
+
+
+def find_account_by_email(db: DatabaseRepository | None, email: str) -> Account | None:
+    """The account for an address, without needing its password.
+
+    Only the operator command uses this: a suspension is run from an invoice
+    or an abuse report, which names a person by email and never by uuid. It is
+    deliberately not reachable from any route — an endpoint that turns an
+    address into an account is the membership oracle the sign-in and reset
+    paths are written to avoid.
+    """
+
+    email_clean = _normalize(email)
+
+    if db is None:
+        record = _MEMORY_USERS.get(email_clean)
+        return None if record is None else _account_from_memory(email_clean, record)
+
+    with _account_session(db) as session:
+        row = session.execute(
+            text(
+                f"SELECT {_ACCOUNT_COLUMNS} FROM public.users "
+                "WHERE LOWER(email) = :email"
+            ),
+            {"email": email_clean},
+        ).first()
+    return None if row is None else _account_from_row(row)
+
+
+# ── Suspension (Terms §6.4, §20.4) ───────────────────────────
+# Withdrawing access is three separate things, and doing only the first is the
+# mistake worth naming: flipping the status stops the next sign-in, but the
+# browser already signed in holds an access token good for up to an hour and a
+# refresh token good for a week. So the refresh tokens go with the status, in
+# one transaction, and the access token's remaining minutes are the known,
+# bounded gap — ``current_account`` re-reads the account on every request, so
+# even that gap only lasts until the next call.
+
+
+def suspend_account(
+    db: DatabaseRepository | None, user_id: str, *, reason: str
+) -> SuspensionResult | None:
+    """Withdraw an account's access. ``None`` if no such account.
+
+    Idempotent: suspending an already-suspended account refreshes the reason
+    and leaves ``suspended_at`` where it was, because the date that matters in
+    a dispute is when access was first withdrawn.
+    """
+
+    if db is None:
+        for email_clean, record in _MEMORY_USERS.items():
+            if str(record["id"]) != user_id:
+                continue
+            if record.get("status") != ACCOUNT_SUSPENDED:
+                record["status"] = ACCOUNT_SUSPENDED
+                record["suspended_at"] = _now()
+            record["suspension_reason"] = reason
+            return SuspensionResult(
+                account=_account_from_memory(email_clean, record),
+                refresh_tokens_revoked=_revoke_memory_refresh_tokens(user_id),
+                supplier_links_blocked=0,
+            )
+        return None
+
+    with _account_session(db) as session:
+        row = session.execute(
+            text(
+                "UPDATE public.users SET status = :suspended, "
+                "suspended_at = COALESCE(suspended_at, now()), "
+                "suspension_reason = :reason, updated_at = now() "
+                "WHERE id = :id "
+                f"RETURNING {_ACCOUNT_COLUMNS}"
+            ),
+            {
+                "suspended": ACCOUNT_SUSPENDED,
+                "reason": reason,
+                "id": uuid.UUID(user_id),
+            },
+        ).first()
+        if row is None:
+            return None
+        revoked = session.execute(
+            text(
+                "UPDATE public.refresh_tokens SET used = TRUE "
+                "WHERE user_id = :id AND used = FALSE AND expires_at > :now"
+            ),
+            {"id": uuid.UUID(user_id), "now": _now()},
+        ).rowcount
+        # Counted, not revoked -- see SuspensionResult. The rows stay live and
+        # the resolve path refuses them for as long as the owner is suspended.
+        blocked = session.execute(
+            text(
+                "SELECT count(*) FROM public.smart_links "
+                "WHERE user_id = :id AND revoked_at IS NULL AND expires_at > :now"
+            ),
+            {"id": uuid.UUID(user_id), "now": _now()},
+        ).scalar_one()
+        session.commit()
+    return SuspensionResult(
+        account=_account_from_row(row),
+        refresh_tokens_revoked=int(revoked or 0),
+        supplier_links_blocked=int(blocked or 0),
+    )
+
+
+def restore_account(db: DatabaseRepository | None, user_id: str) -> Account | None:
+    """Put a suspended account back in service. ``None`` if no such account.
+
+    §20.4 says access is restored promptly once the cause is resolved, so this
+    clears the reason with the status rather than keeping a scarlet letter on
+    the row; ``suspended_at`` goes too, because the check constraint in
+    revision 013 will not hold an ACTIVE row with a suspension date on it.
+
+    Nobody is signed back in by this: their refresh tokens were burned by the
+    suspension and cannot be unburned. The customer signs in again, which is
+    the same thing any password change asks of them.
+    """
+
+    if db is None:
+        for email_clean, record in _MEMORY_USERS.items():
+            if str(record["id"]) != user_id:
+                continue
+            record["status"] = ACCOUNT_ACTIVE
+            record["suspended_at"] = None
+            record["suspension_reason"] = None
+            return _account_from_memory(email_clean, record)
+        return None
+
+    with _account_session(db) as session:
+        row = session.execute(
+            text(
+                "UPDATE public.users SET status = :active, suspended_at = NULL, "
+                "suspension_reason = NULL, updated_at = now() "
+                "WHERE id = :id "
+                f"RETURNING {_ACCOUNT_COLUMNS}"
+            ),
+            {"active": ACCOUNT_ACTIVE, "id": uuid.UUID(user_id)},
+        ).first()
+        if row is None:
+            return None
+        session.commit()
+    return _account_from_row(row)
 
 
 # ── Refresh tokens ───────────────────────────────────────────
@@ -476,6 +663,17 @@ def rotate_refresh_token(
         )
         session.commit()
     return str(row[0]), successor
+
+
+def _revoke_memory_refresh_tokens(user_id: str) -> int:
+    """Burn every live refresh token this account holds, in no-database mode."""
+
+    burned = 0
+    for record in _MEMORY_REFRESH_TOKENS.values():
+        if str(record["user_id"]) == user_id and not record["used"]:
+            record["used"] = True
+            burned += 1
+    return burned
 
 
 def revoke_refresh_token(db: DatabaseRepository | None, token: str) -> None:

@@ -44,6 +44,11 @@ class User(Base):
     __tablename__ = "users"
     __table_args__ = (
         CheckConstraint("position('@' in email) > 1", name="users_email_shape_check"),
+        CheckConstraint(
+            "(status = 'ACTIVE' AND suspended_at IS NULL) "
+            "OR (status = 'SUSPENDED' AND suspended_at IS NOT NULL)",
+            name="users_status_check",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -60,6 +65,16 @@ class User(Base):
     onboarded: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=false()
     )
+    # ACTIVE or SUSPENDED (revision 013). Suspension withdraws access without
+    # touching the account's work: deleting the row would cascade the
+    # declarations, links and evidence away, which is not what Terms §20.4
+    # means by suspending access, and not something a paid invoice can undo.
+    status: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default=text("'ACTIVE'")
+    )
+    suspended_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    # Our record of why, for a later dispute. Never rendered to the customer.
+    suspension_reason: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

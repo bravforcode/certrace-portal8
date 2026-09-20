@@ -204,6 +204,10 @@ def current_account(request: Request) -> Account:
     account = get_account(getattr(request.app.state, "database", None), user_id)
     if account is None:
         raise _unauthorized()
+    # Read fresh on every request, so a suspension takes hold on the next call
+    # rather than when the access token happens to age out.
+    if account.is_suspended:
+        raise _suspended()
     return account
 
 
@@ -215,6 +219,31 @@ def _unauthorized() -> HTTPException:
             "message": "Your session has expired. Please sign in again.",
         },
         headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+def _suspended() -> HTTPException:
+    """The answer to a correct credential on a suspended account.
+
+    403, not 401, and a code of its own: the portal's HTTP layer refreshes and
+    then clears the session on a 401, which would show someone whose company
+    has an unpaid invoice a sign-in screen that refuses them forever with no
+    reason. This says the session is fine and the account is not.
+
+    The stored reason stays out of the message. It is written for a billing
+    dispute -- an invoice number, a notice date -- and the person reading this
+    screen may not be the person who owes it.
+    """
+
+    return HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail={
+            "code": "ACCOUNT_SUSPENDED",
+            "message": (
+                "This account is suspended. Please contact "
+                f"{SUPPORT_EMAIL} to restore access."
+            ),
+        },
     )
 
 
@@ -262,6 +291,10 @@ def login(payload: LoginRequest, request: Request) -> SessionResponse:
                 "message": "Email or password is incorrect.",
             },
         )
+    # Checked after the password, not before: a suspended account must not be
+    # a way to learn that an address is ours without holding its credentials.
+    if account.is_suspended:
+        raise _suspended()
     return _session_response(request, account)
 
 
@@ -307,6 +340,11 @@ def refresh_session(payload: RefreshRequest, request: Request) -> SessionRespons
                 "message": "Please sign in again.",
             },
         )
+    # The presented token has already been burned by the rotation above, and
+    # the successor issued with it is never handed back -- a suspension that
+    # raced a refresh ends the session rather than extending it by a week.
+    if account.is_suspended:
+        raise _suspended()
     token = issue_access_token(
         _signing_secret(request), user_id=account.id, email=account.email
     )

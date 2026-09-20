@@ -60,7 +60,8 @@
 code ที่ฝั่งพอร์ทัลจะดักเป็นพิเศษ:
 `INVALID_CREDENTIALS` · `INVALID_RESET_TOKEN` · `EMAIL_TAKEN` ·
 `TOKEN_NOT_FOUND` · `TOKEN_EXPIRED` · `TOKEN_REVOKED` · `ALREADY_SUBMITTED` ·
-`DECLARATION_NOT_FOUND` · `RATE_LIMITED` (429 — ยิงถี่เกิน หน้าต่าง 15 นาที)
+`DECLARATION_NOT_FOUND` · `RATE_LIMITED` (429 — ยิงถี่เกิน หน้าต่าง 15 นาที) ·
+`ACCOUNT_SUSPENDED` (403 — บัญชีถูกระงับ ดู §1)
 
 **เวลา** — ทุก timestamp เป็น epoch milliseconds (number) ให้ตรงกับที่พอร์ทัลใช้อยู่
 อย่าส่ง ISO string ปนมา
@@ -116,6 +117,39 @@ Session แยกเป็นสองส่วนแล้ว: **access token (
 - ฝั่งพอร์ทัล `lib/api/http.ts` จัดการเองหมด: เจอ 401 บนเส้น authed →
   refresh หนึ่งครั้ง → ยิงซ้ำ → ถ้า refresh ตายด้วยค่อยเคลียร์ session
   (migration 008 สร้างตาราง `refresh_tokens`)
+
+### บัญชีถูกระงับ — 403 `ACCOUNT_SUSPENDED` (เพิ่ม 2026-09-20)
+
+Terms §6.4 / §20.4 ให้เราตัดสิทธิการใช้งานได้ (ค้างชำระเกินกำหนดแจ้งเตือน,
+sanctions, ละเมิดข้อ 13) รอบนี้ฝั่งเซิร์ฟเวอร์ทำได้จริงแล้ว — `users.status`
+เป็น `ACTIVE` หรือ `SUSPENDED` (migration 013) และคนที่ถูกระงับจะเจอ:
+
+```jsonc
+// ทุก endpoint 🔒 + POST /login + POST /refresh
+// 403
+{ "detail": { "code": "ACCOUNT_SUSPENDED",
+              "message": "This account is suspended. Please contact …" } }
+```
+
+**403 ไม่ใช่ 401 โดยตั้งใจ** — `lib/api/http.ts` เจอ 401 แล้ว refresh หนึ่งครั้ง
+และเคลียร์ session ทิ้ง ถ้าใช้ 401 คนที่บริษัทค้างบิลจะเห็นแค่หน้า login ที่
+ปฏิเสธเขาไปเรื่อย ๆ โดยไม่บอกเหตุผล 403 แปลว่า "session ปกติ แต่บัญชีถูกระงับ"
+ฝั่งพอร์ทัลควรดักโค้ดนี้แล้วขึ้นหน้าอธิบาย + ช่องทางติดต่อ (ยังไม่ได้ทำ)
+
+**สิ่งที่ระงับไปด้วย**
+
+- refresh token ที่ยังไม่ตาย ถูกเผาทั้งหมดใน transaction เดียวกับการเปลี่ยน status
+- access token ที่ออกไปแล้วเรียกคืนไม่ได้ (เป็น JWT ลงลายเซ็น ไม่ได้เก็บ row)
+  แต่ `current_account` อ่านบัญชีสดทุก request → call ถัดไปโดนปฏิเสธ
+- **smart link ของ exporter คนนั้นหยุด resolve ทันที** ซัพพลายเออร์เห็น 410
+  `TOKEN_REVOKED` แบบปกติ — เรื่องใครค้างบิลไม่ใช่เรื่องที่เขาควรรู้จาก error code
+- ไม่ได้ stamp `revoked_at` ลงแถว link เพราะการระงับมีไว้ให้ปลดคืน ถ้า revoke
+  จริงจะกลายเป็นว่าจ่ายเงินแล้วต้องส่งลิงก์ใหม่ให้ซัพพลายเออร์ทุกราย
+
+**สิ่งที่ไม่ได้ทำ** — ไม่ลบ ไม่ anonymize ไม่ส่งอีเมลแจ้งลูกค้า
+(notice ของ §20.4 อยู่ในเธรดที่คนคุยกันอยู่แล้ว) และไม่มี endpoint
+เพราะยังไม่มีบัญชีพนักงานให้ auth — สั่งด้วย
+`python -m app.jobs.account_access --email … --suspend --reason "…"`
 
 ### ของเดิมที่มีอยู่แล้ว
 
