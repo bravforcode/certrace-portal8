@@ -3,9 +3,10 @@
 ไฟล์นี้สรุปว่า **โค้ดในรีโปตอนนี้ทำอะไรได้จริงบ้าง** และเหลืออะไรที่ โบ๊ท กับ เฟิน ต้องลุยต่อก่อนปล่อยให้ Design Partner ใช้งานจริง
 
 > อัปเดตล่าสุด: 23 ก.ย. 2026 — เช็คจากของจริงอีกรอบ: `api.certrace.co/readyz` ตอบ `ready: true, databaseConfigured: true` · `gh run list --workflow deploy.yml` + `gh run view --json jobs` · `gh secret list` / `gh variable list` · `gh pr list`
-> **เปลี่ยนจาก 16 ก.ย.:** secret + GCP vars ตั้งครบแล้ว ท่อ deploy **ส่ง landing + portal ขึ้นเองได้จริง** (run ของ #105 `Deploy portal: success`) — แต่ **job backend ยังไม่เคยสำเร็จสักครั้ง** (ดู R6)
+> **เปลี่ยนจาก 16 ก.ย.:** secret + GCP vars ตั้งครบแล้ว ท่อ deploy **ส่ง landing + portal ขึ้นเองได้จริง** (run ของ #105 `Deploy portal: success`)
+> **backend production อยู่บน Render ไม่ใช่ Cloud Run** — `api.certrace.co` → CNAME `certrace.onrender.com` (header `rndr-id`, `x-render-origin-server`) job `Deploy backend to Cloud Run` ใน `deploy.yml` จึงเป็นอีกทางที่ยังไม่ได้ใช้ และมันล้มอยู่ (ดู R6)
 > **R2 ยังเปิด แต่ต้นเหตุเปลี่ยน:** โค้ดแก้ถูกแล้ว ที่พอร์ทัลยังรับรหัสมั่วเพราะมีคนตั้ง `NEXT_PUBLIC_DEMO_MODE=1` ไว้ใน build env ฝั่ง Cloudflare เอง (ยืนยันล่าสุด 19 ก.ย.)
-> สรุปสั้น: **ตัวบล็อกจริงมีข้อเดียว = ถอด demo flag ใน Cloudflare** ถอดแล้วเดิน E2E บน production ได้ทันที ที่เหลือ (R3, PR hardening, ท่อ backend) ทำขนานกันได้
+> สรุปสั้น: **ตัวบล็อกจริงมีข้อเดียว = ถอด demo flag ใน Cloudflare** ถอดแล้วเดิน E2E บน production ได้ทันที ที่เหลือ (R3, PR hardening, ตัดสินใจเรื่อง host ของ backend, อีเมล) ทำขนานกันได้
 
 ---
 
@@ -22,7 +23,7 @@
 [████████████████████████████████████░░░░] 90%
 ```
 
-ลดจาก 95% ของรอบ 16 ก.ย. เพราะรอบนั้นนับ R2 ว่าจบที่โค้ด แต่ของบนโดเมนจริงยังรับรหัสมั่วอยู่ และ job deploy backend ยังส่งของไม่ได้
+ลดจาก 95% ของรอบ 16 ก.ย. เพราะรอบนั้นนับ R2 ว่าจบที่โค้ด แต่ของบนโดเมนจริงยังรับรหัสมั่วอยู่ และยังไม่รู้ว่า backend บน Render ตาม main ทันหรือเปล่า
 
 ---
 
@@ -34,15 +35,17 @@
 
 > **โจ้:** ลบ `NEXT_PUBLIC_DEMO_MODE` ออกจาก build env ใน Cloudflare → rebuild → ลองล็อกอินด้วยรหัสมั่ว **ต้องไม่ผ่าน** ห้ามปิดข้อนี้ด้วยการอ่าน header
 
-**2) ท่อ deploy ส่ง landing + portal ได้แล้ว แต่ backend ยังขึ้นด้วยมือ**
-
-secret (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `API_URL`) และ var `GCP_*` 4 ตัวตั้งครบตั้งแต่ 16 ก.ย. run ของ #105 (`35330060995`) ขึ้น `Deploy portal: success` จริง **แต่ `Deploy backend to Cloud Run` ไม่เคยสำเร็จ** — ครั้งเดียวที่มันรัน (merge #104, `35150974140`) ตายที่:
+**2) backend production อยู่บน Render — ส่วน `deploy.yml` ส่งไป Cloud Run ซึ่งไม่ใช่ตัวที่ใช้งานจริง**
 
 ```
-ERROR: (gcloud.builds.submit) The user is forbidden from accessing the bucket [certrace-prod_cloudbuild]
+api.certrace.co → certrace.onrender.com → gcp-us-west1-1.origin.onrender.com
+rndr-id: ... · x-render-origin-server: uvicorn
 ```
 
-แปลว่า service account `certrace-deployer@` ยังขาดสิทธิ์ฝั่ง Cloud Build / bucket ทุก PR ที่แตะ `certrace-backend/` (#107–#110, #106, #112) **merge แล้ว deploy จะแดง และ backend บน production จะไม่อัปเดต** ส่วน alembic ก็ยังไม่รันเองด้วย
+ฝั่ง Cloudflare (landing + portal) ส่งผ่าน CI ได้จริงแล้ว ส่วน backend มีสองทางที่ไม่ตรงกัน:
+
+*   **Render (ตัวจริง)** — env (`RESEND_API_KEY`, `DATABASE_URL`, `CERTRACE_APP_BASE_URL` ฯลฯ) อยู่ใน Render dashboard ไม่ได้อยู่ในรีโป **ยังไม่รู้ว่า deploy แบบ auto จาก branch หรือกดเอง** (ไม่มี check ของ Render บนคอมมิต) และไม่รู้ว่า `alembic upgrade head` รันตอนไหน
+*   **Cloud Run ใน `certrace-prod` (ไม่ได้ใช้)** — job `Deploy backend to Cloud Run` ครั้งเดียวที่รัน (merge #104, `35150974140`) ตายที่ `gcloud builds submit` เพราะ `certrace-deployer@` เข้า bucket `certrace-prod_cloudbuild` ไม่ได้ **ไม่กระทบ production** แต่จะแดงทุกครั้งที่ merge ของที่แตะ `certrace-backend/`
 
 > ⚠️ **อย่าอ่านแค่สีของ run** เช็คด้วย `gh run view <id> --json jobs` ว่า `Deploy ...` เป็น `success` ไม่ใช่ `skipped`
 
@@ -59,9 +62,9 @@ ERROR: (gcloud.builds.submit) The user is forbidden from accessing the bucket [c
 | **Backend — Auth** | 🟢 100% | `register` `login` `me` `refresh` `logout` `change/forgot/reset-password` + JWT + refresh token + rate limit หน้าต่าง 15 นาที | — |
 | **Backend — Smart Links** | 🟢 100% | สร้าง / resolve / save state / submit / ขอแก้ไข / ดูรายการที่ส่งมา — token ออกจากเซิร์ฟเวอร์ มีวันหมดอายุ | — |
 | **Backend — เครื่องคำนวณ CBAM** | 🟢 100%* | คำนวณครบ **ทั้ง 4 เส้น** ของ fixture แล้ว (10 ก.ย.) — เชื้อเพลิงผ่านค่าความร้อน, process emission แบบ mass balance, indirect, precursor หลายชั้น พร้อม audit trace ทุกเส้น | \* ตัวเครื่องครบแล้ว แต่ยังต้องรอ **ค่า default factor ตัวจริง** (R3) ถึงจะใช้กับสินค้านอก 2 CN code ได้ |
-| **Backend — อีเมลแจ้งเตือน** | 🟢 95% | เทมเพลต 7 แบบ, delivery log กันส่งซ้ำด้วย unique index, job รันเตือนตามตาราง, **ต่อ `DatabaseReminderSource` แล้ว** (migration `012_reminder_subjects`) | อีเมลเตือน trial ยังส่งไม่ได้ เพราะ plan/billing ยังไม่มีฝั่งเซิร์ฟเวอร์ (ดู R4) |
-| **Backend — ขึ้นของจริง** | 🟢 100% | `api.certrace.co/readyz` ตอบ 200 `{"status":"ready","databaseConfigured":true}` · preflight CORS อนุญาต `https://portal.certrace.co` จริง · validation ทำงาน (ยิง email ปลอมได้ 422) | ยืนยันว่า alembic เดินถึง `012` แล้วหรือยัง — ต้องยิงด้วย token จริง (ดู R1) · ตัวบน production ขึ้นด้วยมือ ไม่ใช่จาก CI (ดู R6) |
-| **Deploy (ท่ออัตโนมัติ)** | 🟡 70% | [`deploy.yml`](.github/workflows/deploy.yml) เขียนครบ · secret + `GCP_*` ตั้งครบ 16 ก.ย. · **landing + portal ส่งขึ้นเองสำเร็จแล้ว** (run ของ #105) | 🔴 job backend ตายที่ `gcloud builds submit` — `certrace-deployer@` เข้า bucket `certrace-prod_cloudbuild` ไม่ได้ · ไม่มี var `EXPORTER_PORTAL_URL` (ดู R6) |
+| **Backend — อีเมลแจ้งเตือน** | 🟡 60% | เทมเพลต 7 แบบ, delivery log กันส่งซ้ำด้วย unique index, job เตือนตามตาราง, **ต่อ `DatabaseReminderSource` แล้ว** (migration `012_reminder_subjects`) · เมลรีเซ็ต/เปลี่ยนรหัสผ่านมีทางส่งจริง | 🔴 job เตือนยังไม่มี scheduler สั่งรัน · เมลขอข้อมูลซัพพลายเออร์ (`SUPPLIER_DATA_REQUEST`) ไม่มีโค้ดเรียก · ยังไม่ยืนยันว่า Render มี `RESEND_API_KEY` · trial ยังไม่มี billing (ดู R4) |
+| **Backend — ขึ้นของจริง** | 🟢 100% | `api.certrace.co/readyz` ตอบ 200 `{"status":"ready","databaseConfigured":true}` · preflight CORS อนุญาต `https://portal.certrace.co` จริง · validation ทำงาน (ยิง email ปลอมได้ 422) | รันอยู่บน **Render** (`certrace.onrender.com`) · ยืนยันว่า alembic เดินถึง `012` แล้วหรือยัง — ต้องยิงด้วย token จริง (ดู R1) · ยังไม่รู้วิธี deploy ของ Render (ดู R6) |
+| **Deploy (ท่ออัตโนมัติ)** | 🟡 70% | [`deploy.yml`](.github/workflows/deploy.yml) เขียนครบ · secret + `GCP_*` ตั้งครบ 16 ก.ย. · **landing + portal ส่งขึ้นเองสำเร็จแล้ว** (run ของ #105) | backend production อยู่บน Render ไม่ได้ผ่าน `deploy.yml` · job Cloud Run (ไม่ได้ใช้) ล้มเรื่องสิทธิ์ GCP · ไม่มี var `EXPORTER_PORTAL_URL` (ดู R6) |
 | **CI / คุณภาพโค้ด** | 🟡 85% | lint, typecheck, unit test, npm audit, pip-audit, CodeQL, secret scan, Playwright E2E — ตั้งแต่ PR #99 รันเฉพาะ job ที่ diff แตะจริง เพื่อประหยัดโควตา Free plan (2,000 นาที/เดือน) | รันเฉพาะ `pull_request` + `workflow_dispatch` เท่านั้น **push ตรงเข้า main ไม่ถูกเช็ค** ต้องสั่ง `workflow_dispatch` เอง |
 | **เช็ค security header production** | 🟢 100% | [`security-headers.yml`](.github/workflows/security-headers.yml) ยิงถาม production ทุกคืน (cron `17 2 * * *`) เช็ค 5 header + HSTS ≥ 6 เดือน + ปฏิเสธ CSP ที่ยังมี `unsafe-inline` | — (บั๊ก HSTS แก้แล้ว ดู R7) |
 | **Admin Portal** | ⚫ ลบแล้ว | ตัดออกจากขอบเขต MVP ตั้งแต่ต้น ไม่เคยอยู่ใน CI และไม่เคย deploy — ลบโฟลเดอร์ 10 ก.ย. และเก็บเศษที่เหลือออกอีกรอบใน PR #101 | — (ยังอยู่ใน git history ถ้าวันหนึ่งจะรื้อกลับมา) |
@@ -88,7 +91,7 @@ ERROR: (gcloud.builds.submit) The user is forbidden from accessing the bucket [c
     *   [x] ออกรายงาน PDF และ CBAM XML ฝั่ง client
     *   [x] **Unit test 497 ตัว ผ่านหมด** (`npm run test:unit` — รันจริงวันที่ 7 ก.ย.) + Playwright E2E 6 ไฟล์ (auth, dashboard, onboarding, smart links, reports, landing→portal)
 *   **Deploy & CI**
-    *   [x] [`deploy.yml`](.github/workflows/deploy.yml) — merge เข้า main แล้วส่งเฉพาะแอปที่ถูกแก้ขึ้น Cloudflare/Cloud Run แล้วยิงเช็ค header ที่ production จริง รวมถึงจับ CSP ที่ยังอนุญาต unsafe-inline — **ส่ง landing + portal ได้จริงแล้ว** ส่วน backend ยังติดสิทธิ์ GCP (ดู 🚨 + R6)
+    *   [x] [`deploy.yml`](.github/workflows/deploy.yml) — merge เข้า main แล้วส่งเฉพาะแอปที่ถูกแก้ขึ้น Cloudflare/Cloud Run แล้วยิงเช็ค header ที่ production จริง รวมถึงจับ CSP ที่ยังอนุญาต unsafe-inline — **ส่ง landing + portal ได้จริงแล้ว** ส่วน backend production อยู่บน Render ไม่ได้ส่งจากท่อนี้ (ดู 🚨 + R6)
     *   [x] `certrace.co`, `portal.certrace.co` และ **`api.certrace.co`** ตอบ 200 ทั้งสามตัว (ยิงเช็ค 16 ก.ย.)
     *   [x] [`security-headers.yml`](.github/workflows/security-headers.yml) — ยามกลางคืนแยกต่างหาก ไม่มี push trigger โดยตั้งใจ (push เข้า main จะเริ่ม deploy พอดี probe จะไปอ่าน build ที่กำลังจะถูกแทน)
     *   [x] [`ci.yml`](.github/workflows/ci.yml) — รันครั้งเดียวต่อการเปลี่ยนแปลง เฉพาะ job ที่ diff แตะจริง ข้าม draft PR (PR #99)
@@ -112,9 +115,9 @@ ERROR: (gcloud.builds.submit) The user is forbidden from accessing the bucket [c
 *   [x] Postgres ต่อแล้ว, secret ครบ, service ขึ้นแล้ว, domain mapping `api.certrace.co` ใช้งานได้
 *   [x] CORS ตั้งถูก — ยืนยันด้วย preflight จริง ไม่ได้เดาจาก config
 *   [x] เพิ่ม job deploy backend ใน [`deploy.yml`](.github/workflows/deploy.yml) — ทำแล้ว 10 ก.ย.
-*   [x] ~~ตั้ง body size limit 8 MB~~ — ไม่ต้องทำอะไร Cloud Run รับ body ได้ถึง 32 MiB อยู่แล้ว ตัวที่ต้องระวังคือ proxy ที่มาคั่นข้างหน้าเท่านั้น
+*   [ ] body size limit — เหตุผลเดิม "Cloud Run รับได้ 32 MiB" ใช้ไม่ได้แล้วเพราะตัวจริงอยู่บน Render หลัง Cloudflare proxy — อัปใบเซอร์ขนาดใกล้ 15 MB จริงหนึ่งครั้งตอน E2E ก็ปิดข้อนี้ได้
 *   [ ] **ยังต้องยืนยัน: alembic เดินถึง `012` แล้วหรือยัง** — ยิง `/api/v1/links/<token>ปลอม` ได้ 404 (ไม่ใช่ 500) พิสูจน์ได้แค่ว่า `009_smart_links` ลงแล้ว ส่วน `011_uploaded_files` กับ `012_reminder_subjects` ต้องล็อกอินจริงแล้วยิง endpoint อัปโหลด/reminder ถึงจะรู้ **ถ้ายังไม่ได้รัน อาการจะโผล่ตอน Design Partner อัปใบเซอร์ใบแรก ไม่ใช่ตอนนี้**
-*   [x] ตั้ง repository variable ฝั่ง GCP 4 ตัว (`GCP_PROJECT_ID`, `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_DEPLOY_SERVICE_ACCOUNT`, `GCP_RUNTIME_SERVICE_ACCOUNT`) — ตั้งครบ 16 ก.ย. (แต่ deploy ยังติดสิทธิ์ ดู R6)
+*   [x] ตั้ง repository variable ฝั่ง GCP 4 ตัว (`GCP_PROJECT_ID`, `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_DEPLOY_SERVICE_ACCOUNT`, `GCP_RUNTIME_SERVICE_ACCOUNT`) — ตั้งครบ 16 ก.ย. (ใช้กับ Cloud Run ซึ่งไม่ใช่ production ดู R6)
 
 > ⚠️ **สองตัวแปรที่ลืมแล้วเจ็บ** (เพิ่งเพิ่มเข้าตาราง env ของ README รอบนี้)
 > `CERTRACE_JWT_SECRET` — ไม่มีแล้ว **แอปไม่ start เลย** ถ้ามี `DATABASE_URL` ([`main.py:68`](certrace-backend/app/main.py:68)) อาการคือ revision ไม่ผ่าน startup probe
@@ -151,9 +154,9 @@ ERROR: (gcloud.builds.submit) The user is forbidden from accessing the bucket [c
 [`default_factors.template.csv`](certrace-backend/default_factors.template.csv) มีแค่ **2 แถว** (เหล็ก 1 CN code, อะลูมิเนียม 1 CN code) สินค้าที่อยู่นอกสอง CN นี้จะได้ตัวเลขผิดทันที
 *   [ ] **เฟิน:** ทำตาราง EU default values ให้ครบ CN code ที่เรารองรับ แล้ว import ด้วย `import_default_factors.py`
 *   [ ] **เฟิน & โบ๊ท:** เอาตัวเลขจริงมากรอกเทียบกับที่เคยคำนวณใน Excel
-*   [ ] **merge PR #107 ก่อน import** — ให้รับ EU default factor ที่ประกาศไว้ระดับหัวข้อ (ต่ำกว่า CN8 เต็ม) ได้ ไม่งั้นแถวพวกนั้นจะถูกปฏิเสธตอน import · ⚠️ #107 แตะ backend ต้องแก้สิทธิ์ deploy (R6) ก่อน ไม่งั้นโค้ดไม่ขึ้น production
+*   [ ] **merge PR #107 ก่อน import** — ให้รับ EU default factor ที่ประกาศไว้ระดับหัวข้อ (ต่ำกว่า CN8 เต็ม) ได้ ไม่งั้นแถวพวกนั้นจะถูกปฏิเสธตอน import · ⚠️ #107 แตะ backend — หลัง merge ต้องยืนยันว่า Render deploy ตัวใหม่แล้ว (ดู R6)
 
-#### **R4. อีเมลเตือนซัพพลายเออร์ — ✅ ต่อ source จริงแล้ว 10 ก.ย.**
+#### **R4. อีเมลเตือนซัพพลายเออร์ — 🟡 โค้ดต่อ source จริงแล้ว แต่ยังไม่มีอะไรสั่งให้ส่ง (23 ก.ย.)**
 [`app/jobs/send_reminders.py`](certrace-backend/app/jobs/send_reminders.py) เคยต่อกับ `NullSource` กลไกถูกหมดแล้ว (กันส่งซ้ำ, ปล่อย claim เมื่อส่งไม่สำเร็จ) ขาดแค่แหล่งข้อมูล — ตอนนี้มีแล้ว
 
 > ⚠️ **สิ่งที่เจอตอนลงมือ:** ข้อนี้เขียนไว้ว่า "ย้าย `monthly-requests` ไปหลัง API" แต่ของจริงกระจายอยู่ **3 store** ไม่ใช่อันเดียว — `workspace` (เดือน+กำหนดส่ง), `supplier-companies` (**อีเมลที่จะส่งไปหา**) และ `month-dispatch` (ส่งไปหรือยัง) ส่วน `monthly-requests` เป็นของเก่าที่ workspace มาแทนแล้ว
@@ -165,7 +168,9 @@ ERROR: (gcloud.builds.submit) The user is forbidden from accessing the bucket [c
 *   [x] **ขึ้น main แล้ว** (16 ก.ย.) — PR #98 merge เข้า feature branch ไม่ใช่ main จึงดูเหมือนไม่เคยขึ้น ตัวที่พามาจริงคือ **PR #100** (`claude/r4-r5-to-main`)
 *   [x] ~~ต้องรอ R1~~ — R1 ปิดแล้ว มีฐานข้อมูลจริงแล้ว endpoint ไม่ตอบ 503 อีก
 *   [ ] **อีเมลเตือน trial ยังส่งไม่ได้** — plan/billing ยังไม่มีฝั่งเซิร์ฟเวอร์เลย ถ้าเดาวันหมดอายุเองจะกลายเป็นส่งเรื่องที่ระบบไม่ได้บังคับใช้จริง
-*   [ ] **ยังไม่ได้ยืนยันว่า job รันจริงบน production** — โค้ดพร้อม ตารางพร้อม แต่ไม่มีใครดูว่ามีอะไรถูกส่งออกไปแล้วหรือยัง ต้องเช็ค `notification_deliveries` หลังคืนแรกที่มี subject ค้างกำหนด
+*   [ ] **job ยังไม่มีอะไรสั่งให้รัน** (เช็ค 23 ก.ย.) — `python -m app.jobs.send_reminders` ไม่มี cron / scheduler ในรีโปเลย และบน Render ก็ยังไม่รู้ว่ามี Cron Job ตั้งไว้หรือเปล่า **เมลเตือนซัพพลายเออร์จึงยังไม่ส่งจริง** → ตั้ง Render Cron Job (หรือ scheduler ของ host ที่เลือกใน R6) รันทุกคืน แล้วเช็ค `notification_deliveries` หลังคืนแรก
+*   [ ] **เมลแรกที่ขอข้อมูลซัพพลายเออร์ยังไม่ถูกส่งโดยระบบ** — มีเทมเพลต `SUPPLIER_DATA_REQUEST` แต่ไม่มี router ไหนเรียก ตอนนี้พอร์ทัลแค่ copy ลิงก์ลง clipboard ผู้ส่งออกต้องส่งเอง ตัดสินใจว่าจะต่อก่อนปล่อยไหม (~ครึ่งวัน)
+*   [ ] **ยืนยันว่า Resend ส่งออกจาก production จริง** — ถ้า Render ไม่มี `RESEND_API_KEY` หรือ sender ระบบเลือก transport `off` เองเงียบๆ ([`email.py`](certrace-backend/app/services/email.py)) ทดสอบด้วย forgot-password กับบัญชีของทีมเอง แล้วดูว่าโค้ดมาถึงกล่องเมลไหม
 
 #### **R5. อัปโหลดไฟล์ — ✅ ทำแล้ว 10 ก.ย.**
 เดิมไฟล์เก็บเป็น base64 ใน localStorage ตันที่ ~1.5 MB ที่ใหญ่กว่านั้นเหลือแค่ชื่อ+ขนาด — ใบเซอร์จริงส่วนใหญ่ใหญ่กว่านั้นและหายไปเลย
@@ -179,17 +184,19 @@ ERROR: (gcloud.builds.submit) The user is forbidden from accessing the bucket [c
     > ราคาที่จ่าย: ไฟล์ 15 MB คือ 15 MB ในฐานข้อมูล ในทุก backup และในทุก dump ระดับไม่กี่ร้อยใบไม่มีปัญหา ระดับหลักหมื่นใบต้องย้ายจริง
 *   [ ] Antivirus scan ยังไม่มี (อยู่ในรายการ post-MVP)
 
-#### **R6. ท่อ deploy — 🟡 landing + portal ส่งได้แล้ว, backend ยังติดสิทธิ์ GCP (23 ก.ย.)**
-Cloudflare ครบแล้ว แต่ backend บน production ยังเป็นตัวที่ขึ้นด้วยมือ **ไม่มีใครรู้ว่าตรงกับ main หรือเปล่า** และ PR ที่แตะ backend ทุกตัวที่ merge นับจากนี้จะไม่ขึ้นไปจนกว่าข้อแรกจะจบ
+#### **R6. ท่อ deploy — 🟡 Cloudflare ส่งได้แล้ว, backend อยู่บน Render คนละทางกับ CI (23 ก.ย.)**
+landing + portal ส่งผ่าน `deploy.yml` ได้จริง แต่ backend production คือ **Render** (`certrace.onrender.com`) ส่วน `deploy.yml` สร้างไว้ส่งไป **Cloud Run** ใน `certrace-prod` / `asia-southeast1` ซึ่งยังไม่เคยสำเร็จและไม่ได้เสิร์ฟ `api.certrace.co` — สองทางนี้ต้องเลือกให้เหลือทางเดียว
 
-*   [ ] **เฟิน (GCP):** ให้สิทธิ์ `certrace-deployer@certrace-prod.iam.gserviceaccount.com` ใช้ Cloud Build ได้ — ครั้งล่าสุด (run `35150974140`) ตายที่ `gcloud builds submit` ด้วย `forbidden from accessing the bucket [certrace-prod_cloudbuild]` / ขาด `serviceusage.services.use` ปกติต้องมี `roles/cloudbuild.builds.editor` + `roles/serviceusage.serviceUsageConsumer` + สิทธิ์เขียน bucket `certrace-prod_cloudbuild` (หรือ `roles/storage.admin` ระดับ bucket) เช็คกับ [README §Deploy from CI](certrace-backend/README.md:454) แล้วอัปเดต README ให้ตรงด้วย
-*   [ ] **หลังแก้สิทธิ์:** สั่ง `workflow_dispatch` ของ Deploy แล้วดูว่า `Deploy backend to Cloud Run` เป็น `success` — ครั้งนี้ migration job จะรัน `alembic upgrade head` ให้เอง เท่ากับปิดคำถาม `011`/`012` ของ R1 ไปด้วย
-*   [ ] **โบ๊ท:** ใส่ `EXPORTER_PORTAL_URL=https://portal.certrace.co` เป็น repository **variable** — ตอนนี้ยังไม่มี step เช็ค security header หลัง deploy จึง `exit 0` ผ่านเฉยๆ (nightly probe ยังเขียวทุกคืน จึงไม่เร่ง แต่ตัวนี้คือตัวที่จับได้ทันทีตอน deploy)
+*   [ ] **เฟิน: ตัดสินใจว่า backend อยู่ที่ไหน** — อยู่ Render ต่อ หรือย้ายไป Cloud Run ตามที่ `deploy.yml` เขียนไว้
+    *   **ถ้าอยู่ Render:** ปิด/ลบ job `Deploy backend to Cloud Run` (ไม่งั้นแดงทุก merge ที่แตะ backend) และเขียนลง README ว่า Render deploy แบบไหน (auto จาก `main`? กดเอง?) + migration รันตอนไหน
+    *   **ถ้าย้าย Cloud Run:** ให้สิทธิ์ `certrace-deployer@certrace-prod.iam.gserviceaccount.com` ใช้ Cloud Build (ตายที่ `forbidden from accessing the bucket [certrace-prod_cloudbuild]` / ขาด `serviceusage.services.use`) → dispatch Deploy ให้ขึ้น → ย้าย env จาก Render ให้ครบ → สลับ DNS `api.certrace.co`
+*   [ ] **เฟิน: ยืนยัน env บน Render** — โดยเฉพาะ `RESEND_API_KEY` + `CERTRACE_EMAIL_SENDER` (ไม่มี = ระบบปิดการส่งเมลเองเงียบๆ ดู R4), `CERTRACE_APP_BASE_URL=https://portal.certrace.co`, `CERTRACE_ENABLE_API_DOCS=false`
+*   [ ] **โบ๊ท:** ใส่ `EXPORTER_PORTAL_URL=https://portal.certrace.co` เป็น repository **variable** — ตอนนี้ยังไม่มี step เช็ค security header หลัง deploy จึง `exit 0` ผ่านเฉยๆ (nightly probe ยังเขียวทุกคืน จึงไม่เร่ง)
 *   [x] `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` + `API_URL` (secret) — ตั้งแล้ว 16 ก.ย.
     > หมายเหตุ `API_URL`: ค่านี้ไม่ลับจริง มันถูกฝังลง JS bundle ที่ใครก็โหลดไปอ่านได้ เก็บเป็น secret จึงได้แค่ mask ใน log — ถ้าอยากให้ debug ง่ายขึ้น ย้ายไป Variables แล้วสลับ `secrets.API_URL` เป็น `vars.API_URL` สองที่ใน `deploy.yml`
 *   [x] `GCP_*` 4 ตัว — ตั้งแล้ว 16 ก.ย.
 *   [x] โควตา Actions — มีบัตร + hard-stop budget $12 ตั้งแต่ 16 ก.ย. (ไลออนดูแล billing)
-*   [x] merge ทดสอบแล้ว — #105 `Deploy portal: success` (ไม่ใช่ skipped) · #104 `Deploy portal` + `Deploy landing` success, backend failure ตามข้อแรก
+*   [x] merge ทดสอบแล้ว — #105 `Deploy portal: success` (ไม่ใช่ skipped) · #104 `Deploy portal` + `Deploy landing` success, job Cloud Run failure (ไม่กระทบ production)
 
 #### **R7. เช็ค security header ที่ production — ✅ แก้บั๊ก HSTS แล้ว**
 [`security-headers.yml`](.github/workflows/security-headers.yml) ยิงถามโดเมนจริงทุกคืน (cron `17 2 * * *`) เพราะ config ถูกไม่เท่ากับ production ถูก — `next.config.ts` ประกาศ header ครบมาหลายเดือนขณะที่หน้า prerender ออกไปโดยไม่มี header สักตัว เพราะ Cloudflare เสิร์ฟจาก asset layer ไม่เรียก Worker ไม่มีอะไรในรีโปจับได้
@@ -200,7 +207,7 @@ Cloudflare ครบแล้ว แต่ backend บน production ยัง�
 *   [x] ไม่มี push trigger โดยตั้งใจ — push เข้า main จะเริ่ม deploy พอดี probe ที่ยิงตอนนั้นจะไปอ่าน build ที่กำลังจะถูกแทน
 
 #### **R8. PR ค้าง 7 ตัว — CI เขียวและ mergeable ทุกตัว แต่ยังไม่มีใครรีวิวสักตัว (23 ก.ย.)**
-merge เข้า main = auto-deploy ทันที ให้ merge **ทีละตัว** แล้วเช็ค job ของ Deploy ทุกครั้ง ตัวที่แตะ backend จะยังไม่ขึ้น production จนกว่า R6 ข้อแรกจะจบ
+merge เข้า main = portal/landing auto-deploy ทันที ให้ merge **ทีละตัว** แล้วเช็ค job ของ Deploy ทุกครั้ง ตัวที่แตะ backend ต้องเช็คฝั่ง Render แยกว่าขึ้นแล้ว (และ job Cloud Run จะแดงจนกว่า R6 จะตัดสินใจ)
 
 | PR | เรื่อง | ก่อนปล่อย? |
 | :--- | :--- | :--- |
@@ -255,15 +262,15 @@ golden fixture กลางที่ทั้งสองฝั่งอ่า�
 | :---: | :--- | :--- | :--- |
 | 1 | **ถอด `NEXT_PUBLIC_DEMO_MODE` ใน Cloudflare → rebuild → ยืนยันว่ารหัสมั่วเข้าไม่ได้** (R2) | โจ้ | ~15 นาที |
 | 2 | **เดิน end-to-end บนโดเมนจริงหนึ่งรอบเต็ม** สมัคร → declaration → ส่งลิงก์ → เปิดอีกเครื่อง → **อัปใบเซอร์** → ส่งกลับ — พิสูจน์ `011`/`012` ไปในตัว | โบ๊ท + เฟิน | ~ครึ่งวัน |
-| 3 | **ให้สิทธิ์ Cloud Build กับ `certrace-deployer@`** แล้ว dispatch Deploy ให้ backend ขึ้นจาก CI ได้ (R6) | เฟิน | ~1 ชม. |
-| 4 | รีวิว + merge PR hardening #107–#110 ทีละตัว (R8) — ต้องหลังข้อ 3 ไม่งั้น backend ไม่อัปเดต | โบ๊ท | ~ครึ่งวัน |
+| 3 | **ยืนยัน env บน Render (โดยเฉพาะ Resend) + ตัดสินใจ Render vs Cloud Run** แล้วเก็บ `deploy.yml` ให้ตรง (R6) | เฟิน | ~1 ชม. |
+| 4 | รีวิว + merge PR hardening #107–#110 ทีละตัว (R8) — เช็คทุกครั้งว่า Render deploy ตัวใหม่แล้ว | โบ๊ท | ~ครึ่งวัน |
 | 5 | Import default factor ชุดจริง (R3) — หลัง #107 | เฟิน | รอเฟิน |
 | 6 | ตัดสินใจ #106 (Google login), #111 (smart upload), #112 (suspension/audit) ว่าเข้ารอบนี้ไหม | ทีม | คุยกัน |
 | 7 | Route guard + เรียก `/me` ตอนโหลด (D4) · ตัดสินใจ D1/D2 | — | หลังปล่อย |
 
 **ข้อ 1 ทำก่อนทุกอย่าง** — ตราบใดที่ flag ยังอยู่ พอร์ทัลบนโดเมนจริงเปิดให้ใครก็ได้เข้าไปเห็นข้างใน และ E2E ของข้อ 2 ก็วัดอะไรไม่ได้
 **ข้อ 2 คือสิ่งเดียวที่กั้นระหว่าง "ของขึ้นครบแล้ว" กับ "รู้ว่าของที่ขึ้นใช้ได้จริง"**
-**ข้อ 3 คือสิ่งเดียวที่กั้นระหว่าง "backend ใช้ได้วันนี้" กับ "ยังใช้ได้อยู่หลังแก้ครั้งหน้า"**
+**ข้อ 3 คือสิ่งเดียวที่กั้นระหว่าง "backend ใช้ได้วันนี้" กับ "รู้ว่าแก้ครั้งหน้าจะขึ้นไปยังไง"** — ตอนนี้รีโปอธิบายทางที่ไม่ได้ใช้
 
 ---
 
@@ -294,7 +301,7 @@ golden fixture กลางที่ทั้งสองฝั่งอ่า�
 | เครื่องคำนวณ backend | [certrace-backend/app/services/mrv_engine.py](certrace-backend/app/services/mrv_engine.py) |
 | เครื่องคำนวณ frontend | [certrace-portal/lib/cbam/engine.ts](certrace-portal/lib/cbam/engine.ts) |
 | Fixture กลางที่ใช้เทียบสองเครื่อง | [docs/fixtures/golden-eaf-2026.json](docs/fixtures/golden-eaf-2026.json) |
-| สูตร deploy Cloud Run | [certrace-backend/README.md](certrace-backend/README.md) |
+| สูตร deploy Cloud Run (ยังไม่ใช่ production — ตัวจริงอยู่ Render ดู R6) | [certrace-backend/README.md](certrace-backend/README.md) |
 | Workflow deploy | [.github/workflows/deploy.yml](.github/workflows/deploy.yml) |
 | Workflow CI (PR เท่านั้น) | [.github/workflows/ci.yml](.github/workflows/ci.yml) |
 | ยามเช็ค header production รายคืน | [.github/workflows/security-headers.yml](.github/workflows/security-headers.yml) |
