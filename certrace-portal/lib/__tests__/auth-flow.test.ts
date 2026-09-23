@@ -44,6 +44,19 @@ test("anything else still says something, and does not leak the raw error", () =
   assert.equal(message, "We couldn't sign you in. Please try again.");
 });
 
+test("a suspended account is told so, in the server's own words", () => {
+  const said = "This account is suspended. Please contact contact@certrace.co to restore access.";
+
+  const message = signInError(new ApiError("ACCOUNT_SUSPENDED", said, 403));
+
+  /* Their password WAS right -- the server checks it before it checks the
+     entitlement. "Email or password is incorrect" would send them round a
+     loop that cannot end, so this is the one sign-in failure whose sentence
+     the server owns, and it names where to take it up. */
+  assert.equal(message, said);
+  assert.ok(!/password/i.test(message));
+});
+
 /* ── signing up ────────────────────────────────────────────── */
 
 test("a taken address lands on the email field and points at sign-in", () => {

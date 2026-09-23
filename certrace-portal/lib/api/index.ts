@@ -15,7 +15,24 @@
         fallbacks come out.
    ════════════════════════════════════════════════════════════ */
 
-export { ApiError, isApiError, hasCode, isDeadLink, DEAD_LINK_CODES, TRANSPORT_CODES } from "./errors";
+export {
+  ApiError,
+  isApiError,
+  hasCode,
+  isDeadLink,
+  isAccountSuspended,
+  ACCOUNT_SUSPENDED,
+  DEAD_LINK_CODES,
+  TRANSPORT_CODES,
+} from "./errors";
+
+export {
+  accountSuspension,
+  clearAccountSuspension,
+  markAccountSuspended,
+  onAccountSuspensionChange,
+} from "./suspension";
+export type { SuspensionNotice } from "./suspension";
 
 export { configureApi, apiBaseUrl, apiConfigured, apiTimeoutMs, demoModeEnabled, authUnavailable } from "./config";
 export type { ApiConfig } from "./config";

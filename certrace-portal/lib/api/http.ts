@@ -22,8 +22,9 @@
    ════════════════════════════════════════════════════════════ */
 
 import { apiBaseUrl, apiFetch, apiTimeoutMs } from "./config";
-import { ApiError } from "./errors";
+import { ApiError, isAccountSuspended } from "./errors";
 import { accessToken, clearSession, loadSession, saveSession, type Session } from "./session";
+import { clearAccountSuspension, markAccountSuspended } from "./suspension";
 
 export type RequestOptions = {
   method?: "GET" | "POST" | "PUT" | "DELETE";
@@ -134,8 +135,22 @@ const isUnauthorized = (cause: unknown): boolean =>
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { auth = true } = options;
   try {
-    return await perform<T>(path, options);
+    const answer = await perform<T>(path, options);
+    /* An authenticated call that succeeded is proof the account is being
+       served again — the only proof there is, since nothing tells the browser
+       when a suspension is lifted. No-ops when nothing is stored. */
+    if (auth) clearAccountSuspension();
+    return answer;
   } catch (cause) {
+    /* Recorded, then rethrown unchanged: the call site still fails, but the
+       app now knows WHY every other call is about to fail too. Deliberately
+       above the 401 branch — a suspension must never reach clearSession(),
+       which would send the person to a sign-in screen that refuses their
+       correct password without saying why. */
+    if (cause instanceof ApiError && isAccountSuspended(cause)) {
+      markAccountSuspended(cause.message);
+      throw cause;
+    }
     if (!auth || !isUnauthorized(cause)) throw cause;
     if (await refreshSession()) {
       try {

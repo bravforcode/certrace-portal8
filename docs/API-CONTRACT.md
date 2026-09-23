@@ -60,7 +60,8 @@
 code ที่ฝั่งพอร์ทัลจะดักเป็นพิเศษ:
 `INVALID_CREDENTIALS` · `INVALID_RESET_TOKEN` · `EMAIL_TAKEN` ·
 `TOKEN_NOT_FOUND` · `TOKEN_EXPIRED` · `TOKEN_REVOKED` · `ALREADY_SUBMITTED` ·
-`DECLARATION_NOT_FOUND` · `RATE_LIMITED` (429 — ยิงถี่เกิน หน้าต่าง 15 นาที)
+`DECLARATION_NOT_FOUND` · `RATE_LIMITED` (429 — ยิงถี่เกิน หน้าต่าง 15 นาที) ·
+`ACCOUNT_SUSPENDED` (403 — บัญชีถูกระงับ ดู §1)
 
 **เวลา** — ทุก timestamp เป็น epoch milliseconds (number) ให้ตรงกับที่พอร์ทัลใช้อยู่
 อย่าส่ง ISO string ปนมา
@@ -116,6 +117,67 @@ Session แยกเป็นสองส่วนแล้ว: **access token (
 - ฝั่งพอร์ทัล `lib/api/http.ts` จัดการเองหมด: เจอ 401 บนเส้น authed →
   refresh หนึ่งครั้ง → ยิงซ้ำ → ถ้า refresh ตายด้วยค่อยเคลียร์ session
   (migration 008 สร้างตาราง `refresh_tokens`)
+
+### บัญชีถูกระงับ — 403 `ACCOUNT_SUSPENDED` (เพิ่ม 2026-09-20)
+
+Terms §6.4 / §20.4 ให้เราตัดสิทธิการใช้งานได้ (ค้างชำระเกินกำหนดแจ้งเตือน,
+sanctions, ละเมิดข้อ 13) รอบนี้ฝั่งเซิร์ฟเวอร์ทำได้จริงแล้ว — `users.status`
+เป็น `ACTIVE` หรือ `SUSPENDED` (migration 015) และคนที่ถูกระงับจะเจอ:
+
+```jsonc
+// ทุก endpoint 🔒 + POST /login + POST /refresh
+// 403
+{ "detail": { "code": "ACCOUNT_SUSPENDED",
+              "message": "This account is suspended. Please contact …" } }
+```
+
+**403 ไม่ใช่ 401 โดยตั้งใจ** — `lib/api/http.ts` เจอ 401 แล้ว refresh หนึ่งครั้ง
+และเคลียร์ session ทิ้ง ถ้าใช้ 401 คนที่บริษัทค้างบิลจะเห็นแค่หน้า login ที่
+ปฏิเสธเขาไปเรื่อย ๆ โดยไม่บอกเหตุผล 403 แปลว่า "session ปกติ แต่บัญชีถูกระงับ"
+ฝั่งพอร์ทัลควรดักโค้ดนี้แล้วขึ้นหน้าอธิบาย + ช่องทางติดต่อ (ยังไม่ได้ทำ)
+
+**สิ่งที่ระงับไปด้วย**
+
+- refresh token ที่ยังไม่ตาย ถูกเผาทั้งหมดใน transaction เดียวกับการเปลี่ยน status
+- access token ที่ออกไปแล้วเรียกคืนไม่ได้ (เป็น JWT ลงลายเซ็น ไม่ได้เก็บ row)
+  แต่ `current_account` อ่านบัญชีสดทุก request → call ถัดไปโดนปฏิเสธ
+- **smart link ของ exporter คนนั้นหยุด resolve ทันที** ซัพพลายเออร์เห็น 410
+  `TOKEN_REVOKED` แบบปกติ — เรื่องใครค้างบิลไม่ใช่เรื่องที่เขาควรรู้จาก error code
+- ไม่ได้ stamp `revoked_at` ลงแถว link เพราะการระงับมีไว้ให้ปลดคืน ถ้า revoke
+  จริงจะกลายเป็นว่าจ่ายเงินแล้วต้องส่งลิงก์ใหม่ให้ซัพพลายเออร์ทุกราย
+
+**ไม่ส่งอีเมลแจ้งลูกค้า** — notice ของ §20.4 อยู่ในเธรดที่คนคุยกันอยู่แล้ว
+และไม่มี endpoint เพราะยังไม่มีบัญชีพนักงานให้ auth — สั่งด้วย
+`python -m app.jobs.account_access --email … --suspend --reason "…"`
+ทุกคำสั่งเขียน `account_audit_events` ใน transaction เดียวกับการกระทำ
+(`--history` อ่านกลับได้ ใครทำ เมื่อไหร่ เพราะอะไร)
+
+**ฝั่งพอร์ทัลต่อแล้ว** — `lib/api/suspension.ts` จำโค้ดนี้ไว้ (ไม่เคลียร์ session
+ไม่ยิง refresh) และ `components/account-suspended.tsx` ขึ้นแทนทั้งแอป
+พร้อมปุ่ม "Check again" ที่ยิง `/me` — call ไหนก็ได้ที่สำเร็จจะล้างสถานะทันที
+เพราะไม่มีอะไรบอกเบราว์เซอร์ว่าการระงับถูกปลดแล้ว ส่วน `/login` ขึ้นข้อความ
+ที่เซิร์ฟเวอร์ส่งมาตรง ๆ (รหัสผ่านเขาถูกแล้ว จะบอกว่า "รหัสผิด" ไม่ได้)
+
+### บัญชีถูก anonymise — Privacy §11.2 (เพิ่ม 2026-09-20)
+
+`users.status` มีสถานะที่สาม `ANONYMISED` (migration 016) เป็นประตูทางเดียว
+หลังหมดหน้าต่าง export 30 วันนับจากวันที่ระงับ (Terms §9.5) — ก่อนครบสั่งไม่ได้
+เว้นแต่ `--force` (เคสลูกค้าขอให้ลบเองตอนนี้)
+
+```bash
+python -m app.jobs.account_access --email … --anonymise --yes --reason "…"
+python -m app.jobs.account_access --account-id <uuid> --history   # หลังลบแล้ว
+```
+
+- อีเมลกลายเป็น `anonymised-<id>@certrace.invalid` ชื่อ/บริษัทเป็น NULL
+  password hash ใช้ไม่ได้ · `password_resets` / `refresh_tokens` /
+  `reminder_subjects` ถูกลบ (ทั้งสามที่เก็บอีเมลซ้ำไว้) · smart link ถูก revoke ถาวร
+- **แถว `users` ไม่ถูกลบ** เพราะ FK จะ cascade เอา declaration, link และไฟล์หลักฐาน
+  ไปด้วย รวมถึง sealed version ที่ผู้ส่งออกอาจมีหน้าที่ต้องเก็บ (§12.4) จะลบด้วย
+  ต้องสั่ง `--purge-customer-data` แยก
+- `account_audit_events` **ไม่เก็บอีเมลเลย** เพราะมันต้องอยู่ยาวกว่าตัวตนที่เพิ่งลบไป
+  อ้างอิงด้วย account id เท่านั้น
+- token ที่ยังถืออยู่ตอบ 401 ไม่ใช่ 403 — บัญชีไม่มีอยู่แล้ว ไม่มีอะไรให้ติดต่อกลับ
 
 ### ของเดิมที่มีอยู่แล้ว
 
@@ -297,6 +359,24 @@ submissions (งานถัดไป)
 
 เหตุผล: ถ้าให้ client เขียนเอง ซัพพลายเออร์แก้เวลาหรือเลขเวอร์ชันได้ ซึ่งเป็นสิ่งที่
 ผู้ตรวจสอบจะดู
+
+### `POST /api/v1/declarations/{id}/links/{token}/revoke` 🔒 (เพิ่ม 2026-09-20)
+
+ตัดลิงก์รายตัวก่อนหมดอายุ — เชิญผิดอีเมล คนติดต่อลาออก ส่งเดือนผิดบริษัท
+`revoked_at` อยู่ใน schema ตั้งแต่ migration 009 และ resolve เช็คมาตลอด
+แต่ไม่เคยมีอะไรเขียนค่าลงไป อันนี้คือตัวเขียน
+
+```jsonc
+// 200
+{ "token": "…", "revokedAt": 1789...  }
+```
+
+- owner-scoped เหมือน endpoint อื่นของ exporter — ลิงก์ของคนอื่นตอบ 404
+  `DECLARATION_NOT_FOUND`
+- ยิงซ้ำได้ `revokedAt` คงค่าแรกไว้ (วันที่ซัพพลายเออร์เสียสิทธิเป็นหลักฐาน
+  การกดซ้ำไม่ใช่ข้อเท็จจริงใหม่)
+- **ของที่ซัพพลายเออร์ส่งมาแล้วยังอยู่ครบ** ลิงก์คือทางเข้า ไม่ใช่ตัวงาน
+- หลังจากนั้นซัพพลายเออร์เจอ 410 `TOKEN_REVOKED` ตามปกติ
 
 ### `POST /api/v1/declarations/{id}/links/{token}/revision` 🔒
 

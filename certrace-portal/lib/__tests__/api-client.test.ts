@@ -36,7 +36,8 @@ g.window = { localStorage: storage };
 g.localStorage = storage;
 
 const { configureApi, apiConfigured } = await import("../api/config");
-const { ApiError, isDeadLink, hasCode } = await import("../api/errors");
+const { ApiError, isDeadLink, hasCode, isAccountSuspended } = await import("../api/errors");
+const { accountSuspension, clearAccountSuspension } = await import("../api/suspension");
 const { request } = await import("../api/http");
 const { saveSession, loadSession, accessToken } = await import("../api/session");
 const { login, register, requestPasswordReset, resetPassword, changePassword } = await import(
@@ -68,6 +69,7 @@ const headerOf = (call: Captured, name: string): string | undefined =>
 
 function reset(): void {
   storage.clear();
+  clearAccountSuspension();
   configureApi({ baseUrl: "", fetchImpl: null, defaultTimeoutMs: 15_000 });
 }
 
@@ -208,6 +210,63 @@ test("a 401 from a public link route leaves the signed-in session alone", async 
   await resolveLink("kJ8").catch(() => {});
 
   assert.equal(loadSession()?.accessToken, "good", "the link is dead, the exporter is not signed out");
+});
+
+/* ── a suspended account is not a signed-out one ── */
+
+const SUSPENDED = {
+  detail: {
+    code: "ACCOUNT_SUSPENDED",
+    message: "This account is suspended. Please contact contact@certrace.co to restore access.",
+  },
+};
+
+test("a 403 ACCOUNT_SUSPENDED keeps the session and records why", async () => {
+  reset();
+  stubServer(() => json(SUSPENDED, 403));
+  saveSession({ accessToken: "good", user: { id: "u1", email: "a@b.co", onboarded: true } });
+
+  const error = await listDeclarations().catch((cause) => cause);
+
+  assert.ok(isAccountSuspended(error));
+  /* The password is right and the token is live — the ENTITLEMENT is gone.
+     Clearing the session here would send them to /login to watch a correct
+     password be refused with no explanation. */
+  assert.equal(loadSession()?.accessToken, "good");
+  assert.equal(accountSuspension()?.message, SUSPENDED.detail.message);
+});
+
+test("a suspension never triggers the refresh-and-replay path", async () => {
+  reset();
+  let served = 0;
+  const calls = stubServer(() => {
+    served += 1;
+    return json(SUSPENDED, 403);
+  });
+  saveSession({ accessToken: "good", refreshToken: "ref", user: A_USER });
+
+  await listDeclarations().catch(() => {});
+
+  /* One call, not three: refreshing would burn a live refresh token to get a
+     new access token that is refused for exactly the same reason. */
+  assert.equal(served, 1);
+  assert.equal(calls.length, 1);
+  assert.equal(loadSession()?.refreshToken, "ref");
+});
+
+test("an authenticated call that succeeds clears the suspension notice", async () => {
+  reset();
+  stubServer(() => json(SUSPENDED, 403));
+  saveSession({ accessToken: "good", user: A_USER });
+  await listDeclarations().catch(() => {});
+  assert.ok(accountSuspension(), "precondition: the notice is stored");
+
+  stubServer(() => json({ declarations: [] }));
+  await listDeclarations();
+
+  /* Nothing tells the browser when a suspension is lifted; a call that works
+     is the only proof there is. */
+  assert.equal(accountSuspension(), null);
 });
 
 /* ── the hour is up: refresh and replay ── */

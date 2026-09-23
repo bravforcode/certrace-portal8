@@ -6,7 +6,15 @@ import { useRouter } from "next/navigation";
 import { AuthLayout } from "@/components/auth-panel";
 import { EnglishOnly, useT } from "@/lib/i18n";
 import { useProfile } from "@/lib/profile";
-import { completeGoogleCallback, GoogleCallbackError, hasCode, pendingGoogleIntent, type GoogleIntent } from "@/lib/api";
+import {
+  completeGoogleCallback,
+  GoogleCallbackError,
+  hasCode,
+  isAccountSuspended,
+  isApiError,
+  pendingGoogleIntent,
+  type GoogleIntent,
+} from "@/lib/api";
 import { BLANK_SIGNUP, signInDestination } from "@/lib/auth-flow";
 
 /* ── Back from Google ───────────────────────────────────────────
@@ -37,6 +45,9 @@ function failureMessage(cause: unknown): string {
     if (cause.problem === "expired") return "This sign-in link has already been used or has expired.";
     return "Google sign-in could not be verified. Please try again.";
   }
+  /* Same answer /login gives a suspended account (lib/auth-flow.ts): the
+     server's message names who to contact, and the reason stays out of it. */
+  if (isAccountSuspended(cause) && isApiError(cause)) return cause.message;
   if (hasCode(cause, "GOOGLE_EMAIL_MISMATCH")) return "Choose the Google account with the same email as your Certrace account.";
   if (hasCode(cause, "GOOGLE_ACCOUNT_CONFLICT")) return "This email is already linked to a different Google account.";
   if (hasCode(cause, "GOOGLE_NOT_CONFIGURED")) return "Sign in with Google isn't available yet.";

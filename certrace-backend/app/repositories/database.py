@@ -285,6 +285,23 @@ class DatabaseRepository:
             session.flush()
             return self._smart_link_dict(row)
 
+    def revoke_smart_link(self, token: str) -> dict[str, object] | None:
+        """Kill one link early, or None if it is gone.
+
+        Idempotent: a link already revoked keeps its first ``revoked_at``. The
+        date is evidence of when the supplier lost access, and a second click
+        on the same button is not a new fact.
+        """
+
+        with self.session_factory.begin() as session:
+            row = session.get(SmartLink, token)
+            if row is None:
+                return None
+            if row.revoked_at is None:
+                row.revoked_at = datetime.datetime.now(datetime.timezone.utc)
+            session.flush()
+            return self._smart_link_dict(row)
+
     def list_smart_links(
         self, user_id: uuid.UUID, declaration_id: str
     ) -> list[dict[str, object]]:

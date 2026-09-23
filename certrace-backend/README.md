@@ -127,6 +127,85 @@ Adding a notification is three edits: copy in both locales in
 and a `background_tasks.add_task(notifications.send_quietly, ...)` at the point
 in the router where the thing actually happens.
 
+## Suspending an account
+
+Terms of Service §6.4 and §20.4 let us withdraw a customer's access — unpaid
+invoices past notice, a sanctions hit, an abuse report. `users.status` is what
+carries that (revision 013), and one command flips it:
+
+```bash
+python -m app.jobs.account_access --email a@b.co --suspend \
+    --reason "invoice 2026-0412, 15 days past the §6.4 notice"
+python -m app.jobs.account_access --email a@b.co --restore
+```
+
+`--reason` is required and is recorded on the account, never shown to the
+customer: it is what makes the suspension defensible six months later. Add
+`--dry-run` to see the move without making it. Exit codes: `0` done, `1` bad
+invocation or no `DATABASE_URL`, `2` no account for that address, `3` the
+account is real but not in a state the action allows.
+
+Every action writes a row to `account_audit_events` in the same transaction,
+so the record cannot drift from what happened:
+
+```bash
+python -m app.jobs.account_access --email a@b.co --history
+python -m app.jobs.account_access --account-id <uuid> --history   # after erasure
+```
+
+What a suspension stops, and what it does not:
+
+| | |
+| --- | --- |
+| Sign-in | 403 `ACCOUNT_SUSPENDED` — the password is still correct, the entitlement is gone. |
+| Refresh tokens | Every live one is burned in the same transaction, so the week-long session ends now. |
+| Access tokens already issued | Signed, not stored, so they cannot be recalled — but `current_account` re-reads the account, so the next API call is refused. |
+| Supplier smart links | Stop resolving while the owner is suspended (`app/routers/links.py`); the supplier sees the ordinary `TOKEN_REVOKED`. |
+| The customer's data | Untouched. Suspension is reversible by design — deleting the row would cascade their declarations, links and evidence away, which no paid invoice could undo. |
+
+There is no endpoint for this, because there is no staff account to
+authenticate one: see `certrace-portal/docs/ADMIN-CONSOLE-PLAN.md`. The
+command reaches the same `auth_service` functions an admin console will call.
+
+The portal shows a suspended customer an explanation rather than a broken
+dashboard: a 403 `ACCOUNT_SUSPENDED` is recorded by `lib/api/suspension.ts`,
+never mistaken for a dead session, and `components/account-suspended.tsx`
+takes the screen until an authenticated call succeeds again.
+
+## Erasing an account
+
+Privacy §11.2 and Terms §9.5: after termination the customer has thirty days
+to export, and then their data may be deleted or anonymised. That is the other
+command, and it is a one-way door:
+
+```bash
+python -m app.jobs.account_access --email a@b.co --anonymise --yes \
+    --reason "terminated 2026-08-01, export window closed"
+```
+
+It refuses unless the account has been suspended for `EXPORT_WINDOW_DAYS`
+(30), because running it earlier destroys a record the customer was promised
+they could still take; `--force` waives that for the person who asks to be
+erased now. `--yes` is required either way.
+
+What comes out, everywhere it lives — scrubbing one place and calling it
+anonymisation is how a deletion request comes back six months later:
+
+| | |
+| --- | --- |
+| `users` | Email replaced with `anonymised-<id>@certrace.invalid`, name and company nulled, password hash made unusable. |
+| `password_resets` | Deleted — every code ever issued carries a copy of the address. |
+| `refresh_tokens` | Deleted. |
+| `reminder_subjects` | Deleted — they hold a supplier's address and the link mailed to them. |
+| `smart_links` | Revoked for good, unlike a suspension: there is no relationship left to restore. |
+| `account_audit_events` | **Kept**, and deliberately holds no address — the record has to outlive the identity, which is also why `--account-id` exists. |
+
+The row itself stays. Deleting it would cascade the declarations, links and
+every uploaded certificate away, including sealed versions the exporter may be
+legally required to keep (Terms §12.4, §4.5). Add `--purge-customer-data` to
+delete those too — ask the customer first, because that retention duty is
+theirs, not ours.
+
 ## Supabase setup
 
 1. Put the pooled PostgreSQL URI in `.env`:

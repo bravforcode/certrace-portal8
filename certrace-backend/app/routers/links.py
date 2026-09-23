@@ -159,6 +159,16 @@ def live_link(
         raise _TOKEN_REVOKED
     if _now_ms() >= link["expiresAt"]:
         raise _TOKEN_EXPIRED
+    # A suspended exporter's links stop resolving with the account (Terms
+    # §20.4: access withdrawn "in whole or in part"). Checked here rather than
+    # by stamping revoked_at across their rows, because suspension is meant to
+    # be lifted: a paid invoice restores every link as it was, instead of
+    # leaving the exporter to re-send one to every supplier. The supplier sees
+    # the ordinary revoked answer -- they are not our customer, and whose
+    # invoice is unpaid is not theirs to learn.
+    owner = get_account(database, str(link["userId"]))
+    if owner is not None and not owner.is_active:
+        raise _TOKEN_REVOKED
     # The declaration was deleted after the link was minted. The SQL FK cascades
     # the link row away, so DB mode never reaches here; the in-memory store does.
     doc = _declaration_doc(request, link["userId"], link["declId"])
@@ -450,6 +460,44 @@ def request_revision(
     state["events"] = events
     state["updatedAt"] = now
     return _persist_state(request, database, token, state)
+
+
+@router.post("/declarations/{declaration_id}/links/{token}/revoke")
+def revoke_link(
+    declaration_id: str,
+    token: str,
+    request: Request,
+    account: Account = Depends(current_account),
+) -> dict[str, object]:
+    """Kill one supplier's link early, before it expires.
+
+    ``revoked_at`` has been in the schema since revision 009 and ``live_link``
+    has always refused a link carrying it -- but nothing ever wrote it, so the
+    column described a capability the product did not have. This is it: the
+    wrong address was invited, a contact left the supplier, a month was sent
+    to the wrong company.
+
+    Owner-scoped like the rest of the exporter's link routes, and NOT gated on
+    revoked or expired: revoking a link twice is the same answer as revoking
+    it once. What the supplier already submitted stays -- the link is the way
+    in, not the work.
+    """
+
+    if _declaration_doc(request, account.id, declaration_id) is None:
+        raise _DECLARATION_NOT_FOUND
+
+    link, database = _owned_link(request, account.id, declaration_id, token)
+
+    if database is not None:
+        revoked = database.revoke_smart_link(token)
+        if revoked is None:
+            # Lost the race to a declaration delete between check and write.
+            raise _TOKEN_NOT_FOUND
+        link = revoked
+    elif link["revokedAt"] is None:
+        link["revokedAt"] = _now_ms()
+
+    return {"token": token, "revokedAt": link["revokedAt"]}
 
 
 @router.get("/links/{token}")

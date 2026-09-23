@@ -228,3 +228,36 @@ def test_a_token_failing_any_check_is_refused(overrides: dict) -> None:
 
     assert response.status_code == 401
     assert response.json()["detail"]["code"] == "INVALID_GOOGLE_TOKEN"
+
+
+# ── Google and the account lifecycle (suspension, anonymisation) ──
+
+
+def test_a_suspended_account_cannot_sign_in_with_google_either() -> None:
+    from app.services.auth_service import suspend_account
+
+    client = _client()
+    email = _fresh_email()
+    user_id = _sign_in(client, email).json()["user"]["id"]
+    suspend_account(None, user_id, reason="INV-0001 unpaid")
+
+    response = _sign_in(client, email)
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "ACCOUNT_SUSPENDED"
+
+
+def test_an_anonymised_account_is_not_found_again_through_google() -> None:
+    from app.services.auth_service import anonymise_account
+
+    client = _client()
+    email = _fresh_email()
+    old_id = _sign_in(client, email).json()["user"]["id"]
+    anonymise_account(None, old_id, force=True)
+
+    response = _sign_in(client, email)
+
+    # A fresh account, not the scrubbed row: the Google subject id went with
+    # everything else that identified the person.
+    assert response.status_code == 200
+    assert response.json()["user"]["id"] != old_id
