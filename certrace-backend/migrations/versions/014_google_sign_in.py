@@ -10,16 +10,16 @@ password somebody else may have set gets retired).
 renamed on Google's side, the subject cannot. Unique, so one Google account can
 never open two Certrace accounts. Nullable — password-only accounts have none.
 
-Revision ID: 013
-Revises: 012
+Revision ID: 014
+Revises: 013
 Create Date: 2026-09-18
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "013"
-down_revision = "012"
+revision = "014"
+down_revision = "013"
 branch_labels = None
 depends_on = None
 
