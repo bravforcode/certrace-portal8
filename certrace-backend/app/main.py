@@ -16,6 +16,7 @@ from app.config import (
     EMAIL_LOGO_URL_ENV,
     GOOGLE_CLIENT_ID_ENV,
     JOBS_TOKEN_ENV,
+    SUPPLIER_EMAILS_ENV,
     JWT_SECRET_ENV,
     load_env_file_value,
 )
@@ -140,6 +141,9 @@ def create_app(
     application.state.email_transport = email_transport or transport_from_env()
     application.state.email_logo_url = load_env_file_value(EMAIL_LOGO_URL_ENV)
     application.state.jobs_token = load_env_file_value(JOBS_TOKEN_ENV)
+    application.state.supplier_emails_enabled = (
+        load_env_file_value(SUPPLIER_EMAILS_ENV) or ""
+    ).strip() == "1"
     if configured_origins:
         application.add_middleware(
             CORSMiddleware,

@@ -212,6 +212,9 @@ def mark_sent(
     response as a deliberate nudge -- two identical requests in a row is the
     kind of thing that gets an address marked as spam. The ladder in
     app/services/reminder_schedule.py does the chasing from here.
+
+    Only with CERTRACE_SUPPLIER_EMAILS=1 -- see app/config.py for why it is
+    off until the monthly form the link opens can reach the exporter.
     """
 
     row = _store(request).mark_reminder_subject_sent(
@@ -219,7 +222,11 @@ def mark_sent(
     )
     if row is None:
         raise _NOT_FOUND
-    if int(row["resendCount"]) == 0 and not row["accountLocked"]:
+    if (
+        getattr(request.app.state, "supplier_emails_enabled", False)
+        and int(row["resendCount"]) == 0
+        and not row["accountLocked"]
+    ):
         locale = row["locale"] or None
         due_date = datetime.date.fromisoformat(str(row["dueDate"]))
         background_tasks.add_task(

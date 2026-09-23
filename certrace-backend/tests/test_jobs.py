@@ -21,9 +21,12 @@ class _Store:
     session_factory = None
 
 
-def _client(token: str | None = TOKEN, store: object | None = None) -> TestClient:
+def _client(
+    token: str | None = TOKEN, store: object | None = None, emails: bool = True
+) -> TestClient:
     application = create_app()
     application.state.jobs_token = token
+    application.state.supplier_emails_enabled = emails
     application.state.reminder_store = store
     return TestClient(application, raise_server_exceptions=False)
 
@@ -74,4 +77,22 @@ def test_the_right_token_runs_the_ladder_and_reports(monkeypatch) -> None:
         "failed": 0,
         "skippedLocked": 1,
     }
+    assert seen["dry_run"] is True
+
+
+def test_with_supplier_email_off_a_run_can_only_rehearse(monkeypatch) -> None:
+    seen: dict[str, object] = {}
+
+    def fake_run(**kwargs):
+        seen.update(kwargs)
+        return RunSummary()
+
+    monkeypatch.setattr("app.services.reminders.run", fake_run)
+
+    response = _client(store=_Store(), emails=False).post(
+        f"{URL}?dry_run=false", headers={"Authorization": f"Bearer {TOKEN}"}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["dryRun"] is True
     assert seen["dry_run"] is True

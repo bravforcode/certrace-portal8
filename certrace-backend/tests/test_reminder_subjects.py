@@ -135,6 +135,10 @@ def api_client(outbox: RecordingTransport) -> TestClient:
     # also move the account store onto this fake, which knows nothing about
     # users - and every test here has to be able to register one.
     application.state.reminder_store = FakeRepository()
+    # On here so the email tests below exercise the send; the default is off
+    # (app/config.py), and test_supplier_email_is_off_unless_switched_on
+    # covers that.
+    application.state.supplier_emails_enabled = True
     return TestClient(application, raise_server_exceptions=False)
 
 
@@ -493,3 +497,15 @@ def test_the_request_is_written_in_the_suppliers_language(client, outbox) -> Non
     _sent(client, headers)
 
     assert "ขอข้อมูล" in outbox.last.subject
+
+
+def test_supplier_email_is_off_unless_switched_on(client, outbox) -> None:
+    """The monthly form the link opens is not server-backed yet, so by
+    default Certrace records the send and writes to nobody."""
+
+    client.app.state.supplier_emails_enabled = False
+    headers = _signed_in(client)
+    _register(client, headers)
+
+    assert _sent(client, headers).status_code == 200
+    assert outbox.sent == []
