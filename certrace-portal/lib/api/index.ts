@@ -21,6 +21,8 @@ export { configureApi, apiBaseUrl, apiConfigured, apiTimeoutMs, demoModeEnabled,
 export type { ApiConfig } from "./config";
 
 export { request } from "./http";
+
+export { warmBackend } from "./warm";
 export type { RequestOptions } from "./http";
 
 export {
