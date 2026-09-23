@@ -963,6 +963,14 @@ export const TH: Record<string, string> = {
   "New features, improvements and platform announcements.": "ฟีเจอร์ใหม่ การปรับปรุง และประกาศเกี่ยวกับแพลตฟอร์ม",
   "Always on — protects your account": "เปิดตลอดเวลา เพื่อปกป้องบัญชีของคุณ",
   "Change password": "เปลี่ยนรหัสผ่าน",
+  "Sign-in with Google": "เข้าสู่ระบบด้วย Google",
+  "Your Google account {email} is connected. You can sign in with Google or with your password.":
+    "เชื่อมบัญชี Google {email} แล้ว เข้าสู่ระบบได้ทั้งด้วย Google และรหัสผ่าน",
+  "Connect the Google account for {email} to sign in with one click. Your password keeps working.":
+    "เชื่อมบัญชี Google ของ {email} เพื่อเข้าสู่ระบบได้ในคลิกเดียว รหัสผ่านเดิมยังใช้ได้",
+  "Google connected.": "เชื่อมบัญชี Google แล้ว",
+  "Connect Google": "เชื่อมบัญชี Google",
+  "Connected": "เชื่อมแล้ว",
   "Current password": "รหัสผ่านปัจจุบัน",
   "New password": "รหัสผ่านใหม่",
   "At least 8 characters": "อย่างน้อย 8 อักขระ",

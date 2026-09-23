@@ -62,6 +62,19 @@ class LoginRequest(BaseModel):
     password: str = Field(..., min_length=1)
 
 
+class GoogleSignInRequest(BaseModel):
+    """What the portal brings back from Google's redirect.
+
+    ``nonce`` is the value the portal generated before sending the browser to
+    Google; the token must carry the same one (see google_identity).
+    """
+
+    id_token: str = Field(..., min_length=20, max_length=8192, alias="idToken")
+    nonce: str = Field(..., min_length=16, max_length=256)
+
+    model_config = {"populate_by_name": True}
+
+
 class AuthUser(BaseModel):
     """The account as the portal renders it.
 
@@ -76,6 +89,7 @@ class AuthUser(BaseModel):
     first_name: str | None = Field(default=None, serialization_alias="firstName")
     last_name: str | None = Field(default=None, serialization_alias="lastName")
     company_name: str | None = Field(default=None, serialization_alias="companyName")
+    google_linked: bool = Field(default=False, serialization_alias="googleLinked")
 
 
 class SessionResponse(BaseModel):
