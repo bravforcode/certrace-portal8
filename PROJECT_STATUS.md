@@ -5,8 +5,8 @@
 > อัปเดตล่าสุด: 23 ก.ย. 2026 — เช็คจากของจริงอีกรอบ: `api.certrace.co/readyz` ตอบ `ready: true, databaseConfigured: true` · `gh run list --workflow deploy.yml` + `gh run view --json jobs` · `gh secret list` / `gh variable list` · `gh pr list`
 > **เปลี่ยนจาก 16 ก.ย.:** secret + GCP vars ตั้งครบแล้ว ท่อ deploy **ส่ง landing + portal ขึ้นเองได้จริง** (run ของ #105 `Deploy portal: success`)
 > **backend production อยู่บน Render ไม่ใช่ Cloud Run** — `api.certrace.co` → CNAME `certrace.onrender.com` (header `rndr-id`, `x-render-origin-server`) job `Deploy backend to Cloud Run` ใน `deploy.yml` จึงเป็นอีกทางที่ยังไม่ได้ใช้ และมันล้มอยู่ (ดู R6)
-> **R2 ยังเปิด แต่ต้นเหตุเปลี่ยน:** โค้ดแก้ถูกแล้ว ที่พอร์ทัลยังรับรหัสมั่วเพราะมีคนตั้ง `NEXT_PUBLIC_DEMO_MODE=1` ไว้ใน build env ฝั่ง Cloudflare เอง (ยืนยันล่าสุด 19 ก.ย.)
-> สรุปสั้น: **ตัวบล็อกจริงมีข้อเดียว = ถอด demo flag ใน Cloudflare** ถอดแล้วเดิน E2E บน production ได้ทันที ที่เหลือ (R3, PR hardening, ตัดสินใจเรื่อง host ของ backend, อีเมล) ทำขนานกันได้
+> **R2 ปิดแล้ว (เช็ค 23 ก.ย.):** bundle ที่เสิร์ฟอยู่ฝัง `"https://api.certrace.co"` และ `demoModeEnabled()` คอมไพล์เป็น `!r()&&"1"==="".trim()` (flag ว่าง) · ยิง `POST /api/auth/login` ด้วยรหัสมั่วได้ `401 INVALID_CREDENTIALS` — ข้อความ "flag ใน Cloudflare ยังเปิด" ของรอบ 19 ก.ย. ตกยุคแล้ว (build env ของ Workers Builds `certracept` มีแค่ `NEXT_PUBLIC_API_BASE_URL`)
+> สรุปสั้น: **ตัวบล็อกหลักตอนนี้คือเดิน E2E บน production** ที่เหลือ (R3, PR hardening, ตัดสินใจเรื่อง host ของ backend, scheduler อีเมล) ทำขนานกันได้
 
 ---
 
@@ -17,23 +17,23 @@
 | นิยามของ MVP | สถานะ | เหลืออะไร |
 | :--- | :---: | :--- |
 | **เปิดเดโมให้ลูกค้าดูได้** | 🟢 100% | ไม่เหลือ — `certrace.co` และ `portal.certrace.co` ขึ้นแล้ว ตอบ 200 ทั้งคู่ |
-| **Design Partner ใช้งานจริง เก็บข้อมูลซัพพลายเออร์จริงได้** | 🟡 ~90% | ทั้งสามชั้นขึ้นของจริงแล้วและต่อถึงกัน แต่ **พอร์ทัลยังเปิด demo mode อยู่ (R2)** เหลือถอด flag → เดิน E2E บนโดเมนจริง → default factor ชุดจริง (R3) |
+| **Design Partner ใช้งานจริง เก็บข้อมูลซัพพลายเออร์จริงได้** | 🟢 ~93% | ทั้งสามชั้นขึ้นของจริงและต่อถึงกัน พอร์ทัลไม่อยู่ใน demo mode แล้ว, Resend ส่งจริงแล้ว เหลือ **เดิน E2E บนโดเมนจริง** → default factor ชุดจริง (R3) → scheduler เมลเตือน (R4) |
 
 ```
-[████████████████████████████████████░░░░] 90%
+[█████████████████████████████████████░░░] 93%
 ```
 
-ลดจาก 95% ของรอบ 16 ก.ย. เพราะรอบนั้นนับ R2 ว่าจบที่โค้ด แต่ของบนโดเมนจริงยังรับรหัสมั่วอยู่ และยังไม่รู้ว่า backend บน Render ตาม main ทันหรือเปล่า
+ต่ำกว่า 95% ของรอบ 16 ก.ย. เพราะรอบนั้นยังไม่เห็นว่าเมลเตือนไม่มีอะไรสั่งรัน และยังไม่รู้ว่า backend บน Render ตาม main ทันหรือเปล่า
 
 ---
 
 ## 🚨 เรื่องที่ต้องรู้ก่อนอย่างอื่น
 
-**1) `portal.certrace.co` ยังใส่รหัสอะไรก็ล็อกอินผ่าน — เพราะ flag ใน Cloudflare ไม่ใช่เพราะโค้ด**
+**1) ✅ `portal.certrace.co` ไม่รับรหัสมั่วแล้ว (R2 ปิด 23 ก.ย.)**
 
-โค้ดแก้ครบแล้ว (default ใน [`next.config.ts`](certrace-portal/next.config.ts) เป็นค่าว่าง, `deploy.yml` ส่ง `API_URL` เข้า build) แต่ build env ฝั่ง Cloudflare มี `NEXT_PUBLIC_DEMO_MODE=1` ตั้งไว้โดยเจตนา (ยืนยันด้วยการล็อกอินรหัสมั่ว 19 ก.ย.) ใครเดาโดเมนถูกก็เข้าไปเห็นข้างในได้
+เช็คจากของจริง: bundle ที่เสิร์ฟอยู่ฝัง `"https://api.certrace.co"` และ `demoModeEnabled()` คอมไพล์เป็น `!r()&&"1"==="".trim()` (flag ว่าง) · ยิง `POST /api/auth/login` ด้วยรหัสมั่วได้ `401 INVALID_CREDENTIALS` เหลือแค่ยืนยันด้วยตาหนึ่งครั้งบนหน้า `/login` (ใส่รหัสมั่ว ต้องขึ้นว่ารหัสผิด)
 
-> **โจ้:** ลบ `NEXT_PUBLIC_DEMO_MODE` ออกจาก build env ใน Cloudflare → rebuild → ลองล็อกอินด้วยรหัสมั่ว **ต้องไม่ผ่าน** ห้ามปิดข้อนี้ด้วยการอ่าน header
+> ⚠️ พอร์ทัลถูก deploy ขึ้น `certracept` สองทาง — `deploy.yml` (GitHub Actions) และ Cloudflare Workers Builds — **ตัวที่ build เสร็จทีหลังคือตัวที่เสิร์ฟ** ถ้าวันไหนสองทางนี้ใช้ env ต่างกัน พอร์ทัลจะสลับไปมาตามจังหวะ merge ควรเลือกให้เหลือทางเดียว (ดู R6)
 
 **2) backend production อยู่บน Render — ส่วน `deploy.yml` ส่งไป Cloud Run ซึ่งไม่ใช่ตัวที่ใช้งานจริง**
 
@@ -58,7 +58,7 @@ rndr-id: ... · x-render-origin-server: uvicorn
 | **Landing Page** | 🟢 100% | Next.js 15 หลายภาษา, ฟอร์มยิงเข้า Google Sheets แยกแท็บ, `certrace.co` ตอบ 200, deploy อัตโนมัติผ่าน `deploy.yml` แล้ว | — |
 | **Outreach Scripts** | 🟢 100% | ยืนยันโดเมนบน Resend, ยิงเมลหา Design Partners ชุดแรกแล้ว | สแตนบายมอนิเตอร์ตอบกลับ |
 | **Portal — หน้าจอ/UX** | 🟢 100% | ครบทุกหน้า, responsive, 2 ภาษา, เหลือพอร์ทัลเดียวแล้ว (โฟลเดอร์ซ้ำถูกลบ), empty/loading/error state ครบ | — |
-| **Portal — การเชื่อมต่อข้อมูล** | 🟡 70% | auth, declarations, smart links, ไฟล์แนบ, reminder subjects ต่อ API จริงแล้วผ่าน [`lib/api/`](certrace-portal/lib/api) + TanStack Query | 🔴 **build env ใน Cloudflare ยังตั้ง `NEXT_PUBLIC_DEMO_MODE=1` → รับรหัสอะไรก็ได้ (R2)** · team / workspace / profile / monthly-requests ยังเป็น localStorage (ตั้งใจเลื่อน — ดู D2) · ไม่มี route guard และ `/api/auth/me` ไม่มีใครเรียก (ดู D4) |
+| **Portal — การเชื่อมต่อข้อมูล** | 🟡 75% | auth, declarations, smart links, ไฟล์แนบ, reminder subjects ต่อ API จริงแล้วผ่าน [`lib/api/`](certrace-portal/lib/api) + TanStack Query · **build บนโดเมนจริงชี้ `api.certrace.co` แล้ว demo mode ปิด** | team / workspace / profile / monthly-requests ยังเป็น localStorage (ตั้งใจเลื่อน — ดู D2) · ไม่มี route guard และ `/api/auth/me` ไม่มีใครเรียก (ดู D4) |
 | **Backend — Auth** | 🟢 100% | `register` `login` `me` `refresh` `logout` `change/forgot/reset-password` + JWT + refresh token + rate limit หน้าต่าง 15 นาที | — |
 | **Backend — Smart Links** | 🟢 100% | สร้าง / resolve / save state / submit / ขอแก้ไข / ดูรายการที่ส่งมา — token ออกจากเซิร์ฟเวอร์ มีวันหมดอายุ | — |
 | **Backend — เครื่องคำนวณ CBAM** | 🟢 100%* | คำนวณครบ **ทั้ง 4 เส้น** ของ fixture แล้ว (10 ก.ย.) — เชื้อเพลิงผ่านค่าความร้อน, process emission แบบ mass balance, indirect, precursor หลายชั้น พร้อม audit trace ทุกเส้น | \* ตัวเครื่องครบแล้ว แต่ยังต้องรอ **ค่า default factor ตัวจริง** (R3) ถึงจะใช้กับสินค้านอก 2 CN code ได้ |
@@ -123,11 +123,11 @@ rndr-id: ... · x-render-origin-server: uvicorn
 > `CERTRACE_JWT_SECRET` — ไม่มีแล้ว **แอปไม่ start เลย** ถ้ามี `DATABASE_URL` ([`main.py:68`](certrace-backend/app/main.py:68)) อาการคือ revision ไม่ผ่าน startup probe
 > `CERTRACE_APP_BASE_URL` — อันนี้ร้ายกว่า เพราะ**ไม่มีอาการอะไรเลย** ไม่ตั้งแล้ว service ยังขึ้นปกติ ผ่าน probe ปกติ แต่ smart link ทุกอันที่ mint ออกไปจะชี้ไป `https://app.certrace.co` ตาม default ([`config.py:51`](certrace-backend/app/config.py:51)) ซึ่งเป็นโดเมนที่ไม่มีอยู่จริง กว่าจะรู้ตัวคือตอนซัพพลายเออร์กดลิงก์ในอีเมลที่เราส่งไปแล้ว — ต้องตั้งเป็น `https://portal.certrace.co`
 
-#### **R2. พอร์ทัล production ยังรับรหัสอะไรก็ได้ — 🔴 โค้ดจบแล้ว เหลือถอด flag ใน Cloudflare (23 ก.ย.)**
+#### **R2. พอร์ทัล production รับรหัสอะไรก็ได้ — ✅ ปิดแล้ว 23 ก.ย.**
 
-> **สถานะ 23 ก.ย.:** ทุกอย่างฝั่งรีโปเสร็จแล้ว (`API_URL` ตั้งแล้ว, portal deploy ผ่าน CI แล้ว) ที่ยังรับรหัสมั่วเพราะ build env ใน Cloudflare ตั้ง `NEXT_PUBLIC_DEMO_MODE=1` ไว้ **เป็นการเลือกเปิดเอง ไม่ใช่ default หลุด** ทางออกมีทางเดียวคือลบ flag นั้น (backend พร้อมรับแล้ว)
+> **สถานะ 23 ก.ย. — ✅ ปิดแล้ว:** bundle ที่เสิร์ฟอยู่ฝัง `"https://api.certrace.co"` และ `demoModeEnabled()` คอมไพล์เป็น `!r()&&"1"==="".trim()` (flag ว่าง) · ยิง `POST /api/auth/login` ด้วยรหัสมั่วได้ `401 INVALID_CREDENTIALS` build env ของ Workers Builds `certracept` มีแค่ `NEXT_PUBLIC_API_BASE_URL` ไม่มี `NEXT_PUBLIC_DEMO_MODE`
 >
-> ⚠️ ระวัง: ถ้ามี `NEXT_PUBLIC_DEMO_MODE=1` ธงนี้จะเปิด demo mode แม้ `API_URL` จะตั้งไว้ — อย่าสรุปจากแค่การที่ build ชี้ไป `api.certrace.co` ต้องลองล็อกอินด้วยรหัสมั่วเท่านั้น
+> หมายเหตุ: ใน [`config.ts`](certrace-portal/lib/api/config.ts) backend ชนะ flag เสมอ (`if (apiConfigured()) return false` มาก่อน) — demo mode จะกลับมาได้ก็ต่อเมื่อ build **ไม่มี** `NEXT_PUBLIC_API_BASE_URL` **และ** มี `NEXT_PUBLIC_DEMO_MODE=1` พร้อมกัน
 >
 > ด้านล่างคือบันทึกของรอบ 16 ก.ย. เก็บไว้เป็นบทเรียน
 **ข้อนี้เคยถูกปิดไปแล้วรอบเช้า แล้วปรากฏว่าปิดผิด** — ลองล็อกอิน `portal.certrace.co` ด้วยรหัสมั่ว **แล้วเข้าได้** นั่นแปลว่า `demoModeEnabled()` ยังเป็น true บนโดเมนจริง คือ `apiConfigured()` เป็น false คือ build ที่เสิร์ฟอยู่ **ไม่มี** `NEXT_PUBLIC_API_BASE_URL`
@@ -146,7 +146,7 @@ rndr-id: ... · x-render-origin-server: uvicorn
 *   [x] **ไม่ใส่ค่า fallback** — ถ้า `API_URL` ว่าง job portal ตายที่ step `Fail early if the portal has no backend to point at` ก่อน build ด้วยซ้ำ เพราะ URL ที่ "ดูน่าจะถูก" ฝังลง bundle ไปแล้วแก้ไม่ได้จนกว่าจะ build ใหม่ และอาการจะไปโผล่ในเบราว์เซอร์ของลูกค้าไม่ใช่ใน log
 *   [x] **secret `API_URL` บน GitHub** — ตั้งแล้ว 16 ก.ย. (`gh secret list` เห็น)
 *   [x] **ลบ `vars` ทิ้งจาก [`wrangler.jsonc`](certrace-portal/wrangler.jsonc)** พร้อมคอมเมนต์อธิบายว่าทำไมห้ามเอากลับมา
-*   [ ] **โจ้:** ลบ `NEXT_PUBLIC_DEMO_MODE` ออกจาก build env ของ Cloudflare แล้ว rebuild — **ข้อนี้ปิดได้ก็ต่อเมื่อลองกรอกรหัสมั่วแล้วไม่ผ่าน** ห้ามปิดด้วยการอ่าน header อีก
+*   [x] **ไม่มี `NEXT_PUBLIC_DEMO_MODE` ใน build env แล้ว** — ยืนยันจาก bundle ที่เสิร์ฟอยู่ + backend ตอบ 401 กับรหัสมั่ว (23 ก.ย.) · [ ] ยืนยันด้วยตาบนหน้า `/login` อีกครั้งเดียวให้ครบตามกติกาของข้อนี้
     > ถ้าหลัง deploy แล้วขึ้นว่า "ใช้งานไม่ได้" แทนที่จะเป็นรหัสผิด นั่นคือคนละอาการ: `apiConfigured()` เป็น false → env ไม่เข้า build หรือ backend ต่อไม่ติด แต่เป็นอาการที่ปลอดภัย (`authUnavailable()` ไม่ปล่อยใครเข้า)
 *   [ ] **โบ๊ท & เฟิน:** รัน `npm run test:e2e:prod` ยิงโฟลว์จริงบนโดเมนจริง แล้วเดินด้วยมืออีกรอบ: สมัคร → สร้าง declaration → ส่งลิงก์ → เปิดจากอีกเครื่อง → กรอก → **อัปใบเซอร์** (ตัวนี้จะพิสูจน์ `011` ไปในตัว) → ส่งกลับ ← **นี่คืองานที่เหลือจริงของ R2**
 
@@ -241,7 +241,7 @@ golden fixture กลางที่ทั้งสองฝั่งอ่า�
     > อัปเดต 16 ก.ย.: ข้อนี้เคยเขียนว่า "ทำให้ R4 ทำงานไม่ได้" — ไม่จริงแล้ว R4 เลี่ยงไปโดยให้พอร์ทัล**ลงทะเบียนเฉพาะสิ่งที่ job ต้องใช้** (`reminder_subjects`) ตอนกดส่ง แทนที่จะย้ายทั้ง 3 store ขึ้นเซิร์ฟเวอร์ ตัวอีเมลเตือนจึงไม่รอ D2 อีกต่อไป แต่ที่ยังจริงคือย้ายเครื่องแล้วข้อมูลที่เหลือหาย
 
 #### **D4. Session ฝั่งพอร์ทัลยังไม่มียาม — 🔴 ใหม่ 16 ก.ย.**
-ข้อนี้จะเริ่มมีความหมายก็ต่อเมื่อพอร์ทัลบนโดเมนจริงต่อ `api.certrace.co` แล้วเท่านั้น — ตราบใดที่ยังเป็น demo mode (R2) การไม่มียามไม่ใช่ประเด็น เพราะหน้า login ก็ปล่อยทุกคนเข้าอยู่ดี
+ข้อนี้**เริ่มมีความหมายแล้ว** (23 ก.ย.) เพราะพอร์ทัลบนโดเมนจริงต่อ `api.certrace.co` แล้ว — ข้อมูลจริงยังถูกกันที่ backend แต่ session หมดอายุจะไม่ถูกจับตอนโหลดหน้า
 *   [ ] [`middleware.ts`](certrace-portal/middleware.ts) มีแต่เรื่อง CSP/matcher **ไม่มี redirect ตอนไม่ได้ล็อกอิน** — เปิด URL หน้าในตรงๆ ไม่มีอะไรกั้นที่ชั้น routing
 *   [ ] `/api/auth/me` ประกาศไว้ที่ [`lib/api/auth.ts:98`](certrace-portal/lib/api/auth.ts:98) แต่ **ไม่มีใครเรียกเลยทั้งรีโป** → โหลดหน้ามาไม่เคยยืนยันกับเซิร์ฟเวอร์ว่า session ยังใช้ได้, ธง `onboarded` ที่ backend เก็บไว้ไม่เคยถูกอ่าน, onboarding ยังตัดสินจาก localStorage อย่างเดียว
 *   [ ] ผลที่เห็นได้จริง: token หมดอายุหรือถูก revoke แล้ว UI ยังทำเหมือนล็อกอินอยู่จนกว่าจะมี request แรกเด้ง 401
@@ -264,7 +264,7 @@ golden fixture กลางที่ทั้งสองฝั่งอ่า�
 
 | ลำดับ | งาน | ใคร | ประเมินเวลา |
 | :---: | :--- | :--- | :--- |
-| 1 | **ถอด `NEXT_PUBLIC_DEMO_MODE` ใน Cloudflare → rebuild → ยืนยันว่ารหัสมั่วเข้าไม่ได้** (R2) | โจ้ | ~15 นาที |
+| 1 | ~~ถอด demo flag (R2)~~ ✅ ปิดแล้ว 23 ก.ย. — เหลือลองรหัสมั่วบนหน้า `/login` ด้วยตาหนึ่งครั้ง | ใครก็ได้ | ~2 นาที |
 | 2 | **เดิน end-to-end บนโดเมนจริงหนึ่งรอบเต็ม** สมัคร → declaration → ส่งลิงก์ → เปิดอีกเครื่อง → **อัปใบเซอร์** → ส่งกลับ — พิสูจน์ `011`/`012` ไปในตัว | โบ๊ท + เฟิน | ~ครึ่งวัน |
 | 3 | **ยืนยัน env ที่เหลือบน Render (Resend ✅ แล้ว) + ตัดสินใจ Render vs Cloud Run** แล้วเก็บ `deploy.yml` ให้ตรง (R6) | เฟิน | ~1 ชม. |
 | 4 | รีวิว + merge PR hardening #107–#110 ทีละตัว (R8) — เช็คทุกครั้งว่า Render deploy ตัวใหม่แล้ว | โบ๊ท | ~ครึ่งวัน |
@@ -272,8 +272,8 @@ golden fixture กลางที่ทั้งสองฝั่งอ่า�
 | 6 | ตัดสินใจ #106 (Google login), #111 (smart upload), #112 (suspension/audit) ว่าเข้ารอบนี้ไหม | ทีม | คุยกัน |
 | 7 | Route guard + เรียก `/me` ตอนโหลด (D4) · ตัดสินใจ D1/D2 | — | หลังปล่อย |
 
-**ข้อ 1 ทำก่อนทุกอย่าง** — ตราบใดที่ flag ยังอยู่ พอร์ทัลบนโดเมนจริงเปิดให้ใครก็ได้เข้าไปเห็นข้างใน และ E2E ของข้อ 2 ก็วัดอะไรไม่ได้
-**ข้อ 2 คือสิ่งเดียวที่กั้นระหว่าง "ของขึ้นครบแล้ว" กับ "รู้ว่าของที่ขึ้นใช้ได้จริง"**
+**ข้อ 2 ทำก่อนทุกอย่าง** — พอร์ทัลต่อ backend จริงแล้ว เหลือพิสูจน์ว่าโฟลว์เดินได้ตั้งแต่ต้นจนจบ
+มันคือสิ่งเดียวที่กั้นระหว่าง "ของขึ้นครบแล้ว" กับ "รู้ว่าของที่ขึ้นใช้ได้จริง"
 **ข้อ 3 คือสิ่งเดียวที่กั้นระหว่าง "backend ใช้ได้วันนี้" กับ "รู้ว่าแก้ครั้งหน้าจะขึ้นไปยังไง"** — ตอนนี้รีโปอธิบายทางที่ไม่ได้ใช้
 
 ---
