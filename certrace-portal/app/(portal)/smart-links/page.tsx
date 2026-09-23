@@ -70,6 +70,7 @@ import {
 } from "@/lib/smart-links";
 import { scheduleFor, workspaceTitle } from "@/lib/workspace";
 import { SMART_LINKS_KEY, useMarkMonthSent, useSmartLinks } from "@/lib/workspace-data-query";
+import { ensureWorkspaceLink } from "@/lib/workspace-link-sync";
 import { useSavePrecursorSupplier } from "@/lib/suppliers-query";
 import { useT } from "@/lib/i18n";
 
@@ -386,7 +387,25 @@ function LinkDialog({ link, onClose }: { link: SmartLink | null; onClose: () => 
   const savePrecursor = useSavePrecursorSupplier();
   const client = useQueryClient();
 
-  const url = React.useMemo(() => (link && typeof window !== "undefined" ? `${window.location.origin}${link.path}` : ""), [link]);
+  const localUrl = React.useMemo(() => (link && typeof window !== "undefined" ? `${window.location.origin}${link.path}` : ""), [link]);
+  /* A monthly link is minted on the server the moment it is looked at, so the
+     address shown, copied and sent is one the supplier can open on their own
+     machine (lib/workspace-link-sync.ts). Without a backend it stays local. */
+  const [serverUrl, setServerUrl] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    setServerUrl(null);
+    if (!link || link.kind !== "monthly" || !link.month) return;
+    let live = true;
+    void ensureWorkspaceLink(link.workspace.id, link.month)
+      .then((minted) => {
+        if (live) setServerUrl(minted);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [link]);
+  const url = serverUrl ?? localUrl;
 
   if (!link) return null;
 

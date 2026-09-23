@@ -30,6 +30,7 @@ from pydantic import BaseModel, Field
 
 from app.config import SMART_LINK_TTL_DAYS
 from app.routers.auth import current_account
+from app.routers.declarations import WORKSPACE_KIND
 from app.services.auth_service import Account, get_account
 
 router = APIRouter(prefix="/api/v1", tags=["links"])
@@ -522,6 +523,26 @@ def resolve_link(token: str, request: Request) -> dict[str, object]:
     link, doc, database = live_link(request, token)
 
     exporter = get_account(database, link["userId"])
+    exporter_view = {"companyName": (exporter.company_name if exporter else None) or ""}
+
+    if doc.get("kind") == WORKSPACE_KIND:
+        # A workspace's monthly link. The whole document is already the
+        # supplier's slice -- the portal builds it for exactly this reader
+        # (one workspace is one supplier), so it goes out as written rather
+        # than being picked apart like a declaration shared by many suppliers.
+        view = doc.get("supplierView")
+        return {
+            "token": token,
+            "kind": WORKSPACE_KIND,
+            "declId": link["declId"],
+            "supplierId": link["supplierId"],
+            "month": link["month"],
+            "expiresAt": link["expiresAt"],
+            "exporter": exporter_view,
+            "workspace": view if isinstance(view, dict) else {},
+            "state": link["state"] or _empty_state(token),
+        }
+
     requests = doc.get("requests")
     spec = next(
         (
@@ -560,9 +581,7 @@ def resolve_link(token: str, request: Request) -> dict[str, object]:
         "supplierId": link["supplierId"],
         "month": link["month"],
         "expiresAt": link["expiresAt"],
-        "exporter": {
-            "companyName": (exporter.company_name if exporter else None) or ""
-        },
+        "exporter": exporter_view,
         # Shared context the form is built from -- coerced to the contract's
         # types because the source document is opaque and may not hold them.
         "declaration": {

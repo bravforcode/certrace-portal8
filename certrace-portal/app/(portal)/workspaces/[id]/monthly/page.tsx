@@ -69,12 +69,14 @@ import {
 import { REVIEW_STATE_LABEL, formatSubmissionDate, submissionVersion } from "@/lib/month-submission";
 import { dueDayOptions, monthName, scheduleFor } from "@/lib/workspace";
 import { workspaceLinkFor } from "@/lib/workspace-link";
+import { ensureWorkspaceLink, pullWorkspaceAnswers } from "@/lib/workspace-link-sync";
 import { totalTonnes } from "@/lib/precursor-suppliers";
 import { electricitySupplyLabel, mmdIssues } from "@/lib/workspace-mmd";
 import {
   useDispatches,
   useEvidence,
   useFinalMmdVersion,
+  useInvalidateWorkspaceData,
   useLatestMmdVersion,
   useMarkMonthReminded,
   useMarkMonthSent,
@@ -134,6 +136,29 @@ export default function MonthlyDataPage() {
   const updateWs = useUpdateWorkspace();
   const markSent = useMarkMonthSent();
   const markReminded = useMarkMonthReminded();
+  const invalidateData = useInvalidateWorkspaceData(workspace.id);
+
+  /* What suppliers typed on their own machines arrives here: pull every month
+     with a server link on open, and whenever the exporter comes back to the
+     tab. Nothing changes on screen unless a month actually moved. */
+  React.useEffect(() => {
+    let live = true;
+    const pull = () =>
+      void pullWorkspaceAnswers(workspace.id)
+        .then((changed) => {
+          if (live && changed.length > 0) invalidateData();
+        })
+        .catch(() => {});
+    pull();
+    const onShow = () => {
+      if (document.visibilityState === "visible") pull();
+    };
+    document.addEventListener("visibilitychange", onShow);
+    return () => {
+      live = false;
+      document.removeEventListener("visibilitychange", onShow);
+    };
+  }, [workspace.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const schedule = scheduleFor(workspace);
 
@@ -177,8 +202,11 @@ export default function MonthlyDataPage() {
     });
   };
 
-  const copy = (month: string) => {
-    const link = workspaceLinkFor(workspace.id, month);
+  /* With a backend the link is a server-issued one the supplier can open on
+     their own machine (lib/workspace-link-sync.ts); without one it is the
+     local demo link, as before. */
+  const copy = async (month: string) => {
+    const link = (await ensureWorkspaceLink(workspace.id, month).catch(() => null)) ?? workspaceLinkFor(workspace.id, month);
     if (typeof navigator !== "undefined" && navigator.clipboard) void navigator.clipboard.writeText(link).catch(() => {});
   };
 

@@ -36,6 +36,7 @@ import { effectiveDueDay, dispatchFor } from "./month-dispatch";
 import { makeWorkspaceToken } from "./workspace-link";
 import { getSupplierCompany } from "./supplier-companies";
 import { writeBlocked } from "./plan";
+import { ensureWorkspaceLink } from "./workspace-link-sync";
 
 /** The portal's own id for one ask, and the delivery log's key on the server.
 
@@ -69,6 +70,7 @@ export function reminderSubjectFor(
   workspaceId: string,
   month: string,
   locale?: string,
+  linkUrl?: string,
 ): { key: string; body: Record<string, unknown> } | null {
   const workspace = getWorkspace(workspaceId);
   if (!workspace || workspace.selfSupplied) return null;
@@ -84,7 +86,9 @@ export function reminderSubjectFor(
       supplierName: workspace.supplierName || supplier?.name || "Supplier",
       periodLabel: monthNameLong(month),
       dueDate: dueDateFor(workspaceId, month, scheduleFor(workspace).dueDay),
-      linkUrl: absoluteLink(`/w/${makeWorkspaceToken(workspaceId, month)}`),
+      // The server-issued link when there is one: a local token opens a form
+      // whose answers stay in whichever browser filled it in.
+      linkUrl: linkUrl ?? absoluteLink(`/w/${makeWorkspaceToken(workspaceId, month)}`),
       locale,
       // The ladder still has something to say to a supplier whose customer is
       // frozen; what it must not do is walk them to a form that cannot accept
@@ -97,16 +101,17 @@ export function reminderSubjectFor(
 /** Register the ask and record that it went out. Safe to call every send. */
 export async function registerMonthSent(workspaceId: string, month: string, locale?: string): Promise<void> {
   if (!apiConfigured()) return;
-  const subject = reminderSubjectFor(workspaceId, month, locale);
-  if (!subject) return;
   try {
+    const url = await ensureWorkspaceLink(workspaceId, month);
+    const subject = reminderSubjectFor(workspaceId, month, locale, url ?? undefined);
+    if (!subject) return;
     await registerReminderSubject(subject.key, subject.body);
     await markReminderSent(subject.key);
   } catch (cause) {
     /* See the header: the month is sent whatever happens here. Logged rather
        than swallowed silently, because "why was this never chased" is a real
        question someone will ask a fortnight later. */
-    console.warn(`[reminders] ${subject.key} was not registered:`, cause);
+    console.warn(`[reminders] ${reminderSubjectKey(workspaceId, month)} was not registered:`, cause);
   }
 }
 

@@ -28,6 +28,14 @@ router = APIRouter(prefix="/api/v1/declarations", tags=["declarations"])
 # the endpoint cannot be used as free blob storage.
 MAX_DOC_BYTES = 512 * 1024
 
+# A document of this kind is not a declaration: it is the slice of one
+# workspace that its supplier's monthly link (/w/<token>) opens -- the
+# installation, the goods, the precursor chain, earlier months to start from.
+# Stored here so the monthly link is an ordinary smart link: same token,
+# expiry, revoke, autosave, submit, evidence upload and revision loop as a
+# declaration's (app/routers/links.py). Hidden from the declarations list.
+WORKSPACE_KIND = "workspace"
+
 _NOT_FOUND = HTTPException(
     status_code=status.HTTP_404_NOT_FOUND,
     detail={
@@ -80,14 +88,21 @@ def _save(
 def list_declarations(
     request: Request, account: Account = Depends(current_account)
 ) -> dict[str, object]:
+    """Every declaration the account holds -- and only declarations.
+
+    A workspace's supplier snapshot shares this table (``kind: "workspace"``,
+    see ``WORKSPACE_KIND``) so its monthly links can reuse the smart-link
+    machinery, but it is not a declaration and must not show up as one. It is
+    still readable and writable by id.
+    """
+
     database = request.app.state.database
     if database is not None:
-        return {
-            "declarations": database.list_portal_declarations(uuid.UUID(account.id))
-        }
-    rows = list(_memory_store(request, account).values())
-    rows.sort(key=lambda row: row.get("updatedAt", 0), reverse=True)
-    return {"declarations": rows}
+        rows = database.list_portal_declarations(uuid.UUID(account.id))
+    else:
+        rows = list(_memory_store(request, account).values())
+        rows.sort(key=lambda row: row.get("updatedAt", 0), reverse=True)
+    return {"declarations": [row for row in rows if row.get("kind") != WORKSPACE_KIND]}
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)

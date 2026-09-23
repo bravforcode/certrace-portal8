@@ -82,6 +82,7 @@ import { monthsForWorkspace, type MonthStatus } from "./monthly-data";
 import { precursorCompleteness, listSuppliers, trackedWorkspaceIndex, type PrecursorSupplier } from "./precursor-suppliers";
 import { makePrecursorLinkToken } from "./precursor-link";
 import { makeWorkspaceToken } from "./workspace-link";
+import { cachedWorkspaceToken } from "./workspace-link-sync";
 import { listWorkspaces, monthNameLong, scheduleFor, type VerificationWorkspace } from "./workspace";
 
 /* ── The two kinds ─────────────────────────────────────────── */
@@ -267,7 +268,8 @@ export function buildSmartLinks(now: Date = new Date()): SmartLink[] {
         subject: monthNameLong(entry.month),
         recipient: w.selfSupplied ? "Your own site" : w.supplierName || w.installationName,
         toSelf: Boolean(w.selfSupplied),
-        path: `/w/${makeWorkspaceToken(w.id, entry.month)}`,
+        // The server-issued link once one has been minted (lib/workspace-link-sync.ts).
+        path: `/w/${cachedWorkspaceToken(w.id, entry.month) ?? makeWorkspaceToken(w.id, entry.month)}`,
         due,
         msLeft,
         overdue,

@@ -34,6 +34,8 @@ import {
   type VerificationWorkspace,
 } from "./workspace";
 import { resolveWorkspaceRequest } from "./workspace-link";
+import { apiConfigured } from "./api/config";
+import { isServerToken, openWorkspaceLink } from "./workspace-link-sync";
 import {
   deleteWorkspaceDraft,
   loadWorkspaceDrafts,
@@ -144,7 +146,11 @@ export function useInvalidateCaps(): () => void {
 export function useWorkspaceRequest(token: string | undefined) {
   return useQuery({
     queryKey: [...KEY, "request", token],
-    queryFn: () => resolveWorkspaceRequest(token ?? ""),
+    /* A server-issued token loads the workspace slice into this browser
+       first (lib/workspace-link-sync.ts); a legacy base64 one resolves from
+       what is already here, as it always has. */
+    queryFn: () =>
+      apiConfigured() && isServerToken(token ?? "") ? openWorkspaceLink(token ?? "") : resolveWorkspaceRequest(token ?? ""),
     enabled: Boolean(token),
     staleTime: 0,
   });
