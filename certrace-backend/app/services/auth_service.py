@@ -790,8 +790,16 @@ def account_history(
     """Every recorded action against one account, newest first."""
 
     if db is None:
-        events = [event for subject, event in _MEMORY_AUDIT if subject == user_id]
-        return sorted(events, key=lambda e: e.created_at, reverse=True)[:limit]
+        # Recording order breaks ties. Two actions a few milliseconds apart
+        # can carry the same timestamp on a coarse clock (Windows ticks in
+        # ~16 ms), and a stable sort would then put the older one first.
+        events = [
+            (index, event)
+            for index, (subject, event) in enumerate(_MEMORY_AUDIT)
+            if subject == user_id
+        ]
+        events.sort(key=lambda pair: (pair[1].created_at, pair[0]), reverse=True)
+        return [event for _, event in events][:limit]
 
     with _account_session(db) as session:
         rows = session.execute(
@@ -1208,9 +1216,13 @@ def _check_export_window(
     elapsed = now - suspended_at
     if elapsed < datetime.timedelta(days=EXPORT_WINDOW_DAYS):
         remaining = datetime.timedelta(days=EXPORT_WINDOW_DAYS) - elapsed
+        # Whole days still owed, rounded up: "1 to go" from the first moment
+        # of the last day to its end. ``remaining.days + 1`` said "2 to go"
+        # when exactly one day was left.
+        days_to_go = -(-remaining // datetime.timedelta(days=1))
         raise AccountNotEligible(
             f"Suspended {elapsed.days} days ago. Terms §9.5 gives the customer "
-            f"{EXPORT_WINDOW_DAYS} days to export; {remaining.days + 1} to go."
+            f"{EXPORT_WINDOW_DAYS} days to export; {days_to_go} to go."
         )
 
 

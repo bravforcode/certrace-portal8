@@ -21,6 +21,7 @@ import datetime
 import itertools
 
 import pytest
+from conftest import RecordingTransport
 from fastapi.testclient import TestClient
 
 from app.main import create_app
@@ -122,13 +123,22 @@ class FakeRepository:
         ]
 
 
+@pytest.fixture(name="outbox")
+def recording_transport() -> RecordingTransport:
+    return RecordingTransport()
+
+
 @pytest.fixture(name="client")
-def api_client() -> TestClient:
-    application = create_app()
+def api_client(outbox: RecordingTransport) -> TestClient:
+    application = create_app(email_transport=outbox)
     # Only the reminder store, not app.state.database: setting the latter would
     # also move the account store onto this fake, which knows nothing about
     # users - and every test here has to be able to register one.
     application.state.reminder_store = FakeRepository()
+    # On here so the email tests below exercise the send; the default is off
+    # (app/config.py), and test_supplier_email_is_off_unless_switched_on
+    # covers that.
+    application.state.supplier_emails_enabled = True
     return TestClient(application, raise_server_exceptions=False)
 
 
@@ -426,3 +436,76 @@ def test_trial_reminders_stay_empty_until_billing_is_real(client) -> None:
         DatabaseReminderSource(client.app.state.reminder_store).trial_accounts(TODAY)
         == ()
     )
+
+
+# ── The first send is the data-request email ──────────────────────────────
+
+
+def _sent(client, headers, key=SUBJECT):
+    return client.post(f"/api/v1/reminder-subjects/{key}/sent", headers=headers)
+
+
+def test_registering_alone_writes_to_nobody(client, outbox) -> None:
+    headers = _signed_in(client)
+    _register(client, headers)
+
+    assert outbox.sent == []
+
+
+def test_the_first_send_emails_the_supplier_their_link(client, outbox) -> None:
+    headers = _signed_in(client)
+    _register(client, headers)
+
+    assert _sent(client, headers).status_code == 200
+
+    assert len(outbox.sent) == 1
+    message = outbox.last
+    assert message.to == ASK["recipient"]
+    # Named for the exporter who is asking, not for Certrace.
+    assert "Siam Steel Export Co." in message.subject
+    assert "March 2026" in message.subject
+    assert ASK["linkUrl"] in message.html
+    assert ASK["linkUrl"] in message.text
+
+
+def test_a_second_send_does_not_mail_again(client, outbox) -> None:
+    """A retry after a dropped response looks exactly like this. Two identical
+    requests back to back is how a supplier's filter learns to hide us; the
+    ladder does the chasing."""
+
+    headers = _signed_in(client)
+    _register(client, headers)
+    _sent(client, headers)
+    _sent(client, headers)
+
+    assert len(outbox.sent) == 1
+
+
+def test_a_locked_account_does_not_ask_for_data_it_cannot_accept(
+    client, outbox
+) -> None:
+    headers = _signed_in(client)
+    _register(client, headers, accountLocked=True)
+
+    assert _sent(client, headers).status_code == 200
+    assert outbox.sent == []
+
+
+def test_the_request_is_written_in_the_suppliers_language(client, outbox) -> None:
+    headers = _signed_in(client)
+    _register(client, headers, locale="th", periodLabel="มีนาคม 2026")
+    _sent(client, headers)
+
+    assert "ขอข้อมูล" in outbox.last.subject
+
+
+def test_supplier_email_is_off_unless_switched_on(client, outbox) -> None:
+    """The monthly form the link opens is not server-backed yet, so by
+    default Certrace records the send and writes to nobody."""
+
+    client.app.state.supplier_emails_enabled = False
+    headers = _signed_in(client)
+    _register(client, headers)
+
+    assert _sent(client, headers).status_code == 200
+    assert outbox.sent == []

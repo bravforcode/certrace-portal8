@@ -1,0 +1,67 @@
+name: Supplier reminders (daily)
+
+# The reminder ladder (app/services/reminder_schedule.py) only moves when
+# something runs it. On Render a cron job and a shell are paid add-ons and the
+# free web instance sleeps, so nothing inside the API can keep time. This asks
+# the API to run it, once a day, through a token-protected route
+# (certrace-backend/app/routers/jobs.py). The same request wakes the instance.
+#
+# The job does not touch the database or Resend itself: the only secret here is
+# CERTRACE_JOBS_TOKEN, which must match the same variable on the API.
+#
+# 01:00 UTC is 08:00 in Bangkok: mail lands at the start of a supplier's
+# working day, and the server's date and Thailand's agree.
+
+on:
+  schedule:
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Decide and report without sending anything"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reminders
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Run the reminder ladder
+        env:
+          JOBS_TOKEN: ${{ secrets.CERTRACE_JOBS_TOKEN }}
+          API_BASE: ${{ vars.CERTRACE_API_BASE || 'https://api.certrace.co' }}
+          # Scheduled runs send for real; a manual run defaults to a rehearsal.
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+        run: |
+          set -euo pipefail
+          if [ -z "${JOBS_TOKEN}" ]; then
+            # Loud but not red: a missing secret is a setup step, not an outage,
+            # and a daily red run is how people learn to ignore this workflow.
+            echo "::warning::CERTRACE_JOBS_TOKEN is not set — no reminders were sent. Set it here and on the API."
+            exit 0
+          fi
+          # A sleeping instance takes up to a minute to answer, so allow for it
+          # and retry once. The run itself is idempotent: the delivery log
+          # makes a second call send nothing the first one already sent.
+          body=$(curl --fail-with-body --silent --show-error \
+            --retry 2 --retry-delay 20 --retry-all-errors --max-time 150 \
+            -X POST "${API_BASE}/api/internal/jobs/send-reminders?dry_run=${DRY_RUN}" \
+            -H "Authorization: Bearer ${JOBS_TOKEN}")
+          echo "${body}"
+          echo "### Reminders — $(date -u +%F)" >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          echo "${body}" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          failed=$(echo "${body}" | python3 -c 'import json,sys; print(json.load(sys.stdin)["failed"])')
+          if [ "${failed}" != "0" ]; then
+            echo "::error::${failed} reminder(s) failed to send — see the API logs."
+            exit 1
+          fi

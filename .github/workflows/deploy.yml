@@ -121,7 +121,14 @@ jobs:
   backend:
     name: Deploy backend to Cloud Run
     needs: plan
-    if: needs.plan.outputs.backend == 'true'
+    # Off unless BACKEND_HOST=cloudrun. Production's API is on Render
+    # (api.certrace.co → certrace.onrender.com), which deploys itself and runs
+    # `alembic upgrade head` from its start command. This job ships to a Cloud
+    # Run service nothing points at, and it failed on every backend merge
+    # (the deployer account cannot use Cloud Build) — a red Deploy that means
+    # nothing teaches people to ignore the ones that do. Kept, not deleted, for
+    # the day the host decision goes the other way.
+    if: needs.plan.outputs.backend == 'true' && vars.BACKEND_HOST == 'cloudrun'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: production

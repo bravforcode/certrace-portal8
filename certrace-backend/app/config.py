@@ -32,6 +32,18 @@ JWT_SECRET_ENV = "CERTRACE_JWT_SECRET"
 # Unset means Sign in with Google answers 503.
 GOOGLE_CLIENT_ID_ENV = "CERTRACE_GOOGLE_CLIENT_ID"
 
+# Bearer token for /api/internal/jobs/* (app/routers/jobs.py). Unset turns
+# those routes off entirely; the daily reminder workflow sends the same value.
+JOBS_TOKEN_ENV = "CERTRACE_JOBS_TOKEN"
+
+# Whether Certrace itself writes to suppliers (the data request on first send,
+# and the reminder ladder). Off unless exactly "1". Every one of those emails
+# links to the portal's monthly form at /w/<token>, and that form still keeps
+# what the supplier types in THEIR browser -- it does not reach the exporter.
+# Mailing a real supplier a form that goes nowhere, under the exporter's name,
+# is worse than mailing nothing. Turn this on the day /w/ is server-backed.
+SUPPLIER_EMAILS_ENV = "CERTRACE_SUPPLIER_EMAILS"
+
 # Signing settings are constants, not environment knobs. An operator who can
 # lower them by mistake is a way to weaken every token at once, and nothing
 # about a deployment needs them to differ.
