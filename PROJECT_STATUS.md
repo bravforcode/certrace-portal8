@@ -62,7 +62,7 @@ rndr-id: ... · x-render-origin-server: uvicorn
 | **Backend — Auth** | 🟢 100% | `register` `login` `me` `refresh` `logout` `change/forgot/reset-password` + JWT + refresh token + rate limit หน้าต่าง 15 นาที | — |
 | **Backend — Smart Links** | 🟢 100% | สร้าง / resolve / save state / submit / ขอแก้ไข / ดูรายการที่ส่งมา — token ออกจากเซิร์ฟเวอร์ มีวันหมดอายุ | — |
 | **Backend — เครื่องคำนวณ CBAM** | 🟢 100%* | คำนวณครบ **ทั้ง 4 เส้น** ของ fixture แล้ว (10 ก.ย.) — เชื้อเพลิงผ่านค่าความร้อน, process emission แบบ mass balance, indirect, precursor หลายชั้น พร้อม audit trace ทุกเส้น | \* ตัวเครื่องครบแล้ว แต่ยังต้องรอ **ค่า default factor ตัวจริง** (R3) ถึงจะใช้กับสินค้านอก 2 CN code ได้ |
-| **Backend — อีเมลแจ้งเตือน** | 🟡 60% | เทมเพลต 7 แบบ, delivery log กันส่งซ้ำด้วย unique index, job เตือนตามตาราง, **ต่อ `DatabaseReminderSource` แล้ว** (migration `012_reminder_subjects`) · เมลรีเซ็ต/เปลี่ยนรหัสผ่านมีทางส่งจริง | 🔴 job เตือนยังไม่มี scheduler สั่งรัน · เมลขอข้อมูลซัพพลายเออร์ (`SUPPLIER_DATA_REQUEST`) ไม่มีโค้ดเรียก · ยังไม่ยืนยันว่า Render มี `RESEND_API_KEY` · trial ยังไม่มี billing (ดู R4) |
+| **Backend — อีเมลแจ้งเตือน** | 🟡 70% | เทมเพลต 7 แบบ, delivery log กันส่งซ้ำด้วย unique index, job เตือนตามตาราง, **ต่อ `DatabaseReminderSource` แล้ว** (migration `012_reminder_subjects`) · **Resend ส่งจริงจาก production แล้ว** (เมลรีเซ็ตถึงกล่องจริง 23 ก.ย.) | 🔴 job เตือนยังไม่มี scheduler สั่งรัน · เมลขอข้อมูลซัพพลายเออร์ (`SUPPLIER_DATA_REQUEST`) ไม่มีโค้ดเรียก · trial ยังไม่มี billing (ดู R4) |
 | **Backend — ขึ้นของจริง** | 🟢 100% | `api.certrace.co/readyz` ตอบ 200 `{"status":"ready","databaseConfigured":true}` · preflight CORS อนุญาต `https://portal.certrace.co` จริง · validation ทำงาน (ยิง email ปลอมได้ 422) | รันอยู่บน **Render** (`certrace.onrender.com`) · ยืนยันว่า alembic เดินถึง `012` แล้วหรือยัง — ต้องยิงด้วย token จริง (ดู R1) · ยังไม่รู้วิธี deploy ของ Render (ดู R6) |
 | **Deploy (ท่ออัตโนมัติ)** | 🟡 70% | [`deploy.yml`](.github/workflows/deploy.yml) เขียนครบ · secret + `GCP_*` ตั้งครบ 16 ก.ย. · **landing + portal ส่งขึ้นเองสำเร็จแล้ว** (run ของ #105) | backend production อยู่บน Render ไม่ได้ผ่าน `deploy.yml` · job Cloud Run (ไม่ได้ใช้) ล้มเรื่องสิทธิ์ GCP · ไม่มี var `EXPORTER_PORTAL_URL` (ดู R6) |
 | **CI / คุณภาพโค้ด** | 🟡 85% | lint, typecheck, unit test, npm audit, pip-audit, CodeQL, secret scan, Playwright E2E — ตั้งแต่ PR #99 รันเฉพาะ job ที่ diff แตะจริง เพื่อประหยัดโควตา Free plan (2,000 นาที/เดือน) | รันเฉพาะ `pull_request` + `workflow_dispatch` เท่านั้น **push ตรงเข้า main ไม่ถูกเช็ค** ต้องสั่ง `workflow_dispatch` เอง |
@@ -170,7 +170,8 @@ rndr-id: ... · x-render-origin-server: uvicorn
 *   [ ] **อีเมลเตือน trial ยังส่งไม่ได้** — plan/billing ยังไม่มีฝั่งเซิร์ฟเวอร์เลย ถ้าเดาวันหมดอายุเองจะกลายเป็นส่งเรื่องที่ระบบไม่ได้บังคับใช้จริง
 *   [ ] **job ยังไม่มีอะไรสั่งให้รัน** (เช็ค 23 ก.ย.) — `python -m app.jobs.send_reminders` ไม่มี cron / scheduler ในรีโปเลย และบน Render ก็ยังไม่รู้ว่ามี Cron Job ตั้งไว้หรือเปล่า **เมลเตือนซัพพลายเออร์จึงยังไม่ส่งจริง** → ตั้ง Render Cron Job (หรือ scheduler ของ host ที่เลือกใน R6) รันทุกคืน แล้วเช็ค `notification_deliveries` หลังคืนแรก
 *   [ ] **เมลแรกที่ขอข้อมูลซัพพลายเออร์ยังไม่ถูกส่งโดยระบบ** — มีเทมเพลต `SUPPLIER_DATA_REQUEST` แต่ไม่มี router ไหนเรียก ตอนนี้พอร์ทัลแค่ copy ลิงก์ลง clipboard ผู้ส่งออกต้องส่งเอง ตัดสินใจว่าจะต่อก่อนปล่อยไหม (~ครึ่งวัน)
-*   [ ] **ยืนยันว่า Resend ส่งออกจาก production จริง** — ถ้า Render ไม่มี `RESEND_API_KEY` หรือ sender ระบบเลือก transport `off` เองเงียบๆ ([`email.py`](certrace-backend/app/services/email.py)) ทดสอบด้วย forgot-password กับบัญชีของทีมเอง แล้วดูว่าโค้ดมาถึงกล่องเมลไหม
+*   [x] **Resend ส่งออกจาก production จริงแล้ว** (23 ก.ย.) — ตั้ง `RESEND_API_KEY` + `CERTRACE_EMAIL_SENDER` + `CERTRACE_EMAIL_REPLY_TO` + `CERTRACE_EMAIL_DELIVERY=resend` บน Render แล้ว redeploy → ยิง `POST /api/auth/forgot-password` ด้วยบัญชีของทีม ได้ 200 และ **เมลรีเซ็ตมาถึงกล่องจริง**
+    > ตั้ง `CERTRACE_EMAIL_DELIVERY=resend` แบบ explicit โดยเจตนา — ถ้าวันไหน key หรือ sender หาย แอปจะ start ไม่ขึ้น ([`email.py`](certrace-backend/app/services/email.py)) แทนที่จะเลือก transport `off` แล้วเงียบ · ครอบคลุมแค่เมลรีเซ็ต/เปลี่ยนรหัสผ่าน ข้อ scheduler กับ `SUPPLIER_DATA_REQUEST` ด้านบนยังเปิดอยู่
 
 #### **R5. อัปโหลดไฟล์ — ✅ ทำแล้ว 10 ก.ย.**
 เดิมไฟล์เก็บเป็น base64 ใน localStorage ตันที่ ~1.5 MB ที่ใหญ่กว่านั้นเหลือแค่ชื่อ+ขนาด — ใบเซอร์จริงส่วนใหญ่ใหญ่กว่านั้นและหายไปเลย
@@ -190,7 +191,8 @@ landing + portal ส่งผ่าน `deploy.yml` ได้จริง แต
 *   [ ] **เฟิน: ตัดสินใจว่า backend อยู่ที่ไหน** — อยู่ Render ต่อ หรือย้ายไป Cloud Run ตามที่ `deploy.yml` เขียนไว้
     *   **ถ้าอยู่ Render:** ปิด/ลบ job `Deploy backend to Cloud Run` (ไม่งั้นแดงทุก merge ที่แตะ backend) และเขียนลง README ว่า Render deploy แบบไหน (auto จาก `main`? กดเอง?) + migration รันตอนไหน
     *   **ถ้าย้าย Cloud Run:** ให้สิทธิ์ `certrace-deployer@certrace-prod.iam.gserviceaccount.com` ใช้ Cloud Build (ตายที่ `forbidden from accessing the bucket [certrace-prod_cloudbuild]` / ขาด `serviceusage.services.use`) → dispatch Deploy ให้ขึ้น → ย้าย env จาก Render ให้ครบ → สลับ DNS `api.certrace.co`
-*   [ ] **เฟิน: ยืนยัน env บน Render** — โดยเฉพาะ `RESEND_API_KEY` + `CERTRACE_EMAIL_SENDER` (ไม่มี = ระบบปิดการส่งเมลเองเงียบๆ ดู R4), `CERTRACE_APP_BASE_URL=https://portal.certrace.co`, `CERTRACE_ENABLE_API_DOCS=false`
+*   [x] ~~env อีเมลบน Render~~ — `RESEND_API_KEY` + sender + `CERTRACE_EMAIL_DELIVERY=resend` ตั้งแล้ว ส่งจริงผ่าน (ดู R4)
+*   [ ] **เฟิน: ยืนยัน env ที่เหลือบน Render** — `CERTRACE_APP_BASE_URL=https://portal.certrace.co` (ไม่ตั้ง = smart link ชี้ไปโดเมนที่ไม่มีจริง ดู R1), `CERTRACE_ENABLE_API_DOCS=false`
 *   [ ] **โบ๊ท:** ใส่ `EXPORTER_PORTAL_URL=https://portal.certrace.co` เป็น repository **variable** — ตอนนี้ยังไม่มี step เช็ค security header หลัง deploy จึง `exit 0` ผ่านเฉยๆ (nightly probe ยังเขียวทุกคืน จึงไม่เร่ง)
 *   [x] `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` + `API_URL` (secret) — ตั้งแล้ว 16 ก.ย.
     > หมายเหตุ `API_URL`: ค่านี้ไม่ลับจริง มันถูกฝังลง JS bundle ที่ใครก็โหลดไปอ่านได้ เก็บเป็น secret จึงได้แค่ mask ใน log — ถ้าอยากให้ debug ง่ายขึ้น ย้ายไป Variables แล้วสลับ `secrets.API_URL` เป็น `vars.API_URL` สองที่ใน `deploy.yml`
@@ -262,7 +264,7 @@ golden fixture กลางที่ทั้งสองฝั่งอ่า�
 | :---: | :--- | :--- | :--- |
 | 1 | **ถอด `NEXT_PUBLIC_DEMO_MODE` ใน Cloudflare → rebuild → ยืนยันว่ารหัสมั่วเข้าไม่ได้** (R2) | โจ้ | ~15 นาที |
 | 2 | **เดิน end-to-end บนโดเมนจริงหนึ่งรอบเต็ม** สมัคร → declaration → ส่งลิงก์ → เปิดอีกเครื่อง → **อัปใบเซอร์** → ส่งกลับ — พิสูจน์ `011`/`012` ไปในตัว | โบ๊ท + เฟิน | ~ครึ่งวัน |
-| 3 | **ยืนยัน env บน Render (โดยเฉพาะ Resend) + ตัดสินใจ Render vs Cloud Run** แล้วเก็บ `deploy.yml` ให้ตรง (R6) | เฟิน | ~1 ชม. |
+| 3 | **ยืนยัน env ที่เหลือบน Render (Resend ✅ แล้ว) + ตัดสินใจ Render vs Cloud Run** แล้วเก็บ `deploy.yml` ให้ตรง (R6) | เฟิน | ~1 ชม. |
 | 4 | รีวิว + merge PR hardening #107–#110 ทีละตัว (R8) — เช็คทุกครั้งว่า Render deploy ตัวใหม่แล้ว | โบ๊ท | ~ครึ่งวัน |
 | 5 | Import default factor ชุดจริง (R3) — หลัง #107 | เฟิน | รอเฟิน |
 | 6 | ตัดสินใจ #106 (Google login), #111 (smart upload), #112 (suspension/audit) ว่าเข้ารอบนี้ไหม | ทีม | คุยกัน |
