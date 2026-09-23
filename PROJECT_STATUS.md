@@ -192,7 +192,9 @@ landing + portal ส่งผ่าน `deploy.yml` ได้จริง แต
     *   **ถ้าอยู่ Render:** ปิด/ลบ job `Deploy backend to Cloud Run` (ไม่งั้นแดงทุก merge ที่แตะ backend) และเขียนลง README ว่า Render deploy แบบไหน (auto จาก `main`? กดเอง?) + migration รันตอนไหน
     *   **ถ้าย้าย Cloud Run:** ให้สิทธิ์ `certrace-deployer@certrace-prod.iam.gserviceaccount.com` ใช้ Cloud Build (ตายที่ `forbidden from accessing the bucket [certrace-prod_cloudbuild]` / ขาด `serviceusage.services.use`) → dispatch Deploy ให้ขึ้น → ย้าย env จาก Render ให้ครบ → สลับ DNS `api.certrace.co`
 *   [x] ~~env อีเมลบน Render~~ — `RESEND_API_KEY` + sender + `CERTRACE_EMAIL_DELIVERY=resend` ตั้งแล้ว ส่งจริงผ่าน (ดู R4)
-*   [ ] **เฟิน: ยืนยัน env ที่เหลือบน Render** — `CERTRACE_APP_BASE_URL=https://portal.certrace.co` (ไม่ตั้ง = smart link ชี้ไปโดเมนที่ไม่มีจริง ดู R1), `CERTRACE_ENABLE_API_DOCS=false`
+*   [x] **`CERTRACE_APP_BASE_URL=https://portal.certrace.co` ตั้งบน Render แล้ว** (23 ก.ย.) — ค่านี้ถูกอ่านตอน start ([`main.py:118`](certrace-backend/app/main.py:118)) และใช้แค่ตอนสร้าง smart link ([`links.py:306`](certrace-backend/app/routers/links.py:306)) ซึ่งต้องล็อกอิน จึงยังพิสูจน์จากข้างนอกไม่ได้
+    > **ปิดให้ขาดตอนเดิน E2E (R2):** ลิงก์แรกที่สร้างต้องขึ้นต้นด้วย `https://portal.certrace.co/s/` ถ้าเห็น `app.certrace.co` แปลว่า Render ยังไม่ได้ restart หลังตั้งค่า
+*   [x] **API docs ปิดอยู่บน production** — `/docs`, `/redoc`, `/openapi.json` ตอบ 404 ทั้งหมด (เช็ค 23 ก.ย.) · #110 ยังควร merge เพื่อให้ปิดเป็น default ไม่ต้องพึ่ง env
 *   [ ] **โบ๊ท:** ใส่ `EXPORTER_PORTAL_URL=https://portal.certrace.co` เป็น repository **variable** — ตอนนี้ยังไม่มี step เช็ค security header หลัง deploy จึง `exit 0` ผ่านเฉยๆ (nightly probe ยังเขียวทุกคืน จึงไม่เร่ง)
 *   [x] `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` + `API_URL` (secret) — ตั้งแล้ว 16 ก.ย.
     > หมายเหตุ `API_URL`: ค่านี้ไม่ลับจริง มันถูกฝังลง JS bundle ที่ใครก็โหลดไปอ่านได้ เก็บเป็น secret จึงได้แค่ mask ใน log — ถ้าอยากให้ debug ง่ายขึ้น ย้ายไป Variables แล้วสลับ `secrets.API_URL` เป็น `vars.API_URL` สองที่ใน `deploy.yml`
