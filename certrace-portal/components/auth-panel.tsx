@@ -5,6 +5,7 @@ import { StatusDot, cn } from "./ui";
 import { CertraceLogo } from "./logo";
 import { useT } from "@/lib/i18n";
 import { MARKETING_SITE_URL } from "@/lib/links";
+import { warmBackend } from "@/lib/api";
 
 /* ── The brand-panel sub-line ───────────────────────────────────
    The default is the copy /register and /forgot-password carry, and it stays
@@ -50,6 +51,11 @@ function HomeLogo({ className }: { className?: string }) {
    `safe center` is the standard fix. */
 export function AuthLayout({ children, description }: { children: React.ReactNode; description?: string }) {
   const t = useT();
+  /* Every auth screen is the first thing someone opens before talking to the
+     backend, so this is where it gets woken up — see lib/api/warm.ts. */
+  React.useEffect(() => {
+    warmBackend();
+  }, []);
   return (
     <div className="relative grid h-dvh overflow-hidden lg:grid-cols-2">
       <div className="relative hidden flex-col justify-between overflow-hidden border-r border-black/[0.06] p-12 lg:flex">
