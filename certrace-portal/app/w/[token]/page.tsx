@@ -127,6 +127,7 @@ import {
   useSubmission,
 } from "@/lib/workspace-data-query";
 import { useWorkspaceRequest } from "@/lib/workspaces-query";
+import { activeLinkSession, saveLinkIfChanged, submitWorkspaceLink } from "@/lib/workspace-link-sync";
 import { useT } from "@/lib/i18n";
 
 const STEPS = [
@@ -187,6 +188,30 @@ function Flow({ req }: { req: WorkspaceRequest }) {
 
   const [step, setStep] = React.useState<StepKey>("overview");
   const [month, setMonth] = React.useState(req.month);
+
+  /* ── A server link saves itself ───────────────────────────────
+     When this page was opened from a server-issued link, every store it
+     writes is this browser's copy of what the exporter will read. Rather than
+     thread a save through each of the dozen places those stores are written,
+     compare the workspace's slice every few seconds and save when it moved —
+     and once more when the tab is hidden or the page goes away, which is when
+     a supplier closes it. See lib/workspace-link-sync.ts. */
+  React.useEffect(() => {
+    if (!activeLinkSession()) return;
+    const save = () => void saveLinkIfChanged().catch((cause) => console.warn("[workspace-links] autosave failed:", cause));
+    const timer = window.setInterval(save, 3000);
+    const onHide = () => {
+      if (document.visibilityState === "hidden") save();
+    };
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", save);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("pagehide", save);
+      save();
+    };
+  }, []);
 
   /* Everything this month needs, off the query cache. The month is part of
      the key, which is what makes the month picker a real switch rather than
@@ -616,6 +641,17 @@ function Flow({ req }: { req: WorkspaceRequest }) {
       const done = submitMonth(workspace.id, month, fullName.trim() || "Supplier");
       if (done) setEntry(done);
       invalidateWorkspaceData();
+      // On a server link the submission is only real once the server has
+      // stamped it: that is the version and the signer the exporter reads.
+      if (activeLinkSession()) {
+        void submitWorkspaceLink(
+          { signatoryName: fullName.trim(), signatoryRole: role.trim() },
+          { score: report?.score ?? 0, warnings: report?.warnings.length ?? 0 },
+        ).catch((cause) => {
+          console.warn("[workspace-links] submit failed:", cause);
+          toast({ message: "Not sent yet", detail: "Your answers are saved here. Check your connection and submit again.", tone: "warn" });
+        });
+      }
       toast({ message: `${monthNameLong(month)} submitted`, detail: "The exporter can see it now.", tone: "ok" });
     });
   };
@@ -1081,7 +1117,15 @@ function Overview({
           <p className="flex items-start gap-2 text-[12.5px] leading-relaxed text-black/45">
             <ShieldCheck size={14} strokeWidth={1.5} className="mt-[2px] flex-none text-black/30" />
             <span className="min-w-0">
-              <strong className="font-medium text-black/70">{t("Nothing is sent yet.")}</strong> {t("Every answer stays in this browser until Certrace’s hosted service is connected.")}
+              {activeLinkSession() ? (
+                <>
+                  <strong className="font-medium text-black/70">{t("Saved as you go.")}</strong> {t("Every answer is saved to Certrace for the company that sent you this link — you can close this page and come back to it from any device.")}
+                </>
+              ) : (
+                <>
+                  <strong className="font-medium text-black/70">{t("Nothing is sent yet.")}</strong> {t("Every answer stays in this browser until Certrace’s hosted service is connected.")}
+                </>
+              )}
             </span>
           </p>
         </div>

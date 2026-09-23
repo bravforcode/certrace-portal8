@@ -3217,6 +3217,10 @@ export const TH: Record<string, string> = {
     "ลูกค้าของคุณส่งออกสินค้านี้ไปยังสหภาพยุโรป ภายใต้ CBAM ผู้นำเข้าต้องระบุปริมาณ CO₂ ที่ฝังอยู่ในสินค้าทุกตันที่นำเข้า และตัวเลขนั้นมาจากโรงงานผู้ผลิตเท่านั้น คำขอรายเดือนทั้งสิบสองครั้งนี้มีไว้เพื่อเก็บข้อมูลดังกล่าว",
   "If it is not reported, the importer is not let off — they fall back to a default set high enough that real data is nearly always cheaper. So what you enter here has a price attached, in both directions.":
     "หากไม่มีการรายงาน ผู้นำเข้าก็ไม่ได้รับการยกเว้น แต่ต้องใช้ค่า default ซึ่งตั้งไว้สูงพอที่ข้อมูลจริงจะถูกกว่าเกือบทุกกรณี สิ่งที่คุณกรอกที่นี่จึงมีมูลค่าติดอยู่ด้วยทั้งสองทาง",
+  "Saved as you go.":
+    "บันทึกให้อัตโนมัติระหว่างกรอก",
+  "Every answer is saved to Certrace for the company that sent you this link — you can close this page and come back to it from any device.":
+    "ทุกคำตอบถูกบันทึกไว้ที่ Certrace สำหรับบริษัทที่ส่งลิงก์นี้ให้คุณ ปิดหน้านี้แล้วกลับมากรอกต่อจากอุปกรณ์ใดก็ได้",
   "Nothing is sent yet.":
     "ยังไม่ได้ส่งอะไรไป",
   "Go to the first thing to fix":
