@@ -89,6 +89,40 @@ def test_api_documentation_can_be_disabled(monkeypatch) -> None:
     assert client.get("/openapi.json").status_code == 404
 
 
+def test_the_entrypoint_serves_no_docs_unless_asked(monkeypatch) -> None:
+    """The ASGI target `main:app` must default to docs OFF.
+
+    The docs and the OpenAPI schema describe the whole authenticated API, so a
+    deployment should expose them only by opting in -- never by forgetting to
+    turn a default off. This guards the entrypoint's own wiring, not just
+    create_app's parameter, so flipping main.py back to a True default fails
+    here rather than in production.
+    """
+
+    import importlib
+
+    monkeypatch.delenv("CERTRACE_ENABLE_API_DOCS", raising=False)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("CERTRACE_REQUIRE_DATABASE", raising=False)
+    monkeypatch.delenv(CORS_ALLOWED_ORIGINS_ENV, raising=False)
+    # Neutralize any developer .env so the reload reads only the cleared
+    # environment, in create_app and in the entrypoint's own lookups alike.
+    monkeypatch.setattr("app.config.load_env_file_value", lambda name: None)
+    monkeypatch.setattr("app.main.load_env_file_value", lambda name: None)
+
+    import main as entrypoint
+
+    importlib.reload(entrypoint)
+    try:
+        client = TestClient(entrypoint.app)
+        assert client.get("/docs").status_code == 404
+        assert client.get("/redoc").status_code == 404
+        assert client.get("/openapi.json").status_code == 404
+    finally:
+        # Leave the module bound to the real environment for any later import.
+        importlib.reload(entrypoint)
+
+
 def test_cors_is_absent_by_default(monkeypatch) -> None:
     monkeypatch.delenv(CORS_ALLOWED_ORIGINS_ENV, raising=False)
     # create_app falls back to the developer's local .env; neutralize it here.
