@@ -40,6 +40,9 @@ export function middleware(request: NextRequest) {
     "font-src 'self' data: https://fonts.gstatic.com",
     `connect-src 'self' https://api.anthropic.com${api ? ` ${api}` : ""}${isDevelopment ? " ws: wss:" : ""}`,
     "worker-src 'self' blob:",
+    // Smart upload previews an uploaded PDF in an iframe from a blob: URL,
+    // which default-src 'self' would otherwise refuse.
+    "frame-src 'self' blob:",
     "manifest-src 'self'",
     ...(isDevelopment ? [] : ["upgrade-insecure-requests"]),
   ].join("; ");

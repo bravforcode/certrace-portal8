@@ -37,6 +37,7 @@ import { type SupplierProfile, loadProfiles } from "@/lib/supplier-store";
 import { SECTION_ACCESS, isShared, type Audience } from "@/lib/supplier-records";
 import { runQualityCheck, CATEGORIES, CATEGORY_BLURB, type CheckResult, type Severity } from "@/lib/ai-check";
 import { useT } from "@/lib/i18n";
+import { SupplierIntake } from "@/components/intake/supplier-intake";
 
 const DEPARTMENTS = [
   "Operations / EHS",
@@ -572,7 +573,13 @@ export function DocumentsView() {
         </Card>
       )}
 
+      {/* PROTOTYPE: drop the pile first, let Certrace match each file to a
+          requested document. The rows below still take files one at a time —
+          revisions and locked documents are handled there. */}
+      <SupplierIntake />
+
       <div className="space-y-3">
+        <h3 className="text-[11px] uppercase tracking-[0.12em] text-black/40">{t("Requested documents")}</h3>
         {req.documents.map((d) => (
           <DocRow key={d.id} d={d} />
         ))}

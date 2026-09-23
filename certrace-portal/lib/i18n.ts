@@ -21,6 +21,7 @@
 
 import * as React from "react";
 import { TH } from "./i18n-th";
+import { TH_INTAKE } from "./i18n-th-intake";
 
 export type LangCode = "en" | "th";
 export const LANGUAGES: { code: LangCode; label: string; nativeLabel: string; glyph: string }[] = [
@@ -28,7 +29,9 @@ export const LANGUAGES: { code: LangCode; label: string; nativeLabel: string; gl
   { code: "th", label: "Thai", nativeLabel: "ไทย", glyph: "TH" },
 ];
 
-const DICTS: Record<LangCode, Record<string, string>> = { en: {}, th: TH };
+/* The portal-wide dictionary wins: smart upload adds strings, it does not
+   reword ones other screens already use. */
+const DICTS: Record<LangCode, Record<string, string>> = { en: {}, th: { ...TH_INTAKE, ...TH } };
 
 export type Vars = Record<string, string | number>;
 

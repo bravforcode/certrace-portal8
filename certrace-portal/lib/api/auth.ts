@@ -42,6 +42,8 @@ export type AuthUser = {
   firstName?: string;
   lastName?: string;
   companyName?: string;
+  /** A Google account is connected — Settings offers "Connect Google" when not. */
+  googleLinked?: boolean;
 };
 
 export type RegisterInput = {

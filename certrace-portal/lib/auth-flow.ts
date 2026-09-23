@@ -69,6 +69,23 @@ export function signUpError(cause: unknown): SignUpFailure {
   return { message: "We couldn't create your account. Please try again.", field: null };
 }
 
+/* ── What a brand-new account starts with: nothing ──────────────
+   The profile store ships preloaded with the demo organisation so the rest of
+   the portal has something to render. Signing up has to wipe that back to
+   empty, or /onboarding opens with a stranger's company, name, job title,
+   sector and phone number already filled in — answers nobody gave, which are
+   accepted precisely because they are never read. */
+export const BLANK_SIGNUP = {
+  firstName: "",
+  lastName: "",
+  companyName: "",
+  sector: "",
+  jobTitle: "",
+  phone: "",
+  lineId: "",
+  onboarded: false,
+} as const;
+
 /* ── Where signing in lands ─────────────────────────────────────
    /onboarding/setup is the SIGN-IN flow: it confirms what the account already
    told us and opens the dashboard. It is the right destination for every
