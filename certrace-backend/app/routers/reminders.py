@@ -29,11 +29,13 @@ import ipaddress
 import uuid
 from urllib.parse import urlsplit
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from app.routers.auth import current_account
+from app.services import notifications
 from app.services.auth_service import Account
+from app.services.reminders import format_date
 
 
 def _validated_link_url(raw: str) -> str:
@@ -195,15 +197,46 @@ def register(
 def mark_sent(
     subject_key: str,
     request: Request,
+    background_tasks: BackgroundTasks,
     account: Account = Depends(current_account),
 ) -> dict[str, object]:
-    """The ask went out. The first call starts the clock; later ones count."""
+    """The ask went out. The first call starts the clock; later ones count.
+
+    The first call is also the moment Certrace writes to the supplier: the
+    data-request email carrying their link. Before this, "sent" meant the
+    exporter had copied the link and was trusted to pass it on -- the nightly
+    ladder then chased a supplier who may never have been told anything.
+
+    Only the first call mails. A later one is a re-send the portal counts
+    (``resendCount``), and it is just as likely to be a retry after a dropped
+    response as a deliberate nudge -- two identical requests in a row is the
+    kind of thing that gets an address marked as spam. The ladder in
+    app/services/reminder_schedule.py does the chasing from here.
+    """
 
     row = _store(request).mark_reminder_subject_sent(
         uuid.UUID(account.id), _key(subject_key), _now()
     )
     if row is None:
         raise _NOT_FOUND
+    if int(row["resendCount"]) == 0 and not row["accountLocked"]:
+        locale = row["locale"] or None
+        due_date = datetime.date.fromisoformat(str(row["dueDate"]))
+        background_tasks.add_task(
+            notifications.send_quietly,
+            request.app.state.email_transport,
+            notifications.SUPPLIER_DATA_REQUEST,
+            to=str(row["recipient"]),
+            locale=locale,
+            context={
+                "exporter_name": account.company_name or account.email,
+                "supplier_name": row["supplierName"],
+                "period_label": row["periodLabel"],
+                "due_date": format_date(due_date, locale),
+                "link_url": row["linkUrl"],
+            },
+            logo_url=getattr(request.app.state, "email_logo_url", None),
+        )
     return row
 
 

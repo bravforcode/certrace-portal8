@@ -32,6 +32,10 @@ JWT_SECRET_ENV = "CERTRACE_JWT_SECRET"
 # Unset means Sign in with Google answers 503.
 GOOGLE_CLIENT_ID_ENV = "CERTRACE_GOOGLE_CLIENT_ID"
 
+# Bearer token for /api/internal/jobs/* (app/routers/jobs.py). Unset turns
+# those routes off entirely; the daily reminder workflow sends the same value.
+JOBS_TOKEN_ENV = "CERTRACE_JOBS_TOKEN"
+
 # Signing settings are constants, not environment knobs. An operator who can
 # lower them by mistake is a way to weaken every token at once, and nothing
 # about a deployment needs them to differ.
