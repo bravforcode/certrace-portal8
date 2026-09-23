@@ -89,12 +89,15 @@ export function DotStrip({ states, className }: { states: TabState[]; className?
    Nested routes rather than a query parameter, because the readiness rules
    emit deep links to exact fields — /workspaces/x/monthly/2026-03 has to be a
    real address a verifier or a colleague can be sent. */
-export type WorkspaceTabKey = ReadinessTab | "overview" | "readiness" | "settings";
+export type WorkspaceTabKey = ReadinessTab | "overview" | "readiness" | "settings" | "intake";
 export type WorkspaceTab = { key: WorkspaceTabKey; label: string; href: string };
 
 export function tabsFor(id: string): WorkspaceTab[] {
   return [
     { key: "overview", label: "Overview", href: `/workspaces/${id}` },
+    // Drop documents first, file them
+    // after — see lib/smart-intake.ts.
+    { key: "intake", label: "Smart upload", href: `/workspaces/${id}/intake` },
     // No MMD tab and no Precursors tab. Both live inside Monthly data now —
     // see the header of app/(portal)/workspaces/[id]/monthly/page.tsx. Their
     // ROUTES still exist and are still where the editing happens, so every
@@ -289,7 +292,8 @@ export function ResponsibilityBar({ tab }: { tab: WorkspaceTabKey }) {
      so `t(someEnglishString)` resolves exactly as a literal would, and the
      table stays a plain module with no React in it. */
   const t = useT();
-  const r = RESPONSIBILITY[tab];
+  // The prototype intake tab is nobody's scheduled homework — no bar.
+  const r = tab === "intake" ? undefined : RESPONSIBILITY[tab];
   if (!r) return null;
   const supplierOwned = r.owner === "supplier";
 
@@ -335,7 +339,7 @@ export function tabKeyFromPath(pathname: string, id: string): WorkspaceTabKey {
   // is what they used to do and which told a reader chasing a tier-3 supplier
   // to "keep the identity correct".
   if (head === "tree") return "precursors";
-  const known: WorkspaceTabKey[] = ["mmd", "monthly", "precursors", "evidence", "readiness", "settings"];
+  const known: WorkspaceTabKey[] = ["mmd", "monthly", "precursors", "evidence", "readiness", "settings", "intake"];
   return known.find((k) => k === head) ?? "overview";
 }
 

@@ -75,6 +75,7 @@ import { Note, SectionCard, fmt } from "@/components/workspace/chrome";
 import { MonthReviewBar } from "@/components/workspace/month-review";
 import { RevisionRequestPanel } from "@/components/workspace/revision-request";
 import { DocumentsStep, InstallationStep, MmdStep, MonthlyStep, PrecursorStep } from "@/components/supplier/month-steps";
+import { AiFillRunBanner } from "@/components/intake/ai-badge";
 import { useWorkspace } from "@/components/workspace/provider";
 import { emptyInstallation, type Installation } from "@/lib/installations";
 import { useInstallation, useSaveInstallation } from "@/lib/installations-query";
@@ -434,6 +435,9 @@ export default function MonthEditorPage({ params }: { params: Promise<{ id: stri
       />
 
       <MmdStep value={mmd} onChange={setMmdSynced} readOnly={readOnly} cnCode={workspace.cnCode} />
+
+      {/* PROTOTYPE: "AI just filled these" when smart upload sent the reader here. */}
+      <AiFillRunBanner scope={`ws:${workspace.id}`} month={month} hrefFor={(m) => `/workspaces/${workspace.id}/monthly/${m}`} />
 
       <MonthlyStep workspaceId={workspace.id} entry={entry} patch={patch} patchFuel={patchFuel} readOnly={readOnly} />
 

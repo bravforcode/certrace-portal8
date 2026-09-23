@@ -7,7 +7,7 @@ import { ArrowRight } from "lucide-react";
 import { Button, Field, inputClass, cn } from "@/components/ui";
 import { AuthLayout, GoogleButton, Divider, GOOGLE_AUTH_ENABLED, AuthUnavailable } from "@/components/auth-panel";
 import { EnglishOnly, useT } from "@/lib/i18n";
-import { authUnavailable, demoModeEnabled, login } from "@/lib/api";
+import { authUnavailable, beginGoogleSignIn, demoModeEnabled, login } from "@/lib/api";
 import { EMAIL_RE, signInDestination, signInError } from "@/lib/auth-flow";
 
 /* Sign-in is English-only, like the rest of the auth screens — see
@@ -90,14 +90,12 @@ function LoginScreen() {
     }
   };
 
-  /* Simulated too — there is no OAuth client yet, which is why the button is
-     hidden (GOOGLE_AUTH_ENABLED). It carries the same gate as the form anyway:
-     the day that flag flips back on, a build with no backend must not have a
-     second, quieter way in. */
+  /* Off to Google and back to /auth/google, which lands the account exactly
+     where the form above would: signInDestination. The button only exists
+     when a backend is there to verify Google's answer (GOOGLE_AUTH_ENABLED). */
   const withGoogle = () => {
-    if (!demoModeEnabled()) return;
     setGoogleLoading(true);
-    window.setTimeout(() => router.push("/onboarding/setup"), 900);
+    beginGoogleSignIn();
   };
 
   return (

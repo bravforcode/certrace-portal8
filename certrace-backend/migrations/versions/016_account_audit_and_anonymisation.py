@@ -23,8 +23,8 @@ never be signed into again. It is a one-way door, which is why it is a status
 of its own rather than a flag on a suspended account -- nothing in the code
 should be able to "restore" it by accident.
 
-Revision ID: 014
-Revises: 013
+Revision ID: 016
+Revises: 015
 Create Date: 2026-09-20
 """
 
@@ -32,8 +32,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision = "014"
-down_revision = "013"
+revision = "016"
+down_revision = "015"
 branch_labels = None
 depends_on = None
 

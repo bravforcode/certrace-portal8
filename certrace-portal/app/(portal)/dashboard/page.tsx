@@ -50,7 +50,7 @@
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { LayoutGrid, Plus } from "lucide-react";
+import { Activity, ChevronRight, LayoutGrid, Plus } from "lucide-react";
 import { Button, EmptyState, Eyebrow, PageHeader, cn } from "@/components/ui";
 import { ErrorState } from "@/components/query-state";
 import { USER } from "@/lib/data";
@@ -205,6 +205,18 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8">
+      {/* PROTOTYPE: on a phone, this dashboard is a lot of desk-sized widgets —
+          point at the view built for the phone. */}
+      <Link href="/monitor" className="flex items-center gap-3 rounded-2xl border border-black/[0.07] bg-white px-4 py-3.5 md:hidden">
+        <span className="grid h-9 w-9 flex-none place-items-center rounded-xl bg-[#f5f4f0]">
+          <Activity size={16} strokeWidth={1.5} className="text-[#111]" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-[family-name:var(--font-plex)] text-[15px] text-[#111]">{t("Open the phone view")}</span>
+          <span className="block text-[13px] text-black/50">{t("Where every month stands, and what is waiting on you.")}</span>
+        </span>
+        <ChevronRight size={16} className="flex-none text-black/25" />
+      </Link>
       <PageHeader
         eyebrow={t("Overview")}
         title={t("Good afternoon, {name}.", { name: firstName })}

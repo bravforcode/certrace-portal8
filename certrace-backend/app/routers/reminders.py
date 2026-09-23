@@ -25,13 +25,63 @@ supplier is worth keeping.
 from __future__ import annotations
 
 import datetime
+import ipaddress
 import uuid
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from app.routers.auth import current_account
 from app.services.auth_service import Account
+
+
+def _validated_link_url(raw: str) -> str:
+    """The URL a reminder email turns into a clickable button.
+
+    It arrives as free text from the authenticated exporter, so nothing about
+    the caller being signed in makes it safe to drop into an ``<a href>`` in a
+    Certrace-branded mail. ``html.escape`` in the templates stops it breaking
+    out of the attribute, but it does not strip a scheme: without this check a
+    ``javascript:``/``data:`` payload, or a plain-http phishing link, rides out
+    under our name to a supplier who trusts the sender.
+
+    The rule mirrors ``core/cors.py``: https everywhere, plain http only for
+    localhost or a loopback address so local runs and tests still work. The
+    portal composes this from ``window.location.origin`` (a different host from
+    the API's own ``app_base_url``), so the scheme is the tightest gate that
+    does not break the one URL this is supposed to carry.
+    """
+
+    value = raw.strip()
+    if any(ch.isspace() for ch in value) or "\\" in value:
+        raise ValueError("A reminder link cannot contain spaces or backslashes.")
+    if any(ord(ch) < 32 or ord(ch) == 127 for ch in value):
+        raise ValueError("A reminder link contains invalid characters.")
+    try:
+        parts = urlsplit(value)
+    except ValueError as exc:
+        raise ValueError("A reminder link must be a valid URL.") from exc
+    scheme = parts.scheme.lower()
+    if scheme not in {"http", "https"}:
+        raise ValueError("A reminder link must use http or https.")
+    if parts.username is not None or parts.password is not None:
+        raise ValueError("A reminder link cannot embed credentials.")
+    try:
+        hostname = parts.hostname
+    except ValueError as exc:
+        raise ValueError("A reminder link has an invalid host.") from exc
+    if not hostname:
+        raise ValueError("A reminder link must include a host.")
+    if scheme == "http":
+        try:
+            loopback = ipaddress.ip_address(hostname).is_loopback
+        except ValueError:
+            loopback = False
+        if hostname.lower() != "localhost" and not loopback:
+            raise ValueError("A reminder link over plain http is limited to localhost.")
+    return value
+
 
 router = APIRouter(prefix="/api/v1/reminder-subjects", tags=["reminders"])
 
@@ -71,6 +121,11 @@ class RegisterSubject(BaseModel):
     link_url: str = Field(..., min_length=1, max_length=2000, alias="linkUrl")
     locale: str | None = Field(default=None, max_length=20)
     account_locked: bool = Field(default=False, alias="accountLocked")
+
+    @field_validator("link_url")
+    @classmethod
+    def _check_link_url(cls, value: str) -> str:
+        return _validated_link_url(value)
 
 
 def _store(request: Request):

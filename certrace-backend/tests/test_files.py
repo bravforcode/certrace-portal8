@@ -418,3 +418,51 @@ def test_a_binary_file_labelled_as_csv_is_refused() -> None:
     with pytest.raises(FileRejected) as raised:
         validate("text/csv", b"\x00\x01\x02binary")
     assert raised.value.code == "FILE_CONTENT_MISMATCH"
+
+
+_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def _zip_of(names: dict[str, bytes]) -> bytes:
+    """A ZIP holding exactly the given members, for the xlsx structure checks."""
+
+    import io
+    import zipfile
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        for name, body in names.items():
+            archive.writestr(name, body)
+    return buffer.getvalue()
+
+
+def test_a_real_workbook_is_accepted() -> None:
+    """The OOXML parts our check asks for -- the manifest and an xl/ member --
+    are exactly what every spreadsheet program writes."""
+
+    data = _zip_of(
+        {
+            "[Content_Types].xml": b"<Types/>",
+            "xl/workbook.xml": b"<workbook/>",
+            "_rels/.rels": b"<Relationships/>",
+        }
+    )
+    assert validate(_XLSX, data) == _XLSX
+
+
+def test_an_arbitrary_zip_labelled_as_a_workbook_is_refused() -> None:
+    """The PK magic only says "ZIP". A plain archive -- or a docx, a jar, a zip
+    bomb -- must not pass as the spreadsheet a verifier is meant to open."""
+
+    data = _zip_of({"notes.txt": b"just a zip, not a workbook"})
+    with pytest.raises(FileRejected) as raised:
+        validate(_XLSX, data)
+    assert raised.value.code == "FILE_CONTENT_MISMATCH"
+
+
+def test_a_truncated_zip_labelled_as_a_workbook_is_refused() -> None:
+    """Only the magic bytes, no readable central directory: not a workbook."""
+
+    with pytest.raises(FileRejected) as raised:
+        validate(_XLSX, b"PK\x03\x04truncated-not-a-real-zip")
+    assert raised.value.code == "FILE_CONTENT_MISMATCH"

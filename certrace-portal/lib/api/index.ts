@@ -38,6 +38,8 @@ export { configureApi, apiBaseUrl, apiConfigured, apiTimeoutMs, demoModeEnabled,
 export type { ApiConfig } from "./config";
 
 export { request } from "./http";
+
+export { warmBackend } from "./warm";
 export type { RequestOptions } from "./http";
 
 export {
@@ -60,6 +62,17 @@ export {
   resetPassword,
   changePassword,
 } from "./auth";
+export {
+  beginGoogleSignIn,
+  beginGoogleLink,
+  completeGoogleCallback,
+  googleAuthorizeUrl,
+  googleSignInEnabled,
+  pendingGoogleIntent,
+  GoogleCallbackError,
+  GOOGLE_CALLBACK_PATH,
+} from "./google";
+export type { GoogleCallbackProblem, GoogleCallbackResult, GoogleIntent } from "./google";
 export type {
   AuthUser,
   RegisterInput,

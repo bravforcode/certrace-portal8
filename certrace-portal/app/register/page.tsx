@@ -9,27 +9,10 @@ import { AuthLayout, GoogleButton, Divider, PasswordStrength, GOOGLE_AUTH_ENABLE
 import { useProfile } from "@/lib/profile";
 import { EnglishOnly, useT } from "@/lib/i18n";
 import { LEGAL_PRIVACY_URL, LEGAL_TERMS_URL } from "@/lib/links";
-import { authUnavailable, demoModeEnabled, register } from "@/lib/api";
-import { EMAIL_RE, signUpError, type SignUpFailure } from "@/lib/auth-flow";
+import { authUnavailable, beginGoogleSignIn, demoModeEnabled, register } from "@/lib/api";
+import { BLANK_SIGNUP, EMAIL_RE, signUpError, type SignUpFailure } from "@/lib/auth-flow";
 
 const NO_ERROR: SignUpFailure = { message: "", field: null };
-
-/* ── What a brand-new account starts with: nothing ──────────────
-   The profile store ships preloaded with the demo organisation so the rest of
-   the portal has something to render. Signing up has to wipe that back to
-   empty, or /onboarding opens with a stranger's company, name, job title,
-   sector and phone number already filled in — answers nobody gave, which are
-   accepted precisely because they are never read. */
-const BLANK_SIGNUP = {
-  firstName: "",
-  lastName: "",
-  companyName: "",
-  sector: "",
-  jobTitle: "",
-  phone: "",
-  lineId: "",
-  onboarded: false,
-} as const;
 
 /* ── Creating the account, and nothing else ─────────────────────
    This form asks only what an account cannot exist without: who you are, an
@@ -134,14 +117,11 @@ function RegisterScreen() {
      Kiakittiwong / Head of Export Ops / Steel & iron" pre-ticked on a form
      whose whole job is to ask. */
   const withGoogle = () => {
-    /* Same gate as the form: hidden today (GOOGLE_AUTH_ENABLED), but a build
-       with no backend must not gain a second way in the day it comes back. */
-    if (!demoModeEnabled()) return;
+    /* Off Certrace and back: /auth/google finishes the sign-in, and blanks the
+       profile with the name Google gave when the account turns out to be new
+       — the same wipe the email form does above. */
     setGoogleLoading(true);
-    window.setTimeout(() => {
-      update(BLANK_SIGNUP);
-      router.push("/onboarding");
-    }, 900);
+    beginGoogleSignIn();
   };
 
   return (

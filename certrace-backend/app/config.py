@@ -26,6 +26,12 @@ APP_BASE_URL_ENV = "CERTRACE_APP_BASE_URL"
 # The same mailbox the brand's verified Resend domain already sends from.
 JWT_SECRET_ENV = "CERTRACE_JWT_SECRET"
 
+# The OAuth client id of the portal's "Sign in with Google". Public, not a
+# secret: it is in every sign-in URL the browser opens. But it is the audience
+# every Google ID token must name, so it has to be the one the portal uses.
+# Unset means Sign in with Google answers 503.
+GOOGLE_CLIENT_ID_ENV = "CERTRACE_GOOGLE_CLIENT_ID"
+
 # Signing settings are constants, not environment knobs. An operator who can
 # lower them by mistake is a way to weaken every token at once, and nothing
 # about a deployment needs them to differ.

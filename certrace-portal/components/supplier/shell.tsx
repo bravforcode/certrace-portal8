@@ -68,7 +68,7 @@ export function SupplierShell({ children }: { children: React.ReactNode }) {
         <div className="mx-auto flex h-16 max-w-5xl items-center gap-4 px-4 md:px-6">
           <button onClick={() => setView(chrome ? "overview" : "landing")} className="inline-flex items-center gap-2.5" aria-label={t("Certrace Supplier Portal")}>
             <CertraceLogo className="h-[18px] w-auto" />
-            <span className="hidden items-center gap-1.5 rounded-full border border-black/10 px-2.5 py-1 font-pixel text-[9px] uppercase tracking-[0.16em] text-black/45 sm:inline-flex">
+            <span className="hidden items-center gap-1.5 whitespace-nowrap rounded-full border border-black/10 px-2.5 py-1 font-pixel text-[9px] uppercase tracking-[0.16em] text-black/45 sm:inline-flex">
               {req.selfSupplied ? <Building2 size={11} strokeWidth={1.5} /> : <ShieldCheck size={11} strokeWidth={1.5} />}
               {req.selfSupplied ? t("Our own data") : t("Supplier Portal")}
             </span>
@@ -110,9 +110,11 @@ export function SupplierShell({ children }: { children: React.ReactNode }) {
               <StatusDot tone={meta.tone} pulse={meta.tone === "info"} glow={meta.tone === "ok"} />
               {t(meta.label)}
             </span>
-            <span className="hidden text-right leading-tight md:block">
+            {/* lg, not md: at tablet width the name wrapped to two lines inside
+                the fixed-height bar and crowded the pills beside it. */}
+            <span className="hidden whitespace-nowrap text-right leading-tight lg:block">
               <span className="block text-[11px] text-black/40">{req.selfSupplied ? t("Reporting as") : t("Requested by")}</span>
-              <span className="block text-[12px] text-black/70">{req.exporterName}</span>
+              <span className="block max-w-[14rem] truncate text-[12px] text-black/70">{req.exporterName}</span>
             </span>
             {/* Last, and on every breakpoint. The supplier has no account and
                 so no saved preference — the page opened in whatever their

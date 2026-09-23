@@ -122,7 +122,7 @@ Session แยกเป็นสองส่วนแล้ว: **access token (
 
 Terms §6.4 / §20.4 ให้เราตัดสิทธิการใช้งานได้ (ค้างชำระเกินกำหนดแจ้งเตือน,
 sanctions, ละเมิดข้อ 13) รอบนี้ฝั่งเซิร์ฟเวอร์ทำได้จริงแล้ว — `users.status`
-เป็น `ACTIVE` หรือ `SUSPENDED` (migration 013) และคนที่ถูกระงับจะเจอ:
+เป็น `ACTIVE` หรือ `SUSPENDED` (migration 015) และคนที่ถูกระงับจะเจอ:
 
 ```jsonc
 // ทุก endpoint 🔒 + POST /login + POST /refresh
@@ -160,7 +160,7 @@ sanctions, ละเมิดข้อ 13) รอบนี้ฝั่งเซ�
 
 ### บัญชีถูก anonymise — Privacy §11.2 (เพิ่ม 2026-09-20)
 
-`users.status` มีสถานะที่สาม `ANONYMISED` (migration 014) เป็นประตูทางเดียว
+`users.status` มีสถานะที่สาม `ANONYMISED` (migration 016) เป็นประตูทางเดียว
 หลังหมดหน้าต่าง export 30 วันนับจากวันที่ระงับ (Terms §9.5) — ก่อนครบสั่งไม่ได้
 เว้นแต่ `--force` (เคสลูกค้าขอให้ลบเองตอนนี้)
 

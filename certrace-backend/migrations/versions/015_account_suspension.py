@@ -18,16 +18,16 @@ carries the moment it happened, and an ACTIVE row never does. Without it the
 pair drifts the first time someone flips ``status`` by hand and the timestamp
 we would rely on in a dispute is a leftover from a suspension since lifted.
 
-Revision ID: 013
-Revises: 012
+Revision ID: 015
+Revises: 014
 Create Date: 2026-09-20
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "013"
-down_revision = "012"
+revision = "015"
+down_revision = "014"
 branch_labels = None
 depends_on = None
 

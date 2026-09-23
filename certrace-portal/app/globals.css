@@ -113,6 +113,14 @@ html[lang="th"] h4 {
 html[lang="th"] body :is([class*="text-3xl"], [class*="text-4xl"], [class*="text-5xl"], [class*="text-6xl"]) {
   line-height: 1.12;
   padding-top: 0.26em;
+}
+
+/* The negative margin that pays the padding back applies ONLY to a heading
+   with nothing above it. On a heading that follows an eyebrow it used to
+   replace the authored `mt-*` outright (this selector outranks the utility),
+   pulling the heading 0.26em up into the label — "เอกสารประกอบ" sat on top of
+   "แนบใบรับรองของคุณ" on the Supplier Portal. */
+html[lang="th"] body :is([class*="text-3xl"], [class*="text-4xl"], [class*="text-5xl"], [class*="text-6xl"]):first-child {
   margin-top: -0.26em;
 }
 

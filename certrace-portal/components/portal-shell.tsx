@@ -27,6 +27,7 @@ import {
   Lightbulb,
   PlayCircle,
   ExternalLink,
+  Activity,
 } from "lucide-react";
 import { cn, StatusDot } from "./ui";
 import { SupplyChainNav, workspaceIdFromPath } from "./workspace/supply-chain-nav";
@@ -126,6 +127,9 @@ function useNav() {
   const { t } = useLanguage();
   return [
     { href: "/dashboard", label: t("Dashboard"), icon: LayoutDashboard },
+    // The read-only phone view — see app/(portal)/monitor. Listed in the phone
+    // menu only: on a desk the dashboard already answers it.
+    { href: "/monitor", label: t("Monitor"), icon: Activity, mobileOnly: true },
     // The workspace an exporter lives in: monthly data, the MMD, precursors
     // and readiness for one installation × product × year. It is the spine of
     // the portal now — the separate Declarations list was a second place to
@@ -489,6 +493,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
                     className={cn(
                       "flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] transition-colors",
                       active ? "bg-black/[0.05] text-black" : "text-black/50 hover:bg-black/[0.03] hover:text-black/80",
+                      item.mobileOnly && "md:hidden",
                     )}
                   >
                     <Icon size={17} strokeWidth={1.5} />

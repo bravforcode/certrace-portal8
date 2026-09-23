@@ -8,7 +8,7 @@ import uuid
 from decimal import Decimal
 from urllib.parse import quote, unquote, urlsplit, urlunsplit
 
-from sqlalchemy import case, create_engine, delete, select, text
+from sqlalchemy import case, create_engine, delete, func, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
 
@@ -110,6 +110,19 @@ class DatabaseRepository:
     ) -> Decimal | None:
         if cn_code is None or year is None:
             return None
+        normalized_code = cn_code.replace(" ", "")
+        # The Commission does not always publish a value at full CN8 - some
+        # headings (e.g. 7601, unwrought aluminium) only ever carry one figure
+        # for the whole 4- or 6-digit heading, because there is no finer
+        # breakdown to publish (BACK-10). Try the code as given, then its
+        # 6-digit and 4-digit prefixes, and prefer whichever match is most
+        # specific.
+        candidates = [normalized_code]
+        if len(normalized_code) > 6:
+            candidates.append(normalized_code[:6])
+        if len(normalized_code) > 4:
+            candidates.append(normalized_code[:4])
+
         exact_country = normalize_country_of_origin(country_of_origin)
         countries = [exact_country, "OTHER_COUNTRIES", "UNSPECIFIED"]
         with self.session_factory() as session:
@@ -118,14 +131,19 @@ class DatabaseRepository:
                 (DefaultEmissionFactor.country_of_origin == "OTHER_COUNTRIES", 1),
                 else_=2,
             )
+            code_specificity = func.length(DefaultEmissionFactor.cn_code)
             statement = (
                 select(DefaultEmissionFactor.specific_embedded_emissions)
                 .where(
-                    DefaultEmissionFactor.cn_code == cn_code.replace(" ", ""),
+                    DefaultEmissionFactor.cn_code.in_(candidates),
                     DefaultEmissionFactor.reporting_year == year,
                     DefaultEmissionFactor.country_of_origin.in_(countries),
                 )
-                .order_by(country_priority, DefaultEmissionFactor.route.nullsfirst())
+                .order_by(
+                    code_specificity.desc(),
+                    country_priority,
+                    DefaultEmissionFactor.route.nullsfirst(),
+                )
                 .limit(1)
             )
             return session.scalar(statement)
