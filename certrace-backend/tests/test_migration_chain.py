@@ -34,7 +34,9 @@ def _declared_revisions() -> list[str]:
         for node in tree.body:
             if (
                 isinstance(node, ast.Assign)
-                and any(isinstance(t, ast.Name) and t.id == "revision" for t in node.targets)
+                and any(
+                    isinstance(t, ast.Name) and t.id == "revision" for t in node.targets
+                )
                 and isinstance(node.value, ast.Constant)
             ):
                 found.append(str(node.value.value))
