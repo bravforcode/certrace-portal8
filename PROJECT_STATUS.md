@@ -2,11 +2,10 @@
 
 ไฟล์นี้สรุปว่า **โค้ดในรีโปตอนนี้ทำอะไรได้จริงบ้าง** และเหลืออะไรที่ โบ๊ท กับ เฟิน ต้องลุยต่อก่อนปล่อยให้ Design Partner ใช้งานจริง
 
-> อัปเดตล่าสุด: 16 ก.ย. 2026 (รอบบ่าย) — **R1 ปิดแล้ว ส่วน R2 เปิดใหม่** backend ขึ้นของจริง แต่ **พอร์ทัลบนโดเมนจริงยังล็อกอินด้วยรหัสอะไรก็ได้** แก้ในโค้ดแล้วรอ deploy พิสูจน์
-> รอบเช้าปิด R2 ด้วยการอนุมานจาก CSP header ว่า build มี `NEXT_PUBLIC_API_BASE_URL` — **ผิด** ลองล็อกอินตรงๆ ด้วยรหัสมั่วแล้วเข้าได้ ดู R2 ว่าทำไมหลักฐานนั้นเชื่อไม่ได้
-> รอบนี้ยิงเช็ค production จริง (`api.certrace.co/readyz` ตอบ 200 `databaseConfigured: true`, preflight CORS ผ่าน) + อ่าน `gh run list` / `gh api .../actions/secrets` ไม่ได้อ่านจากแผนงาน
-> รอบ 10 ก.ย. เขียนไว้ว่า R1 ยังไม่ได้ deploy และ `api.certrace.co` เป็น DNS เปล่า — ตกยุคไปแล้วทั้งคู่
-> ⚠️ ของใหม่ที่ต้องรู้: **ท่อ deploy อัตโนมัติยังไม่เคยส่งอะไรขึ้นเลยสักครั้ง** ทุกอย่างที่ขึ้นไปแล้วขึ้นด้วยมือ — ดูหัวข้อ 🚨 ใหม่ด้านล่าง
+> อัปเดตล่าสุด: 23 ก.ย. 2026 — เช็คจากของจริงอีกรอบ: `api.certrace.co/readyz` ตอบ `ready: true, databaseConfigured: true` · `gh run list --workflow deploy.yml` + `gh run view --json jobs` · `gh secret list` / `gh variable list` · `gh pr list`
+> **เปลี่ยนจาก 16 ก.ย.:** secret + GCP vars ตั้งครบแล้ว ท่อ deploy **ส่ง landing + portal ขึ้นเองได้จริง** (run ของ #105 `Deploy portal: success`) — แต่ **job backend ยังไม่เคยสำเร็จสักครั้ง** (ดู R6)
+> **R2 ยังเปิด แต่ต้นเหตุเปลี่ยน:** โค้ดแก้ถูกแล้ว ที่พอร์ทัลยังรับรหัสมั่วเพราะมีคนตั้ง `NEXT_PUBLIC_DEMO_MODE=1` ไว้ใน build env ฝั่ง Cloudflare เอง (ยืนยันล่าสุด 19 ก.ย.)
+> สรุปสั้น: **ตัวบล็อกจริงมีข้อเดียว = ถอด demo flag ใน Cloudflare** ถอดแล้วเดิน E2E บน production ได้ทันที ที่เหลือ (R3, PR hardening, ท่อ backend) ทำขนานกันได้
 
 ---
 
@@ -17,40 +16,35 @@
 | นิยามของ MVP | สถานะ | เหลืออะไร |
 | :--- | :---: | :--- |
 | **เปิดเดโมให้ลูกค้าดูได้** | 🟢 100% | ไม่เหลือ — `certrace.co` และ `portal.certrace.co` ขึ้นแล้ว ตอบ 200 ทั้งคู่ |
-| **Design Partner ใช้งานจริง เก็บข้อมูลซัพพลายเออร์จริงได้** | 🟢 ~95% | ทั้งสามชั้นขึ้นของจริงแล้วและต่อถึงกัน เหลือ **เดินเทสต์ end-to-end บนโดเมนจริง** กับ default factor ชุดจริง (R3) |
+| **Design Partner ใช้งานจริง เก็บข้อมูลซัพพลายเออร์จริงได้** | 🟡 ~90% | ทั้งสามชั้นขึ้นของจริงแล้วและต่อถึงกัน แต่ **พอร์ทัลยังเปิด demo mode อยู่ (R2)** เหลือถอด flag → เดิน E2E บนโดเมนจริง → default factor ชุดจริง (R3) |
 
 ```
-[██████████████████████████████████████░░] 95%
+[████████████████████████████████████░░░░] 90%
 ```
 
-สิ่งที่เปลี่ยนจากรอบก่อน: `api.certrace.co` ไม่ใช่ DNS เปล่าอีกแล้ว มี service อยู่หลังจริง ต่อฐานข้อมูลจริง และพอร์ทัล production ถูก build มาพร้อม `NEXT_PUBLIC_API_BASE_URL` แล้ว — **demo mode ปิดไปเองโดยอัตโนมัติ** เพราะ [`config.ts:67`](certrace-portal/lib/api/config.ts:67) เขียนไว้ว่า `if (apiConfigured()) return false` คือ backend จริงชนะธงเสมอ
-
-สิ่งที่ยัง**ไม่**เปลี่ยน และเป็นความเสี่ยงหลักตอนนี้: ท่อ CI/CD ยังส่งของไม่ได้ ทุกอย่างที่ขึ้นไปขึ้นด้วยมือ แปลว่าไม่มีใครรู้ว่า main กับของบนโดเมนจริงตรงกันหรือเปล่า
+ลดจาก 95% ของรอบ 16 ก.ย. เพราะรอบนั้นนับ R2 ว่าจบที่โค้ด แต่ของบนโดเมนจริงยังรับรหัสมั่วอยู่ และ job deploy backend ยังส่งของไม่ได้
 
 ---
 
 ## 🚨 เรื่องที่ต้องรู้ก่อนอย่างอื่น
 
-**1) `portal.certrace.co` ตอนนี้ใส่รหัสอะไรก็ล็อกอินผ่าน**
+**1) `portal.certrace.co` ยังใส่รหัสอะไรก็ล็อกอินผ่าน — เพราะ flag ใน Cloudflare ไม่ใช่เพราะโค้ด**
 
-build ที่เสิร์ฟอยู่ไม่มี `NEXT_PUBLIC_API_BASE_URL` → `apiConfigured()` เป็น false → `demoModeEnabled()` เป็น true → หน้า login ยอมรับทุกรหัส โค้ดแก้แล้วทั้งสามจุด (ดู R2) **แต่ยังไม่ได้ deploy** จนกว่าจะ deploy พอร์ทัลบนโดเมนจริงยังเปิดอยู่ ใครเดาโดเมนถูกก็เข้าไปเห็นข้างในได้
+โค้ดแก้ครบแล้ว (default ใน [`next.config.ts`](certrace-portal/next.config.ts) เป็นค่าว่าง, `deploy.yml` ส่ง `API_URL` เข้า build) แต่ build env ฝั่ง Cloudflare มี `NEXT_PUBLIC_DEMO_MODE=1` ตั้งไว้โดยเจตนา (ยืนยันด้วยการล็อกอินรหัสมั่ว 19 ก.ย.) ใครเดาโดเมนถูกก็เข้าไปเห็นข้างในได้
 
-> ปิดข้อนี้ได้ทางเดียว: deploy แล้วลองล็อกอินด้วยรหัสมั่ว **ต้องไม่ผ่าน** ห้ามปิดด้วยการอ่าน CSP header แบบรอบที่แล้ว
+> **โจ้:** ลบ `NEXT_PUBLIC_DEMO_MODE` ออกจาก build env ใน Cloudflare → rebuild → ลองล็อกอินด้วยรหัสมั่ว **ต้องไม่ผ่าน** ห้ามปิดข้อนี้ด้วยการอ่าน header
 
-**2) ท่อ deploy อัตโนมัติไม่เคยส่งอะไรขึ้นไปเลยสักครั้ง — ของที่อยู่บนโดเมนจริงตอนนี้ขึ้นด้วยมือทั้งหมด**
+**2) ท่อ deploy ส่ง landing + portal ได้แล้ว แต่ backend ยังขึ้นด้วยมือ**
 
-`gh api repos/:owner/:repo/actions/secrets` และ `.../actions/variables` **คืนค่าว่างทั้งคู่** ทั้งระดับรีโปและระดับ environment `production` แปลว่าไม่มี `CLOUDFLARE_API_TOKEN`, ไม่มี `CLOUDFLARE_ACCOUNT_ID`, ไม่มี `EXPORTER_PORTAL_URL` และไม่มี `GCP_*` สักตัว
+secret (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `API_URL`) และ var `GCP_*` 4 ตัวตั้งครบตั้งแต่ 16 ก.ย. run ของ #105 (`35330060995`) ขึ้น `Deploy portal: success` จริง **แต่ `Deploy backend to Cloud Run` ไม่เคยสำเร็จ** — ครั้งเดียวที่มันรัน (merge #104, `35150974140`) ตายที่:
 
-ผลที่ตามมามีสองแบบ และแบบที่สองอันตรายกว่า:
+```
+ERROR: (gcloud.builds.submit) The user is forbidden from accessing the bucket [certrace-prod_cloudbuild]
+```
 
-1. **ตายตรงไปตรงมา** — run เก่า (เช่น merge PR #95) ตายที่ step ชื่อ `Fail early if Cloudflare credentials are missing` ตรงตามที่ step นั้นถูกเขียนมาให้ทำ
-2. **เขียวทั้งที่ไม่ได้ส่งอะไร** — run ล่าสุดสองอัน (`35100274381`, `35101005229`) ขึ้น ✅ เพราะ job `plan` ตัดสินว่าไม่มีแอปไหนถูกแตะ แล้ว **job deploy ทั้งหมด skip ตัวเอง** run เขียวจึงไม่ได้แปลว่า deploy สำเร็จ ต้องเปิดดูว่า job deploy รันจริงหรือ skip
+แปลว่า service account `certrace-deployer@` ยังขาดสิทธิ์ฝั่ง Cloud Build / bucket ทุก PR ที่แตะ `certrace-backend/` (#107–#110, #106, #112) **merge แล้ว deploy จะแดง และ backend บน production จะไม่อัปเดต** ส่วน alembic ก็ยังไม่รันเองด้วย
 
 > ⚠️ **อย่าอ่านแค่สีของ run** เช็คด้วย `gh run view <id> --json jobs` ว่า `Deploy ...` เป็น `success` ไม่ใช่ `skipped`
-
-นอกจากนี้ตั้งแต่ 11 ก.ย. run ที่ merge เข้า main (#96, #99, #100) job `plan` **ตายภายใน 2 วินาทีโดยไม่รัน step ใดเลย** — log หมดอายุแล้วดึงไม่ได้ อาการแบบนี้ปกติคือโควตา Actions หมด ซึ่งตรงกับเหตุผลที่ทำ PR #99 พอดี ต้องไปดู Settings → Billing ยืนยัน
-
-**ข่าวดี:** ปัญหานี้ไม่ได้บล็อก Design Partner เพราะทั้งสามชั้นขึ้นของจริงไปแล้วด้วยมือ — มันบล็อกความมั่นใจว่า main ตรงกับ production ต่างหาก
 
 ---
 
@@ -58,16 +52,16 @@ build ที่เสิร์ฟอยู่ไม่มี `NEXT_PUBLIC_API_BA
 
 | ส่วนประกอบ | ความพร้อม | ทำเสร็จแล้ว | งานที่ต้องทำต่อ |
 | :--- | :---: | :--- | :--- |
-| **Landing Page** | 🟢 100% | Next.js 15 หลายภาษา, ฟอร์มยิงเข้า Google Sheets แยกแท็บ, `certrace.co` ตอบ 200 | deploy ยังต้องทำด้วยมือ (ดู 🚨) |
+| **Landing Page** | 🟢 100% | Next.js 15 หลายภาษา, ฟอร์มยิงเข้า Google Sheets แยกแท็บ, `certrace.co` ตอบ 200, deploy อัตโนมัติผ่าน `deploy.yml` แล้ว | — |
 | **Outreach Scripts** | 🟢 100% | ยืนยันโดเมนบน Resend, ยิงเมลหา Design Partners ชุดแรกแล้ว | สแตนบายมอนิเตอร์ตอบกลับ |
 | **Portal — หน้าจอ/UX** | 🟢 100% | ครบทุกหน้า, responsive, 2 ภาษา, เหลือพอร์ทัลเดียวแล้ว (โฟลเดอร์ซ้ำถูกลบ), empty/loading/error state ครบ | — |
-| **Portal — การเชื่อมต่อข้อมูล** | 🟡 70% | auth, declarations, smart links, ไฟล์แนบ, reminder subjects ต่อ API จริงแล้วผ่าน [`lib/api/`](certrace-portal/lib/api) + TanStack Query | 🔴 **build บนโดเมนจริงยังไม่ชี้ไป `api.certrace.co` → ยังเป็น demo mode รับรหัสอะไรก็ได้ (R2)** · team / workspace / profile / monthly-requests ยังเป็น localStorage (ตั้งใจเลื่อน — ดู D2) · ไม่มี route guard และ `/api/auth/me` ไม่มีใครเรียก (ดู D4) |
+| **Portal — การเชื่อมต่อข้อมูล** | 🟡 70% | auth, declarations, smart links, ไฟล์แนบ, reminder subjects ต่อ API จริงแล้วผ่าน [`lib/api/`](certrace-portal/lib/api) + TanStack Query | 🔴 **build env ใน Cloudflare ยังตั้ง `NEXT_PUBLIC_DEMO_MODE=1` → รับรหัสอะไรก็ได้ (R2)** · team / workspace / profile / monthly-requests ยังเป็น localStorage (ตั้งใจเลื่อน — ดู D2) · ไม่มี route guard และ `/api/auth/me` ไม่มีใครเรียก (ดู D4) |
 | **Backend — Auth** | 🟢 100% | `register` `login` `me` `refresh` `logout` `change/forgot/reset-password` + JWT + refresh token + rate limit หน้าต่าง 15 นาที | — |
 | **Backend — Smart Links** | 🟢 100% | สร้าง / resolve / save state / submit / ขอแก้ไข / ดูรายการที่ส่งมา — token ออกจากเซิร์ฟเวอร์ มีวันหมดอายุ | — |
 | **Backend — เครื่องคำนวณ CBAM** | 🟢 100%* | คำนวณครบ **ทั้ง 4 เส้น** ของ fixture แล้ว (10 ก.ย.) — เชื้อเพลิงผ่านค่าความร้อน, process emission แบบ mass balance, indirect, precursor หลายชั้น พร้อม audit trace ทุกเส้น | \* ตัวเครื่องครบแล้ว แต่ยังต้องรอ **ค่า default factor ตัวจริง** (R3) ถึงจะใช้กับสินค้านอก 2 CN code ได้ |
 | **Backend — อีเมลแจ้งเตือน** | 🟢 95% | เทมเพลต 7 แบบ, delivery log กันส่งซ้ำด้วย unique index, job รันเตือนตามตาราง, **ต่อ `DatabaseReminderSource` แล้ว** (migration `012_reminder_subjects`) | อีเมลเตือน trial ยังส่งไม่ได้ เพราะ plan/billing ยังไม่มีฝั่งเซิร์ฟเวอร์ (ดู R4) |
-| **Backend — ขึ้นของจริง** | 🟢 100% | `api.certrace.co/readyz` ตอบ 200 `{"status":"ready","databaseConfigured":true}` · preflight CORS อนุญาต `https://portal.certrace.co` จริง · validation ทำงาน (ยิง email ปลอมได้ 422) | ยืนยันว่า alembic เดินถึง `012` แล้วหรือยัง — ต้องยิงด้วย token จริง (ดู R1) |
-| **Deploy (ท่ออัตโนมัติ)** | 🔴 25% | [`deploy.yml`](.github/workflows/deploy.yml) เขียนครบแล้วทั้ง Cloudflare และ Cloud Run (build → migration job → deploy → เช็ค `/readyz` + CORS + security header ที่ปลายทาง) | **ไม่มี secret/variable สักตัวในรีโป → ไม่เคยส่งอะไรขึ้นเลย** ของบนโดเมนจริงขึ้นด้วยมือทั้งหมด (ดู 🚨 + R6) |
+| **Backend — ขึ้นของจริง** | 🟢 100% | `api.certrace.co/readyz` ตอบ 200 `{"status":"ready","databaseConfigured":true}` · preflight CORS อนุญาต `https://portal.certrace.co` จริง · validation ทำงาน (ยิง email ปลอมได้ 422) | ยืนยันว่า alembic เดินถึง `012` แล้วหรือยัง — ต้องยิงด้วย token จริง (ดู R1) · ตัวบน production ขึ้นด้วยมือ ไม่ใช่จาก CI (ดู R6) |
+| **Deploy (ท่ออัตโนมัติ)** | 🟡 70% | [`deploy.yml`](.github/workflows/deploy.yml) เขียนครบ · secret + `GCP_*` ตั้งครบ 16 ก.ย. · **landing + portal ส่งขึ้นเองสำเร็จแล้ว** (run ของ #105) | 🔴 job backend ตายที่ `gcloud builds submit` — `certrace-deployer@` เข้า bucket `certrace-prod_cloudbuild` ไม่ได้ · ไม่มี var `EXPORTER_PORTAL_URL` (ดู R6) |
 | **CI / คุณภาพโค้ด** | 🟡 85% | lint, typecheck, unit test, npm audit, pip-audit, CodeQL, secret scan, Playwright E2E — ตั้งแต่ PR #99 รันเฉพาะ job ที่ diff แตะจริง เพื่อประหยัดโควตา Free plan (2,000 นาที/เดือน) | รันเฉพาะ `pull_request` + `workflow_dispatch` เท่านั้น **push ตรงเข้า main ไม่ถูกเช็ค** ต้องสั่ง `workflow_dispatch` เอง |
 | **เช็ค security header production** | 🟢 100% | [`security-headers.yml`](.github/workflows/security-headers.yml) ยิงถาม production ทุกคืน (cron `17 2 * * *`) เช็ค 5 header + HSTS ≥ 6 เดือน + ปฏิเสธ CSP ที่ยังมี `unsafe-inline` | — (บั๊ก HSTS แก้แล้ว ดู R7) |
 | **Admin Portal** | ⚫ ลบแล้ว | ตัดออกจากขอบเขต MVP ตั้งแต่ต้น ไม่เคยอยู่ใน CI และไม่เคย deploy — ลบโฟลเดอร์ 10 ก.ย. และเก็บเศษที่เหลือออกอีกรอบใน PR #101 | — (ยังอยู่ใน git history ถ้าวันหนึ่งจะรื้อกลับมา) |
@@ -94,7 +88,7 @@ build ที่เสิร์ฟอยู่ไม่มี `NEXT_PUBLIC_API_BA
     *   [x] ออกรายงาน PDF และ CBAM XML ฝั่ง client
     *   [x] **Unit test 497 ตัว ผ่านหมด** (`npm run test:unit` — รันจริงวันที่ 7 ก.ย.) + Playwright E2E 6 ไฟล์ (auth, dashboard, onboarding, smart links, reports, landing→portal)
 *   **Deploy & CI**
-    *   [x] [`deploy.yml`](.github/workflows/deploy.yml) — **เขียนเสร็จแล้ว** merge เข้า main แล้วส่งเฉพาะแอปที่ถูกแก้ขึ้น Cloudflare/Cloud Run แล้วยิงเช็ค header ที่ production จริง รวมถึงจับ CSP ที่ยังอนุญาต unsafe-inline — แต่ **ยังไม่เคยได้รันจริง** เพราะไม่มี credential (ดู 🚨)
+    *   [x] [`deploy.yml`](.github/workflows/deploy.yml) — merge เข้า main แล้วส่งเฉพาะแอปที่ถูกแก้ขึ้น Cloudflare/Cloud Run แล้วยิงเช็ค header ที่ production จริง รวมถึงจับ CSP ที่ยังอนุญาต unsafe-inline — **ส่ง landing + portal ได้จริงแล้ว** ส่วน backend ยังติดสิทธิ์ GCP (ดู 🚨 + R6)
     *   [x] `certrace.co`, `portal.certrace.co` และ **`api.certrace.co`** ตอบ 200 ทั้งสามตัว (ยิงเช็ค 16 ก.ย.)
     *   [x] [`security-headers.yml`](.github/workflows/security-headers.yml) — ยามกลางคืนแยกต่างหาก ไม่มี push trigger โดยตั้งใจ (push เข้า main จะเริ่ม deploy พอดี probe จะไปอ่าน build ที่กำลังจะถูกแทน)
     *   [x] [`ci.yml`](.github/workflows/ci.yml) — รันครั้งเดียวต่อการเปลี่ยนแปลง เฉพาะ job ที่ diff แตะจริง ข้าม draft PR (PR #99)
@@ -120,13 +114,19 @@ build ที่เสิร์ฟอยู่ไม่มี `NEXT_PUBLIC_API_BA
 *   [x] เพิ่ม job deploy backend ใน [`deploy.yml`](.github/workflows/deploy.yml) — ทำแล้ว 10 ก.ย.
 *   [x] ~~ตั้ง body size limit 8 MB~~ — ไม่ต้องทำอะไร Cloud Run รับ body ได้ถึง 32 MiB อยู่แล้ว ตัวที่ต้องระวังคือ proxy ที่มาคั่นข้างหน้าเท่านั้น
 *   [ ] **ยังต้องยืนยัน: alembic เดินถึง `012` แล้วหรือยัง** — ยิง `/api/v1/links/<token>ปลอม` ได้ 404 (ไม่ใช่ 500) พิสูจน์ได้แค่ว่า `009_smart_links` ลงแล้ว ส่วน `011_uploaded_files` กับ `012_reminder_subjects` ต้องล็อกอินจริงแล้วยิง endpoint อัปโหลด/reminder ถึงจะรู้ **ถ้ายังไม่ได้รัน อาการจะโผล่ตอน Design Partner อัปใบเซอร์ใบแรก ไม่ใช่ตอนนี้**
-*   [ ] ตั้ง repository variable ฝั่ง GCP 4 ตัว (`GCP_PROJECT_ID`, `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_DEPLOY_SERVICE_ACCOUNT`, `GCP_RUNTIME_SERVICE_ACCOUNT`) ตาม [README §Deploy from CI](certrace-backend/README.md:454) — ย้ายไปเป็นงานของ **R6** แล้ว เพราะไม่บล็อกการใช้งาน บล็อกแค่การ deploy รอบต่อไป
+*   [x] ตั้ง repository variable ฝั่ง GCP 4 ตัว (`GCP_PROJECT_ID`, `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_DEPLOY_SERVICE_ACCOUNT`, `GCP_RUNTIME_SERVICE_ACCOUNT`) — ตั้งครบ 16 ก.ย. (แต่ deploy ยังติดสิทธิ์ ดู R6)
 
 > ⚠️ **สองตัวแปรที่ลืมแล้วเจ็บ** (เพิ่งเพิ่มเข้าตาราง env ของ README รอบนี้)
 > `CERTRACE_JWT_SECRET` — ไม่มีแล้ว **แอปไม่ start เลย** ถ้ามี `DATABASE_URL` ([`main.py:68`](certrace-backend/app/main.py:68)) อาการคือ revision ไม่ผ่าน startup probe
 > `CERTRACE_APP_BASE_URL` — อันนี้ร้ายกว่า เพราะ**ไม่มีอาการอะไรเลย** ไม่ตั้งแล้ว service ยังขึ้นปกติ ผ่าน probe ปกติ แต่ smart link ทุกอันที่ mint ออกไปจะชี้ไป `https://app.certrace.co` ตาม default ([`config.py:51`](certrace-backend/app/config.py:51)) ซึ่งเป็นโดเมนที่ไม่มีอยู่จริง กว่าจะรู้ตัวคือตอนซัพพลายเออร์กดลิงก์ในอีเมลที่เราส่งไปแล้ว — ต้องตั้งเป็น `https://portal.certrace.co`
 
-#### **R2. พอร์ทัล production ยังรับรหัสอะไรก็ได้ — 🔴 เปิดใหม่ 16 ก.ย. แก้ในโค้ดแล้ว รอ deploy พิสูจน์**
+#### **R2. พอร์ทัล production ยังรับรหัสอะไรก็ได้ — 🔴 โค้ดจบแล้ว เหลือถอด flag ใน Cloudflare (23 ก.ย.)**
+
+> **สถานะ 23 ก.ย.:** ทุกอย่างฝั่งรีโปเสร็จแล้ว (`API_URL` ตั้งแล้ว, portal deploy ผ่าน CI แล้ว) ที่ยังรับรหัสมั่วเพราะ build env ใน Cloudflare ตั้ง `NEXT_PUBLIC_DEMO_MODE=1` ไว้ **เป็นการเลือกเปิดเอง ไม่ใช่ default หลุด** ทางออกมีทางเดียวคือลบ flag นั้น (backend พร้อมรับแล้ว)
+>
+> ⚠️ ระวัง: ถ้ามี `NEXT_PUBLIC_DEMO_MODE=1` ธงนี้จะเปิด demo mode แม้ `API_URL` จะตั้งไว้ — อย่าสรุปจากแค่การที่ build ชี้ไป `api.certrace.co` ต้องลองล็อกอินด้วยรหัสมั่วเท่านั้น
+>
+> ด้านล่างคือบันทึกของรอบ 16 ก.ย. เก็บไว้เป็นบทเรียน
 **ข้อนี้เคยถูกปิดไปแล้วรอบเช้า แล้วปรากฏว่าปิดผิด** — ลองล็อกอิน `portal.certrace.co` ด้วยรหัสมั่ว **แล้วเข้าได้** นั่นแปลว่า `demoModeEnabled()` ยังเป็น true บนโดเมนจริง คือ `apiConfigured()` เป็น false คือ build ที่เสิร์ฟอยู่ **ไม่มี** `NEXT_PUBLIC_API_BASE_URL`
 
 หลักฐานที่ใช้ปิดรอบก่อนคือ CSP ของ `/login` มี `connect-src ... https://api.certrace.co` ซึ่งค่านั้นมาจาก [`build-csp-headers.mjs:154`](certrace-portal/scripts/build-csp-headers.mjs:154) ที่อ่าน `NEXT_PUBLIC_API_BASE_URL` ตอน build จึงสรุปว่า build ต้องมีค่านี้แน่ๆ **เหตุผลถูก แต่ข้อสรุปผิด** และนี่คือบทเรียนของข้อนี้:
@@ -141,9 +141,9 @@ build ที่เสิร์ฟอยู่ไม่มี `NEXT_PUBLIC_API_BA
 *   [x] **default เปลี่ยนเป็นค่าว่างแล้ว** ([`next.config.ts:54`](certrace-portal/next.config.ts:54)) — demo mode ต้องขอเองด้วย `NEXT_PUBLIC_DEMO_MODE=1` เท่านั้น
 *   [x] **ตั้ง `NEXT_PUBLIC_API_BASE_URL` ใน env ของ step build** ใน [`deploy.yml`](.github/workflows/deploy.yml) — อ่านจาก repository **secret** `API_URL` ตั้งเฉพาะ portal, landing ได้ค่าว่าง
 *   [x] **ไม่ใส่ค่า fallback** — ถ้า `API_URL` ว่าง job portal ตายที่ step `Fail early if the portal has no backend to point at` ก่อน build ด้วยซ้ำ เพราะ URL ที่ "ดูน่าจะถูก" ฝังลง bundle ไปแล้วแก้ไม่ได้จนกว่าจะ build ใหม่ และอาการจะไปโผล่ในเบราว์เซอร์ของลูกค้าไม่ใช่ใน log
-*   [ ] **ต้องมี secret `API_URL` บน GitHub ก่อน merge แรก** (ดู R6) — `gh api` ระดับ repo และ environment `production` ยังคืนค่าว่างทั้งคู่ ถ้าตั้งไว้ระดับ org จะมองไม่เห็นจากบัญชีที่ใช้อยู่ (มีแค่ `read:org`) ต้องยืนยันด้วยตาเอง ชื่อต้องเป็น `API_URL` เป๊ะ
+*   [x] **secret `API_URL` บน GitHub** — ตั้งแล้ว 16 ก.ย. (`gh secret list` เห็น)
 *   [x] **ลบ `vars` ทิ้งจาก [`wrangler.jsonc`](certrace-portal/wrangler.jsonc)** พร้อมคอมเมนต์อธิบายว่าทำไมห้ามเอากลับมา
-*   [ ] **ยังพิสูจน์ไม่ได้จนกว่าจะ deploy** — ของบนโดเมนจริงตอนนี้ยังเป็นตัวเก่าที่รับรหัสมั่วอยู่ **ข้อนี้ปิดได้ก็ต่อเมื่อลองกรอกรหัสมั่วแล้วไม่ผ่าน** ห้ามปิดด้วยการอ่าน header อีก
+*   [ ] **โจ้:** ลบ `NEXT_PUBLIC_DEMO_MODE` ออกจาก build env ของ Cloudflare แล้ว rebuild — **ข้อนี้ปิดได้ก็ต่อเมื่อลองกรอกรหัสมั่วแล้วไม่ผ่าน** ห้ามปิดด้วยการอ่าน header อีก
     > ถ้าหลัง deploy แล้วขึ้นว่า "ใช้งานไม่ได้" แทนที่จะเป็นรหัสผิด นั่นคือคนละอาการ: `apiConfigured()` เป็น false → env ไม่เข้า build หรือ backend ต่อไม่ติด แต่เป็นอาการที่ปลอดภัย (`authUnavailable()` ไม่ปล่อยใครเข้า)
 *   [ ] **โบ๊ท & เฟิน:** รัน `npm run test:e2e:prod` ยิงโฟลว์จริงบนโดเมนจริง แล้วเดินด้วยมืออีกรอบ: สมัคร → สร้าง declaration → ส่งลิงก์ → เปิดจากอีกเครื่อง → กรอก → **อัปใบเซอร์** (ตัวนี้จะพิสูจน์ `011` ไปในตัว) → ส่งกลับ ← **นี่คืองานที่เหลือจริงของ R2**
 
@@ -151,6 +151,7 @@ build ที่เสิร์ฟอยู่ไม่มี `NEXT_PUBLIC_API_BA
 [`default_factors.template.csv`](certrace-backend/default_factors.template.csv) มีแค่ **2 แถว** (เหล็ก 1 CN code, อะลูมิเนียม 1 CN code) สินค้าที่อยู่นอกสอง CN นี้จะได้ตัวเลขผิดทันที
 *   [ ] **เฟิน:** ทำตาราง EU default values ให้ครบ CN code ที่เรารองรับ แล้ว import ด้วย `import_default_factors.py`
 *   [ ] **เฟิน & โบ๊ท:** เอาตัวเลขจริงมากรอกเทียบกับที่เคยคำนวณใน Excel
+*   [ ] **merge PR #107 ก่อน import** — ให้รับ EU default factor ที่ประกาศไว้ระดับหัวข้อ (ต่ำกว่า CN8 เต็ม) ได้ ไม่งั้นแถวพวกนั้นจะถูกปฏิเสธตอน import · ⚠️ #107 แตะ backend ต้องแก้สิทธิ์ deploy (R6) ก่อน ไม่งั้นโค้ดไม่ขึ้น production
 
 #### **R4. อีเมลเตือนซัพพลายเออร์ — ✅ ต่อ source จริงแล้ว 10 ก.ย.**
 [`app/jobs/send_reminders.py`](certrace-backend/app/jobs/send_reminders.py) เคยต่อกับ `NullSource` กลไกถูกหมดแล้ว (กันส่งซ้ำ, ปล่อย claim เมื่อส่งไม่สำเร็จ) ขาดแค่แหล่งข้อมูล — ตอนนี้มีแล้ว
@@ -178,16 +179,17 @@ build ที่เสิร์ฟอยู่ไม่มี `NEXT_PUBLIC_API_BA
     > ราคาที่จ่าย: ไฟล์ 15 MB คือ 15 MB ในฐานข้อมูล ในทุก backup และในทุก dump ระดับไม่กี่ร้อยใบไม่มีปัญหา ระดับหลักหมื่นใบต้องย้ายจริง
 *   [ ] Antivirus scan ยังไม่มี (อยู่ในรายการ post-MVP)
 
-#### **R6. ท่อ deploy ยังส่งของไม่ได้ — 🔴 ใหม่ 16 ก.ย. บล็อกรอบถัดไป ไม่บล็อกรอบนี้**
-ดูหัวข้อ 🚨 ตอนนี้ทุกอย่างที่อยู่บนโดเมนจริงขึ้นด้วยมือ ซึ่งแปลว่า **ไม่มีใครรู้ว่าของบน production ตรงกับ main หรือเปล่า** ทุกการแก้นับจากนี้ต้องมีคนจำให้ได้ว่าต้อง deploy เอง ถ้าลืม อาการคือแก้บั๊กแล้วบั๊กยังอยู่
+#### **R6. ท่อ deploy — 🟡 landing + portal ส่งได้แล้ว, backend ยังติดสิทธิ์ GCP (23 ก.ย.)**
+Cloudflare ครบแล้ว แต่ backend บน production ยังเป็นตัวที่ขึ้นด้วยมือ **ไม่มีใครรู้ว่าตรงกับ main หรือเปล่า** และ PR ที่แตะ backend ทุกตัวที่ merge นับจากนี้จะไม่ขึ้นไปจนกว่าข้อแรกจะจบ
 
-*   [ ] **โบ๊ท:** ใส่ `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` (Settings → Secrets and variables → Actions) — ปลดล็อก landing + portal
-*   [ ] **โบ๊ท:** ใส่ `API_URL=https://api.certrace.co` เป็น repository **secret** (Settings → Secrets and variables → Actions → **Secrets** ไม่ใช่แท็บ Variables) — ฝั่ง workflow ต่อสายให้แล้ว (`env:` ของ step deploy ใน [`deploy.yml`](.github/workflows/deploy.yml)) เหลือแค่ค่า **ไม่มี fallback โดยเจตนา** ไม่ตั้ง = job portal ตายตั้งแต่ step แรก ดีกว่าปล่อยให้ build ผ่านแล้วพอร์ทัลยิง API ไม่ออกโดยไม่มีอะไรฟ้อง
-    > หมายเหตุ: ค่านี้ไม่ลับจริง มันถูกฝังลง JS bundle ที่ใครก็โหลดไปอ่านได้ เก็บเป็น secret จึงได้แค่ mask ใน log ของ Actions — แลกมากับการที่ debug ยากขึ้น เพราะดูจาก log ไม่ได้ว่า build ชี้ไปโฮสต์ไหน ถ้าวันหนึ่งเปลี่ยนใจ ย้ายไป Variables แล้วสลับ `secrets.API_URL` เป็น `vars.API_URL` สองที่ใน `deploy.yml`
-*   [ ] **โบ๊ท:** ใส่ `EXPORTER_PORTAL_URL` เป็น repository variable — ขาดตัวนี้ step เช็ค security header จะ `exit 0` แล้ว deploy ผ่านทั้งที่ header อาจไม่ติด
-*   [ ] **โบ๊ท:** ใส่ `GCP_*` 4 ตัวตาม [README §Deploy from CI](certrace-backend/README.md:454) — ปลดล็อก backend + ทำให้ alembic รันเองทุก deploy (แก้ปัญหา migration ค้างตั้งแต่ต้นทาง)
-*   [ ] **โบ๊ท:** เช็ค Settings → Billing ว่าโควตา Actions เหลือเท่าไหร่ — run `plan` ที่ตายใน 2 วินาทีตั้งแต่ 11 ก.ย. เข้าได้กับอาการโควตาหมด
-*   [ ] **ทั้งคู่:** merge ทดสอบหนึ่งครั้งแล้วเปิดดูว่า job `Deploy ...` เป็น `success` จริง ไม่ใช่ `skipped`
+*   [ ] **เฟิน (GCP):** ให้สิทธิ์ `certrace-deployer@certrace-prod.iam.gserviceaccount.com` ใช้ Cloud Build ได้ — ครั้งล่าสุด (run `35150974140`) ตายที่ `gcloud builds submit` ด้วย `forbidden from accessing the bucket [certrace-prod_cloudbuild]` / ขาด `serviceusage.services.use` ปกติต้องมี `roles/cloudbuild.builds.editor` + `roles/serviceusage.serviceUsageConsumer` + สิทธิ์เขียน bucket `certrace-prod_cloudbuild` (หรือ `roles/storage.admin` ระดับ bucket) เช็คกับ [README §Deploy from CI](certrace-backend/README.md:454) แล้วอัปเดต README ให้ตรงด้วย
+*   [ ] **หลังแก้สิทธิ์:** สั่ง `workflow_dispatch` ของ Deploy แล้วดูว่า `Deploy backend to Cloud Run` เป็น `success` — ครั้งนี้ migration job จะรัน `alembic upgrade head` ให้เอง เท่ากับปิดคำถาม `011`/`012` ของ R1 ไปด้วย
+*   [ ] **โบ๊ท:** ใส่ `EXPORTER_PORTAL_URL=https://portal.certrace.co` เป็น repository **variable** — ตอนนี้ยังไม่มี step เช็ค security header หลัง deploy จึง `exit 0` ผ่านเฉยๆ (nightly probe ยังเขียวทุกคืน จึงไม่เร่ง แต่ตัวนี้คือตัวที่จับได้ทันทีตอน deploy)
+*   [x] `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` + `API_URL` (secret) — ตั้งแล้ว 16 ก.ย.
+    > หมายเหตุ `API_URL`: ค่านี้ไม่ลับจริง มันถูกฝังลง JS bundle ที่ใครก็โหลดไปอ่านได้ เก็บเป็น secret จึงได้แค่ mask ใน log — ถ้าอยากให้ debug ง่ายขึ้น ย้ายไป Variables แล้วสลับ `secrets.API_URL` เป็น `vars.API_URL` สองที่ใน `deploy.yml`
+*   [x] `GCP_*` 4 ตัว — ตั้งแล้ว 16 ก.ย.
+*   [x] โควตา Actions — มีบัตร + hard-stop budget $12 ตั้งแต่ 16 ก.ย. (ไลออนดูแล billing)
+*   [x] merge ทดสอบแล้ว — #105 `Deploy portal: success` (ไม่ใช่ skipped) · #104 `Deploy portal` + `Deploy landing` success, backend failure ตามข้อแรก
 
 #### **R7. เช็ค security header ที่ production — ✅ แก้บั๊ก HSTS แล้ว**
 [`security-headers.yml`](.github/workflows/security-headers.yml) ยิงถามโดเมนจริงทุกคืน (cron `17 2 * * *`) เพราะ config ถูกไม่เท่ากับ production ถูก — `next.config.ts` ประกาศ header ครบมาหลายเดือนขณะที่หน้า prerender ออกไปโดยไม่มี header สักตัว เพราะ Cloudflare เสิร์ฟจาก asset layer ไม่เรียก Worker ไม่มีอะไรในรีโปจับได้
@@ -196,6 +198,19 @@ build ที่เสิร์ฟอยู่ไม่มี `NEXT_PUBLIC_API_BA
 *   [x] เกณฑ์ไม่ใช่แค่ "มี header" — HSTS ต้อง `max-age ≥ 15768000` (6 เดือน) และ `script-src` ที่ยังมี `unsafe-inline` ถือว่า fail (CSP ที่ผ่านทุกข้อแต่ยังปล่อย inline script รันได้ = ซื้อมาเปล่าๆ)
 *   [x] ยิงทั้ง `/` ของสองโฮสต์ + `/login` โดยเจตนา — `/` คือหน้า prerender ซึ่งเป็นเคสที่เคยไม่มี header จริงๆ ถ้ายิงแต่ route ที่ render ตอน runtime จะผ่านหมดโดยไม่เจออะไร
 *   [x] ไม่มี push trigger โดยตั้งใจ — push เข้า main จะเริ่ม deploy พอดี probe ที่ยิงตอนนั้นจะไปอ่าน build ที่กำลังจะถูกแทน
+
+#### **R8. PR ค้าง 7 ตัว — CI เขียวและ mergeable ทุกตัว แต่ยังไม่มีใครรีวิวสักตัว (23 ก.ย.)**
+merge เข้า main = auto-deploy ทันที ให้ merge **ทีละตัว** แล้วเช็ค job ของ Deploy ทุกครั้ง ตัวที่แตะ backend จะยังไม่ขึ้น production จนกว่า R6 ข้อแรกจะจบ
+
+| PR | เรื่อง | ก่อนปล่อย? |
+| :--- | :--- | :--- |
+| [#110](https://github.com/certrace/Certrace/pull/110) | ปิด interactive API docs บน production โดย default | ✅ ควรเข้า (hardening) |
+| [#109](https://github.com/certrace/Certrace/pull/109) | ไฟล์ xlsx ต้องมีโครงสร้าง OOXML จริงถึงรับ | ✅ ควรเข้า (hardening) |
+| [#108](https://github.com/certrace/Certrace/pull/108) | ตรวจ scheme ของ `linkUrl` ก่อนใส่ลงอีเมล | ✅ ควรเข้า (hardening) |
+| [#107](https://github.com/certrace/Certrace/pull/107) | รับ EU default factor ที่ต่ำกว่า CN8 เต็ม | ✅ ผูกกับ R3 |
+| [#106](https://github.com/certrace/Certrace/pull/106) | Sign in with Google | ตัดสินใจ — `GOOGLE_CLIENT_ID` ตั้งไว้แล้ว |
+| [#111](https://github.com/certrace/Certrace/pull/111) | Smart upload (ลากเอกสารมา ระบบตรวจเอง) | ตัดสินใจ — BD+ESG อนุมัติแล้ว 20 ก.ย. |
+| [#112](https://github.com/certrace/Certrace/pull/112) | ระงับบัญชี, ทำข้อมูลนิรนาม, audit trail, revoke รายลิงก์ | ⚠️ ดูให้ดี — ใกล้เรื่อง role/permission ที่ยังพักรอ business + ESG |
 
 ---
 
@@ -228,26 +243,27 @@ golden fixture กลางที่ทั้งสองฝั่งอ่า�
 *   [x] ลบ `certrace-backend/schema.sql` — ทำแล้ว 10 ก.ย.
     > ⚠️ ตอนลบเจอว่ามันไม่ใช่ซากเฉยๆ: ในนั้นมี 13 ตารางที่ **ไม่เคยถูก migrate เลย** — 5 ตัวเป็นของ admin portal ที่ลบไปแล้ว แต่อีก 6 ตัว (`organizations`, `profiles`, `team_members`, `supplier_states`, `exporter_decl_states`, `directory_suppliers`) คือหน้าตาที่เคยออกแบบไว้ให้ store ที่ตอนนี้ยังอยู่ใน localStorage ตาม D2 พอดี
     > ไม่ได้หายไปไหน — `git show HEAD:certrace-backend/schema.sql` ดึงกลับมาอ่านได้ตลอด และตอนจะทำ D2/R4 จริงควรเปิดดูก่อนออกแบบใหม่
-*   [ ] venv ในเครื่องเป็น Python 3.9 ทำให้ `pytest` ในเครื่องรันไม่ได้ (รีโปตั้งเป้า 3.13 และ CI ใช้ 3.13) — ตั้ง venv ใหม่ถ้าจะดีบั๊ก backend ในเครื่อง
+*   [x] venv ในเครื่องเป็น Python 3.9 แต่รัน `pytest` ของ backend ได้แล้ว (CI ใช้ 3.13) — ถ้าเจอ syntax ใหม่ของ 3.10+ ค่อยตั้ง venv ใหม่
 
 ---
 
 ## 📌 4. เส้นทางที่แนะนำ
 
-R1, R4, R5 ปิดแล้ว ส่วน R2 กลับมาเป็นข้อแรกเพราะเป็นช่องโหว่ที่เปิดอยู่จริงตอนนี้:
+อัปเดต 23 ก.ย. — R1, R4, R5 ปิดแล้ว ท่อ Cloudflare ปิดแล้ว เหลือ:
 
-| ลำดับ | งาน | ประเมินเวลา |
-| :---: | :--- | :--- |
-| 1 | **deploy พอร์ทัลแล้วยืนยันว่ารหัสมั่วเข้าไม่ได้** (R2) — โค้ดแก้แล้ว แต่ของบนโดเมนจริงยังเป็นตัวเก่าที่ใครก็เข้าได้ | ~30 นาที |
-| 2 | **เดิน end-to-end บนโดเมนจริงหนึ่งรอบเต็ม** สมัคร → declaration → ส่งลิงก์ → เปิดอีกเครื่อง → **อัปใบเซอร์** → ส่งกลับ — จะพิสูจน์ `011`/`012` ว่าถูก migrate จริงไปในตัว | ~ครึ่งวัน |
-| 3 | ใส่ secret/variable ให้ท่อ deploy ทำงาน (R6) — หลังจากนี้ไม่ต้องจำว่าต้อง deploy เอง | ~1–2 ชม. |
-| 4 | Import default factor ชุดจริง (R3) | รอเฟิน |
-| 5 | Route guard + เรียก `/me` ตอนโหลด (D4) | ~ครึ่งวัน |
-| 6 | ตัดสินใจ D1 (ใครเป็นเจ้าของตัวเลขที่ยื่นจริง) และ D2 (store ที่ยังอยู่ localStorage) | คุยกัน |
+| ลำดับ | งาน | ใคร | ประเมินเวลา |
+| :---: | :--- | :--- | :--- |
+| 1 | **ถอด `NEXT_PUBLIC_DEMO_MODE` ใน Cloudflare → rebuild → ยืนยันว่ารหัสมั่วเข้าไม่ได้** (R2) | โจ้ | ~15 นาที |
+| 2 | **เดิน end-to-end บนโดเมนจริงหนึ่งรอบเต็ม** สมัคร → declaration → ส่งลิงก์ → เปิดอีกเครื่อง → **อัปใบเซอร์** → ส่งกลับ — พิสูจน์ `011`/`012` ไปในตัว | โบ๊ท + เฟิน | ~ครึ่งวัน |
+| 3 | **ให้สิทธิ์ Cloud Build กับ `certrace-deployer@`** แล้ว dispatch Deploy ให้ backend ขึ้นจาก CI ได้ (R6) | เฟิน | ~1 ชม. |
+| 4 | รีวิว + merge PR hardening #107–#110 ทีละตัว (R8) — ต้องหลังข้อ 3 ไม่งั้น backend ไม่อัปเดต | โบ๊ท | ~ครึ่งวัน |
+| 5 | Import default factor ชุดจริง (R3) — หลัง #107 | เฟิน | รอเฟิน |
+| 6 | ตัดสินใจ #106 (Google login), #111 (smart upload), #112 (suspension/audit) ว่าเข้ารอบนี้ไหม | ทีม | คุยกัน |
+| 7 | Route guard + เรียก `/me` ตอนโหลด (D4) · ตัดสินใจ D1/D2 | — | หลังปล่อย |
 
-**ข้อ 1 ทำก่อนทุกอย่าง** — ตราบใดที่ยังไม่ deploy พอร์ทัลบนโดเมนจริงเปิดให้ใครก็ได้เข้าไปเห็นข้อมูลข้างใน
-**ข้อ 2 คือสิ่งเดียวที่กั้นระหว่าง "ของขึ้นครบแล้ว" กับ "รู้ว่าของที่ขึ้นใช้ได้จริง"** — ตอนนี้ทั้งสามชั้นขึ้นแล้วแต่ยังไม่มีใครเดินทะลุจากต้นจนจบสักครั้ง
-**ข้อ 3 คือสิ่งเดียวที่กั้นระหว่าง "ใช้ได้วันนี้" กับ "ยังใช้ได้อยู่หลังแก้ครั้งหน้า"**
+**ข้อ 1 ทำก่อนทุกอย่าง** — ตราบใดที่ flag ยังอยู่ พอร์ทัลบนโดเมนจริงเปิดให้ใครก็ได้เข้าไปเห็นข้างใน และ E2E ของข้อ 2 ก็วัดอะไรไม่ได้
+**ข้อ 2 คือสิ่งเดียวที่กั้นระหว่าง "ของขึ้นครบแล้ว" กับ "รู้ว่าของที่ขึ้นใช้ได้จริง"**
+**ข้อ 3 คือสิ่งเดียวที่กั้นระหว่าง "backend ใช้ได้วันนี้" กับ "ยังใช้ได้อยู่หลังแก้ครั้งหน้า"**
 
 ---
 
