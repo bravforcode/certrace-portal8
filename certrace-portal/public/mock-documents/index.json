@@ -1,0 +1,82 @@
+[
+  {
+    "file": "01-electricity-bill-2026-03.pdf",
+    "title": "ใบแจ้งค่าไฟฟ้า มีนาคม 2569",
+    "sets": [
+      "workspace",
+      "supplier"
+    ]
+  },
+  {
+    "file": "02-electricity-bill-2026-04-scan.pdf",
+    "title": "ใบแจ้งค่าไฟฟ้า เมษายน 2569 (สแกน)",
+    "sets": [
+      "workspace"
+    ]
+  },
+  {
+    "file": "03-natural-gas-invoice-2026-03.pdf",
+    "title": "ใบแจ้งหนี้ก๊าซธรรมชาติ มีนาคม 2569",
+    "sets": [
+      "workspace"
+    ]
+  },
+  {
+    "file": "04-diesel-delivery-note-2026-04.pdf",
+    "title": "ใบส่งสินค้าน้ำมันดีเซล เมษายน 2569",
+    "sets": [
+      "workspace"
+    ]
+  },
+  {
+    "file": "05-erp-production-export-2026-03.pdf",
+    "title": "ERP production export March 2026",
+    "sets": [
+      "workspace"
+    ]
+  },
+  {
+    "file": "06-gas-flowmeter-calibration-certificate.pdf",
+    "title": "Calibration certificate GFM-22-0391",
+    "sets": [
+      "workspace"
+    ]
+  },
+  {
+    "file": "07-mill-test-certificate-slab-2026-03.pdf",
+    "title": "Mill test certificate EN 10204 3.1",
+    "sets": [
+      "workspace",
+      "supplier"
+    ]
+  },
+  {
+    "file": "08-office-supplies-receipt.pdf",
+    "title": "ใบเสร็จรับเงิน เครื่องเขียน",
+    "sets": [
+      "workspace",
+      "supplier"
+    ]
+  },
+  {
+    "file": "09-cbam-communication-sheet-2026-q2.pdf",
+    "title": "CBAM communication sheet Q2 2026",
+    "sets": [
+      "supplier"
+    ]
+  },
+  {
+    "file": "10-certificate-of-origin-2026-05.pdf",
+    "title": "Certificate of Origin May 2026",
+    "sets": [
+      "supplier"
+    ]
+  },
+  {
+    "file": "11-verification-statement-2025.pdf",
+    "title": "Verification statement 2025",
+    "sets": [
+      "supplier"
+    ]
+  }
+]

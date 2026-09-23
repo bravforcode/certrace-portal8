@@ -1,5 +1,7 @@
 "use client";
 
+import { AiNumberInput } from "@/components/intake/ai-badge";
+
 /* ════════════════════════════════════════════════════════════
    THE SUPPLIER'S MONTH, STEP BY STEP
 
@@ -886,7 +888,9 @@ export function MonthlyStep({
       >
         <div id={anchor("production")} className="scroll-mt-32 sm:w-64">
           <Field label={t("Produced this month")} hint={t("Tonnes of saleable output.")}>
-            <NumberInput
+            <AiNumberInput
+              aiScope={`ws:${workspaceId}`}
+              aiKey={`${entry.month}:production`}
               value={entry.productionTonnes}
               min={0}
               unit="t"
@@ -967,7 +971,9 @@ export function MonthlyStep({
                     </Field>
                     <div id={anchor(`fuel:${f.id}:quantity`)} className="scroll-mt-32">
                       <Field label={t("Quantity")} hint={t("The metered figure for this month.")}>
-                        <NumberInput
+                        <AiNumberInput
+                          aiScope={`ws:${workspaceId}`}
+                          aiKey={`${entry.month}:fuel:${f.id}`}
                           value={f.quantity || undefined}
                           min={0}
                           unit={t(UNIT_LABEL[f.unit])}
@@ -1156,7 +1162,9 @@ export function MonthlyStep({
                       />
                     </Field>
                     <Field label={t("Consumed")} hint={t("Absolute MWh, real power only.")}>
-                      <NumberInput
+                      <AiNumberInput
+                        aiScope={`ws:${workspaceId}`}
+                        aiKey={`${entry.month}:elec:${s.id}`}
                         value={s.mwh || undefined}
                         min={0}
                         unit="MWh"
@@ -1437,11 +1445,15 @@ export function DocumentsStep({
   workspace,
   entry,
   onChange,
+  allowUpload = true,
 }: {
   workspaceId: string;
   workspace: { year: number; periodStart: string; periodEnd: string };
   entry: MonthlyEntry;
   onChange: () => void;
+  /** PROTOTYPE: false when smart intake above is the way in — the grid then
+      only shows what is still missing. */
+  allowUpload?: boolean;
 }) {
   const t = useT();
   const price = getCarbonPrice(workspaceId);
@@ -1449,7 +1461,7 @@ export function DocumentsStep({
 
   return (
     <SectionCard
-      title={t("Documents")}
+      title={allowUpload ? t("Documents") : t("What's still missing")}
       helpTitle={t("What to attach")}
       help={
         <>
@@ -1458,10 +1470,14 @@ export function DocumentsStep({
           <p className="mt-2">{t("Grouped by who usually holds each document — Operations, Finance, Suppliers, Lab, and Organisation-level — so nothing has to be chased from a list that mixes all five together.")}</p>
         </>
       }
-      blurb={t("What a verifier will ask to see behind each figure in this month, grouped by who usually holds it.")}
+      blurb={
+        allowUpload
+          ? t("What a verifier will ask to see behind each figure in this month, grouped by who usually holds it.")
+          : t("Add documents with the upload box above. This list shows what each figure still needs.")
+      }
     >
       <div id={anchor("documents")} className="scroll-mt-32">
-        <DocumentsCardGrid workspaceId={workspaceId} year={workspace.year} entry={entry} scope={scope} onChange={onChange} />
+        <DocumentsCardGrid workspaceId={workspaceId} year={workspace.year} entry={entry} scope={scope} onChange={onChange} allowUpload={allowUpload} />
       </div>
     </SectionCard>
   );

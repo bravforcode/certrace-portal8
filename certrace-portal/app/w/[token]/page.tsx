@@ -51,10 +51,12 @@ import {
   Building2,
   Check,
   CheckCircle2,
+  ChevronDown,
   ClipboardList,
   Eraser,
   FileText,
   Flag,
+  FlaskConical,
   LockKeyhole,
   Gauge,
   Layers,
@@ -62,6 +64,7 @@ import {
   ShieldCheck,
   Sparkles,
   TriangleAlert,
+  Upload,
 } from "lucide-react";
 import { CertraceLogo } from "@/components/logo";
 import {
@@ -83,6 +86,10 @@ import { Select } from "@/components/controls";
 import { toast, Toaster } from "@/components/toast";
 import { Note, fmt } from "@/components/workspace/chrome";
 import { DocumentsStep, InstallationStep, MmdStep, MonthlyStep, PrecursorStep, installationGaps } from "@/components/supplier/month-steps";
+import { SmartIntake, loadSampleFiles } from "@/components/intake/smart-intake";
+import { addFiles, intakeQueue, subscribeIntake } from "@/lib/smart-intake";
+import { AiFillRunBanner } from "@/components/intake/ai-badge";
+import { getMonth as getStoredMonth, saveMonth as saveStoredMonth } from "@/lib/monthly-data";
 import { emptyInstallation, missingFields, type Installation } from "@/lib/installations";
 import { coverageForMonth, reconcileFuelEvidence } from "@/lib/workspace-evidence";
 import { workspaceRequiresIndirectEmissions } from "@/lib/cbam/product-category-rules";
@@ -206,6 +213,42 @@ function Flow({ req }: { req: WorkspaceRequest }) {
   const precursors = React.useMemo(() => supplierRows?.filter((s) => s.parentId === null) ?? [], [supplierRows]);
   const documentCount = monthEvidence?.length ?? 0;
   const [carried, setCarried] = React.useState(false);
+  /* Bumped when smart intake files something, so the card grid below it
+     re-reads coverage — the grid keeps its own tick and cannot see the write. */
+  const [docsKey, setDocsKey] = React.useState(0);
+
+  /* PROTOTYPE: files picked on the overview are queued here and read in the
+     Documents step, whose review popup opens as soon as they are in. */
+  const [intakeAutoOpen, setIntakeAutoOpen] = React.useState(false);
+  /* Where the reader was when the overview card sent them to the review.
+     Closing the popup without confirming goes back there — the Documents
+     step is only where the popup lives, not somewhere they chose to go. */
+  const [intakeReturnTo, setIntakeReturnTo] = React.useState<StepKey | null>(null);
+  React.useEffect(() => {
+    if (step !== "documents") {
+      setIntakeAutoOpen(false);
+      setIntakeReturnTo(null);
+    }
+  }, [step]);
+  const intakePending = React.useSyncExternalStore(
+    subscribeIntake,
+    () => intakeQueue(workspace.id).filter((d) => d.status === "reading" || d.status === "review").length,
+    () => 0,
+  );
+  const openIntakeReview = () => {
+    setIntakeAutoOpen(true);
+    setIntakeReturnTo(step);
+    setStep("documents");
+  };
+  const startSmartUpload = (files: File[] | "samples") => {
+    const queue = (list: File[]) => {
+      if (list.length === 0) return;
+      void addFiles(workspace.id, list);
+      openIntakeReview();
+    };
+    if (files !== "samples") return queue(files);
+    loadSampleFiles("workspace").then(queue, () => toast({ message: t("Sample documents could not be loaded"), tone: "warn" }));
+  };
 
   const [fullName, setFullName] = React.useState("");
   const [role, setRole] = React.useState("");
@@ -664,6 +707,9 @@ function Flow({ req }: { req: WorkspaceRequest }) {
             submission={submission}
             revisionAreas={revisionAreas}
             onGotoRevision={gotoRevision}
+            onSmartUpload={startSmartUpload}
+            pendingReview={intakePending}
+            onResumeReview={openIntakeReview}
           />
         )}
 
@@ -683,10 +729,47 @@ function Flow({ req }: { req: WorkspaceRequest }) {
           />
         )}
         {step === "mmd" && <MmdStep value={mmd} onChange={setMmdSynced} readOnly={readOnly} cnCode={workspace.cnCode} />}
-        {step === "monthly" && <MonthlyStep workspaceId={workspace.id} entry={entry} patch={patch} patchFuel={patchFuel} readOnly={readOnly} />}
+        {step === "monthly" && (
+          <div className="space-y-5">
+            <AiFillRunBanner scope={`ws:${workspace.id}`} month={month} onPickMonth={setMonth} />
+            <MonthlyStep workspaceId={workspace.id} entry={entry} patch={patch} patchFuel={patchFuel} readOnly={readOnly} />
+          </div>
+        )}
         {step === "precursors" && <PrecursorStep rows={precursors} month={month} onTonnes={setTonnes} readOnly={readOnly} />}
         {step === "documents" && (
-          <DocumentsStep workspaceId={workspace.id} workspace={workspace} entry={entry} onChange={onDocumentsChanged} />
+          <div className="space-y-6">
+            {/* PROTOTYPE: drop documents first, file them after. The open month
+                lives in `entry`, so writes to it go through setEntry and the
+                autosave rather than behind the buffer's back. */}
+            <SmartIntake
+              workspaceId={workspace.id}
+              audience="supplier"
+              uploadedBy={t("Supplier (via Smart Link)")}
+              writeMonth={(m, update) => {
+                if (m === month) setEntry((cur) => (cur ? update(cur) : cur));
+                else saveStoredMonth(update(getStoredMonth(workspace.id, m) ?? emptyMonth(workspace.id, m)));
+              }}
+              onFiled={() => {
+                onDocumentsChanged();
+                setDocsKey((k) => k + 1);
+              }}
+              /* Confirm lands on the monthly readings, where the values sit in
+                 blue — the open month if it was filled, else the first one. */
+              startOpen={intakeAutoOpen}
+              onDismiss={() => {
+                if (!intakeReturnTo) return;
+                setStep(intakeReturnTo);
+                setIntakeReturnTo(null);
+              }}
+              onComplete={({ months: filled }) => {
+                setIntakeReturnTo(null);
+                if (filled.length === 0) return;
+                if (!filled.includes(month)) setMonth(filled[0]);
+                setStep("monthly");
+              }}
+            />
+            <DocumentsStep key={docsKey} workspaceId={workspace.id} workspace={workspace} entry={entry} onChange={onDocumentsChanged} allowUpload={false} />
+          </div>
         )}
         {step === "check" && report && <CheckStep report={report} onGoto={goto} result={result} production={entry.productionTonnes} />}
         {step === "sign" && report && (
@@ -826,6 +909,83 @@ function Stepper({ step, onGoto }: { step: number; onGoto: (i: number) => void }
    who has just clicked a link from an email: who is this, what do they want,
    which plant is it about, and how long will it take. The old flow answered
    none of them — it opened on a production tonnage field. */
+/* PROTOTYPE: "add documents and fill the form for me", on the overview. The
+   reading and the review happen in the Documents step — this card only
+   collects the files and sends the reader there. */
+function SmartUploadCard({
+  onFiles,
+  pending,
+  onResume,
+}: {
+  onFiles: (files: File[] | "samples") => void;
+  /** files dropped earlier and still waiting in the review */
+  pending: number;
+  onResume: () => void;
+}) {
+  const t = useT();
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = React.useState(false);
+  return (
+    <div
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragging(false);
+        const files = Array.from(e.dataTransfer.files);
+        if (files.length > 0) onFiles(files);
+      }}
+    >
+      <Card className={cn("border-[#3C7ACB]/30 bg-[#f5f9ff] p-5 transition-colors", dragging && "border-[#3C7ACB] bg-[#eff6ff]")}>
+        <div className="flex flex-wrap items-start gap-3">
+          <span className="grid h-9 w-9 flex-none place-items-center rounded-xl bg-[#dbeafe] text-[#1d4ed8]">
+            <Sparkles size={16} strokeWidth={1.5} />
+          </span>
+          <div className="min-w-0 flex-1 basis-64">
+            <div className="text-[10px] uppercase tracking-[0.1em] text-[#1d4ed8]/70">{t("Have the documents already?")}</div>
+            <div className="mt-1 text-[15px] text-black/85">{t("Add documents and let Certrace fill the form")}</div>
+            <p className="mt-1.5 text-[12.5px] leading-relaxed text-black/55">
+              {t("AI reads your bills and invoices and fills the form. You check before saving — AI can make mistakes.")}
+            </p>
+            {pending > 0 && (
+              <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-[rgba(180,83,9,0.25)] bg-[#fffbeb] px-3.5 py-2.5">
+                <TriangleAlert size={14} strokeWidth={1.5} className="flex-none text-[#b45309]" />
+                <span className="min-w-0 flex-1 text-[13px] text-[#92400e]">{t("{n} documents waiting for your check", { n: pending })}</span>
+                <Button size="sm" onClick={onResume}>
+                  {t("Continue review")}
+                </Button>
+              </div>
+            )}
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button size="sm" onClick={() => inputRef.current?.click()}>
+                <Upload size={13} strokeWidth={1.5} /> {t("Add documents & auto-fill")}
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => onFiles("samples")}>
+                <FlaskConical size={13} strokeWidth={1.5} /> {t("Try sample documents")}
+              </Button>
+            </div>
+            <input
+              ref={inputRef}
+              type="file"
+              multiple
+              accept="application/pdf,image/*"
+              className="hidden"
+              onChange={(e) => {
+                const files = Array.from(e.target.files ?? []);
+                e.target.value = "";
+                if (files.length > 0) onFiles(files);
+              }}
+            />
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 function Overview({
   req,
   month,
@@ -839,6 +999,9 @@ function Overview({
   submission,
   revisionAreas,
   onGotoRevision,
+  onSmartUpload,
+  pendingReview = 0,
+  onResumeReview,
 }: {
   req: WorkspaceRequest;
   month: string;
@@ -852,6 +1015,10 @@ function Overview({
   submission: MonthSubmission | null;
   revisionAreas: RevisionArea[];
   onGotoRevision: (a: RevisionArea) => void;
+  /** PROTOTYPE: files picked on the overview — the host reads them in the Documents step */
+  onSmartUpload?: (files: File[] | "samples") => void;
+  pendingReview?: number;
+  onResumeReview?: () => void;
 }) {
   const t = useT();
   const { workspace } = req;
@@ -877,6 +1044,10 @@ function Overview({
 
   return (
     <div className="space-y-5">
+      {/* PROTOTYPE — LESS TO READ BEFORE "START". Who this is for and the two
+          facts needed before typing stay visible; the reasons behind the
+          request fold away under "Why this is asked", one tap from view. The
+          separate "You are answering for" card is merged into this one. */}
       <Card className="p-5">
         <div className="flex items-start gap-3">
           <Building2 size={16} strokeWidth={1.5} className="mt-0.5 flex-none text-black/35" />
@@ -884,32 +1055,28 @@ function Overview({
             <div className="text-[10px] uppercase tracking-[0.1em] text-black/40">{t("You are answering for")}</div>
             <div className="mt-1 text-[15px] text-black/85">{workspace.installationName}</div>
             <div className="mt-1 font-mono text-[11.5px] text-black/45">
-              {workspace.installationId} · {workspace.productName} · CN {workspace.cnCode || "—"} · {routeLabel(workspace.productionRoute)} ·{" "}
-              {workspace.year}
+              {workspace.productName} · CN {workspace.cnCode || "—"} · {workspace.year}
             </div>
           </div>
         </div>
-      </Card>
 
-      {/* ONE CARD, NOT THREE STACKED NOTICES. The reader has just clicked a
-          link from an email and is deciding whether this is worth twenty
-          minutes. Two short paragraphs answer that — why the data is wanted
-          and what it costs not to give it — and the two operational facts
-          they need before typing (write it in English; nothing leaves this
-          browser yet) ride underneath rather than as banners of their own
-          above the fold. The "nothing is transmitted" line used to open the
-          page: the first thing a supplier read was a disclaimer about the
-          software rather than a reason to fill the form in. */}
-      <Card className="p-5">
-        <div className="text-[10px] uppercase tracking-[0.1em] text-black/40">{t("What this is for")}</div>
-        <p className="mt-2 text-[13px] leading-relaxed text-black/60">
-          {t("Your customer exports this good to the EU. Under CBAM the importer must state the CO₂ embedded in every tonne they bring in, and that figure can only come from the plant that made it. These twelve monthly requests collect it.")}
-        </p>
-        <p className="mt-3 text-[13px] leading-relaxed text-black/60">
-          {t("If it is not reported, the importer is not let off — they fall back to a default set high enough that real data is nearly always cheaper. So what you enter here has a price attached, in both directions.")}
-        </p>
+        <details className="group mt-3">
+          <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[12.5px] text-black/50 hover:text-black/80 [&::-webkit-details-marker]:hidden">
+            <ChevronDown size={13} strokeWidth={1.5} className="transition-transform group-open:rotate-180" />
+            {t("Why this is asked")}
+          </summary>
+          <p className="mt-2 text-[13px] leading-relaxed text-black/60">
+            {t("Your customer exports this good to the EU. Under CBAM the importer must state the CO₂ embedded in every tonne they bring in, and that figure can only come from the plant that made it. These twelve monthly requests collect it.")}
+          </p>
+          <p className="mt-2 text-[13px] leading-relaxed text-black/60">
+            {t("If it is not reported, the importer is not let off — they fall back to a default set high enough that real data is nearly always cheaper. So what you enter here has a price attached, in both directions.")}
+          </p>
+          <p className="mt-2 font-mono text-[11.5px] text-black/40">
+            {workspace.installationId} · {routeLabel(workspace.productionRoute)}
+          </p>
+        </details>
 
-        <div className="mt-4 space-y-2.5 border-t border-black/[0.06] pt-4">
+        <div className="mt-3 space-y-2 border-t border-black/[0.06] pt-3">
           <EnglishOnlyLine />
           <p className="flex items-start gap-2 text-[12.5px] leading-relaxed text-black/45">
             <ShieldCheck size={14} strokeWidth={1.5} className="mt-[2px] flex-none text-black/30" />
@@ -983,6 +1150,12 @@ function Overview({
 
       <Card className="p-5">
         <div className="text-[10px] uppercase tracking-[0.1em] text-black/40">{t("What you will be asked")}</div>
+        <p className="mt-2 text-[13px] leading-relaxed text-black/60">{t("6 steps — installation, methodology, monthly data, precursors, documents, then check and sign. Everything saves as you type.")}</p>
+        <details className="group mt-2">
+          <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[12.5px] text-black/50 hover:text-black/80 [&::-webkit-details-marker]:hidden">
+            <ChevronDown size={13} strokeWidth={1.5} className="transition-transform group-open:rotate-180" />
+            {t("See the steps")}
+          </summary>
         <ol className="mt-3 space-y-3">
           {[
             ["Installation", "Check the address, the coordinates of the main emission source and who signs for the data. The exporter filled this in — correct anything wrong."],
@@ -1004,7 +1177,12 @@ function Overview({
         <p className="mt-4 border-t border-black/[0.06] pt-3 text-[12px] leading-relaxed text-black/45">
           {t("Everything saves as you type, so you can leave and come back on this machine. Nothing is submitted until you sign on the last step.")}
         </p>
+        </details>
       </Card>
+
+      {/* PROTOTYPE: the shortcut for a supplier who already has the paperwork —
+          drop it here, and the Documents step reads it and fills the form. */}
+      {!readOnly && onSmartUpload && <SmartUploadCard onFiles={onSmartUpload} pending={pendingReview} onResume={() => onResumeReview?.()} />}
 
       {/* ── Which month ──────────────────────────────────────
           GONE ONCE THE MONTH IS SENT. A picker on a submitted month is an
@@ -1114,8 +1292,8 @@ function Overview({
             </Button>
             <p className="mt-1 w-full text-[11.5px] leading-relaxed text-black/40">
               {previousMonth
-                ? "Copying brings last month's fuels, meters and factors across as a starting point — adjust the quantities from there. Clearing empties this month only; the methodology and documents are untouched."
-                : "This is the first month of the year, so there is nothing to copy from yet. From next month there will be."}
+                ? t("Copy starts from last month's figures. Clear empties this month only.")
+                : t("First month of the year — nothing to copy from yet.")}
             </p>
           </div>
         </Card>

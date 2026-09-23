@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8"><title>Office supplies receipt</title><style>
+  @page { size: A4; margin: 16mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "Leelawadee UI", Tahoma, "Segoe UI", sans-serif; color: #1b1b1b; font-size: 11pt; margin: 0; position: relative; }
+  .wm { position: fixed; top: 38%; left: 0; right: 0; text-align: center; transform: rotate(-24deg); font-size: 54pt; color: rgba(200,0,0,.09); font-weight: 700; letter-spacing: .06em; pointer-events: none; }
+  .banner { border: 1px dashed #c00; color: #a00; font-size: 8.5pt; padding: 4px 8px; margin-bottom: 14px; }
+  header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #1b1b1b; padding-bottom: 10px; margin-bottom: 14px; }
+  .brand { font-size: 15pt; font-weight: 700; }
+  .muted { color: #666; font-size: 9pt; }
+  h1 { font-size: 16pt; margin: 0 0 4px; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+  th, td { border: 1px solid #bbb; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #f1f1ee; font-weight: 600; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 24px; margin: 10px 0; }
+  .big { font-size: 20pt; font-weight: 700; }
+  .box { border: 1px solid #1b1b1b; padding: 10px 12px; margin: 10px 0; }
+  .sign { margin-top: 36px; display: flex; justify-content: space-between; }
+  .sign div { width: 42%; border-top: 1px solid #555; padding-top: 4px; text-align: center; font-size: 9pt; }
+  .scan { filter: blur(.55px) contrast(.9); transform: rotate(.8deg); background: #f4f1e8; padding: 8px; }
+</style></head>
+<body><div class="wm">SAMPLE · ตัวอย่าง</div><div class="">
+<div class="banner">เอกสารตัวอย่างสมมติสำหรับทดสอบระบบ Certrace เท่านั้น — ข้อมูลทั้งหมดไม่มีอยู่จริง · FICTIONAL SAMPLE DOCUMENT FOR PROTOTYPE TESTING ONLY</div>
+<header><div><div class="brand">ร้านเครื่องเขียนตัวอย่าง</div><div class="muted">Sample Stationery Shop (fictional)</div></div>
+       <div style="text-align:right"><h1>ใบเสร็จรับเงิน</h1><div class="muted">เลขที่ 000517 · 05/03/2569</div></div></header>
+       <table><tr><th>รายการ</th><th class="num">จำนวน</th><th class="num">ราคา</th></tr>
+         <tr><td>กระดาษ A4 80 แกรม</td><td class="num">10 รีม</td><td class="num">1,250.00</td></tr>
+         <tr><td>หมึกพิมพ์</td><td class="num">2</td><td class="num">1,780.00</td></tr>
+         <tr><th colspan="2">รวม</th><th class="num">3,030.00</th></tr></table></div></body></html>

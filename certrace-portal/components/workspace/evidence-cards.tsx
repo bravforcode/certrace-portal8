@@ -130,6 +130,7 @@ function DocumentCard({
   onChange,
   busy,
   onFile,
+  allowUpload = true,
 }: {
   workspaceId: string;
   year: number;
@@ -138,6 +139,9 @@ function DocumentCard({
   onChange: () => void;
   busy: string | null;
   onFile: (row: CoverageRow, file: File) => void;
+  /** false where smart upload is the way documents come in, so the card only
+      reports what is missing instead of offering a second upload. */
+  allowUpload?: boolean;
 }) {
   const t = useT();
   const status = statusFor(row, notRequired);
@@ -230,6 +234,7 @@ function DocumentCard({
             </ul>
           )}
 
+          {allowUpload && (
           <label
             className={cn(
               "mt-2.5 flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed px-3 py-2.5 text-[11px] uppercase tracking-[0.08em] transition-colors",
@@ -250,6 +255,7 @@ function DocumentCard({
               }}
             />
           </label>
+          )}
         </>
       )}
     </div>
@@ -302,12 +308,15 @@ export function DocumentsCardGrid({
   entry,
   scope,
   onChange,
+  allowUpload = true,
 }: {
   workspaceId: string;
   year: number;
   entry: MonthlyEntry;
   scope: AnnualScope;
   onChange: () => void;
+  /** See DocumentCard. */
+  allowUpload?: boolean;
 }) {
   const t = useT();
   const [busy, setBusy] = React.useState<string | null>(null);
@@ -461,6 +470,7 @@ export function DocumentsCardGrid({
                       onChange={reload}
                       busy={busy}
                       onFile={attach}
+                      allowUpload={allowUpload}
                     />
                   ))}
                 </div>
