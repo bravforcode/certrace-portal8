@@ -36,6 +36,7 @@
 
 import { CONTACT_EMAIL } from "@/lib/content";
 import { useLang } from "@/lib/i18n";
+import { COOKIE_COPY, openCookieSettings } from "@/lib/cookie-consent";
 import { usePages } from "@/lib/i18n-pages";
 import { FEED_SOCIALS, LINE_ID, LINE_URL } from "@/lib/site";
 import Link from "next/link";
@@ -255,7 +256,7 @@ function Newsletter() {
 }
 
 export function Footer() {
-  const { c } = useLang();
+  const { c, lang } = useLang();
   const p = usePages();
   const l = c.footer.links;
   const [formOpen, setFormOpen] = useState<PopupFormKind | null>(null);
@@ -313,9 +314,8 @@ export function Footer() {
   const legalLinks: { label: string; href: string }[] = [
     { label: l.terms, href: "/terms" },
     { label: l.privacy, href: "/privacy" },
-    /* Cookie policy has no page yet — left inert on purpose rather than
-       pointing at a 404. */
-    { label: l.cookies, href: "#" },
+    /* The cookie policy is §14 of the Privacy Policy, not a page of its own. */
+    { label: l.cookies, href: "/privacy#cookies" },
   ];
 
   const linkClass =
@@ -461,6 +461,15 @@ export function Footer() {
                 {link.label}
               </a>
             ))}
+            {/* Privacy Policy §14 promises the choice can be changed "through
+                the cookie settings on our website" — this is that control. */}
+            <button
+              type="button"
+              onClick={openCookieSettings}
+              className="text-xs text-black/25 hover:text-black/60 transition-colors"
+            >
+              {COOKIE_COPY[lang].footerLink}
+            </button>
           </div>
         </div>
         {/* Last row of the page — the panel has to open upward or it lands
