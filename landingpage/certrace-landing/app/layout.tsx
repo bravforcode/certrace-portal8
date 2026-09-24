@@ -7,6 +7,7 @@ import {
   Courier_Prime,
 } from "next/font/google";
 import { LanguageProvider } from "@/lib/i18n";
+import { CookieConsent } from "@/components/cookie-consent";
 import { JsonLd, organizationNode, webSiteNode } from "@/components/json-ld";
 import { OG_IMAGE, SITE_URL } from "@/lib/site";
 import "./globals.css";
@@ -157,7 +158,12 @@ export default function RootLayout({
             layout. Page-level nodes point at these by @id rather than
             repeating them. */}
         <JsonLd data={{ "@context": "https://schema.org", "@graph": [organizationNode, webSiteNode] }} />
-        <LanguageProvider>{children}</LanguageProvider>
+        <LanguageProvider>
+          {children}
+          {/* Site-wide, so every entry point asks once — not just the home
+              page. Inside the provider because its copy follows the language. */}
+          <CookieConsent />
+        </LanguageProvider>
       </body>
     </html>
   );
