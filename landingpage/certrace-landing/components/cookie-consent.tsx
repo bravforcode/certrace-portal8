@@ -3,9 +3,10 @@
 /* ════════════════════════════════════════════════════════════
    COOKIE CONSENT BANNER
 
-   A card pinned bottom-left (full-width on phones), not a page-blocking modal:
-   the site works the same whichever button is pressed, so there is no reason
-   to hold the page hostage until one is.
+   Full screen: a dimmed, blurred backdrop over the whole page with a large
+   card centred on it, and page scroll locked while it is up. There is no
+   close button and clicking the backdrop does nothing — every way out is an
+   explicit choice, so no one ends up "consenting" by dismissing it.
 
    THE THREE WAYS OUT carry equal weight. "Essential only" sits beside
    "Accept all" at the same size — a refusal hidden behind a settings screen is
@@ -69,6 +70,16 @@ export function CookieConsent() {
     };
   }, []);
 
+  /* Lock page scroll while the overlay is up, restoring whatever was set. */
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
   useEffect(() => {
     if (!open) return;
     const frame = requestAnimationFrame(() => setVisible(true));
@@ -88,32 +99,39 @@ export function CookieConsent() {
   if (!open) return null;
 
   const btnBase =
-    "flex-1 whitespace-nowrap rounded-[10px] px-4 py-2.5 text-[12px] font-medium tracking-wide transition-colors";
+    "flex-1 whitespace-nowrap rounded-xl px-6 py-4 text-[14px] font-medium tracking-wide transition-colors";
   const btnPrimary = `${btnBase} bg-[#111] text-white hover:bg-[#333] active:bg-black`;
   const btnSecondary = `${btnBase} border border-black/[0.12] bg-white text-black/70 hover:border-black/25 hover:text-black`;
 
   return (
     <div
       role="dialog"
-      aria-modal="false"
+      aria-modal="true"
       aria-labelledby={titleId}
-      className={`fixed inset-x-3 bottom-3 z-[90] sm:inset-x-auto sm:bottom-6 sm:left-6 sm:w-[400px] transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
-        visible ? "translate-y-0 opacity-100 blur-0" : "translate-y-6 opacity-0 blur-[2px]"
+      className={`fixed inset-0 z-[90] flex items-center justify-center overflow-y-auto p-4 sm:p-8 transition-opacity duration-500 ${
+        visible ? "opacity-100" : "opacity-0"
       }`}
     >
-      <div className="rounded-2xl border border-black/[0.08] bg-[#faf9f7]/95 p-5 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.25)] backdrop-blur-md">
-        <div className="flex items-center gap-2">
+      <div aria-hidden="true" className="fixed inset-0 bg-[#111]/45 backdrop-blur-md" />
+
+      <div
+        className={`relative my-auto w-full max-w-3xl rounded-3xl border border-black/[0.08] bg-[#faf9f7] p-7 shadow-[0_40px_120px_-20px_rgba(0,0,0,0.45)] sm:p-12 transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+          visible ? "translate-y-0 scale-100 blur-0" : "translate-y-8 scale-[0.98] blur-[2px]"
+        }`}
+      >
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-black/[0.08] bg-white">
           <CookieIcon />
-          <h2
-            id={titleId}
-            className="font-pixel text-[10px] uppercase tracking-[0.2em] text-black/50"
-          >
-            {showSettings ? t.settingsTitle : t.title}
-          </h2>
         </div>
 
+        <h2
+          id={titleId}
+          className="mt-5 text-4xl font-light leading-[1.05] tracking-tight text-[#111] sm:text-5xl"
+        >
+          {showSettings ? t.settingsTitle : t.title}
+        </h2>
+
         {showSettings ? (
-          <ul className="mt-4 space-y-2">
+          <ul className="mt-8 space-y-3">
             <CategoryRow
               name={t.categories.essential.name}
               desc={t.categories.essential.desc}
@@ -132,7 +150,7 @@ export function CookieConsent() {
             ))}
           </ul>
         ) : (
-          <p className="mt-3 text-[13px] leading-relaxed text-black/55">
+          <p className="mt-6 max-w-2xl text-base leading-relaxed text-black/55 sm:text-lg">
             {t.body}{" "}
             <a
               href="/privacy#cookies"
@@ -143,20 +161,11 @@ export function CookieConsent() {
           </p>
         )}
 
-        <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+        <div className="mt-10 flex flex-col gap-3 sm:flex-row">
           {showSettings ? (
-            <>
-              <button type="button" className={btnSecondary} onClick={() => decide(prefs)}>
-                {t.save}
-              </button>
-              <button
-                type="button"
-                className={btnPrimary}
-                onClick={() => decide({ analytics: true, marketing: true })}
-              >
-                {t.acceptAll}
-              </button>
-            </>
+            <button type="button" className={btnSecondary} onClick={() => decide(prefs)}>
+              {t.save}
+            </button>
           ) : (
             <>
               <button
@@ -168,24 +177,21 @@ export function CookieConsent() {
               </button>
               <button
                 type="button"
-                className={btnPrimary}
-                onClick={() => decide({ analytics: true, marketing: true })}
+                className={btnSecondary}
+                onClick={() => setShowSettings(true)}
               >
-                {t.acceptAll}
+                {t.customise}
               </button>
             </>
           )}
-        </div>
-
-        {!showSettings && (
           <button
             type="button"
-            onClick={() => setShowSettings(true)}
-            className="mt-3 w-full text-center text-[12px] text-black/40 underline-offset-2 transition-colors hover:text-black/70 hover:underline"
+            className={btnPrimary}
+            onClick={() => decide({ analytics: true, marketing: true })}
           >
-            {t.customise}
+            {t.acceptAll}
           </button>
-        )}
+        </div>
       </div>
     </div>
   );
@@ -208,13 +214,13 @@ function CategoryRow({
 }) {
   const id = useId();
   return (
-    <li className="flex items-start justify-between gap-4 rounded-xl border border-black/[0.06] bg-white/70 px-3.5 py-3">
+    <li className="flex items-start justify-between gap-4 rounded-2xl border border-black/[0.06] bg-white/70 px-5 py-4 sm:px-6 sm:py-5">
       <label htmlFor={id} className="min-w-0 flex-1 cursor-pointer">
-        <span className="block text-[13px] text-black/80">{name}</span>
-        <span className="mt-0.5 block text-[11px] leading-snug text-black/40">{desc}</span>
+        <span className="block text-[15px] text-black/80 sm:text-base">{name}</span>
+        <span className="mt-1 block text-[13px] leading-snug text-black/45 sm:text-sm">{desc}</span>
       </label>
       {locked ? (
-        <span className="shrink-0 pt-0.5 font-pixel text-[9px] uppercase tracking-[0.15em] text-emerald-600">
+        <span className="shrink-0 pt-0.5 font-pixel text-[10px] uppercase tracking-[0.15em] text-emerald-600">
           {lockedLabel}
         </span>
       ) : (
@@ -224,13 +230,13 @@ function CategoryRow({
           role="switch"
           aria-checked={checked}
           onClick={() => onChange?.(!checked)}
-          className={`relative mt-0.5 h-5 w-9 shrink-0 rounded-full transition-colors ${
+          className={`relative mt-0.5 h-7 w-12 shrink-0 rounded-full transition-colors ${
             checked ? "bg-[#111]" : "bg-black/15"
           }`}
         >
           <span
-            className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${
-              checked ? "translate-x-4" : "translate-x-0"
+            className={`absolute top-0.5 left-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform duration-200 ${
+              checked ? "translate-x-5" : "translate-x-0"
             }`}
           />
         </button>
@@ -241,7 +247,7 @@ function CategoryRow({
 
 function CookieIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="text-black/45">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true" className="text-black/45">
       <path
         d="M12 3a9 9 0 1 0 9 9 3 3 0 0 1-3.5-3A3 3 0 0 1 14 5.5 3 3 0 0 1 12 3Z"
         stroke="currentColor"
