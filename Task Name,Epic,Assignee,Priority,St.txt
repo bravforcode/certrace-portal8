@@ -1,9 +1,0 @@
-Task Name,Epic,Assignee,Priority,Status,Description
-"1.1 อัปเดตและผูกลิงก์ระบบรับลูกค้าบน Landing Page","Frontend & UX Polish","โบ๊ท","High","TO DO","เปลี่ยน Calendly URL ใน index.html และผูกฟอร์ม Waitlist เข้า Google Sheets"
-"1.2 ปรับปรุง UX ของ Supplier Smart Link บน Mobile","Frontend & UX Polish","โบ๊ท","High","TO DO","ทดสอบและปรับขนาด Input fields ของหน้ารับข้อมูลซัพพลายเออร์บนมือถือ/แท็บเล็ต"
-"1.3 ทดสอบโฟลว์การทำงานแบบครบวงจร (End-to-End Flow)","Frontend & UX Polish","โบ๊ท, เฟิน","Urgent","TO DO","ทดสอบตั้งแต่สร้าง Declaration -> ซัพพลายเออร์กรอกคาร์บอน -> ข้อมูลอัปเดตบน Dashboard"
-"2.1 สอบทานความถูกต้องของสูตรคำนวณตามเกณฑ์ EU CBAM","Backend & Calculation","เฟิน","Urgent","TO DO","ตรวจสอบโค้ดคำนวณคาร์บอนใน backend เทียบกับคู่มือ EU CBAM Guidance ล่าสุด"
-"2.2 ทดสอบคำนวณข้อมูลจริงเทียบกับ Excel Benchmark","Backend & Calculation","เฟิน, โบ๊ท","High","TO DO","นำข้อมูลจริง 3-5 ชุดมาคำนวณผ่าน API แล้วเปรียบเทียบผลลัพธ์กับ Excel"
-"3.1 Deploy Backend API ขึ้น Render.com / Fly.io","Infrastructure & Deploy","เฟิน","High","TO DO","นำ FastAPI ขึ้น Cloud Server พร้อมตั้งค่า ENV และ HTTPS"
-"3.2 Deploy Customer Portal ขึ้น Cloudflare Pages","Infrastructure & Deploy","โบ๊ท","High","TO DO","นำ Next.js ขึ้น Cloudflare Pages และผูก Custom Domain"
-"3.3 ทดสอบการเชื่อมต่อ API & CORS บน Production","Infrastructure & Deploy","โบ๊ท, เฟิน","High","TO DO","ทดสอบการดึงและบันทึกข้อมูลระหว่าง Portal และ Backend บน Server จริง"

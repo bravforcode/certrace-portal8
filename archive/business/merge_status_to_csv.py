@@ -4,9 +4,9 @@ import sys
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
-resend_csv = "d:/1tb/certrace/emails-sent-1783396084869.csv"
-original_csv = "d:/1tb/certrace/Certrace - Validate & Customer Info - Customer info.csv"
-output_csv = "d:/1tb/certrace/Certrace_Customer_Info_with_Status.csv"
+resend_csv = "emails-sent-1783396084869.csv"
+original_csv = "Certrace - Validate & Customer Info - Customer info.csv"
+output_csv = "Certrace_Customer_Info_with_Status.csv"
 
 # 1. Build dictionary of email -> status
 email_status = {}

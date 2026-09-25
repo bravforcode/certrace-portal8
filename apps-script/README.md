@@ -17,9 +17,8 @@ change back here.
    - *Who has access*: **Anyone** — the landing pages post without a Google
      login, so anything narrower rejects them.
 5. Copy the `/exec` URL.
-6. Put that URL into the pages that post to it:
-   - `index.html` — the `SCRIPT_URL` variable in the waitlist block
-   - `static-landing/index.html` — `CONFIG.SCRIPT_URL`
+6. Put that URL into `landingpage/certrace-landing/lib/sheet-sync.ts`, the
+   only page code that posts to it.
 
 Changing the script later needs **Deploy ▸ Manage deployments ▸ edit ▸ New
 version**. Saving alone does not update the live `/exec` URL.

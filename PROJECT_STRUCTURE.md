@@ -33,7 +33,7 @@ graph TD
 ## 📂 รายละเอียดของแต่ละส่วนประกอบ (Detailed Components)
 
 ### 1. 📣 Landing Page / Pre-launch Web
-*   **ที่อยู่โฟลเดอร์/ไฟล์:** [index.html](file:///d:/1tb/certrace/index.html) และโฟลเดอร์ [landingpage](file:///d:/1tb/certrace/landingpage)
+*   **ที่อยู่โฟลเดอร์/ไฟล์:** [landingpage/certrace-landing](landingpage/certrace-landing)
 *   **มีไว้ทำไม (Purpose):** 
     *   ใช้สำหรับเป็นหน้าเว็บชวนเชื่อในการทำ **Cold Outreach** (เข้าหาผู้ส่งออกโดยตรง) 
     *   สร้างความน่าเชื่อถือให้กับผู้ส่งออกเหล็กและอลูมิเนียมชาวไทย ให้เข้าใจปัญหาเรื่องกำแพงภาษีคาร์บอน (CBAM) ของสหภาพยุโรป ภายใน 30-60 วินาที
@@ -46,7 +46,7 @@ graph TD
 ---
 
 ### 💼 2. Customer Portal (ระบบสำหรับลูกค้าและคู่ค้า)
-*   **ที่อยู่โฟลเดอร์:** [certrace-portal](file:///d:/1tb/certrace/certrace-portal)
+*   **ที่อยู่โฟลเดอร์:** [certrace-portal](certrace-portal)
 *   **มีไว้ทำไม (Purpose):** 
     *   เป็นศูนย์กลางระบบ B2B SaaS ที่ให้ผู้ส่งออก (Exporters) จัดการเตรียมรายงาน CBAM ของบริษัท และเชื่อมโยงข้อมูลกับโรงงานคู่ค้า (Suppliers)
 *   **หน้าที่หลัก (Key Features):**
@@ -60,7 +60,7 @@ graph TD
 ---
 
 ### ⚙️ 3. Compliance Backend API (ระบบประมวลผลหลัก)
-*   **ที่อยู่โฟลเดอร์:** [certrace-backend](file:///d:/1tb/certrace/certrace-backend)
+*   **ที่อยู่โฟลเดอร์:** [certrace-backend](certrace-backend)
 *   **มีไว้ทำไม (Purpose):** 
     *   เป็นสมองส่วนกลางในการคิดคำนวณ รักษาความปลอดภัยของข้อมูล และติดต่อจัดการกับฐานข้อมูลให้ Customer Portal
 *   **หน้าที่หลัก (Key Features):**
@@ -73,7 +73,7 @@ graph TD
 ---
 
 ### 📧 4. Outreach & Data Scripts (ระบบอัตโนมัติหาลูกค้า)
-*   **ที่อยู่ไฟล์ในโฟลเดอร์หลัก:** [send_emails.py](file:///d:/1tb/certrace/send_emails.py), [send_interview_invites.py](file:///d:/1tb/certrace/send_interview_invites.py)
+*   **ที่อยู่ไฟล์:** [archive/business/send_emails.py](archive/business/send_emails.py), [archive/business/send_interview_invites.py](archive/business/send_interview_invites.py) (เก็บไว้เป็น archive ไม่ได้ใช้งานประจำ)
 *   **มีไว้ทำไม (Purpose):** 
     *   ใช้สำหรับรันแบบอัตโนมัติในการดึงข้อมูลจากใบรายชื่อบริษัทผู้ส่งออกเหล็กและอลูมิเนียมในไทย ส่งอีเมลแนะนำแบรนด์/ชวนสัมภาษณ์
 *   **เทคโนโลยีที่ใช้ (Tech Stack):** 
