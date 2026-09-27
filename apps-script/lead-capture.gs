@@ -34,6 +34,8 @@
  *   6. Concurrency Safety: LockService serializes writes across concurrent submissions.
  *   7. Plain-Text Formatting: Phone numbers, dial codes, CN codes, and offsets
  *      are formatted with '@' so Google Sheets never parses them into formula errors.
+ *   8. Confirmation Email: the person who submitted gets a "we've received your
+ *      details" email, in the language they read the site in (see CONFIRMATION).
  */
 
 /* ── Settings & Tab Schemas ────────────────────────────────── */
@@ -64,6 +66,27 @@ var DEMO_JOURNEY = ['demo_lead', 'demo_booking'];
  * or leave empty '' to disable.
  */
 var NOTIFICATION_EMAIL = '';
+
+/**
+ * Confirmation email to the person who submitted a form ("we've received your
+ * details"). Sent from the Google account the web app executes as, so the
+ * daily MailApp quota applies: 100 recipients/day on a personal Gmail account,
+ * 1,500 on Google Workspace. When the quota runs out the email is skipped —
+ * the row is still written.
+ *
+ *   enabled         · false turns every confirmation off without a redeploy of the pages.
+ *   senderName      · the "From" name the recipient sees.
+ *   replyTo         · where a reply to the confirmation lands.
+ *   cooldownMinutes · the same address gets at most one email per kind in this
+ *                     window. The /exec URL is public, so without it anyone could
+ *                     point the endpoint at a stranger's inbox and fire it in a loop.
+ */
+var CONFIRMATION = {
+  enabled: true,
+  senderName: 'Certrace',
+  replyTo: 'contact@certrace.co',
+  cooldownMinutes: 10
+};
 
 /**
  * Standard schemas for each sheet tab.
@@ -141,11 +164,21 @@ var IGNORED_FIELDS = ['first_seen', 'last_seen', 'sheet', 'sheetName'];
 /* ── Entry Points ──────────────────────────────────────────── */
 
 function doPost(e) {
+  var outcome = writeSubmission_(e);
+  // Sent after the lock is released: MailApp takes a second or so, and a
+  // concurrent submission should not queue behind somebody else's email.
+  if (outcome.confirmation) {
+    trySendConfirmation_(outcome.confirmation.kind, outcome.confirmation.data);
+  }
+  return jsonOut_(outcome.response);
+}
+
+function writeSubmission_(e) {
   var lock = LockService.getScriptLock();
   try {
     lock.waitLock(30000);
   } catch (err) {
-    return jsonOut_({ ok: false, error: 'busy' });
+    return { response: { ok: false, error: 'busy' } };
   }
 
   try {
@@ -154,7 +187,7 @@ function doPost(e) {
     var data = cleanParams_(rawParams);
 
     if (!hasAnyValue_(data)) {
-      return jsonOut_({ ok: false, error: 'empty submission' });
+      return { response: { ok: false, error: 'empty submission' } };
     }
 
     var sheet = getSheet_(requestedSheet);
@@ -171,15 +204,20 @@ function doPost(e) {
       trySendNotification_(actualSheetName, data);
     }
 
-    return jsonOut_({
-      ok: true,
-      action: result.action,
-      row: result.row,
-      sheet: actualSheetName
-    });
+    var kind = confirmationKind_(actualSheetName, data, result);
+
+    return {
+      response: {
+        ok: true,
+        action: result.action,
+        row: result.row,
+        sheet: actualSheetName
+      },
+      confirmation: kind ? { kind: kind, data: data } : null
+    };
   } catch (err) {
     console.error(err);
-    return jsonOut_({ ok: false, error: String(err) });
+    return { response: { ok: false, error: String(err) } };
   } finally {
     lock.releaseLock();
   }
@@ -414,6 +452,8 @@ function upsert_(sheet, header, data, sheetName) {
 
   var existing = values[match - 2];
   var merged = existing.slice();
+  var stepIndex = header.indexOf('step');
+  var previousStep = stepIndex !== -1 ? (Number(existing[stepIndex]) || 0) : 0;
 
   for (var c = 0; c < header.length; c++) {
     var key = header[c];
@@ -473,7 +513,277 @@ function upsert_(sheet, header, data, sheetName) {
       throw err;
     }
   }
-  return { action: 'merged', row: match };
+  return { action: 'merged', row: match, previousStep: previousStep };
+}
+
+/* ── Confirmation Email ────────────────────────────────────── */
+
+/**
+ * What the confirmation says, per kind and language. A kind is a tab name,
+ * plus 'Book a Demo:booking' for the booking dialog, which has a time to
+ * repeat back. Only 'en' and 'th' are written; any other site language falls
+ * back to English rather than to a machine translation nobody has read.
+ *
+ * In 'lines', {when} is replaced with the booked slot as the visitor saw it.
+ */
+var CONFIRMATION_COPY = {
+  'Book a Demo': {
+    en: {
+      subject: 'We\'ve received your Certrace demo request',
+      lines: [
+        'Thanks for your interest in Certrace. We\'ve received your details.',
+        'Our team will be in touch shortly to arrange your demo.'
+      ]
+    },
+    th: {
+      subject: 'เราได้รับคำขอนัดเดโม Certrace ของคุณแล้ว',
+      lines: [
+        'ขอบคุณที่สนใจ Certrace เราได้รับข้อมูลของคุณเรียบร้อยแล้ว',
+        'ทีมงานจะติดต่อกลับเพื่อนัดหมายเดโมโดยเร็วที่สุด'
+      ]
+    }
+  },
+  'Book a Demo:booking': {
+    en: {
+      subject: 'Your Certrace demo request: {when}',
+      lines: [
+        'We\'ve received your booking request for {when}.',
+        'We\'ll confirm the time and send you a calendar invite with the meeting link.'
+      ]
+    },
+    th: {
+      subject: 'คำขอนัดเดโม Certrace ของคุณ: {when}',
+      lines: [
+        'เราได้รับคำขอนัดหมายของคุณสำหรับ {when} แล้ว',
+        'ทีมงานจะยืนยันเวลาและส่งคำเชิญในปฏิทินพร้อมลิงก์การประชุมให้คุณ'
+      ]
+    }
+  },
+  'Newsletter': {
+    en: {
+      subject: 'You\'re subscribed to Certrace updates',
+      lines: [
+        'Thanks for subscribing. You\'ll receive Certrace product and CBAM updates at this address.'
+      ]
+    },
+    th: {
+      subject: 'คุณสมัครรับข่าวสารจาก Certrace เรียบร้อยแล้ว',
+      lines: [
+        'ขอบคุณที่สมัครรับข่าวสาร คุณจะได้รับอัปเดตเกี่ยวกับ Certrace และ CBAM ทางอีเมลนี้'
+      ]
+    }
+  },
+  'CBAM free engine lead': {
+    en: {
+      subject: 'We\'ve received your details — Certrace CBAM engine',
+      lines: [
+        'Thanks for using the Certrace CN code engine. We\'ve received your details.',
+        'Our team may reach out to walk you through your results.'
+      ]
+    },
+    th: {
+      subject: 'เราได้รับข้อมูลของคุณแล้ว — Certrace CBAM engine',
+      lines: [
+        'ขอบคุณที่ใช้เครื่องมือตรวจสอบรหัส CN ของ Certrace เราได้รับข้อมูลของคุณเรียบร้อยแล้ว',
+        'ทีมงานอาจติดต่อกลับเพื่ออธิบายผลลัพธ์ให้คุณ'
+      ]
+    }
+  },
+  'Pricing Request': {
+    en: {
+      subject: 'We\'ve received your Certrace pricing request',
+      lines: [
+        'Thanks for your pricing request. We\'ve received your details.',
+        'We\'ll prepare a quote and get back to you shortly.'
+      ]
+    },
+    th: {
+      subject: 'เราได้รับคำขอใบเสนอราคา Certrace ของคุณแล้ว',
+      lines: [
+        'ขอบคุณสำหรับคำขอใบเสนอราคา เราได้รับข้อมูลของคุณเรียบร้อยแล้ว',
+        'ทีมงานจะจัดทำใบเสนอราคาและติดต่อกลับโดยเร็วที่สุด'
+      ]
+    }
+  },
+  'Request a Feature': {
+    en: {
+      subject: 'Thanks for your Certrace feature request',
+      lines: [
+        'We\'ve received your feature request. Every one is read by the product team.',
+        'If we need more detail, we\'ll reply to this address.'
+      ]
+    },
+    th: {
+      subject: 'ขอบคุณสำหรับข้อเสนอแนะฟีเจอร์ Certrace',
+      lines: [
+        'เราได้รับข้อเสนอแนะฟีเจอร์ของคุณแล้ว ทีมผลิตภัณฑ์จะอ่านทุกข้อเสนอ',
+        'หากต้องการข้อมูลเพิ่มเติม เราจะติดต่อกลับทางอีเมลนี้'
+      ]
+    }
+  },
+  'Report Issue': {
+    en: {
+      subject: 'We\'ve received your Certrace issue report',
+      lines: [
+        'Thanks for reporting this. We\'ve received your issue report and will look into it.',
+        'If we need more detail, we\'ll reply to this address.'
+      ]
+    },
+    th: {
+      subject: 'เราได้รับรายงานปัญหา Certrace ของคุณแล้ว',
+      lines: [
+        'ขอบคุณที่แจ้งปัญหา เราได้รับรายงานของคุณแล้วและจะตรวจสอบโดยเร็ว',
+        'หากต้องการข้อมูลเพิ่มเติม เราจะติดต่อกลับทางอีเมลนี้'
+      ]
+    }
+  },
+  'Create Account Request': {
+    en: {
+      subject: 'You\'re on the Certrace early-access list',
+      lines: [
+        'Thanks for requesting a Certrace account. We\'ve received your details.',
+        'We\'ll email you as soon as your access is ready.'
+      ]
+    },
+    th: {
+      subject: 'คุณอยู่ในรายชื่อทดลองใช้ Certrace แล้ว',
+      lines: [
+        'ขอบคุณที่ขอเปิดบัญชี Certrace เราได้รับข้อมูลของคุณเรียบร้อยแล้ว',
+        'เราจะแจ้งทางอีเมลทันทีที่บัญชีของคุณพร้อมใช้งาน'
+      ]
+    }
+  },
+  'Careers': {
+    en: {
+      subject: 'We\'ve received your application — Certrace',
+      lines: [
+        'Thanks for your interest in joining Certrace. We\'ve received your details.',
+        'We review every application and will get back to you if there\'s a fit.'
+      ]
+    },
+    th: {
+      subject: 'เราได้รับใบสมัครของคุณแล้ว — Certrace',
+      lines: [
+        'ขอบคุณที่สนใจร่วมงานกับ Certrace เราได้รับข้อมูลของคุณเรียบร้อยแล้ว',
+        'เราพิจารณาทุกใบสมัคร และจะติดต่อกลับหากตำแหน่งเหมาะสม'
+      ]
+    }
+  }
+};
+
+var CONFIRMATION_CHROME = {
+  en: { greeting: 'Hi {name},', greetingAnon: 'Hi,', signoff: 'The Certrace team',
+        footer: 'You\'re receiving this because this address was entered on certrace.co. If that wasn\'t you, you can ignore this email.' },
+  th: { greeting: 'สวัสดีคุณ {name}', greetingAnon: 'สวัสดี', signoff: 'ทีมงาน Certrace',
+        footer: 'คุณได้รับอีเมลนี้เนื่องจากมีการกรอกอีเมลนี้บน certrace.co หากไม่ใช่คุณ สามารถละเว้นอีเมลนี้ได้' }
+};
+
+/**
+ * Which confirmation, if any, a write earns. One per new submission — a
+ * repeat post that merges into an existing row (a re-subscribe, a resent
+ * demo form) sends nothing — with one exception: the booking dialog merges
+ * into the demo form's row, but it is the step that carries a time, so it gets
+ * its own email the first time the row reaches it.
+ */
+function confirmationKind_(sheetName, data, result) {
+  if (!CONFIRMATION.enabled) return null;
+  if (sheetName === 'Book a Demo' && journeyStep_(data.type) === DEMO_JOURNEY.length) {
+    var firstBooking = result.action === 'appended' || (result.previousStep || 0) < DEMO_JOURNEY.length;
+    return firstBooking ? 'Book a Demo:booking' : null;
+  }
+  if (result.action !== 'appended') return null;
+  return CONFIRMATION_COPY[sheetName] ? sheetName : null;
+}
+
+function trySendConfirmation_(kind, data) {
+  try {
+    var email = String(data.email || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+
+    var cache = CacheService.getScriptCache();
+    var cacheKey = 'confirm:' + kind + ':' + email;
+    if (cache.get(cacheKey)) return;
+
+    if (MailApp.getRemainingDailyQuota() < 1) {
+      console.warn('Confirmation skipped, MailApp daily quota used up:', kind, email);
+      return;
+    }
+
+    var lang = String(data.lang || '').trim().toLowerCase().split('-')[0];
+    if (!CONFIRMATION_COPY[kind][lang]) lang = 'en';
+    var copy = CONFIRMATION_COPY[kind][lang];
+    var chrome = CONFIRMATION_CHROME[lang];
+
+    var vars = { when: bookingWhen_(data) };
+    var subject = fill_(copy.subject, vars);
+    var lines = copy.lines.map(function (line) { return fill_(line, vars); });
+    var name = String(data.firstName || data.name || '').trim();
+    var greeting = name ? fill_(chrome.greeting, { name: name }) : chrome.greetingAnon;
+
+    var text = [greeting, ''].concat(lines, ['', chrome.signoff, '', '—', chrome.footer]).join('\n');
+    var html =
+      '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#1a1a1a;max-width:560px">' +
+      '<p>' + escapeHtml_(greeting) + '</p>' +
+      lines.map(function (line) { return '<p>' + escapeHtml_(line) + '</p>'; }).join('') +
+      '<p>' + escapeHtml_(chrome.signoff) + '</p>' +
+      '<p style="margin-top:32px;font-size:12px;color:#777">' + escapeHtml_(chrome.footer) + '</p>' +
+      '</div>';
+
+    MailApp.sendEmail({
+      to: email,
+      subject: subject,
+      body: text,
+      htmlBody: html,
+      name: CONFIRMATION.senderName,
+      replyTo: CONFIRMATION.replyTo
+    });
+    cache.put(cacheKey, '1', CONFIRMATION.cooldownMinutes * 60);
+  } catch (err) {
+    // The row is already written; a failed email must not turn the post into an error.
+    console.warn('Failed to send confirmation email:', err);
+  }
+}
+
+/** The booked slot as the visitor picked it: "2026-08-20 14:00 (Berlin, Germany (GMT+1))". */
+function bookingWhen_(data) {
+  var when = [data.bookingDate, data.bookingTime].filter(Boolean).join(' ');
+  var zone = data.bookingTimeZoneLabel || data.bookingTimeZone;
+  return zone ? when + ' (' + zone + ')' : when;
+}
+
+function fill_(template, vars) {
+  return String(template).replace(/\{(\w+)\}/g, function (m, key) {
+    return vars.hasOwnProperty(key) ? vars[key] : m;
+  });
+}
+
+function escapeHtml_(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/**
+ * Sends every confirmation to one address so the copy can be read before it
+ * goes live. Run it from the editor after setting TEST_TO; it bypasses the
+ * cooldown and writes nothing to the sheet.
+ */
+function testConfirmations_() {
+  var TEST_TO = '';
+  if (!TEST_TO) throw new Error('Set TEST_TO in testConfirmations_ first.');
+  var kinds = Object.keys(CONFIRMATION_COPY);
+  ['en', 'th'].forEach(function (lang) {
+    kinds.forEach(function (kind) {
+      CacheService.getScriptCache().remove('confirm:' + kind + ':' + TEST_TO);
+      trySendConfirmation_(kind, {
+        email: TEST_TO, firstName: 'Test', lang: lang,
+        bookingDate: '2026-08-20', bookingTime: '14:00',
+        bookingTimeZoneLabel: 'Bangkok, Thailand (GMT+7)'
+      });
+    });
+  });
 }
 
 /* ── Helpers ───────────────────────────────────────────────── */

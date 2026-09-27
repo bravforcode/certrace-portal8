@@ -46,6 +46,16 @@ function utcOffset(at: Date): string {
 }
 
 /**
+ * The language the visitor is reading the site in. LanguageProvider keeps
+ * `<html lang>` in step with the switcher, so this is what the Apps Script
+ * picks the confirmation email's language from.
+ */
+function pageLang(): string {
+  if (typeof document === "undefined") return "";
+  return (document.documentElement.lang || "").trim().toLowerCase();
+}
+
+/**
  * Where and when the lead is, in their terms.
  */
 export function leadLocaleFields(now: Date = new Date()): Record<string, string> {
@@ -58,6 +68,7 @@ export function leadLocaleFields(now: Date = new Date()): Record<string, string>
   }
 
   return {
+    lang: pageLang(),
     timestamp: now.toISOString(),
     timezone: zone.id,
     zone_source: zone.detected ? "detected" : "fallback",

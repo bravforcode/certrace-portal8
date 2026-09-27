@@ -37,6 +37,33 @@ Failures from real submissions show up under **Executions** in the Apps Script
 console. The pages post with `mode: 'no-cors'` and cannot read the response, so
 that log is the only place an error is visible.
 
+## Confirmation email
+
+Everyone who submits a form gets a short "we've received your details" email,
+sent from the Google account the web app executes as. The settings are the
+`CONFIRMATION` block at the top of `lead-capture.gs`; the wording is
+`CONFIRMATION_COPY`, one entry per tab.
+
+- **Language** — the landing page posts a `lang` field (the site language the
+  visitor was reading in). Thai and English copy exist; any other language gets
+  the English email.
+- **When it sends** — once per new row. A repeat post that merges into an
+  existing row (re-subscribing, resending the demo form) sends nothing. The
+  booking dialog is the exception: it merges into the demo row but gets its
+  own email, the first time, repeating the booked slot back.
+- **Abuse guard** — the `/exec` URL is public, so one address gets at most one
+  email per kind every `cooldownMinutes` (default 10).
+- **Quota** — MailApp allows 100 recipients/day on a personal Gmail account,
+  1,500 on Google Workspace. Past that the email is skipped and logged; the row
+  is still written.
+- **Previewing the copy** — set `TEST_TO` inside `testConfirmations_` and run
+  it from the editor. It sends every confirmation, English and Thai, to that
+  address and writes nothing to the sheet.
+- **Turning it off** — set `CONFIRMATION.enabled` to `false`.
+
+The first deploy after this change asks for a new permission (**Send email as
+you**); approve it, or the confirmations fail silently in the Executions log.
+
 ## Columns
 
 The header is created on the first post. Existing column order is never
