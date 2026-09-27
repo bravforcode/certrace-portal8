@@ -69,13 +69,15 @@ var NOTIFICATION_EMAIL = '';
 
 /**
  * Confirmation email to the person who submitted a form ("we've received your
- * details"). Sent from the Google account the web app executes as, so the
- * daily MailApp quota applies: 100 recipients/day on a personal Gmail account,
- * 1,500 on Google Workspace. When the quota runs out the email is skipped —
- * the row is still written.
+ * details"), sent through Resend — the same account and verified domain the
+ * backend's product emails go out from.
+ *
+ * The API key is NOT in this file: it lives in Project Settings ▸ Script
+ * Properties as RESEND_API_KEY. Without it the confirmation is skipped and a
+ * warning is logged; the row is still written either way.
  *
  *   enabled         · false turns every confirmation off without a redeploy of the pages.
- *   senderName      · the "From" name the recipient sees.
+ *   from            · must be on a domain verified in Resend.
  *   replyTo         · where a reply to the confirmation lands.
  *   cooldownMinutes · the same address gets at most one email per kind in this
  *                     window. The /exec URL is public, so without it anyone could
@@ -83,10 +85,13 @@ var NOTIFICATION_EMAIL = '';
  */
 var CONFIRMATION = {
   enabled: true,
-  senderName: 'Certrace',
+  from: 'Certrace <contact@certrace.co>',
   replyTo: 'contact@certrace.co',
   cooldownMinutes: 10
 };
+
+var RESEND_ENDPOINT = 'https://api.resend.com/emails';
+var RESEND_KEY_PROPERTY = 'RESEND_API_KEY';
 
 /**
  * Standard schemas for each sheet tab.
@@ -165,7 +170,7 @@ var IGNORED_FIELDS = ['first_seen', 'last_seen', 'sheet', 'sheetName'];
 
 function doPost(e) {
   var outcome = writeSubmission_(e);
-  // Sent after the lock is released: MailApp takes a second or so, and a
+  // Sent after the lock is released: the Resend call takes a second or so, and a
   // concurrent submission should not queue behind somebody else's email.
   if (outcome.confirmation) {
     trySendConfirmation_(outcome.confirmation.kind, outcome.confirmation.data);
@@ -704,11 +709,6 @@ function trySendConfirmation_(kind, data) {
     var cacheKey = 'confirm:' + kind + ':' + email;
     if (cache.get(cacheKey)) return;
 
-    if (MailApp.getRemainingDailyQuota() < 1) {
-      console.warn('Confirmation skipped, MailApp daily quota used up:', kind, email);
-      return;
-    }
-
     var lang = String(data.lang || '').trim().toLowerCase().split('-')[0];
     if (!CONFIRMATION_COPY[kind][lang]) lang = 'en';
     var copy = CONFIRMATION_COPY[kind][lang];
@@ -729,19 +729,52 @@ function trySendConfirmation_(kind, data) {
       '<p style="margin-top:32px;font-size:12px;color:#777">' + escapeHtml_(chrome.footer) + '</p>' +
       '</div>';
 
-    MailApp.sendEmail({
-      to: email,
-      subject: subject,
-      body: text,
-      htmlBody: html,
-      name: CONFIRMATION.senderName,
-      replyTo: CONFIRMATION.replyTo
-    });
-    cache.put(cacheKey, '1', CONFIRMATION.cooldownMinutes * 60);
+    if (sendViaResend_({ to: email, subject: subject, text: text, html: html, kind: kind })) {
+      cache.put(cacheKey, '1', CONFIRMATION.cooldownMinutes * 60);
+    }
   } catch (err) {
     // The row is already written; a failed email must not turn the post into an error.
     console.warn('Failed to send confirmation email:', err);
   }
+}
+
+/**
+ * One POST to Resend. Returns true when Resend accepted the email; anything
+ * else is logged with Resend's own reason ("domain is not verified", a 429
+ * over the plan's quota) and returns false, so the cooldown is not spent on
+ * an email that never left.
+ */
+function sendViaResend_(message) {
+  var apiKey = PropertiesService.getScriptProperties().getProperty(RESEND_KEY_PROPERTY);
+  if (!apiKey) {
+    console.warn('Confirmation skipped: set ' + RESEND_KEY_PROPERTY + ' in Script Properties.');
+    return false;
+  }
+
+  var response = UrlFetchApp.fetch(RESEND_ENDPOINT, {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { Authorization: 'Bearer ' + apiKey },
+    payload: JSON.stringify({
+      from: CONFIRMATION.from,
+      to: [message.to],
+      reply_to: CONFIRMATION.replyTo,
+      subject: message.subject,
+      html: message.html,
+      text: message.text,
+      // Resend tag values allow only ASCII letters, digits, '_' and '-'.
+      tags: [
+        { name: 'category', value: 'form_confirmation' },
+        { name: 'form', value: String(message.kind).replace(/[^A-Za-z0-9_-]+/g, '_') }
+      ]
+    }),
+    muteHttpExceptions: true
+  });
+
+  var code = response.getResponseCode();
+  if (code >= 200 && code < 300) return true;
+  console.warn('Resend rejected confirmation (HTTP ' + code + '):', response.getContentText());
+  return false;
 }
 
 /** The booked slot as the visitor picked it: "2026-08-20 14:00 (Berlin, Germany (GMT+1))". */
