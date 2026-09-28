@@ -842,7 +842,7 @@ const en = {
       cookies: "Cookie Policy",
       reportIssue: "Report Issue",
     },
-    copyright: "© 2026 Certrace Co., Ltd. All rights reserved.",
+    copyright: "© 2026 Certrace Ord. Part. All rights reserved.",
     contactSubject: "Hello Certrace",
     issueSubject: "Report an issue",
     careersSubject: "Careers at Certrace",
@@ -1801,7 +1801,7 @@ const th: Content = {
     /* The legal entity name stays in English on the Thai site too — it is how
        the company is registered and how it signs contracts, so translating it
        would name an entity that does not exist on paper. */
-    copyright: "© 2026 Certrace Co., Ltd. All rights reserved.",
+    copyright: "© 2026 Certrace Ord. Part. All rights reserved.",
     contactSubject: "สวัสดี Certrace",
     issueSubject: "แจ้งปัญหาการใช้งาน",
     careersSubject: "ร่วมงานกับ Certrace",
