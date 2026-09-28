@@ -5,7 +5,7 @@ import sys
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
-csv_file = "d:/1tb/certrace/emails-sent-1783396084869.csv"
+csv_file = "emails-sent-1783396084869.csv"
 
 status_counts = Counter()
 delivered_emails = []
