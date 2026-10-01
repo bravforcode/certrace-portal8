@@ -4,8 +4,11 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiConfigured } from "./api/config";
 import type { DirectorySupplier } from "./data";
+import { getOrgIdentity } from "./org";
 import { resolvePrecursorLink } from "./precursor-link";
+import { isServerPrecursorToken, openPrecursorLink, type PrecursorLinkView } from "./precursor-link-sync";
 import { getSupplier, listSuppliers, saveSupplier, type PrecursorSupplier } from "./precursor-suppliers";
 import { getSupplierCompany, listSupplierCompanies, saveSupplierCompany, type SupplierCompany } from "./supplier-companies";
 import { addDirectorySupplier, listDirectory, listSupplierRows } from "./supplier-directory";
@@ -100,12 +103,28 @@ export function useSavePrecursorSupplier() {
     never count as an "open". Keyed under PRECURSORS_KEY so a save refreshes
     the resolved node too. */
 export function usePrecursorLink(token: string | undefined) {
-  return useQuery({
+  return useQuery<PrecursorLinkView | null>({
     queryKey: [...PRECURSORS_KEY, "link", token],
-    queryFn: () => resolvePrecursorLink(token ?? ""),
+    /* A server-issued token loads the row into this browser first
+       (lib/precursor-link-sync.ts); a legacy base64 one resolves from what is
+       already here, as it always has. */
+    queryFn: () => (apiConfigured() && isServerPrecursorToken(token) ? openPrecursorLink(token ?? "") : localPrecursorLink(token ?? "")),
     enabled: Boolean(token),
     staleTime: 0,
   });
+}
+
+/* WHO IS ASKING, for a local link. For a precursor it is the installation the
+   good is made at — the plant this supplier ships INTO. For the row at the top
+   of the chain that installation is the RECIPIENT, so naming it would head the
+   page "data request from" the very site reading it; the asker there is the
+   exporter's own company. A server link carries the same answer, worked out
+   on the exporter's side (lib/precursor-link-sync.ts). */
+function localPrecursorLink(token: string): PrecursorLinkView | null {
+  const req = resolvePrecursorLink(token);
+  if (!req) return null;
+  const asker = req.node.isChainRoot ? getOrgIdentity().name : req.workspace.installationName;
+  return { workspaceId: req.workspace.id, node: req.node, asker, server: false };
 }
 
 /** For the out-of-band writers this store still has — markLinkOpened,

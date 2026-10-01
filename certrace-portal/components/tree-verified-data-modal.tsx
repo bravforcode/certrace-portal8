@@ -58,6 +58,7 @@ import { Button, Modal, Progress, cn } from "@/components/ui";
 import { SupplierEditor } from "@/components/precursor/supplier-editor";
 import { SectionEvidence } from "@/components/workspace/evidence-panel";
 import { precursorLinkFor } from "@/lib/precursor-link";
+import { ensurePrecursorLink } from "@/lib/precursor-link-sync";
 import type { RequiredKey } from "@/lib/workspace-evidence";
 import { precursorCompleteness } from "@/lib/precursor-suppliers";
 import type { SupplierNode } from "@/lib/precursor-suppliers";
@@ -220,8 +221,11 @@ function AskSupplierPanel({ node, onSend }: { node: SupplierNode; onSend?: () =>
     onSend?.();
   };
 
-  const copy = () => {
-    const url = precursorLinkFor(node.workspaceId, node.id);
+  /* The server link when there is a backend (lib/precursor-link-sync.ts),
+     so what is pasted to the producer opens on their machine; the local demo
+     link otherwise. */
+  const copy = async () => {
+    const url = (await ensurePrecursorLink(node.workspaceId, node.id).catch(() => null)) ?? precursorLinkFor(node.workspaceId, node.id);
     if (!url) return;
     if (typeof navigator !== "undefined" && navigator.clipboard) void navigator.clipboard.writeText(url).catch(() => {});
     flashCopied();
@@ -263,7 +267,7 @@ function AskSupplierPanel({ node, onSend }: { node: SupplierNode; onSend?: () =>
           <Button
             size="sm"
             variant="secondary"
-            onClick={copy}
+            onClick={() => void copy()}
             className={cn("min-w-[7.75rem]", copied && "border-[rgba(5,150,105,0.35)] bg-[#ecfdf5] text-[#047857] hover:border-[rgba(5,150,105,0.35)] hover:bg-[#ecfdf5] hover:text-[#047857]")}
           >
             {copied ? <Check size={13} strokeWidth={1.5} /> : <Copy size={13} strokeWidth={1.5} />}

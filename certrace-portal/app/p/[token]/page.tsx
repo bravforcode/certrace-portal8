@@ -30,9 +30,12 @@ export const runtime = "edge";
    carries any tier that already exists through submission, so nothing
    already on file is stranded by its removal.
 
-   NOTHING IS TRANSMITTED. Same honesty as /w/<token> — see that file's
-   header. Whoever opens this on their own machine writes to their own
-   browser only.
+   WHERE THE ANSWER GOES. With a backend configured, the link is a server
+   token: the row is loaded into this browser, the draft is saved back as it
+   changes, and Submit goes through the server, which stamps the version —
+   lib/precursor-link-sync.ts is the seam. A legacy base64 token (demo builds,
+   links already handed out) still resolves from this browser's own stores
+   and writes to them only, as it always has.
    ════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
@@ -44,13 +47,13 @@ import { DatePicker, Select } from "@/components/controls";
 import { toast, Toaster } from "@/components/toast";
 import { SectionCard } from "@/components/workspace/chrome";
 import { coordinateError } from "@/lib/installations";
-import { getOrgIdentity } from "@/lib/org";
 import { COUNTRIES } from "@/lib/config";
 import { SectionEvidence } from "@/components/workspace/evidence-panel";
 import { type RequiredKey } from "@/lib/workspace-evidence";
 import { useT } from "@/lib/i18n";
 import { useInvalidatePrecursorSuppliers, usePrecursorLink, usePrecursorSupplier } from "@/lib/suppliers-query";
 import { useAnnualEvidence, useInvalidateWorkspaceData } from "@/lib/workspace-data-query";
+import { savePrecursorDraft, submitPrecursorLink } from "@/lib/precursor-link-sync";
 import {
   descendantsOf,
   markLinkOpened,
@@ -97,28 +100,27 @@ export default function PrecursorSupplierPage() {
 
   /* The open-stamp stays the page's own effect — a query refetch must never
      count as an "open". Keyed on the resolved ids, not the object, so the
-     refetch our own invalidation triggers cannot re-fire it. */
-  const workspaceId = req?.workspace.id;
+     refetch our own invalidation triggers cannot re-fire it. On a server link
+     there is nothing to stamp here: this is the supplier's browser, and the
+     exporter learns of the open from the link itself when they pull. */
+  const workspaceId = req?.workspaceId;
   const nodeId = req?.node.id;
+  const server = req?.server ?? false;
   React.useEffect(() => {
-    if (!workspaceId || !nodeId) return;
+    if (!workspaceId || !nodeId || server) return;
     markLinkOpened(workspaceId, nodeId);
     invalidatePrecursorSuppliers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspaceId, nodeId]);
+  }, [workspaceId, nodeId, server]);
 
   if (req === undefined) return null;
   if (req === null) return <Invalid />;
-  /* WHO IS ASKING. For a precursor it is the installation the good is made at
-     — the plant this supplier ships INTO. For the row at the top of the chain
-     that installation is the RECIPIENT, so naming it here would head the page
-     "data request from" the very site reading it; the asker there is the
-     exporter's own company. */
-  const asker = req.node.isChainRoot ? getOrgIdentity().name : req.workspace.installationName;
-  return <Form workspaceId={req.workspace.id} nodeId={req.node.id} exporterName={asker} />;
+  /* WHO IS ASKING is worked out where the link resolved — see
+     localPrecursorLink in lib/suppliers-query.ts. */
+  return <Form workspaceId={req.workspaceId} nodeId={req.node.id} exporterName={req.asker} server={req.server} />;
 }
 
-function Form({ workspaceId, nodeId, exporterName }: { workspaceId: string; nodeId: string; exporterName: string }) {
+function Form({ workspaceId, nodeId, exporterName, server }: { workspaceId: string; nodeId: string; exporterName: string; server: boolean }) {
   const t = useT();
   const supplier = usePrecursorSupplier(workspaceId, nodeId);
   const evidence = useAnnualEvidence(workspaceId);
@@ -144,6 +146,36 @@ function Form({ workspaceId, nodeId, exporterName }: { workspaceId: string; node
      their report still faced a permanently disabled Submit button. This is
      the same effect the exporter's own SupplierEditor runs, for the same
      reason: one store, one pointer, kept in step on both sides. */
+  /* ── A server link saves itself ───────────────────────────────
+     The draft lives in this component, so it is handed to the save rather
+     than diffed out of the stores as /w/ does: a pause in typing saves it,
+     and so does the tab going away. savePrecursorDraft sends nothing when
+     nothing moved. */
+  const latest = React.useRef<PrecursorSupplier | null>(null);
+  latest.current = draft;
+  React.useEffect(() => {
+    if (!server || !draft) return;
+    const id = window.setTimeout(() => {
+      void savePrecursorDraft(draft).catch((cause) => console.warn("[precursor-links] autosave failed:", cause));
+    }, 1500);
+    return () => window.clearTimeout(id);
+  }, [server, draft]);
+  React.useEffect(() => {
+    if (!server) return;
+    const flush = () => {
+      if (latest.current) void savePrecursorDraft(latest.current).catch(() => {});
+    };
+    const onHide = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("pagehide", flush);
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("pagehide", flush);
+    };
+  }, [server]);
+
   React.useEffect(() => {
     if (!evidence.data) return;
     const items = evidence.data.filter((i) => i.fieldKeys.includes(`precursor:${nodeId}`));
@@ -161,12 +193,24 @@ function Form({ workspaceId, nodeId, exporterName }: { workspaceId: string; node
 
   const save = () => saveSupplier(draft);
 
-  const submit = () => {
+  const submit = async () => {
     // Belt and braces: the button is disabled while gaps remain, but this
     // refuses to run even if something manages to call it anyway — the same
     // fail-closed rule the missing-field check itself follows.
     if (precursorSubmissionGaps(draft).length > 0) return;
     const saved = saveSupplier({ ...draft, dataOrigin: draft.dataOrigin === "default_value" ? draft.dataOrigin : "supplier_verified" });
+    // On a server link the submission is only real once the server has
+    // stamped it: that is the answer the exporter pulls. If it fails, the
+    // answers are still saved here and the button stays to try again.
+    if (server) {
+      try {
+        await submitPrecursorLink(saved);
+      } catch (cause) {
+        console.warn("[precursor-links] submit failed:", cause);
+        toast({ message: "Not sent yet", detail: "Your answers are saved here. Check your connection and submit again.", tone: "warn" });
+        return;
+      }
+    }
     markLinkSubmitted(workspaceId, nodeId);
 
     // Any upstream tier the supplier filled in themselves this session never
@@ -194,7 +238,11 @@ function Form({ workspaceId, nodeId, exporterName }: { workspaceId: string; node
        markLinkSubmitted and the descendant back-fill, none of which are
        wrapped as mutations. */
     invalidatePrecursorSuppliers();
-    toast({ message: "Submitted", detail: "The exporter will see this the next time they open the chain.", tone: "ok" });
+    toast({
+      message: "Submitted",
+      detail: server ? `${exporterName} can see it now.` : "The exporter will see this the next time they open the chain.",
+      tone: "ok",
+    });
   };
 
   if (submitted) {
@@ -207,6 +255,10 @@ function Form({ workspaceId, nodeId, exporterName }: { workspaceId: string; node
         <p className="mt-2 max-w-lg text-sm leading-relaxed text-black/50">
           {exporterName} will see this data the next time they open their precursor chain. You can reopen this link any time before their filing deadline to correct it — a resubmission simply replaces this one.
         </p>
+        {/* The "not a real account, nothing sent anywhere" offer only tells
+            the truth on a local link. On a server link the answer already
+            went to Certrace, and the link itself reopens it from any device. */}
+        {!server && (
         <div className="mt-6 rounded-xl border border-black/[0.08] bg-white p-4 text-sm text-black/60">
           <p className="font-medium text-black/80">{t("Save your progress on this device?")}</p>
           <p className="mt-1.5 text-[13px] leading-relaxed">
@@ -232,6 +284,7 @@ function Form({ workspaceId, nodeId, exporterName }: { workspaceId: string; node
             {t("Save on this device")}
           </Button>
         </div>
+        )}
       </Shell>
     );
   }
@@ -455,7 +508,10 @@ function Form({ workspaceId, nodeId, exporterName }: { workspaceId: string; node
 
       <div className="mt-6 flex items-center justify-between gap-3">
         <p className="text-[12px] text-black/40 flex items-center gap-1.5">
-          <Sparkles size={12} strokeWidth={1.5} /> {t("Nothing here is transmitted automatically — this browser only, until you submit.")}
+          <Sparkles size={12} strokeWidth={1.5} />{" "}
+          {server
+            ? t("Saved as you go — you can close this page and come back to it from any device.")
+            : t("Nothing here is transmitted automatically — this browser only, until you submit.")}
         </p>
         {/* The wall of "13 things still needed" is gone — every field it
             named is marked required on the form itself. The COUNT survives as
@@ -469,8 +525,7 @@ function Form({ workspaceId, nodeId, exporterName }: { workspaceId: string; node
               if (busy || gaps.length > 0) return;
               setBusy(true);
               save();
-              submit();
-              setBusy(false);
+              void submit().finally(() => setBusy(false));
             }}
           >
             {t("Submit")}

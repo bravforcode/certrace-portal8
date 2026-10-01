@@ -3969,6 +3969,8 @@ export const TH: Record<string, string> = {
     "ทำต่อจากที่ค้างไว้",
   "Nothing here is transmitted automatically — this browser only, until you submit.":
     "ไม่มีข้อมูลใดถูกส่งออกโดยอัตโนมัติ ข้อมูลอยู่ในเบราว์เซอร์นี้เท่านั้นจนกว่าคุณจะกดส่ง",
+  "Saved as you go — you can close this page and come back to it from any device.":
+    "บันทึกให้อัตโนมัติระหว่างกรอก ปิดหน้านี้แล้วกลับมากรอกต่อจากอุปกรณ์ใดก็ได้",
   "Back to declarations":
     "กลับไปที่การสำแดง",
   "Submitting…":
