@@ -345,10 +345,29 @@ submissions (งานถัดไป)
 
 ### `PUT /api/v1/links/{token}/state` — ไม่ต้อง auth
 
-ซัพพลายเออร์กดเซฟระหว่างกรอก รับ `{ "state": SupplierState }` เขียนทับทั้งก้อน คืนก้อนที่บันทึกแล้ว
+ซัพพลายเออร์กดเซฟระหว่างกรอก รับ `{ "state": SupplierState }` คืนก้อนที่บันทึกแล้ว
 
-- ถ้า `state.status` เป็น `submitted` อยู่แล้วและไม่ได้อยู่ในรอบแก้ไข → ปฏิเสธด้วย `ALREADY_SUBMITTED`
-- server เป็นคนเซ็ต `updatedAt` เอง อย่าเชื่อค่าที่ client ส่งมา
+**✅ guard ฝั่ง server (2026-10-01)** — token ส่งต่อทางอีเมลได้ คนถือมันจึงได้แก้
+*คำตอบ* แต่ไม่ได้แก้ *บันทึกของคำตอบ* (`app/routers/links.py::_guarded_state`)
+
+- `versions` · `attestation` · `unlocked` · `unlockedDocs` · `revisionNote` —
+  server เก็บค่าเดิมเสมอ ค่าที่ client ส่งมาถูกเมิน
+- `status` — client ขยับเองได้แค่ `new` / `draft` / `in_check` ส่วน `submitted`
+  ได้จาก submit เท่านั้น และ `revision_requested` ได้จากผู้ส่งออกเท่านั้น
+  ถ้าอยู่สองสถานะนี้แล้ว save ไม่เปลี่ยนสถานะ
+- `events` — append-only: ของเดิมลบหรือแก้ไม่ได้ เพิ่ม event ใหม่ได้ (ต้องมี
+  `id` ที่ยังไม่ซ้ำ) แต่ห้าม kind `submit` / `revision_requested` สูงสุด 1000 รายการ
+- **ลิงก์ declaration (`/s/`) ที่ submit แล้ว → 409 `LINK_SUBMITTED`** ทั้ง save
+  และ submit ซ้ำ จนกว่าผู้ส่งออกจะขอแก้
+- **ระหว่าง `revision_requested`** — `values` แก้ได้เฉพาะ key ใน `unlocked`
+  (ถ้า `unlocked` ว่าง = เปิดทุกช่อง) `docs` แก้ได้เฉพาะที่อยู่ใน `unlockedDocs`
+  หรือที่ยังไม่เคย `uploaded` ที่เหลือคงค่าที่ submit ไว้ — กติกาเดียวกับ
+  `canEditField` / `canEditDoc` ในพอร์ทัล แต่ตอนนี้บังคับที่ server
+- **ลิงก์รายเดือน (`/w/`) ไม่ล็อกคำตอบหลัง submit** เพราะคำขอ "ขอเปิดเดือนนี้
+  ใหม่" ของซัพพลายเออร์เดินทางอยู่ใน slice หลัง submit — แต่ทุก version มี
+  `contentSha256` ให้ตรวจว่าคำตอบยังตรงกับที่เซ็นไว้หรือไม่
+- ทั้งก้อนเกิน 512 KB → 413 `STATE_TOO_LARGE` (ไฟล์แนบส่งเป็นไฟล์ ไม่ใช่ใน state)
+- server เป็นคนเซ็ต `token` และ `updatedAt` เอง อย่าเชื่อค่าที่ client ส่งมา
 
 ### `POST /api/v1/links/{token}/submit` — ไม่ต้อง auth
 
@@ -359,8 +378,15 @@ submissions (งานถัดไป)
 **server เป็นคนทำสามอย่างนี้ ไม่ใช่ client:**
 
 1. เซ็ต `status = "submitted"`
-2. append เข้า `versions[]` พร้อมเลขเวอร์ชันถัดไปและเวลาที่ server เห็น
+2. append เข้า `versions[]` **ของ server** (ไม่ใช่ที่ client ส่งมา) พร้อมเลข
+   เวอร์ชันถัดไป เวลาที่ server เห็น ผู้เซ็น และ `contentSha256` — SHA-256 ของ
+   JSON แบบ canonical (sort keys, ไม่มีช่องว่าง) ของทุกฟิลด์ใน state ยกเว้น
+   `versions` `attestation` `unlocked` `unlockedDocs` `revisionNote` `token`
+   `status` `events` `updatedAt` `lastCheck`
 3. append เข้า `events[]` ว่า submit แล้ว
+
+คำตอบผ่าน guard เดียวกับ save (ดูด้านบน) และ `note` ของ version อ่านจาก
+`revisionNote` ที่ server เก็บไว้
 
 เหตุผล: ถ้าให้ client เขียนเอง ซัพพลายเออร์แก้เวลาหรือเลขเวอร์ชันได้ ซึ่งเป็นสิ่งที่
 ผู้ตรวจสอบจะดู
@@ -491,6 +517,7 @@ backend เก็บเป็น `jsonb` ทั้งก้อน โดยแ�
 | code | เมื่อไหร่ |
 | :-- | :-- |
 | `FILE_TOO_LARGE` | เกินลิมิต (ค่าเริ่มต้น 15 MB ตั้งได้ที่ `CERTRACE_MAX_UPLOAD_BYTES`) |
+| `LINK_FILE_QUOTA` | อัปผ่านลิงก์ซัพพลายเออร์ครบโควตาแล้ว: 50 ไฟล์ หรือรวม 200 MB ต่อลิงก์ (`MAX_FILES_PER_LINK` / `MAX_BYTES_PER_LINK` ใน `file_store.py`) ไฟล์ที่ผู้ส่งออกอัปเองไม่นับ |
 | `FILE_EMPTY` | body ว่าง |
 | `FILE_TYPE_NOT_ALLOWED` | ไม่ใช่ pdf / png / jpeg / csv / xlsx |
 | `FILE_CONTENT_MISMATCH` | ประกาศชนิดมาอย่าง แต่ magic bytes เป็นอีกอย่าง |

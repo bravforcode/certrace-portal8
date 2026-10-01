@@ -56,6 +56,15 @@ def max_upload_bytes() -> int:
     return load_positive_int(MAX_UPLOAD_BYTES_ENV, MAX_UPLOAD_BYTES_DEFAULT)
 
 
+# What one supplier link may store in total. The token travels by email and
+# can be forwarded, and a supplier cannot delete what they uploaded, so without
+# a ceiling one link could keep writing 15 MB rows into PostgreSQL for as long
+# as it lives. Far above a month's or a declaration's real evidence. The
+# exporter's own, authenticated uploads are not counted against it.
+MAX_FILES_PER_LINK = 50
+MAX_BYTES_PER_LINK = 200 * 1024 * 1024
+
+
 # What a verifier can actually be shown. Deliberately short: every entry here
 # is a format someone reviewing a declaration can open without our help, and
 # adding one is a decision about what we are willing to serve back out.

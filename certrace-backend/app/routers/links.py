@@ -21,6 +21,8 @@ care which store answered.
 from __future__ import annotations
 
 import datetime
+import hashlib
+import json
 import secrets
 import time
 import uuid
@@ -73,7 +75,8 @@ class CreateLinkRequest(BaseModel):
 class SaveStateRequest(BaseModel):
     # The supplier's answer blob is opaque here, like the declaration document:
     # the portal owns its shape (certrace-portal/lib/supplier-store.ts), the
-    # server stores it whole and last-write-wins. A dict is the only guarantee.
+    # server stores it last-write-wins. A dict is the only guarantee -- except
+    # for the fields in _SERVER_OWNED, which the server keeps (_guarded_state).
     state: dict[str, object]
 
 
@@ -97,6 +100,194 @@ class RevisionRequest(BaseModel):
 
 def _now_ms() -> int:
     return int(time.time() * 1000)
+
+
+# ── What the token holder may and may not write ──────────────────────────
+#
+# The token is the whole credential and it travels by email, so whoever holds
+# it is trusted with the ANSWERS, not with the record of them. These fields are
+# that record -- written only by submit and by the exporter's revision -- and a
+# save or submit never takes them from the blob it was sent:
+#
+#   versions      what was submitted, when, signed by whom
+#   attestation   the signature the current version stands on
+#   unlocked*     what the exporter reopened -- the lock itself
+#   revisionNote  what the exporter asked for
+_SERVER_OWNED = ("versions", "attestation", "unlocked", "unlockedDocs", "revisionNote")
+
+# The statuses a browser may move between on its own. "submitted" is reached
+# only through submit, and "revision_requested" only through the exporter.
+_CLIENT_STATUSES = frozenset({"new", "draft", "in_check"})
+_LOCKED_STATUSES = frozenset({"submitted", "revision_requested"})
+
+# Trail events only the server writes. A browser can append its own ("file
+# attached", "check run"), but not one that claims a submit or a revision.
+_SERVER_EVENT_KINDS = frozenset({"submit", "revision_requested"})
+_MAX_EVENTS = 1000
+
+# Same ceiling as a declaration document (routers/declarations.py): generous
+# for a form's answers, and evidence bytes never ride in the blob.
+MAX_STATE_BYTES = 512 * 1024
+
+# Bookkeeping, not answers -- left out of the content hash a version carries.
+_NOT_CONTENT = frozenset(
+    {*_SERVER_OWNED, "token", "status", "events", "updatedAt", "lastCheck"}
+)
+
+_STATE_TOO_LARGE = HTTPException(
+    status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+    detail={
+        "code": "STATE_TOO_LARGE",
+        "message": "That is more than a supplier form can hold. Attach large "
+        "documents as files instead.",
+    },
+)
+
+_LINK_SUBMITTED = HTTPException(
+    status_code=status.HTTP_409_CONFLICT,
+    detail={
+        "code": "LINK_SUBMITTED",
+        "message": "This was already submitted. Ask the exporter to send it "
+        "back if something needs to change.",
+    },
+)
+
+
+def _check_size(*parts: object) -> None:
+    size = sum(len(json.dumps(part, ensure_ascii=False)) for part in parts)
+    if size > MAX_STATE_BYTES:
+        raise _STATE_TOO_LARGE
+
+
+def _stored_state(link: dict[str, object], token: str) -> dict[str, object]:
+    """What the server holds for this link, with every field present."""
+
+    stored = link["state"] if isinstance(link["state"], dict) else {}
+    return {**_empty_state(token), **stored}
+
+
+def _merged_events(
+    stored: dict[str, object], incoming: dict[str, object]
+) -> list[object]:
+    """The stored trail, plus whatever new events the browser added.
+
+    Append-only: nothing already on the trail can be dropped or rewritten, and
+    a browser cannot add an event of a kind only the server writes.
+    """
+
+    kept = list(stored["events"]) if isinstance(stored["events"], list) else []
+    seen = {event.get("id") for event in kept if isinstance(event, dict)}
+    offered = incoming.get("events")
+    for event in offered if isinstance(offered, list) else []:
+        if len(kept) >= _MAX_EVENTS:
+            break
+        if (
+            not isinstance(event, dict)
+            or not isinstance(event.get("id"), str)
+            or event["id"] in seen
+            or event.get("kind") in _SERVER_EVENT_KINDS
+        ):
+            continue
+        kept.append(event)
+        seen.add(event["id"])
+    return kept
+
+
+def _as_dict(value: object) -> dict[str, object]:
+    return dict(value) if isinstance(value, dict) else {}
+
+
+def _revision_answers(
+    stored: dict[str, object], incoming: dict[str, object]
+) -> tuple[dict[str, object], dict[str, object]]:
+    """``values`` and ``docs`` as a revision lets them change.
+
+    The server's copy of the portal's own rule (components/supplier/context.tsx,
+    canEditField / canEditDoc), which until now was the only enforcement:
+
+      * a value is editable if the exporter unlocked it -- or if they unlocked
+        no values at all, which reopens every one;
+      * a document is editable if the exporter unlocked it, or if it was never
+        uploaded in the first place.
+
+    Everything else keeps what was submitted, whatever the blob says.
+    """
+
+    old_values, new_values = (
+        _as_dict(stored["values"]),
+        _as_dict(incoming.get("values")),
+    )
+    unlocked = [key for key in stored["unlocked"] or [] if isinstance(key, str)]
+    if unlocked:
+        values = {k: v for k, v in old_values.items() if k not in unlocked}
+        values.update({k: new_values[k] for k in unlocked if k in new_values})
+    else:
+        values = new_values
+
+    old_docs, new_docs = _as_dict(stored["docs"]), _as_dict(incoming.get("docs"))
+    unlocked_docs = {d for d in stored["unlockedDocs"] or [] if isinstance(d, str)}
+
+    def editable(doc_id: str) -> bool:
+        return (
+            doc_id in unlocked_docs
+            or _as_dict(old_docs.get(doc_id)).get("status") != "uploaded"
+        )
+
+    docs = {k: v for k, v in old_docs.items() if not editable(k)}
+    docs.update({k: v for k, v in new_docs.items() if editable(k)})
+    return values, docs
+
+
+def _guarded_state(
+    stored: dict[str, object], incoming: dict[str, object], *, workspace: bool
+) -> dict[str, object]:
+    """The blob a save or submit may actually store.
+
+    The browser's answers, with the server's record put back over them: the
+    _SERVER_OWNED fields, a status it may not jump, an append-only trail, and --
+    on a declaration link under revision -- answers outside what the exporter
+    reopened.
+
+    A workspace's monthly link (/w/) is not answer-locked here. Its form is an
+    opaque slice of the portal's stores, and its "please reopen this month"
+    request travels inside that slice after the month is submitted
+    (lib/month-submission.ts), so refusing the save would cut that off. What
+    it gets instead is the content hash every version carries (_content_sha256):
+    a change after submission no longer matches the version it claims to be.
+    """
+
+    state = dict(incoming)
+    for field in _SERVER_OWNED:
+        state[field] = stored[field]
+
+    stored_status = stored["status"] or "new"
+    asked = incoming.get("status")
+    if stored_status in _LOCKED_STATUSES:
+        state["status"] = stored_status
+    else:
+        state["status"] = asked if asked in _CLIENT_STATUSES else stored_status
+
+    state["events"] = _merged_events(stored, incoming)
+
+    if not workspace and stored_status == "revision_requested":
+        state["values"], state["docs"] = _revision_answers(stored, incoming)
+    return state
+
+
+def _content_sha256(state: dict[str, object]) -> str:
+    """A hash of the answers a version was signed over.
+
+    Canonical JSON (sorted keys, no whitespace) of everything in the blob that
+    is not bookkeeping. Stamped into the version at submit, so anyone holding
+    the state later can tell whether the answers still are the ones that were
+    signed.
+    """
+
+    content = {k: v for k, v in state.items() if k not in _NOT_CONTENT}
+    canonical = json.dumps(
+        content, sort_keys=True, ensure_ascii=False, separators=(",", ":")
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def _empty_state(token: str) -> dict[str, object]:
@@ -621,17 +812,23 @@ def resolve_link(token: str, request: Request) -> dict[str, object]:
 def save_link_state(
     token: str, body: SaveStateRequest, request: Request
 ) -> dict[str, object]:
-    """Autosave while the supplier fills in. Whole blob, last write wins.
+    """Autosave while the supplier fills in. Last write wins on the answers.
 
     Public like resolve: the holder has no account, so this must work with no
-    session and must never depend on one. The blob is stored as given -- the
-    server only overrides the two fields it, not the browser, is the source of:
-    the token this state belongs to, and when it last moved.
+    session and must never depend on one. The answers are stored as given; the
+    record of them is not -- see _guarded_state for what the server keeps --
+    and a submitted declaration link takes no more saves at all (the portal
+    stops autosaving there; a revision from the exporter is what reopens it).
     """
 
-    _link, _doc, database = live_link(request, token)
+    link, doc, database = live_link(request, token)
+    _check_size(body.state)
+    workspace = doc.get("kind") == WORKSPACE_KIND
+    stored = _stored_state(link, token)
+    if not workspace and stored["status"] == "submitted":
+        raise _LINK_SUBMITTED
 
-    state = dict(body.state)
+    state = _guarded_state(stored, body.state, workspace=workspace)
     state["token"] = token  # the token is the path's, not the blob's to claim
     state["updatedAt"] = _now_ms()  # server clock, so the client cannot lie
     return _persist_state(request, database, token, state)
@@ -641,19 +838,27 @@ def save_link_state(
 def submit_link(token: str, body: SubmitRequest, request: Request) -> dict[str, object]:
     """The supplier signs and submits. Server owns the evidence fields.
 
-    The blob arrives with the answers, but the version number, its timestamp,
-    the signer read off the attestation, and the status transition are stamped
-    here -- a verifier reads those, and a number the submitting browser chose is
-    not evidence of anything. Everything else in the blob is stored as given.
+    The blob arrives with the answers, but the version history, the new
+    version's number and timestamp, the signer read off the attestation, the
+    hash of what was signed and the status transition are all the server's --
+    a verifier reads those, and a history the submitting browser sent is not
+    evidence of anything. The answers go through the same guard as a save.
     """
 
-    _link, _doc, database = live_link(request, token)
+    link, doc, database = live_link(request, token)
+    _check_size(body.state, body.attestation, body.check)
+    workspace = doc.get("kind") == WORKSPACE_KIND
+    stored = _stored_state(link, token)
+    # A declaration link is answered once per round: a second submit without
+    # the exporter sending it back would be a new version nobody asked for.
+    # The monthly link keeps its reopen flow in the portal (see _guarded_state).
+    if not workspace and stored["status"] == "submitted":
+        raise _LINK_SUBMITTED
 
-    state = dict(body.state)
+    state = _guarded_state(stored, body.state, workspace=workspace)
     now = _now_ms()
 
-    versions = state.get("versions")
-    versions = list(versions) if isinstance(versions, list) else []
+    versions = list(stored["versions"]) if isinstance(stored["versions"], list) else []
     last = versions[-1] if versions and isinstance(versions[-1], dict) else {}
     last_n = last.get("n", 0)
     check = body.check or {}
@@ -664,14 +869,15 @@ def submit_link(token: str, body: SubmitRequest, request: Request) -> dict[str, 
         "warnings": check.get("warnings", 0),
         "signedBy": body.attestation.get("signatoryName", ""),
         "signedRole": body.attestation.get("signatoryRole", ""),
+        "contentSha256": _content_sha256(state),
     }
     # A resubmit after a revision carries the exporter's note into the version,
-    # mirroring the portal's own submit (components/supplier/context.tsx).
-    if state.get("status") == "revision_requested" and state.get("revisionNote"):
-        version["note"] = state["revisionNote"]
+    # mirroring the portal's own submit (components/supplier/context.tsx). Read
+    # from the stored record: the note is the exporter's words, not the blob's.
+    if stored["status"] == "revision_requested" and stored["revisionNote"]:
+        version["note"] = stored["revisionNote"]
 
-    events = state.get("events")
-    events = list(events) if isinstance(events, list) else []
+    events = list(state["events"])
     events.append(
         {
             "id": uuid.uuid4().hex,

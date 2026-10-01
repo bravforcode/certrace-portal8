@@ -30,6 +30,8 @@ from app.routers.links import live_link
 from app.services.auth_service import Account
 from app.services.file_store import (
     ALLOWED_CONTENT_TYPES,
+    MAX_BYTES_PER_LINK,
+    MAX_FILES_PER_LINK,
     FileRejected,
     max_upload_bytes,
     object_key,
@@ -324,6 +326,25 @@ def delete(
 # ── Supplier, holding a live link and nothing else ────────────────────────
 
 
+def _link_usage(request: Request, token: str) -> tuple[int, int]:
+    database = request.app.state.database
+    if database is not None:
+        return database.link_upload_usage(token)
+    mine = [
+        row
+        for row in request.app.state.uploaded_files.values()
+        if row["uploadedViaToken"] == token
+    ]
+    return len(mine), sum(int(row["sizeBytes"]) for row in mine)
+
+
+def _link_quota_reached(message: str) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail={"code": "LINK_FILE_QUOTA", "message": message},
+    )
+
+
 @router.post("/links/{token}/files", status_code=201)
 async def upload_for_link(
     token: str,
@@ -334,7 +355,20 @@ async def upload_for_link(
     # Revoked, expired, unknown and declaration-deleted all answer identically
     # here, exactly as they do on every other supplier-facing route.
     link, _doc, _database = live_link(request, token)
+    # Counted before the body is read, so a link at its limit costs nothing
+    # more than this query; the byte total is checked once the size is known.
+    files, used = _link_usage(request, token)
+    if files >= MAX_FILES_PER_LINK:
+        raise _link_quota_reached(
+            f"This link already holds {MAX_FILES_PER_LINK} files, which is as "
+            "many as one link can. Ask the exporter for help with the rest."
+        )
     data = await _read_body(request)
+    if used + len(data) > MAX_BYTES_PER_LINK:
+        raise _link_quota_reached(
+            "This link has no room left for that file. Ask the exporter for "
+            "help with the rest."
+        )
     try:
         content_type = validate(request.headers.get("content-type"), data)
     except FileRejected as error:

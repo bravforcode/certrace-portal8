@@ -461,9 +461,11 @@ def test_submit_stamps_the_evidence_fields_the_server_owns() -> None:
     state = submitted.json()
 
     assert state["status"] == "submitted"
-    # Version number follows the last one (7), not restarts; server-stamped.
+    # The browser's history is not the record: its "version 7" is ignored and
+    # this is the first version the server has seen.
+    assert len(state["versions"]) == 1
     version = state["versions"][-1]
-    assert version["n"] == 8
+    assert version["n"] == 1
     assert version["score"] == 88
     assert version["warnings"] == 2
     assert version["signedBy"] == "Niran T."

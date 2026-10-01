@@ -376,6 +376,19 @@ class DatabaseRepository:
             row = session.get(UploadedFile, file_id)
             return self._uploaded_file_dict(row) if row else None
 
+    def link_upload_usage(self, token: str) -> tuple[int, int]:
+        """(files, bytes) uploaded through one supplier link -- counted in
+        SQL so the quota check never loads the bytes themselves."""
+
+        with self.session_factory() as session:
+            count, total = session.execute(
+                select(
+                    func.count(UploadedFile.id),
+                    func.coalesce(func.sum(UploadedFile.size_bytes), 0),
+                ).where(UploadedFile.uploaded_via_token == token)
+            ).one()
+            return int(count), int(total)
+
     def list_uploaded_files(
         self, user_id: uuid.UUID, declaration_id: str
     ) -> list[dict[str, object]]:
