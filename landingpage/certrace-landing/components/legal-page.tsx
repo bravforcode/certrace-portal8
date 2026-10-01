@@ -58,79 +58,82 @@ export function LegalPage({ doc }: { doc: "terms" | "privacy" }) {
     <div className="bg-[#F5F4F0] text-[#111] min-h-screen font-sans antialiased">
       <Navbar />
 
-      <section className="pt-40 pb-16 px-6 md:px-12 lg:px-20">
-        <div className="max-w-6xl mx-auto">
-          <PixelIcon type="doc" size={40} />
-          <div className="mt-4">
-            <TagBadge>{d.eyebrow}</TagBadge>
-          </div>
-          <BlurHeading
-            as="h1"
-            className="mt-5 text-4xl md:text-5xl font-light tracking-tight leading-[1.05]"
-          >
-            {d.title}
-          </BlurHeading>
-          <p className="mt-6 text-sm md:text-base text-black/45 leading-relaxed max-w-xl">
-            {d.lede}
-          </p>
-          <div className="mt-7 flex flex-wrap gap-x-8 gap-y-2 font-pixel text-[10px] tracking-[0.18em] text-black/30">
-            <span>
-              {d.effectiveLabel}: {d.effective}
-            </span>
-            <span>
-              {d.updatedLabel}: {d.updated}
-            </span>
-          </div>
-          {d.languageNote && (
-            <p className="mt-6 max-w-xl text-xs text-black/40 leading-relaxed border-l border-black/15 pl-4">
-              {d.languageNote}
-            </p>
-          )}
-        </div>
-      </section>
-
-      <section className="pb-28 px-6 md:px-12 lg:px-20 border-t border-black/[0.06] pt-16">
-        <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-10 lg:gap-16 items-start">
-          {/* Contents rail. Sticky from lg up, where there's a column to spare;
-              below that it collapses into a plain list above the document.
-              `top-24` clears the fixed 64px header plus breathing room. */}
-          <nav
-            aria-label={d.contentsLabel}
-            className="lg:sticky lg:top-24 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto"
-          >
-            <div className="font-pixel text-[10px] tracking-[0.2em] text-black/30 mb-4">
-              {d.contentsLabel}
+      {/* The document keeps its own language whatever the interface is set to
+          (see lib/legal.ts), so it is marked with it. */}
+      <div lang={d.lang}>
+        <section className="pt-40 pb-16 px-6 md:px-12 lg:px-20">
+          <div className="max-w-6xl mx-auto">
+            <PixelIcon type="doc" size={40} />
+            <div className="mt-4">
+              <TagBadge>{d.eyebrow}</TagBadge>
             </div>
-            <ul className="space-y-2 border-l border-black/[0.08] pl-4">
-              {d.sections.map((section) => (
-                <li key={section.id}>
-                  <a
-                    href={`#${section.id}`}
-                    className="block text-xs text-black/35 hover:text-black/70 transition-colors leading-snug"
-                  >
-                    {section.heading}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </nav>
-
-          <div className="min-w-0 space-y-12">
-            {d.sections.map((section) => (
-              <section key={section.id} id={section.id} className="scroll-mt-24">
-                <h2 className="text-xl md:text-2xl font-light tracking-tight leading-snug">
-                  {section.heading}
-                </h2>
-                <div className="mt-4 space-y-4 max-w-3xl">
-                  {section.blocks.map((block, i) => (
-                    <Block key={i} block={block} />
-                  ))}
-                </div>
-              </section>
-            ))}
+            <BlurHeading
+              as="h1"
+              className="mt-5 text-4xl md:text-5xl font-light tracking-tight leading-[1.05]"
+            >
+              {d.title}
+            </BlurHeading>
+            <p className="mt-6 text-sm md:text-base text-black/45 leading-relaxed max-w-xl">
+              {d.lede}
+            </p>
+            <div className="mt-7 flex flex-wrap gap-x-8 gap-y-2 font-pixel text-[10px] tracking-[0.18em] text-black/30">
+              <span>
+                {d.effectiveLabel}: {d.effective}
+              </span>
+              <span>
+                {d.updatedLabel}: {d.updated}
+              </span>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+
+        <section className="pb-28 px-6 md:px-12 lg:px-20 border-t border-black/[0.06] pt-16">
+          <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-10 lg:gap-16 items-start">
+            {/* Contents rail. Sticky from lg up, where there's a column to spare;
+                below that it collapses into a plain list above the document.
+                `top-24` clears the fixed 64px header plus breathing room. */}
+            <nav
+              aria-label={d.contentsLabel}
+              className="lg:sticky lg:top-24 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto"
+            >
+              <div className="font-pixel text-[10px] tracking-[0.2em] text-black/30 mb-4">
+                {d.contentsLabel}
+              </div>
+              <ul className="space-y-2 border-l border-black/[0.08] pl-4">
+                {d.sections.map((section) => (
+                  <li key={section.id}>
+                    <a
+                      href={`#${section.id}`}
+                      className="block text-xs text-black/35 hover:text-black/70 transition-colors leading-snug"
+                    >
+                      {section.heading}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+
+            <div className="min-w-0 space-y-12">
+              {d.sections.map((section) => (
+                <section
+                  key={section.id}
+                  id={section.id}
+                  className="scroll-mt-24"
+                >
+                  <h2 className="text-xl md:text-2xl font-light tracking-tight leading-snug">
+                    {section.heading}
+                  </h2>
+                  <div className="mt-4 space-y-4 max-w-3xl">
+                    {section.blocks.map((block, i) => (
+                      <Block key={i} block={block} />
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          </div>
+        </section>
+      </div>
 
       {/* The other document, so someone reading the terms can reach the policy
           without going back through the footer. */}

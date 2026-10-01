@@ -1,7 +1,7 @@
 /* Shared shape for the Terms of Service and Privacy Policy pages.
 
    The documents are held as structured data rather than raw markdown so the
-   same renderer can lay them out in either language, and so a heading can be
+   same renderer can lay either of them out, and so a heading can be
    linked to from the on-page contents rail without parsing prose at runtime.
 
    `**bold**` inside a paragraph marks a clause lead-in (e.g. "**3.1 Account
@@ -9,8 +9,8 @@
    in medium weight. No other markup is supported, deliberately. */
 
 import type { Lang } from "./i18n";
-import { PRIVACY_EN, PRIVACY_TH } from "./legal-privacy";
-import { TERMS_EN, TERMS_TH } from "./legal-terms";
+import { PRIVACY_TH } from "./legal-privacy";
+import { TERMS_EN } from "./legal-terms";
 
 export type LegalBlock = { p: string } | { ul: string[] };
 
@@ -23,6 +23,10 @@ export type LegalSection = {
 };
 
 export type LegalDoc = {
+  /* The language the document is written in. It differs from the interface
+     language whenever the site is set to anything else, so the renderer marks
+     the document with it for screen readers and line breaking. */
+  lang: "en" | "th";
   eyebrow: string;
   title: string;
   effectiveLabel: string;
@@ -31,25 +35,23 @@ export type LegalDoc = {
   updated: string;
   lede: string;
   contentsLabel: string;
-  /* Thai only: the English text is the authoritative one, and saying so is
-     what keeps a translated policy from becoming a second set of terms. */
-  languageNote?: string;
   sections: LegalSection[];
 };
 
-/* Vietnamese, Turkish and Hindi read the English documents.
+/* Every interface language reads the same two documents, in the language
+   each was supplied in: the Terms in English, the Privacy Policy in Thai.
 
-   The rest of the site is translated; these two are not, on purpose. They are
-   the contract, they were supplied as finished text, and a translated clause
-   that drifts from the English one does not read as a rough edge — it reads as
-   a second, conflicting set of terms. The Thai versions exist because they were
-   written and reviewed alongside the English, and they still carry the note
-   saying the English prevails. Until the same is true of another language, that
-   language gets the authoritative text rather than an approximation of it. */
+   The rest of the site is translated; these are not, on purpose. They are the
+   contract, they were supplied as finished text, and a translated clause that
+   drifts from the original does not read as a rough edge — it reads as a
+   second, conflicting set of terms. Do not add a translation here; a new
+   language version has to come from the team as a supplied document. */
+const DOCS = { terms: TERMS_EN, privacy: PRIVACY_TH };
+
 export const LEGAL: Record<Lang, { terms: LegalDoc; privacy: LegalDoc }> = {
-  en: { terms: TERMS_EN, privacy: PRIVACY_EN },
-  th: { terms: TERMS_TH, privacy: PRIVACY_TH },
-  vi: { terms: TERMS_EN, privacy: PRIVACY_EN },
-  tr: { terms: TERMS_EN, privacy: PRIVACY_EN },
-  hi: { terms: TERMS_EN, privacy: PRIVACY_EN },
+  en: DOCS,
+  th: DOCS,
+  vi: DOCS,
+  tr: DOCS,
+  hi: DOCS,
 };
