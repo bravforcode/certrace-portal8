@@ -15,7 +15,8 @@
     "typecheck": "tsc --noEmit",
     "test:unit": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/test-resolver.mjs --test \"lib/**/__tests__/**/*.test.ts\"",
     "test:e2e": "playwright test",
-    "test:e2e:prod": "playwright test --project=production"
+    "test:e2e:prod": "playwright test --project=production",
+    "test:e2e:prod:journey": "playwright test --project=production e2e/production-journey.spec.ts"
   },
   "engines": {
     "node": ">=22.18.0"

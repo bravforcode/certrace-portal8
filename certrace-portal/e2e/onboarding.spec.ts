@@ -1,7 +1,9 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Onboarding User Journey", () => {
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ page }, testInfo) => {
+    // Signs in with made-up credentials, which only the demo build accepts.
+    test.skip(testInfo.project.name === "production", "demo sign-in; see auth.spec.ts 3b");
     // Navigate to /login and complete sign in to reach onboarding
     await page.goto("/login");
     await page.locator('input[type="email"]').fill("wasawat@siamsteel.co.th");
