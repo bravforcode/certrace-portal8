@@ -427,6 +427,21 @@ test("changing a password carries the bearer — the token names whose it is", a
   assert.equal(headerOf(calls[0], "Authorization"), "Bearer tok-123");
 });
 
+test("a changed password swaps in the fresh session the server hands back", async () => {
+  reset();
+  stubServer(() =>
+    json({ success: true, message: "ok", accessToken: "tok-new", refreshToken: "ref-new" }),
+  );
+  const user = { id: "u1", email: "a@b.co", onboarded: true };
+  saveSession({ accessToken: "tok-123", refreshToken: "ref-old", user });
+
+  await changePassword({ email: "a@b.co", currentPassword: "old", newPassword: "long-enough-1" });
+
+  /* The old refresh token was burned by the change; keeping it would sign the
+     person out at the next refresh. */
+  assert.deepEqual(loadSession(), { accessToken: "tok-new", refreshToken: "ref-new", user });
+});
+
 test("the reset call maps onto the endpoint's snake_case fields", async () => {
   reset();
   const calls = stubServer(() => json({ success: true, message: "ok" }));

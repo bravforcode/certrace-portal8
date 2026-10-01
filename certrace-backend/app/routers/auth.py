@@ -31,6 +31,7 @@ from app.models.auth import (
     AuthResponse,
     AuthUser,
     ChangePasswordRequest,
+    ChangePasswordResponse,
     ForgotPasswordRequest,
     GoogleSignInRequest,
     LoginRequest,
@@ -504,13 +505,13 @@ def logout(payload: RefreshRequest, request: Request) -> AuthResponse:
     return AuthResponse(success=True, message="Signed out.")
 
 
-@router.post("/change-password", response_model=AuthResponse)
+@router.post("/change-password", response_model=ChangePasswordResponse)
 def change_password(
     payload: ChangePasswordRequest,
     request: Request,
     background_tasks: BackgroundTasks,
     account: Account = Depends(current_account),
-) -> AuthResponse:
+) -> ChangePasswordResponse:
     """Change the signed-in account's password.
 
     The bearer token names WHOSE password moves — the email in the body is
@@ -535,7 +536,19 @@ def change_password(
             detail={"code": "INVALID_CREDENTIALS", "message": message},
         )
     _queue_password_changed(background_tasks, request, account.email, payload.locale)
-    return AuthResponse(success=True, message=message)
+    # The change burned every refresh token the account held -- this caller's
+    # too. Hand back a successor so the person who just proved the current
+    # password stays signed in, and nobody else does.
+    return ChangePasswordResponse(
+        success=True,
+        message=message,
+        access_token=issue_access_token(
+            _signing_secret(request), user_id=account.id, email=account.email
+        ),
+        refresh_token=issue_refresh_token(
+            getattr(request.app.state, "database", None), account.id
+        ),
+    )
 
 
 @router.post("/forgot-password", response_model=AuthResponse)

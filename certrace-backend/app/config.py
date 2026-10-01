@@ -46,6 +46,13 @@ JOBS_TOKEN_ENV = "CERTRACE_JOBS_TOKEN"
 # switch so staging and local runs never write to a real supplier by accident.
 SUPPLIER_EMAILS_ENV = "CERTRACE_SUPPLIER_EMAILS"
 
+# How many NEW suppliers one account may register to be emailed per rolling
+# 24 hours. Signup is open and each registration ends in an email from our
+# domain, so without a ceiling one throwaway account could write to as many
+# strangers as it liked. Generous for a real exporter's month-start send.
+REMINDER_SUBJECTS_PER_DAY_ENV = "CERTRACE_REMINDER_SUBJECTS_PER_DAY"
+REMINDER_SUBJECTS_PER_DAY_DEFAULT = 100
+
 # Signing settings are constants, not environment knobs. An operator who can
 # lower them by mistake is a way to weaken every token at once, and nothing
 # about a deployment needs them to differ.
