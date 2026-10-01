@@ -162,7 +162,7 @@ def test_mint_and_resolve_roundtrip() -> None:
     token = minted["token"]
     # 32 random bytes of base64url; nothing derivable from the ids.
     assert len(token) >= 40
-    assert minted["url"] == f"https://app.certrace.co/s/{token}"
+    assert minted["url"] == f"https://portal.certrace.co/s/{token}"
     # Default lifetime: 60 days, epoch milliseconds.
     now_ms = int(time.time() * 1000)
     assert abs(minted["expiresAt"] - (now_ms + 60 * _DAY_MS)) < 60_000
@@ -324,7 +324,7 @@ def test_listing_gives_the_tokens_back_without_the_state() -> None:
     assert [row["token"] for row in listed] == [second, first]
     assert listed[0]["supplierId"] == "d2"
     assert listed[0]["month"] == "2026-04"
-    assert listed[0]["url"] == f"https://app.certrace.co/s/{second}"
+    assert listed[0]["url"] == f"https://portal.certrace.co/s/{second}"
     assert listed[0]["revokedAt"] is None
     assert listed[1]["revokedAt"] == 1
     for row in listed:

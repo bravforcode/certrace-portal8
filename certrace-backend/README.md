@@ -94,7 +94,7 @@ In Git Bash, the same commands are:
 | `CERTRACE_SUPPLIER_EMAILS` | No (default off) | Exactly `1` lets Certrace write to suppliers: the data request on first send and the daily reminder ladder. On in production since 2026-10-01; leave it off on staging and local runs so nothing reaches a real supplier. Off, a scheduled run is forced to a dry run. |
 | `CERTRACE_REMINDER_SUBJECTS_PER_DAY` | No (default `100`) | How many new reminder subjects (suppliers Certrace will email) one account may register per rolling 24 hours. Over it, `PUT /api/v1/reminder-subjects/{key}` answers 429 `REMINDER_QUOTA_EXCEEDED`; re-registering an existing key never counts. |
 | `CERTRACE_MAX_UPLOAD_BYTES` | No (default `15728640`, i.e. 15 MB) | Largest evidence file accepted. The ceiling is memory, not the platform: Cloud Run caps a request body at 32 MiB, but eight concurrent uploads at the limit have to fit in 512 MiB alongside everything else. Raise it and raise `--memory` with it. |
-| `CERTRACE_APP_BASE_URL` | No (default `https://app.certrace.co`) | Where minted supplier smart links point — the portal serving `/s/<token>`, never this API. The default is **not** the live portal: production must set `https://portal.certrace.co` or every link mailed to a supplier lands on a host that does not exist. |
+| `CERTRACE_APP_BASE_URL` | No (default `https://portal.certrace.co`) | Where minted supplier smart links point — the portal serving `/s/<token>`, never this API. The default is the live portal; set it for staging and local runs (`http://localhost:3000`). `GET /` reports the value in use as `appBaseUrl`. |
 
 `.env` is ignored by Git. Use [`.env.example`](.env.example) as the safe,
 committable template.
@@ -450,12 +450,14 @@ contains a comma. With the default delimiter gcloud splits
 `Certrace <contact@certrace.co>` in half and the deploy fails on a malformed
 pair.
 
-`CERTRACE_APP_BASE_URL` is the one with no error mode. Leave it out and the
-service still starts, still passes every probe, and mints supplier smart links
-pointing at the default `https://app.certrace.co` — a host that does not exist.
-Nobody finds out until a supplier opens the link in the mail we sent them. The
-portal is what serves `/s/<token>`, so this is the portal origin, never the
-API's.
+`CERTRACE_APP_BASE_URL` is the one with no error mode: a wrong value still
+starts, still passes every probe, and mints supplier smart links nobody can
+open. Its default is now the live portal (`https://portal.certrace.co`) — it
+used to be `https://app.certrace.co`, a host with no DNS record — and `GET /`
+reports the value in use as `appBaseUrl`, so check that after a deploy rather
+than a supplier's inbox. The portal is what serves `/s/<token>`, so this is
+the portal origin, never the API's. (The portal itself now builds the `/s/`
+link it copies from its own origin and ignores this host.)
 
 `--allow-unauthenticated` is required here, not a shortcut. The portal is a
 browser client and cannot present a Cloud Run IAM identity token, so a private

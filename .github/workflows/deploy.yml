@@ -267,10 +267,10 @@ jobs:
           # ^|^ switches --set-env-vars to a pipe delimiter, because the sender
           # address contains a comma and the default delimiter splits it in half.
           #
-          # CERTRACE_APP_BASE_URL is the value with no error mode: leave it out
-          # and the service still starts, still passes every probe, and mints
-          # supplier smart links pointing at the default https://app.certrace.co,
-          # a host that does not exist. The portal is what serves /s/<token>.
+          # CERTRACE_APP_BASE_URL is the value with no error mode: a wrong one
+          # still starts and passes every probe, and mints supplier smart links
+          # nobody can open. Its default is now the live portal, and GET /
+          # reports it as appBaseUrl. The portal is what serves /s/<token>.
           gcloud run deploy "${SERVICE}" \
             --quiet \
             --image="${IMAGE_TAG}" \

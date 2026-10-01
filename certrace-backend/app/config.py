@@ -75,7 +75,14 @@ SMART_LINK_TTL_DAYS = 60
 
 # Where a minted smart link points. The portal serves /s/<token>; overridden
 # by CERTRACE_APP_BASE_URL for staging and local runs.
-APP_BASE_URL_DEFAULT = "https://app.certrace.co"
+#
+# The default is the live portal. It used to be https://app.certrace.co, a
+# host with no DNS record: a deployment that forgot the variable started,
+# passed every probe, and minted links nobody could open -- the one setting
+# with no error mode. Production is on Render, where nobody could confirm it
+# was set, so the safe default is the real one. GET / reports the value in
+# use (routers/health.py), so a deployment can be checked from outside.
+APP_BASE_URL_DEFAULT = "https://portal.certrace.co"
 
 SUPPORT_EMAIL = "contact@certrace.co"
 

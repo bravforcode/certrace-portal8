@@ -95,11 +95,25 @@ export type CreateLinkInput = {
 
 /* ── Exporter side (signed in) ─────────────────────────────── */
 
-export function createSmartLink(declId: string, input: CreateLinkInput): Promise<SmartLink> {
-  return request<SmartLink>(`/api/v1/declarations/${encodeURIComponent(declId)}/links`, {
+/* The supplier opens /s/<token> on the PORTAL, so the address handed out is
+   built on the origin this page is served from — the same rule the monthly
+   (lib/workspace-link-sync.ts) and precursor (lib/precursor-link-sync.ts)
+   links follow. The `url` the API returns is built from the backend's
+   CERTRACE_APP_BASE_URL, which production once ran without: every link then
+   pointed at a host that does not resolve, and the first to notice would have
+   been a supplier. The token is the server's; only the host is ours. Kept as
+   the fallback where there is no page origin (tests, server rendering). */
+function onThisPortal(link: SmartLink): SmartLink {
+  const origin = typeof window !== "undefined" ? window.location?.origin : undefined;
+  return origin ? { ...link, url: `${origin}/s/${link.token}` } : link;
+}
+
+export async function createSmartLink(declId: string, input: CreateLinkInput): Promise<SmartLink> {
+  const link = await request<SmartLink>(`/api/v1/declarations/${encodeURIComponent(declId)}/links`, {
     method: "POST",
     body: input,
   });
+  return onThisPortal(link);
 }
 
 /** The exporter's at-a-glance "who has answered" — called often, kept small. */
