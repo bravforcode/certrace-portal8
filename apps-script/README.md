@@ -58,8 +58,17 @@ with a warning in the Executions log; the row is still written.
   booking dialog is the exception: it merges into the demo row but gets its
   own email, the first time, repeating the booked slot back.
 - **Abuse guard** — the `/exec` URL is public, so one address gets at most one
-  email per kind every `cooldownMinutes` (default 10). A send Resend rejects
-  does not start the cooldown.
+  email per kind every `cooldownMinutes` (default 10), and all addresses
+  together get at most `maxPerHour` (15) and `maxPerDay` (50). The ceiling
+  matters more than the cooldown: this Resend account also sends the backend's
+  password-reset codes and supplier emails, and a loop over made-up addresses
+  would otherwise spend the whole plan's quota. Keep `maxPerDay` well under the
+  Resend plan's daily limit. Past the ceiling the row is still written and the
+  skip is logged under **Executions**. The count lives in the Script Property
+  `CONFIRMATION_BUDGET`. A send Resend rejects hands the cooldown back.
+- **What visitor text reaches the email** — the first name, only if it looks
+  like a name (40 characters or fewer, no link, address or digits), and the
+  booked date, time and zone. Nothing else the form carries is read back.
 - **Failures** — a rejected send (unverified domain, over the plan's quota) is
   logged with Resend's own reason under **Executions**. In the Resend dashboard
   these emails carry the tag `category=form_confirmation`.
@@ -71,12 +80,38 @@ with a warning in the Executions log; the row is still written.
 The first deploy after this change asks for a new permission (**Connect to an
 external service**, for the call to Resend); approve it.
 
+## What a post can write
+
+The `/exec` URL takes posts from anyone, so the script limits what one can do:
+
+- **Tabs** — only the form tabs in `FORM_TABS`. Any other `sheet` value,
+  including the hand-kept `Event Lead`, gets `{ok: false, error: "unknown sheet"}`
+  and nothing is written or created. A new form needs its tab added there.
+- **Formulas** — a value starting with `=`, `+`, `-` or `@` is written with
+  Sheets' leading apostrophe, so it is stored and shown as text and never runs.
+  The apostrophe is not visible in the cell. `TEXT_COLUMNS` don't need it,
+  because they are already formatted as plain text.
+- **Field names** — must look like one: a letter, then letters, digits or `_`,
+  40 characters at most. Anything else is dropped.
+- **Width and length** — a tab stops gaining columns at `MAX_COLUMNS` (60), and
+  a value is cut at `MAX_VALUE_LENGTH` (5000 characters).
+
+## Tests
+
+```
+node apps-script/lead-capture.test.mjs
+```
+
+Runs the script against in-memory fakes of the Apps Script services. It checks
+the limits above and the confirmation ceiling, and touches neither Google nor
+Resend.
+
 ## Columns
 
 The header is created on the first post. Existing column order is never
 rearranged, and any field a form sends that has no column gets one appended on
-the right — so adding an input to a form does not lose data while waiting for
-this file to be updated.
+the right (within the limits above) — so adding an input to a form does not
+lose data while waiting for this file to be updated.
 
 `first_seen` / `last_seen` are the server's clock in UTC. `timestamp` is the
 browser's. They will differ slightly, and by a lot if someone's device clock is

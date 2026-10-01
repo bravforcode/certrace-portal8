@@ -21,7 +21,8 @@
  *   1. Automatic Header Creation: If a sheet tab is empty, it initializes with
  *      the tailored schema defined below, with 'Status' as the first column.
  *   2. Non-destructive: Existing columns and existing 'Status' values are never
- *      overwritten on merge updates. Unknown incoming fields are appended on the right.
+ *      overwritten on merge updates. Unknown incoming fields are appended on the right,
+ *      up to MAX_COLUMNS, if their name looks like a field name (FIELD_NAME).
  *   3. Intelligent Upsert vs Append:
  *      - Multi-step forms ('Book a Demo', 'Newsletter') upsert/enrich the same row.
  *        The demo form and the booking dialog land on ONE row per email, with
@@ -31,11 +32,17 @@
  *   4. Data Validation Safe: Honors existing dropdown validation in 'Status' (e.g. 'Confirming'),
  *      with automatic fallback to blank if custom validation rules reject a value.
  *   5. Smart Sheet Matching: Case-insensitive & trimmed matching prevents accidental duplicate tabs.
+ *      Only the tabs in FORM_TABS can be written; any other 'sheet' is refused.
  *   6. Concurrency Safety: LockService serializes writes across concurrent submissions.
  *   7. Plain-Text Formatting: Phone numbers, dial codes, CN codes, and offsets
  *      are formatted with '@' so Google Sheets never parses them into formula errors.
+ *      Every other value that starts like a formula (= + - @) is written as
+ *      text (cellSafeRow_), so a submission can never run in the sheet.
  *   8. Confirmation Email: the person who submitted gets a "we've received your
- *      details" email, in the language they read the site in (see CONFIRMATION).
+ *      details" email, in the language they read the site in (see CONFIRMATION),
+ *      within an hourly and daily ceiling across all addresses.
+ *
+ * Tests: node apps-script/lead-capture.test.mjs
  */
 
 /* ── Settings & Tab Schemas ────────────────────────────────── */
@@ -49,6 +56,31 @@ var DEFAULT_SHEET = 'Book a Demo';
  * All other tabs (Issues, Features, Pricing, Careers) append every submission as a new row.
  */
 var UPSERT_TABS = ['Book a Demo', 'Newsletter'];
+
+/**
+ * The only tabs a public post may write to — the ones a landing form sends to
+ * (lib/sheet-sync.ts). The /exec URL is open to anyone, and it used to create
+ * or write into whatever tab the `sheet` parameter named: a stranger could
+ * fill the workbook with tabs, or append rows to a hand-kept one like
+ * 'Event Lead'. Anything else is refused.
+ */
+var FORM_TABS = [
+  'Book a Demo', 'Newsletter', 'CBAM free engine lead', 'Pricing Request',
+  'Request a Feature', 'Report Issue', 'Create Account Request', 'Careers'
+];
+
+/**
+ * Limits on what one public post can do to the sheet.
+ *   FIELD_NAME     · a field becomes a header cell, so its name has to look
+ *                    like one: no '=' formula, no 300-character essay.
+ *   MAX_COLUMNS    · unknown fields still get a column (guarantee 2), until a
+ *                    tab reaches this width; past it they are dropped, so a
+ *                    loop of made-up field names cannot widen a tab forever.
+ *   MAX_VALUE_LENGTH · one cell's worth of anything a form legitimately sends.
+ */
+var FIELD_NAME = /^[A-Za-z][A-Za-z0-9_]{0,39}$/;
+var MAX_COLUMNS = 60;
+var MAX_VALUE_LENGTH = 5000;
 
 /**
  * The 'Book a Demo' journey, in the order a visitor walks it: the contact form
@@ -82,13 +114,23 @@ var NOTIFICATION_EMAIL = '';
  *   cooldownMinutes · the same address gets at most one email per kind in this
  *                     window. The /exec URL is public, so without it anyone could
  *                     point the endpoint at a stranger's inbox and fire it in a loop.
+ *   maxPerHour, maxPerDay · a ceiling on confirmations across ALL addresses.
+ *                     The cooldown is per address, so a loop over made-up
+ *                     addresses walked straight past it — and this Resend
+ *                     account is the backend's too, so emptying its quota would
+ *                     stop password-reset codes and supplier emails. Past the
+ *                     ceiling the row is still written; only the email is skipped.
+ *                     Set these below the Resend plan's own daily limit.
  */
 var CONFIRMATION = {
   enabled: true,
   from: 'Certrace <contact@certrace.co>',
   replyTo: 'contact@certrace.co',
-  cooldownMinutes: 10
+  cooldownMinutes: 10,
+  maxPerHour: 15,
+  maxPerDay: 50
 };
+var CONFIRMATION_BUDGET_PROPERTY = 'CONFIRMATION_BUDGET';
 
 var RESEND_ENDPOINT = 'https://api.resend.com/emails';
 var RESEND_KEY_PROPERTY = 'RESEND_API_KEY';
@@ -188,7 +230,10 @@ function writeSubmission_(e) {
 
   try {
     var rawParams = (e && e.parameter) ? e.parameter : {};
-    var requestedSheet = rawParams.sheet || rawParams.sheetName || DEFAULT_SHEET;
+    var requestedSheet = formTab_(rawParams.sheet || rawParams.sheetName || DEFAULT_SHEET);
+    if (!requestedSheet) {
+      return { response: { ok: false, error: 'unknown sheet' } };
+    }
     var data = cleanParams_(rawParams);
 
     if (!hasAnyValue_(data)) {
@@ -210,6 +255,9 @@ function writeSubmission_(e) {
     }
 
     var kind = confirmationKind_(actualSheetName, data, result);
+    // Reserved here, under the script lock, so two concurrent posts cannot
+    // both read the same budget and both spend its last slot.
+    if (kind && !reserveConfirmation_(kind, data)) kind = null;
 
     return {
       response: {
@@ -234,8 +282,18 @@ function doGet(e) {
     ok: true,
     service: 'certrace-multi-tab-sync',
     sheet: target,
-    supportedSheets: Object.keys(TAB_SCHEMAS)
+    supportedSheets: FORM_TABS
   });
+}
+
+/** The canonical name of the form tab a post asked for, or null. Trimmed and
+    case-insensitive, so a stray 'careers' still lands in 'Careers'. */
+function formTab_(requested) {
+  var wanted = String(requested || '').trim().toLowerCase();
+  for (var i = 0; i < FORM_TABS.length; i++) {
+    if (FORM_TABS[i].toLowerCase() === wanted) return FORM_TABS[i];
+  }
+  return null;
 }
 
 function doOptions(e) {
@@ -294,6 +352,9 @@ function ensureHeader_(sheet, incomingKeys, targetSheet) {
   var added = [];
   for (var i = 0; i < incomingKeys.length; i++) {
     var key = incomingKeys[i];
+    // Past MAX_COLUMNS an unknown field is dropped rather than given a column;
+    // append_/upsert_ only write what the header names.
+    if (header.length >= MAX_COLUMNS) break;
     if (header.indexOf(key) === -1 && IGNORED_FIELDS.indexOf(key) === -1) {
       header.push(key);
       added.push(key);
@@ -310,6 +371,28 @@ function ensureHeader_(sheet, incomingKeys, targetSheet) {
 
   applyTextFormat_(sheet, header);
   return header;
+}
+
+/**
+ * Every value a post supplies is somebody else's text, and setValues treats a
+ * string starting with '=' as a formula: a "name" of =IMPORTXML(...) or
+ * =HYPERLINK(...) would run in the team's sheet the next time anyone opened
+ * it. A leading apostrophe is Sheets' own "this is text" marker — it is not
+ * shown in the cell. The '+', '-' and '@' that also start formulas get the
+ * same treatment, which incidentally stops "- first point" rendering as #ERROR!.
+ *
+ * Applied to the whole row at write time, not just to the incoming fields:
+ * getValues hands an already-protected cell back WITHOUT its apostrophe, so an
+ * upsert writing the row back would otherwise re-arm it.
+ *
+ * TEXT_COLUMNS are skipped: they are formatted '@' (plain text), which already
+ * stores a formula-looking value as text, and an apostrophe there would show.
+ */
+function cellSafeRow_(header, row) {
+  return row.map(function (value, i) {
+    if (typeof value !== 'string' || TEXT_COLUMNS.indexOf(header[i]) !== -1) return value;
+    return /^[=+\-@\t\r]/.test(value) ? "'" + value : value;
+  });
 }
 
 function applyTextFormat_(sheet, header) {
@@ -401,6 +484,7 @@ function append_(sheet, header, data, sheetName) {
       row.push(data.hasOwnProperty(key) ? data[key] : '');
     }
   }
+  row = cellSafeRow_(header, row);
 
   var target = sheet.getLastRow() + 1;
   try {
@@ -495,6 +579,7 @@ function upsert_(sheet, header, data, sheetName) {
   if (firstSeenIndex !== -1 && !merged[firstSeenIndex]) {
     merged[firstSeenIndex] = nowUtc_();
   }
+  merged = cellSafeRow_(header, merged);
 
   try {
     sheet.getRange(match, 1, 1, merged.length).setValues([merged]);
@@ -700,14 +785,79 @@ function confirmationKind_(sheetName, data, result) {
   return CONFIRMATION_COPY[sheetName] ? sheetName : null;
 }
 
-function trySendConfirmation_(kind, data) {
-  try {
-    var email = String(data.email || '').trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+function confirmationAddress_(data) {
+  var email = String(data.email || '').trim().toLowerCase();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : '';
+}
 
-    var cache = CacheService.getScriptCache();
-    var cacheKey = 'confirm:' + kind + ':' + email;
-    if (cache.get(cacheKey)) return;
+function confirmationCooldownKey_(kind, email) {
+  return 'confirm:' + kind + ':' + email;
+}
+
+/**
+ * Whether this confirmation may go out, and if so, spend its share of the
+ * budget and start the address's cooldown. Called under the script lock.
+ *
+ * Both are taken up front rather than after Resend answers, because the send
+ * happens after the lock is released: deciding then would let concurrent
+ * posts all see the same remaining budget. A send Resend refuses hands the
+ * cooldown back (trySendConfirmation_); the budget slot stays spent, which
+ * errs on the side of sending less.
+ */
+function reserveConfirmation_(kind, data) {
+  var email = confirmationAddress_(data);
+  if (!email) return false;
+
+  var cache = CacheService.getScriptCache();
+  var cooldownKey = confirmationCooldownKey_(kind, email);
+  if (cache.get(cooldownKey)) return false;
+
+  // One JSON property rather than a key per hour, so old counters never pile
+  // up in Script Properties. CacheService cannot hold the daily count: its
+  // entries live six hours at most.
+  var props = PropertiesService.getScriptProperties();
+  var now = new Date();
+  var day = Utilities.formatDate(now, 'UTC', 'yyyyMMdd');
+  var hour = Utilities.formatDate(now, 'UTC', 'yyyyMMddHH');
+  var budget = {};
+  try {
+    budget = JSON.parse(props.getProperty(CONFIRMATION_BUDGET_PROPERTY) || '{}') || {};
+  } catch (err) {
+    budget = {};
+  }
+  var dayCount = budget.day === day ? Number(budget.dayCount) || 0 : 0;
+  var hourCount = budget.hour === hour ? Number(budget.hourCount) || 0 : 0;
+  if (dayCount >= CONFIRMATION.maxPerDay || hourCount >= CONFIRMATION.maxPerHour) {
+    console.warn('Confirmation skipped: over the ' +
+      (dayCount >= CONFIRMATION.maxPerDay ? 'daily' : 'hourly') + ' ceiling (' + kind + ').');
+    return false;
+  }
+
+  props.setProperty(CONFIRMATION_BUDGET_PROPERTY, JSON.stringify({
+    day: day, dayCount: dayCount + 1, hour: hour, hourCount: hourCount + 1
+  }));
+  cache.put(cooldownKey, '1', CONFIRMATION.cooldownMinutes * 60);
+  return true;
+}
+
+/**
+ * Visitor-typed text that is about to be read back to them — and to whoever
+ * else's address was typed in — under our name. A name or a time-zone label
+ * that carries a link, an address or a long sentence is somebody using the
+ * form to write a message, so it is left out rather than sent.
+ */
+function plainLabel_(value, maxLength) {
+  var text = String(value || '').trim();
+  if (!text || text.length > maxLength) return '';
+  if (/[\/\\:@<>]|www\.|\.[a-z]{2,}\b|https?/i.test(text)) return '';
+  return text;
+}
+
+function trySendConfirmation_(kind, data) {
+  var email = confirmationAddress_(data);
+  var cache = CacheService.getScriptCache();
+  try {
+    if (!email) return;
 
     var lang = String(data.lang || '').trim().toLowerCase().split('-')[0];
     if (!CONFIRMATION_COPY[kind][lang]) lang = 'en';
@@ -717,7 +867,10 @@ function trySendConfirmation_(kind, data) {
     var vars = { when: bookingWhen_(data) };
     var subject = fill_(copy.subject, vars);
     var lines = copy.lines.map(function (line) { return fill_(line, vars); });
-    var name = String(data.firstName || data.name || '').trim();
+    // No digits either: a name has none, and a phone number in the greeting
+    // is a call-this-number scam waiting to be written.
+    var name = plainLabel_(data.firstName || data.name, 40);
+    if (/\d/.test(name)) name = '';
     var greeting = name ? fill_(chrome.greeting, { name: name }) : chrome.greetingAnon;
 
     var text = [greeting, ''].concat(lines, ['', chrome.signoff, '', '—', chrome.footer]).join('\n');
@@ -729,8 +882,9 @@ function trySendConfirmation_(kind, data) {
       '<p style="margin-top:32px;font-size:12px;color:#777">' + escapeHtml_(chrome.footer) + '</p>' +
       '</div>';
 
-    if (sendViaResend_({ to: email, subject: subject, text: text, html: html, kind: kind })) {
-      cache.put(cacheKey, '1', CONFIRMATION.cooldownMinutes * 60);
+    if (!sendViaResend_({ to: email, subject: subject, text: text, html: html, kind: kind })) {
+      // Never left: give the address its cooldown back (reserveConfirmation_).
+      cache.remove(confirmationCooldownKey_(kind, email));
     }
   } catch (err) {
     // The row is already written; a failed email must not turn the post into an error.
@@ -779,8 +933,14 @@ function sendViaResend_(message) {
 
 /** The booked slot as the visitor picked it: "2026-08-20 14:00 (Berlin, Germany (GMT+1))". */
 function bookingWhen_(data) {
-  var when = [data.bookingDate, data.bookingTime].filter(Boolean).join(' ');
-  var zone = data.bookingTimeZoneLabel || data.bookingTimeZone;
+  // This lands in the subject line, so only what a booking can actually look
+  // like: a date, a time, and a zone label or IANA id — never free text.
+  var date = /^\d{4}-\d{2}-\d{2}$/.test(String(data.bookingDate || '')) ? data.bookingDate : '';
+  var time = /^\d{1,2}:\d{2}$/.test(String(data.bookingTime || '')) ? data.bookingTime : '';
+  var when = [date, time].filter(Boolean).join(' ');
+  var zoneId = /^[A-Za-z_]+(\/[A-Za-z0-9_+-]+)*$/.test(String(data.bookingTimeZone || ''))
+    ? data.bookingTimeZone : '';
+  var zone = plainLabel_(data.bookingTimeZoneLabel, 60) || zoneId;
   return zone ? when + ' (' + zone + ')' : when;
 }
 
@@ -836,8 +996,12 @@ function cleanParams_(parameter) {
   for (var key in parameter) {
     if (!parameter.hasOwnProperty(key)) continue;
     if (IGNORED_FIELDS.indexOf(key) !== -1) continue;
+    // A field name becomes a header cell; see FIELD_NAME.
+    if (!FIELD_NAME.test(key)) continue;
     var value = parameter[key];
-    out[key] = (value === null || value === undefined) ? '' : String(value).trim();
+    out[key] = (value === null || value === undefined)
+      ? ''
+      : String(value).trim().slice(0, MAX_VALUE_LENGTH);
   }
   return out;
 }
