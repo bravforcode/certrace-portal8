@@ -1,7 +1,12 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("Full End-to-End Journey: certrace.co -> Portal -> Supplier Intake", () => {
-  test("should start from certrace.co landing page, navigate into portal, complete onboarding, and open supplier portal", async ({ page, context, baseURL }) => {
+  test("should start from certrace.co landing page, navigate into portal, complete onboarding, and open supplier portal", async ({ page, context, baseURL }, testInfo) => {
+    const onProduction = testInfo.project.name === "production";
+    test.skip(
+      onProduction && !(process.env.E2E_ACCOUNT_EMAIL && process.env.E2E_ACCOUNT_PASSWORD),
+      "set E2E_ACCOUNT_EMAIL and E2E_ACCOUNT_PASSWORD to sign in on production",
+    );
     const portalBase = baseURL || "https://portal.certrace.co";
     /* 1. The landing page links to the portal by absolute URL, so point those
        links at whichever portal this run targets — a localhost build, usually.
@@ -59,9 +64,11 @@ test.describe("Full End-to-End Journey: certrace.co -> Portal -> Supplier Intake
     await page.waitForURL(/\/login/, { timeout: 15_000 });
     await expect(page.getByRole("heading", { name: /Welcome back|Sign in/i })).toBeVisible();
 
-    // 5. Sign in as exporter
-    await page.fill('input[type="email"]', "wasawat@certrace.com");
-    await page.fill('input[type="password"]', "DemoExporter123!");
+    // 5. Sign in as exporter. The demo build accepts any address; a real
+    //    backend needs a real account, and its password does not belong in
+    //    this file — see production-journey.spec.ts for the variables.
+    await page.fill('input[type="email"]', onProduction ? process.env.E2E_ACCOUNT_EMAIL! : "wasawat@certrace.com");
+    await page.fill('input[type="password"]', onProduction ? process.env.E2E_ACCOUNT_PASSWORD! : "DemoExporter123!");
     await page.getByRole("button", { name: /Sign in|เข้าสู่ระบบ/i }).click();
 
     // 6. Transition into Portal Dashboard or Onboarding
@@ -105,7 +112,8 @@ test.describe("Full End-to-End Journey: certrace.co -> Portal -> Supplier Intake
 
     // 7. Verify we are safely on the Exporter Dashboard
     await expect(page).toHaveURL(/\/dashboard/);
-    await expect(page.locator("header")).toContainText(/Wasawat/i);
+    // The demo's name; a real account carries whatever it was registered with.
+    if (!onProduction) await expect(page.locator("header")).toContainText(/Wasawat/i);
 
     // 8. Navigate to Smart Links Hub
     const smartLinksNav = page.locator('aside a[href="/smart-links"]');

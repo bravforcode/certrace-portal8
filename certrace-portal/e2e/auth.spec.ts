@@ -33,7 +33,9 @@ test.describe("Authentication & Route Guarding", () => {
     await expect(submitBtn).toBeEnabled();
   });
 
-  test("3. Sign-in flow: submitting valid credentials advances to onboarding setup", async ({ page }) => {
+  test("3. Sign-in flow: submitting valid credentials advances to onboarding setup", async ({ page }, testInfo) => {
+    // The demo signs anyone in. Production must not — that is test 3b.
+    test.skip(testInfo.project.name === "production", "demo sign-in; production refuses made-up credentials (3b)");
     await page.goto("/login");
 
     await page.locator('input[type="email"]').fill("exporter@siamsteel.co.th");
@@ -45,6 +47,24 @@ test.describe("Authentication & Route Guarding", () => {
     // In demo/MVP mode, redirects to onboarding setup
     await expect(page).toHaveURL(/\/onboarding\/setup/, { timeout: 10_000 });
     await expect(page.locator("body")).toContainText(/Welcome back|Good to see you/i);
+  });
+
+  test("3b. Production refuses made-up credentials and stays on /login", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== "production", "only a build with a real backend can refuse");
+    await page.goto("/login");
+
+    /* Minted per run, never a fixed address: the demo addresses in the tests
+       above have been registered on production by hand, so "made-up" has to
+       mean an account nobody can have created. */
+    const nobody = `nobody-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    await page.locator('input[type="email"]').fill(`${nobody}@example.com`);
+    await page.locator('input[type="password"]').fill(`Not-${nobody}-9!`);
+    await page.locator('button[type="submit"]').click();
+
+    // Render's free tier can take most of a minute to wake on the first request.
+    await expect(page.locator("body")).toContainText(/Email or password is incorrect/i, { timeout: 90_000 });
+    await expect(page).toHaveURL(/\/login/);
+    expect(await page.evaluate(() => window.localStorage.getItem("certrace:auth"))).toBeNull();
   });
 
   test("4. Registration page: shows required fields and terms check", async ({ page }) => {
