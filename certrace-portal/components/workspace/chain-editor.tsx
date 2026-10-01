@@ -38,6 +38,7 @@ import { buildSupplierPrecursorTree } from "@/lib/supplier-tree";
 import { flatten, getSupplier, saveSupplier, treeFor, type PrecursorSupplier, type SupplierNode } from "@/lib/precursor-suppliers";
 import { ensureChainRootSupplier } from "@/lib/chain-root-supplier";
 import { makePrecursorLinkToken, precursorLinkFor } from "@/lib/precursor-link";
+import { ensurePrecursorLink, pullPrecursorAnswers } from "@/lib/precursor-link-sync";
 import { TreeNodeCard } from "@/components/tree-node-card";
 import { TreeTable } from "@/components/tree-table";
 import { TreeVerifiedDataModal } from "@/components/tree-verified-data-modal";
@@ -80,6 +81,29 @@ export function ChainEditor({ rootNodeId, view = "tree" }: { rootNodeId?: string
     setRoots(buildSupplierPrecursorTree(workspace.id));
     notifyTreeChanged();
   }, [workspace.id]);
+
+  /* What precursor producers submitted on their own machines arrives here:
+     pull every row with a server link on open, and whenever the exporter
+     comes back to the tab (lib/precursor-link-sync.ts). Nothing re-renders
+     unless an answer actually moved. */
+  React.useEffect(() => {
+    let live = true;
+    const pull = () =>
+      void pullPrecursorAnswers(workspace.id)
+        .then((changed) => {
+          if (live && changed.length > 0) reload();
+        })
+        .catch(() => {});
+    pull();
+    const onShow = () => {
+      if (document.visibilityState === "visible") pull();
+    };
+    document.addEventListener("visibilitychange", onShow);
+    return () => {
+      live = false;
+      document.removeEventListener("visibilitychange", onShow);
+    };
+  }, [workspace.id, reload]);
 
   /* ONE piece of state, ONE dialog, because it is one button — on every row
      of the chain including the installation at the top. A precursor row is
@@ -179,8 +203,16 @@ export function ChainEditor({ rootNodeId, view = "tree" }: { rootNodeId?: string
        time. */
     saveSupplier({ ...row, smartLinkToken: token, smartLinkSentAt: row.smartLinkSentAt ?? now, smartLinkLastSentAt: now });
     reload();
-    const url = precursorLinkFor(workspace.id, row.id);
-    if (typeof navigator !== "undefined" && navigator.clipboard) void navigator.clipboard.writeText(url).catch(() => {});
+    /* With a backend the copied link is a server-issued one the producer can
+       open on their own machine (lib/precursor-link-sync.ts); without one it
+       is the local demo link, as before. */
+    void ensurePrecursorLink(workspace.id, row.id)
+      .catch(() => null)
+      .then((minted) => {
+        if (minted) reload();
+        const url = minted ?? precursorLinkFor(workspace.id, row.id);
+        if (typeof navigator !== "undefined" && navigator.clipboard) void navigator.clipboard.writeText(url).catch(() => {});
+      });
   };
 
   const handleSend = (node: TreeNode) => {

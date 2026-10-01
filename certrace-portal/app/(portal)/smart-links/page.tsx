@@ -71,6 +71,7 @@ import {
 import { scheduleFor, workspaceTitle } from "@/lib/workspace";
 import { SMART_LINKS_KEY, useMarkMonthSent, useSmartLinks } from "@/lib/workspace-data-query";
 import { ensureWorkspaceLink } from "@/lib/workspace-link-sync";
+import { ensurePrecursorLink, pullAllPrecursorAnswers } from "@/lib/precursor-link-sync";
 import { useSavePrecursorSupplier } from "@/lib/suppliers-query";
 import { useT } from "@/lib/i18n";
 
@@ -98,6 +99,21 @@ export default function SmartLinksPage() {
      patch in place. The send mutations invalidate SMART_LINKS_KEY, which
      re-runs the derivation; no hand-wired refresh callback needed. */
   const { data: links, isError, refetch } = useSmartLinks();
+
+  /* Precursor answers submitted on the producers' own machines land in the
+     rows this page derives from (lib/precursor-link-sync.ts). */
+  const client = useQueryClient();
+  React.useEffect(() => {
+    let live = true;
+    void pullAllPrecursorAnswers()
+      .then((changed) => {
+        if (live && changed > 0) void client.invalidateQueries({ queryKey: SMART_LINKS_KEY });
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [client]);
 
   const [state, setState] = React.useState<StateFilter>("all");
   const [kind, setKind] = React.useState<KindFilter>("all");
@@ -388,15 +404,23 @@ function LinkDialog({ link, onClose }: { link: SmartLink | null; onClose: () => 
   const client = useQueryClient();
 
   const localUrl = React.useMemo(() => (link && typeof window !== "undefined" ? `${window.location.origin}${link.path}` : ""), [link]);
-  /* A monthly link is minted on the server the moment it is looked at, so the
+  /* A link is minted on the server the moment it is looked at, so the
      address shown, copied and sent is one the supplier can open on their own
-     machine (lib/workspace-link-sync.ts). Without a backend it stays local. */
+     machine (lib/workspace-link-sync.ts for a month, lib/precursor-link-sync.ts
+     for a precursor). Without a backend it stays local. */
   const [serverUrl, setServerUrl] = React.useState<string | null>(null);
   React.useEffect(() => {
     setServerUrl(null);
-    if (!link || link.kind !== "monthly" || !link.month) return;
+    if (!link) return;
+    const minting =
+      link.kind === "monthly" && link.month
+        ? ensureWorkspaceLink(link.workspace.id, link.month)
+        : link.precursor
+          ? ensurePrecursorLink(link.workspace.id, link.precursor.id)
+          : null;
+    if (!minting) return;
     let live = true;
-    void ensureWorkspaceLink(link.workspace.id, link.month)
+    void minting
       .then((minted) => {
         if (live) setServerUrl(minted);
       })
