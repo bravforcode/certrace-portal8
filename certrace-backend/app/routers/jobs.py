@@ -48,9 +48,8 @@ def send_reminders(
 ) -> dict[str, object]:
     _authorised(request, authorization)
 
-    # Every rung of the ladder links a supplier to the monthly form, which is
-    # not server-backed yet (app/config.py, SUPPLIER_EMAILS_ENV). Until it is,
-    # a scheduled run may rehearse but must not send.
+    # Every rung of the ladder writes to a real supplier. Without the switch
+    # (app/config.py, SUPPLIER_EMAILS_ENV) a run may rehearse but must not send.
     if not getattr(request.app.state, "supplier_emails_enabled", False):
         dry_run = True
 

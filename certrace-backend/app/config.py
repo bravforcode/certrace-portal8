@@ -38,10 +38,12 @@ JOBS_TOKEN_ENV = "CERTRACE_JOBS_TOKEN"
 
 # Whether Certrace itself writes to suppliers (the data request on first send,
 # and the reminder ladder). Off unless exactly "1". Every one of those emails
-# links to the portal's monthly form at /w/<token>, and that form still keeps
-# what the supplier types in THEIR browser -- it does not reach the exporter.
-# Mailing a real supplier a form that goes nowhere, under the exporter's name,
-# is worse than mailing nothing. Turn this on the day /w/ is server-backed.
+# links to the portal's monthly form at /w/<token>. That form used to keep what
+# the supplier typed in THEIR browser, and mailing a real supplier a form that
+# went nowhere, under the exporter's name, was worse than mailing nothing --
+# hence the switch. /w/ now saves through the link (portal
+# lib/workspace-link-sync.ts), and production runs with this on. It stays a
+# switch so staging and local runs never write to a real supplier by accident.
 SUPPLIER_EMAILS_ENV = "CERTRACE_SUPPLIER_EMAILS"
 
 # Signing settings are constants, not environment knobs. An operator who can
