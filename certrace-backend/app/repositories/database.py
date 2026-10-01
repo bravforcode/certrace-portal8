@@ -554,6 +554,35 @@ class DatabaseRepository:
 
         return self._touch_reminder_subject(user_id, subject_key, apply)
 
+    def reminder_subject_exists(self, user_id: uuid.UUID, subject_key: str) -> bool:
+        with self.session_factory() as session:
+            found = session.scalar(
+                select(ReminderSubject.id).where(
+                    ReminderSubject.user_id == user_id,
+                    ReminderSubject.subject_key == subject_key,
+                )
+            )
+            return found is not None
+
+    def count_reminder_subjects_created_since(
+        self, user_id: uuid.UUID, since: datetime.datetime
+    ) -> int:
+        """How many asks this account has registered since ``since`` -- the
+        number the per-day ceiling in routers/reminders.py is measured on."""
+
+        with self.session_factory() as session:
+            return int(
+                session.scalar(
+                    select(func.count())
+                    .select_from(ReminderSubject)
+                    .where(
+                        ReminderSubject.user_id == user_id,
+                        ReminderSubject.created_at >= since,
+                    )
+                )
+                or 0
+            )
+
     def list_reminder_subjects(self, user_id: uuid.UUID) -> list[dict[str, object]]:
         with self.session_factory() as session:
             rows = session.scalars(

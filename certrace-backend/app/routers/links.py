@@ -134,6 +134,20 @@ def _declaration_doc(
     return request.app.state.portal_declarations.get(user_id, {}).get(declaration_id)
 
 
+def find_link(request: Request, token: str) -> dict[str, object] | None:
+    """The stored row for a token, from whichever store is configured.
+
+    No gate at all -- not revoked, not expired, not whose. Every caller applies
+    the one it needs: ``live_link`` for the supplier, ``_owned_link`` for the
+    exporter, and the reminder router to check a link it is asked to email.
+    """
+
+    database = request.app.state.database
+    if database is not None:
+        return database.get_smart_link(token)
+    return request.app.state.smart_links.get(token)
+
+
 def live_link(
     request: Request, token: str
 ) -> tuple[dict[str, object], dict[str, object], object]:
@@ -149,11 +163,7 @@ def live_link(
     """
 
     database = request.app.state.database
-    link = (
-        database.get_smart_link(token)
-        if database is not None
-        else request.app.state.smart_links.get(token)
-    )
+    link = find_link(request, token)
     if link is None:
         raise _TOKEN_NOT_FOUND
     if link["revokedAt"] is not None:
@@ -191,11 +201,7 @@ def _owned_link(
     """
 
     database = request.app.state.database
-    link = (
-        database.get_smart_link(token)
-        if database is not None
-        else request.app.state.smart_links.get(token)
-    )
+    link = find_link(request, token)
     if link is None or link["userId"] != account_id or link["declId"] != declaration_id:
         raise _TOKEN_NOT_FOUND
     return link, database

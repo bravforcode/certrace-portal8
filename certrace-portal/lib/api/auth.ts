@@ -27,7 +27,9 @@
 
    `changePassword` is the odd one out: it now REQUIRES the bearer. The server
    changes the token holder's own password and ignores the body's email, so an
-   unauthenticated caller can no longer use it to test credentials.
+   unauthenticated caller can no longer use it to test credentials. It also
+   revokes every session the account had and returns a fresh one for this tab,
+   which `changePassword` stores.
    ════════════════════════════════════════════════════════════ */
 
 import { apiConfigured } from "./config";
@@ -211,14 +213,25 @@ export type ChangePasswordInput = {
  * wrong, and `RATE_LIMITED` after too many tries.
  */
 export async function changePassword(input: ChangePasswordInput): Promise<string> {
-  const result = await request<MessageResponse>("/api/auth/change-password", {
-    method: "POST",
-    body: {
-      email: input.email,
-      current_password: input.currentPassword,
-      new_password: input.newPassword,
-      locale: input.locale,
+  const result = await request<MessageResponse & { accessToken?: string; refreshToken?: string }>(
+    "/api/auth/change-password",
+    {
+      method: "POST",
+      body: {
+        email: input.email,
+        current_password: input.currentPassword,
+        new_password: input.newPassword,
+        locale: input.locale,
+      },
     },
-  });
+  );
+  /* A new password ends every session the account had, this one included —
+     that is what throws out anyone else holding it. The server hands this tab
+     a fresh pair; without storing it, the next refresh would fail and sign the
+     person out an hour after they changed their own password. */
+  const session = loadSession();
+  if (session && result.accessToken && result.refreshToken) {
+    saveSession({ ...session, accessToken: result.accessToken, refreshToken: result.refreshToken });
+  }
   return result.message;
 }

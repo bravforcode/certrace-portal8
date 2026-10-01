@@ -283,8 +283,29 @@ def change_user_password(
             ),
             {"new_hash": new_hash, "email": email_clean},
         )
+        _revoke_refresh_tokens_for_email(session, email_clean)
         session.commit()
     return True, "Password updated successfully."
+
+
+def _revoke_refresh_tokens_for_email(session: Session, email_clean: str) -> None:
+    """Burn every refresh token the account holds, inside the caller's
+    transaction.
+
+    A new password is how someone throws out whoever else holds the account.
+    Without this, a session stolen before the change would keep refreshing
+    for as long as it liked, and the reset would change nothing for the
+    person it was meant to lock out.
+    """
+
+    session.execute(
+        text(
+            "UPDATE public.refresh_tokens SET used = TRUE "
+            "WHERE used = FALSE AND user_id = "
+            "(SELECT id FROM public.users WHERE LOWER(email) = :email)"
+        ),
+        {"email": email_clean},
+    )
 
 
 def _change_password_in_memory(
@@ -305,6 +326,7 @@ def _change_password_in_memory(
         return False, INVALID_CREDENTIALS_MESSAGE
 
     record["password_hash"] = new_hash
+    _revoke_memory_refresh_tokens(str(record["id"]))
     return True, "Password updated successfully."
 
 
@@ -1466,6 +1488,7 @@ def reset_user_password(
             ),
             {"new_hash": new_hash, "email": email_clean},
         )
+        _revoke_refresh_tokens_for_email(session, email_clean)
         session.commit()
     return True, "Password has been successfully reset."
 
@@ -1487,4 +1510,5 @@ def _reset_password_in_memory(
     record["used"] = True
     account = _MEMORY_USERS.setdefault(email_clean, _memory_record(email_clean, ""))
     account["password_hash"] = hash_password(new_password)
+    _revoke_memory_refresh_tokens(str(account["id"]))
     return True, "Password has been successfully reset."

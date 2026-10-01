@@ -192,6 +192,11 @@ python -m app.jobs.account_access --account-id <uuid> --history   # หลัง
   reset-password 10 · change-password 10
 - โค้ด reset: ขอใบใหม่ = ใบเก่าตายทันที (ใช้งานได้ทีละใบเดียว) และเดาผิดครบ
   5 ครั้งโค้ดตาย ต้องขอใหม่ (migration 007 เพิ่มคอลัมน์ `attempts`)
+- **รหัสผ่านเปลี่ยน = ทุก session ตาย** (2026-10-01) — `reset-password` และ
+  `change-password` เผา refresh token ทุกใบของบัญชีใน transaction เดียวกัน
+  session ที่ถูกขโมยไปก่อนหน้าจึง refresh ต่อไม่ได้ `change-password` คืน
+  `accessToken` + `refreshToken` ชุดใหม่ให้คนที่เปลี่ยนเอง (นอกเหนือจาก
+  `success` / `message`) และ `changePassword` ในพอร์ทัลเก็บชุดใหม่ให้เลย
 
 ~~**แต่ต้องแก้ก่อน:** `forgot-password` ห้ามคืน `resetToken` กลับมาใน response~~
 **✅ แก้แล้ว** — `AuthResponse` ไม่มีฟิลด์ `reset_token` อีกต่อไป รหัส 6 หลัก
@@ -523,6 +528,8 @@ job เตือนซัพพลายเออร์เคยต่อกั�
 
 - **ลงทะเบียน ≠ ส่ง** คำขอที่ร่างไว้แต่ยังไม่ได้ส่ง **ต้องไม่ถูกตาม** — ซัพพลายเออร์ยังไม่เคยได้ยินจากใคร `sent_at` จึงเป็น endpoint แยก และ job ไม่อ่านแถวที่ยังไม่มีค่านี้
 - `periodLabel` ส่งไปเป็น **"March 2026"** ไม่ใช่วันที่ เพราะ job ไม่รู้ภาษาของผู้รับดีพอจะจัดรูปแบบวันที่เอง ส่วน `linkUrl` ต้องเป็น URL เต็ม ด้วยเหตุผลเดียวกัน
+- **`linkUrl` ต้องเป็นลิงก์ของบัญชีนี้เอง** (2026-10-01) — รูปแบบ `<portal origin>/w/<token>` หรือ `/s/<token>` เท่านั้น origin ต้องอยู่ใน `CERTRACE_CORS_ALLOWED_ORIGINS` (หรือตรงกับ `CERTRACE_APP_BASE_URL`) และ token ต้องมีอยู่จริง เป็นของบัญชีที่เรียก ยังไม่ถูก revoke และยังไม่หมดอายุ ห้ามมี query หรือ fragment ไม่ตรงเงื่อนไข = **422 `INVALID_REMINDER_LINK`** (เดิมรับ https ไปที่ไหนก็ได้ ทำให้ใครสมัครบัญชีแล้วสั่ง contact@certrace.co ส่งลิงก์ phishing ได้)
+- **เพดานคำขอใหม่ต่อบัญชี** — ลงทะเบียน key ใหม่ได้ไม่เกิน `CERTRACE_REMINDER_SUBJECTS_PER_DAY` (ค่าเริ่มต้น 100) ต่อ 24 ชั่วโมง เกินแล้วตอบ **429 `REMINDER_QUOTA_EXCEEDED`** การ PUT ซ้ำบน key ที่มีอยู่แล้ว (เช่นแก้กำหนดส่ง) ไม่นับ
 - `subjectKey` เป็น id ของพอร์ทัลเอง (`w:<workspaceId>:<month>`) และเป็น**คีย์ของ delivery log ฝั่งเซิร์ฟเวอร์** ถ้ามันเปลี่ยนทุกคืน ทุกขั้นของบันไดจะดูเหมือนยังไม่เคยส่งแล้วส่งซ้ำทั้งชุด
 - **ไม่มีการลบ** `answeredAt` / `cancelledAt` เป็นตราประทับ เพราะ "ตามสี่ครั้งกว่าจะตอบ" คือประวัติที่บอกว่าซัพพลายเออร์รายนี้ควรใช้ต่อไหม
 - **ไม่มี in-memory fallback** ต่างจาก declarations/links ที่เบราว์เซอร์เดิมอ่านกลับเองได้ — reminder ถูกอ่านโดย job คนละ process วันรุ่งขึ้น ถ้าเก็บใน memory มันจะรับลงทะเบียนทุกอันแล้วไม่ตามใครเลย ซึ่งคือความล้มเหลวที่ข้อนี้มีไว้แก้ ดังนั้นไม่มี DB = ตอบ **503 `REMINDERS_UNAVAILABLE`**

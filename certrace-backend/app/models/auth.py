@@ -120,3 +120,12 @@ class AuthResponse(BaseModel):
 
     success: bool
     message: str
+
+
+class ChangePasswordResponse(AuthResponse):
+    """A changed password ends every session the account had, including the
+    one that asked. The caller already proved the current password, so it
+    gets a fresh pair here instead of being signed out within the hour."""
+
+    access_token: str = Field(..., serialization_alias="accessToken")
+    refresh_token: str = Field(..., serialization_alias="refreshToken")

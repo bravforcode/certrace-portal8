@@ -7,7 +7,9 @@ is module state, so every test registers its own account.
 from __future__ import annotations
 
 import itertools
+import re
 
+from conftest import RecordingTransport
 from fastapi.testclient import TestClient
 
 from app.main import create_app
@@ -92,3 +94,64 @@ def test_logout_revokes_the_refresh_token() -> None:
         "/api/auth/refresh", json={"refreshToken": session["refreshToken"]}
     )
     assert after.status_code == 401
+
+
+# ── A new password ends every other session ───────────────────────────────
+
+
+def test_a_password_reset_kills_every_refresh_token_the_account_held() -> None:
+    """The person resetting is usually the one locking somebody else out. A
+    session stolen before the reset must not keep refreshing after it."""
+
+    transport = RecordingTransport()
+    client = TestClient(create_app(email_transport=transport))
+    stolen = _session(client)
+    email = stolen["user"]["email"]
+
+    client.post("/api/auth/forgot-password", json={"email": email})
+    code = re.search(r"\b\d{6}\b", transport.last.text).group(0)
+    reset = client.post(
+        "/api/auth/reset-password",
+        json={"email": email, "reset_token": code, "new_password": "brand-new-pass-2"},
+    )
+    assert reset.status_code == 200
+
+    replay = client.post(
+        "/api/auth/refresh", json={"refreshToken": stolen["refreshToken"]}
+    )
+    assert replay.status_code == 401
+    assert replay.json()["detail"]["code"] == "INVALID_REFRESH_TOKEN"
+
+
+def test_changing_a_password_ends_other_sessions_but_keeps_the_caller() -> None:
+    client = _client()
+    mine = _session(client)
+    email = mine["user"]["email"]
+    other = client.post(
+        "/api/auth/login", json={"email": email, "password": "a-good-password-1"}
+    ).json()
+
+    changed = client.post(
+        "/api/auth/change-password",
+        json={
+            "email": email,
+            "current_password": "a-good-password-1",
+            "new_password": "brand-new-pass-2",
+        },
+        headers={"Authorization": f"Bearer {mine['accessToken']}"},
+    )
+    assert changed.status_code == 200
+    body = changed.json()
+
+    # Both old refresh tokens are dead, the other device's included...
+    for old in (mine["refreshToken"], other["refreshToken"]):
+        assert (
+            client.post("/api/auth/refresh", json={"refreshToken": old}).status_code
+            == 401
+        )
+    # ...and the caller carries on with the pair it was handed.
+    assert body["accessToken"] and body["refreshToken"]
+    refreshed = client.post(
+        "/api/auth/refresh", json={"refreshToken": body["refreshToken"]}
+    )
+    assert refreshed.status_code == 200

@@ -16,9 +16,12 @@ from app.config import (
     EMAIL_LOGO_URL_ENV,
     GOOGLE_CLIENT_ID_ENV,
     JOBS_TOKEN_ENV,
+    REMINDER_SUBJECTS_PER_DAY_DEFAULT,
+    REMINDER_SUBJECTS_PER_DAY_ENV,
     SUPPLIER_EMAILS_ENV,
     JWT_SECRET_ENV,
     load_env_file_value,
+    load_positive_int,
 )
 from app.core.google_identity import KeyResolver
 from app.core.cors import (
@@ -144,6 +147,9 @@ def create_app(
     application.state.supplier_emails_enabled = (
         load_env_file_value(SUPPLIER_EMAILS_ENV) or ""
     ).strip() == "1"
+    application.state.reminder_subjects_per_day = load_positive_int(
+        REMINDER_SUBJECTS_PER_DAY_ENV, REMINDER_SUBJECTS_PER_DAY_DEFAULT
+    )
     if configured_origins:
         application.add_middleware(
             CORSMiddleware,

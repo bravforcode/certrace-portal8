@@ -26,13 +26,17 @@ from __future__ import annotations
 
 import datetime
 import ipaddress
+import re
+import time
 import uuid
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
+from app.core.cors import CorsConfigurationError, validate_cors_origin
 from app.routers.auth import current_account
+from app.routers.links import find_link
 from app.services import notifications
 from app.services.auth_service import Account
 from app.services.reminders import format_date
@@ -86,6 +90,89 @@ def _validated_link_url(raw: str) -> str:
 
 
 router = APIRouter(prefix="/api/v1/reminder-subjects", tags=["reminders"])
+
+# The two portal routes a supplier is sent to: a workspace's monthly form and
+# a declaration's smart link. The token is what the link router minted.
+_LINK_PATH = re.compile(r"^/(?:w|s)/([A-Za-z0-9_-]+)$")
+
+_LINK_NOT_OURS = HTTPException(
+    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+    detail={
+        "code": "INVALID_REMINDER_LINK",
+        "message": "A reminder must link to one of your own live supplier links.",
+    },
+)
+
+
+def _portal_origins(request: Request) -> set[str]:
+    """Where a supplier link may point: the portal origins this API serves
+    (the CORS allowlist -- the portal cannot call us from anywhere else) and
+    the configured app base URL."""
+
+    origins = set(getattr(request.app.state, "cors_origins", ()) or ())
+    try:
+        origins.add(validate_cors_origin(request.app.state.app_base_url))
+    except (AttributeError, CorsConfigurationError):
+        pass
+    return origins
+
+
+def _check_link_is_theirs(request: Request, account: Account, link_url: str) -> None:
+    """Refuse any reminder link that is not this account's own live smart link.
+
+    The scheme check in ``_validated_link_url`` stops a ``javascript:`` button,
+    but not an https one to anywhere: open signup plus that was a way to have
+    contact@certrace.co mail a phishing link to any address. The portal only
+    ever sends ``<portal origin>/w/<token>`` for a token it just minted
+    (lib/workspace-link-sync.ts), so that is all this accepts -- on a portal
+    origin, a token that exists, belongs to the caller, and still opens.
+    """
+
+    parts = urlsplit(link_url)
+    if parts.query or parts.fragment:
+        raise _LINK_NOT_OURS
+    try:
+        origin = validate_cors_origin(f"{parts.scheme}://{parts.netloc}")
+    except CorsConfigurationError as exc:
+        raise _LINK_NOT_OURS from exc
+    if origin not in _portal_origins(request):
+        raise _LINK_NOT_OURS
+    match = _LINK_PATH.match(parts.path)
+    if match is None:
+        raise _LINK_NOT_OURS
+    link = find_link(request, match.group(1))
+    if (
+        link is None
+        or str(link["userId"]) != account.id
+        or link["revokedAt"] is not None
+        or int(time.time() * 1000) >= int(link["expiresAt"])
+    ):
+        raise _LINK_NOT_OURS
+
+
+def _check_daily_quota(store, request: Request, account: Account, key: str) -> None:
+    """A ceiling on how many new suppliers one account may have us write to
+    per rolling day (config.REMINDER_SUBJECTS_PER_DAY_ENV). Re-registering an
+    ask that already exists -- a corrected deadline -- never counts."""
+
+    limit = request.app.state.reminder_subjects_per_day
+    user_id = uuid.UUID(account.id)
+    since = _now() - datetime.timedelta(days=1)
+    if store.count_reminder_subjects_created_since(user_id, since) < limit:
+        return
+    if store.reminder_subject_exists(user_id, key):
+        return
+    raise HTTPException(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        detail={
+            "code": "REMINDER_QUOTA_EXCEEDED",
+            "message": (
+                f"This account has asked {limit} new suppliers in the last 24 "
+                "hours. Please try again tomorrow, or contact us to raise it."
+            ),
+        },
+    )
+
 
 _NOT_FOUND = HTTPException(
     status_code=status.HTTP_404_NOT_FOUND,
@@ -180,9 +267,13 @@ def register(
     request: Request,
     account: Account = Depends(current_account),
 ) -> dict[str, object]:
-    return _store(request).upsert_reminder_subject(
+    store = _store(request)
+    key = _key(subject_key)
+    _check_link_is_theirs(request, account, body.link_url)
+    _check_daily_quota(store, request, account, key)
+    return store.upsert_reminder_subject(
         user_id=uuid.UUID(account.id),
-        subject_key=_key(subject_key),
+        subject_key=key,
         recipient=str(body.recipient),
         supplier_name=body.supplier_name,
         period_label=body.period_label,

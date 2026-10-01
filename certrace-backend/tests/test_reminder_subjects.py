@@ -64,6 +64,7 @@ class FakeRepository:
             "sentAt": None,
             "resendCount": 0,
             "answeredAt": None,
+            "createdAt": datetime.datetime.now(datetime.timezone.utc),
         }
         row.update(
             {
@@ -110,6 +111,16 @@ class FakeRepository:
             lambda row: row.update({"cancelledAt": int(when.timestamp() * 1000)}),
         )
 
+    def reminder_subject_exists(self, user_id, subject_key):
+        return (str(user_id), subject_key) in self.rows
+
+    def count_reminder_subjects_created_since(self, user_id, since):
+        return sum(
+            1
+            for key, row in self.rows.items()
+            if key[0] == str(user_id) and row["createdAt"] >= since
+        )
+
     def list_reminder_subjects(self, user_id):
         return [row for key, row in self.rows.items() if key[0] == str(user_id)]
 
@@ -130,7 +141,9 @@ def recording_transport() -> RecordingTransport:
 
 @pytest.fixture(name="client")
 def api_client(outbox: RecordingTransport) -> TestClient:
-    application = create_app(email_transport=outbox)
+    application = create_app(
+        email_transport=outbox, cors_origins=[PORTAL, "http://localhost:3000"]
+    )
     # Only the reminder store, not app.state.database: setting the latter would
     # also move the account store onto this fake, which knows nothing about
     # users - and every test here has to be able to register one.
@@ -157,6 +170,8 @@ def _signed_in(client: TestClient) -> dict[str, str]:
 
 SUBJECT = "w:ws-1:2026-03"
 
+PORTAL = "https://portal.certrace.co"
+
 ASK = {
     "recipient": "plant@xingdathai.com",
     "supplierName": "Xingda Steel Cord (Thailand)",
@@ -167,10 +182,34 @@ ASK = {
 }
 
 
-def _register(client, headers, key=SUBJECT, **over):
-    return client.put(
-        f"/api/v1/reminder-subjects/{key}", json={**ASK, **over}, headers=headers
+def _mint_link(client, headers) -> tuple[str, str]:
+    """A real monthly link for this account: (workspace doc id, token).
+
+    A reminder may only carry a link the account itself minted, so every
+    registration below starts from one, the way the portal does
+    (lib/workspace-link-sync.ts)."""
+
+    doc_id = f"ws-doc-{next(_counter)}"
+    created = client.post(
+        "/api/v1/declarations",
+        json={"id": doc_id, "kind": "workspace"},
+        headers=headers,
     )
+    assert created.status_code == 201
+    minted = client.post(
+        f"/api/v1/declarations/{doc_id}/links",
+        json={"supplierId": "ws-1", "month": "2026-03"},
+        headers=headers,
+    )
+    assert minted.status_code == 201
+    return doc_id, minted.json()["token"]
+
+
+def _register(client, headers, key=SUBJECT, **over):
+    body = {**ASK, **over}
+    if "linkUrl" not in over:
+        body["linkUrl"] = f"{PORTAL}/w/{_mint_link(client, headers)[1]}"
+    return client.put(f"/api/v1/reminder-subjects/{key}", json=body, headers=headers)
 
 
 # ── Registering is not sending ────────────────────────────────────────────
@@ -341,7 +380,8 @@ def test_a_localhost_http_link_is_allowed(client) -> None:
     """Plain http survives only for local runs and tests, mirroring cors.py."""
 
     headers = _signed_in(client)
-    response = _register(client, headers, linkUrl="http://localhost:3000/w/tok_9f2a")
+    _doc, token = _mint_link(client, headers)
+    response = _register(client, headers, linkUrl=f"http://localhost:3000/w/{token}")
     assert response.status_code == 200
 
 
@@ -369,7 +409,7 @@ def test_reminders_refuse_to_pretend_without_a_database() -> None:
 
 def test_the_source_hands_the_run_what_it_needs_to_write_an_email(client) -> None:
     headers = _signed_in(client)
-    _register(client, headers)
+    link_url = _register(client, headers).json()["linkUrl"]
     client.post(f"/api/v1/reminder-subjects/{SUBJECT}/sent", headers=headers)
 
     [request] = DatabaseReminderSource(
@@ -389,7 +429,7 @@ def test_the_source_hands_the_run_what_it_needs_to_write_an_email(client) -> Non
     # language well enough to format a date in it.
     assert request.period_label == "March 2026"
     assert request.due_date == datetime.date(2026, 4, 10)
-    assert request.link_url.endswith("/w/tok_9f2a")
+    assert request.link_url == link_url
     assert request.account_locked is False
 
 
@@ -454,7 +494,7 @@ def test_registering_alone_writes_to_nobody(client, outbox) -> None:
 
 def test_the_first_send_emails_the_supplier_their_link(client, outbox) -> None:
     headers = _signed_in(client)
-    _register(client, headers)
+    link_url = _register(client, headers).json()["linkUrl"]
 
     assert _sent(client, headers).status_code == 200
 
@@ -464,8 +504,8 @@ def test_the_first_send_emails_the_supplier_their_link(client, outbox) -> None:
     # Named for the exporter who is asking, not for Certrace.
     assert "Siam Steel Export Co." in message.subject
     assert "March 2026" in message.subject
-    assert ASK["linkUrl"] in message.html
-    assert ASK["linkUrl"] in message.text
+    assert link_url in message.html
+    assert link_url in message.text
 
 
 def test_a_second_send_does_not_mail_again(client, outbox) -> None:
@@ -509,3 +549,85 @@ def test_supplier_email_is_off_unless_switched_on(client, outbox) -> None:
 
     assert _sent(client, headers).status_code == 200
     assert outbox.sent == []
+
+
+# ── Only the account's own live link, on the portal ───────────────────────
+
+
+def _refused(response) -> None:
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "INVALID_REMINDER_LINK"
+
+
+def test_a_link_off_the_portal_is_refused_even_with_a_real_token(client) -> None:
+    """The phishing case: open signup, then contact@certrace.co mails a button
+    to anywhere. A genuine token on someone else's host is still not ours."""
+
+    headers = _signed_in(client)
+    _doc, token = _mint_link(client, headers)
+    _refused(_register(client, headers, linkUrl=f"https://evil.example/w/{token}"))
+
+
+def test_a_token_we_never_minted_is_refused(client) -> None:
+    headers = _signed_in(client)
+    _refused(_register(client, headers, linkUrl=f"{PORTAL}/w/tok_9f2a"))
+
+
+def test_another_accounts_link_is_refused(client) -> None:
+    owner = _signed_in(client)
+    _doc, token = _mint_link(client, owner)
+
+    stranger = _signed_in(client)
+    _refused(_register(client, stranger, linkUrl=f"{PORTAL}/w/{token}"))
+
+
+def test_a_revoked_link_is_refused(client) -> None:
+    headers = _signed_in(client)
+    doc_id, token = _mint_link(client, headers)
+    client.post(f"/api/v1/declarations/{doc_id}/links/{token}/revoke", headers=headers)
+    _refused(_register(client, headers, linkUrl=f"{PORTAL}/w/{token}"))
+
+
+@pytest.mark.parametrize(
+    "shape",
+    [
+        "{portal}/w/{token}?next=https://evil.example",
+        "{portal}/w/{token}#x",
+        "{portal}/login/{token}",
+        "{portal}/w/{token}/extra",
+    ],
+)
+def test_only_the_bare_supplier_route_is_accepted(client, shape) -> None:
+    headers = _signed_in(client)
+    _doc, token = _mint_link(client, headers)
+    _refused(
+        _register(client, headers, linkUrl=shape.format(portal=PORTAL, token=token))
+    )
+
+
+# ── A ceiling on how many strangers one account can have us write to ──────
+
+
+def test_new_asks_are_capped_per_day_but_corrections_are_not(client) -> None:
+    client.app.state.reminder_subjects_per_day = 2
+    headers = _signed_in(client)
+
+    assert _register(client, headers, key="w:a:2026-03").status_code == 200
+    assert _register(client, headers, key="w:b:2026-03").status_code == 200
+
+    over = _register(client, headers, key="w:c:2026-03")
+    assert over.status_code == 429
+    assert over.json()["detail"]["code"] == "REMINDER_QUOTA_EXCEEDED"
+
+    # A corrected deadline on an ask already registered is not a new stranger.
+    again = _register(client, headers, key="w:a:2026-03", dueDate="2026-04-20")
+    assert again.status_code == 200
+
+
+def test_the_cap_is_per_account(client) -> None:
+    client.app.state.reminder_subjects_per_day = 1
+    first = _signed_in(client)
+    assert _register(client, first, key="w:a:2026-03").status_code == 200
+
+    second = _signed_in(client)
+    assert _register(client, second, key="w:a:2026-03").status_code == 200
