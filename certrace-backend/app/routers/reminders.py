@@ -214,7 +214,7 @@ def mark_sent(
     app/services/reminder_schedule.py does the chasing from here.
 
     Only with CERTRACE_SUPPLIER_EMAILS=1 -- see app/config.py for why it is
-    off until the monthly form the link opens can reach the exporter.
+    a switch.
     """
 
     row = _store(request).mark_reminder_subject_sent(

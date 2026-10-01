@@ -14,12 +14,11 @@
    and it carries the month, because the ask is "send me March", never "send
    me the year".
 
-   WHAT THIS DOES NOT DO, and the reader should not assume it does: nothing is
-   transmitted. Every store in this build is browser-local (see the file
-   headers in lib/workspace.ts and lib/monthly-data.ts), so a supplier opening
-   this link on their own machine gets an empty store, and what they type never
-   reaches the exporter. The link is the SEAM a real backend slots into, and
-   the screens that offer it say so rather than implying delivery.
+   THIS IS THE OLD, LOCAL SCHEME. A token made here is base64 of the ids and
+   carries nothing: a supplier opening it on their own machine gets an empty
+   store, and what they type never reaches the exporter. Links handed to real
+   suppliers are server-issued instead (lib/workspace-link-sync.ts); this
+   scheme stays for the demo and for links sent before that existed.
    ════════════════════════════════════════════════════════════ */
 
 import { getWorkspace, monthsOf, type VerificationWorkspace } from "./workspace";

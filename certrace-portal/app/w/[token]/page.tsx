@@ -38,9 +38,13 @@ export const runtime = "edge";
    month, and the fix has to be one click rather than a hunt for which fields
    were carried.
 
-   THIS DOES NOT TRANSMIT. Every store here is browser-local. The banner says
-   so. It is the seam a real backend slots into, and until there is one, saying
-   otherwise would be a lie the exporter acts on.
+   WHAT REACHES THE EXPORTER DEPENDS ON THE TOKEN. A server-issued link saves
+   every answer back to Certrace as the supplier types (the autosave effect
+   below, lib/workspace-link-sync.ts) and submits through the server. An old
+   base64 token (the demo, links sent before the server carried them) still
+   runs on this browser's stores alone and transmits nothing. The banner says
+   which one the reader is in; claiming delivery that is not happening would be
+   a lie the exporter acts on.
    ════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
