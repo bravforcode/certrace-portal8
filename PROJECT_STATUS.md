@@ -122,6 +122,7 @@ rndr-id: ... · x-render-origin-server: uvicorn
 > ⚠️ **สองตัวแปรที่ลืมแล้วเจ็บ** (เพิ่งเพิ่มเข้าตาราง env ของ README รอบนี้)
 > `CERTRACE_JWT_SECRET` — ไม่มีแล้ว **แอปไม่ start เลย** ถ้ามี `DATABASE_URL` ([`main.py:68`](certrace-backend/app/main.py:68)) อาการคือ revision ไม่ผ่าน startup probe
 > `CERTRACE_APP_BASE_URL` — อันนี้ร้ายกว่า เพราะ**ไม่มีอาการอะไรเลย** ไม่ตั้งแล้ว service ยังขึ้นปกติ ผ่าน probe ปกติ แต่ smart link ทุกอันที่ mint ออกไปจะชี้ไป `https://app.certrace.co` ตาม default ([`config.py:51`](certrace-backend/app/config.py:51)) ซึ่งเป็นโดเมนที่ไม่มีอยู่จริง กว่าจะรู้ตัวคือตอนซัพพลายเออร์กดลิงก์ในอีเมลที่เราส่งไปแล้ว — ต้องตั้งเป็น `https://portal.certrace.co`
+> **✅ 2026-10-01:** default เปลี่ยนเป็น `https://portal.certrace.co` แล้ว ไม่ตั้งก็ไม่พัง · `GET /` ของ API บอกค่าที่ใช้อยู่ (`appBaseUrl`) · พอร์ทัลสร้างลิงก์ `/s/` ที่ copy จาก origin ของตัวเอง ไม่พึ่งค่านี้อีก
 
 #### **R2. พอร์ทัล production รับรหัสอะไรก็ได้ — ✅ ปิดแล้ว 23 ก.ย.**
 

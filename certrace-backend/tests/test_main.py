@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from app.config import CORS_ALLOWED_ORIGINS_ENV
+from app.config import APP_BASE_URL_ENV, CORS_ALLOWED_ORIGINS_ENV
 from app.core.cors import (
     CorsConfigurationError,
     parse_cors_origins,
@@ -69,6 +69,22 @@ def test_root_is_truthful_about_service_state(monkeypatch) -> None:
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
     assert response.json()["ready"] is True
+
+
+def test_root_says_where_supplier_links_point(monkeypatch) -> None:
+    """The setting with no error mode, made checkable from outside. Unset, it
+    is the live portal -- never a host that does not resolve."""
+
+    monkeypatch.delenv(CORS_ALLOWED_ORIGINS_ENV, raising=False)
+    monkeypatch.delenv(APP_BASE_URL_ENV, raising=False)
+    assert TestClient(create_app()).get("/").json()["appBaseUrl"] == (
+        "https://portal.certrace.co"
+    )
+
+    monkeypatch.setenv(APP_BASE_URL_ENV, "https://staging.certrace.co/")
+    assert TestClient(create_app()).get("/").json()["appBaseUrl"] == (
+        "https://staging.certrace.co"
+    )
 
 
 def test_openapi_contract_advertises_calculation_success(monkeypatch) -> None:

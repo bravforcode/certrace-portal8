@@ -282,7 +282,7 @@ gen ให้ เพราะพอร์ทัลต้อง redirect ไป�
 ```jsonc
 { "supplierId": "d1", "month": "2026-03", "expiresInDays": 60 }
 // 201
-{ "token": "kJ8…", "url": "https://app.certrace.co/s/kJ8…", "expiresAt": 1772000000000 }
+{ "token": "kJ8…", "url": "https://portal.certrace.co/s/kJ8…", "expiresAt": 1772000000000 }
 ```
 
 `month` ใส่หรือไม่ใส่ก็ได้ — งานรายเดือนหนึ่งเดือนหนึ่งลิงก์ ตามที่พอร์ทัลทำอยู่
@@ -291,7 +291,7 @@ gen ให้ เพราะพอร์ทัลต้อง redirect ไป�
 (migration 009, FK ผูกกับ `portal_declarations` ลบ declaration = ลิงก์ตายตาม) ·
 token = `secrets.token_urlsafe(32)` · `expiresInDays` รับ 1–365 default 60 ·
 `month` ต้องเป็น `YYYY-MM` · base URL ของลิงก์อ่านจาก `CERTRACE_APP_BASE_URL`
-(default `https://app.certrace.co`) · `revoked_at` เก็บและเช็คแล้วตอน resolve
+(default `https://portal.certrace.co` — เดิมเป็น `app.certrace.co` ซึ่งไม่มี DNS แก้ 2026-10-01; ดูค่าที่ใช้อยู่ได้ที่ `GET /` → `appBaseUrl`) · `revoked_at` เก็บและเช็คแล้วตอน resolve
 แต่ยังไม่มี endpoint เพิกถอน (contract ยังไม่ได้นิยาม) · resolve ตอบ 404
 `TOKEN_NOT_FOUND` / 410 `TOKEN_EXPIRED` / 410 `TOKEN_REVOKED` และคืน `request`
 เฉพาะ slice ของซัพพลายเออร์คนนั้นจาก `requests[]` ในเอกสาร declaration ·
@@ -307,7 +307,7 @@ submissions (งานถัดไป)
 ```jsonc
 // 200
 { "links": [
-  { "token": "kJ8…", "url": "https://app.certrace.co/s/kJ8…",
+  { "token": "kJ8…", "url": "https://portal.certrace.co/s/kJ8…",
     "supplierId": "d1", "month": "2026-03",
     "expiresAt": 1772000000000, "revokedAt": null, "createdAt": 1770000000000 }
 ] }

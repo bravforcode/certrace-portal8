@@ -338,6 +338,21 @@ test("a 204 resolves rather than failing to parse an empty body", async () => {
   await removeDeclaration("decl-1");
 });
 
+test("a minted Smart Link points at this portal, whatever host the API names", async () => {
+  reset();
+  stubServer(() => json({ token: "kJ8", url: "https://app.certrace.co/s/kJ8", expiresAt: 1 }));
+  saveSession({ accessToken: "tok", user: { id: "u1", email: "a@b.co", onboarded: true } });
+  const w = g.window as { localStorage: unknown; location?: { origin: string } };
+  w.location = { origin: "https://portal.certrace.co" };
+  try {
+    const link = await createSmartLink("decl-1", { supplierId: "d1" });
+    assert.equal(link.url, "https://portal.certrace.co/s/kJ8");
+    assert.equal(link.token, "kJ8");
+  } finally {
+    delete w.location;
+  }
+});
+
 test("minting a Smart Link posts to the declaration that owns it", async () => {
   reset();
   const calls = stubServer(() => json({ token: "kJ8", url: "https://app…", expiresAt: 1 }));

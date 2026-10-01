@@ -15,6 +15,10 @@ async def service_status(request: Request) -> dict[str, object]:
         "ready": True,
         "databaseConfigured": request.app.state.database is not None,
         "regulatoryDataVersion": REGULATORY_DATA_VERSION,
+        # Where minted supplier links point (CERTRACE_APP_BASE_URL). Public
+        # anyway -- it is in every link we hand out -- and the one setting
+        # whose mistake shows nowhere else: curl this, not a supplier's inbox.
+        "appBaseUrl": request.app.state.app_base_url,
     }
 
 

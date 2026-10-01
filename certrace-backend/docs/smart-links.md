@@ -14,7 +14,7 @@ Flow:
 exporter (มีบัญชี, login แล้ว)
   │  POST /api/v1/declarations/{id}/links   ← ออก token
   ▼
-ได้ url เช่น https://app.certrace.co/s/kJ8…  → ส่งให้ซัพพลายเออร์ (อีเมล ฯลฯ)
+ได้ url เช่น https://portal.certrace.co/s/kJ8…  → ส่งให้ซัพพลายเออร์ (อีเมล ฯลฯ)
   │
 ซัพพลายเออร์เปิดลิงก์ → พอร์ทัลหน้า /s/[token]
   │  GET /api/v1/links/{token}              ← resolve token เป็นข้อมูล (ไม่ต้อง auth)
@@ -50,13 +50,14 @@ exporter (มีบัญชี, login แล้ว)
 ```jsonc
 {
   "token": "kJ8f3…",                              // เก็บไว้ถ้าจะ track สถานะ
-  "url": "https://app.certrace.co/s/kJ8f3…",      // ส่งอันนี้ให้ซัพพลายเออร์
+  "url": "https://portal.certrace.co/s/kJ8f3…",      // ส่งอันนี้ให้ซัพพลายเออร์
   "expiresAt": 1772000000000                       // epoch milliseconds
 }
 ```
 
 โดเมนใน `url` มาจาก env `CERTRACE_APP_BASE_URL` ของ backend
-(ไม่ตั้ง = `https://app.certrace.co`, dev ตั้งเป็น `http://localhost:3000`)
+(ไม่ตั้ง = `https://portal.certrace.co` ซึ่งคือพอร์ทัลจริง, dev ตั้งเป็น `http://localhost:3000`)
+เช็คค่าที่ใช้อยู่ได้จาก `GET /` ฟิลด์ `appBaseUrl` — ส่วนพอร์ทัลสร้างลิงก์ `/s/` จาก origin ของตัวเอง ไม่ได้ใช้โดเมนนี้
 
 ### Errors
 
@@ -91,7 +92,7 @@ Response ตอน mint หายไปแล้ว? เส้นนี้คื
   "links": [
     {
       "token": "kJ8f3…",
-      "url": "https://app.certrace.co/s/kJ8f3…",
+      "url": "https://portal.certrace.co/s/kJ8f3…",
       "supplierId": "d1",
       "month": "2026-03",              // null ถ้าตอนออกไม่ได้ระบุ
       "expiresAt": 1772000000000,
