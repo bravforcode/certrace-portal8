@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Terms of Service",
   description:
-    "The terms governing access to and use of the Certrace platform for ESG data management and CBAM compliance support.",
+    "The legal terms governing access to and use of Certrace, the AI workflow platform connecting buyers, exporters and suppliers to automate CBAM carbon data collection.",
   alternates: { canonical: "/terms" },
 };
 
