@@ -23,8 +23,13 @@ import { useLang } from "@/lib/i18n";
 import { SIGNUP_URL } from "@/lib/site";
 
 export function PageShell({ children }: { children: React.ReactNode }) {
+  /* `lang` here as well as on <html>: the root layout prints `lang="en"` on
+     every server pass and LanguageProvider corrects it only after hydration,
+     so this is what tells a crawler — and a screen reader before the script
+     runs — that /th/… is Thai. */
+  const { lang } = useLang();
   return (
-    <div className="bg-[#F5F4F0] text-[#111] min-h-screen font-sans antialiased">
+    <div lang={lang} className="bg-[#F5F4F0] text-[#111] min-h-screen font-sans antialiased">
       <Navbar />
       {children}
       <Footer />

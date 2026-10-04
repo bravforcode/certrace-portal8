@@ -8,9 +8,11 @@ import {
   useMemo,
   useState,
 } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { CONTENT, type Content } from "./content";
+import { isLang, localePath, routeLang, splitLocale, type Lang } from "./locales";
 
-export type Lang = "en" | "th" | "vi" | "tr" | "hi";
+export type { Lang };
 
 const STORAGE_KEY = "certrace-lang";
 
@@ -26,12 +28,6 @@ export const LANG_OPTIONS: { code: Lang; short: string; label: string }[] = [
   { code: "tr", short: "TR", label: "Türkçe" },
   { code: "hi", short: "HI", label: "हिन्दी" },
 ];
-
-const LANG_CODES = LANG_OPTIONS.map((o) => o.code);
-
-function isLang(value: string | null): value is Lang {
-  return !!value && (LANG_CODES as string[]).includes(value);
-}
 
 /* Locales for anything the platform formats rather than the dictionary: so far
    the booking calendar's weekday and month names. Kept beside the language
@@ -79,25 +75,56 @@ const LangContext = createContext<LangContextValue | null>(null);
    the Thai cut (see `html[lang="th"]` in globals.css) — so the font swap and
    the copy swap can never drift apart.
 
-   The first render is always English, matching the server-rendered HTML; the
-   stored preference is applied in an effect. Reading localStorage during
-   render would produce a hydration mismatch on every Thai visitor. */
+   TWO KINDS OF PAGE. On the per-language sections (lib/locales.ts) the URL is
+   the language: `/th/about-cbam/…` renders Thai on the server, which is the
+   whole point — it is the only pass a crawler reads. Everywhere else the
+   reader's stored choice applies, and the first render is English to match
+   the server HTML; the stored preference is applied in an effect, because
+   reading localStorage during render would mismatch hydration for every Thai
+   visitor.
+
+   The two stay in step. Opening a Thai address records Thai as the choice, so
+   the pricing page the reader clicks through to next is Thai too; opening an
+   English address in those sections with another language stored moves to
+   that language's address, so a reader is never shown Thai on a URL that
+   tells a crawler it is English. A crawler stores nothing and is never
+   moved. Switching language on a per-language page navigates to the other
+   version rather than re-rendering this one. */
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  const [lang, setLangState] = useState<Lang>("en");
+  const pathname = usePathname();
+  const router = useRouter();
+  const fromUrl = routeLang(pathname);
+  const [chosen, setChosen] = useState<Lang>("en");
+  const lang = fromUrl ?? chosen;
 
   useEffect(() => {
     const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (isLang(stored)) setLangState(stored);
-  }, []);
+    if (fromUrl && fromUrl !== "en") {
+      if (stored !== fromUrl) window.localStorage.setItem(STORAGE_KEY, fromUrl);
+      setChosen(fromUrl);
+      return;
+    }
+    if (!isLang(stored)) return;
+    setChosen(stored);
+    if (fromUrl === "en" && stored !== "en") {
+      router.replace(localePath(stored, splitLocale(pathname).path) + window.location.hash);
+    }
+  }, [fromUrl, pathname, router]);
 
   useEffect(() => {
     document.documentElement.lang = lang;
   }, [lang]);
 
-  const setLang = useCallback((next: Lang) => {
-    setLangState(next);
-    window.localStorage.setItem(STORAGE_KEY, next);
-  }, []);
+  const setLang = useCallback(
+    (next: Lang) => {
+      setChosen(next);
+      window.localStorage.setItem(STORAGE_KEY, next);
+      if (fromUrl && next !== fromUrl) {
+        router.push(localePath(next, splitLocale(pathname).path) + window.location.hash);
+      }
+    },
+    [fromUrl, pathname, router],
+  );
 
   const value = useMemo(
     () => ({ lang, setLang, c: CONTENT[lang] }),

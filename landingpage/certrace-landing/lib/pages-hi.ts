@@ -5,7 +5,7 @@ import type { PageCopy } from "./pages";
 export const PAGES_HI: PageCopy = {
   nav: {
     aboutCbam: "CBAM के बारे में",
-    aboutCbamDesc: "नियम, लागत और प्रमाण पर बारह गाइड।",
+    aboutCbamDesc: "नियम, लागत और प्रमाण पर पंद्रह गाइड।",
     events: "आयोजन",
     eventsDesc: "हमें कहाँ मिलिए — प्रदर्शनियाँ, सम्मेलन और सेमिनार।",
     updates: "अपडेट",

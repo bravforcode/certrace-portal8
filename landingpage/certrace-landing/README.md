@@ -54,6 +54,14 @@ What the code already does, on every build:
 
 - **`app/sitemap.ts` → `/sitemap.xml`** — all 14 static routes plus every CBAM
   guide, event and update, each with the date its own content was last touched.
+- **One URL per language for the guides and updates** (`lib/locales.ts`) —
+  `/about-cbam` and `/updates` and everything under them are also served at
+  `/th/…`, `/vi/…`, `/tr/…` and `/hi/…` (`app/[lang]`), rendered on the server
+  in that language. English keeps the bare addresses. Each version has its own
+  canonical, names the others with hreflang (in the `<head>` and the sitemap),
+  and sends `Content-Language`. Every other page is still one URL whose
+  language is the reader's stored choice. Titles and descriptions come from
+  `lib/localized-meta.ts`, shared by the English and prefixed routes.
 - **`app/robots.ts` → `/robots.txt`** — open to everything, answer engines
   included. See the caveat below: Cloudflare can add rules of its own on top.
 - **Canonicals** — one per route, absolute, resolved from `metadataBase` in

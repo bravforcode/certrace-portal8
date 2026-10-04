@@ -10,6 +10,7 @@ import { updateBySlug } from "@/lib/updates";
 import { formatDate } from "@/lib/format-date";
 import { useLang } from "@/lib/i18n";
 import { usePages } from "@/lib/i18n-pages";
+import { localePath } from "@/lib/locales";
 
 export default function UpdateDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
@@ -24,7 +25,7 @@ export default function UpdateDetailPage({ params }: { params: Promise<{ slug: s
       <PageShell>
         <section className="px-6 pt-40 pb-32 md:px-12 lg:px-20">
           <div className="mx-auto max-w-3xl">
-            <BackLink href="/updates" label={u.backToUpdates} />
+            <BackLink href={localePath(lang, "/updates")} label={u.backToUpdates} />
             <h1 className="mt-6 text-3xl font-light tracking-tight">{u.notFound}</h1>
           </div>
         </section>
@@ -37,7 +38,7 @@ export default function UpdateDetailPage({ params }: { params: Promise<{ slug: s
       <article>
         <section className="px-6 pt-32 pb-10 md:px-12 md:pt-40 lg:px-20">
           <div className="mx-auto max-w-3xl">
-            <BackLink href="/updates" label={u.backToUpdates} />
+            <BackLink href={localePath(lang, "/updates")} label={u.backToUpdates} />
             <div className="mt-6 flex items-center gap-3 font-pixel text-[10px] uppercase tracking-[0.16em] text-black/30">
               <span className="rounded-full bg-black/[0.04] px-2.5 py-1">{t.kindLabel}</span>
               <span>{formatDate(post.date, lang)}</span>

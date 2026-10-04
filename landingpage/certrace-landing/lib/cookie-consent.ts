@@ -1,4 +1,4 @@
-import type { Lang } from "./i18n";
+import type { Lang } from "./locales";
 
 /* ════════════════════════════════════════════════════════════
    COOKIE CONSENT — the choice, where it is kept, and its copy

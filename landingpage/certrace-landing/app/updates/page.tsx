@@ -10,6 +10,7 @@ import { UPDATES_SORTED } from "@/lib/updates";
 import { formatDate } from "@/lib/format-date";
 import { useLang } from "@/lib/i18n";
 import { usePages } from "@/lib/i18n-pages";
+import { localePath } from "@/lib/locales";
 
 export default function UpdatesPage() {
   const { lang } = useLang();
@@ -45,7 +46,7 @@ export default function UpdatesPage() {
                 return (
                   <a
                     key={post.slug}
-                    href={`/updates/${post.slug}`}
+                    href={localePath(lang, `/updates/${post.slug}`)}
                     className="group flex flex-col overflow-hidden rounded-2xl border border-black/[0.07] bg-white/70 transition-colors hover:border-black/20 hover:bg-white"
                   >
                     <div className="relative aspect-[16/10] w-full shrink-0 overflow-hidden bg-[#faf9f7]">

@@ -1,7 +1,7 @@
 import { buildHi } from "./content-hi";
 import { buildTr } from "./content-tr";
 import { buildVi } from "./content-vi";
-import type { Lang } from "./i18n";
+import type { Lang } from "./locales";
 
 /* Copy for the whole marketing site, in the five languages the site is
    published in: English, Thai, Vietnamese, Turkish and Hindi.
