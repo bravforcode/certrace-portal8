@@ -1057,7 +1057,10 @@ export function PageHeader({
         </h1>
         {lead && <p className="mt-3 max-w-xl text-sm leading-relaxed text-black/45">{lead}</p>}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+      {/* `max-w-full` on the action and on the button inside it: a long label
+          (Thai sets wide, and these are tracked capitals) otherwise keeps its
+          one-line width and runs off a 320px screen instead of wrapping. */}
+      {actions && <div className="flex flex-wrap items-center gap-2 [&>*]:max-w-full [&_button]:max-w-full">{actions}</div>}
     </div>
   );
 }

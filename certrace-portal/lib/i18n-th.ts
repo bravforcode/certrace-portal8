@@ -2963,8 +2963,8 @@ export const TH: Record<string, string> = {
     "สถานที่ของคุณเองคือสถานประกอบการที่ผู้ตรวจสอบจะใช้กำหนดขอบเขต ลงทะเบียนเพียงครั้งเดียว แล้วทุกพื้นที่ทำงานจะนำไปใช้ซ้ำ",
 
   /* ── Dashboard, suppliers, smart links, team, the new-workspace wizard and the monthly link ─────────────────────────────── */
-  "Everything that needs you, what it is worth avoiding, and where every product stands.":
-    "ทุกเรื่องที่ต้องการคุณ มูลค่าที่หลีกเลี่ยงได้ และสถานะของสินค้าแต่ละรายการ",
+  "What needs you today, and where each product stands.":
+    "สิ่งที่ต้องให้คุณจัดการวันนี้ และสถานะของสินค้าแต่ละรายการ",
   "A verification workspace is one installation × one good × one reporting year. Create the first one and this screen fills itself: what needs you, what verified data is worth against the EU default, and how close each product is to surviving a verifier.":
     "พื้นที่ทำงานตรวจสอบรับรองหนึ่งชุดคือ สถานประกอบการหนึ่งแห่ง × สินค้าหนึ่งรายการ × ปีรายงานหนึ่งปี เมื่อสร้างชุดแรก หน้านี้จะแสดงข้อมูลเอง ทั้งสิ่งที่ต้องการคุณ มูลค่าของข้อมูลที่ผ่านการตรวจสอบเมื่อเทียบกับค่า EU default และระยะห่างของสินค้าแต่ละรายการจากการผ่านการตรวจสอบ",
   "activity data":
@@ -5257,6 +5257,22 @@ export const TH: Record<string, string> = {
     "มูลค่าที่ได้",
   Recently:
     "ความเคลื่อนไหวล่าสุด",
+
+  /* ── Dashboard: the fold, and the short action queue ─────────────── */
+  "Show more detail":
+    "ดูรายละเอียดเพิ่มเติม",
+  "Show less detail":
+    "ซ่อนรายละเอียด",
+  "Suppliers, buyer readiness, costs and recent activity.":
+    "ซัพพลายเออร์ ความพร้อมส่งผู้ซื้อ ต้นทุน และความเคลื่อนไหวล่าสุด",
+  "Show all {count}":
+    "ดูทั้งหมด {count} รายการ",
+  "Show fewer":
+    "แสดงน้อยลง",
+
+  /* ── Workspace: the trail above the title (screen readers only) ─── */
+  Breadcrumb:
+    "เส้นทางนำทาง",
 
   /* ── Team: three roles, and the two you can hand out ─────────────── */
   "The three roles":

@@ -222,7 +222,7 @@ export default function WorkspaceMmdPage() {
         <Note tone="warn">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span className="max-w-3xl">{t(DRAFT_BANNER)}</span>
-            <span className="flex flex-none items-center gap-3">
+            <span className="flex flex-wrap items-center gap-3">
               <AutoSaveBadge status={autosave.status} savedAt={autosave.savedAt} />
               <Button size="sm" onClick={finalise}>
                 Finalise{latest ? ` as v${latest.n + 1}` : ""}
