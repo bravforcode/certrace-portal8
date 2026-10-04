@@ -13,7 +13,7 @@ export const CBAM_TR: CbamGuide = {
     eyebrow: "CBAM HAKKINDA",
     headline: "CBAM'in ihracatçıdan istediği\nher şey, açık açık.",
     intro:
-      "AB'nin Sınırda Karbon Düzenleme Mekanizması 1 Ocak 2026'da kesin dönemine geçti. Bu on üç rehber, CBAM'in artık ne istediğini, neye mal olduğunu ve AB dışı ihracatçının neyi kanıtlaması gerektiğini anlatıyor — beyanı sunan AB'li ithalatçı için değil, karbon verisini üreten ihracatçı için yazıldı.",
+      "AB'nin Sınırda Karbon Düzenleme Mekanizması 1 Ocak 2026'da kesin dönemine geçti. Bu on beş rehber, CBAM'in artık ne istediğini, neye mal olduğunu ve AB dışı ihracatçının neyi kanıtlaması gerektiğini anlatıyor — beyanı sunan AB'li ithalatçı için değil, karbon verisini üreten ihracatçı için yazıldı.",
     searchLabel: "Rehberlerde ara",
     searchPlaceholder: "CBAM rehberlerinde ara…",
     allTopics: "Tüm konular",
@@ -1138,6 +1138,242 @@ export const CBAM_TR: CbamGuide = {
         {
           q: "İhracatçının tedarikçilerinin Certrace için hesap açması ya da ücret ödemesi gerekir mi?",
           a: "Hayır. Her tedarikçi tek bir Smart Link alır — her cihazda Tayca veya İngilizce rehberli bir form, hesap ve ücret yok — ve yanıtları kaydedilir, böylece bir sonraki talep önceden doldurulur.",
+        },
+      ],
+    },
+
+    /* ═══════════════════════════════════════════════════ 14 */
+    "cbam-supplier-data-request": {
+      title: "Müşteri CBAM verisi istedi — bir tedarikçi ne yapmalı",
+      dek: "Talep geliyor, çünkü ihracatçının AB'li alıcısı ürüne giren her şeye gömülü emisyonların bedelini ödüyor — tedarikçinin malzemesi de dahil. Tedarikçinin AB'ye karşı bir yükümlülüğü yok, ama kanıtı olan gerçek rakamlarla yanıt vermek, ihracatçının — ve siparişin — pahalı bir varsayılan değer yerine gerçek değer kullanabilmesini sağlayan şeydir.",
+      metaTitle: "CBAM veri talebi mi aldınız? Tedarikçi rehberi: ne gönderilmeli ve neden (2026)",
+      metaDescription:
+        "Bir ihracatçı tedarikçisinden neden CBAM emisyon verisi istiyor, tedarikçinin yanıt vermesi zorunlu mu, tam olarak ne gönderilmeli, hangi kanıt saklanmalı ve rakamlar henüz yoksa ne yapılmalı.",
+      topic: "Veri",
+      keyFacts: [
+        { label: "Talep neden geliyor", value: "İhracatçı, gerçek değer beyan etmek için ön maddelerin gömülü emisyonlarına ihtiyaç duyar" },
+        { label: "Tedarikçinin yasal yükümlülüğü", value: "CBAM kapsamında yok — yükümlülük AB'li ithalatçıdadır" },
+        { label: "Ticari gerçek", value: "Tedarikçinin rakamı olmadan ürün AB varsayılan değerine düşebilir" },
+        { label: "Arkasındaki kural", value: "Varsayılan değerler, karmaşık bir malın ön maddelerden gelen gömülü emisyonlarının en fazla %20'sini karşılayabilir" },
+        { label: "Ne gönderilmeli", value: "Malzeme, miktar, ton başına gömülü emisyon, tesis, ülke, kanıt, doğrulama durumu" },
+        { label: "Ne gönderilmemeli", value: "Kimsenin ölçmediği bir rakam — akredite doğrulayıcı kabul etmez" },
+      ],
+      sections: [
+        {
+          h: "Talep neden tedarikçiye ulaştı",
+          p: [
+            "1 Ocak 2026'dan bu yana çelik, alüminyum ve diğer CBAM mallarını ithal eden AB'li ithalatçı, ithal edilen her tona gömülü emisyonlar için sertifika satın alıyor. Bu emisyonlar yalnızca ihracatçının kendi tesisinin saldıklarını değil, ihracatçının satın alıp kullandığı kapsamdaki malzemelere gömülü her şeyi içerir — çubuktaki kütük, borudaki rulo.",
+            "Bu malzemelere ön madde denir ve emisyon verileri tedarikçidedir. İhracatçı tedarikçinin fırınını ölçemez, bu yüzden sormak zorundadır. Çoğu çelik ve alüminyum üründe ön maddelerden devralınan kısım toplamın büyük kısmıdır; tedarikçi için yasal bir görev olmasa da ihracatçı için talebin neredeyse hiç isteğe bağlı olmamasının nedeni budur.",
+          ],
+        },
+        {
+          h: "Tedarikçi yanıt vermek zorunda mı?",
+          p: [
+            "CBAM'in kendisine göre hayır. Düzenleme, authorized CBAM declarant olması gereken AB'li ithalatçıyı bağlar; AB dışındaki bir tedarikçiye beyan yükümlülüğü getirmez ve bir tedarikçi asla sertifika satın almaz.",
+            "Baskı ticaridir ve serttir. Karmaşık bir mal için varsayılan değerler, ön maddelerden gelen toplam gömülü emisyonların en fazla %20'sini karşılayabilir. Büyük bir tedarikçi yanıt vermezse ihracatçı bu sınırı aşabilir ve o zaman AB varsayılan değerinin tamamı ürünün bütününe uygulanır — ihracatçının doğru ölçtüğü her şey dahil. Yanıt veren tedarikçi ihracatçının ürününü rekabetçi tutar; yanıt vermeyen tedarikçi bir sonraki siparişin yanıt verene gittiğini görebilir.",
+          ],
+          note: "Talebin sözleşmeye dönüşmesini bekleyin. Bu sitedeki rehberler, veri yükümlülüğünün satın alma siparişiyle birlikte ilerlemesi için ihracatçılara tedarik sözleşmelerine bir CBAM maddesi eklemelerini öneriyor. Yanıtı bir kez hazırlayan tedarikçi, o madde geldiğinde hazırdır.",
+        },
+        {
+          h: "İhracatçı neler isteyecek",
+          p: [
+            "Kullanılabilir bir ön madde kaydı yapılandırılmış veridir, bir cümle değil. \"Kendi tesisimizden kütük\" çarpılamaz, kontrol edilemez; ihracatçının ihtiyacı şunlardır:",
+          ],
+          list: [
+            "Hangi malzeme olduğu — tanımlı bir ürün olarak, tercihen CN koduyla",
+            "Dönem içinde teslim edilen miktar, ton olarak",
+            "Ton başına tCO₂e cinsinden gömülü emisyonu ve bu rakamın gerçek değer mi varsayılan değer mi olduğu",
+            "Onu üreten tesis ve ülke",
+            "Üretim rotası — çelik için örneğin elektrik ark ocağı (EAF) ya da yüksek fırın (BF-BOF) rotası",
+            "Rakamın doğrulanıp doğrulanmadığı ve kim tarafından",
+          ],
+        },
+        {
+          h: "Rakamın arkasında saklanması gereken kanıt",
+          p: [
+            "CBAM'de gerçek değerler ancak akredite bir doğrulayıcı kontrol ettikten sonra sayılır ve doğrulayıcı güvenceleri değil kanıtı kontrol eder. İhracatçının rakamını doğrulayan kişi, tedarikçinin rakamının arkasında ne olduğunu sorabilir. Ay ay saklayın:",
+          ],
+          list: [
+            "Miktar ve ısıl değerleriyle yakıt faturaları",
+            "Gaz, buhar ve diğer enerji girdilerinin sayaç okumaları",
+            "Elektrik faturaları",
+            "Karbon içeriğinin önemli olduğu malzemelerin laboratuvar analizleri",
+            "Üretim kayıtları — ürün ve ay bazında üretilen tonlar",
+            "Malzeme test sertifikaları (mill test certificate) veya eşdeğer ürün belgeleri",
+          ],
+          note: "Kanıt üretildiği anda toplanmalıdır. Mart ayının sayaç okuması ya Mart'ta vardır ya da hiç yoktur ve sonradan hafızadan yeniden kurulan bir rakam, bir doğrulayıcının imzalayacağı bir rakam değildir.",
+        },
+        {
+          h: "Rakamlar henüz yoksa",
+          p: [
+            "Pek çok tedarikçi daha önce hiç emisyon rakamı hesaplamadı ve bu sessiz kalmak için bir neden değil. İhracatçıya bugün neyin var olduğunu söyleyin ve bir sonraki yanıtın bundan daha iyi olması için aylık izlemeye şimdi başlayın.",
+            "Bir tedarikçinin asla yapmaması gereken şey bir rakam uydurmak ya da malzemesini olmadığı bir şey olarak tanımlamaktır. Uydurulmuş bir rakam doğrulamada kalır ve CBAM'den kaçmak için malları yanlış beyan etmek, hem ithalatçı hem ihracatçı için ödenmesi gereken tutarın beş katına kadar cezası olan bir kaçınma olarak değerlendirilir. Dürüst bir \"henüz yok\" yanıtı, ihracatçının o malzeme için %20 sınırı içinde varsayılan değer kullanıp kullanamayacağına karar vermesini sağlar.",
+          ],
+        },
+        {
+          h: "İşi ifşa etmeden veri paylaşmak",
+          p: [
+            "Sık rastlanan bir endişe, yanıt vermenin fiyatları ya da süreçleri müşteriye açacağıdır. Bir CBAM kaydı emisyonlara, miktarlara ve emisyonların kanıtına ihtiyaç duyar — fiyatlara, marjlara ya da müşteri listelerine değil. İhracatçıya veriyi kimin ve ne için göreceğini sorun; makul yanıt ihracatçının ekibi, doğrulayıcısı ve toplu biçimde AB'li ithalatçının declarant'ıdır.",
+            "Talep Certrace üzerinden geldiğinde, yalnızca o tedarikçiye özel bir Smart Link olarak gelir: tedarikçi yalnızca kendi formunu görür, diğer tedarikçiler yanıtlarını asla görmez ve her işlem kayda geçer.",
+          ],
+        },
+        {
+          h: "Smart Link üzerinden yanıt vermek",
+          list: [
+            "Tek bir bağlantı; her cihazda açılır, hesap açmak gerekmez, ücret yoktur",
+            "Tayca veya İngilizce, yalnızca ürünün gerektirdiğini soran rehberli bir form",
+            "Yanıtlar bir profile kaydedilir; gelecek ayın talebi — ya da başka bir ihracatçınınki — önceden doldurulmuş gelir",
+            "Eksik alanlar, yanlış birimler ve imkânsız rakamlar, ihracatçı sorularla geri dönmeden önce, gönderim anında işaretlenir",
+          ],
+          p: [
+            "En çok emek ilk yanıttadır. Sonrasında profili güncel tutmak, her müşteriden yeni bir anket yerine her dönem birkaç dakika sürer.",
+          ],
+        },
+      ],
+      faq: [
+        {
+          q: "Bir tedarikçi müşterisine CBAM verisi vermek zorunda mı?",
+          a: "Yalnızca AB'li ithalatçıyı bağlayan CBAM mevzuatına göre hayır. Ticari olarak çoğu zaman evet: tedarikçinin rakamı olmadan ihracatçının ürünü ön maddeler için %20 varsayılan değer sınırını aşabilir ve tamamen AB varsayılan değerine düşebilir.",
+        },
+        {
+          q: "Tedarikçi CBAM sertifikaları için ödeme yapmak zorunda kalacak mı?",
+          a: "Hayır. Sertifikaları yalnızca authorized CBAM declarant olarak AB'li ithalatçı satın alır ve teslim eder. Maliyet fiyatlar ve sözleşmeler yoluyla tedarik zincirine yansıyabilir, ama hiçbir tedarikçi kendisi sertifika satın almaz.",
+        },
+        {
+          q: "Emisyonlarını hiç ölçmemiş bir tedarikçi ne göndermeli?",
+          a: "Elindeki bilgileri — malzeme, miktarlar, tesis, üretim rotası — ve henüz ölçülmüş bir emisyon rakamı olmadığını açıkça belirten bir ifade. Asla ölçüm diye sunulan bir tahmin değil. Ardından aylık izlemeye başlamalı.",
+        },
+        {
+          q: "Tedarikçinin rakamının doğrulanması gerekir mi?",
+          a: "Gerçek değer ancak akredite bir doğrulayıcı kontrol ettikten sonra sayılır; bu yüzden ihracatçının rakamı üzerinde çalışan doğrulayıcının, tedarikçinin rakamının arkasındaki kanıtı ya da tedarikçinin tesisinin kendi doğrulaması olup olmadığını sormasını bekleyin.",
+        },
+        {
+          q: "Bir Certrace talebine yanıt vermek için tedarikçinin hesabı olması gerekir mi?",
+          a: "Hayır. Smart Link, her cihazda Tayca veya İngilizce rehberli bir form açar; hesap ve ücret yoktur ve yanıtlar kaydedilir, böylece sonraki talepler önceden doldurulmuş gelir.",
+        },
+      ],
+    },
+
+    /* ═══════════════════════════════════════════════════ 15 */
+    "how-to-calculate-cbam-emissions": {
+      title: "CBAM gömülü emisyonları adım adım nasıl hesaplanır",
+      dek: "Ton başına özgül gömülü emisyon = (malın üretimine atfedilen emisyonlar + tüketilen her ön maddeye gömülü emisyonlar) ÷ üretilen ton. Beş adım, ihracatçıyı sayaç okumalarından akredite bir doğrulayıcının imzalayabileceği bir rakama götürür.",
+      metaTitle: "CBAM emisyonları nasıl hesaplanır: adım adım SEE, örnekle (2026)",
+      metaDescription:
+        "İhracatçılar için CBAM gömülü emisyon hesabının uygulamalı anlatımı — sistem sınırı, doğrudan ve dolaylı emisyonlar, ön maddeler ve %20 kuralı, üretime bölme — örnek hesap ve doğrulamadan önce yapılacak kontrollerle.",
+      topic: "Veri",
+      keyFacts: [
+        { label: "Ne hesaplanır", value: "Özgül gömülü emisyon (SEE), malın tonu başına tCO₂e" },
+        { label: "Basit mal", value: "Atfedilen emisyonlar ÷ üretilen ton" },
+        { label: "Karmaşık mal", value: "(Atfedilen emisyonlar + ön maddelere gömülü emisyonlar) ÷ üretilen ton" },
+        { label: "Doğrudan emisyonlar", value: "Sistem sınırı içindeki yakıtlar ve prosesler (Kapsam 1)" },
+        { label: "Dolaylı emisyonlar", value: "Tüketilen elektrik (Kapsam 2) — beyan edilen rakama yalnızca bazı mallarda dahil" },
+        { label: "Ön maddeler için varsayılan sınırı", value: "Toplam gömülü emisyonların %20'si" },
+        { label: "Gerçek değer olduğu an", value: "Yalnızca akredite bir doğrulayıcı doğruladığında" },
+      ],
+      sections: [
+        {
+          h: "Bu rakam nedir",
+          p: [
+            "CBAM bir ton malı özgül gömülü emisyonuna — SEE — göre fiyatlar: o maldan bir ton üretmek için salınan ton CO₂ eşdeğeri. Mal, üretim rotası ve tesis bazında, raporlama dönemi boyunca toplanan verilerden hesaplanır.",
+            "Aritmetik kısadır. Emek, altındaki kararlar ve kayıtlardadır; bu yüzden aşağıdaki adımlar formülden daha önemlidir.",
+          ],
+          note: "Basit mal: SEE = atfedilen emisyonlar ÷ üretim. Karmaşık mal: SEE = (atfedilen emisyonlar + Σ ön madde kütlesi × ön madde SEE'si) ÷ üretim.",
+        },
+        {
+          h: "Adım 1 — Sistem sınırını çizin",
+          p: [
+            "Hangi proseslerin malın üretimine ait olduğuna karar verin. Sınır o malın üretim prosesidir — tesisin tamamı değil, şirketin tamamı hiç değil. İki üretim rotası işleten ya da aynı ekipmanda kapsam içi ve dışı mallar üreten bir tesis, hangi girdilerin ve emisyonların hangi mala ait olduğunu belirtmek zorundadır.",
+          ],
+          list: [
+            "Fiilen işletilen üretim rotasını adlandırın ve tesisle uyumlu tutun — uyumsuzluk, bir doğrulayıcının ilk kontrol ettiği şeylerden biridir",
+            "Sınırı geçen her yakıtı, malzemeyi ve enerji girdisini listeleyin",
+            "Paylaşılan altyapı varsa, ürünler arasında nasıl bölündüğünü kaydedin ve bölüşümü aydan aya tutarlı tutun",
+          ],
+        },
+        {
+          h: "Adım 2 — Doğrudan emisyonlar",
+          p: [
+            "Doğrudan emisyonlar prosesin sahada saldıklarıdır: yakılan yakıtlar ve karbonatlar ya da karbon içeren indirgeyiciler gibi malzemelerden kaynaklanan proses emisyonları. Çoğu tesis ölçmek yerine hesaplar — her yakıtın ya da malzemenin miktarı, ısıl değeri ve emisyon faktörüyle çarpılır. Sürekli emisyon izleme sistemi olan bir tesis bunun yerine bacada ölçebilir.",
+            "Bu hesaptaki her rakamın arkasında bir kaynak belge olmalıdır: miktar ve ısıl değerli yakıt faturaları, sayaç okumaları ve karbon içeriğinin değiştiği durumlarda laboratuvar analizleri.",
+          ],
+        },
+        {
+          h: "Adım 3 — Dolaylı emisyonlar",
+          p: [
+            "Dolaylı emisyonlar prosesin tükettiği elektrikten gelir: kullanılan megavatsaat, o elektriğin emisyon faktörüyle çarpılır.",
+            "Beyan edilen rakama dahil olup olmadıkları mala bağlıdır. Regulation (EU) 2023/956'nın Ek II'si yalnızca doğrudan emisyonların dikkate alındığı malları listeler — demir ve çelik, alüminyum ve hidrojen bunların arasındadır; çimento ve gübre gibi mallarda dolaylı emisyonlar da sayılır. Her iki durumda da elektriği izleyin: fatura doğrulayıcının görmeyi beklediği bir kanıttır, AB varsayılan tabloları dolaylı değerler içerir ve 2027'de başlayan UK CBAM doğrudan ve dolaylı emisyonları sayar.",
+          ],
+        },
+        {
+          h: "Adım 4 — Ön maddeleri ekleyin",
+          p: [
+            "Karmaşık bir mal için, tüketilen her kapsam içi ön maddeye gömülü emisyonları ekleyin: o ön maddeden kullanılan ton, kendi SEE'siyle çarpılır. Bu rakam tedarikçiden gelir — tedarikçi kanıtlayabiliyorsa gerçek değer, değilse varsayılan değer.",
+            "Ardından %20 kuralını kontrol edin. Varsayılan değerler, malın ön maddelerden gelen toplam gömülü emisyonlarının en fazla %20'sini karşılayabilir. Bu sınırı aşarsanız beyan kriteri karşılamaz: varsayılan değerin tamamı, doğru ölçülen kısımlar dahil ürünün bütününe uygulanır.",
+          ],
+        },
+        {
+          h: "Adım 5 — Üretime bölün",
+          p: [
+            "Toplamı, aynı sınır içinde ve aynı dönemde üretilen malın tonuna bölün. Üretim rakamının kendi kanıtı olmalıdır — ürün ve ay bazında üretim kayıtları — ve böldüğü emisyonlarla aynı sınırı kullanmalıdır; aksi halde sonuç anlamsızdır.",
+          ],
+        },
+        {
+          h: "Örnek bir hesap",
+          p: [
+            "Varsayımsal bir çelik boru hattı, bir ay boyunca. Rakamlar aritmetiği göstermek için seçilmiş örneklerdir — gerçek bir tesisten ya da bir AB tablosundan alınmamıştır.",
+          ],
+          table: {
+            head: ["Girdi", "Miktar", "Emisyon"],
+            rows: [
+              ["Üretilen borular (mal)", "1.000 t", "—"],
+              ["Tav fırını için doğal gaz (doğrudan)", "Yakıt faturalarından", "120 tCO₂"],
+              ["Elektrik (dolaylı)", "400 MWh", "İzleniyor; demir-çelik için eklenmiyor"],
+              ["Sıcak haddelenmiş rulo (ön madde)", "1.050 t × 1,8 tCO₂e/t", "1.890 tCO₂e"],
+              ["Toplam gömülü emisyon", "", "2.010 tCO₂e"],
+              ["Borunun SEE'si", "2.010 ÷ 1.000", "2,01 tCO₂e/t"],
+            ],
+          },
+          note: "Ön madde toplamın %94'ü. Rulo tedarikçisi rakam göndermeseydi, varsayılan değerin ön maddelerden gelen gömülü emisyonların %94'ünü karşılaması gerekirdi — %20 sınırının çok ötesinde — ve borunun tamamı AB varsayılan değerine düşerdi. Tesisin kendi 120 tonu, ne kadar iyi ölçülmüş olursa olsun, onu kurtaramazdı. Tedarikçi verisinin önce gelmesinin nedeni budur.",
+        },
+        {
+          h: "Sonucu doğrulayıcıdan önce kontrol edin",
+          list: [
+            "Birimler: kilogram ile ton, kilovatsaat ile megavatsaat, tedarikçi verilerindeki en yaygın hatalardır",
+            "Sınır: üretim rakamı ve emisyonlar aynı sınırı ve aynı dönemi kullanır",
+            "Ön madde payı: varsayılanların karşıladığı kısım %20'nin altında ve pay bırakılmış",
+            "Karşılaştırma: sonucu aynı CN kodu için AB varsayılanının yanına koyun — çok üzerindeki bir rakam ikinci bir bakışı hak eder, çok altındakinin kanıtı hazır olmalı",
+            "Kanıt: hesaptaki her girdi, bir doğrulayıcının açabileceği bir belgeye işaret eder",
+            "Tutarlılık: aydan aya dalgalanmaların açıklanabilir bir nedeni vardır",
+          ],
+        },
+        {
+          h: "Certrace nerede devreye girer",
+          p: [
+            "Certrace bu hesabı ihracatçı için kesin dönem kurallarına göre yapar; %20 varsayılan sınırı yerleşiktir ve her rakama bir hesap izi eklenir. Tedarikçi girdileri Smart Link'lerle toplanır ve geldiği anda kontrol edilir; böylece bir birim hatası doğrulamada değil gönderimde yakalanır. Bugünkü kapsam demir, çelik ve alüminyumdur.",
+          ],
+        },
+      ],
+      faq: [
+        {
+          q: "CBAM'de SEE nedir?",
+          a: "Özgül gömülü emisyon (Specific Embedded Emissions): bir ton mal üretmek için salınan ton CO₂ eşdeğeri; karmaşık bir malda tüketilen ön maddelere gömülü emisyonlar da dahil.",
+        },
+        {
+          q: "Demir ve çelik dolaylı emisyonları içerir mi?",
+          a: "Beyan edilen rakamda hayır. Regulation (EU) 2023/956'nın Ek II'si demir ve çeliği, alüminyumu ve hidrojeni yalnızca doğrudan emisyonların dikkate alındığı mallar arasında sayar. Elektrik yine de izlenmeli ve kanıtlanmalıdır.",
+        },
+        {
+          q: "Veri ne sıklıkla toplanmalı?",
+          a: "Her ay, üretildiği anda. Kanıt sonradan yeniden kurulamaz ve 2027'den itibaren AB'li ithalatçılar sertifika bulundurma kontrollerini karşılamak için üç aylık ritimde rakamlara ihtiyaç duyar.",
+        },
+        {
+          q: "Bir ön madde için varsayılan değer kullanılabilir mi?",
+          a: "Evet, varsayılanlar malın ön maddelerden gelen toplam gömülü emisyonlarının %20'sinden fazlasını karşılamadığı sürece. Bunun üzerinde varsayılan değerin tamamı ürünün bütününe uygulanır.",
+        },
+        {
+          q: "Doğru bir hesap gerçek değer sayılmak için yeterli mi?",
+          a: "Hayır. Bir rakam ancak akredite bir doğrulayıcı doğruladığında gerçek değer olur. O zamana kadar rakam yokmuş gibi işlem görür ve AB varsayılanı uygulanır.",
         },
       ],
     },

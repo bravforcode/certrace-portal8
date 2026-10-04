@@ -11,7 +11,7 @@ export const CBAM_VI: CbamGuide = {
     eyebrow: "VỀ CBAM",
     headline: "Mọi điều CBAM đòi hỏi\nở nhà xuất khẩu, giải thích rõ.",
     intro:
-      "Cơ chế điều chỉnh biên giới carbon của EU bước vào giai đoạn chính thức từ ngày 1 tháng 1 năm 2026. Mười ba hướng dẫn này nói rõ CBAM hiện yêu cầu gì, tốn bao nhiêu, và nhà xuất khẩu ngoài EU phải chứng minh những gì — viết cho nhà xuất khẩu là người tạo ra dữ liệu carbon, không phải nhà nhập khẩu EU là người nộp tờ khai.",
+      "Cơ chế điều chỉnh biên giới carbon của EU bước vào giai đoạn chính thức từ ngày 1 tháng 1 năm 2026. Mười lăm hướng dẫn này nói rõ CBAM hiện yêu cầu gì, tốn bao nhiêu, và nhà xuất khẩu ngoài EU phải chứng minh những gì — viết cho nhà xuất khẩu là người tạo ra dữ liệu carbon, không phải nhà nhập khẩu EU là người nộp tờ khai.",
     searchLabel: "Tìm trong hướng dẫn",
     searchPlaceholder: "Tìm hướng dẫn CBAM…",
     allTopics: "Tất cả chủ đề",
@@ -1136,6 +1136,242 @@ export const CBAM_VI: CbamGuide = {
         {
           q: "Nhà cung cấp của nhà xuất khẩu có cần tài khoản hay trả phí không?",
           a: "Không. Mỗi nhà cung cấp nhận một Smart Link — biểu mẫu có hướng dẫn bằng tiếng Thái hoặc tiếng Anh trên mọi thiết bị, không cần tài khoản, không mất phí — và câu trả lời được lưu để lần yêu cầu sau được điền sẵn.",
+        },
+      ],
+    },
+
+    /* ═══════════════════════════════════════════════════ 14 */
+    "cbam-supplier-data-request": {
+      title: "Khách hàng yêu cầu dữ liệu CBAM — nhà cung cấp nên làm gì",
+      dek: "Yêu cầu này đến vì người mua EU của nhà xuất khẩu phải trả cho lượng phát thải hàm chứa trong mọi thứ làm nên sản phẩm, kể cả nguyên liệu của nhà cung cấp. Nhà cung cấp không có nghĩa vụ gì với EU, nhưng trả lời bằng con số thật có bằng chứng là điều giúp nhà xuất khẩu — và đơn hàng — dùng được giá trị thực thay vì giá trị mặc định đắt đỏ.",
+      metaTitle: "Nhận yêu cầu dữ liệu CBAM? Hướng dẫn cho nhà cung cấp: gửi gì và vì sao (2026)",
+      metaDescription:
+        "Vì sao nhà xuất khẩu yêu cầu nhà cung cấp dữ liệu phát thải CBAM, nhà cung cấp có buộc phải trả lời không, cần gửi chính xác những gì, giữ bằng chứng nào, và làm gì khi chưa có số liệu.",
+      topic: "Dữ liệu",
+      keyFacts: [
+        { label: "Vì sao có yêu cầu", value: "Nhà xuất khẩu cần phát thải hàm chứa của tiền chất để khai giá trị thực" },
+        { label: "Nghĩa vụ pháp lý của nhà cung cấp", value: "Không có theo CBAM — nghĩa vụ thuộc về nhà nhập khẩu EU" },
+        { label: "Thực tế thương mại", value: "Thiếu số liệu của nhà cung cấp, sản phẩm có thể phải quay về giá trị mặc định EU" },
+        { label: "Quy tắc phía sau", value: "Giá trị mặc định chỉ được chiếm tối đa 20% phát thải hàm chứa từ tiền chất của hàng hoá phức hợp" },
+        { label: "Cần gửi gì", value: "Loại nguyên liệu, khối lượng, phát thải hàm chứa mỗi tấn, cơ sở sản xuất, quốc gia, bằng chứng, tình trạng kiểm chứng" },
+        { label: "Không được gửi gì", value: "Một con số không ai đo — kiểm chứng viên được công nhận sẽ không chấp nhận" },
+      ],
+      sections: [
+        {
+          h: "Vì sao yêu cầu đến tay nhà cung cấp",
+          p: [
+            "Từ ngày 1/1/2026, nhà nhập khẩu EU mua thép, nhôm và các hàng CBAM khác phải mua chứng chỉ cho lượng phát thải hàm chứa trong từng tấn nhập. Lượng phát thải đó không chỉ là phần nhà máy của nhà xuất khẩu tự thải ra, mà gồm mọi thứ hàm chứa trong nguyên liệu thuộc phạm vi mà nhà xuất khẩu mua về sử dụng — phôi trong thép thanh, cuộn trong ống thép.",
+            "Những nguyên liệu đó gọi là tiền chất, và dữ liệu phát thải của chúng nằm ở nhà cung cấp. Nhà xuất khẩu không thể đo lò của nhà cung cấp, nên phải hỏi. Với phần lớn sản phẩm thép và nhôm, phần thừa hưởng từ tiền chất là phần lớn của tổng số — vì vậy nhà xuất khẩu gần như không có lựa chọn nào khác ngoài hỏi, dù đây không phải nghĩa vụ pháp lý của nhà cung cấp.",
+          ],
+        },
+        {
+          h: "Nhà cung cấp có buộc phải trả lời không?",
+          p: [
+            "Không theo chính quy định CBAM. Quy định ràng buộc nhà nhập khẩu EU, người phải là authorized CBAM declarant; nó không đặt nghĩa vụ khai báo nào cho nhà cung cấp ngoài EU, và nhà cung cấp không bao giờ phải mua chứng chỉ.",
+            "Áp lực đến từ thương mại, và khá lớn. Với hàng hoá phức hợp, giá trị mặc định chỉ được chiếm tối đa 20% tổng phát thải hàm chứa từ tiền chất. Nếu một nhà cung cấp lớn không trả lời, nhà xuất khẩu có thể vượt ngưỡng đó, và khi ấy toàn bộ giá trị mặc định EU áp cho cả sản phẩm — kể cả phần nhà xuất khẩu đã đo đúng. Nhà cung cấp trả lời giúp sản phẩm của nhà xuất khẩu cạnh tranh được; nhà cung cấp không trả lời có thể thấy đơn hàng tiếp theo về tay bên đã trả lời.",
+          ],
+          note: "Hãy chờ yêu cầu này trở thành điều khoản hợp đồng. Các hướng dẫn trên trang này khuyên nhà xuất khẩu đưa điều khoản CBAM vào hợp đồng cung ứng để nghĩa vụ dữ liệu đi theo đơn đặt hàng. Nhà cung cấp chuẩn bị câu trả lời một lần sẽ sẵn sàng khi điều khoản đó đến.",
+        },
+        {
+          h: "Nhà xuất khẩu sẽ hỏi những gì",
+          p: [
+            "Một bản ghi tiền chất dùng được là dữ liệu có cấu trúc, không phải một câu mô tả. \"Phôi từ nhà máy chúng tôi\" không nhân được, không kiểm tra được; nhà xuất khẩu cần:",
+          ],
+          list: [
+            "Nguyên liệu gì — là một sản phẩm xác định, tốt nhất kèm CN Code",
+            "Khối lượng giao trong kỳ, tính bằng tấn",
+            "Phát thải hàm chứa tính bằng tCO₂e mỗi tấn, và đó là giá trị thực hay giá trị mặc định",
+            "Cơ sở sản xuất ra nó, và quốc gia",
+            "Lộ trình sản xuất — với thép, ví dụ lò hồ quang điện (EAF) hay lò cao (BF-BOF)",
+            "Con số đó đã được kiểm chứng chưa, và bởi ai",
+          ],
+        },
+        {
+          h: "Bằng chứng cần giữ phía sau con số",
+          p: [
+            "Giá trị thực trong CBAM chỉ được tính khi kiểm chứng viên được công nhận đã kiểm tra, và kiểm chứng viên kiểm tra bằng chứng chứ không phải lời cam kết. Người kiểm chứng con số của nhà xuất khẩu có thể hỏi điều gì nằm sau con số của nhà cung cấp. Hãy giữ, theo từng tháng:",
+          ],
+          list: [
+            "Hoá đơn nhiên liệu, kèm khối lượng và nhiệt trị",
+            "Chỉ số đồng hồ khí, hơi và các đầu vào năng lượng khác",
+            "Hoá đơn tiền điện",
+            "Kết quả phân tích phòng thí nghiệm của nguyên liệu khi hàm lượng carbon có ảnh hưởng",
+            "Hồ sơ sản xuất — số tấn sản xuất theo sản phẩm và theo tháng",
+            "Chứng chỉ chất lượng xuất xưởng (mill test certificate) hoặc tài liệu tương đương",
+          ],
+          note: "Bằng chứng phải được thu thập ngay khi phát sinh. Chỉ số đồng hồ tháng 3 tồn tại vào tháng 3 hoặc không bao giờ, và một con số dựng lại sau từ trí nhớ không phải con số kiểm chứng viên sẽ ký.",
+        },
+        {
+          h: "Nếu chưa có số liệu",
+          p: [
+            "Nhiều nhà cung cấp chưa từng tính một con số phát thải, và đó không phải lý do để im lặng. Hãy cho nhà xuất khẩu biết hôm nay đang có gì, và bắt đầu giám sát hằng tháng ngay để lần trả lời sau tốt hơn lần này.",
+            "Điều nhà cung cấp tuyệt đối không được làm là bịa ra con số, hoặc mô tả nguyên liệu thành thứ nó không phải. Con số bịa sẽ trượt khi kiểm chứng, và khai sai hàng hoá để né CBAM bị coi là lách luật, với mức phạt tới năm lần số phải nộp cho cả nhà nhập khẩu lẫn nhà xuất khẩu. Một câu trả lời thẳng thắn \"chúng tôi chưa có\" giúp nhà xuất khẩu quyết định liệu có thể dùng giá trị mặc định cho nguyên liệu đó trong ngưỡng 20% hay không.",
+          ],
+        },
+        {
+          h: "Chia sẻ dữ liệu mà không để lộ chuyện kinh doanh",
+          p: [
+            "Một nỗi lo thường gặp là trả lời sẽ để lộ giá hay quy trình cho khách hàng. Bản ghi CBAM cần phát thải, khối lượng và bằng chứng cho phát thải — không cần giá, biên lợi nhuận hay danh sách khách hàng. Hãy hỏi nhà xuất khẩu ai sẽ xem dữ liệu và để làm gì; câu trả lời hợp lý là đội ngũ của nhà xuất khẩu, kiểm chứng viên và, ở dạng tổng hợp, declarant của nhà nhập khẩu EU.",
+            "Khi yêu cầu đến qua Certrace, nó là một Smart Link chỉ dành riêng cho nhà cung cấp đó: nhà cung cấp chỉ thấy biểu mẫu của mình, các nhà cung cấp khác không thấy câu trả lời, và mọi thao tác đều được ghi lại.",
+          ],
+        },
+        {
+          h: "Trả lời qua Smart Link",
+          list: [
+            "Một đường link, mở trên mọi thiết bị, không cần tạo tài khoản, không mất phí",
+            "Biểu mẫu có hướng dẫn bằng tiếng Thái hoặc tiếng Anh, chỉ hỏi những gì sản phẩm cần",
+            "Câu trả lời được lưu thành hồ sơ, nên yêu cầu tháng sau — hay của nhà xuất khẩu khác — đến đã điền sẵn",
+            "Trường thiếu, sai đơn vị và số không thể có được cảnh báo ngay khi gửi, trước khi nhà xuất khẩu phải quay lại hỏi",
+          ],
+          p: [
+            "Lần trả lời đầu tốn công nhất. Sau đó, cập nhật hồ sơ chỉ mất vài phút mỗi kỳ thay vì một bảng câu hỏi mới từ từng khách hàng.",
+          ],
+        },
+      ],
+      faq: [
+        {
+          q: "Nhà cung cấp có phải cung cấp dữ liệu CBAM cho khách hàng không?",
+          a: "Không theo luật CBAM, vốn chỉ ràng buộc nhà nhập khẩu EU. Về thương mại thì thường là có: thiếu số liệu của nhà cung cấp, sản phẩm của nhà xuất khẩu có thể vượt ngưỡng 20% giá trị mặc định cho tiền chất và quay hẳn về giá trị mặc định EU.",
+        },
+        {
+          q: "Nhà cung cấp có phải trả tiền chứng chỉ CBAM không?",
+          a: "Không. Chỉ nhà nhập khẩu EU, với tư cách authorized CBAM declarant, mua và trả chứng chỉ. Chi phí có thể lan xuống chuỗi cung ứng qua giá và hợp đồng, nhưng không nhà cung cấp nào tự mua chứng chỉ.",
+        },
+        {
+          q: "Nhà cung cấp chưa từng đo phát thải thì nên gửi gì?",
+          a: "Những dữ kiện đang có — nguyên liệu, khối lượng, cơ sở sản xuất, lộ trình sản xuất — và nói rõ là chưa có con số phát thải đo thực. Không bao giờ gửi ước tính mà gọi là số đo. Sau đó bắt đầu giám sát hằng tháng.",
+        },
+        {
+          q: "Con số của nhà cung cấp có cần được kiểm chứng không?",
+          a: "Giá trị thực chỉ được tính khi kiểm chứng viên được công nhận đã kiểm tra, nên hãy chờ kiểm chứng viên làm việc với con số của nhà xuất khẩu hỏi về bằng chứng sau con số của nhà cung cấp, hoặc hỏi cơ sở của nhà cung cấp đã có kiểm chứng riêng chưa.",
+        },
+        {
+          q: "Nhà cung cấp có cần tài khoản để trả lời yêu cầu qua Certrace không?",
+          a: "Không. Smart Link mở biểu mẫu có hướng dẫn bằng tiếng Thái hoặc tiếng Anh trên mọi thiết bị, không cần tài khoản và không mất phí, và câu trả lời được lưu để các yêu cầu sau đến đã điền sẵn.",
+        },
+      ],
+    },
+
+    /* ═══════════════════════════════════════════════════ 15 */
+    "how-to-calculate-cbam-emissions": {
+      title: "Cách tính phát thải hàm chứa theo CBAM, từng bước",
+      dek: "Phát thải hàm chứa riêng mỗi tấn = (phát thải phân bổ cho việc sản xuất hàng hoá + phát thải hàm chứa trong mọi tiền chất đã dùng) ÷ số tấn sản xuất. Năm bước đưa nhà xuất khẩu từ chỉ số đồng hồ đến một con số kiểm chứng viên được công nhận có thể ký.",
+      metaTitle: "Cách tính phát thải CBAM: tính SEE từng bước, kèm ví dụ (2026)",
+      metaDescription:
+        "Hướng dẫn thực hành cách tính phát thải hàm chứa CBAM cho nhà xuất khẩu — ranh giới hệ thống, phát thải trực tiếp và gián tiếp, tiền chất và quy tắc 20%, chia cho sản lượng — kèm ví dụ và các bước kiểm tra trước khi kiểm chứng.",
+      topic: "Dữ liệu",
+      keyFacts: [
+        { label: "Tính cái gì", value: "Phát thải hàm chứa riêng (SEE), tính bằng tCO₂e mỗi tấn hàng hoá" },
+        { label: "Hàng hoá đơn giản", value: "Phát thải phân bổ ÷ số tấn sản xuất" },
+        { label: "Hàng hoá phức hợp", value: "(Phát thải phân bổ + phát thải hàm chứa trong tiền chất) ÷ số tấn sản xuất" },
+        { label: "Phát thải trực tiếp", value: "Nhiên liệu và quá trình trong ranh giới hệ thống (Scope 1)" },
+        { label: "Phát thải gián tiếp", value: "Điện tiêu thụ (Scope 2) — chỉ tính vào con số khai báo với một số hàng hoá" },
+        { label: "Trần giá trị mặc định cho tiền chất", value: "20% tổng phát thải hàm chứa" },
+        { label: "Trở thành giá trị thực khi", value: "Đã được kiểm chứng viên được công nhận kiểm chứng" },
+      ],
+      sections: [
+        {
+          h: "Con số này là gì",
+          p: [
+            "CBAM định giá mỗi tấn hàng theo phát thải hàm chứa riêng — SEE — số tấn CO₂ tương đương thải ra để làm ra một tấn hàng đó. Nó được tính theo từng hàng hoá, từng lộ trình sản xuất và từng cơ sở, từ dữ liệu thu thập suốt kỳ báo cáo.",
+            "Phép tính thì ngắn. Phần tốn công là các quyết định và hồ sơ nằm bên dưới, vì vậy các bước dưới đây quan trọng hơn công thức.",
+          ],
+          note: "Hàng hoá đơn giản: SEE = phát thải phân bổ ÷ sản lượng. Hàng hoá phức hợp: SEE = (phát thải phân bổ + Σ khối lượng tiền chất × SEE của tiền chất) ÷ sản lượng.",
+        },
+        {
+          h: "Bước 1 — Vạch ranh giới hệ thống",
+          p: [
+            "Xác định những quá trình nào thuộc về việc làm ra hàng hoá. Ranh giới là quá trình sản xuất hàng hoá đó — không phải cả khu nhà máy, cũng không phải cả công ty. Một nhà máy chạy hai lộ trình sản xuất, hoặc làm cả hàng trong phạm vi lẫn ngoài phạm vi trên cùng thiết bị, phải nói rõ đầu vào và phát thải nào thuộc về hàng nào.",
+          ],
+          list: [
+            "Ghi lộ trình sản xuất thực chạy, và giữ cho khớp với nhà máy — sai lệch là một trong những điều đầu tiên kiểm chứng viên kiểm tra",
+            "Liệt kê mọi nhiên liệu, nguyên liệu và năng lượng đi qua ranh giới",
+            "Với tiện ích dùng chung, ghi lại cách phân chia giữa các sản phẩm và giữ cách chia nhất quán từ tháng này sang tháng khác",
+          ],
+        },
+        {
+          h: "Bước 2 — Phát thải trực tiếp",
+          p: [
+            "Phát thải trực tiếp là những gì quá trình thải ra tại chỗ: nhiên liệu đốt và phát thải quá trình từ nguyên liệu như carbonat hay chất khử chứa carbon. Phần lớn nhà máy tính thay vì đo — khối lượng từng nhiên liệu hoặc nguyên liệu, nhân với nhiệt trị và hệ số phát thải. Nhà máy có hệ thống quan trắc phát thải liên tục có thể đo trực tiếp tại ống khói.",
+            "Mọi con số trong phép tính đó cần một chứng từ gốc phía sau: hoá đơn nhiên liệu kèm khối lượng và nhiệt trị, chỉ số đồng hồ, và kết quả phân tích phòng thí nghiệm khi hàm lượng carbon thay đổi.",
+          ],
+        },
+        {
+          h: "Bước 3 — Phát thải gián tiếp",
+          p: [
+            "Phát thải gián tiếp đến từ điện mà quá trình tiêu thụ: số megawatt-giờ đã dùng nhân với hệ số phát thải của nguồn điện đó.",
+            "Có được tính vào con số khai báo hay không tuỳ hàng hoá. Phụ lục II của Regulation (EU) 2023/956 liệt kê các hàng hoá chỉ tính phát thải trực tiếp — trong đó có sắt thép, nhôm và hydro; với hàng như xi măng và phân bón, phát thải gián tiếp cũng được tính. Dù thế nào cũng nên giám sát điện: hoá đơn điện là bằng chứng kiểm chứng viên muốn thấy, bảng giá trị mặc định của EU có giá trị gián tiếp, và CBAM của Vương quốc Anh từ 2027 tính cả trực tiếp lẫn gián tiếp.",
+          ],
+        },
+        {
+          h: "Bước 4 — Cộng tiền chất",
+          p: [
+            "Với hàng hoá phức hợp, cộng phát thải hàm chứa trong từng tiền chất thuộc phạm vi đã tiêu thụ: số tấn tiền chất đó nhân với SEE của chính nó. Con số này đến từ nhà cung cấp — giá trị thực nếu nhà cung cấp chứng minh được, nếu không thì là giá trị mặc định.",
+            "Sau đó kiểm tra quy tắc 20%. Giá trị mặc định chỉ được chiếm tối đa 20% tổng phát thải hàm chứa từ tiền chất của hàng hoá. Vượt ngưỡng, tờ khai không đạt tiêu chí: toàn bộ giá trị mặc định áp cho cả sản phẩm, kể cả phần đã đo đúng.",
+          ],
+        },
+        {
+          h: "Bước 5 — Chia cho sản lượng",
+          p: [
+            "Chia tổng cho số tấn hàng hoá sản xuất trong cùng ranh giới, cùng kỳ. Con số sản lượng cần bằng chứng riêng — hồ sơ sản xuất theo sản phẩm và theo tháng — và phải dùng cùng ranh giới với phát thải mà nó chia, nếu không kết quả vô nghĩa.",
+          ],
+        },
+        {
+          h: "Một ví dụ tính toán",
+          p: [
+            "Một dây chuyền ống thép giả định, trong một tháng. Các con số chỉ để minh hoạ phép tính — không lấy từ cơ sở thực nào hay bảng nào của EU.",
+          ],
+          table: {
+            head: ["Đầu vào", "Khối lượng", "Phát thải"],
+            rows: [
+              ["Ống thép sản xuất (hàng hoá)", "1.000 t", "—"],
+              ["Khí tự nhiên cho lò nung (trực tiếp)", "Theo hoá đơn nhiên liệu", "120 tCO₂"],
+              ["Điện (gián tiếp)", "400 MWh", "Có giám sát; không cộng với sắt thép"],
+              ["Thép cuộn cán nóng (tiền chất)", "1.050 t × 1,8 tCO₂e/t", "1.890 tCO₂e"],
+              ["Tổng phát thải hàm chứa", "", "2.010 tCO₂e"],
+              ["SEE của ống thép", "2.010 ÷ 1.000", "2,01 tCO₂e/t"],
+            ],
+          },
+          note: "Tiền chất chiếm 94% tổng số. Nếu nhà cung cấp thép cuộn không gửi số liệu, giá trị mặc định sẽ phải phủ 94% phát thải hàm chứa từ tiền chất — vượt xa trần 20% — và cả ống thép sẽ quay về giá trị mặc định EU. 120 tấn của chính nhà máy, đo kỹ đến đâu, cũng không cứu được. Đó là lý do dữ liệu nhà cung cấp phải đi trước.",
+        },
+        {
+          h: "Kiểm tra kết quả trước khi kiểm chứng viên kiểm tra",
+          list: [
+            "Đơn vị: kilogram với tấn, kilowatt-giờ với megawatt-giờ là lỗi phổ biến nhất trong dữ liệu nhà cung cấp",
+            "Ranh giới: sản lượng và phát thải dùng cùng ranh giới và cùng kỳ",
+            "Tỷ trọng tiền chất: phần dùng giá trị mặc định dưới 20%, có biên an toàn",
+            "So sánh: đặt kết quả cạnh giá trị mặc định EU cho cùng CN Code — con số cao hơn nhiều đáng xem lại, con số thấp hơn nhiều cần sẵn bằng chứng",
+            "Bằng chứng: mọi đầu vào trong phép tính trỏ đến một chứng từ kiểm chứng viên mở ra được",
+            "Nhất quán: biến động giữa các tháng có lý do giải thích được",
+          ],
+        },
+        {
+          h: "Certrace giúp ở đâu",
+          p: [
+            "Certrace chạy phép tính này cho nhà xuất khẩu theo quy tắc giai đoạn chính thức, có sẵn trần giá trị mặc định 20% và vết tính toán đi kèm mọi con số. Dữ liệu nhà cung cấp được thu qua Smart Link và kiểm tra ngay khi đến, nên lỗi đơn vị bị bắt lúc gửi chứ không phải lúc kiểm chứng. Hiện hỗ trợ sắt, thép và nhôm.",
+          ],
+        },
+      ],
+      faq: [
+        {
+          q: "SEE trong CBAM là gì?",
+          a: "Phát thải hàm chứa riêng (Specific Embedded Emissions): số tấn CO₂ tương đương thải ra để sản xuất một tấn hàng hoá, gồm cả — với hàng hoá phức hợp — phát thải hàm chứa trong tiền chất đã dùng.",
+        },
+        {
+          q: "Sắt thép có tính phát thải gián tiếp không?",
+          a: "Không trong con số khai báo. Phụ lục II của Regulation (EU) 2023/956 xếp sắt thép, nhôm và hydro vào nhóm hàng chỉ tính phát thải trực tiếp. Dù vậy vẫn nên giám sát và lưu bằng chứng về điện.",
+        },
+        {
+          q: "Nên thu thập dữ liệu bao lâu một lần?",
+          a: "Hằng tháng, ngay khi phát sinh. Bằng chứng không dựng lại được sau này, và từ 2027 nhà nhập khẩu EU cần số liệu theo nhịp quý để đáp ứng kiểm tra nắm giữ chứng chỉ.",
+        },
+        {
+          q: "Có dùng giá trị mặc định cho tiền chất được không?",
+          a: "Được, miễn là giá trị mặc định chiếm không quá 20% tổng phát thải hàm chứa từ tiền chất của hàng hoá. Vượt mức đó, toàn bộ giá trị mặc định áp cho cả sản phẩm.",
+        },
+        {
+          q: "Tính đúng rồi đã được coi là giá trị thực chưa?",
+          a: "Chưa. Một con số chỉ thành giá trị thực khi đã được kiểm chứng viên được công nhận kiểm chứng. Trước đó nó bị coi như không có, và giá trị mặc định EU được áp dụng.",
         },
       ],
     },

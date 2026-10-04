@@ -3,8 +3,8 @@
 /* ════════════════════════════════════════════════════════════
    COVER ART FOR THE CBAM GUIDES — drawn, not licensed
 
-   WHY NOT A PHOTOGRAPH. Thirteen stock photographs of steel mills and shipping
-   containers would say nothing about thirteen different arguments, would need
+   WHY NOT A PHOTOGRAPH. Fifteen stock photographs of steel mills and shipping
+   containers would say nothing about fifteen different arguments, would need
    licensing for commercial use, and would drag a megabyte each onto pages
    whose whole point is being fast to read. These are inline SVG: a few
    hundred bytes, sharp at any size, in the site's own ink-on-bone palette,
@@ -24,6 +24,8 @@
      globe     three regimes, one requirement
      path      a route with a milestone on it
      choice    two identical goods at the border; the proven one goes through
+     request   a form passed up the chain from supplier to exporter
+     sum       three inputs added, then divided into one figure
 
    Emerald is the only colour, used for the good outcome, exactly as the rest
    of the site uses it. Everything else is ink at low opacity.
@@ -243,6 +245,32 @@ const MOTIFS: Record<Motif, React.ReactNode> = {
       <rect x="44" y="76" width="26" height="22" rx="2" fill={INK_SOFT} />
       <path d="M76 87h34" stroke={INK_SOFT} strokeWidth="1.4" strokeLinecap="round" strokeDasharray="2 4" />
       <rect x="92" y="74" width="22" height="26" rx="2" fill="none" stroke={BAD} strokeDasharray="2 2" />
+    </>
+  ),
+  request: (
+    <>
+      {/* the supplier's sheet, filled in, travelling to the exporter */}
+      <rect x="42" y="30" width="44" height="58" rx="3" fill="#fff" stroke={INK_SOFT} />
+      {[42, 52, 62, 72].map((y) => (
+        <line key={y} x1="50" y1={y} x2={y === 72 ? 66 : 78} y2={y} stroke={INK_SOFT} strokeWidth="2" strokeLinecap="round" />
+      ))}
+      <path d="M92 59h30m-6-5 6 5-6 5" stroke={GOOD} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="128" y="38" width="34" height="42" rx="3" fill={INK_FAINT} stroke={INK_SOFT} />
+      <path d="M137 59.5 142.5 65 153 53" stroke={GOOD} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="64" cy="102" r="3" fill={INK_SOFT} />
+      <circle cx="145" cy="94" r="3" fill={INK} />
+    </>
+  ),
+  sum: (
+    <>
+      {/* three inputs of very different size, one dominant — the precursor */}
+      <rect x="44" y="28" width="16" height="10" fill={INK_SOFT} />
+      <rect x="44" y="44" width="10" height="10" fill={INK_FAINT} stroke={INK_SOFT} strokeDasharray="2 2" />
+      <rect x="44" y="60" width="72" height="10" fill={GOOD} />
+      <line x1="40" y1="80" x2="124" y2="80" stroke={INK} strokeWidth="1" />
+      <path d="M134 75h10m-10 6h10" stroke={INK} strokeWidth="1.2" strokeLinecap="round" />
+      <rect x="152" y="66" width="20" height="24" rx="2" fill="none" stroke={GOOD} strokeWidth="1.2" />
+      <text x="82" y="100" textAnchor="middle" fontSize="9" fontFamily="monospace" fill={INK}>÷ t</text>
     </>
   ),
 };

@@ -1,10 +1,10 @@
 "use client";
 
-/* The CBAM knowledge hub. Thirteen guides, filterable by topic and searchable.
+/* The CBAM knowledge hub. Fifteen guides, filterable by topic and searchable.
 
    The pillar article is pulled out of the grid and given a wide card at the
    top: somebody arriving here from a search for "what is CBAM" should not have
-   to pick their own entry point out of thirteen equally weighted tiles. */
+   to pick their own entry point out of fifteen equally weighted tiles. */
 
 import { useMemo, useState } from "react";
 import { ArticleCover } from "@/components/article-cover";

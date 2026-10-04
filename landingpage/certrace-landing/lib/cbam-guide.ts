@@ -1,7 +1,7 @@
 /* ════════════════════════════════════════════════════════════
    ABOUT CBAM — the knowledge hub
 
-   WHAT THIS IS. Thirteen articles that between them cover the whole of the EU
+   WHAT THIS IS. Fifteen articles that between them cover the whole of the EU
    CBAM definitive regime as it stands for a non-EU exporter: the dates, the
    money, the arithmetic, the data, the verifier, and what the neighbours are
    building. Sourced from the TGO × Chulalongkorn University briefing of
@@ -57,7 +57,9 @@ export type Motif =
   | "tonne" // cost per tonne of steel
   | "globe" // the international comparison
   | "path" // the exporter's plan
-  | "choice"; // why it matters: the buyer picks the proven figure
+  | "choice" // why it matters: the buyer picks the proven figure
+  | "request" // a supplier's form travelling up the chain
+  | "sum"; // inputs added and divided into one figure
 
 export type ArticleMeta = {
   slug: string;
@@ -163,6 +165,20 @@ export const ARTICLES: ArticleMeta[] = [
     readMinutes: 8,
     updated: "2026-10-04",
     related: ["actual-vs-default-values", "precursors-20-percent-rule", "cbam-exporter-action-plan"],
+  },
+  {
+    slug: "cbam-supplier-data-request",
+    motif: "request",
+    readMinutes: 7,
+    updated: "2026-10-04",
+    related: ["precursors-20-percent-rule", "actual-vs-default-values", "how-to-calculate-cbam-emissions"],
+  },
+  {
+    slug: "how-to-calculate-cbam-emissions",
+    motif: "sum",
+    readMinutes: 9,
+    updated: "2026-10-04",
+    related: ["cbam-cost-formula", "precursors-20-percent-rule", "cbam-supplier-data-request"],
   },
 ];
 

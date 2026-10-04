@@ -17,7 +17,7 @@ export const CBAM_EN: CbamGuide = {
     eyebrow: "ABOUT CBAM",
     headline: "Everything CBAM asks of\nan exporter, explained.",
     intro:
-      "The EU's Carbon Border Adjustment Mechanism entered its definitive phase on 1 January 2026. These thirteen guides cover what CBAM now requires, what it costs, and what a non-EU exporter has to prove — written for the exporter who produces the carbon data, not for the EU importer who files the declaration.",
+      "The EU's Carbon Border Adjustment Mechanism entered its definitive phase on 1 January 2026. These fifteen guides cover what CBAM now requires, what it costs, and what a non-EU exporter has to prove — written for the exporter who produces the carbon data, not for the EU importer who files the declaration.",
     searchLabel: "Search the guides",
     searchPlaceholder: "Search CBAM guides…",
     allTopics: "All topics",
@@ -1165,6 +1165,242 @@ export const CBAM_EN: CbamGuide = {
         {
           q: "Do an exporter's suppliers need an account or a fee to use Certrace?",
           a: "No. Each supplier receives one Smart Link — a guided form in Thai or English on any device, with no account and no fee — and their answers are saved so the next request is prefilled.",
+        },
+      ],
+    },
+
+    /* ═══════════════════════════════════════════════════ 14 */
+    "cbam-supplier-data-request": {
+      title: "A customer asked for CBAM data — what a supplier should do",
+      dek: "The request comes because the exporter's EU buyer pays for the emissions embedded in everything that went into the product, including the supplier's material. The supplier owes the EU nothing, but answering with real, evidenced figures is what keeps the exporter — and the order — able to use an actual value instead of a costly default.",
+      metaTitle: "Received a CBAM data request? A supplier's guide to what to send and why (2026)",
+      metaDescription:
+        "Why an exporter is asking its supplier for CBAM emissions data, whether the supplier has to answer, exactly what to send, what evidence to keep, and what to do if the numbers do not exist yet.",
+      topic: "Data",
+      keyFacts: [
+        { label: "Why the request arrives", value: "The exporter needs its precursors' embedded emissions to report an actual value" },
+        { label: "Legal obligation on the supplier", value: "None under CBAM — the obligation sits with the EU importer" },
+        { label: "Commercial reality", value: "Without the supplier's figure the product can fall back to the EU default" },
+        { label: "The rule behind it", value: "Defaults may cover at most 20% of a complex good's embedded emissions from precursors" },
+        { label: "What to send", value: "Material, quantity, embedded emissions per tonne, installation, country, evidence, verification status" },
+        { label: "What not to send", value: "A number nobody measured — an accredited verifier will not accept it" },
+      ],
+      sections: [
+        {
+          h: "Why the request reached the supplier",
+          p: [
+            "Since 1 January 2026, an EU importer of steel, aluminium and the other CBAM goods buys certificates for the emissions embedded in each tonne imported. Those emissions include not only what the exporter's own plant emitted but everything embedded in the in-scope materials the exporter bought and consumed — the billet in the bar, the coil in the tube.",
+            "Those materials are called precursors, and their emissions sit with the supplier. The exporter cannot measure a supplier's furnace, so it has to ask. For most steel and aluminium products, the inherited part is the larger part of the total, which is why the request is rarely optional for the exporter, even though it is not a legal duty for the supplier.",
+          ],
+        },
+        {
+          h: "Does a supplier have to answer?",
+          p: [
+            "Not under CBAM itself. The regulation binds the EU importer, who must be an authorised CBAM declarant; it places no filing duty on a supplier outside the EU, and a supplier never buys certificates.",
+            "The pressure is commercial, and it is sharp. For a complex good, default values may cover at most 20% of the total embedded emissions coming from precursors. If one large supplier does not answer, the exporter can cross that line, and then the full EU default value applies to the whole product — including everything the exporter measured properly. A supplier who answers keeps the exporter's product competitive; a supplier who does not may find the next order going to one who did.",
+          ],
+          note: "Expect the request to become contractual. The guides on this site advise exporters to put a CBAM clause into supply contracts so the data obligation travels with the purchase order. A supplier who builds the answer once is ready when that clause arrives.",
+        },
+        {
+          h: "What the exporter will ask for",
+          p: [
+            "A usable precursor record is structured data, not a sentence. \"Billet from our mill\" cannot be multiplied or checked; the exporter needs:",
+          ],
+          list: [
+            "Which material it is — as a defined product, ideally with its CN code",
+            "The quantity delivered in the period, in tonnes",
+            "Its specific embedded emissions in tCO₂e per tonne, and whether that figure is an actual value or a default",
+            "The installation that produced it, and the country",
+            "The production route — for steel, for example, an electric arc furnace or a blast furnace route",
+            "Whether the figure has been verified, and by whom",
+          ],
+        },
+        {
+          h: "The evidence to keep behind the number",
+          p: [
+            "Actual values in CBAM only count once an accredited verifier has checked them, and a verifier checks evidence, not assurances. Whoever verifies the exporter's figure may ask what lies behind the supplier's. Keep, month by month:",
+          ],
+          list: [
+            "Fuel invoices, with quantities and calorific values",
+            "Meter readings for gas, steam and other energy inputs",
+            "Electricity bills",
+            "Laboratory analyses of materials where carbon content matters",
+            "Production records — tonnes produced per product and per month",
+            "Mill test certificates or equivalent product documents",
+          ],
+          note: "Evidence has to be collected as it is produced. A meter reading for March exists in March or not at all, and a figure reconstructed later from memory is not one a verifier will sign.",
+        },
+        {
+          h: "If the numbers do not exist yet",
+          p: [
+            "Many suppliers have never calculated an emissions figure, and that is not a reason to stay silent. Tell the exporter what exists today, and start monthly monitoring now so the next answer is better than this one.",
+            "What a supplier must never do is invent a figure, or describe its material as something it is not. A made-up number fails at verification, and misdeclaring goods to escape CBAM is treated as circumvention, with penalties of up to five times the amount due for both importer and exporter. An honest \"we do not have it yet\" lets the exporter decide whether a default can cover that material within the 20% allowance.",
+          ],
+        },
+        {
+          h: "Sharing data without giving away the business",
+          p: [
+            "A common worry is that answering exposes prices or processes to a customer. A CBAM record needs emissions, quantities and evidence for the emissions — not prices, margins or customer lists. Ask the exporter who will see the data and for what; a reasonable answer is the exporter's team, its verifier and, in aggregated form, the EU importer's declarant.",
+            "When the request comes through Certrace, it arrives as a Smart Link scoped to that one supplier: the supplier sees only its own form, other suppliers never see its answers, and every action is logged.",
+          ],
+        },
+        {
+          h: "Answering through a Smart Link",
+          list: [
+            "One link, opened on any device, with no account to create and no fee",
+            "A guided form in Thai or English that asks only what the product requires",
+            "Answers saved to a profile, so next month's request — or another exporter's — arrives prefilled",
+            "Missing fields, wrong units and impossible numbers are flagged at submission, before the exporter has to come back with questions",
+          ],
+          p: [
+            "The first answer takes the most work. After that, keeping the profile current is a matter of minutes each period rather than a new questionnaire from every customer.",
+          ],
+        },
+      ],
+      faq: [
+        {
+          q: "Does a supplier have to give CBAM data to its customer?",
+          a: "Not under CBAM law, which binds only the EU importer. Commercially it often does: without the supplier's figure, the exporter's product can exceed the 20% default allowance for precursors and fall back entirely to the EU default value.",
+        },
+        {
+          q: "Will the supplier have to pay for CBAM certificates?",
+          a: "No. Only the EU importer, as an authorised CBAM declarant, buys and surrenders certificates. The cost can reach the supply chain through prices and contracts, but no supplier buys certificates itself.",
+        },
+        {
+          q: "What should a supplier send if it has never measured its emissions?",
+          a: "The facts it does have — material, quantities, installation, production route — and a clear statement that no measured emissions figure exists yet. Never an estimate presented as a measurement. Then start monthly monitoring.",
+        },
+        {
+          q: "Does the supplier's figure need to be verified?",
+          a: "An actual value only counts once an accredited verifier has checked it, so expect the verifier working on the exporter's figure to ask about the evidence behind the supplier's number, or whether the supplier's installation has its own verification.",
+        },
+        {
+          q: "Does a supplier need an account to answer a Certrace request?",
+          a: "No. A Smart Link opens a guided form in Thai or English on any device, with no account and no fee, and the answers are saved so later requests arrive prefilled.",
+        },
+      ],
+    },
+
+    /* ═══════════════════════════════════════════════════ 15 */
+    "how-to-calculate-cbam-emissions": {
+      title: "How to calculate CBAM embedded emissions, step by step",
+      dek: "Specific embedded emissions per tonne = (the emissions attributed to producing the good + the emissions embedded in every precursor consumed) ÷ the tonnes produced. Five steps take an exporter from meter readings to a figure an accredited verifier can sign.",
+      metaTitle: "How to calculate CBAM emissions: SEE step by step, with a worked example (2026)",
+      metaDescription:
+        "A practical walk-through of the CBAM embedded-emissions calculation for exporters — system boundary, direct and indirect emissions, precursors and the 20% rule, dividing by production — with a worked example and the checks to run before verification.",
+      topic: "Data",
+      keyFacts: [
+        { label: "What is calculated", value: "Specific embedded emissions (SEE), in tCO₂e per tonne of the good" },
+        { label: "Simple good", value: "Attributed emissions ÷ tonnes produced" },
+        { label: "Complex good", value: "(Attributed emissions + emissions embedded in precursors) ÷ tonnes produced" },
+        { label: "Direct emissions", value: "Fuels and processes inside the system boundary (Scope 1)" },
+        { label: "Indirect emissions", value: "Electricity consumed (Scope 2) — counted in the declared figure only for some goods" },
+        { label: "Default cap for precursors", value: "20% of total embedded emissions" },
+        { label: "Becomes an actual value", value: "Only once an accredited verifier has verified it" },
+      ],
+      sections: [
+        {
+          h: "What the number is",
+          p: [
+            "CBAM prices a tonne of goods by its specific embedded emissions — SEE — the tonnes of CO₂-equivalent emitted to make one tonne of that good. It is calculated per good, per production route and per installation, from data collected through the reporting period.",
+            "The arithmetic is short. What takes the work is the set of decisions and records underneath it, which is why the steps below matter more than the formula.",
+          ],
+          note: "Simple good: SEE = attributed emissions ÷ production. Complex good: SEE = (attributed emissions + Σ precursor mass × precursor SEE) ÷ production.",
+        },
+        {
+          h: "Step 1 — Draw the system boundary",
+          p: [
+            "Decide which processes belong to making the good. The boundary is the production process for that good — not the whole site, and not the whole company. A plant that runs two production routes, or makes in-scope and out-of-scope goods on shared equipment, has to say which inputs and emissions belong to which.",
+          ],
+          list: [
+            "Name the production route actually run, and keep it matched to the plant — a mismatch is one of the first things a verifier checks",
+            "List every fuel, material and energy input that crosses the boundary",
+            "Where utilities are shared, record how they are split between products, and keep the split consistent from month to month",
+          ],
+        },
+        {
+          h: "Step 2 — Direct emissions",
+          p: [
+            "Direct emissions are what the process releases on site: fuels burned and process emissions from materials such as carbonates or carbon-bearing reductants. Most plants calculate rather than measure them — the quantity of each fuel or material, multiplied by its calorific value and emission factor. A plant with continuous emissions monitoring can measure at the stack instead.",
+            "Every number in that calculation needs a source document behind it: fuel invoices with quantities and calorific values, meter readings, and laboratory analyses where carbon content varies.",
+          ],
+        },
+        {
+          h: "Step 3 — Indirect emissions",
+          p: [
+            "Indirect emissions come from the electricity the process consumes: megawatt-hours used, multiplied by the emission factor of that electricity.",
+            "Whether they count in the declared figure depends on the good. Regulation (EU) 2023/956 lists, in its Annex II, the goods for which only direct emissions are taken into account — iron and steel, aluminium and hydrogen among them; for goods such as cement and fertilisers, indirect emissions count too. Monitor electricity either way: the bill is evidence a verifier expects to see, the EU default tables carry indirect values, and the UK CBAM starting in 2027 counts direct and indirect emissions.",
+          ],
+        },
+        {
+          h: "Step 4 — Add the precursors",
+          p: [
+            "For a complex good, add the emissions embedded in each in-scope precursor consumed: the tonnes of that precursor used, multiplied by its own SEE. That figure comes from the supplier — an actual value if the supplier can evidence it, otherwise a default.",
+            "Then check the 20% rule. Default values may cover no more than 20% of the good's total embedded emissions from precursors. Cross that line and the declaration fails the criterion: the full default value applies to the whole product, including the parts measured properly.",
+          ],
+        },
+        {
+          h: "Step 5 — Divide by production",
+          p: [
+            "Divide the total by the tonnes of the good produced within the same boundary over the same period. The production figure needs its own evidence — production records per product and per month — and it must use the same boundary as the emissions it divides, or the result is meaningless.",
+          ],
+        },
+        {
+          h: "A worked example",
+          p: [
+            "A hypothetical steel tube line, over one month. The numbers are illustrative, chosen to show the arithmetic — they come from no real installation and no EU table.",
+          ],
+          table: {
+            head: ["Input", "Quantity", "Emissions"],
+            rows: [
+              ["Tubes produced (the good)", "1,000 t", "—"],
+              ["Natural gas for reheating (direct)", "From fuel invoices", "120 tCO₂"],
+              ["Electricity (indirect)", "400 MWh", "Monitored; not added for iron and steel"],
+              ["Hot-rolled coil (precursor)", "1,050 t × 1.8 tCO₂e/t", "1,890 tCO₂e"],
+              ["Total embedded emissions", "", "2,010 tCO₂e"],
+              ["SEE of the tube", "2,010 ÷ 1,000", "2.01 tCO₂e/t"],
+            ],
+          },
+          note: "The precursor is 94% of the total. If the coil supplier sent no figure, a default would have to cover 94% of embedded emissions from precursors — far past the 20% cap — and the whole tube would fall back to the EU default. The plant's own 120 tonnes, however well measured, would not save it. That is why supplier data comes first.",
+        },
+        {
+          h: "Check the result before the verifier does",
+          list: [
+            "Units: kilograms against tonnes and kilowatt-hours against megawatt-hours are the most common errors in supplier data",
+            "Boundary: the production figure and the emissions use the same boundary and the same period",
+            "Precursor share: the part covered by defaults is under 20%, with margin",
+            "Comparison: set the result beside the EU default for the same CN code — a figure far above it deserves a second look, and one far below needs its evidence ready",
+            "Evidence: every input in the calculation points to a document a verifier can open",
+            "Consistency: month-to-month swings have a reason someone can explain",
+          ],
+        },
+        {
+          h: "Where Certrace fits",
+          p: [
+            "Certrace runs this calculation for the exporter, under the definitive-period rules, with the 20% default cap built in and a calculation trail attached to every figure. Supplier inputs are collected through Smart Links and checked the moment they arrive, so a unit error is caught at submission rather than at verification. Coverage today is iron, steel and aluminium.",
+          ],
+        },
+      ],
+      faq: [
+        {
+          q: "What is SEE in CBAM?",
+          a: "Specific embedded emissions: the tonnes of CO₂-equivalent emitted to produce one tonne of a good, including — for a complex good — the emissions embedded in the precursors consumed.",
+        },
+        {
+          q: "Do iron and steel include indirect emissions?",
+          a: "Not in the declared figure. Annex II of Regulation (EU) 2023/956 lists iron and steel, aluminium and hydrogen among the goods for which only direct emissions are taken into account. Electricity should still be monitored and evidenced.",
+        },
+        {
+          q: "How often should the data be collected?",
+          a: "Monthly, as it is produced. Evidence cannot be reconstructed later, and from 2027 EU importers need figures on a quarterly rhythm to meet their certificate-holding checks.",
+        },
+        {
+          q: "Can a default value be used for a precursor?",
+          a: "Yes, as long as defaults cover no more than 20% of the good's total embedded emissions from precursors. Above that, the full default value applies to the whole product.",
+        },
+        {
+          q: "Is a correct calculation enough to count as an actual value?",
+          a: "No. A figure becomes an actual value only once an accredited verifier has verified it. Until then it is treated as no figure, and the EU default applies.",
         },
       ],
     },
