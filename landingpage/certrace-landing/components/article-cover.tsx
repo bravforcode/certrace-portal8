@@ -3,8 +3,8 @@
 /* ════════════════════════════════════════════════════════════
    COVER ART FOR THE CBAM GUIDES — drawn, not licensed
 
-   WHY NOT A PHOTOGRAPH. Twelve stock photographs of steel mills and shipping
-   containers would say nothing about twelve different arguments, would need
+   WHY NOT A PHOTOGRAPH. Thirteen stock photographs of steel mills and shipping
+   containers would say nothing about thirteen different arguments, would need
    licensing for commercial use, and would drag a megabyte each onto pages
    whose whole point is being fast to read. These are inline SVG: a few
    hundred bytes, sharp at any size, in the site's own ink-on-bone palette,
@@ -23,6 +23,7 @@
      tonne     one tonne, and the slice of it that is carbon cost
      globe     three regimes, one requirement
      path      a route with a milestone on it
+     choice    two identical goods at the border; the proven one goes through
 
    Emerald is the only colour, used for the good outcome, exactly as the rest
    of the site uses it. Everything else is ink at low opacity.
@@ -228,6 +229,20 @@ const MOTIFS: Record<Motif, React.ReactNode> = {
         <circle key={i} cx={x} cy={y} r="4" fill="none" stroke={INK_SOFT} strokeWidth="1.4" />
       ))}
       <circle cx="170" cy="34" r="5.5" fill={GOOD} />
+    </>
+  ),
+  choice: (
+    <>
+      <line x1="120" y1="14" x2="120" y2="116" stroke={INK} strokeWidth="1" strokeDasharray="3 4" />
+      {/* the same crate twice: one carries a verified figure and crosses */}
+      <rect x="44" y="34" width="26" height="22" rx="2" fill={INK_SOFT} />
+      <path d="M51 45.5 55.5 50 63 41" stroke={GOOD} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M76 45h60m-6-5 6 5-6 5" stroke={GOOD} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="146" y="34" width="26" height="22" rx="2" fill="none" stroke={GOOD} strokeWidth="1.2" />
+      {/* the other has no figure, and is held at the line with a default */}
+      <rect x="44" y="76" width="26" height="22" rx="2" fill={INK_SOFT} />
+      <path d="M76 87h34" stroke={INK_SOFT} strokeWidth="1.4" strokeLinecap="round" strokeDasharray="2 4" />
+      <rect x="92" y="74" width="22" height="26" rx="2" fill="none" stroke={BAD} strokeDasharray="2 2" />
     </>
   ),
 };

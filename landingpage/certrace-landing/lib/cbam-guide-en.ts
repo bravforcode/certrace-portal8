@@ -17,7 +17,7 @@ export const CBAM_EN: CbamGuide = {
     eyebrow: "ABOUT CBAM",
     headline: "Everything CBAM asks of\nan exporter, explained.",
     intro:
-      "The EU's Carbon Border Adjustment Mechanism entered its definitive phase on 1 January 2026. These twelve guides cover what CBAM now requires, what it costs, and what a non-EU exporter has to prove — written for the exporter who produces the carbon data, not for the EU importer who files the declaration.",
+      "The EU's Carbon Border Adjustment Mechanism entered its definitive phase on 1 January 2026. These thirteen guides cover what CBAM now requires, what it costs, and what a non-EU exporter has to prove — written for the exporter who produces the carbon data, not for the EU importer who files the declaration.",
     searchLabel: "Search the guides",
     searchPlaceholder: "Search CBAM guides…",
     allTopics: "All topics",
@@ -1038,5 +1038,135 @@ export const CBAM_EN: CbamGuide = {
       ],
     },
 
+    /* ═══════════════════════════════════════════════════ 13 */
+    "why-cbam-matters": {
+      title: "Why CBAM matters to a non-EU exporter — and how Certrace answers it",
+      dek: "CBAM matters because it turns an exporter's carbon figure into part of the price an EU buyer pays: without verified data the buyer pays for a marked-up default, and the cost climbs on a published schedule to 2034. Certrace is built to produce that data on the exporter's side, starting with the suppliers.",
+      metaTitle: "Why CBAM matters for exporters (2026) — and how Certrace helps exporters prove their carbon data",
+      metaDescription:
+        "Why the EU's CBAM is a commercial problem for non-EU exporters, what ignoring it costs per tonne, where the real difficulty lies — and what Certrace does, and does not do, to make an exporter's carbon data verifier-ready.",
+      topic: "Strategy",
+      keyFacts: [
+        { label: "Why it matters", value: "Carbon per tonne is now part of the landed cost at the EU border" },
+        { label: "Without verified data", value: "EU default value + mark-up of 10% (2026), 20% (2027), 30% from 2028" },
+        { label: "Built-in cost pressure", value: "Free allocation falls from 97.5% in 2026 to 0% in 2034" },
+        { label: "First hard deadline", value: "30 September 2027 — declaration and surrender for 2026 imports" },
+        { label: "The term the exporter controls", value: "Verified embedded emissions per tonne" },
+        { label: "What Certrace does", value: "Collects supplier data, runs the CBAM calculation, keeps a verifier-ready report package" },
+        { label: "What Certrace does not do", value: "File the declaration, or replace the accredited verifier" },
+      ],
+      sections: [
+        {
+          h: "Why CBAM matters: carbon is now part of the price",
+          p: [
+            "Since 1 January 2026 an EU importer of steel, aluminium, cement, fertilisers, hydrogen or electricity has to buy CBAM certificates for the emissions embedded in every tonne imported. The Commission published the certificate price at €75.36 per tonne of CO₂e for Q1 2026 and €75.28 for Q2 2026.",
+            "The legal obligation sits with the EU importer. The data does not. Only the exporter knows what the furnace burned, what the grid supplied and which precursors went into the product — so the importer's carbon bill is decided by the exporter's numbers. That is why CBAM is best read as a trade condition rather than a tax: it does not stop an exporter selling into Europe, it changes which exporter Europe would rather buy from.",
+          ],
+        },
+        {
+          h: "Four reasons it cannot wait",
+          list: [
+            "The data cannot be recreated later. A meter reading for March 2026 exists in March 2026 or not at all, and an accredited verifier will not accept a figure reconstructed from memory. 2026 imports are declared on 30 September 2027, but the evidence behind them is being produced, or lost, now.",
+            "Defaults are punitive, and get worse every year. With no verified actual value, the EU importer must use the EU default — set from high-emitting installations on purpose — plus a mark-up of 10% for 2026, 20% for 2027 and 30% from 2028.",
+            "The deduction shrinks on a schedule. Free allocation is 97.5% in 2026, 51.5% in 2030 and zero from 2034. The same emissions figure costs more each year even if the certificate price never moves.",
+            "The scope is widening. The Commission has proposed adding around 180 downstream steel and aluminium products from 1 January 2028, and the UK starts its own CBAM on 1 January 2027. Every one of these regimes asks for the same thing: a verifiable product carbon footprint.",
+          ],
+        },
+        {
+          h: "What it costs to do nothing",
+          p: [
+            "Take a Thai iron and steel good from the published Annex I table with a base default value of 1.190 tCO₂e per tonne. Without verified data, the EU importer declares it at the marked-up default. If the plant's real, verified figure is 0.9 tCO₂e per tonne, the gap looks like this:",
+          ],
+          table: {
+            head: ["Year", "Default with mark-up", "Verified actual", "Extra CO₂ the buyer pays for, per tonne"],
+            rows: [
+              ["2026", "1.309 tCO₂e/t (+10%)", "0.9 tCO₂e/t", "0.409 t"],
+              ["2027", "1.428 tCO₂e/t (+20%)", "0.9 tCO₂e/t", "0.528 t"],
+              ["2028 onward", "1.547 tCO₂e/t (+30%)", "0.9 tCO₂e/t", "0.647 t"],
+            ],
+          },
+          note: "Nothing about the factory changed between those rows. The number rose because nobody supplied a verified figure — and at certificate prices in the mid-seventies of euros, the EU importer pays for that gap on every tonne shipped. A buyer facing that choice will prefer the exporter whose verified figure removes it.",
+        },
+        {
+          h: "Where the real difficulty is",
+          p: [
+            "The CBAM formula fits on one line. What makes CBAM hard for an exporter is the workflow behind the one term the exporter controls:",
+          ],
+          list: [
+            "Suppliers up the chain hold the precursor data, answer in different formats, and have less reason to care than the exporter who would lose the European order",
+            "For a complex good, defaults may cover at most 20% of total embedded emissions from precursors — one large supplier who does not answer can push the whole product back to the default value",
+            "Evidence has to be collected every month, for every plant and product line, and kept in a form an accredited verifier will accept",
+            "Verifier capacity is limited, and the first declaration concentrates demand into the first half of 2027",
+            "The EU importer needs the result in the EU's format, on a quarterly rhythm from 2027, not as a spreadsheet at the end of the year",
+          ],
+        },
+        {
+          h: "How Certrace answers each part",
+          p: [
+            "Certrace is the workspace where that loop runs on the exporter's side — from the supplier's first answer to the package the EU importer and the verifier receive.",
+          ],
+          table: {
+            head: ["The problem", "What Certrace does"],
+            rows: [
+              ["Suppliers who do not answer, each in a format of their own", "Smart Link supplier invite — one guided link per supplier, in Thai or English, on any device, with no account and automatic reminders"],
+              ["The same questions asked every month", "Fill-once supplier profile — answers are saved and prefilled on the next request, across products, periods and buyers"],
+              ["Missing fields, wrong units, impossible numbers", "Automatic quality check the moment a supplier submits, with a plain-language summary; the AI flags problems and never edits a figure"],
+              ["The 20% precursor rule and the arithmetic", "CBAM calculation engine with the definitive-period rules built in, including the 20% default cap, and a calculation trail on every figure"],
+              ["Not knowing where the exposure is", "Carbon benchmark against default values, by product line — which lines carry the most cost and what a change is worth"],
+              ["The buyer or the verifier asks for proof", "Always-ready report package — a ~24-page communication and audit package with methodology, an evidence register, named sign-offs and the audit trail, sealed with a SHA-256 hash, plus Annex IV XML"],
+            ],
+          },
+        },
+        {
+          h: "Built for the exporter, not the buyer",
+          p: [
+            "Most carbon platforms in this space are bought by the EU importer, and treat the exporter as a data source to chase. Certrace sits on the other side of the table: the suppliers, the data and the proof belong to the exporter, and the same dataset can answer every buyer who asks rather than being rebuilt for each one.",
+            "That matters beyond the EU. The UK, and whatever follows elsewhere, will ask for the same verified product footprint. An exporter who builds it once as infrastructure has answered all of them; an exporter who builds it as a one-off filing will build it again.",
+          ],
+        },
+        {
+          h: "What Certrace does not do",
+          list: [
+            "File the CBAM declaration. Only the EU importer's authorised CBAM declarant may file with the Registry; Certrace hands that declarant a complete dataset, the Annex IV template and the audit package",
+            "Replace the accredited verifier. Verification is still done by an independent verifier; Certrace organises the monitoring evidence so that verification has less to find and goes faster",
+            "Lower the plant's emissions by itself. Decarbonisation is plant work; what Certrace removes is the cost of an unproven figure — the gap between the default and the truth",
+            "Cover every sector yet. Today it supports EU CBAM for iron, steel and aluminium, with 67 CN-coded goods; UK CBAM is on the roadmap",
+          ],
+          note: "Saying this plainly is the point. On a compliance site, a tool that claims to do the declarant's or the verifier's job is a tool that will fail an audit.",
+        },
+        {
+          h: "Where an exporter should start",
+          list: [
+            "Check the CN code of every product shipped to the EU — scope is decided by customs code, not by product name",
+            "List the precursor suppliers and rank them by their share of embedded emissions; the largest decides whether the product passes the 20% rule",
+            "Start monthly collection now, so a full year of 2026 evidence exists when the verifier asks for it",
+            "Engage an accredited verifier in Q4 2026 or Q1 2027, while the monitoring plan can still be fixed cheaply",
+            "Put the supplier loop on a platform rather than an inbox — that is the part Certrace was built to take off the exporter's desk",
+          ],
+        },
+      ],
+      faq: [
+        {
+          q: "Why is CBAM important for exporters outside the EU?",
+          a: "Because the EU importer pays for the emissions embedded in what the exporter sells, and without the exporter's verified data that importer must use a marked-up default. Carbon per tonne becomes part of the price, and buyers move toward exporters who can prove a lower figure.",
+        },
+        {
+          q: "Does Certrace replace an accredited verifier?",
+          a: "No. An accredited verifier still has to verify the figures for them to count as actual values. Certrace collects and organises the evidence so the verification is quicker and finds less.",
+        },
+        {
+          q: "Can Certrace file an exporter's CBAM declaration?",
+          a: "No, and no vendor can. Only the EU importer's authorised CBAM declarant may file. Certrace gives that declarant the dataset, the Annex IV template and a sealed audit package.",
+        },
+        {
+          q: "Which products does Certrace support today?",
+          a: "EU CBAM for iron, steel and aluminium, covering 67 CN-coded goods under the definitive-period rules. UK CBAM is on the roadmap.",
+        },
+        {
+          q: "Do an exporter's suppliers need an account or a fee to use Certrace?",
+          a: "No. Each supplier receives one Smart Link — a guided form in Thai or English on any device, with no account and no fee — and their answers are saved so the next request is prefilled.",
+        },
+      ],
+    },
   },
 };

@@ -34,7 +34,7 @@ export function cbamHubMetadata(lang: Lang): Metadata {
 
   const title =
     lang === "en"
-      ? "About CBAM — twelve guides for exporters"
+      ? "About CBAM — thirteen guides for exporters"
       : `${PAGES[lang].nav.aboutCbam} — ${oneLine(hub.headline)}`;
   const description =
     lang === "en"

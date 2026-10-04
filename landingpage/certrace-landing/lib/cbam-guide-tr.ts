@@ -13,7 +13,7 @@ export const CBAM_TR: CbamGuide = {
     eyebrow: "CBAM HAKKINDA",
     headline: "CBAM'in ihracatçıdan istediği\nher şey, açık açık.",
     intro:
-      "AB'nin Sınırda Karbon Düzenleme Mekanizması 1 Ocak 2026'da kesin dönemine geçti. Bu on iki rehber, CBAM'in artık ne istediğini, neye mal olduğunu ve AB dışı ihracatçının neyi kanıtlaması gerektiğini anlatıyor — beyanı sunan AB'li ithalatçı için değil, karbon verisini üreten ihracatçı için yazıldı.",
+      "AB'nin Sınırda Karbon Düzenleme Mekanizması 1 Ocak 2026'da kesin dönemine geçti. Bu on üç rehber, CBAM'in artık ne istediğini, neye mal olduğunu ve AB dışı ihracatçının neyi kanıtlaması gerektiğini anlatıyor — beyanı sunan AB'li ithalatçı için değil, karbon verisini üreten ihracatçı için yazıldı.",
     searchLabel: "Rehberlerde ara",
     searchPlaceholder: "CBAM rehberlerinde ara…",
     allTopics: "Tüm konular",
@@ -1011,5 +1011,135 @@ export const CBAM_TR: CbamGuide = {
       ],
     },
 
+    /* ═══════════════════════════════════════════════════ 13 */
+    "why-cbam-matters": {
+      title: "CBAM, AB dışındaki bir ihracatçı için neden önemli — ve Certrace buna nasıl yanıt veriyor",
+      dek: "CBAM önemli, çünkü ihracatçının karbon rakamını AB'li alıcının ödediği fiyatın bir parçası haline getiriyor: doğrulanmış veri yoksa alıcı, üzerine ek oran bindirilmiş varsayılan değeri öder ve maliyet 2034'e kadar yayımlanmış bir takvimle yükselir. Certrace bu veriyi ihracatçının tarafında, tedarikçilerden başlayarak üretmek için tasarlandı.",
+      metaTitle: "CBAM ihracatçılar için neden önemli (2026) — ve Certrace ihracatçının karbon verisini kanıtlamasına nasıl yardım eder",
+      metaDescription:
+        "AB'nin CBAM'i AB dışındaki ihracatçılar için neden ticari bir sorun, görmezden gelmenin ton başına maliyeti ne, asıl zorluk nerede — ve Certrace, ihracatçının karbon verisini doğrulamaya hazır hale getirmek için neyi yapıyor, neyi yapmıyor.",
+      topic: "Strateji",
+      keyFacts: [
+        { label: "Neden önemli", value: "Ton başına karbon artık AB sınırındaki teslim maliyetinin bir parçası" },
+        { label: "Doğrulanmış veri yoksa", value: "AB varsayılan değeri + %10 (2026), %20 (2027), 2028'den itibaren %30 ek oran" },
+        { label: "Yerleşik maliyet baskısı", value: "Ücretsiz tahsisat 2026'da %97,5'ten 2034'te %0'a iner" },
+        { label: "İlk bağlayıcı tarih", value: "30 Eylül 2027 — 2026 ithalatı için beyan ve sertifika teslimi" },
+        { label: "İhracatçının kontrol ettiği terim", value: "Ton başına doğrulanmış gömülü emisyon" },
+        { label: "Certrace ne yapar", value: "Tedarikçi verisini toplar, CBAM hesabını yapar, doğrulamaya hazır rapor paketini güncel tutar" },
+        { label: "Certrace ne yapmaz", value: "Beyanı sunmaz, akredite doğrulayıcının yerini almaz" },
+      ],
+      sections: [
+        {
+          h: "CBAM neden önemli: karbon artık fiyatın parçası",
+          p: [
+            "1 Ocak 2026'dan bu yana çelik, alüminyum, çimento, gübre, hidrojen veya elektrik ithal eden AB'li ithalatçı, ithal ettiği her tona gömülü emisyonlar için CBAM sertifikası satın almak zorunda. Komisyon sertifika fiyatını 2026'nın 1. çeyreği için ton CO₂e başına 75,36 €, 2. çeyreği için 75,28 € olarak yayımladı.",
+            "Yasal yükümlülük AB'li ithalatçıdadır. Veri ise orada değildir. Fırının ne yaktığını, şebekenin ne sağladığını ve ürüne hangi ön maddelerin girdiğini yalnızca ihracatçı bilir — dolayısıyla ithalatçının karbon faturası ihracatçının rakamlarıyla belirlenir. Bu yüzden CBAM bir vergiden çok bir ticaret koşulu olarak okunmalıdır: ihracatçının Avrupa'ya satmasını engellemez, Avrupa'nın hangi ihracatçıdan almayı tercih edeceğini değiştirir.",
+          ],
+        },
+        {
+          h: "Beklenemeyecek dört neden",
+          list: [
+            "Veri sonradan yeniden üretilemez. Mart 2026'nın sayaç okuması ya Mart 2026'da vardır ya da hiç yoktur ve akredite bir doğrulayıcı hafızadan yeniden kurulmuş bir rakamı kabul etmez. 2026 ithalatı 30 Eylül 2027'de beyan edilir, ama arkasındaki kanıt şu anda üretiliyor — ya da kayboluyor.",
+            "Varsayılan değerler cezalandırıcıdır ve her yıl kötüleşir. Doğrulanmış gerçek değer yoksa AB'li ithalatçı, bilerek yüksek emisyonlu tesislerden belirlenmiş AB varsayılan değerini kullanmak zorundadır — üstüne 2026 için %10, 2027 için %20 ve 2028'den itibaren %30 ek oran eklenir.",
+            "Düşülen pay bir takvimle küçülür. Ücretsiz tahsisat 2026'da %97,5, 2030'da %51,5 ve 2034'ten itibaren sıfırdır. Sertifika fiyatı hiç değişmese bile aynı emisyon rakamı her yıl daha pahalıya gelir.",
+            "Kapsam genişliyor. Komisyon 1 Ocak 2028'den itibaren yaklaşık 180 aşağı akış çelik ve alüminyum ürününün eklenmesini önerdi ve Birleşik Krallık kendi CBAM'ini 1 Ocak 2027'de başlatıyor. Bu rejimlerin hepsi aynı şeyi istiyor: doğrulanabilir bir ürün karbon ayak izi.",
+          ],
+        },
+        {
+          h: "Hiçbir şey yapmamanın maliyeti",
+          p: [
+            "Yayımlanmış Annex I tablosundan, temel varsayılan değeri ton başına 1,190 tCO₂e olan bir Tayland demir-çelik ürününü ele alalım. Doğrulanmış veri yoksa AB'li ithalatçı ürünü ek oranlı varsayılan değerle beyan eder. Tesisin gerçek, doğrulanmış rakamı ton başına 0,9 tCO₂e ise fark şöyle görünür:",
+          ],
+          table: {
+            head: ["Yıl", "Ek oranlı varsayılan", "Doğrulanmış gerçek değer", "Alıcının ton başına fazladan ödediği CO₂"],
+            rows: [
+              ["2026", "1,309 tCO₂e/t (+%10)", "0,9 tCO₂e/t", "0,409 t"],
+              ["2027", "1,428 tCO₂e/t (+%20)", "0,9 tCO₂e/t", "0,528 t"],
+              ["2028 ve sonrası", "1,547 tCO₂e/t (+%30)", "0,9 tCO₂e/t", "0,647 t"],
+            ],
+          },
+          note: "Satırlar arasında fabrikada hiçbir şey değişmedi. Rakam, kimse doğrulanmış bir değer sunmadığı için yükseldi — ve yetmişlerin ortasındaki euro sertifika fiyatlarıyla AB'li ithalatçı bu farkı sevk edilen her ton için öder. Bu seçimle karşılaşan bir alıcı, doğrulanmış rakamı bu farkı ortadan kaldıran ihracatçıyı tercih eder.",
+        },
+        {
+          h: "Asıl zorluk nerede",
+          p: [
+            "CBAM formülü tek satıra sığar. CBAM'i ihracatçı için zorlaştıran, ihracatçının kontrol ettiği tek terimin arkasındaki iş akışıdır:",
+          ],
+          list: [
+            "Ön madde verisi zincirin yukarısındaki tedarikçilerdedir; her biri kendi biçiminde yanıt verir ve Avrupa siparişini kaybedecek olan ihracatçıdan daha az ilgilenmek için nedenleri vardır",
+            "Karmaşık bir mal için varsayılan değerler, ön maddelerden gelen toplam gömülü emisyonların en fazla %20'sini karşılayabilir — yanıt vermeyen büyük bir tedarikçi tüm ürünü varsayılan değere geri itebilir",
+            "Kanıt her ay, her tesis ve her ürün hattı için toplanmalı ve akredite bir doğrulayıcının kabul edeceği biçimde saklanmalıdır",
+            "Doğrulayıcı kapasitesi sınırlıdır ve ilk beyan talebi 2027'nin ilk yarısına yığar",
+            "AB'li ithalatçı sonucu AB'nin biçiminde, 2027'den itibaren üç aylık bir ritimle ister — yıl sonunda bir tablo olarak değil",
+          ],
+        },
+        {
+          h: "Certrace her parçaya nasıl yanıt veriyor",
+          p: [
+            "Certrace, bu döngünün ihracatçının tarafında döndüğü çalışma alanıdır — tedarikçinin ilk yanıtından, AB'li ithalatçının ve doğrulayıcının aldığı pakete kadar.",
+          ],
+          table: {
+            head: ["Sorun", "Certrace ne yapar"],
+            rows: [
+              ["Yanıt vermeyen, her biri kendi biçimini kullanan tedarikçiler", "Smart Link — her tedarikçiye tek bir rehberli bağlantı; Tayca veya İngilizce, her cihazda, hesap gerekmeden ve otomatik hatırlatmalarla"],
+              ["Her ay aynı soruların sorulması", "Bir kez doldurulan tedarikçi profili — yanıtlar kaydedilir ve ürünler, dönemler ve alıcılar arasında bir sonraki talepte önceden doldurulur"],
+              ["Eksik alanlar, yanlış birimler, imkânsız rakamlar", "Tedarikçi gönderdiği anda otomatik kalite kontrolü ve sade bir özet; yapay zekâ sorunları işaretler, hiçbir rakamı düzenlemez"],
+              ["%20 ön madde kuralı ve hesap", "Kesin dönem kurallarının — %20 varsayılan değer sınırı dahil — yerleşik olduğu CBAM hesaplama motoru; her rakamda hesap izi"],
+              ["Maruziyetin nerede olduğunu bilmemek", "Ürün hattı bazında varsayılan değerlere karşı karbon kıyaslaması — hangi hatların en çok maliyet taşıdığı ve bir iyileştirmenin ne değerde olduğu"],
+              ["Alıcı ya da doğrulayıcı kanıt istiyor", "Her zaman hazır rapor paketi — metodoloji, kanıt sicili, isimli onaylar ve denetim iziyle yaklaşık 24 sayfalık iletişim ve denetim paketi, SHA-256 ile mühürlü, yanında Annex IV XML"],
+            ],
+          },
+        },
+        {
+          h: "Alıcı için değil, ihracatçı için tasarlandı",
+          p: [
+            "Bu alandaki karbon platformlarının çoğunu AB'li ithalatçı satın alır ve ihracatçıyı peşine düşülecek bir veri kaynağı olarak görür. Certrace masanın öbür tarafında oturur: tedarikçiler, veri ve kanıt ihracatçıya aittir ve aynı veri seti, her biri için yeniden kurulmadan soran her alıcıya yanıt verebilir.",
+            "Bunun önemi AB'nin ötesine geçer. Birleşik Krallık ve ardından gelecek diğerleri de aynı doğrulanmış ürün ayak izini isteyecek. Bunu bir kez altyapı olarak kuran ihracatçı hepsine yanıt vermiş olur; tek seferlik bir beyan olarak kuran ihracatçı ise yeniden kurmak zorunda kalır.",
+          ],
+        },
+        {
+          h: "Certrace'in yapmadıkları",
+          list: [
+            "CBAM beyanını sunmak. Registry'ye yalnızca AB'li ithalatçının authorized CBAM declarant'ı beyan sunabilir; Certrace o beyan sahibine eksiksiz bir veri seti, Annex IV şablonunu ve denetim paketini verir",
+            "Akredite doğrulayıcının yerini almak. Doğrulamayı yine bağımsız bir doğrulayıcı yapar; Certrace izleme kanıtını düzenler, böylece doğrulama daha az sorun bulur ve daha hızlı ilerler",
+            "Tesisin emisyonlarını kendi başına düşürmek. Karbonsuzlaşma tesisin işidir; Certrace'in ortadan kaldırdığı, kanıtlanmamış bir rakamın maliyetidir — varsayılan değer ile gerçek arasındaki fark",
+            "Henüz her sektörü kapsamak. Bugün 67 CN kodlu ürünle demir, çelik ve alüminyum için AB CBAM'ini destekliyor; UK CBAM yol haritasında",
+          ],
+          note: "Bunu açıkça söylemek meselenin ta kendisi. Bir uyum sitesinde, beyan sahibinin ya da doğrulayıcının işini yaptığını iddia eden bir araç, denetimde kalacak bir araçtır.",
+        },
+        {
+          h: "Bir ihracatçı nereden başlamalı",
+          list: [
+            "AB'ye gönderilen her ürünün CN kodunu kontrol edin — kapsamı ürün adı değil gümrük kodu belirler",
+            "Ön madde tedarikçilerini listeleyin ve gömülü emisyondaki paylarına göre sıralayın; en büyüğü ürünün %20 kuralını geçip geçmeyeceğini belirler",
+            "Aylık toplamaya şimdi başlayın; doğrulayıcı istediğinde 2026'nın tam bir yıllık kanıtı hazır olsun",
+            "İzleme planı hâlâ ucuza düzeltilebilirken, 2026'nın 4. çeyreğinde veya 2027'nin 1. çeyreğinde akredite bir doğrulayıcıyla çalışmaya başlayın",
+            "Tedarikçi döngüsünü bir e-posta kutusundan bir platforma taşıyın — Certrace tam olarak bu yükü ihracatçının masasından almak için tasarlandı",
+          ],
+        },
+      ],
+      faq: [
+        {
+          q: "CBAM, AB dışındaki ihracatçılar için neden önemli?",
+          a: "Çünkü AB'li ithalatçı, ihracatçının sattığı ürünlere gömülü emisyonlar için ödeme yapar ve ihracatçıdan doğrulanmış veri gelmezse ek oranlı varsayılan değeri kullanmak zorundadır. Ton başına karbon fiyatın bir parçası olur ve alıcılar daha düşük bir rakamı kanıtlayabilen ihracatçılara yönelir.",
+        },
+        {
+          q: "Certrace akredite doğrulayıcının yerini alır mı?",
+          a: "Hayır. Rakamların gerçek değer sayılması için yine akredite bir doğrulayıcı tarafından doğrulanması gerekir. Certrace kanıtı toplar ve düzenler; böylece doğrulama daha hızlı olur ve daha az sorun bulur.",
+        },
+        {
+          q: "Certrace bir ihracatçının CBAM beyanını sunabilir mi?",
+          a: "Hayır, hiçbir sağlayıcı sunamaz. Yalnızca AB'li ithalatçının authorized CBAM declarant'ı beyan sunabilir. Certrace o beyan sahibine veri setini, Annex IV şablonunu ve mühürlü denetim paketini verir.",
+        },
+        {
+          q: "Certrace bugün hangi ürünleri destekliyor?",
+          a: "Kesin dönem kuralları altında 67 CN kodlu ürünü kapsayan demir, çelik ve alüminyum için AB CBAM'i. UK CBAM yol haritasında.",
+        },
+        {
+          q: "İhracatçının tedarikçilerinin Certrace için hesap açması ya da ücret ödemesi gerekir mi?",
+          a: "Hayır. Her tedarikçi tek bir Smart Link alır — her cihazda Tayca veya İngilizce rehberli bir form, hesap ve ücret yok — ve yanıtları kaydedilir, böylece bir sonraki talep önceden doldurulur.",
+        },
+      ],
+    },
   },
 };

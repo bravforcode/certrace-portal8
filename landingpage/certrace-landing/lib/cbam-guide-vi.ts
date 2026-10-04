@@ -11,7 +11,7 @@ export const CBAM_VI: CbamGuide = {
     eyebrow: "VỀ CBAM",
     headline: "Mọi điều CBAM đòi hỏi\nở nhà xuất khẩu, giải thích rõ.",
     intro:
-      "Cơ chế điều chỉnh biên giới carbon của EU bước vào giai đoạn chính thức từ ngày 1 tháng 1 năm 2026. Mười hai hướng dẫn này nói rõ CBAM hiện yêu cầu gì, tốn bao nhiêu, và nhà xuất khẩu ngoài EU phải chứng minh những gì — viết cho nhà xuất khẩu là người tạo ra dữ liệu carbon, không phải nhà nhập khẩu EU là người nộp tờ khai.",
+      "Cơ chế điều chỉnh biên giới carbon của EU bước vào giai đoạn chính thức từ ngày 1 tháng 1 năm 2026. Mười ba hướng dẫn này nói rõ CBAM hiện yêu cầu gì, tốn bao nhiêu, và nhà xuất khẩu ngoài EU phải chứng minh những gì — viết cho nhà xuất khẩu là người tạo ra dữ liệu carbon, không phải nhà nhập khẩu EU là người nộp tờ khai.",
     searchLabel: "Tìm trong hướng dẫn",
     searchPlaceholder: "Tìm hướng dẫn CBAM…",
     allTopics: "Tất cả chủ đề",
@@ -1009,5 +1009,135 @@ export const CBAM_VI: CbamGuide = {
       ],
     },
 
+    /* ═══════════════════════════════════════════════════ 13 */
+    "why-cbam-matters": {
+      title: "Vì sao CBAM quan trọng với nhà xuất khẩu ngoài EU — và Certrace giải bài toán đó thế nào",
+      dek: "CBAM quan trọng vì nó biến con số carbon của nhà xuất khẩu thành một phần giá mà người mua EU phải trả: không có dữ liệu đã kiểm chứng, người mua phải trả theo giá trị mặc định cộng mark-up, và chi phí tăng dần theo lộ trình đã công bố đến năm 2034. Certrace được xây để tạo ra bộ dữ liệu đó ở phía nhà xuất khẩu, bắt đầu từ nhà cung cấp.",
+      metaTitle: "Vì sao CBAM quan trọng với nhà xuất khẩu (2026) — và Certrace giúp chứng minh dữ liệu carbon thế nào",
+      metaDescription:
+        "Vì sao CBAM của EU là bài toán thương mại với nhà xuất khẩu ngoài EU, bỏ qua nó tốn bao nhiêu trên mỗi tấn, khó khăn thật sự nằm ở đâu — và Certrace làm gì, không làm gì, để dữ liệu carbon của nhà xuất khẩu sẵn sàng cho kiểm chứng.",
+      topic: "Chiến lược",
+      keyFacts: [
+        { label: "Vì sao quan trọng", value: "Carbon trên mỗi tấn nay là một phần chi phí hàng tới cửa khẩu EU" },
+        { label: "Không có dữ liệu đã kiểm chứng", value: "Giá trị mặc định EU + mark-up 10% (2026), 20% (2027), 30% từ 2028" },
+        { label: "Áp lực chi phí đã định sẵn", value: "Phân bổ miễn phí giảm từ 97,5% năm 2026 về 0% năm 2034" },
+        { label: "Hạn chót ràng buộc đầu tiên", value: "30/9/2027 — nộp tờ khai và trả chứng chỉ cho hàng nhập năm 2026" },
+        { label: "Yếu tố nhà xuất khẩu kiểm soát được", value: "Phát thải hàm chứa trên mỗi tấn, đã kiểm chứng" },
+        { label: "Certrace làm gì", value: "Thu thập dữ liệu nhà cung cấp, chạy phép tính CBAM, giữ sẵn bộ báo cáo sẵn sàng kiểm chứng" },
+        { label: "Certrace không làm gì", value: "Nộp tờ khai thay, hay thay thế kiểm chứng viên được công nhận" },
+      ],
+      sections: [
+        {
+          h: "Vì sao CBAM quan trọng: carbon nay là một phần của giá",
+          p: [
+            "Từ ngày 1 tháng 1 năm 2026, nhà nhập khẩu EU mua thép, nhôm, xi măng, phân bón, hydro hay điện phải mua chứng chỉ CBAM tương ứng với lượng phát thải hàm chứa trong từng tấn hàng nhập. Uỷ ban châu Âu công bố giá chứng chỉ €75,36 mỗi tấn CO₂e cho quý 1/2026 và €75,28 cho quý 2/2026.",
+            "Nghĩa vụ pháp lý thuộc về nhà nhập khẩu EU. Dữ liệu thì không. Chỉ nhà xuất khẩu biết lò đã đốt bao nhiêu nhiên liệu, lưới điện cung cấp gì và tiền chất nào đã vào sản phẩm — nên hoá đơn carbon của nhà nhập khẩu được quyết định bởi con số của nhà xuất khẩu. Vì vậy nên hiểu CBAM là một điều kiện thương mại hơn là một loại thuế: nó không cấm nhà xuất khẩu bán vào châu Âu, nó thay đổi việc châu Âu muốn mua của ai.",
+          ],
+        },
+        {
+          h: "Bốn lý do không thể chờ",
+          list: [
+            "Dữ liệu không thể dựng lại sau. Chỉ số đồng hồ tháng 3/2026 hoặc tồn tại vào tháng 3/2026, hoặc không tồn tại, và kiểm chứng viên được công nhận sẽ không chấp nhận một con số dựng lại từ trí nhớ. Hàng nhập năm 2026 được khai vào ngày 30/9/2027, nhưng bằng chứng phía sau đang được tạo ra — hoặc mất đi — ngay bây giờ.",
+            "Giá trị mặc định mang tính trừng phạt, và tệ hơn mỗi năm. Không có giá trị thực đã kiểm chứng, nhà nhập khẩu EU phải dùng giá trị mặc định EU — được đặt theo các cơ sở phát thải cao một cách có chủ ý — cộng mark-up 10% cho 2026, 20% cho 2027 và 30% từ 2028.",
+            "Phần khấu trừ thu hẹp theo lộ trình. Phân bổ miễn phí là 97,5% năm 2026, 51,5% năm 2030 và bằng 0 từ 2034. Cùng một con số phát thải sẽ tốn hơn mỗi năm dù giá chứng chỉ không đổi.",
+            "Phạm vi đang mở rộng. Uỷ ban đã đề xuất bổ sung khoảng 180 sản phẩm thép và nhôm hạ nguồn từ ngày 1/1/2028, và Vương quốc Anh bắt đầu CBAM riêng từ 1/1/2027. Mọi cơ chế đều đòi cùng một thứ: dấu chân carbon sản phẩm kiểm chứng được.",
+          ],
+        },
+        {
+          h: "Không làm gì thì tốn bao nhiêu",
+          p: [
+            "Lấy một mặt hàng sắt thép của Thái Lan trong bảng Annex I đã công bố, có giá trị mặc định cơ sở 1,190 tCO₂e mỗi tấn. Không có dữ liệu đã kiểm chứng, nhà nhập khẩu EU phải khai theo giá trị mặc định đã cộng mark-up. Nếu con số thực đã kiểm chứng của nhà máy là 0,9 tCO₂e mỗi tấn, khoảng chênh như sau:",
+          ],
+          table: {
+            head: ["Năm", "Mặc định + mark-up", "Giá trị thực đã kiểm chứng", "CO₂ dư người mua phải trả, mỗi tấn"],
+            rows: [
+              ["2026", "1,309 tCO₂e/t (+10%)", "0,9 tCO₂e/t", "0,409 t"],
+              ["2027", "1,428 tCO₂e/t (+20%)", "0,9 tCO₂e/t", "0,528 t"],
+              ["Từ 2028", "1,547 tCO₂e/t (+30%)", "0,9 tCO₂e/t", "0,647 t"],
+            ],
+          },
+          note: "Nhà máy không thay đổi gì giữa các hàng. Con số tăng chỉ vì không ai cung cấp một con số đã kiểm chứng — và với giá chứng chỉ quanh 75 euro, nhà nhập khẩu EU trả cho khoảng chênh đó trên từng tấn được giao. Người mua đứng trước lựa chọn ấy sẽ ưu tiên nhà xuất khẩu có con số đã kiểm chứng xoá được khoảng chênh.",
+        },
+        {
+          h: "Khó khăn thật sự nằm ở đâu",
+          p: [
+            "Công thức CBAM gói gọn trong một dòng. Điều làm CBAM khó với nhà xuất khẩu là quy trình đằng sau yếu tố duy nhất mà nhà xuất khẩu kiểm soát được:",
+          ],
+          list: [
+            "Dữ liệu tiền chất nằm ở các nhà cung cấp thượng nguồn, mỗi bên trả lời một định dạng, và ít lý do để quan tâm hơn nhà xuất khẩu — người sẽ mất đơn hàng châu Âu",
+            "Với hàng hoá phức hợp, giá trị mặc định chỉ được chiếm tối đa 20% tổng phát thải hàm chứa từ tiền chất — một nhà cung cấp lớn không trả lời có thể kéo cả sản phẩm về giá trị mặc định",
+            "Bằng chứng phải thu thập hằng tháng, cho từng nhà máy và dòng sản phẩm, và lưu ở dạng kiểm chứng viên được công nhận chấp nhận",
+            "Năng lực kiểm chứng có hạn, và tờ khai đầu tiên dồn nhu cầu vào nửa đầu năm 2027",
+            "Nhà nhập khẩu EU cần kết quả theo định dạng của EU, theo nhịp hằng quý từ 2027, không phải một bảng tính vào cuối năm",
+          ],
+        },
+        {
+          h: "Certrace giải từng phần thế nào",
+          p: [
+            "Certrace là không gian làm việc nơi vòng lặp đó chạy ở phía nhà xuất khẩu — từ câu trả lời đầu tiên của nhà cung cấp đến bộ hồ sơ mà nhà nhập khẩu EU và kiểm chứng viên nhận được.",
+          ],
+          table: {
+            head: ["Vấn đề", "Certrace làm gì"],
+            rows: [
+              ["Nhà cung cấp không trả lời, mỗi bên một định dạng", "Smart Link — một đường link biểu mẫu có hướng dẫn cho mỗi nhà cung cấp, tiếng Thái hoặc tiếng Anh, dùng trên mọi thiết bị, không cần tài khoản, có nhắc tự động"],
+              ["Hỏi lại cùng câu hỏi mỗi tháng", "Hồ sơ điền một lần — câu trả lời được lưu và tự điền sẵn ở lần yêu cầu sau, qua các sản phẩm, kỳ và người mua"],
+              ["Thiếu trường, sai đơn vị, số không thể có", "Kiểm tra chất lượng tự động ngay khi nhà cung cấp gửi, kèm tóm tắt dễ đọc; AI chỉ đánh dấu vấn đề và không bao giờ sửa số liệu"],
+              ["Quy tắc tiền chất 20% và phép tính", "Bộ máy tính CBAM đã tích hợp quy tắc giai đoạn chính thức, gồm trần giá trị mặc định 20%, với vết tính toán đi kèm mọi con số"],
+              ["Không biết rủi ro nằm ở đâu", "Benchmark carbon so với giá trị mặc định theo dòng sản phẩm — dòng nào gánh chi phí nhiều nhất và một cải thiện đáng giá bao nhiêu"],
+              ["Người mua hoặc kiểm chứng viên đòi bằng chứng", "Bộ báo cáo luôn sẵn sàng — gói Communication & Audit khoảng 24 trang gồm phương pháp, sổ bằng chứng, chữ ký phê duyệt có tên và audit trail, niêm phong bằng SHA-256, kèm Annex IV XML"],
+            ],
+          },
+        },
+        {
+          h: "Xây cho nhà xuất khẩu, không phải cho người mua",
+          p: [
+            "Phần lớn nền tảng carbon trong lĩnh vực này do nhà nhập khẩu EU mua, và coi nhà xuất khẩu là nguồn dữ liệu cần đeo bám. Certrace ngồi ở phía bên kia bàn: nhà cung cấp, dữ liệu và bằng chứng thuộc về nhà xuất khẩu, và cùng một bộ dữ liệu trả lời được mọi người mua hỏi đến thay vì dựng lại cho từng người.",
+            "Điều này có ý nghĩa vượt ra ngoài EU. Vương quốc Anh, và những nơi theo sau, sẽ đòi cùng một dấu chân sản phẩm đã kiểm chứng. Nhà xuất khẩu xây nó một lần như hạ tầng là đã trả lời được tất cả; nhà xuất khẩu làm nó như một lần nộp riêng lẻ sẽ phải làm lại.",
+          ],
+        },
+        {
+          h: "Những gì Certrace không làm",
+          list: [
+            "Nộp tờ khai CBAM. Chỉ authorized CBAM declarant của nhà nhập khẩu EU mới được nộp với Registry; Certrace trao cho họ bộ dữ liệu đầy đủ, mẫu Annex IV và gói hồ sơ kiểm toán",
+            "Thay thế kiểm chứng viên được công nhận. Việc kiểm chứng vẫn do kiểm chứng viên độc lập thực hiện; Certrace sắp xếp bằng chứng giám sát để việc kiểm chứng ít phát hiện vấn đề hơn và nhanh hơn",
+            "Tự giảm phát thải của nhà máy. Giảm phát thải là việc của nhà máy; điều Certrace xoá bỏ là chi phí của một con số chưa được chứng minh — khoảng chênh giữa giá trị mặc định và sự thật",
+            "Bao phủ mọi ngành. Hiện Certrace hỗ trợ EU CBAM cho sắt, thép và nhôm với 67 mặt hàng theo CN Code; UK CBAM nằm trong lộ trình",
+          ],
+          note: "Nói rõ điều này chính là mấu chốt. Trên một trang về tuân thủ, công cụ tự nhận làm thay việc của người khai báo hay kiểm chứng viên là công cụ sẽ trượt khi kiểm toán.",
+        },
+        {
+          h: "Nhà xuất khẩu nên bắt đầu từ đâu",
+          list: [
+            "Kiểm tra CN Code của mọi sản phẩm gửi sang EU — phạm vi được quyết định bởi mã hải quan, không phải tên sản phẩm",
+            "Liệt kê các nhà cung cấp tiền chất và xếp hạng theo tỷ trọng phát thải hàm chứa; bên lớn nhất quyết định sản phẩm có qua quy tắc 20% hay không",
+            "Bắt đầu thu thập hằng tháng ngay bây giờ, để có đủ bằng chứng cả năm 2026 khi kiểm chứng viên yêu cầu",
+            "Làm việc với kiểm chứng viên được công nhận trong quý 4/2026 hoặc quý 1/2027, khi kế hoạch giám sát còn sửa được với chi phí thấp",
+            "Đưa vòng lặp nhà cung cấp lên một nền tảng thay vì hộp thư — đó là phần Certrace được xây để gỡ khỏi bàn làm việc của nhà xuất khẩu",
+          ],
+        },
+      ],
+      faq: [
+        {
+          q: "Vì sao CBAM quan trọng với nhà xuất khẩu ngoài EU?",
+          a: "Vì nhà nhập khẩu EU phải trả cho lượng phát thải hàm chứa trong hàng nhà xuất khẩu bán, và nếu không có dữ liệu đã kiểm chứng từ nhà xuất khẩu thì nhà nhập khẩu phải dùng giá trị mặc định đã cộng mark-up. Carbon trên mỗi tấn trở thành một phần của giá, và người mua chuyển sang nhà xuất khẩu chứng minh được con số thấp hơn.",
+        },
+        {
+          q: "Certrace có thay thế kiểm chứng viên được công nhận không?",
+          a: "Không. Số liệu vẫn phải được kiểm chứng viên được công nhận kiểm chứng mới được tính là giá trị thực. Certrace thu thập và sắp xếp bằng chứng để việc kiểm chứng nhanh hơn và ít phát hiện vấn đề hơn.",
+        },
+        {
+          q: "Certrace có nộp tờ khai CBAM thay nhà xuất khẩu được không?",
+          a: "Không, và không nhà cung cấp nào làm được. Chỉ authorized CBAM declarant của nhà nhập khẩu EU mới được nộp. Certrace trao cho họ bộ dữ liệu, mẫu Annex IV và gói hồ sơ kiểm toán đã niêm phong.",
+        },
+        {
+          q: "Hiện Certrace hỗ trợ những sản phẩm nào?",
+          a: "EU CBAM cho sắt, thép và nhôm, gồm 67 mặt hàng theo CN Code theo quy tắc giai đoạn chính thức. UK CBAM nằm trong lộ trình.",
+        },
+        {
+          q: "Nhà cung cấp của nhà xuất khẩu có cần tài khoản hay trả phí không?",
+          a: "Không. Mỗi nhà cung cấp nhận một Smart Link — biểu mẫu có hướng dẫn bằng tiếng Thái hoặc tiếng Anh trên mọi thiết bị, không cần tài khoản, không mất phí — và câu trả lời được lưu để lần yêu cầu sau được điền sẵn.",
+        },
+      ],
+    },
   },
 };
