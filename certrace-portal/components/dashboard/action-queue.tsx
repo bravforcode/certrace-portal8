@@ -8,8 +8,15 @@
    renders first, full width, and never as a blank space — an empty queue
    is still a fact worth confirming ("nothing needs attention"), not the
    absence of a widget.
+
+   FIVE ROWS, THEN A BUTTON. The list is sorted most-overdue first, so the
+   first five are the five that matter this morning; the twelve it used to
+   show was a list long enough that the reader counted it instead of reading
+   it. The rest are one press away, in place — and unlike the old "+ N more"
+   line, which named items it gave no way to see, every one can be reached.
    ════════════════════════════════════════════════════════════ */
 
+import * as React from "react";
 import Link from "next/link";
 import { Calendar, CheckCircle2, Layers, Paperclip, ShieldAlert, Users } from "lucide-react";
 import { Card, cn } from "@/components/ui";
@@ -38,8 +45,12 @@ function dueLabel(daysUntilDue: number): { text: string; tone: "err" | "warn" } 
   return { text: `Due in ${daysUntilDue} day${daysUntilDue === 1 ? "" : "s"}`, tone: "warn" };
 }
 
+const SHOWN_FIRST = 5;
+
 export function ActionQueue({ items }: { items: ActionItem[] }) {
   const t = useT();
+  const [showAll, setShowAll] = React.useState(false);
+  const shown = showAll ? items : items.slice(0, SHOWN_FIRST);
   return (
     <Card className="p-6">
       <div className="mb-4 flex items-center justify-between">
@@ -58,19 +69,19 @@ export function ActionQueue({ items }: { items: ActionItem[] }) {
         </div>
       ) : (
         <ul className="divide-y divide-black/[0.05]">
-          {items.slice(0, 12).map((item, i) => {
+          {shown.map((item, i) => {
             const Icon = TYPE_ICON[item.type];
             const due = dueLabel(item.daysUntilDue);
             return (
               <li key={`${item.workspaceId}-${item.type}-${i}`}>
-                <Link href={item.deepLink} className="flex items-center gap-3 py-3 transition-colors hover:bg-[#fafaf8]">
+                <Link href={item.deepLink} className="flex items-center gap-3 py-3.5 transition-colors hover:bg-[#fafaf8]">
                   <span
                     className={cn(
-                      "grid h-8 w-8 flex-none place-items-center rounded-lg border",
+                      "grid h-9 w-9 flex-none place-items-center rounded-lg border",
                       due.tone === "err" ? "border-[rgba(220,38,38,0.18)] bg-[#fef2f2] text-[#dc2626]" : "border-[rgba(180,83,9,0.18)] bg-[#fffbeb] text-[#b45309]",
                     )}
                   >
-                    <Icon size={14} strokeWidth={1.5} />
+                    <Icon size={16} strokeWidth={1.5} />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[13px] text-black/80">{item.label}</span>
@@ -88,7 +99,17 @@ export function ActionQueue({ items }: { items: ActionItem[] }) {
         </ul>
       )}
 
-      {items.length > 12 && <p className="mt-3 text-[12px] text-black/40">+ {items.length - 12} more across your other workspaces.</p>}
+      {items.length > SHOWN_FIRST && (
+        <button
+          type="button"
+          data-lock="allow"
+          aria-expanded={showAll}
+          onClick={() => setShowAll((v) => !v)}
+          className="mt-3 w-full rounded-xl border border-black/10 px-4 py-3 text-[13px] text-black/70 transition-colors hover:border-black/25 hover:text-black"
+        >
+          {showAll ? t("Show fewer") : t("Show all {count}", { count: items.length })}
+        </button>
+      )}
     </Card>
   );
 }

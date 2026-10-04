@@ -164,7 +164,7 @@ export default function TeamPage() {
               const Icon = rm.icon;
               const isOwner = s.role === "owner";
               return (
-                <div key={s.id} className="flex items-center justify-between gap-3 px-5 py-4">
+                <div key={s.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
                   <div className="flex min-w-0 items-center gap-3">
                     <span className="grid h-10 w-10 flex-none place-items-center rounded-xl border border-black/10 text-black/55">
                       <Icon size={17} strokeWidth={1.5} />

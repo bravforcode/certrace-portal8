@@ -111,8 +111,11 @@ function ListCard({ row }: { row: WorkspaceSummaryRow }) {
           <DotStrip states={dots} className="flex-none" />
           <span className="flex-none text-[11px] text-black/40">{deadlineLabel(row.nearestDeadlineDays)}</span>
         </div>
-        <div className="mt-2">
-          <span className={cn("text-[11px] uppercase tracking-[0.06em]", buyerReady ? "text-[#047857]" : "text-black/35")}>
+        {/* Sentence case. The reason a product is not buyer-ready is a whole
+            sentence from the readiness engine, and three lines of tracked
+            capitals is the hardest way there is to read a sentence. */}
+        <div className="mt-3">
+          <span className={cn("block text-[12px] leading-snug", buyerReady ? "text-[#047857]" : "text-black/50")}>
             {buyerReady ? "Buyer-ready" : notBuyerReadyReason(readiness) ?? "Not yet buyer-ready"}
           </span>
         </div>
@@ -154,7 +157,11 @@ export function WorkspaceSummary({ rows }: { rows: WorkspaceSummaryRow[] }) {
           {t("View all →")}
         </Link>
       </div>
-      <div className={cn("grid gap-3", sorted.length > 6 ? "grid-cols-1" : "sm:grid-cols-2 lg:grid-cols-3")}>
+      {/* `[&>*]:min-w-0` for the same reason as GRID on the dashboard page: a
+          grid item will not shrink below its content, and a `truncate` line
+          inside the card still counts at its full unbroken width — so on a
+          phone the cards ran past the right edge instead of truncating. */}
+      <div className={cn("grid gap-3 [&>*]:min-w-0", sorted.length > 6 ? "grid-cols-1" : "sm:grid-cols-2 lg:grid-cols-3")}>
         {sorted.map((row) => (
           <ListCard key={row.workspace.id} row={row} />
         ))}

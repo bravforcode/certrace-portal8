@@ -34,6 +34,19 @@
    in the band above, percent-on-default in the RequestBoard's footnote — but
    as four tiles of its own it was a second summary competing with the first.
 
+   ── WHAT IS SHOWN FIRST, AND WHAT WAITS ────────────────────
+   The four bands were a map, but the whole map was still on the table at
+   once: nineteen cards and three screens of scrolling, most of it analysis
+   that somebody opens the portal for perhaps once a month. For the person
+   who signs in to find out whether anything is waiting on them, that is
+   eighteen cards of reading on the way to "no".
+
+   So the page now opens on three things — the four figures, what needs you,
+   and where each product stands — and everything else sits behind one
+   plainly labelled button underneath. Nothing was removed. The choice is
+   remembered per browser, so a reader who wants the full picture every
+   morning opens it once and keeps it.
+
    ── WHAT IS STILL DELIBERATELY MISSING ─────────────────────
    Widget H (Certificate Price Exposure Forecast), which the original pack
    itself gates: "do not build until cbam_phase_in_factors is fully sourced,
@@ -50,8 +63,8 @@
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { Activity, ChevronRight, LayoutGrid, Plus } from "lucide-react";
-import { Button, EmptyState, Eyebrow, PageHeader, cn } from "@/components/ui";
+import { Activity, ChevronDown, ChevronRight, LayoutGrid, Plus } from "lucide-react";
+import { Button, EmptyState, PageHeader, cn } from "@/components/ui";
 import { ErrorState } from "@/components/query-state";
 import { USER } from "@/lib/data";
 import { useT } from "@/lib/i18n";
@@ -157,10 +170,7 @@ function build(): DashboardData {
       overdue: actionItems.filter((i) => i.daysUntilDue < 0).length,
       awaiting: byState.late + byState.in_process,
       late: byState.late,
-      buyerReady: buyerReady.filter((r) => r.ready).length,
-      buyerTotal: buyerReady.length,
       collectedPercent,
-      savingsThb: total.status === "ok" ? total.savingsThb : null,
     },
     requests: {
       toSend: byState.send_now,
@@ -200,6 +210,7 @@ export default function DashboardPage() {
   const { data: queried, isError, refetch } = useQuery({ queryKey: ["workspaces", "dashboard"], queryFn: build, staleTime: 0 });
   const data = queried ?? null;
   const year = new Date().getFullYear();
+  const [detail, setDetail] = useDetailOpen();
 
   if (isError) return <ErrorState onRetry={() => void refetch()} />;
 
@@ -220,7 +231,7 @@ export default function DashboardPage() {
       <PageHeader
         eyebrow={t("Overview")}
         title={t("Good afternoon, {name}.", { name: firstName })}
-        lead={t("Everything that needs you, what it is worth avoiding, and where every product stands.")}
+        lead={t("What needs you today, and where each product stands.")}
         actions={
           <Link href="/workspaces/new">
             <Button>
@@ -249,7 +260,7 @@ export default function DashboardPage() {
         />
       ) : (
         <>
-          {/* ── The summit. Six figures, no heading — a band that needs a
+          {/* ── The summit. Four figures, no heading — a band that needs a
                 label to be understood is not a summary. ─────────────── */}
           <Row i={0}>
             <YearAtAGlance stats={data.glance} />
@@ -260,43 +271,98 @@ export default function DashboardPage() {
             <ActionQueue items={data.actionItems} />
           </Band>
 
-          {/* ── 2 · Who you are waiting on ─────────────────────────── */}
-          <Band i={2} title={t("Who you're waiting on")}>
-            <div className={cn(GRID, "lg:grid-cols-2")}>
-              <RequestBoard stats={data.requests} />
-              <SupplierHealth funnel={data.funnel} />
-            </div>
-            <PrecursorRiskWidget rows={data.precursorRisk} />
-          </Band>
-
-          {/* ── 3 · Where each product stands ──────────────────────── */}
-          <Band i={3} title={t("Where each product stands")}>
+          {/* ── 2 · Where each product stands ──────────────────────── */}
+          <Band i={2} title={t("Where each product stands")}>
             <WorkspaceSummary rows={data.summaryRows} />
-            <div className={GRID}>
-              <div className="min-w-0 lg:col-span-2">
-                <BuyerReadyStatus rows={data.buyerReady} />
-              </div>
-              <TrustScoreWidget />
-            </div>
           </Band>
 
-          {/* ── 4 · What it is worth ───────────────────────────────── */}
-          <Band i={4} title={t("What it's worth")}>
-            <CostAvoidanceWidget result={data.costAvoidance} year={year} />
-            <div className={cn(GRID, "lg:grid-cols-2")}>
-              <SeeTrend points={data.trendPoints} defaultSee={data.trendDefault} />
-              <BenchmarkWidget benchmarks={data.benchmarks} />
-            </div>
-          </Band>
+          {/* ── The fold. Everything under it is analysis, not errands. ── */}
+          <Row i={3}>
+            <button
+              type="button"
+              /* It changes what is on screen, never what is stored, so it
+                 keeps working on a read-only account. */
+              data-lock="allow"
+              aria-expanded={detail}
+              aria-controls="dashboard-detail"
+              onClick={() => setDetail(!detail)}
+              className="flex w-full items-center gap-4 rounded-2xl border border-black/10 bg-white px-5 py-4 text-left transition-colors hover:border-black/25 hover:bg-[#fafaf8]"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block text-[15px] text-[#111]">{detail ? t("Show less detail") : t("Show more detail")}</span>
+                <span className="mt-0.5 block text-[13px] text-black/50">{t("Suppliers, buyer readiness, costs and recent activity.")}</span>
+              </span>
+              <ChevronDown size={20} strokeWidth={1.5} className={cn("flex-none text-black/40 transition-transform", detail && "rotate-180")} />
+            </button>
+          </Row>
 
-          {/* ── 5 · What has happened ──────────────────────────────── */}
-          <Band i={5} title={t("Recently")}>
-            <ActivityFeed events={data.activity} />
-          </Band>
+          {detail && (
+            <div id="dashboard-detail" className="space-y-8">
+              {/* ── 3 · Who you are waiting on ───────────────────────── */}
+              <Band i={0} title={t("Who you're waiting on")}>
+                <div className={cn(GRID, "lg:grid-cols-2")}>
+                  <RequestBoard stats={data.requests} />
+                  <SupplierHealth funnel={data.funnel} />
+                </div>
+                <PrecursorRiskWidget rows={data.precursorRisk} />
+              </Band>
+
+              {/* ── 4 · What a buyer would accept today ──────────────── */}
+              <Band i={1} title={t("Buyer-ready")}>
+                <div className={GRID}>
+                  <div className="min-w-0 lg:col-span-2">
+                    <BuyerReadyStatus rows={data.buyerReady} />
+                  </div>
+                  <TrustScoreWidget />
+                </div>
+              </Band>
+
+              {/* ── 5 · What it is worth ─────────────────────────────── */}
+              <Band i={2} title={t("What it's worth")}>
+                <CostAvoidanceWidget result={data.costAvoidance} year={year} />
+                <div className={cn(GRID, "lg:grid-cols-2")}>
+                  <SeeTrend points={data.trendPoints} defaultSee={data.trendDefault} />
+                  <BenchmarkWidget benchmarks={data.benchmarks} />
+                </div>
+              </Band>
+
+              {/* ── 6 · What has happened ────────────────────────────── */}
+              <Band i={3} title={t("Recently")}>
+                <ActivityFeed events={data.activity} />
+              </Band>
+            </div>
+          )}
         </>
       )}
     </div>
   );
+}
+
+/* Whether the analysis under the fold is open. Remembered per browser, and
+   read in an effect rather than during render: the server has no storage to
+   read, and a first paint that disagreed with it would be a hydration error.
+   Guarded both ways — storage throws in private mode, and a dashboard that
+   cannot remember a preference should still open. */
+const DETAIL_KEY = "certrace:dashboard:detail";
+
+function useDetailOpen(): readonly [boolean, (open: boolean) => void] {
+  const [open, setOpen] = React.useState(false);
+  React.useEffect(() => {
+    try {
+      setOpen(window.localStorage.getItem(DETAIL_KEY) === "1");
+    } catch {
+      /* stays closed */
+    }
+  }, []);
+  const set = React.useCallback((next: boolean) => {
+    setOpen(next);
+    try {
+      window.localStorage.setItem(DETAIL_KEY, next ? "1" : "0");
+    } catch {
+      /* best-effort: the choice just won't survive a reload */
+    }
+  }, []);
+  return [open, set] as const;
 }
 
 /* A GRID ITEM DEFAULTS TO `min-width: auto`, which means it refuses to
@@ -321,13 +387,17 @@ function Row({ i, children }: { i: number; children: React.ReactNode }) {
 }
 
 /** A labelled band. The heading is a `section` landmark as well as a line of
-    type: a reader on a screen reader gets the same four-part map a sighted
-    reader gets from the eyebrows, instead of eleven sibling cards. */
+    type: a reader on a screen reader gets the same map a sighted reader gets
+    from the headings, instead of eleven sibling cards.
+
+    A REAL HEADING, NOT AN EYEBROW. These used to be 11px tracked capitals in
+    grey — the quietest type on the page, used for the lines that tell a
+    reader where they are. They are the map, so they are set like one. */
 function Band({ i, title, children }: { i: number; title: string; children: React.ReactNode }) {
   return (
     <Row i={i}>
       <section aria-label={title} className="space-y-3">
-        <Eyebrow className="block">{title}</Eyebrow>
+        <h2 className="text-[15px] font-medium text-black/80">{title}</h2>
         {children}
       </section>
     </Row>

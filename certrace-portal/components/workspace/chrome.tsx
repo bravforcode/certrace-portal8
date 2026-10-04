@@ -12,7 +12,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowLeft, CalendarClock, Lock, User, Users } from "lucide-react";
+import { ArrowLeft, CalendarClock, ChevronRight, Lock, User, Users } from "lucide-react";
 import { cn, HelpTip, StatusDot, type Tone } from "@/components/ui";
 import { READINESS_TABS, TAB_LABEL, TAB_STATE_LABEL, type ReadinessTab, type TabState } from "@/lib/readiness";
 import { CADENCE_LABEL, OWNER_LABEL, RESPONSIBILITY } from "@/lib/responsibility";
@@ -175,32 +175,61 @@ export function TabStrip({
    things, and a reader forty rows into a fuel table has no way to tell which
    one they are filling in.
 
-   So one bar, three parts, always in the same order: where BACK goes, WHAT
+   So one bar, three parts, always in the same order: WHERE THIS SITS, WHAT
    this is, and HOW IT IS DOING. Deliberately two short rows rather than the
    tall title block this replaced — it is pinned, and every pixel it takes is
    a pixel of the table underneath it.
+
+   THE FIRST ROW IS A TRAIL, NOT A BACK LINK. It used to be one arrow whose
+   label and destination changed with the page — "Supply chain" here, "All
+   months" there, the estate somewhere else — so the only way to learn where
+   it went was to press it. The trail is the same shape on every page: it
+   starts at Verification, names each level down to the one above this page,
+   and every step is a link. The LAST step is where the old arrow went.
+
+   On a phone only that last step is shown, with the arrow: the bar is pinned
+   and a four-step trail wraps to two lines there. The full menu is one tap
+   away in the drawer, which is what the hidden steps would have offered.
 
    `right` is the status end of the bar: readiness percentage and state chip
    for a workspace, node status for an entity. It is right-aligned and
    baseline-aligned with the title, so the eye reads name → identity → state
    in one pass. */
+export type Crumb = { href: string; label: string };
+
 export function IdentityBar({
-  back,
+  trail,
   title,
   meta,
   right,
 }: {
-  back: { href: string; label: string };
+  /** every level above this page, outermost first; never empty */
+  trail: Crumb[];
   title: string;
   /** the one line that makes the title unambiguous — CN code, year, tier */
   meta?: React.ReactNode;
   right?: React.ReactNode;
 }) {
+  const t = useT();
   return (
     <>
-      <Link href={back.href} className="inline-flex items-center gap-1.5 text-[12px] text-black/40 transition-colors hover:text-black">
-        <ArrowLeft size={13} strokeWidth={1.5} /> {back.label}
-      </Link>
+      <nav aria-label={t("Breadcrumb")} className="flex min-w-0 items-center gap-x-1.5 text-[12px] text-black/45">
+        {trail.map((crumb, i) => {
+          const last = i === trail.length - 1;
+          return (
+            <React.Fragment key={crumb.href}>
+              {i > 0 && <ChevronRight size={13} strokeWidth={1.5} className="hidden flex-none text-black/25 sm:block" aria-hidden />}
+              <Link
+                href={crumb.href}
+                className={cn("min-w-0 items-center gap-1.5 py-0.5 transition-colors hover:text-black", last ? "inline-flex" : "hidden sm:inline-flex")}
+              >
+                {last && <ArrowLeft size={14} strokeWidth={1.5} className="flex-none sm:hidden" aria-hidden />}
+                <span className="truncate">{crumb.label}</span>
+              </Link>
+            </React.Fragment>
+          );
+        })}
+      </nav>
       <div className="mt-1 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1.5">
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
           <h1 className="min-w-0 truncate font-[family-name:var(--font-plex)] text-[21px] font-light leading-tight tracking-tight text-[#111]">{title}</h1>

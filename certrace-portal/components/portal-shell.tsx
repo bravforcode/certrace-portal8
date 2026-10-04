@@ -153,7 +153,11 @@ function useNav() {
     // each buyer — reporting/analysis, grouped with Reports rather than the
     // operational Verification / Smart Links block above.
     { href: "/carbon-cost", label: t("Carbon & Cost"), icon: Coins },
-    { href: "/team", label: t("Team & seats"), icon: Users },
+    // WORK ABOVE THE RULE, THE ACCOUNT BELOW IT. The five entries above are
+    // where the day's work happens; these three are opened a few times a
+    // year. Eight equal rows made a reader scan all eight to find the one
+    // they use every morning — `divider` draws the line between the two.
+    { href: "/team", label: t("Team & seats"), icon: Users, divider: true },
     { href: "/billing", label: t("Plan & billing"), icon: CreditCard },
     { href: "/settings", label: t("Settings"), icon: Settings },
   ];
@@ -217,10 +221,10 @@ function NotificationsBell() {
       trigger={() => (
         <span
           aria-label={t("Notifications")}
-          className="relative grid h-9 w-9 place-items-center rounded-xl border border-black/10 text-black/55 hover:border-black/25 hover:text-black"
+          className="relative grid h-11 w-11 place-items-center rounded-xl border border-black/10 text-black/55 hover:border-black/25 hover:text-black"
         >
-          <Bell size={16} strokeWidth={1.5} />
-          {unread.length > 0 && <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#f87171]" />}
+          <Bell size={19} strokeWidth={1.5} />
+          {unread.length > 0 && <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-[#f87171]" />}
         </span>
       )}
     >
@@ -304,7 +308,7 @@ function AccountMenu() {
       align="right"
       width="w-64"
       trigger={(open) => (
-        <span className="flex max-w-[160px] items-center gap-2 rounded-xl border border-black/10 px-3 py-2 hover:border-black/20 sm:max-w-none">
+        <span className="flex min-h-11 max-w-[160px] items-center gap-2 rounded-xl border border-black/10 px-3 py-1.5 hover:border-black/20 sm:max-w-none">
           <span className="min-w-0 text-left leading-tight">
             <span className="block truncate text-[12px] text-black/70">{fullName}</span>
             <span className="block truncate text-[10px] uppercase tracking-[0.1em] text-black/35">{profile.companyName}</span>
@@ -445,7 +449,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
           >
             {mobileOpen ? <X size={20} strokeWidth={1.5} /> : <Menu size={20} strokeWidth={1.5} />}
           </button>
-          <div className="hidden w-[228px] items-center md:flex">
+          <div className="hidden w-[272px] items-center md:flex">
             <Wordmark />
           </div>
           <div className="flex items-center md:hidden">
@@ -468,41 +472,57 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
             // height the flex row stretches the sidebar to the full content height,
             // which is taller than the viewport and silently breaks sticky so it
             // scrolls with the page. Pinned here, only the content area scrolls.
-            "fixed inset-y-0 left-0 top-16 z-40 w-[228px] flex-none overflow-y-auto border-r border-black/[0.06] bg-white px-3 py-5 transition-transform md:sticky md:top-16 md:h-[calc(100vh-4rem)] md:translate-x-0 md:self-start",
+            "fixed inset-y-0 left-0 top-16 z-40 w-[272px] flex-none overflow-y-auto [scrollbar-gutter:stable] border-r border-black/[0.06] bg-white px-3 py-5 transition-transform md:sticky md:top-16 md:h-[calc(100vh-4rem)] md:translate-x-0 md:self-start",
             mobileOpen ? "translate-x-0" : "-translate-x-full",
           )}
         >
-          {/* Inside a workspace the sidebar IS the chain — the estate-wide nav
-              is one click away at the top of it (see SupplyChainNav's own
-              header comment for why). Suspense because useSearchParams, which
-              the selection highlight reads, suspends on first render. */}
-          {workspaceId ? (
-            <React.Suspense fallback={<div className="h-32" />}>
-              <SupplyChainNav workspaceId={workspaceId} onNavigate={() => setMobileOpen(false)} />
-            </React.Suspense>
-          ) : (
-            <nav className="flex flex-col gap-0.5">
-              {nav.map((item) => {
-                const Icon = item.icon;
-                const active = isActive(item.href);
-                return (
+          {/* THE MENU IS THE SAME ON EVERY SCREEN. Inside a workspace it used
+              to be swapped out for that workspace's supply chain, and the
+              reader lost the map at exactly the depth they needed it. The
+              chain now opens UNDER Verification — the item it belongs to —
+              and everything else stays where it was (see SupplyChainNav's
+              header comment). */}
+          <nav className="flex flex-col gap-0.5">
+            {nav.map((item) => {
+              const Icon = item.icon;
+              const active = isActive(item.href);
+              /* The open workspace's chain hangs off this row. The row itself
+                 then drops its fill and keeps only its weight: the fill
+                 belongs to the one place you are standing, which is a row in
+                 the chain beneath it. */
+              const holdsChain = workspaceId != null && item.href === "/workspaces";
+              return (
+                <React.Fragment key={item.href}>
                   <Link
-                    key={item.href}
                     href={item.href}
                     onClick={() => setMobileOpen(false)}
                     className={cn(
-                      "flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] transition-colors",
-                      active ? "bg-black/[0.05] text-black" : "text-black/50 hover:bg-black/[0.03] hover:text-black/80",
+                      "flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] leading-snug transition-colors",
+                      holdsChain
+                        ? "font-medium text-black hover:bg-black/[0.03]"
+                        : active
+                          ? "bg-black/[0.06] font-medium text-black"
+                          : "text-black/60 hover:bg-black/[0.03] hover:text-black",
                       item.mobileOnly && "md:hidden",
+                      item.divider && "relative mt-4 before:absolute before:inset-x-3 before:-top-2 before:border-t before:border-black/[0.08]",
                     )}
                   >
-                    <Icon size={17} strokeWidth={1.5} />
+                    <Icon size={19} strokeWidth={1.5} className="flex-none" />
                     {item.label}
                   </Link>
-                );
-              })}
-            </nav>
-          )}
+                  {/* Suspense because useSearchParams, which the selection
+                      highlight reads, suspends on first render. */}
+                  {holdsChain && (
+                    <div className="mb-2 ml-[21px] border-l border-black/10 pl-2">
+                      <React.Suspense fallback={<div className="h-24" />}>
+                        <SupplyChainNav workspaceId={workspaceId} onNavigate={() => setMobileOpen(false)} />
+                      </React.Suspense>
+                    </div>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </nav>
 
           <PlanStrip onNavigate={() => setMobileOpen(false)} />
         </aside>

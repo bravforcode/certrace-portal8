@@ -137,6 +137,41 @@ html[lang="th"] body :is([class*="tracking-wide"], [class*="tracking-["]) {
   letter-spacing: 0.04em;
 }
 
+/* ── A grid cell may always shrink ──────────────────────────────────
+   A grid item's minimum width is its content's — and a `truncate` line
+   inside it still counts at its full, unbroken width. So one long product
+   name or one long dropdown label in a card set the whole column wider than
+   the phone, and the page scrolled sideways instead of the line truncating.
+   That was fixed card by card with `[&>*]:min-w-0` wherever somebody caught
+   it (the dashboard grid, the glance tiles), and missed wherever nobody
+   looked at a 375px screen: the dashboard's product cards, the MMD form, the
+   workspace list.
+
+   Here once, for every grid. In the base layer, so any `min-w-*` utility on
+   an item still wins. */
+@layer base {
+  .grid > *,
+  .inline-grid > * {
+    min-width: 0;
+  }
+}
+
+/* ── No zoom on focus, on a phone ───────────────────────────────────
+   iOS Safari zooms the page in when a field smaller than 16px takes focus,
+   and does not zoom back out. The reader is left on a page that scrolls
+   sideways and looks broken, having only tapped a field. 16px is the size
+   at which it leaves the page alone.
+
+   Touch devices only — on a desk the fields keep the sizes they were given.
+   Unlayered, so it outranks the size utilities on the field itself. */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  textarea,
+  select {
+    font-size: max(16px, 1em);
+  }
+}
+
 /* Visible focus ring on all interactive elements (DS §2.4) */
 :focus-visible {
   outline: 2px solid rgba(17, 17, 17, 0.4);
@@ -355,4 +390,54 @@ html[data-account-locked="1"] main :is(input, textarea, select):not([data-lock="
   .text-black\/45:where(:not(:disabled)) { color: rgb(0 0 0 / 0.62); }
   .text-black\/50:where(:not(:disabled)) { color: rgb(0 0 0 / 0.64); }
   .text-black\/55:where(:not(:disabled)) { color: rgb(0 0 0 / 0.66); }
+}
+
+/* ── Readable sizes ─────────────────────────────────────────────────
+   The portal was set in 10–13px: 10px uppercase labels, 11px hints, 13px
+   body. That is a comfortable size at twenty-five and a pair of reading
+   glasses at fifty — and the people who run an export business, sign its
+   declarations and chase its suppliers are mostly the second group. Thai
+   suffers twice, because its vowels and tone marks stack above and below the
+   line and are the first thing to blur.
+
+   So every small step moves up by two pixels, with a floor of 12px: nothing
+   in the portal is set smaller than that any more, and body text lands at
+   15px. The ORDER between the steps is untouched (label < hint < body), which
+   is why this is a remap of the scale rather than an edit to 1,300 class
+   strings — the hierarchy each screen was designed with survives, and a size
+   written tomorrow in the old scale is lifted with the rest.
+
+   Same mechanism as the greys above: inside the utilities layer, after
+   Tailwind's own, at the specificity of one class. Display sizes (21px and
+   up) are already large and are left alone. */
+@theme {
+  --text-xs: 0.875rem;
+  --text-sm: 1rem;
+}
+@layer utilities {
+  .text-\[8px\],
+  .text-\[8\.5px\],
+  .text-\[9px\],
+  .text-\[9\.5px\],
+  .text-\[10px\] { font-size: 12px; }
+  .text-\[10\.5px\] { font-size: 12.5px; }
+  .text-\[11px\] { font-size: 13px; }
+  .text-\[11\.5px\] { font-size: 13.5px; }
+  .text-\[12px\] { font-size: 14px; }
+  .text-\[12\.5px\] { font-size: 14.5px; }
+  .text-\[13px\] { font-size: 15px; }
+  .text-\[13\.5px\] { font-size: 15.5px; }
+  .text-\[14px\] { font-size: 16px; }
+  .text-\[14\.5px\] { font-size: 16.5px; }
+  .text-\[15px\] { font-size: 17px; }
+  .text-\[16px\] { font-size: 17.5px; }
+  .text-\[17px\] { font-size: 18px; }
+
+  /* The base rules above come later in the layer than Tailwind's own `sm:`
+     variants and would otherwise beat them, so the few responsive steps in
+     the old scale are restated after. */
+  @media (width >= 40rem) {
+    .sm\:text-\[11px\] { font-size: 13px; }
+    .sm\:text-\[14px\] { font-size: 16px; }
+  }
 }

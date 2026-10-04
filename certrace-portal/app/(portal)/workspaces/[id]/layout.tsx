@@ -42,6 +42,7 @@ import {
   StateChip,
   TabStrip,
   tabKeyFromPath,
+  type Crumb,
 } from "@/components/workspace/chrome";
 import { NodeStatusBadge, TIER_LABEL } from "@/components/tree-node-card";
 import { WorkspaceProvider, useWorkspace } from "@/components/workspace/provider";
@@ -49,6 +50,7 @@ import { entityTabs, trackedParentChainHref, type TrackedParent } from "@/lib/tr
 import { useChainCounts, useChainNode, useTrackedParent, useWorkspace as useWorkspaceQuery } from "@/lib/workspaces-query";
 import { ErrorState, LoadingState } from "@/components/query-state";
 import { useT, type TFunction } from "@/lib/i18n";
+import type { VerificationWorkspace } from "@/lib/workspace";
 
 /* ── Which of the three the current address is ─────────────────── */
 type Mode = { kind: "workspace" } | { kind: "chain" } | { kind: "entity"; nodeId: string };
@@ -60,14 +62,22 @@ function modeFor(pathname: string, id: string): Mode {
   return { kind: "workspace" };
 }
 
-/* ── Where "back" goes ──────────────────────────────────────────
-   One back control, and it points at whatever is actually one level up.
+/* ── The trail above the title ──────────────────────────────────
+   Every level above the page you are on, outermost first, built in ONE place
+   for all three bars. It always starts at Verification — the same word the
+   sidebar uses for the same place — then the product, whose page is its
+   supply chain, then Monthly data for the screens opened from a month.
 
-   A month screen used to carry two: the shell's "Verification workspaces" and
-   the page's own "All months", stacked. Neither was wrong and together they
-   were a guess — the reader has to decide which of two arrows undoes the
-   click they just made. The shell now owns the only one, and on a month it
-   says "All months", because that is the level above a month.
+       chain page            Verification
+       an installation tab   Verification › Hot-rolled coil
+       a node of the chain   Verification › Hot-rolled coil
+       a month, or the MMD   Verification › Hot-rolled coil › Monthly data
+
+   The last step is always the level directly above, which is what the single
+   back arrow used to be. That arrow had four rules for where it went and a
+   different label under each, and the three bars each worked theirs out
+   separately; a reader could not tell from the label alone how far up it
+   would take them. A step in a trail says exactly that, by its position.
 
    ── A TRACKED PRECURSOR'S WORKSPACE CLIMBS TO THE PARENT CHAIN ──
    `parent` is set only for a workspace that exists because somebody pressed
@@ -80,26 +90,35 @@ function modeFor(pathname: string, id: string): Mode {
    left. So every level of a tracked workspace that would otherwise end at its
    own chain ends at the parent's instead, with the row selected.
 
-   The INNER levels are untouched: a month still goes back to All months, and
-   the MMD still goes back to Monthly data. Those are genuinely one level up
-   inside this workspace, tracked or not. */
-function backTarget(pathname: string, id: string, parent: TrackedParent | null, t: TFunction): { href: string; label: string } {
+   So for a tracked workspace the parent's chain takes the place of its own in
+   the trail. The one exception is a node page under its own chain: that was
+   reached by clicking a row ON that chain, so that chain is the level above.
+
+   The INNER levels are untouched: a month and the MMD still sit under Monthly
+   data. Those are genuinely one level up inside this workspace, tracked or
+   not. */
+function trailFor(pathname: string, mode: Mode, workspace: VerificationWorkspace, parent: TrackedParent | null, t: TFunction): Crumb[] {
+  const id = workspace.id;
   const rest = pathname.replace(`/workspaces/${id}`, "").replace(/^\//, "");
-  if (/^monthly\/\d{4}-\d{2}$/.test(rest)) return { href: `/workspaces/${id}/monthly`, label: t("All months") };
-  // The MMD and the precursor chain no longer have tabs of their own — they are
-  // opened from the Monthly data tab, so that is the level above them. Without
-  // this they would send the reader all the way out to the estate, which is two
-  // levels up and not where they came from.
-  if (rest === "mmd" || rest.startsWith("precursors")) return { href: `/workspaces/${id}/monthly`, label: t("Monthly data") };
-  if (parent)
-    return {
+  const trail: Crumb[] = [{ href: "/workspaces", label: t("Verification") }];
+
+  if (parent) {
+    trail.push({
       href: trackedParentChainHref(parent),
       label: t("{supplier} — supply chain", { supplier: parent.precursor.name || t("Supplier") }),
-    };
-  // Everything else is a tab of the root installation, and the level above an
-  // installation is the chain it sits at the top of — not the estate, which
-  // is two levels up and no longer where the reader came from.
-  return { href: `/workspaces/${id}/tree`, label: t("Supply chain") };
+    });
+  }
+  // The chain page IS the product's page, so on it the trail stops above it.
+  if (mode.kind === "chain") return trail;
+  if (!parent || mode.kind === "entity") trail.push({ href: `/workspaces/${id}/tree`, label: workspace.productName });
+
+  // The MMD and the precursor chain no longer have tabs of their own — they are
+  // opened from the Monthly data tab, like a single month, so that is the level
+  // above all three.
+  if (/^monthly\/\d{4}-\d{2}$/.test(rest) || rest === "mmd" || rest.startsWith("precursors")) {
+    trail.push({ href: `/workspaces/${id}/monthly`, label: t("Monthly data") });
+  }
+  return trail;
 }
 
 /* ── Where the English notice belongs ───────────────────────────
@@ -168,7 +187,7 @@ function WorkspaceBar({ parent }: { parent: TrackedParent | null }) {
   return (
     <>
       <IdentityBar
-        back={backTarget(pathname, workspace.id, parent, t)}
+        trail={trailFor(pathname, { kind: "workspace" }, workspace, parent, t)}
         /* THE INSTALLATION, because that is the node that was clicked. The
            chain page one level up already names the product; repeating it
            here would leave the reader unable to tell they had moved. The
@@ -198,24 +217,16 @@ function WorkspaceBar({ parent }: { parent: TrackedParent | null }) {
 function ChainBar({ parent }: { parent: TrackedParent | null }) {
   const t = useT();
   const { workspace } = useWorkspace();
+  const pathname = usePathname();
   /* What the four tabs cannot say at chain level: how deep does this go, and
      how much of it is in trouble. See useChainCounts in lib/workspaces-query.ts. */
   const { data: counts } = useChainCounts(workspace.id);
 
   return (
     <IdentityBar
-      /* A tracked precursor's own chain climbs to the chain it hangs in, not
-         out to the estate — see backTarget(). The estate is still one click
-         away in the wordmark, and two clicks away up the chain it belongs to,
-         which is the route that keeps the reader oriented. */
-      back={
-        parent
-          ? {
-              href: trackedParentChainHref(parent),
-              label: t("{supplier} — supply chain", { supplier: parent.precursor.name || t("Supplier") }),
-            }
-          : { href: "/workspaces", label: t("Verification workspaces") }
-      }
+      /* A tracked precursor's own chain climbs to the chain it hangs in —
+         see trailFor(). */
+      trail={trailFor(pathname, { kind: "chain" }, workspace, parent, t)}
       /* THE PRODUCT. This page is not a thing beside the product that happens
          to list suppliers — it is that product's supply chain, and the level
          above it is the estate. Naming it "Supply chain" over an installation
@@ -236,24 +247,25 @@ function ChainBar({ parent }: { parent: TrackedParent | null }) {
   );
 }
 
-function EntityBar({ nodeId }: { nodeId: string }) {
+function EntityBar({ nodeId, parent }: { nodeId: string; parent: TrackedParent | null }) {
   const t = useT();
   const { workspace } = useWorkspace();
+  const pathname = usePathname();
   const { data: node } = useChainNode(workspace.id, nodeId);
-  /* NOT the parent chain. An entity page is one level inside THIS chain, so
-     the level above it is this chain — the reader clicked a row on it to get
-     here. The climb to the parent happens from the chain page itself. */
-  const back = { href: `/workspaces/${workspace.id}/tree`, label: t("Supply chain") };
+  /* Ends at THIS chain, tracked or not. An entity page is one level inside
+     it — the reader clicked a row on it to get here — and the climb to the
+     parent happens from the chain page itself. See trailFor(). */
+  const trail = trailFor(pathname, { kind: "entity", nodeId }, workspace, parent, t);
 
   // Before the first client read there is nothing to name — the bar still
-  // renders, so the back link and the strip's position don't jump in once
+  // renders, so the trail and the strip's position don't jump in once
   // localStorage is read.
-  if (!node) return <IdentityBar back={back} title="…" />;
+  if (!node) return <IdentityBar trail={trail} title="…" />;
 
   return (
     <>
       <IdentityBar
-        back={back}
+        trail={trail}
         title={node.name || "Unnamed"}
         meta={`${TIER_LABEL(node.tier, node.kind)}${node.cnCode ? ` · CN ${node.cnCode}` : ""}`}
         right={node.kind === "installation" ? undefined : <NodeStatusBadge node={node} />}
@@ -284,7 +296,7 @@ function Header({ mode, parent }: { mode: Mode; parent: TrackedParent | null }) 
         "sticky top-16 z-30 -mx-4 -mt-8 border-b border-black/[0.06] bg-[#fdfdfc]/95 px-4 pb-2 pt-3 backdrop-blur-md sm:-mx-6 sm:px-6 md:-mx-8 md:px-8 lg:-mx-10 lg:px-10"
       }
     >
-      {mode.kind === "chain" ? <ChainBar parent={parent} /> : mode.kind === "entity" ? <EntityBar nodeId={mode.nodeId} /> : <WorkspaceBar parent={parent} />}
+      {mode.kind === "chain" ? <ChainBar parent={parent} /> : mode.kind === "entity" ? <EntityBar nodeId={mode.nodeId} parent={parent} /> : <WorkspaceBar parent={parent} />}
     </div>
   );
 }
@@ -297,7 +309,7 @@ export default function WorkspaceLayout({ children, params }: { children: React.
   const workspace = workspaceQuery.data ?? null;
   /* Which chain this workspace hangs in, if any. localStorage-backed like
      everything else here, so it resolves after mount — nothing on the first
-     paint means the back link starts as this workspace's own chain and settles
+     paint means the trail starts through this workspace's own chain and settles
      onto the parent's a tick later. That is the correct fallback rather than a
      flicker to fix: an untracked workspace never moves. */
   const parent = useTrackedParent(id).data ?? null;

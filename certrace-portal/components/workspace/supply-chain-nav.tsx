@@ -1,14 +1,25 @@
 "use client";
 
 /* ════════════════════════════════════════════════════════════
-   SUPPLY CHAIN — the sidebar, inside a workspace
+   SUPPLY CHAIN — the part of the sidebar that belongs to one workspace
 
-   Standing inside one product, the estate-wide nav (Dashboard, Suppliers,
-   Billing…) is not what the sidebar should be spending its height on: the
-   chain is. So on a workspace's own pages the sidebar becomes the chain —
+   Standing inside one product, the sidebar shows that product's chain:
    "Supply Chain" at the top, doing exactly what the Supply Chain button in
    the tab strip does, then every node of the tree beneath it in tree order,
    then Add precursor pinned below the last one.
+
+   IT SITS UNDER "VERIFICATION" IN THE MAIN MENU — IT DOES NOT REPLACE IT.
+   This list used to take the whole sidebar over: open a workspace and
+   Dashboard, Smart Links and Reports were gone, with one back link where
+   eight destinations had been. That was argued for on height, and it cost
+   the reader the one thing a sidebar is for — the same map in the same
+   place on every screen. Somebody who wanted Smart Links from inside a
+   month had to work out that they first needed to leave, and nothing on
+   screen said where "here" was in the product. So the menu now stays put
+   and the chain opens beneath the item it is part of (see PortalShell), the
+   way a folder opens in a file list. The way out of a workspace is the
+   Verification row directly above, which is why this list no longer
+   carries a back link of its own.
 
    THE LIST IS THE TREE, not a second reading of it. It renders
    buildSupplierPrecursorTree() (lib/supplier-tree.ts) — the same call the
@@ -51,7 +62,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { ArrowLeft, CornerDownRight, Factory, ListTree, Plus } from "lucide-react";
+import { CornerDownRight, Factory, ListTree, Plus } from "lucide-react";
 import { cn } from "@/components/ui";
 import { useT } from "@/lib/i18n";
 import { entityHref } from "@/lib/tree-entity";
@@ -118,30 +129,16 @@ export function SupplyChainNav({ workspaceId, onNavigate }: { workspaceId: strin
 
   return (
     <nav className="flex flex-col gap-0.5" aria-label={t("Supply chain")}>
-      {/* A way out of the workspace from the sidebar itself. This row was
-          left out once, on the grounds that the header already carries a
-          back link — but that link scrolls away and is not in the phone
-          menu, and in prototype testing people looked for the exit where the
-          rest of the navigation lives. */}
-      <Link
-        href="/workspaces"
-        onClick={onNavigate}
-        className="mb-2 flex items-center gap-2 border-b border-black/[0.06] px-3 pb-3 pt-1 text-[12.5px] text-black/55 transition-colors hover:text-black"
-      >
-        <ArrowLeft size={14} strokeWidth={1.5} className="flex-none" />
-        {t("Verification workspaces")}
-      </Link>
-
       {/* Same destination as the Supply Chain button in the tab strip. */}
       <Link
         href={treeHref}
         onClick={onNavigate}
         className={cn(
-          "flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] transition-colors",
-          onChain ? "bg-black/[0.05] text-black" : "text-black/50 hover:bg-black/[0.03] hover:text-black/80",
+          "flex min-h-10 items-center gap-2.5 rounded-lg px-3 py-2 text-[12.5px] leading-snug transition-colors",
+          onChain ? "bg-black/[0.06] font-medium text-black" : "text-black/60 hover:bg-black/[0.03] hover:text-black",
         )}
       >
-        <ListTree size={17} strokeWidth={1.5} />
+        <ListTree size={16} strokeWidth={1.5} className="flex-none" />
         {t("Supply Chain")}
       </Link>
 
@@ -173,12 +170,12 @@ export function SupplyChainNav({ workspaceId, onNavigate }: { workspaceId: strin
                 onClick={onNavigate}
                 title={node.name}
                 className={cn(
-                  "flex min-w-0 flex-1 items-center gap-2 rounded-lg py-1.5 text-[12.5px] transition-colors",
-                  active ? "text-black" : "text-black/45 group-hover:text-black/75",
+                  "flex min-h-10 min-w-0 flex-1 items-center gap-2 rounded-lg py-1.5 text-[12.5px] transition-colors",
+                  active ? "font-medium text-black" : "text-black/60 group-hover:text-black",
                 )}
                 // Indent by tier rather than by a nested list: the chain can run
                 // several tiers deep and a nested <ul> per tier would push the
-                // deepest names off a 228px sidebar entirely.
+                // deepest names off the sidebar entirely.
                 style={{ paddingLeft: 12 + depth * 12 }}
               >
                 <Icon size={13} strokeWidth={1.5} className="flex-none opacity-70" />
@@ -193,9 +190,9 @@ export function SupplyChainNav({ workspaceId, onNavigate }: { workspaceId: strin
                   onClick={onNavigate}
                   aria-label={t("Add a precursor under {name}", { name: node.name || t("Unnamed") })}
                   title={t("Add a precursor under {name}", { name: node.name || t("Unnamed") })}
-                  className="grid h-6 w-6 flex-none place-items-center rounded-md text-black/40 opacity-40 transition-all hover:bg-black/[0.06] hover:text-black focus-visible:opacity-100 group-hover:opacity-100"
+                  className="grid h-8 w-8 flex-none place-items-center rounded-md text-black/40 opacity-60 transition-all hover:bg-black/[0.06] hover:text-black focus-visible:opacity-100 group-hover:opacity-100"
                 >
-                  <Plus size={13} strokeWidth={1.75} />
+                  <Plus size={15} strokeWidth={1.75} />
                 </Link>
               )}
             </div>
@@ -214,7 +211,7 @@ export function SupplyChainNav({ workspaceId, onNavigate }: { workspaceId: strin
         onClick={onNavigate}
         aria-disabled={rootNode == null}
         className={cn(
-          "mt-2 flex items-center gap-2 rounded-xl border border-dashed border-black/15 px-3 py-2 text-[12px] uppercase tracking-[0.06em] text-black/45 transition-colors hover:border-black/30 hover:text-black",
+          "mt-1.5 flex min-h-10 items-center gap-2 rounded-lg border border-dashed border-black/15 px-3 py-2 text-[12px] text-black/60 transition-colors hover:border-black/30 hover:text-black",
           rootNode == null && "pointer-events-none opacity-40",
         )}
       >
