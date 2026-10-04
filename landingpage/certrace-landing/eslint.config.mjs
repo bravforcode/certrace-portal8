@@ -47,6 +47,15 @@ const config = [
       "jsx-a11y/no-noninteractive-element-interactions": "error",
       "jsx-a11y/interactive-supports-focus": "error",
       "jsx-a11y/label-has-associated-control": ["error", { assert: "either", depth: 6 }],
+
+      /* Off, because on an app-router site it is either silent or wrong. It
+         turns each route into a regex with a greedy `\[.*\]`, so a route with
+         two dynamic segments — /[lang]/about-cbam/[slug], the per-language
+         guides — collapses into a pattern that matches every path, and every
+         plain <a href="/privacy"> in the tree becomes an error. Before that
+         route existed it never fired at all: it compares the href with a
+         trailing slash added against app routes without one. */
+      "@next/next/no-html-link-for-pages": "off",
     },
   },
 ];

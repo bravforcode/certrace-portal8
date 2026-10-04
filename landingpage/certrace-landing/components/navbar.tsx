@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { type Content } from "@/lib/content";
-import { LANG_OPTIONS, useLang } from "@/lib/i18n";
+import { LANG_OPTIONS, useLang, type Lang } from "@/lib/i18n";
+import { localePath } from "@/lib/locales";
 import { usePages } from "@/lib/i18n-pages";
 import type { PageCopy } from "@/lib/pages";
 import { LOGIN_URL, SIGNUP_URL } from "@/lib/site";
@@ -42,7 +43,7 @@ type NavEntry =
     }
   | { label: string; href: string; menu?: undefined };
 
-function buildNav(c: Content, p: PageCopy): NavEntry[] {
+function buildNav(c: Content, p: PageCopy, lang: Lang): NavEntry[] {
   const live = { text: c.common.live, live: true };
   const soon = { text: c.common.soon };
 
@@ -113,12 +114,12 @@ function buildNav(c: Content, p: PageCopy): NavEntry[] {
       label: c.nav.resources.label,
       menu: {
         items: [
-          { label: p.nav.aboutCbam, desc: p.nav.aboutCbamDesc, href: "/about-cbam" },
+          { label: p.nav.aboutCbam, desc: p.nav.aboutCbamDesc, href: localePath(lang, "/about-cbam") },
           { ...c.nav.resources.items[0], href: "/#how-it-works" },
           { ...c.nav.resources.items[1], href: "/#faq" },
           { ...c.nav.resources.items[2], href: "/#why-now" },
           { ...c.nav.resources.items[3], href: "/backlog" },
-          { label: p.nav.updates, desc: p.nav.updatesDesc, href: "/updates" },
+          { label: p.nav.updates, desc: p.nav.updatesDesc, href: localePath(lang, "/updates") },
           /* The free CN-code engine. It is a resource rather than a pricing
              row: it answers "which of these codes are even in scope", which is
              a question people arrive with long before they are choosing a
@@ -148,7 +149,7 @@ function buildNav(c: Content, p: PageCopy): NavEntry[] {
           { label: p.nav.about, desc: p.nav.aboutDesc, href: "/about" },
           { label: p.nav.contact, desc: p.nav.contactDesc, href: "/contact" },
           { label: p.nav.events, desc: p.nav.eventsDesc, href: "/events" },
-          { label: p.nav.updates, desc: p.nav.updatesDesc, href: "/updates" },
+          { label: p.nav.updates, desc: p.nav.updatesDesc, href: localePath(lang, "/updates") },
           {
             label: p.nav.requestPricing,
             desc: p.nav.requestPricingDesc,
@@ -341,7 +342,7 @@ export function Navbar() {
   const [mobileGroup, setMobileGroup] = useState<string | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const nav = buildNav(c, p);
+  const nav = buildNav(c, p, lang);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);

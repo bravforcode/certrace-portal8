@@ -15,6 +15,7 @@ import { formatRange } from "@/lib/format-date";
 import { siteUrl } from "@/lib/site";
 import { useLang } from "@/lib/i18n";
 import { usePages } from "@/lib/i18n-pages";
+import { localePath } from "@/lib/locales";
 
 export default function EventDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
@@ -165,7 +166,7 @@ export default function EventDetailPage({ params }: { params: Promise<{ slug: st
 
               {ev.updateSlug && (
                 <a
-                  href={`/updates/${ev.updateSlug}`}
+                  href={localePath(lang, `/updates/${ev.updateSlug}`)}
                   className="mt-8 inline-flex font-pixel text-[11px] uppercase tracking-[0.16em] text-black/40 transition-colors hover:text-black"
                 >
                   {e.relatedUpdate}

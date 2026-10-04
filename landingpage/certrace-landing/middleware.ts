@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { routeLang } from "@/lib/locales";
 
 export function middleware(request: NextRequest) {
   const proto = request.headers.get("x-forwarded-proto");
@@ -51,6 +52,13 @@ export function middleware(request: NextRequest) {
   });
 
   response.headers.set("Content-Security-Policy", cspHeader);
+
+  /* The language of a per-language address (lib/locales.ts), stated in the
+     response as well as the markup. Bing reads it; the root layout's
+     `<html lang="en">` cannot say it on the server pass. Pages whose language
+     is the reader's stored choice get no header — the server cannot know it. */
+  const pageLang = routeLang(request.nextUrl.pathname);
+  if (pageLang) response.headers.set("Content-Language", pageLang);
 
   return response;
 }

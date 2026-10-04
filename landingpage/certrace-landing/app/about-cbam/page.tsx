@@ -11,9 +11,12 @@ import { ArticleCover } from "@/components/article-cover";
 import { EmptyResult, ListControls, PageCta, PageHero, PageShell } from "@/components/page-shell";
 import { ARTICLES } from "@/lib/cbam-guide";
 import { useCbamGuide } from "@/lib/use-cbam-guide";
+import { useLang } from "@/lib/i18n";
+import { localePath } from "@/lib/locales";
 
 export default function AboutCbamPage() {
   const guide = useCbamGuide();
+  const { lang } = useLang();
   const [query, setQuery] = useState("");
   const [topic, setTopic] = useState("all");
 
@@ -77,7 +80,7 @@ export default function AboutCbamPage() {
 
           {pillarShown && pillar && (
             <a
-              href={`/about-cbam/${pillar.slug}`}
+              href={localePath(lang, `/about-cbam/${pillar.slug}`)}
               className="group mb-3 grid grid-cols-1 overflow-hidden rounded-2xl border border-black/[0.07] bg-white/70 transition-colors hover:border-black/20 hover:bg-white md:grid-cols-[1fr_280px]"
             >
               <div className="order-2 p-8 md:order-1 md:p-10">
@@ -116,7 +119,7 @@ export default function AboutCbamPage() {
                 return (
                   <a
                     key={a.slug}
-                    href={`/about-cbam/${a.slug}`}
+                    href={localePath(lang, `/about-cbam/${a.slug}`)}
                     className="group flex flex-col overflow-hidden rounded-2xl border border-black/[0.07] bg-white/70 transition-colors hover:border-black/20 hover:bg-white"
                   >
                     <ArticleCover motif={a.motif} className="h-32 shrink-0" />

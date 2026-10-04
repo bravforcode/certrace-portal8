@@ -31,7 +31,7 @@
    section is a build error rather than an English paragraph on a Thai page.
    ════════════════════════════════════════════════════════════ */
 
-import type { Lang } from "./i18n";
+import type { Lang } from "./locales";
 import { CBAM_EN } from "./cbam-guide-en";
 import { CBAM_TH } from "./cbam-guide-th";
 import { CBAM_VI } from "./cbam-guide-vi";

@@ -36,6 +36,7 @@
 
 import { CONTACT_EMAIL } from "@/lib/content";
 import { useLang } from "@/lib/i18n";
+import { localePath } from "@/lib/locales";
 import { COOKIE_COPY, openCookieSettings } from "@/lib/cookie-consent";
 import { usePages } from "@/lib/i18n-pages";
 import { FEED_SOCIALS, LINE_ID, LINE_URL } from "@/lib/site";
@@ -286,12 +287,12 @@ export function Footer() {
     {
       title: p.footer.columns.resources,
       links: [
-        { label: p.nav.aboutCbam, href: "/about-cbam" },
+        { label: p.nav.aboutCbam, href: localePath(lang, "/about-cbam") },
         { label: l.howItWorks, href: "/#how-it-works" },
         { label: l.faq, href: "/#faq" },
         { label: l.timeline, href: "/#why-now" },
         { label: l.backlog, href: "/backlog" },
-        { label: p.nav.updates, href: "/updates" },
+        { label: p.nav.updates, href: localePath(lang, "/updates") },
         { label: p.pricingPage.calc.navLabel, href: "/pricing#cbam-engine" },
       ],
     },

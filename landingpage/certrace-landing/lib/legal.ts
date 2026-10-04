@@ -8,7 +8,7 @@
    Creation.**") — `LegalBody` in components/legal-page.tsx renders those runs
    in medium weight. No other markup is supported, deliberately. */
 
-import type { Lang } from "./i18n";
+import type { Lang } from "./locales";
 import { PRIVACY_TH } from "./legal-privacy";
 import { TERMS_EN } from "./legal-terms";
 

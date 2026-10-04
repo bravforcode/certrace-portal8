@@ -11,7 +11,7 @@
    language context the rest of the site uses, so one switch moves everything.
    ════════════════════════════════════════════════════════════ */
 
-import type { Lang } from "./i18n";
+import type { Lang } from "./locales";
 import { PAGES_EN } from "./pages-en";
 import { PAGES_TH } from "./pages-th";
 import { PAGES_VI } from "./pages-vi";

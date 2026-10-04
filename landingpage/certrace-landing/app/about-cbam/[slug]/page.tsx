@@ -16,9 +16,11 @@ import { use } from "react";
 import { ArticleCover } from "@/components/article-cover";
 import { BackLink, PageShell } from "@/components/page-shell";
 import { articleBySlug } from "@/lib/cbam-guide";
-import { CBAM_EN } from "@/lib/cbam-guide-en";
 import { JsonLd, ORG_ID, breadcrumbNode } from "@/components/json-ld";
 import { useCbamGuide } from "@/lib/use-cbam-guide";
+import { useLang } from "@/lib/i18n";
+import { usePages } from "@/lib/i18n-pages";
+import { localePath } from "@/lib/locales";
 import { OG_IMAGE, SIGNUP_URL, siteUrl } from "@/lib/site";
 import Link from "next/link";
 
@@ -30,6 +32,9 @@ const sectionId = (i: number) => `section-${i + 1}`;
 export default function CbamArticlePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
   const guide = useCbamGuide();
+  const { lang } = useLang();
+  const nav = usePages().nav;
+  const hubPath = localePath(lang, "/about-cbam");
   const meta = articleBySlug(slug);
   const a = guide.articles[slug];
 
@@ -38,7 +43,7 @@ export default function CbamArticlePage({ params }: { params: Promise<{ slug: st
       <PageShell>
         <section className="px-6 pt-40 pb-32 md:px-12 lg:px-20">
           <div className="mx-auto max-w-3xl">
-            <BackLink href="/about-cbam" label={guide.article.backToHub} />
+            <BackLink href={hubPath} label={guide.article.backToHub} />
             <h1 className="mt-6 text-3xl font-light tracking-tight">{guide.hub.noResults}</h1>
           </div>
         </section>
@@ -46,21 +51,22 @@ export default function CbamArticlePage({ params }: { params: Promise<{ slug: st
     );
   }
 
-  /* Structured data, from the English source so a crawler sees one stable
-     description of the page whatever language a human happens to be reading
-     it in. FAQPage is what puts these answers into an answer box; Article
-     carries the dates and the publisher. */
-  const en = CBAM_EN.articles[slug];
+  /* Structured data, in the language of the address. On these routes the URL
+     fixes the language (lib/locales.ts), so the server pass a crawler reads is
+     the Thai one at /th/… and the English one at the bare path — the markup
+     and the prose it describes always agree. FAQPage is what puts these
+     answers into an answer box; Article carries the dates and the publisher. */
+  const pageUrl = siteUrl(localePath(lang, `/about-cbam/${slug}`));
   const jsonLd = {
     "@context": "https://schema.org",
     "@graph": [
       {
         "@type": "Article",
-        headline: en.title,
-        description: en.metaDescription,
+        headline: a.title,
+        description: a.metaDescription,
         datePublished: meta.updated,
         dateModified: meta.updated,
-        inLanguage: "en",
+        inLanguage: lang,
         /* Pointed at by @id rather than restated: the publisher is declared
            once, on the root layout, so a change of name or of social accounts
            cannot leave a second copy of the organisation behind here. */
@@ -70,12 +76,12 @@ export default function CbamArticlePage({ params }: { params: Promise<{ slug: st
         about: { "@type": "Thing", name: "EU Carbon Border Adjustment Mechanism" },
         mainEntityOfPage: {
           "@type": "WebPage",
-          "@id": siteUrl(`/about-cbam/${slug}`),
+          "@id": pageUrl,
         },
       },
       {
         "@type": "FAQPage",
-        mainEntity: en.faq.map((f) => ({
+        mainEntity: a.faq.map((f) => ({
           "@type": "Question",
           name: f.q,
           acceptedAnswer: { "@type": "Answer", text: f.a },
@@ -83,8 +89,8 @@ export default function CbamArticlePage({ params }: { params: Promise<{ slug: st
       },
       breadcrumbNode([
         { name: "Certrace", path: "" },
-        { name: "About CBAM", path: "/about-cbam" },
-        { name: en.title },
+        { name: nav.aboutCbam, path: hubPath },
+        { name: a.title },
       ]),
     ],
   };
@@ -100,7 +106,7 @@ export default function CbamArticlePage({ params }: { params: Promise<{ slug: st
       <article>
         <section className="px-6 pt-32 pb-10 md:px-12 md:pt-40 lg:px-20">
           <div className="mx-auto max-w-3xl">
-            <BackLink href="/about-cbam" label={guide.article.backToHub} />
+            <BackLink href={hubPath} label={guide.article.backToHub} />
 
             <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-1.5 font-pixel text-[10px] uppercase tracking-[0.16em] text-black/35">
               <span className="rounded-full bg-black/[0.04] px-2.5 py-1">{a.topic}</span>
@@ -312,7 +318,7 @@ export default function CbamArticlePage({ params }: { params: Promise<{ slug: st
                 {related.map((r) => (
                   <a
                     key={r.meta.slug}
-                    href={`/about-cbam/${r.meta.slug}`}
+                    href={localePath(lang, `/about-cbam/${r.meta.slug}`)}
                     className="group flex flex-col overflow-hidden rounded-2xl border border-black/[0.07] bg-white/70 transition-colors hover:border-black/20 hover:bg-white"
                   >
                     <ArticleCover motif={r.meta.motif} className="h-24 shrink-0" />
