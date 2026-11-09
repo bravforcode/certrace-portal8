@@ -33,16 +33,12 @@ import { SectionCard } from "@/components/workspace/chrome";
 import { useWorkspace } from "@/components/workspace/provider";
 import { dueDayOptions, scheduleFor, workspaceTitle, type WorkspaceSchedule } from "@/lib/workspace";
 import { useArchiveWorkspace, useUpdateWorkspace } from "@/lib/workspaces-query";
-import { useT } from "@/lib/i18n";
+import { useOrdinal, useT } from "@/lib/i18n";
 
-const ordinal = (n: number) => {
-  const s = ["th", "st", "nd", "rd"];
-  const v = n % 100;
-  return `${n}${s[(v - 20) % 10] ?? s[v] ?? s[0]}`;
-};
 
 export default function WorkspaceSettingsPage() {
   const t = useT();
+  const ordinal = useOrdinal();
   const { workspace, refresh } = useWorkspace();
   const router = useRouter();
   const updateWorkspace = useUpdateWorkspace();
@@ -72,7 +68,7 @@ export default function WorkspaceSettingsPage() {
     archiveWorkspace.mutate(workspace.id, {
       onSuccess: () => {
         toast({
-          message: "Workspace archived",
+          message: "Product report archived",
           detail: "It is out of the estate but nothing was deleted — restore it from Archived.",
           tone: "info",
         });
@@ -104,8 +100,8 @@ export default function WorkspaceSettingsPage() {
       >
         <p className="mb-5 text-[13px] leading-relaxed text-black/50">
           {workspace.selfSupplied
-            ? "This installation is yours, so the month appears in your own inbox once it has been sent — nothing needs to go to a third party."
-            : `The deadline below is the one ${workspace.installationName} is measured against.`}
+            ? t("This installation is yours, so the month appears in your own inbox once it has been sent — nothing needs to go to a third party.")
+            : t("The deadline below is the one {name} is measured against.", { name: workspace.installationName })}
         </p>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:max-w-2xl">
@@ -121,18 +117,17 @@ export default function WorkspaceSettingsPage() {
             <Select
               value={String(schedule.dueDay)}
               onChange={(v) => set({ dueDay: Number(v) })}
-              options={dueDayOptions().map((d) => ({ value: String(d), label: `${ordinal(d)} of the following month` }))}
+              options={dueDayOptions().map((d) => ({ value: String(d), label: t("{day} of the following month", { day: ordinal(d) }) }))}
               ariaLabel={t("Last date to send")}
             />
           </Field>
         </div>
 
         <p className="mt-4 text-[12.5px] leading-relaxed text-black/45">
-          January {workspace.year} is asked for on 31 January and is due by the {ordinal(schedule.dueDay)} of February. Every other month follows the
-          same shape.
+          {t("Example: January {year} is asked on 31 January and due by the {day} of February.", { year: workspace.year, day: ordinal(schedule.dueDay) })}
         </p>
 
-        {/* There is deliberately no "pause this workspace" switch and no send
+        {/* There is deliberately no "pause this product report" switch and no send
             time. A paused workspace is one whose twelve months quietly stop
             falling due while still counting toward readiness — which is the
             exact state that lets somebody reach December having asked for
@@ -159,7 +154,7 @@ export default function WorkspaceSettingsPage() {
          for it to stop appearing on the dashboard, which is what archiving
          does and what deleting was being used for. */}
       <SectionCard
-        title={t("Archive this workspace")}
+        title={t("Archive this product report")}
         helpTitle={t("What archiving does")}
         help={
           <>
@@ -167,16 +162,16 @@ export default function WorkspaceSettingsPage() {
               {t("It leaves the active estate: off the dashboard, out of the Inbox, and no longer counted in Reports or Carbon & Cost. Its monthly readings, MMD drafts and precursor rows are untouched.")}
             </p>
             <p className="mt-2">
-              {t("You can still open it, and you can restore it at any time from")} <strong>{t("Archived")}</strong> {t("on the Verification workspaces screen.")}
+              {t("You can still open it, and you can restore it at any time from")} <strong>{t("Archived")}</strong> {t("on the Verification page.")}
             </p>
           </>
         }
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-[13px] leading-relaxed text-black/50">{workspaceTitle(workspace)} — nothing is deleted, and you can restore it later.</p>
+          <p className="text-[13px] leading-relaxed text-black/50">{t("{title} — nothing is deleted, and you can restore it later.", { title: workspaceTitle(workspace, t) })}</p>
           <Button size="sm" variant="secondary" onClick={archive} className={cn("flex-none", armed && "border-black/30 text-black")}>
             {armed ? <Check size={13} strokeWidth={2} /> : <Archive size={13} strokeWidth={1.5} />}
-            {armed ? "Click to confirm archive" : "Archive workspace"}
+            {armed ? t("Click to confirm archive") : t("Archive product report")}
           </Button>
         </div>
       </SectionCard>

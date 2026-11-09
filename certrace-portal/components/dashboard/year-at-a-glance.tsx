@@ -50,13 +50,20 @@ export type GlanceStats = {
   late: number;
   /** mean readiness across the active estate, 0–100 */
   collectedPercent: number;
+  /** report packages (site × year) that can be downloaded, and how many there are */
+  packagesReady: number;
+  packagesTotal: number;
+  /** months submitted, of the months the company's own reports carry */
+  monthsIn: number;
+  monthsOf: number;
 };
 
-type Tone = "err" | "warn" | "muted";
+type Tone = "err" | "warn" | "ok" | "muted";
 
 const VALUE_TONE: Record<Tone, string> = {
   err: "text-[#dc2626]",
   warn: "text-[#b45309]",
+  ok: "text-[#047857]",
   muted: "text-[#111]",
 };
 
@@ -86,7 +93,7 @@ export function YearAtAGlance({ stats }: { stats: GlanceStats }) {
   const fmt = useFormat();
 
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
       <Tile
         value={stats.daysToDeadline}
         label={t("Days to declaration")}
@@ -95,12 +102,14 @@ export function YearAtAGlance({ stats }: { stats: GlanceStats }) {
         tone={stats.daysToDeadline <= 30 ? "warn" : "muted"}
       />
       <Tile
-        value={stats.overdue}
-        label={t("Overdue now")}
-        sub={stats.overdue > 0 ? t("in the action queue") : t("nothing is late")}
-        href="/workspaces"
-        tone={stats.overdue > 0 ? "err" : "muted"}
+        value={`${stats.packagesReady}/${stats.packagesTotal}`}
+        label={t("Packages ready")}
+        sub={t("to send to the verifier")}
+        href="/reports"
+        tone={stats.packagesTotal > 0 && stats.packagesReady === stats.packagesTotal ? "ok" : "muted"}
       />
+      <Tile value={`${stats.collectedPercent}%`} label={t("Reports ready")} sub={t("average of all reports")} href="/workspaces" />
+      <Tile value={`${stats.monthsIn}/${stats.monthsOf}`} label={t("Months in")} sub={t("submitted so far")} href="/workspaces" />
       <Tile
         value={stats.awaiting}
         label={t("Waiting on suppliers")}
@@ -109,10 +118,11 @@ export function YearAtAGlance({ stats }: { stats: GlanceStats }) {
         tone={stats.late > 0 ? "warn" : "muted"}
       />
       <Tile
-        value={`${stats.collectedPercent}%`}
-        label={t("Year collected")}
-        sub={t("every product")}
-        href="/workspaces"
+        value={stats.overdue}
+        label={t("Overdue now")}
+        sub={stats.overdue > 0 ? t("in the action queue") : t("nothing is late")}
+        href="#needs-you"
+        tone={stats.overdue > 0 ? "err" : "muted"}
       />
     </div>
   );
@@ -122,8 +132,8 @@ export function YearAtAGlance({ stats }: { stats: GlanceStats }) {
     one so the page does not jump when the four figures land. */
 export function YearAtAGlanceSkeleton({ t }: { t: TFunction }) {
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-hidden aria-label={t("Loading")}>
-      {[0, 1, 2, 3].map((i) => (
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-3" aria-hidden aria-label={t("Loading")}>
+      {[0, 1, 2, 3, 4, 5].map((i) => (
         <Card key={i} className="h-[136px] p-5 sm:p-6">
           <span />
         </Card>

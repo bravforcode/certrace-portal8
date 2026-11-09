@@ -30,6 +30,7 @@ import { getCatalogProduct, isComplexGood, type AggregatedGoodsCategory, type Ca
 import { pickerOptions } from "./installations";
 import type { GoodsCategory } from "./cbam/engine";
 import { secureId } from "./secure-id";
+import { currentLang, dateLocaleFor } from "./i18n";
 
 /* ── Production routes ──────────────────────────────────────────
    The route is not decoration: it decides which precursors are even possible
@@ -58,6 +59,19 @@ export type ProductionRoute = {
   precursors: string;
   /** where the emissions actually come from on this route */
   dominantSource: string;
+  /** the CBAM route letter the EU keys its default values and free-allocation
+      benchmarks on (Implementing Regulations (EU) 2025/2621 and 2025/2620):
+      C carbon steel BF/BOF · D carbon steel DRI/EAF · E carbon steel scrap/EAF ·
+      F/G/H low-alloy steel on the same three routes · J high-alloy steel (EAF) ·
+      K primary aluminium · L secondary aluminium · A grey / B white clinker */
+  letter?: string;
+  /** the route as the Commission's communication template spells it
+      (Parameters_Constants, CONST_MATRIX_ProductionRoute) — what ends up in the
+      report a verifier compares against the workbook */
+  templateRoute?: string;
+  /** an older route that existing workspaces may still hold. It resolves and
+      renders, but is no longer offered for a new workspace. */
+  legacy?: boolean;
 };
 
 /* ── The routes ────────────────────────────────────────────────
@@ -235,13 +249,288 @@ export const PRODUCTION_ROUTES: ProductionRoute[] = [
   },
 ];
 
+/* ── What the EU keys each route on ─────────────────────────────
+   Added to the routes above rather than written into them, so each entry still
+   reads as the route's own story and the regulation's labels sit in one place. */
+const ROUTE_META: Record<string, Partial<ProductionRoute>> = {
+  bf_bof: { letter: "C", templateRoute: "Basic oxygen steelmaking" },
+  dri_eaf: { letter: "D", templateRoute: "Electric arc furnace" },
+  scrap_eaf: { letter: "E", templateRoute: "Electric arc furnace" },
+  smelting_reduction: { templateRoute: "Smelting reduction" },
+  blast_furnace: { templateRoute: "Blast furnace route" },
+  sintering: { templateRoute: "All production routes" },
+  direct_reduction: { templateRoute: "All production routes" },
+  ferro_alloy_smelting: { templateRoute: "All production routes" },
+  hall_heroult: { letter: "K", templateRoute: "Primary (electrolytic) smelting" },
+  soderberg: { letter: "K", templateRoute: "Primary (electrolytic) smelting" },
+  remelt: { letter: "L", templateRoute: "Secondary melting (recycling)" },
+  rolling_only: { legacy: true, templateRoute: "All production routes" },
+  extrusion: { legacy: true, templateRoute: "All production routes" },
+  rolling_al: { legacy: true, templateRoute: "All production routes" },
+};
+for (const r of PRODUCTION_ROUTES) Object.assign(r, ROUTE_META[r.id]);
+
+/* ── The routes the regulations name that the first set did not ────
+   Kept in a second list so `routesForCategory` — which answers "which routes
+   make THIS aggregated good" for the stage-by-stage catalogue — is unchanged.
+   These are reached through lib/cbam/routes.ts, which answers the question the
+   exporter actually asks: "which routes does the EU recognise for THIS CN code".
+
+   Everything the EU names for a CN code is here: the benchmark route letters
+   (low-alloy and high-alloy steel, primary and secondary aluminium, grey and
+   white clinker), the technology of each fertiliser, hydrogen and cement
+   good, and the two catch-alls the communication template offers on every
+   route-relevant good — "Other" and "Unknown". */
+export const ADDITIONAL_ROUTES: ProductionRoute[] = [
+  {
+    id: "lowalloy_bf_bof",
+    label: "Low-alloy steel · BF-BOF",
+    category: "Iron & Steel",
+    aggregatedCategories: ["Crude steel", "Iron or steel products"],
+    letter: "F",
+    templateRoute: "Basic oxygen steelmaking",
+    standardName: "Low-alloy steel — blast furnace and basic oxygen furnace",
+    hint: "Low-alloy steel made from hot metal blown in a converter, then alloyed.",
+    precursors: "Sintered ore, coke and pig iron, as for carbon BF-BOF steel.",
+    dominantSource: "Coke and coal burned as reductant, plus the alloying step.",
+  },
+  {
+    id: "lowalloy_dri_eaf",
+    label: "Low-alloy steel · DRI-EAF",
+    category: "Iron & Steel",
+    aggregatedCategories: ["Crude steel", "Iron or steel products"],
+    letter: "G",
+    templateRoute: "Electric arc furnace",
+    standardName: "Low-alloy steel — direct reduced iron in an electric arc furnace",
+    hint: "Low-alloy steel melted from direct reduced iron, usually with some scrap.",
+    precursors: "The DRI itself — a CBAM good with its own SEE.",
+    dominantSource: "The DRI's embedded emissions, then electricity.",
+  },
+  {
+    id: "lowalloy_scrap_eaf",
+    label: "Low-alloy steel · Scrap-EAF",
+    category: "Iron & Steel",
+    aggregatedCategories: ["Crude steel", "Iron or steel products"],
+    letter: "H",
+    templateRoute: "Electric arc furnace",
+    standardName: "Low-alloy steel — scrap in an electric arc furnace",
+    hint: "Low-alloy steel melted from scrap, then alloyed.",
+    precursors: "Usually none in scope — scrap is zero-rated. Alloying additions can matter.",
+    dominantSource: "Electricity, electrodes and the alloying step.",
+  },
+  {
+    id: "highalloy_eaf",
+    label: "High-alloy steel · EAF",
+    category: "Iron & Steel",
+    aggregatedCategories: ["Crude steel", "Iron or steel products"],
+    letter: "J",
+    templateRoute: "Electric arc furnace",
+    standardName: "High-alloy steel (including stainless) — electric arc furnace",
+    hint: "Stainless or other high-alloy steel melted in an electric arc furnace.",
+    precursors: "Ferro-alloys (ferro-chromium, ferro-nickel) where bought in — each carries its own SEE.",
+    dominantSource: "Electricity and the ferro-alloys charged.",
+  },
+  {
+    id: "al_primary",
+    label: "Made from primary aluminium",
+    category: "Aluminium",
+    aggregatedCategories: ["Aluminium products"],
+    letter: "K",
+    templateRoute: "Primary (electrolytic) smelting",
+    standardName: "Aluminium product — primary metal",
+    hint: "Your product is made from aluminium smelted by electrolysis.",
+    precursors: "The primary metal — billet, slab or ingot — which carries the smelter's SEE.",
+    dominantSource: "Almost all of it arrives with the metal: smelting electricity, anodes and PFCs.",
+  },
+  {
+    id: "al_secondary",
+    label: "Made from secondary aluminium",
+    category: "Aluminium",
+    aggregatedCategories: ["Aluminium products"],
+    letter: "L",
+    templateRoute: "Secondary melting (recycling)",
+    standardName: "Aluminium product — secondary (recycled) metal",
+    hint: "Your product is made from remelted scrap.",
+    precursors: "Remelted scrap, which is zero-rated — very little arrives with it.",
+    dominantSource: "Remelt and casting fuel. The lowest-intensity aluminium route.",
+  },
+  {
+    id: "clinker_grey",
+    label: "Grey clinker / cement",
+    category: "Cement",
+    aggregatedCategories: ["Cement clinker", "Cement"],
+    letter: "A",
+    templateRoute: "All production routes",
+    standardName: "Grey cement clinker — kiln",
+    hint: "Ordinary (grey) clinker burned in a kiln from limestone and other raw materials.",
+    precursors: "None in scope for clinker. Cement carries the clinker it is ground from.",
+    dominantSource: "Limestone calcination (process CO₂) and kiln fuel.",
+  },
+  {
+    id: "clinker_white",
+    label: "White clinker / cement",
+    category: "Cement",
+    aggregatedCategories: ["Cement clinker", "Cement"],
+    letter: "B",
+    templateRoute: "All production routes",
+    standardName: "White cement clinker — kiln",
+    hint: "White clinker (low iron, chromium and manganese) for binders, tile adhesives and mortars.",
+    precursors: "None in scope for clinker. Cement carries the clinker it is ground from.",
+    dominantSource: "Limestone calcination and a hotter, more fuel-hungry kiln.",
+  },
+  {
+    id: "cement_all_routes",
+    label: "All production routes",
+    category: "Cement",
+    aggregatedCategories: ["Cement", "Aluminous cement"],
+    templateRoute: "All production routes",
+    standardName: "Cement or aluminous cement production",
+    hint: "The EU does not split this good by route.",
+    precursors: "Cement carries the clinker it is made from; aluminous cement has none in scope.",
+    dominantSource: "Kiln fuel and process CO₂, plus grinding electricity.",
+  },
+  {
+    id: "calcining",
+    label: "Calcining",
+    category: "Cement",
+    aggregatedCategories: ["Calcined clay"],
+    templateRoute: "All production routes",
+    standardName: "Calcined clay — raw material preparation, drying and calcining",
+    hint: "Kaolinic clay heated to make a cement additive. Non-calcined clay is out of scope.",
+    precursors: "None in scope.",
+    dominantSource: "Calcining fuel.",
+  },
+  {
+    id: "steam_reforming",
+    label: "Steam reforming / partial oxidation",
+    category: "Iron & Steel",
+    aggregatedCategories: ["Hydrogen"],
+    templateRoute: "Steam reforming and partial oxidation",
+    standardName: "Hydrogen — steam reforming and partial oxidation",
+    hint: "Hydrogen made from natural gas or other fuels.",
+    precursors: "None in scope — the fuel is not a CBAM good.",
+    dominantSource: "All the fuel burned or consumed in the process, energetic or not.",
+  },
+  {
+    id: "electrolysis_water",
+    label: "Electrolysis of water",
+    category: "Iron & Steel",
+    aggregatedCategories: ["Hydrogen"],
+    templateRoute: "Electrolysis of water",
+    standardName: "Hydrogen — electrolysis of water",
+    hint: "Hydrogen split from water with electricity.",
+    precursors: "None in scope.",
+    dominantSource: "The electricity — direct-only for hydrogen, so the figure rests on how it is supplied.",
+  },
+  {
+    id: "chlor_alkali",
+    label: "Chlor-alkali electrolysis / chlorates",
+    category: "Iron & Steel",
+    aggregatedCategories: ["Hydrogen"],
+    templateRoute: "Chlor-Alkali electrolysis and production of chlorates",
+    standardName: "Hydrogen — by-product of chlor-alkali electrolysis and chlorate production",
+    hint: "Hydrogen recovered as a by-product of making chlorine or chlorates.",
+    precursors: "None in scope.",
+    dominantSource: "A share of the plant's electricity, attributed to the hydrogen.",
+  },
+  {
+    id: "haber_bosch_smr",
+    label: "Haber-Bosch · steam reforming",
+    category: "Iron & Steel",
+    aggregatedCategories: ["Ammonia"],
+    templateRoute: "Haber-Bosch process with steam reforming of natural gas or biogas",
+    standardName: "Ammonia — Haber-Bosch process with steam reforming of natural gas or biogas",
+    hint: "Ammonia synthesised from hydrogen made by reforming natural gas or biogas.",
+    precursors: "Hydrogen, where bought in rather than made on site.",
+    dominantSource: "Every fuel in the process, whether burned or used as feedstock.",
+  },
+  {
+    id: "haber_bosch_gasification",
+    label: "Haber-Bosch · gasification",
+    category: "Iron & Steel",
+    aggregatedCategories: ["Ammonia"],
+    templateRoute: "Haber-Bosch process with gasification of coal or other fuels",
+    standardName: "Ammonia — Haber-Bosch process with gasification of coal or other fuels",
+    hint: "Ammonia synthesised from hydrogen made by gasifying coal, heavy refinery fuel or other feedstock.",
+    precursors: "Hydrogen, where bought in.",
+    dominantSource: "Each fuel input counted as one stream, whether burned or used as feedstock.",
+  },
+  {
+    id: "nitric_acid_plant",
+    label: "Nitric acid production",
+    category: "Iron & Steel",
+    aggregatedCategories: ["Nitric acid"],
+    templateRoute: "All production routes",
+    standardName: "Nitric acid — all production routes",
+    hint: "Nitric acid made by oxidising ammonia.",
+    precursors: "Ammonia, where bought in.",
+    dominantSource: "Nitrous oxide (N₂O), which must be measured continuously — abated and unabated.",
+  },
+  {
+    id: "urea_synthesis",
+    label: "Urea production",
+    category: "Iron & Steel",
+    aggregatedCategories: ["Urea"],
+    templateRoute: "All production routes",
+    standardName: "Urea — all production routes",
+    hint: "Urea made from ammonia and carbon dioxide.",
+    precursors: "Ammonia, where bought in. CO₂ received from another installation counts as an emission if not already counted there.",
+    dominantSource: "The ammonia's embedded emissions, then process fuel.",
+  },
+  {
+    id: "fertiliser_production",
+    label: "Fertiliser production",
+    category: "Iron & Steel",
+    aggregatedCategories: ["Mixed fertilisers"],
+    templateRoute: "All production routes",
+    standardName: "Mixed and nitrogen fertilisers — neutralisation, mixing, granulation, prilling",
+    hint: "Nitrogen, NP, NK or NPK fertilisers made by neutralising, mixing, granulating or prilling.",
+    precursors: "Ammonia and nitric acid, where bought in.",
+    dominantSource: "The embedded emissions of ammonia and nitric acid, then drying fuel.",
+  },
+  {
+    id: "steel_all_routes",
+    label: "All production routes",
+    category: "Iron & Steel",
+    aggregatedCategories: ["Iron or steel products"],
+    templateRoute: "All production routes",
+    standardName: "Iron or steel products — all production routes",
+    hint: "The EU sets one value for this good whichever way the steel in it was made — typical of stainless and other alloy products.",
+    precursors: "The steel you buy or make as a direct precursor. Stainless and alloy steel can carry ferro-alloys of their own.",
+    dominantSource: "The steel's embedded emissions, then reheat and finishing fuel.",
+  },
+  {
+    id: "route_other",
+    label: "Other production route",
+    category: "Iron & Steel",
+    aggregatedCategories: ["Crude steel", "Pig iron", "Hydrogen", "Ammonia", "Unwrought aluminium"],
+    templateRoute: "Other production routes",
+    standardName: "Other production routes",
+    hint: "A route the communication template does not name. Describe it in the monitoring plan.",
+    precursors: "Whatever the route consumes — declare each in the precursor tab.",
+    dominantSource: "Described in your monitoring plan.",
+  },
+  {
+    id: "route_unknown",
+    label: "Unknown production route",
+    category: "Iron & Steel",
+    aggregatedCategories: ["Crude steel", "Pig iron", "Hydrogen", "Ammonia", "Unwrought aluminium"],
+    templateRoute: "Unknown production routes",
+    standardName: "Unknown production routes",
+    hint: "The route is not known — typical only for a purchased precursor. A producer's own good always has a route.",
+    precursors: "Unknown.",
+    dominantSource: "Unknown — a verifier will ask.",
+  },
+];
+
 /** Filtered by the FINE aggregated category, not the coarse Iron & Steel /
     Aluminium split — see the type comment on ProductionRoute for why that
     distinction is the whole point of this function existing. */
 export const routesForCategory = (aggCategory: AggregatedGoodsCategory): ProductionRoute[] =>
   PRODUCTION_ROUTES.filter((r) => r.aggregatedCategories.includes(aggCategory));
 
-export const getRoute = (id: string): ProductionRoute | undefined => PRODUCTION_ROUTES.find((r) => r.id === id);
+export const getRoute = (id: string): ProductionRoute | undefined =>
+  PRODUCTION_ROUTES.find((r) => r.id === id) ?? ADDITIONAL_ROUTES.find((r) => r.id === id);
 
 export const routeLabel = (id: string): string => getRoute(id)?.label ?? id;
 
@@ -269,6 +558,11 @@ export type VerificationWorkspace = {
   cnCode: string;
   /** ProductionRoute id — Scrap-EAF | DRI-EAF | BF-BOF | … */
   productionRoute: string;
+  /** ISO 3166-1 alpha-2 country the goods are produced in — the country the
+      EU's default values and origin rules are read for (Implementing
+      Regulation (EU) 2025/2621, Annex I). Optional so workspaces created before
+      it existed still load; `workspaceCountry()` fills "TH". */
+  country?: string;
   /** reporting year */
   year: number;
   /** ISO 'YYYY-MM-DD' */
@@ -442,6 +736,7 @@ export type NewWorkspaceInput = {
   installationName: string;
   productId: string;
   productionRoute: string;
+  country?: string;
   year: number;
   selfSupplied?: boolean;
   supplierId?: string;
@@ -459,6 +754,7 @@ export function createWorkspace(input: NewWorkspaceInput): VerificationWorkspace
     productName: product?.name ?? input.productId,
     cnCode: product?.cnCode ?? "",
     productionRoute: input.productionRoute,
+    country: (input.country || "TH").toUpperCase(),
     year: input.year,
     periodStart: `${input.year}-01-01`,
     periodEnd: `${input.year}-12-31`,
@@ -651,8 +947,12 @@ export function isComplexWorkspace(w: VerificationWorkspace): boolean {
   return isComplexGood(product);
 }
 
+/** The country this workspace's goods are produced in. Thailand until told
+    otherwise — the case this product is built for. */
+export const workspaceCountry = (w: Pick<VerificationWorkspace, "country">): string => (w.country || "TH").toUpperCase();
+
 /** "Steel billet · Plant A · 2026" — the workspace's name everywhere. */
-export const workspaceTitle = (w: VerificationWorkspace): string => `${w.productName} · ${w.installationName} · ${w.year}`;
+export const workspaceTitle = (w: VerificationWorkspace, t: (en: string) => string = (s) => s): string => `${t(w.productName)} · ${w.installationName} · ${w.year}`;
 
 /** The twelve months of the reporting year, as 'YYYY-MM'.
 
@@ -671,11 +971,21 @@ export function monthName(ym: string): string {
   return `${date.toLocaleString("en-GB", { month: "short" })} ${y}`;
 }
 
+/** 'Mar 2026' · 'ม.ค. 2026' — the short form in the language on screen, for what a person reads. `monthName` stays English for what is written down (a report is not translated by the screen it was printed from). */
+export function monthNameShown(ym: string): string {
+  const lang = currentLang();
+  if (lang === "en") return monthName(ym);
+  const [y, m] = ym.split("-");
+  return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString(dateLocaleFor(lang), { month: "short", year: "numeric" });
+}
+
 /** 'March 2026' — the long form, for prose like "March 2026 not submitted". */
 export function monthNameLong(ym: string): string {
   const [y, m] = ym.split("-");
   const date = new Date(Number(y), Number(m) - 1, 1);
-  return `${date.toLocaleString("en-GB", { month: "long" })} ${y}`;
+  // In the language on screen: March 2026 · มีนาคม 2026 · 2026年3月. The year stays Gregorian in all three.
+  const lang = currentLang();
+  return lang === "en" ? `${date.toLocaleString("en-GB", { month: "long" })} ${y}` : date.toLocaleDateString(dateLocaleFor(lang), { month: "long", year: "numeric" });
 }
 
 /** Does an ISO date fall inside the workspace's reporting period? */

@@ -34,7 +34,7 @@ test("a month with no production is omitted from the trend, not plotted as zero"
   assert.deepEqual(seeTrendFor(see), []);
 });
 
-test("a submitted month with production appears as one point, direct + indirect per tonne", () => {
+test("a submitted month with production appears as one point; for steel the total is the direct figure, the electricity is reported beside it", () => {
   storage.clear();
   const ws = createWorkspace({ installationId: "TH-A", installationName: "Plant A", productId: "billet", productionRoute: "scrap_eaf", year: 2026 });
   saveMonth({
@@ -51,7 +51,26 @@ test("a submitted month with production appears as one point, direct + indirect 
   assert.equal(trend.length, 1);
   assert.equal(trend[0].month, "2026-01");
   assert.ok(trend[0].seeDirect > 0);
-  assert.ok(trend[0].seeIndirect > 0);
+  assert.ok(trend[0].seeIndirect > 0, "the electricity is still reported");
+  assert.ok(Math.abs(trend[0].seeTotal - trend[0].seeDirect) < 1e-9, "steel is an Annex II good: only its direct emissions count, so the line read against the EU default is direct");
+});
+
+test("for a good that counts indirect emissions the trend's total adds the electricity", async () => {
+  storage.clear();
+  const cfg = await import("../config");
+  const cement = cfg.PRODUCT_CATALOG.find((p: { cnCode: string; category: string }) => cfg.aggregatedGoodsCategory(p as never) === "Cement")!;
+  const ws = createWorkspace({ installationId: "TH-A", installationName: "Plant A", productId: cement.id, productionRoute: "cement_all_routes", year: 2026 });
+  saveMonth({
+    ...emptyMonth(ws.id, "2026-01"),
+    productionTonnes: 100,
+    fuels: [{ id: "f1", fuelType: "natural_gas", quantity: 1000, unit: "m3", ncvMjPerUnit: 38, efTco2PerGj: 0.0561, oxidationFactor: 1, factorSource: "eu_standard" }],
+    electricityMwh: 50,
+    electricityFactorTco2PerMwh: 0.5,
+    electricityFactorSource: "ppa",
+    status: "submitted",
+  });
+  const trend = seeTrendFor(workspaceSEE(ws));
+  assert.equal(trend.length, 1);
   assert.ok(Math.abs(trend[0].seeTotal - (trend[0].seeDirect + trend[0].seeIndirect)) < 1e-9);
 });
 
@@ -108,7 +127,7 @@ test("seeTrendByQuarter: two months in the same quarter are production-weighted,
   // land on that same per-tonne value — proof the roll-up is weighted
   // correctly rather than, say, silently summing per-tonne figures.
   assert.ok(Math.abs(quarters[0].seeDirect - monthly[0].seeDirect) < 1e-9);
-  assert.ok(Math.abs(quarters[0].seeTotal - (quarters[0].seeDirect + quarters[0].seeIndirect)) < 1e-9);
+  assert.ok(Math.abs(quarters[0].seeTotal - quarters[0].seeDirect) < 1e-9, "steel: the total is the direct figure");
 });
 
 test("seeTrendByQuarter: months in different quarters produce separate points, in order", () => {

@@ -24,7 +24,7 @@
    ════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
-import { Check, ExternalLink, Paperclip, Sparkles, Trash2, TriangleAlert, Upload } from "lucide-react";
+import { Check, Paperclip, Sparkles, Trash2, TriangleAlert, Upload } from "lucide-react";
 import { Progress, inputClass, cn } from "@/components/ui";
 import { toast } from "@/components/toast";
 import { Note } from "@/components/workspace/chrome";
@@ -76,6 +76,8 @@ export function sourceTypeForKey(key: string): EvidenceSourceType {
   if (key === "production") return "meter_log";
   if (key === "carbon-price") return "carbon_price_receipt";
   if (key === "calibration-records") return "calibration_record";
+  // The sector rows: a delivery/stock log, potline records, a scrap receiving log — all logs; the analyses are "other".
+  if (key.startsWith("process:") || key === "pfc" || key === "scrap") return "meter_log";
   return "other";
 }
 
@@ -254,7 +256,7 @@ export function ExtractionPanel({ item, entry, onChange }: { item: EvidenceItem;
       {x.status === "needs_review" && (
         <p className="mb-2 flex items-start gap-1.5 rounded-lg bg-[#fffbeb] px-3 py-2 text-[12px] text-[#78350f]">
           <TriangleAlert size={13} strokeWidth={1.5} className="mt-0.5 flex-none" />
-          At least one value came back below {CONFIDENCE_FLOOR} confidence. Check it against the document before accepting.
+          {t("At least one value came back below {floor} confidence. Check it against the document before accepting.", { floor: CONFIDENCE_FLOOR })}
         </p>
       )}
 
@@ -306,33 +308,6 @@ export function AttachButton({
   );
 }
 
-/* ── Open the attached file ─────────────────────────────────────
-   Through a Blob rather than by handing the data: URL straight to
-   window.open — Chrome blocks top-level navigation to a data: URL, so the
-   obvious spelling silently does nothing. Above INLINE_BYTES_LIMIT only the
-   metadata was ever kept (see lib/workspace-evidence.ts), so there is
-   genuinely nothing to open and the control says so instead of failing. */
-export function openEvidenceDocument(item: EvidenceItem) {
-  if (!item.fileDataUrl) {
-    toast({ message: "Nothing stored to open", detail: `${item.fileName} was too large to keep in the browser — only its record is held here.`, tone: "warn" });
-    return;
-  }
-  try {
-    const [meta, b64] = item.fileDataUrl.split(",");
-    const mime = /:(.*?);/.exec(meta)?.[1] ?? item.mimeType ?? "application/octet-stream";
-    const bytes = atob(b64);
-    const buf = new Uint8Array(bytes.length);
-    for (let i = 0; i < bytes.length; i += 1) buf[i] = bytes.charCodeAt(i);
-    const url = URL.createObjectURL(new Blob([buf], { type: mime }));
-    window.open(url, "_blank", "noopener");
-    // Revoked on a timer rather than immediately: the new tab has to have
-    // started reading it first, and there is no event that says it has.
-    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-  } catch {
-    toast({ message: "Could not open this file", detail: item.fileName, tone: "warn" });
-  }
-}
-
 export function EvidenceItemCard({
   item,
   entry,
@@ -358,15 +333,7 @@ export function EvidenceItemCard({
       <div className="flex flex-wrap items-center gap-2">
         <Paperclip size={13} strokeWidth={1.5} className="text-black/35" />
         <span className="min-w-0 flex-1 truncate text-[13px] text-black/80">{item.fileName}</span>
-        {openable ? (
-          <button
-            type="button"
-            onClick={() => openEvidenceDocument(item)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-black/12 px-2.5 py-1 text-[10.5px] uppercase tracking-[0.06em] text-black/55 transition-colors hover:border-black/25 hover:bg-black/[0.03] hover:text-black"
-          >
-            <ExternalLink size={11} strokeWidth={1.5} /> {t("Open document")}
-          </button>
-        ) : (
+        {!openable && (
           <>
             <span className="rounded-full border border-black/10 px-2 py-0.5 text-[10px] text-black/45">{t(EVIDENCE_SOURCE_LABEL[item.sourceType])}</span>
             <span
@@ -408,13 +375,12 @@ export function CoverageRows({
   return (
     <ul className="divide-y divide-black/[0.05]">
       {rows.map((row) => (
-        <li key={row.key} className="flex flex-wrap items-center gap-3 py-2.5 text-[13px]">
+        <li key={row.key} title={row.key} className="flex flex-wrap items-center gap-3 py-2.5 text-[13px]">
           <span className={cn("h-1.5 w-1.5 flex-none rounded-full", row.covered ? "bg-[#10b981]" : "bg-[#facc15]")} />
           <span className="min-w-0 flex-1 text-black/75">{t(row.label)}</span>
           {row.awaitingReview > 0 && (
             <span className="text-[11px] text-[#b45309]">{t("{count} awaiting review", { count: row.awaitingReview })}</span>
           )}
-          <span className="font-mono text-[11px] text-black/35">{row.key}</span>
           <AttachButton onFile={(f) => onAttach(row, f)} />
         </li>
       ))}
@@ -524,6 +490,7 @@ export function SectionEvidence({
    Required figures, their coverage, and the documents attached to them —
    rendered inside the month it describes. */
 export function MonthEvidence({ workspaceId, entry, onChange }: { workspaceId: string; entry: MonthlyEntry; onChange: () => void }) {
+  const t = useT();
   const [items, setItems] = React.useState<EvidenceItem[]>([]);
   const [busy, setBusy] = React.useState<string | null>(null);
   const [cov, setCov] = React.useState<ReturnType<typeof coverageForMonth> | null>(null);
@@ -559,7 +526,7 @@ export function MonthEvidence({ workspaceId, entry, onChange }: { workspaceId: s
     <div>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <span className="text-[12px] text-black/45">
-          {cov.covered} of {cov.total} figures in this month have a reviewed document behind them.
+          {t("{covered} of {total} figures in this month have a reviewed document behind them.", { covered: cov.covered, total: cov.total })}
         </span>
         <span className="font-mono text-[12px] text-black/45">{Math.round(cov.ratio * 100)}%</span>
       </div>

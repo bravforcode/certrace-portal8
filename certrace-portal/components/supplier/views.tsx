@@ -36,7 +36,7 @@ import { type SupplierSection, type RequestDocAsk, valueKey } from "@/lib/suppli
 import { type SupplierProfile, loadProfiles } from "@/lib/supplier-store";
 import { SECTION_ACCESS, isShared, type Audience } from "@/lib/supplier-records";
 import { runQualityCheck, CATEGORIES, CATEGORY_BLURB, type CheckResult, type Severity } from "@/lib/ai-check";
-import { useT } from "@/lib/i18n";
+import { dateLocaleNow, useT } from "@/lib/i18n";
 import { SupplierIntake } from "@/components/intake/supplier-intake";
 
 const DEPARTMENTS = [
@@ -1205,7 +1205,7 @@ export function DoneView() {
         {[
           [`${latest.score}`, "Quality score"],
           [`${latest.warnings}`, "Warnings flagged"],
-          [submittedAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }), "Submitted"],
+          [submittedAt.toLocaleDateString(dateLocaleNow(), { day: "numeric", month: "short", year: "numeric" }), "Submitted"],
         ].map(([v, l]) => (
           <Card key={l} className="p-5 text-center">
             <div className="font-[family-name:var(--font-plex)] text-2xl font-light text-[#111]">{v}</div>
@@ -1239,7 +1239,7 @@ export function DoneView() {
             {state.versions.map((v) => (
               <div key={v.n} className="flex items-center justify-between py-2.5 text-[13px]">
                 <span className="text-black/70">Version {v.n}</span>
-                <span className="text-black/45">{new Date(v.submittedAt).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+                <span className="text-black/45">{new Date(v.submittedAt).toLocaleString(dateLocaleNow(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
                 <span className="font-mono text-black/45">score {v.score}</span>
               </div>
             ))}

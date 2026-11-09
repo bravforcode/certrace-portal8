@@ -4,7 +4,7 @@
    lib/i18n.ts. Keyed by the English source string, same as the main file. */
 
 export const TH_INTAKE: Record<string, string> = {
-  "Smart upload": "อัปโหลดอัจฉริยะ",
+  "Smart upload": "สมาร์ทอัพโหลด",
 
   /* Drop zone */
   "Drop any documents here": "โยนเอกสารมาได้เลย",
@@ -14,7 +14,7 @@ export const TH_INTAKE: Record<string, string> = {
   "Choose files": "เลือกไฟล์",
   "Try sample documents": "ลองด้วยเอกสารตัวอย่าง",
   "Sample documents could not be loaded": "โหลดเอกสารตัวอย่างไม่สำเร็จ",
-  "Prototype — detection is simulated. Nothing leaves this browser.": "ต้นแบบ (Prototype) — ผลการตรวจจับเป็นการจำลอง ไม่มีข้อมูลออกจากเบราว์เซอร์นี้",
+  "Prototype — detection is simulated. Nothing leaves this browser.": "ต้นแบบ — ผลการตรวจจับเป็นการจำลอง ไม่มีข้อมูลออกจากเบราว์เซอร์นี้",
 
   /* Summary strip */
   "{n} reading": "กำลังอ่าน {n}",
@@ -67,8 +67,8 @@ export const TH_INTAKE: Record<string, string> = {
   "Fuel consumption record": "บันทึกการใช้เชื้อเพลิง",
   "Production record / ERP export": "บันทึกการผลิต / รายงานจาก ERP",
   "Calibration certificate": "ใบรับรองการสอบเทียบ",
-  "Mill test certificate": "ใบรับรองผลทดสอบ (Mill test certificate)",
-  "Precursor verification report": "รายงานทวนสอบวัตถุดิบตั้งต้น (Precursor)",
+  "Mill test certificate": "ใบรับรองผลทดสอบ",
+  "Precursor verification report": "รายงานทวนสอบวัตถุดิบตั้งต้น",
   "Carbon price receipt": "หลักฐานการจ่ายราคาคาร์บอน",
   "Installation diagram": "แผนผังโรงงาน",
   "Laboratory analysis": "ผลวิเคราะห์จากห้องปฏิบัติการ",
@@ -232,8 +232,8 @@ export const TH_INTAKE: Record<string, string> = {
   "Shown for reference — these values are not written into the questionnaire.": "แสดงเพื่ออ้างอิงเท่านั้น — ค่าเหล่านี้ไม่ได้ถูกใส่ลงแบบสอบถาม",
   "Requested documents": "เอกสารที่ถูกขอ",
   required: "จำเป็น",
-  "CBAM communication sheet": "แบบฟอร์มสื่อสาร CBAM (Communication sheet)",
-  "Certificate of Origin": "หนังสือรับรองถิ่นกำเนิดสินค้า (Certificate of Origin)",
+  "CBAM communication sheet": "แบบฟอร์มสื่อสาร CBAM",
+  "Certificate of Origin": "หนังสือรับรองถิ่นกำเนิดสินค้า",
   "This document belongs to a supplier's data request, not to this workspace's checklist.":
     "เอกสารนี้เป็นของคำขอข้อมูลถึงซัพพลายเออร์ ไม่ได้อยู่ใน checklist ของงานนี้",
   "Direct emissions": "การปล่อยทางตรง",

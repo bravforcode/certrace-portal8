@@ -270,7 +270,7 @@ export const allCaps = (seatsUsed?: number): CapState[] => [cnCodeCap(), siteCap
 
 export const CAP_LABEL: Record<CapKey, string> = {
   cnCodes: "CN codes",
-  sites: "Production sites",
+  sites: "Installations",
   years: "Reporting years open",
   seats: "Team seats",
 };
@@ -290,8 +290,8 @@ export const CAP_BLOCKED: Record<CapKey, { one: string; many: string }> = {
     many: "Your {plan} plan covers {cap} CN codes, and all of them are in use.",
   },
   sites: {
-    one: "Your {plan} plan covers a single production site, and it is registered.",
-    many: "Your {plan} plan covers {cap} production sites, and all of them are registered.",
+    one: "Your {plan} plan covers a single installation, and it is registered.",
+    many: "Your {plan} plan covers {cap} installations, and all of them are registered.",
   },
   years: {
     one: "Your {plan} plan keeps one reporting year open at a time.",
@@ -308,4 +308,4 @@ export const capBlockedText = (cap: CapState): string => (cap.cap === 1 ? CAP_BL
 
 /** Always the same next move: the price is quoted, so raising a cap is a
     conversation, not a checkout. */
-export const CAP_REMEDY = "Talk to sales to raise it — suppliers stay free and unlimited either way.";
+export const CAP_REMEDY = "Talk to sales to raise it — suppliers and precursor suppliers can still fill in through their link, without limit.";

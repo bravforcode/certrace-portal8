@@ -76,7 +76,7 @@ export const RULE_TITLE: Record<RuleId, string> = {
   V6: "Mass balance holds",
   V7: "Scrap is zero-rated",
   V8: "Precursor chain is acyclic",
-  V9: "Complex-good default cap respected",
+  V9: "Complex-good default values reviewed",
   V10: "Every filed input has evidence",
   V11: "Every month is accounted for",
   V12: "Estimated share is under control",
@@ -238,13 +238,18 @@ export function validate(input: ValidationInput): Finding[] {
     });
   }
 
-  /* V9 — complex goods may lean on default values for at most 20% of their
-     embedded emissions. A good wholly on defaults is a full breach. */
+  /* V9 — a complex good reported entirely on default values. A WARNING, not an
+     error: Annex II A.1(2) to Implementing Regulation (EU) 2025/2547 lets an
+     operator use default values for one, several or all precursors (Article
+     15), and neither Regulation 2023/956 nor its 2025 amendment caps the share.
+     The 20 % ceiling was a transitional-period rule. What is true, and worth
+     saying, is that defaults carry a mark-up and tend to cost more than a
+     verified actual value. */
   for (const good of input.defaultOnlyComplexGoods) {
     f.push({
       id: "V9",
-      severity: "error",
-      message: `${good} is a complex good reported entirely on default values. At most ${COMPLEX_GOOD_DEFAULT_CAP * 100}% of a complex good's embedded emissions may come from defaults.`,
+      severity: "warn",
+      message: `${good} is a complex good reported entirely on default values. That is allowed, but defaults carry a mark-up and usually give a higher figure than a verified actual value would.`,
       field: "supplier-data",
     });
   }

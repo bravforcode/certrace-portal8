@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Sans, IBM_Plex_Sans_Thai, Geist, Geist_Mono, Courier_Prime } from "next/font/google";
+import { IBM_Plex_Sans, IBM_Plex_Sans_Devanagari, IBM_Plex_Sans_Thai, Geist, Geist_Mono, Courier_Prime, Inter, Noto_Sans_SC } from "next/font/google";
 import { QueryProvider } from "@/components/query-provider";
 import { LanguageProvider } from "@/lib/i18n";
 import { ProfileProvider } from "@/lib/profile";
@@ -35,6 +35,29 @@ const plexThai = IBM_Plex_Sans_Thai({
   preload: false,
 });
 
+/* Simplified Chinese, for the supplier and precursor links. Nothing else in the stack carries a Han glyph. Like the Thai cut it is reached
+   only through `html[lang^="zh"]` in globals.css, so it is not preloaded — and Google serves it in small unicode-range pieces, so a page
+   downloads only the characters it shows. */
+const notoZh = Noto_Sans_SC({
+  variable: "--font-noto-zh",
+  weight: ["300", "400", "500"],
+  preload: false,
+  display: "swap",
+});
+
+/* Hindi, for the supplier and precursor links and the sign-up — the Devanagari cut of the same family, reached only through `html[lang="hi"]`
+   in globals.css, so like the Thai and Chinese faces it is not preloaded. */
+const plexHi = IBM_Plex_Sans_Devanagari({
+  variable: "--font-plex-hi",
+  subsets: ["devanagari", "latin"],
+  weight: ["300", "400", "500", "600"],
+  preload: false,
+  display: "swap",
+});
+
+// Cera's name in its header — the one place the assistant is set in Inter, at regular weight.
+const inter = Inter({ variable: "--font-inter", subsets: ["latin"], weight: ["300", "400", "500"] });
+
 // Wordmark, eyebrow labels, plan names.
 const courier = Courier_Prime({
   variable: "--font-courier",
@@ -63,7 +86,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" data-scroll-behavior="smooth">
       <body
-        className={`${plex.variable} ${plexThai.variable} ${geist.variable} ${geistMono.variable} ${courier.variable} antialiased`}
+        className={`${plex.variable} ${plexThai.variable} ${notoZh.variable} ${plexHi.variable} ${inter.variable} ${geist.variable} ${geistMono.variable} ${courier.variable} antialiased`}
       >
         <QueryProvider>
           <LanguageProvider>

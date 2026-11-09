@@ -54,8 +54,8 @@ export const STAGE_LABEL: Record<ChainStage, string> = {
     four-word label cannot carry "and here is what happens next". */
 export const STAGE_HINT: Record<ChainStage, string> = {
   not_started: "Nothing has been asked for and nothing entered. Track a report to start chasing this figure.",
-  tracking: "A report has been asked for — a Smart Link is out, or a report workspace is open for this entity.",
-  in_progress: "Being filled in — by the supplier on their link, or by you in the workspace.",
+  tracking: "A report has been asked for — a Smart Link is out, or a product report is open for this entity.",
+  in_progress: "Being filled in — by the supplier on their link, or by you in the product report.",
   buyer_ready: "Verified and rolled into the chain. This figure is ready to hand to your buyer.",
 };
 
@@ -127,7 +127,7 @@ export function chainScore(node: TreeNode): ChainScore | null {
       label: "Readiness",
       value: `${r.percentComplete}%`,
       percent: r.percentComplete,
-      title: "Share of this workspace's applicable readiness tabs that are complete. Descriptive only — never a gate to submission.",
+      title: "Share of this product report's applicable readiness tabs that are complete. Descriptive only — never a gate to submission.",
     };
   }
 

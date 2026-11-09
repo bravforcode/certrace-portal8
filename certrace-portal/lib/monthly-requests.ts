@@ -23,7 +23,7 @@
 
 import { getSubmissionStatus } from "./supplier-store";
 import { makeToken } from "./supplier";
-import { monthName } from "./workspace";
+import { monthNameShown } from "./workspace";
 import { writeBlocked } from "./plan";
 
 /** Mirrors the supplier-side lifecycle, plus the two states that only exist
@@ -179,7 +179,7 @@ export function seriesStatus(workspaceId: string, supplierId: string, months: st
   return months.map((month) => {
     const req = rows.find((r) => r.month === month);
     if (!req) {
-      return { month, label: monthName(month), status: "not_sent" as const, token: null, resendCount: 0, score: null, version: 0 };
+      return { month, label: monthNameShown(month), status: "not_sent" as const, token: null, resendCount: 0, score: null, version: 0 };
     }
 
     const submission = getSubmissionStatus(req.token);
@@ -196,7 +196,7 @@ export function seriesStatus(workspaceId: string, supplierId: string, months: st
 
     return {
       month,
-      label: monthName(month),
+      label: monthNameShown(month),
       // A reviewed month is one the exporter has accepted — the supplier
       // store records that as a version beyond the first submission.
       status: submission.status === "submitted" && submission.version > 1 ? "reviewed" : status,

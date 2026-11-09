@@ -33,7 +33,7 @@ import { seedSupplierCompaniesFrom, type SupplierCompany } from "@/lib/supplier-
 import { listWorkspaces } from "@/lib/workspace";
 import { allPrecursorSuppliers, hasCertraceAccount, type PrecursorSupplierRow } from "@/lib/precursor-suppliers";
 import { precursorSeeDeadlineFor, type Deadline } from "@/lib/cbam/precursor-deadlines";
-import { getCountry } from "@/lib/config";
+import { countryNameShown, getCountry } from "@/lib/config";
 import { useT } from "@/lib/i18n";
 
 const PAGE_SIZE = 8;
@@ -133,7 +133,7 @@ export default function SuppliersPage() {
           <Stat value={all.reduce((a, r) => a + r.installations, 0)} label={t("Installations")} sub={t("across every supplier")} />
         </Card>
         <Card className="p-5">
-          <Stat value={all.reduce((a, r) => a + r.goods, 0)} label={t("Goods in verification")} sub={t("workspaces on their plants")} />
+          <Stat value={all.reduce((a, r) => a + r.goods, 0)} label={t("Goods in verification")} sub={t("product reports on their plants")} />
         </Card>
       </div>
 
@@ -148,7 +148,7 @@ export default function SuppliersPage() {
                 ? t("1 supplier has no installation recorded.")
                 : t("{count} suppliers have no installation recorded.", { count: withoutPlants })}
             </strong>{" "}
-            {t("A workspace is scoped to a plant, so until one is added there is nothing to ask them for. Open a supplier and add the plant that makes your good.")}
+            {t("A product report is scoped to a plant, so until one is added there is nothing to ask them for. Open a supplier and add the plant that makes your good.")}
           </p>
         </Card>
       )}
@@ -209,7 +209,7 @@ export default function SuppliersPage() {
                 <span className="min-w-0">
                   <span className="block truncate text-sm text-black/70">{supplier.name}</span>
                   <span className="block truncate text-[11px] text-black/35">
-                    {getCountry(supplier.country)?.name ?? supplier.country}
+                    {getCountry(supplier.country) ? countryNameShown(supplier.country) : supplier.country}
                     {supplier.contactEmail ? ` · ${supplier.contactEmail}` : ""}
                   </span>
                 </span>
@@ -270,13 +270,13 @@ export default function SuppliersPage() {
           <div className="grid grid-cols-[1.6fr_0.8fr_1.3fr_1fr_1fr] gap-3 border-b border-black/[0.06] bg-black/[0.02] px-5 py-2.5 font-mono text-[8px] uppercase tracking-[0.16em] text-black/30">
             <span>{t("Company")}</span>
             <span>{t("CN code")}</span>
-            <span>{t("Workspace · period")}</span>
+            <span>{t("Product report · period")}</span>
             <span>{t("Status")}</span>
             <span>{t("SEE & verification due")}</span>
           </div>
           {precursorRows == null ? null : filteredPrecursor.length === 0 ? (
             <div className="px-5 py-10 text-center text-sm text-black/35">
-              {query ? t("No precursor suppliers match “{query}”.", { query }) : t("No precursor suppliers yet — they are added from a workspace's Supply Chain — Precursor Tree.")}
+              {query ? t("No precursor suppliers match “{query}”.", { query }) : t("No precursor suppliers yet — they are added from a product report's Supply Chain — Precursor Tree.")}
             </div>
           ) : (
             filteredPrecursor.map(({ supplier, workspace }) => {
@@ -284,7 +284,7 @@ export default function SuppliersPage() {
               return (
                 <Link
                   key={`${workspace.id}-${supplier.id}`}
-                  href={`/workspaces/${workspace.id}/tree`}
+                  href={`/workspaces/${workspace.id}`}
                   className="grid grid-cols-[1.6fr_0.8fr_1.3fr_1fr_1fr] items-center gap-3 border-b border-black/[0.04] px-5 py-4 transition-colors last:border-0 hover:bg-[#fafaf8]"
                 >
                   <span className="min-w-0">
@@ -293,7 +293,7 @@ export default function SuppliersPage() {
                   </span>
                   <span className="truncate font-mono text-[12px] text-black/50">{supplier.cnCode || "—"}</span>
                   <span className="min-w-0 truncate text-[12.5px] text-black/55">
-                    {workspace.productName} · {workspace.year}
+                    {t(workspace.productName)} · {workspace.year}
                   </span>
                   <span className="flex flex-wrap items-center gap-1">
                     <LinkStatusChip node={supplier} />
@@ -301,7 +301,7 @@ export default function SuppliersPage() {
                   </span>
                   <span className={cn("inline-flex w-fit items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.08em]", DEADLINE_STYLE[deadline.status])}>
                     <Calendar size={11} strokeWidth={1.5} />
-                    {deadline.status === "overdue" ? `${Math.abs(deadline.daysUntilDue)}d overdue` : deadline.status === "due_soon" ? `due in ${deadline.daysUntilDue}d` : "on track"}
+                    {deadline.status === "overdue" ? t("{n}d overdue", { n: Math.abs(deadline.daysUntilDue) }) : deadline.status === "due_soon" ? t("due in {n}d", { n: deadline.daysUntilDue }) : t("on track")}
                   </span>
                 </Link>
               );

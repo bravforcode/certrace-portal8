@@ -26,6 +26,8 @@ export type WorkspaceWizardSnapshot = {
   supplierId?: string;
   productId: string;
   route: string;
+  /** country of production — ISO alpha-2. Absent on drafts saved before it was asked. */
+  country?: string;
   year: number;
   /** last date the month's data may be sent, as a day of the FOLLOWING month */
   dueDay?: number;

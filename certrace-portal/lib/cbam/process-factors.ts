@@ -107,8 +107,9 @@ export function standardProcessEmission(materialId: string, quantityT: number, c
     the sign is what subtracts it rather than ignoring it. Reuses
     CO2_PER_C.value (3.664) from lib/cbam/units.ts rather than redefining
     it — one constant, one place its provenance is argued for. */
-export function massBalanceProcessEmission(material: string, quantityT: number): number {
-  const c = carbonContentFor(material);
-  if (!c) return 0;
-  return CO2_PER_C.value * quantityT * c.tCPerT;
+export function massBalanceProcessEmission(material: string, quantityT: number, carbonContentOverride?: number): number {
+  // The plant's own analysis, where it gave one, replaces the table; a material the table does not list needs it.
+  const cc = carbonContentOverride != null && carbonContentOverride > 0 ? carbonContentOverride : carbonContentFor(material)?.tCPerT;
+  if (cc == null) return 0;
+  return CO2_PER_C.value * quantityT * cc;
 }

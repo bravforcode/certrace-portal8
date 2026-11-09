@@ -31,7 +31,8 @@
    report, which is the first moment it has anything to hold.
    ════════════════════════════════════════════════════════════ */
 
-import { aggregatedGoodsCategory, PRODUCT_CATALOG, getCatalogProduct } from "./config";
+import { PRODUCT_CATALOG, getCatalogProduct } from "./config";
+import { routeOptionsFor } from "./cbam/routes";
 import { SELF_SUPPLIER_ID, isSelfSupplier, type Declaration, type SupplierRow } from "./data";
 import { dotStates, workspaceReadiness, type TabState } from "./readiness";
 import { shipmentsForWorkspace } from "./shipments";
@@ -41,7 +42,6 @@ import {
   createWorkspace,
   linkDeclaration,
   listWorkspaces,
-  routesForCategory,
   type VerificationWorkspace,
 } from "./workspace";
 
@@ -253,7 +253,7 @@ export function openReport(declaration: Declaration, report: AnnualReport): Veri
   // which tiers should exist. The first route valid for the product's sector
   // is a starting point the Overview tab can correct in place, which is a
   // better failure than a workspace that cannot be created at all.
-  const fallbackRoute = product ? routesForCategory(aggregatedGoodsCategory(product))[0]?.id ?? "" : "";
+  const fallbackRoute = product ? routeOptionsFor(product)[0]?.id ?? "" : "";
 
   const ws = createWorkspace({
     installationId: installationIdFor(report.supplierId),

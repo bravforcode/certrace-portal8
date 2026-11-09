@@ -89,31 +89,36 @@ export function DotStrip({ states, className }: { states: TabState[]; className?
    Nested routes rather than a query parameter, because the readiness rules
    emit deep links to exact fields — /workspaces/x/monthly/2026-03 has to be a
    real address a verifier or a colleague can be sent. */
-export type WorkspaceTabKey = ReadinessTab | "overview" | "readiness" | "settings" | "intake";
+export type WorkspaceTabKey = ReadinessTab | "overview" | "readiness" | "settings";
 export type WorkspaceTab = { key: WorkspaceTabKey; label: string; href: string };
 
 export function tabsFor(id: string): WorkspaceTab[] {
   return [
     { key: "overview", label: "Overview", href: `/workspaces/${id}` },
-    // Drop documents first, file them
-    // after — see lib/smart-intake.ts.
-    { key: "intake", label: "Smart upload", href: `/workspaces/${id}/intake` },
-    // No MMD tab and no Precursors tab. Both live inside Monthly data now —
-    // see the header of app/(portal)/workspaces/[id]/monthly/page.tsx. Their
-    // ROUTES still exist and are still where the editing happens, so every
-    // readiness deep link, verifier link and bookmark keeps working; what
-    // changed is that you reach them from the month they belong to rather than
-    // from a tab that implied a separate, annual job.
+    // No Smart upload tab: reading a file and filling a month is Cera's job now (the Cera button in the top bar),
+    // and a month's documents are attached on that month's Documents step. /intake redirects to Monthly data.
+    // No MMD tab. The monitoring methodology lives inside Monthly data — see
+    // the header of app/(portal)/workspaces/[id]/monthly/page.tsx. Its ROUTE
+    // still exists, so every readiness deep link and bookmark keeps working.
     { key: "monthly", label: "Monthly data", href: `/workspaces/${id}/monthly` },
+    // The DIRECT precursors of this product, each on a default or an actual
+    // value. This replaced the supply-chain tree: CBAM asks for one figure per
+    // direct precursor, not for every tier behind it.
+    { key: "precursors", label: "Precursors", href: `/workspaces/${id}/precursors` },
+    // The carbon price paid at home for THIS good. It used to be a card inside the
+    // installation's Readiness; it is a fact about one product report, so it sits here.
+    { key: "carbon_price", label: "Carbon price", href: `/workspaces/${id}/carbon-price` },
     // No Evidence tab. Evidence is not a kind of work, it is the document
     // behind a figure — so it renders inside the MMD, inside each month and
-    // inside the precursor chain, next to the figure it substantiates. A tab
-    // for it only ever meant "upload it all in December", by which time the
-    // March gas bill is gone. Readiness still reports coverage across all of
-    // them, because THAT is an annual question.
-    { key: "readiness", label: "Readiness", href: `/workspaces/${id}/readiness` },
-    // Last, and deliberately after Readiness: it is the only tab that is about
-    // the workspace rather than about the year's data.
+    // on each precursor, next to the figure it substantiates.
+    //
+    // No Readiness tab either. Readiness is a property of the installation and
+    // the reporting year — the monitoring plan, the carbon price and the report
+    // set are filed per installation — so it lives one level up, on the
+    // installation page, where every product report of the year is read
+    // together.
+    //
+    // Last: the only tab that is about the report rather than about the year's data.
     { key: "settings", label: "Settings", href: `/workspaces/${id}/settings` },
   ];
 }
@@ -131,7 +136,7 @@ export function TabStrip({
 
   return (
     <div className="flex items-center justify-between gap-3 border-b border-black/[0.06]">
-      <nav className="-mx-1 flex flex-1 gap-1 overflow-x-auto pb-px" aria-label={t("Workspace sections")}>
+      <nav className="-mx-1 flex flex-1 gap-1 overflow-x-auto pb-px" aria-label={t("Product report sections")}>
         {/* `tab`, not `t` — `t` is the translator in every component in this
             codebase, and shadowing it here left the whole tab strip in English
             while the page around it was Thai. */}
@@ -199,12 +204,16 @@ export type Crumb = { href: string; label: string };
 
 export function IdentityBar({
   trail,
+  current,
   title,
   meta,
   right,
 }: {
   /** every level above this page, outermost first; never empty */
   trail: Crumb[];
+  /** the level this page IS, shown last and not a link — a product report's own tabs name the product here, so the trail reads
+      Verification › installation › product. The arrow still goes one step up, to the last link above. */
+  current?: string;
   title: string;
   /** the one line that makes the title unambiguous — CN code, year, tier */
   meta?: React.ReactNode;
@@ -214,6 +223,18 @@ export function IdentityBar({
   return (
     <>
       <nav aria-label={t("Breadcrumb")} className="flex min-w-0 items-center gap-x-1.5 text-[12px] text-black/45">
+        {/* BACK, ON EVERY SIZE. One step up — to the level the trail ends at.
+            On a phone the last crumb already carries the arrow (below), so this
+            one only appears from `sm` up, where the whole trail is shown and
+            nothing else says "go back". */}
+        <Link
+          href={trail[trail.length - 1].href}
+          aria-label={`${t("Back to")} ${trail[trail.length - 1].label}`}
+          title={`${t("Back to")} ${trail[trail.length - 1].label}`}
+          className="-ml-1 mr-0.5 hidden h-6 w-6 flex-none place-items-center rounded-md text-black/45 transition-colors hover:bg-black/[0.05] hover:text-black sm:grid"
+        >
+          <ArrowLeft size={15} strokeWidth={1.5} aria-hidden />
+        </Link>
         {trail.map((crumb, i) => {
           const last = i === trail.length - 1;
           return (
@@ -229,6 +250,15 @@ export function IdentityBar({
             </React.Fragment>
           );
         })}
+        {current && (
+          <>
+            <ChevronRight size={13} strokeWidth={1.5} className="hidden flex-none text-black/25 sm:block" aria-hidden />
+            {/* Not on a phone: there the bar shows only the back step, and the title right under it already says this. */}
+            <span aria-current="page" className="hidden min-w-0 truncate py-0.5 text-black/75 sm:inline">
+              {current}
+            </span>
+          </>
+        )}
       </nav>
       <div className="mt-1 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1.5">
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
@@ -321,8 +351,7 @@ export function ResponsibilityBar({ tab }: { tab: WorkspaceTabKey }) {
      so `t(someEnglishString)` resolves exactly as a literal would, and the
      table stays a plain module with no React in it. */
   const t = useT();
-  // The prototype intake tab is nobody's scheduled homework — no bar.
-  const r = tab === "intake" ? undefined : RESPONSIBILITY[tab];
+  const r = RESPONSIBILITY[tab];
   if (!r) return null;
   const supplierOwned = r.owner === "supplier";
 
@@ -368,7 +397,10 @@ export function tabKeyFromPath(pathname: string, id: string): WorkspaceTabKey {
   // is what they used to do and which told a reader chasing a tier-3 supplier
   // to "keep the identity correct".
   if (head === "tree") return "precursors";
-  const known: WorkspaceTabKey[] = ["mmd", "monthly", "precursors", "evidence", "readiness", "settings", "intake"];
+  if (head === "readiness") return "overview";
+  if (head === "carbon-price") return "carbon_price";
+  const known: WorkspaceTabKey[] = ["mmd", "monthly", "precursors", "evidence", "readiness", "settings"];
+  if (head === "intake") return "monthly";
   return known.find((k) => k === head) ?? "overview";
 }
 
@@ -440,12 +472,13 @@ export function FactGrid({
   rows: [label: string, value: React.ReactNode][];
   badges?: React.ReactNode;
 }) {
+  const t = useT();
   return (
     <>
       <dl className="grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
         {rows.map(([k, v]) => (
           <div key={k}>
-            <dt className="text-[11px] uppercase tracking-[0.1em] text-black/40">{k}</dt>
+            <dt className="text-[11px] uppercase tracking-[0.1em] text-black/40">{t(k)}</dt>
             <dd className="mt-1 text-[13px] text-black/75">{v}</dd>
           </div>
         ))}
@@ -521,7 +554,7 @@ export function ExampleToggle({ example, label = "Example" }: { example: string;
         data-lock="allow"
         className="text-[11px] uppercase tracking-[0.1em] text-black/35 underline decoration-black/20 underline-offset-2 hover:text-black/60"
       >
-        {open ? "Hide example" : label}
+        {open ? t("Hide example") : t(label)}
       </button>
       {open && (
         <p className="mt-1.5 rounded-lg border border-dashed border-black/10 bg-[#faf9f7] px-3 py-2 text-[12px] italic leading-relaxed text-black/40">

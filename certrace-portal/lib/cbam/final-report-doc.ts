@@ -207,6 +207,10 @@ function sectorParameterValue(label: string, p: SectorParameters): string {
       return p.scrapTonnesPerTonneSteel != null ? `${sig(p.scrapTonnesPerTonneSteel, 3)} t/t` : NOT_PROVIDED;
     case "% pre-consumer scrap":
       return p.preConsumerScrapPct != null ? `${sig(p.preConsumerScrapPct, 2)}%` : NOT_PROVIDED;
+    case "t scrap per t aluminium":
+      return p.scrapTonnesPerTonneAluminium != null ? `${sig(p.scrapTonnesPerTonneAluminium, 3)} t/t` : NOT_PROVIDED;
+    case "% non-aluminium elements":
+      return p.nonAluminiumPct != null ? `${sig(p.nonAluminiumPct, 2)}%` : NOT_PROVIDED;
     default:
       return NOT_PROVIDED;
   }
@@ -442,7 +446,7 @@ export function buildFinalReportDoc(ws: VerificationWorkspace, readiness?: Works
           {
             kind: "text",
             text:
-              "Direct fuel for non-CBAM goods and Rest are not collected by Certrace: the workspace's boundary is drawn around the CBAM good's own " +
+              "Direct fuel for non-CBAM goods and Rest are not collected by Certrace: the product report's boundary is drawn around the CBAM good's own " +
               "production process, so every fuel row inside it is already attributed to that good. A site that also burns fuel outside this boundary " +
               "must state that separately to its verifier. " +
               NO_SHEET_NOTE,
@@ -468,7 +472,7 @@ export function buildFinalReportDoc(ws: VerificationWorkspace, readiness?: Works
                   ]),
                 },
               ]
-            : [{ kind: "text", text: "No fuel recorded for this workspace." }],
+            : [{ kind: "text", text: "No fuel recorded for this product report." }],
       },
       {
         number: "3.2",

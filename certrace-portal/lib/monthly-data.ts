@@ -29,12 +29,17 @@
    missing NCV stays in a single implementation.
    ════════════════════════════════════════════════════════════ */
 
-import { euStandardFor, euStandardLockedHint, hasEuStandard, isWasteGas, matchesEuStandard } from "./cbam/fuel-defaults";
+import { euStandardFor, euStandardLockedHint, hasEuStandard, isWasteGas, matchesEuStandard, pointGRow } from "./cbam/fuel-defaults";
+import { translate, type LangCode } from "./i18n";
+import { ADDITIONAL_FUELS } from "./cbam/fuel-catalogue";
 import { gridFactorFor } from "./cbam/electricity-grid-factors";
-import { massBalanceProcessEmission, standardProcessEmission } from "./cbam/process-factors";
+import { CARBON_CONTENTS, massBalanceProcessEmission, standardProcessEmission, STANDARD_MATERIALS } from "./cbam/process-factors";
+import { packFor, pfcEmissions, pfcIssues, type PfcInputs, type ScrapInputs } from "./cbam/sector-pack";
 import { TEMPLATE_NATURAL_GAS_EF } from "./cbam/template-reference";
 import { toGJ, UnitError, type FuelUnit } from "./cbam/units";
-import { monthsOf, type VerificationWorkspace } from "./workspace";
+import { deriveMonth, inputIssues, type ProductComposition, type ScrapDelivery, type SharedMeter, type StockChange, type WasteGasRow } from "./monthly-inputs";
+import { getWorkspace, monthsOf, type VerificationWorkspace } from "./workspace";
+import { workspaceRequiresIndirectEmissions } from "./cbam/product-category-rules";
 
 export { euStandardFor, euStandardLockedHint, hasEuStandard, isWasteGas } from "./cbam/fuel-defaults";
 
@@ -143,7 +148,7 @@ export type FuelTypeDef = {
       than instead of it: the English name is what appears on the invoice, the
       spec sheet and the verifier's report, so hiding it in the Thai interface
       would make the two impossible to reconcile. */
-  labelTh: string;
+  labelTh?: string;
   /** IPCC 2006 / EU standard-factor family */
   family: FuelFamily;
   typicalUnit: MonthlyFuelUnit;
@@ -271,6 +276,25 @@ export const FUEL_TYPES: FuelTypeDef[] = [
   },
 ];
 
+/* ── …and the rest of Point G ────────────────────────────────────
+   The ten above are the ones this portal began with. Every other fuel Point G
+   names follows them (lib/cbam/fuel-catalogue.ts), so the picker offers the whole
+   standard and a row filed as "Other fuel" really is something the standard does
+   not list. The calorific-value hint is the standard's own figure, in the unit
+   the fuel opens in. */
+for (const a of ADDITIONAL_FUELS) {
+  const row = pointGRow(a.pointG);
+  const ncv = row?.ncvGjPerT;
+  FUEL_TYPES.push({
+    id: a.id,
+    label: a.label ?? a.pointG,
+    family: a.family,
+    typicalUnit: a.unit,
+    typicalNcv: a.unit === "t" && ncv != null ? `EU standard value ${Math.round(ncv * 1000).toLocaleString("en-GB")} MJ/t` : undefined,
+    note: a.note ?? row?.note,
+  });
+}
+
 /* Fuels the picker no longer offers, kept so a row entered before the list was
    trimmed still renders its name rather than a raw id. Nothing reads these
    except `fuelTypeDef`, and nothing new can be created with them. */
@@ -313,21 +337,31 @@ export const fuelTypeLabel = (id: string, otherText?: string): string => {
     say "Natural gas", and the verifier's report will say it too — so the two
     names have to appear together or the trail breaks at the language boundary. */
 export function fuelTypeLabelIn(lang: string, id: string, otherText?: string): string {
-  if (id === FUEL_TYPE_OTHER) return otherText?.trim() ? otherText.trim() : lang === "th" ? "เชื้อเพลิงอื่น ๆ" : "Other fuel";
+  const l = lang as LangCode;
+  if (id === FUEL_TYPE_OTHER) return otherText?.trim() ? otherText.trim() : translate(l, "Other fuel");
   const def = fuelTypeDef(id);
   if (!def) return id;
-  return lang === "th" ? `${def.labelTh} (${def.label})` : def.label;
+  // Read in the language chosen and nothing else: the Thai or Chinese reader gets their own name for the fuel, not the name and then
+  // the English in brackets. The English is still the key every language is looked up by, and is what the form stores.
+  return l === "th" && def.labelTh ? def.labelTh : translate(l, def.label);
 }
 
 export const fuelTypeNoteIn = (lang: string, id: string): string | undefined => {
   const def = fuelTypeDef(id);
   if (!def) return undefined;
-  return lang === "th" ? (def.noteTh ?? def.note) : def.note;
+  const l = lang as LangCode;
+  return l === "th" && def.noteTh ? def.noteTh : def.note ? translate(l, def.note) : undefined;
+};
+
+/** A fuel's typical calorific value, in the language on screen — "typically 27,000–30,000 MJ/t", "EU standard value 26,700 MJ/t". */
+export const fuelNcvNoteIn = (lang: string, id: string): string | undefined => {
+  const note = fuelTypeDef(id)?.typicalNcv;
+  return note ? translate(lang as LangCode, note) : undefined;
 };
 
 /** Families in list order — the fuel picker groups by these so the menu reads
     as three kinds of fuel plus biomass rather than as ten unrelated rows. */
-export const FUEL_FAMILIES = ["Solid fossil", "Liquid fossil", "Gaseous fossil", "Biomass"] as const;
+export const FUEL_FAMILIES = ["Solid fossil", "Liquid fossil", "Gaseous fossil", "Waste-derived", "Biomass"] as const;
 
 /** Family headings, both languages. Same rule as the fuel names: Thai first,
     English in brackets, because the family is what an EU factor table is
@@ -344,7 +378,7 @@ export const FUEL_FAMILY_LABEL: Record<string, { en: string; th: string }> = {
 export const fuelFamilyLabelIn = (lang: string, family: string): string => {
   const entry = FUEL_FAMILY_LABEL[family];
   if (!entry) return family;
-  return lang === "th" ? `${entry.th} (${entry.en})` : entry.en;
+  return lang === "th" ? entry.th : translate(lang as LangCode, entry.en);
 };
 
 export type FuelEntry = {
@@ -397,6 +431,11 @@ export type FuelEntry = {
       fuelCO2 above: the flag only feeds the ELECTRICITY factor calculation,
       it does not double-count the fuel's own direct emissions. */
   usedForSelfGeneratedElectricity?: boolean;
+  /** Annex II B.4.1 — the quantity is worked out from deliveries and the stock at either end of the month, not read off one meter.
+      Set, it OVERWRITES `quantity` (lib/monthly-inputs.ts `deriveMonth`). */
+  stock?: StockChange;
+  /** Annex IV 26 · 29 · 30 — the quantity is this good's share of a meter that feeds several product reports. Overwrites `quantity`. */
+  shared?: SharedMeter;
 };
 
 /* ── Electricity ────────────────────────────────────────────────
@@ -472,6 +511,14 @@ export type ElectricitySourceRow = {
       a self-generated row, derived by `selfGeneratedElectricityEf`. For PPA
       / direct technical link, the figure the reader typed in. */
   factorTco2PerMwh: number | null;
+  /** Annex IV item 12 — the country the power comes from. Blank means the
+      installation's own country, which is what a grid row almost always is. */
+  country?: string;
+  /** Annex IV item 11 — the installation it is obtained from, where it is
+      another installation (a PPA generator, a direct technical link). */
+  supplierInstallation?: string;
+  /** Annex IV 26 · 29 · 30 — the MWh is this good's share of a meter that feeds several product reports. Overwrites `mwh`. */
+  shared?: SharedMeter;
 };
 
 export const emptyElectricitySource = (): ElectricitySourceRow => ({ id: uid(), sourceType: "grid_default", mwh: 0, factorTco2PerMwh: electricityFactorFor("grid_default") });
@@ -492,6 +539,10 @@ export const COUNTS_TOWARD_ANNUAL: MonthStatus[] = ["submitted", "reviewed"];
 
 export const monthCounts = (m: Pick<MonthlyEntry, "status">): boolean => COUNTS_TOWARD_ANNUAL.includes(m.status);
 
+/** What a month is called on a card or in a table. A month in which nothing was made is not "Submitted" — nobody submitted anything. */
+export const monthStatusLabel = (m: Pick<MonthlyEntry, "status" | "notManufactured">): string =>
+  m.notManufactured ? "No production" : MONTH_STATUS_LABEL[m.status];
+
 /* ── Process emissions (Bug 5) ────────────────────────────────────
    Structured entry, two paths — never a bare typed number with a prose
    sentence behind it. `note` on either variant is supplementary commentary
@@ -507,15 +558,30 @@ export type ProcessEmissionEntry =
       /** default 1, must sit in (0, 1] */
       conversionFactor: number;
       note?: string;
+      /** the guided row of the sector form this entry sits in — see lib/cbam/sector-pack.ts */
+      specKey?: string;
+      /** Annex II B.4.1 — the quantity is worked out from deliveries and stock. Overwrites `quantityT`. */
+      stock?: StockChange;
     }
   | {
       id: string;
       method: "mass_balance";
-      /** id into lib/cbam/process-factors.ts's CARBON_CONTENTS */
+      /** the guided row of the sector form this entry sits in — see lib/cbam/sector-pack.ts */
+      specKey?: string;
+      /** id into lib/cbam/process-factors.ts's CARBON_CONTENTS, or "custom" */
       materialId: string;
       /** NEGATIVE for an output stream — see process-factors.ts */
       quantityT: number;
       note?: string;
+      /** the plant's own carbon content, t C / t — replaces the EU table's value, and is REQUIRED where there is no table
+          value (materialId "custom": an anode, an alloy, anything Table 5 does not list) */
+      carbonContent?: number;
+      /** what a "custom" material is called */
+      label?: string;
+      /** scrap only — the part of `quantityT` that is pre-consumer scrap (Annex IV item 35) */
+      preConsumerT?: number;
+      /** Annex II B.4.1 — an INPUT worked out from deliveries and stock. Overwrites `quantityT`. */
+      stock?: StockChange;
     };
 
 export const emptyProcessEmissionEntry = (): ProcessEmissionEntry => ({ id: uid(), method: "standard", materialId: "", quantityT: 0, conversionFactor: 1 });
@@ -525,8 +591,48 @@ export const emptyProcessEmissionEntry = (): ProcessEmissionEntry => ({ id: uid(
     screen and a report can never compute it two different ways. */
 export function processEmissionEntryTCO2(e: ProcessEmissionEntry): number {
   if (e.method === "standard") return standardProcessEmission(e.materialId, e.quantityT, e.conversionFactor || 1);
-  return massBalanceProcessEmission(e.materialId, e.quantityT);
+  return massBalanceProcessEmission(e.materialId, e.quantityT, e.carbonContent);
 }
+
+/** The material's name as the form and the reports print it. */
+export function processEntryLabel(e: ProcessEmissionEntry): string {
+  if (e.method === "mass_balance" && e.materialId === CUSTOM_MATERIAL) return e.label?.trim() || "Material not named";
+  return e.method === "standard"
+    ? (STANDARD_MATERIALS.find((m) => m.id === e.materialId)?.label ?? e.materialId)
+    : (CARBON_CONTENTS.find((c) => c.material === e.materialId)?.label ?? e.materialId);
+}
+
+/** The id a mass-balance entry carries for a material the EU table does not list. */
+export const CUSTOM_MATERIAL = "custom";
+
+/* ── The rest of what a month reports ───────────────────────────
+   Annex IV items 14, 16(b), 16(d) and 17 of Implementing Regulation (EU)
+   2025/2547 — the figures only the plant can read off its own records, and that
+   the report asks for beyond production, fuel, process and electricity. Every
+   one is optional: most plants have none of them in most months, and an empty
+   block is a correct answer. */
+
+/** Item 14 — a non-CBAM good made on the same process, and how much of it. */
+export type NonCbamGoodEntry = { id: string; name: string; tonnes: number };
+
+/** Item 16(b) — an emission source monitored by continuous measurement
+    (Annex II B.6). Added to the month's direct emissions: Equation 4 is
+    Em_inst = Σ Em_calc + Σ Em_meas. */
+export type MeasuredGas = "co2" | "n2o" | "cf4" | "c2f6";
+export type MeasuredEmissionEntry = { id: string; source: string; gas: MeasuredGas; tCO2e: number };
+/* The four gases Annex II Table 6 names — N₂O must be measured (B.6.1), and the
+   two perfluorocarbons are the ones aluminium smelting emits. */
+export const MEASURED_GAS_LABEL: Record<MeasuredGas, string> = {
+  co2: "Carbon dioxide (CO₂)",
+  n2o: "Nitrous oxide (N₂O)",
+  cf4: "Tetrafluoromethane (CF₄)",
+  c2f6: "Hexafluoroethane (C₂F₆)",
+};
+
+/** Item 17 — one flow's balance for the month, in GJ: what came in from other
+    installations, what the installation itself produced, what it used, and what
+    left. Blank is "none"; the report prints what was entered. */
+export type FlowBalance = { imported?: number; produced?: number; consumed?: number; exported?: number };
 
 export type MonthlyEntry = {
   id: string;
@@ -563,10 +669,44 @@ export type MonthlyEntry = {
   /** Em_FGC — process emissions from flue gas cleaning, tCO₂, entering
       EF_El's numerator alongside the fuel terms. Defaults to 0. */
   flueGasCleaningEmissionsTco2?: number;
+  /** Item 9 — all the electricity the whole installation drew this month,
+      where it makes more than this one good. Reported, never used in a figure. */
+  electricityInstallationTotalMwh?: number;
+  /** Item 14. */
+  nonCbamGoods?: NonCbamGoodEntry[];
+  /** Item 16(b) — counted in `directTCO2`. */
+  measuredEmissions?: MeasuredEmissionEntry[];
+  /** Item 16(d) — CO₂ received from other installations. Reported; inherent
+      CO₂ that arrives is already in the emission factor of its source stream. */
+  co2ReceivedT?: number;
+  /** Item 16(d) — CO₂ sent on for geological storage or permanent chemical
+      binding (Annex II B.8). Counted as not emitted, so it comes OFF the
+      month's direct emissions. */
+  co2TransferredOutT?: number;
+  /** Item 17. */
+  heatGj?: FlowBalance;
+  wasteGasGj?: FlowBalance;
+  /** Item 17 — electricity produced on site that left the boundary of the
+      production process. */
+  electricityExportedMwh?: number;
+  /** Primary aluminium only — the anode-effect PFC block (Annex II B.7). Counted in `directTCO2`. */
+  pfc?: PfcInputs;
+  /** Aluminium — scrap melted and its pre-consumer part, for Annex IV item 35. Steel's scrap is a row of the carbon balance. */
+  scrap?: ScrapInputs;
+  /** Item 17 — the gases by volume and composition; when present they WRITE `wasteGasGj`. */
+  wasteGases?: WasteGasRow[];
+  /** Item 35 — each delivery of scrap with its supplier, grade and origin; when present they WRITE the scrap tonnes and the pre-consumer part. */
+  scrapDeliveries?: ScrapDelivery[];
+  /** Item 35 — the alloying elements of what was made this month, from the mill certificates. */
+  composition?: ProductComposition;
   status: MonthStatus;
   submittedAt?: string;
   submittedBy?: string;
   notes?: string;
+  /** NOTHING WAS MADE THIS MONTH — recorded by the exporter, who knows the plant stood idle. A month in this state is answered (it counts toward
+      the year, with no tonnes and no emissions) rather than missing, so the year can close; it carries no readings, asks the plant for none, and
+      `markNotManufactured` / `clearNotManufactured` are the only two ways in and out. */
+  notManufactured?: boolean;
 };
 
 /* ── Waste gas cap ──────────────────────────────────────────────
@@ -740,7 +880,8 @@ export function monthsForWorkspace(workspace: Pick<VerificationWorkspace, "id" |
 }
 
 export function saveMonth(rawEntry: MonthlyEntry): MonthlyEntry {
-  let entry = rawEntry;
+  // Stock changes, shared meters, waste-gas rows and scrap deliveries WRITE the figures below — before anything else reads them.
+  let entry = deriveMonth(rawEntry);
   // Bug 4: whenever the repeatable source list is in use, it is the figure
   // of record — the legacy scalar pair is kept as its derived sum/weighted
   // average so every existing reader (workspaceSEE, readiness,
@@ -781,6 +922,31 @@ export function removeMonthsForWorkspace(workspaceId: string): void {
   write(store);
 }
 
+/* ── A month in which nothing was made ──────────────────────────
+   A plant shuts for a month — a relining, a strike, no orders — and the year still has twelve months to account for. Without a way to say so,
+   that month stays "not started" for ever: the year is never complete, the reminders never stop, and the annual figure waits on a month that
+   has nothing in it.
+
+   Marking it clears whatever had been typed (a half-filled draft of a month that turns out idle would otherwise keep adding fuel to the year),
+   keeps the notes, and files the month as answered with production zero. SEE is Σ emissions ÷ Σ production, so a zero month moves neither
+   side — it is simply counted, which is what "complete" means. Undoing it returns the month to not-started. */
+export function markNotManufactured(workspaceId: string, month: string, by: string): MonthlyEntry {
+  const prev = getMonth(workspaceId, month);
+  return saveMonth({
+    ...emptyMonth(workspaceId, month),
+    notes: prev?.notes,
+    notManufactured: true,
+    status: "submitted",
+    submittedAt: new Date().toISOString(),
+    submittedBy: by,
+  });
+}
+
+export function clearNotManufactured(workspaceId: string, month: string): MonthlyEntry {
+  const prev = getMonth(workspaceId, month);
+  return saveMonth({ ...emptyMonth(workspaceId, month), notes: prev?.notes });
+}
+
 export function submitMonth(workspaceId: string, month: string, by: string): MonthlyEntry | null {
   const entry = getMonth(workspaceId, month);
   if (!entry) return null;
@@ -801,7 +967,8 @@ export function reopenMonth(workspaceId: string, month: string): MonthlyEntry | 
   const entry = getMonth(workspaceId, month);
   if (!entry) return null;
   if (entry.status !== "submitted" && entry.status !== "reviewed") return entry;
-  return saveMonth({ ...entry, status: "draft" });
+  // Reopening a month recorded as "nothing made" says the plant did make something after all: the flag goes, the month is a draft again.
+  return saveMonth({ ...entry, status: "draft", notManufactured: undefined });
 }
 
 /* ── Copy from previous month ───────────────────────────────────
@@ -821,15 +988,50 @@ export function copyFromPreviousMonth(workspaceId: string, month: string): Month
   if (!previous) return null;
   return {
     ...current,
-    fuels: previous.fuels.map((f) => ({ ...f, id: uid(), quantity: 0 })),
+    // A stock carries over as itself: this month opens with the stock the last one closed with. A shared meter keeps its name and key, not its readings.
+    fuels: previous.fuels.map((f) => ({
+      ...f,
+      id: uid(),
+      quantity: 0,
+      stock: f.stock ? { opening: f.stock.closing, delivered: undefined, closing: undefined } : undefined,
+      shared: f.shared ? { meter: f.shared.meter, key: f.shared.key, reading: undefined, thisValue: undefined, totalValue: undefined, manualPct: f.shared.manualPct } : undefined,
+    })),
     electricityMwh: 0,
     electricityFactorTco2PerMwh: previous.electricityFactorTco2PerMwh,
     electricityFactorSource: previous.electricityFactorSource,
     selfGeneratedSharePct: previous.selfGeneratedSharePct,
-    electricitySources: previous.electricitySources?.map((s) => ({ ...s, id: uid(), mwh: 0 })),
+    electricitySources: previous.electricitySources?.map((s) => ({
+      ...s,
+      id: uid(),
+      mwh: 0,
+      shared: s.shared ? { meter: s.shared.meter, key: s.shared.key, reading: undefined, thisValue: undefined, totalValue: undefined, manualPct: s.shared.manualPct } : undefined,
+    })),
     processEmissionsTco2: 0,
     processEmissionsBasis: previous.processEmissionsBasis,
-    processEmissionEntries: previous.processEmissionEntries?.map((e) => ({ ...e, id: uid(), quantityT: 0 })),
+    processEmissionEntries: previous.processEmissionEntries?.map((e) => ({
+      ...e,
+      id: uid(),
+      quantityT: 0,
+      ...(e.method === "mass_balance" ? { preConsumerT: undefined } : {}),
+      stock: e.stock ? { opening: e.stock.closing, delivered: undefined, closing: undefined } : undefined,
+    })),
+    // The gases the plant has are carried; what was read off them this month is not.
+    wasteGases: previous.wasteGases?.map((g) => ({ id: uid(), gas: g.gas, label: g.label, flow: g.flow })),
+    measuredEmissions: previous.measuredEmissions?.map((e) => ({ ...e, id: uid(), tCO2e: 0 })),
+    nonCbamGoods: previous.nonCbamGoods?.map((g) => ({ ...g, id: uid(), tonnes: 0 })),
+    // What describes the plant carries over; what was read off the cells this month does not.
+    pfc: previous.pfc
+      ? {
+          ...previous.pfc,
+          primaryAlT: undefined,
+          aem: undefined,
+          aeo: undefined,
+          ce: previous.pfc.ce,
+          // The lines are the plant's; what was counted on them this month is not.
+          potlines: previous.pfc.potlines?.map((l) => ({ id: l.id, label: l.label, technology: l.technology, sharePct: l.sharePct })),
+        }
+      : undefined,
+    scrap: previous.scrap ? { tonnes: undefined, preConsumerT: undefined } : undefined,
   };
 }
 
@@ -863,8 +1065,14 @@ export type MonthIssue = {
   message: string;
 };
 
-export function monthIssues(entry: MonthlyEntry): MonthIssue[] {
-  const issues: MonthIssue[] = [];
+const ELECTRICITY_OPTIONAL_NOTE =
+  "No electricity is entered for this month. It is not part of this good's embedded emissions — only direct emissions count for it — so it does not hold the month back, but the report lists it and a verifier may ask. Enter it if you have it.";
+
+export function monthIssues(raw: MonthlyEntry): MonthIssue[] {
+  // A month recorded as "nothing made" has nothing to answer: production zero is the answer, not a gap.
+  if (raw.notManufactured) return [];
+  const entry = deriveMonth(raw);
+  const issues: MonthIssue[] = [...inputIssues(entry)];
 
   if (!(entry.productionTonnes > 0)) {
     issues.push({
@@ -907,6 +1115,9 @@ export function monthIssues(entry: MonthlyEntry): MonthIssue[] {
         field: `fuel:${f.id}:type`,
         message: `Fuel row ${i + 1} has no fuel chosen. Pick one, or remove the row if nothing of the kind was burned this month.`,
       });
+      // Nothing else can be said of a row with no fuel: its calorific value, factor and quantity all depend on the choice, so
+      // the one message is the whole answer rather than four more about "Fuel row 1".
+      return;
     }
     /* THE TYPE I LOCK, ENFORCED WHERE IT CANNOT BE CLICKED PAST.
        A disabled input stops a person; it does not stop a payload. A row that
@@ -1025,12 +1236,32 @@ export function monthIssues(entry: MonthlyEntry): MonthIssue[] {
           message: `Process emission row ${i + 1} has no material chosen — the figure cannot be derived without one.`,
         });
       }
-      if (!(Number(e.quantityT) !== 0)) {
+      // A guided row of the sector form may sit empty: it is a place to type, not a commitment.
+      if (!(Number(e.quantityT) !== 0) && !e.specKey) {
         issues.push({
           severity: "error",
           field: `processEntry:${e.id}:quantity`,
           message: `Process emission row ${i + 1} has no quantity. Enter it, or remove the row.`,
         });
+      }
+      if (e.method === "mass_balance") {
+        const name = processEntryLabel(e);
+        if (e.materialId === CUSTOM_MATERIAL && !e.label?.trim()) {
+          issues.push({ severity: "error", field: `processEntry:${e.id}:label`, message: `Carbon row ${i + 1} is a material the EU table does not list, and it has no name. Say what it is.` });
+        }
+        const needsOwn = e.materialId === CUSTOM_MATERIAL && Number(e.quantityT) !== 0;
+        if (needsOwn && !(e.carbonContent != null && e.carbonContent > 0 && e.carbonContent <= 1)) {
+          issues.push({
+            severity: "error",
+            field: `processEntry:${e.id}:cc`,
+            message: `${name} has no carbon content. The EU table has no standard value for it — enter the t C per t from the supplier's specification or your own analysis (above 0, no more than 1).`,
+          });
+        } else if (e.carbonContent != null && !(e.carbonContent > 0 && e.carbonContent <= 1)) {
+          issues.push({ severity: "error", field: `processEntry:${e.id}:cc`, message: `${name}'s carbon content must be above 0 and no more than 1 tonne of carbon per tonne.` });
+        }
+        if (e.preConsumerT != null && (e.preConsumerT < 0 || e.preConsumerT > Math.max(0, e.quantityT))) {
+          issues.push({ severity: "error", field: `processEntry:${e.id}:preConsumer`, message: `${name}: the pre-consumer part cannot be more than the scrap charged.` });
+        }
       }
       if (e.method === "standard" && !(e.conversionFactor > 0 && e.conversionFactor <= 1)) {
         issues.push({
@@ -1049,6 +1280,43 @@ export function monthIssues(entry: MonthlyEntry): MonthIssue[] {
     });
   }
 
+  /* A primary smelter's month is not complete without the anode-effect PFC — it is a source of the same order as the
+     electricity, and a blank block would read as "none". The workspace says whether this good is made that way. */
+  if (!entry.pfc) {
+    const ws = getWorkspace(entry.workspaceId);
+    if (ws && packFor(ws)?.pfc) {
+      issues.push({
+        severity: "error",
+        field: "pfc:technology",
+        message: "PFC from anode effects has not been entered. Primary smelting emits CF₄ and C₂F₆ every month; enter the cell type and the anode-effect figures, or 0 minutes if there were none.",
+      });
+    }
+  }
+  if (entry.pfc) {
+    for (const i of pfcIssues(entry.pfc, entry.productionTonnes || 0)) issues.push({ severity: "error", field: i.field, message: i.message });
+    if (entry.pfc && (entry.measuredEmissions ?? []).some((m) => (m.gas === "cf4" || m.gas === "c2f6") && m.tCO2e > 0)) {
+      issues.push({
+        severity: "warn",
+        field: "pfc:double",
+        message: "PFC is calculated from anode effects above AND a measured CF₄ or C₂F₆ source is entered. Count each tonne once — keep the measurement or the calculation for the same cells.",
+      });
+    }
+  }
+  if (entry.scrap) {
+    const sc = entry.scrap;
+    if (sc.preConsumerT != null && sc.preConsumerT > (sc.tonnes ?? 0)) {
+      issues.push({ severity: "error", field: "scrap:pre", message: "The pre-consumer scrap cannot be more than the scrap melted." });
+    }
+  }
+
+  /* ELECTRICITY IS NOT PART OF A DIRECT-ONLY GOOD'S EMBEDDED EMISSIONS. Steel, aluminium and hydrogen are listed in Annex II to Regulation (EU)
+     2023/956: only their direct emissions count, so the megawatt-hours drawn do not enter the figure, and Annex IV asks for them (items 9 to 12)
+     only for goods outside that Annex. A month for such a good is therefore not held back by missing electricity — it is said, as a note, because
+     a verifier may still ask and the report lists it where it is given. The factor checks below follow the same line. */
+  const ws0 = getWorkspace(entry.workspaceId);
+  const electricityOptional = ws0 ? !workspaceRequiresIndirectEmissions(ws0.productId) : false;
+  const electricitySeverity: MonthIssue["severity"] = electricityOptional ? "warn" : "error";
+
   if (entry.electricitySources && entry.electricitySources.length > 0) {
     /* Bug 4's model: each row validated on its own terms, not one pair of
        scalars. A grid row with no published country default is not "you
@@ -1058,14 +1326,16 @@ export function monthIssues(entry: MonthlyEntry): MonthIssue[] {
     const { totalMwh, awaitingGridFactor } = resolveElectricitySources(entry);
     if (!(totalMwh > 0)) {
       issues.push({
-        severity: "error",
+        severity: electricitySeverity,
         field: "electricity",
-        message: "Electricity consumed this month is missing. Enter the absolute MWh from each source's invoice or meter, not MWh per tonne — and 0 only if the plant genuinely drew nothing.",
+        message: electricityOptional
+          ? ELECTRICITY_OPTIONAL_NOTE
+          : "Electricity consumed this month is missing. Enter the absolute MWh from each source's invoice or meter, not MWh per tonne — and 0 only if the plant genuinely drew nothing.",
       });
     }
     if (awaitingGridFactor) {
       issues.push({
-        severity: "error",
+        severity: electricitySeverity,
         field: "electricityFactor",
         message: "A grid source is recorded but the Commission has not yet published a country default for this installation's country — this cannot be entered manually. The month cannot be submitted with a grid factor missing.",
       });
@@ -1082,9 +1352,11 @@ export function monthIssues(entry: MonthlyEntry): MonthIssue[] {
   } else {
     if (!(entry.electricityMwh > 0)) {
       issues.push({
-        severity: "error",
+        severity: electricitySeverity,
         field: "electricity",
-        message: "Electricity consumed this month is missing. Enter the absolute MWh from the invoice, not MWh per tonne — and 0 only if the plant genuinely drew nothing.",
+        message: electricityOptional
+          ? ELECTRICITY_OPTIONAL_NOTE
+          : "Electricity consumed this month is missing. Enter the absolute MWh from the invoice, not MWh per tonne — and 0 only if the plant genuinely drew nothing.",
       });
     } else if (!(entry.electricityFactorTco2PerMwh > 0)) {
       issues.push({
@@ -1110,7 +1382,7 @@ export function monthIssues(entry: MonthlyEntry): MonthIssue[] {
     }
     if (expectedGrid == null && entry.electricityFactorSource === "grid_default" && entry.electricityMwh > 0) {
       issues.push({
-        severity: "error",
+        severity: electricitySeverity,
         field: "electricityFactor",
         message: "Grid supply is recorded but the Commission has not yet published a country default for this installation's country — this cannot be entered manually. The month cannot be submitted with a grid factor missing.",
       });
@@ -1124,6 +1396,31 @@ export function monthIssues(entry: MonthlyEntry): MonthIssue[] {
           message: `This power is not from the grid, but the factor is still the grid figure of ${gridValue}. Use the generator's own factor, evidenced by the contract or by your on-site generation records.`,
         });
       }
+    }
+  }
+
+  (entry.measuredEmissions ?? []).forEach((e, i) => {
+    if (!e.source.trim()) {
+      issues.push({ severity: "error", field: `measured:${e.id}:source`, message: `Measured source ${i + 1} has no name. Say which emission source it is — the stack or unit the instrument sits on.` });
+    }
+    if (!(e.tCO2e > 0)) {
+      issues.push({ severity: "error", field: `measured:${e.id}:quantity`, message: `Measured source ${i + 1} has no emissions for the month. Enter the figure, or remove the row.` });
+    }
+  });
+  (entry.nonCbamGoods ?? []).forEach((g, i) => {
+    if (g.tonnes > 0 && !g.name.trim()) {
+      issues.push({ severity: "warn", field: `nonCbam:${g.id}:name`, message: `Non-CBAM good ${i + 1} has a quantity but no name.` });
+    }
+  });
+  const sentOn = entry.co2TransferredOutT ?? 0;
+  if (sentOn > 0) {
+    const emitted = monthResult({ ...entry, co2TransferredOutT: 0 }).directTCO2;
+    if (sentOn > emitted + (entry.co2ReceivedT ?? 0) + 1e-9) {
+      issues.push({
+        severity: "warn",
+        field: "co2Transfer",
+        message: `${sentOn} t of CO₂ is recorded as sent on, but only ${(emitted + (entry.co2ReceivedT ?? 0)).toFixed(2)} t was emitted or received this month. Check the figure — CO₂ cannot be counted as not emitted beyond what the installation held.`,
+      });
     }
   }
 
@@ -1203,7 +1500,13 @@ export type MonthResult = {
   fuelTCO2: number;
   /** tCO₂ from process sources, as entered */
   processTCO2: number;
-  /** fuel + process, tCO₂ */
+  /** tCO₂e from sources monitored by continuous measurement (item 16(b)) */
+  measuredTCO2: number;
+  /** tCO₂e of CF₄ and C₂F₆ from anode effects, calculated by slope or overvoltage (primary aluminium) */
+  pfcTCO2e: number;
+  /** tCO₂ sent on for storage or permanent use, counted as not emitted (16(d)) */
+  transferredOutTCO2: number;
+  /** fuel + process + measured + PFC − sent on, tCO₂, never below zero */
   directTCO2: number;
   /** tCO₂ from purchased/consumed electricity */
   indirectTCO2: number;
@@ -1214,7 +1517,8 @@ export type MonthResult = {
   counted: boolean;
 };
 
-export function monthResult(entry: MonthlyEntry): MonthResult {
+export function monthResult(raw: MonthlyEntry): MonthResult {
+  const entry = deriveMonth(raw);
   const byFuel: MonthFuelResult[] = [];
   const errors: string[] = [];
   let fuel = 0;
@@ -1231,11 +1535,17 @@ export function monthResult(entry: MonthlyEntry): MonthResult {
   }
 
   const process = entry.processEmissionsTco2 || 0;
+  const measured = (entry.measuredEmissions ?? []).reduce((a, e) => a + (Number(e.tCO2e) > 0 ? Number(e.tCO2e) : 0), 0);
+  const transferredOut = Number(entry.co2TransferredOutT) > 0 ? Number(entry.co2TransferredOutT) : 0;
+  const pfc = entry.pfc ? (pfcEmissions(entry.pfc, entry.productionTonnes || 0)?.totalTCO2e ?? 0) : 0;
   return {
     month: entry.month,
     fuelTCO2: fuel,
     processTCO2: process,
-    directTCO2: fuel + process,
+    measuredTCO2: measured,
+    pfcTCO2e: pfc,
+    transferredOutTCO2: transferredOut,
+    directTCO2: Math.max(0, fuel + process + measured + pfc - transferredOut),
     indirectTCO2: (entry.electricityMwh || 0) * (entry.electricityFactorTco2PerMwh || 0),
     productionTonnes: entry.productionTonnes || 0,
     byFuel,
@@ -1311,6 +1621,9 @@ export function monthsMissingNcv(workspace: Pick<VerificationWorkspace, "id" | "
 export function indicativeMonthlySEE(entry: MonthlyEntry): number | null {
   const r = monthResult(entry);
   if (!(r.productionTonnes > 0)) return null;
-  return (r.directTCO2 + r.indirectTCO2) / r.productionTonnes;
+  // Direct emissions only for the goods of Annex II (steel, aluminium, hydrogen) — the electricity they draw is not part of their figure.
+  const ws = getWorkspace(entry.workspaceId);
+  const indirect = ws ? workspaceRequiresIndirectEmissions(ws.productId) : true;
+  return (r.directTCO2 + (indirect ? r.indirectTCO2 : 0)) / r.productionTonnes;
 }
 

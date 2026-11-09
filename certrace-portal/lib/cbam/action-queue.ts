@@ -14,11 +14,12 @@
 import { getCarbonPrice } from "../carbon-price";
 import { annualCoverage, annualScopeFor, coverageForMonth } from "../workspace-evidence";
 import { monthCounts, monthsForWorkspace } from "../monthly-data";
-import { dispatchesFor, dueDateFor, dueStateFor, effectiveDueDay } from "../month-dispatch";
+import { calendarDaysUntil, dispatchesFor, dueDateFor, dueStateFor, effectiveDueDay } from "../month-dispatch";
 import { linkStatus, listSuppliers } from "../precursor-suppliers";
 import { finalVersionCovering, loadDraft } from "../workspace-mmd";
 import { monthNameLong, scheduleFor, type VerificationWorkspace } from "../workspace";
 import { precursorSeeDeadlineFor } from "./precursor-deadlines";
+import { currentLang, dateLocaleFor } from "../i18n";
 
 export type ActionItemType = "monthly_data" | "precursor_invite" | "mmd_draft" | "document_unbound" | "precursor_deadline";
 
@@ -27,6 +28,8 @@ export type ActionItem = {
   /** negative = overdue by this many days, positive = due in this many days */
   daysUntilDue: number;
   label: string;
+  /** the label as a template and its parts, so a screen can say it in its own language — `label` is the same sentence, in English */
+  say?: { key: string; vars: Record<string, string | number> };
   workspaceId: string;
   workspaceLabel: string;
   deepLink: string;
@@ -57,8 +60,9 @@ function monthlyDataItems(ws: VerificationWorkspace, now: Date): ActionItem[] {
 
     items.push({
       type: "monthly_data",
-      daysUntilDue: daysBetween(due, now),
+      daysUntilDue: calendarDaysUntil(due, now),
       label: `${monthNameLong(entry.month)} data`,
+      say: { key: "{month} data", vars: { month: monthNameLong(entry.month) } },
       workspaceId: ws.id,
       workspaceLabel: ws.productName,
       deepLink: `/workspaces/${ws.id}/monthly/${entry.month}`,
@@ -81,6 +85,7 @@ function precursorInviteItems(ws: VerificationWorkspace, now: Date): ActionItem[
       type: "precursor_invite",
       daysUntilDue: -(daysSinceSent - PRECURSOR_STALE_DAYS),
       label: `${s.name || s.precursorName || "Precursor supplier"} — no response`,
+      say: { key: "{name} — no response", vars: { name: s.name || s.precursorName || "Precursor supplier" } },
       workspaceId: ws.id,
       workspaceLabel: ws.productName,
       deepLink: `/workspaces/${ws.id}/precursors`,
@@ -110,7 +115,10 @@ function precursorDeadlineItems(ws: VerificationWorkspace, now: Date): ActionIte
     {
       type: "precursor_deadline",
       daysUntilDue: deadline.daysUntilDue,
-      label: `${unverifiedCount} precursor${unverifiedCount === 1 ? "" : "s"} not yet verified — SEE & verification due ${deadline.due.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`,
+      label:
+        unverifiedCount === 1
+          ? `1 precursor not yet verified — SEE & verification due ${deadline.due.toLocaleDateString(dateLocaleFor(currentLang()), { day: "numeric", month: "short", year: "numeric" })}`
+          : `${unverifiedCount} precursors not yet verified — SEE & verification due ${deadline.due.toLocaleDateString(dateLocaleFor(currentLang()), { day: "numeric", month: "short", year: "numeric" })}`,
       workspaceId: ws.id,
       workspaceLabel: ws.productName,
       deepLink: `/workspaces/${ws.id}/precursors`,
@@ -154,6 +162,7 @@ function unboundDocumentItems(ws: VerificationWorkspace): ActionItem[] {
         type: "document_unbound",
         daysUntilDue: 0,
         label: `${row.label} — uploaded, needs binding`,
+        say: { key: "{label} — uploaded, needs binding", vars: { label: row.label } },
         workspaceId: ws.id,
         workspaceLabel: ws.productName,
         deepLink: `/workspaces/${ws.id}/mmd`,
@@ -167,6 +176,7 @@ function unboundDocumentItems(ws: VerificationWorkspace): ActionItem[] {
           type: "document_unbound",
           daysUntilDue: 0,
           label: `${monthNameLong(entry.month)} — ${row.label} — needs binding`,
+          say: { key: "{month} — {label} — needs binding", vars: { month: monthNameLong(entry.month), label: row.label } },
           workspaceId: ws.id,
           workspaceLabel: ws.productName,
           deepLink: `/workspaces/${ws.id}/monthly/${entry.month}`,

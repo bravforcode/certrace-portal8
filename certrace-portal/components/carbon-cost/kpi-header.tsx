@@ -78,25 +78,25 @@ export function standingDetail(standing: ScopeStanding, t: TFunction): string {
   const { reason, monthsCounted, monthsPossible, monthsEntered, products } = standing;
   if (reason === "official")
     return products === 1
-      ? t("A full twelve months submitted, with every precursor figure verified. This is the figure that goes on the report.")
-      : t("All {count} products have a full twelve months submitted and every precursor figure verified.", { count: products });
+      ? t("All twelve months are in and every precursor is verified.")
+      : t("All {count} products: twelve months in, precursors verified.", { count: products });
 
   if (reason === "no_data")
     return monthsEntered > 0
       ? t(
-          "{entered} of {possible} months have been started but not submitted, so nothing counts toward the year yet. Submit them on Monthly data and these figures fill themselves in.",
+          "{entered} of {possible} months started, none submitted yet.",
           { entered: monthsEntered, possible: monthsPossible },
         )
-      : t("No months submitted yet. Each month you submit on Monthly data adds to the figures here.");
+      : t("No month submitted yet.");
 
   if (reason === "partial_year")
     return t(
-      "{counted} of {possible} months submitted. The figures below are what those months add up to — real, but a part of a year, and a year is what gets declared.",
+      "{counted} of {possible} months submitted. Part of a year, so not official.",
       { counted: monthsCounted, possible: monthsPossible },
     );
 
   return t(
-    "A full year is in, but the precursor figures behind it are not all verified. Record the verified figure on each supply-chain row and this becomes official.",
+    "The year is in, but not every precursor is verified yet.",
   );
 }
 
@@ -175,7 +175,7 @@ export function CarbonCostKpiHeader({
   const gapSub = !isNum(gap)
     ? t("Nothing comparable yet")
     : on
-      ? t("unchanged — a gap is a ratio, so scaling the year leaves it where it is")
+      ? t("unchanged by scaling")
       : comparableCount === 1
         ? gap >= 0
           ? t("below the default · one product")

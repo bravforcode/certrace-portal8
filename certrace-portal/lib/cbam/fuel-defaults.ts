@@ -36,7 +36,9 @@
    ════════════════════════════════════════════════════════════ */
 
 import type { MonthlyFuelUnit } from "../monthly-data";
+import { currentLang, translate } from "../i18n";
 import { FUEL_DENSITY, type FuelDensityRow } from "./fuel-density";
+import { ADDITIONAL_FUELS } from "./fuel-catalogue";
 
 /** Re-exported so existing imports of `FUEL_DENSITY`/`DensityEntry` from this
     file keep working — the table itself now lives in its own file,
@@ -199,6 +201,17 @@ export const FUEL_TYPE_TO_POINT_G: Record<string, FuelDefaultMapping> = {
   },
 };
 
+/* The rest of Point G (lib/cbam/fuel-catalogue.ts) maps 1:1 — one portal row per
+   Point G row — so there is no "more conservative of two" to choose and the only
+   caveat worth printing is the one the table itself carries. A biomass row's
+   factor is preliminary whatever the note says. */
+const BIOMASS_CAVEAT =
+  "A PRELIMINARY factor. Annex II Equation 10 multiplies it by (1 − biomass fraction), and the fraction stays at zero until the sustainability criteria of Directive (EU) 2018/2001 are evidenced.";
+for (const a of ADDITIONAL_FUELS) {
+  const row = POINT_G_TABLE.find((r) => r.fuel === a.pointG);
+  FUEL_TYPE_TO_POINT_G[a.id] = { pointG: a.pointG, caveat: row?.category === "biomass" ? BIOMASS_CAVEAT : row?.note };
+}
+
 /** Kilograms in one of the UI's units, for this fuel. Null when the unit is
     GJ (energy already) or when the fuel has no density on file for a volume
     unit — the second case is what stops a silent 1 kg/litre assumption. */
@@ -272,8 +285,9 @@ export function euStandardFor(fuelTypeId: string, unit: MonthlyFuelUnit): FuelDe
 export function euStandardLockedHint(fuelTypeId: string, unit: MonthlyFuelUnit): string | null {
   const d = euStandardFor(fuelTypeId, unit);
   if (!d) return null;
-  const ncv = d.ncvMjPerUnit != null ? ` · ${round(d.ncvMjPerUnit / 1000, 4)} GJ/${unit === "m3" ? "m³" : unit === "l" ? "litre" : unit}` : "";
-  return `${d.efTco2PerGj} tCO₂/GJ${ncv} — EU standard value, IPCC 2006 GL (${POINT_G_CITATION}). Locked.`;
+  const unitName = unit === "m3" ? "m³" : unit === "l" ? translate(currentLang(), "litre") : unit;
+  const ncv = d.ncvMjPerUnit != null ? ` · ${round(d.ncvMjPerUnit / 1000, 4)} GJ/${unitName}` : "";
+  return translate(currentLang(), "{ef} tCO₂/GJ{ncv} — EU standard value, IPCC 2006 GL ({cite}). Locked.", { ef: d.efTco2PerGj, ncv, cite: POINT_G_CITATION });
 }
 
 /** Does this fuel have EU standard values at all? Fuels typed as "Other" never

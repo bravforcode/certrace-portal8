@@ -29,32 +29,48 @@
    ════════════════════════════════════════════════════════════ */
 
 import { aggregatedGoodsCategory, getCatalogProduct, type AggregatedGoodsCategory } from "../config";
-import { indirectApplies } from "./template-reference";
 
-/** lib/config.ts's AggregatedGoodsCategory ↔ template-reference.ts's
-    AggregatedGood.id — the same eight iron/steel/aluminium categories,
-    named two different ways in two files transcribed from two different
-    sources (this platform's own catalogue vs. the EU workbook verbatim).
-    Verified 1:1 against AGGREGATED_GOODS's real ids, not guessed. */
-const CATEGORY_TO_GOOD_ID: Record<AggregatedGoodsCategory, string> = {
-  "Sintered ore": "sintered_ore",
-  "Pig iron": "pig_iron",
-  "Ferro-alloys": "alloys",
-  "Direct reduced iron": "direct_reduced_iron",
-  "Crude steel": "crude_steel",
-  "Iron or steel products": "iron_or_steel_products",
-  "Unwrought aluminium": "unwrought_aluminium",
-  "Aluminium products": "aluminium_products",
+/** Annex II to Regulation (EU) 2023/956, as amended by 2025/2083: the goods
+    for which ONLY direct emissions are taken into account — iron and steel
+    (everything in chapters 72 and 73 except agglomerated iron ore, 2601 12 00),
+    aluminium, hydrogen, and, since 2083, electricity. Every other good in
+    scope — cement, calcined clay, ammonia, nitric acid, urea, mixed
+    fertilisers and sintered ore — also reports indirect emissions.
+
+    It is stated here against the aggregated goods category rather than looked
+    up in lib/cbam/template-reference.ts. That file is a verbatim transcription
+    of the Commission's communication template v2.1.1 (December 2024), which
+    still marks ammonia as direct-only; Annex II does not list ammonia, and the
+    published default values carry an indirect figure for it. The regulation is
+    what a verifier is held to, so the regulation is what this reads. */
+const DIRECT_ONLY: Record<AggregatedGoodsCategory, boolean> = {
+  "Sintered ore": false,
+  "Pig iron": true,
+  "Ferro-alloys": true,
+  "Direct reduced iron": true,
+  "Crude steel": true,
+  "Iron or steel products": true,
+  "Unwrought aluminium": true,
+  "Aluminium products": true,
+  Hydrogen: true,
+  "Calcined clay": false,
+  "Cement clinker": false,
+  Cement: false,
+  "Aluminous cement": false,
+  Ammonia: false,
+  "Nitric acid": false,
+  Urea: false,
+  "Mixed fertilisers": false,
 };
 
 /** true when this workspace's product counts indirect (electricity)
     emissions toward its SEE at all. A product that cannot be resolved to a
-    catalogue entry resolves to true, the same conservative default
-    `indirectApplies` itself uses for an unknown good: never silently drop a
-    real evidence requirement because a lookup came back empty. */
+    catalogue entry resolves to true: never silently drop a real evidence
+    requirement because a lookup came back empty. */
+export const categoryRequiresIndirect = (category: AggregatedGoodsCategory): boolean => !DIRECT_ONLY[category];
+
 export function workspaceRequiresIndirectEmissions(productId: string): boolean {
   const product = getCatalogProduct(productId);
   if (!product) return true;
-  const category = aggregatedGoodsCategory(product);
-  return indirectApplies(CATEGORY_TO_GOOD_ID[category]);
+  return !DIRECT_ONLY[aggregatedGoodsCategory(product)];
 }

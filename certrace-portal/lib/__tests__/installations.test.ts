@@ -41,9 +41,11 @@ g.localStorage = storage;
 const {
   emptyInstallation,
   getInstallation,
+  installationErrors,
   installationForWorkspace,
   installationsForSupplier,
   listInstallations,
+  missingFields,
   ownInstallations,
   referenceError,
   referenceTaken,
@@ -184,4 +186,25 @@ test("saving an own site through the workspace screen does not demote it", () =>
 
   assert.equal(getInstallation("TH-RAYONG-01")!.self, true, "still one of the exporter's own sites");
   assert.equal(ownInstallations().length, 1);
+});
+
+/* ── "Still missing" lists only what the form asks for ───────── */
+
+test("a blank required field is missing, and only that", () => {
+  const site = filled({ id: "TH-RAYONG-01", city: "" });
+
+  assert.deepEqual(missingFields(site), ["City"]);
+});
+
+test("fields no report uses are not gaps: local name, economic activity, representative, email, telephone", () => {
+  const site = filled({ id: "TH-RAYONG-01", nameLocal: "", economicActivity: "", contactName: "", contactEmail: "", contactPhone: "" });
+
+  assert.deepEqual(missingFields(site), [], "nothing the form can no longer ask for is reported as missing");
+});
+
+test("saving needs no email — the form does not ask for one", () => {
+  storage.clear();
+  const errors = installationErrors(filled({ id: "TH-RAYONG-01", contactEmail: "" }));
+
+  assert.deepEqual(errors, {});
 });

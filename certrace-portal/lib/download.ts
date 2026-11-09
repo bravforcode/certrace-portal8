@@ -557,7 +557,7 @@ export async function buildPackagePdf(p: PackageInput): Promise<jsPDF> {
       for (const s of commented) bullet(`${s.actor} (${s.label}): "${s.comment}"`, INK, 8.5);
     }
   } else {
-    paragraph("No internal sign-off chain was recorded for this declaration. For regulated filings, Certrace recommends at minimum a preparer + approver chain (see the Review & Approval workspace).", AMBER);
+    paragraph("No internal sign-off chain was recorded for this declaration. For regulated filings, Certrace recommends at minimum a preparer + approver chain (see the Review & Approval product report).", AMBER);
   }
 
   /* ════════ PART H — VERIFICATION TRAIL ════════ */

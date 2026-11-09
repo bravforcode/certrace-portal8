@@ -19,7 +19,7 @@ export const TH: Record<string, string> = {
      only the ones that land back on the exporter. "Smart Link" is the name
      the supplier-facing product uses in both languages, so it stays English
      with the Thai gloss around it. */
-  "Smart Links": "ลิงก์อัจฉริยะ (Smart Links)",
+  "Smart Links": "สมาร์ทลิงค์",
   Inbox: "กล่องงานเข้า (Inbox)",
   Suppliers: "ซัพพลายเออร์ (Suppliers)",
   Shipments: "การจัดส่ง (Shipments)",
@@ -51,7 +51,7 @@ export const TH: Record<string, string> = {
   /* ── Dashboard, rebuilt on workspaces ─────────────────────── */
   "Everything you have to get verified, worst first. Nothing here rounds up.":
     "ทุกอย่างที่ต้องผ่านการตรวจสอบรับรอง เรียงจากที่มีปัญหามากที่สุดก่อน ตัวเลขทั้งหมดไม่ปัดขึ้น",
-  "New workspace": "พื้นที่ทำงานใหม่ (New workspace)",
+  "New workspace": "พื้นที่ทำงานใหม่",
   "Create the first workspace": "สร้างพื้นที่ทำงานแรก",
   "Nothing to show yet": "ยังไม่มีข้อมูลให้แสดง",
   Workspaces: "พื้นที่ทำงาน (Workspaces)",
@@ -75,10 +75,10 @@ export const TH: Record<string, string> = {
   "tCO₂e per tonne": "tCO₂e ต่อตัน",
   "weighted across everything shipped": "ถ่วงน้ำหนักจากทุกรายการที่ส่งออก",
   "Certificate cost so far": "ต้นทุนใบรับรองจนถึงปัจจุบัน",
-  "Projected, full year": "ประมาณการทั้งปี (Projected)",
+  "Projected, full year": "ประมาณการทั้งปี",
   "annualised from months in hand": "คำนวณทั้งปีจากเดือนที่มีข้อมูลแล้ว",
   "needs a part-year to project": "ต้องมีข้อมูลบางส่วนของปีก่อนจึงจะประมาณการได้",
-  "Certificate price": "ราคาใบรับรอง (Certificate price)",
+  "Certificate price": "ราคาใบรับรอง",
   "EUR per tCO₂e": "ยูโรต่อ tCO₂e",
   "THB per EUR": "บาทต่อยูโร",
   "By workspace": "แยกตามพื้นที่ทำงาน",
@@ -96,7 +96,7 @@ export const TH: Record<string, string> = {
   Readiness: "ความพร้อม (Readiness)",
 
   /* ── Reports ──────────────────────────────────────────────── */
-  "Verifier packs": "ชุดเอกสารสำหรับผู้ตรวจสอบ (Verifier packs)",
+  "Verifier packs": "ชุดเอกสารสำหรับผู้ตรวจสอบ",
   "Export pack": "ส่งออกชุดเอกสาร",
   "Filed packages": "ชุดเอกสารที่ยื่นแล้ว",
   months: "เดือน",
@@ -449,7 +449,7 @@ export const TH: Record<string, string> = {
     "ไฟฟ้าที่ใช้ต่อผลผลิตหนึ่งตัน เป็นตัวกำหนดการปล่อยทางอ้อม",
   "Electricity emission factor & source": "ค่าการปล่อยของไฟฟ้าและแหล่งที่มา",
   "Grid / PPA factor and its documented source": "ค่าจากระบบสายส่งหรือสัญญา PPA พร้อมแหล่งอ้างอิง",
-  "Electrolysis technology (prebake / Søderberg)": "เทคโนโลยีอิเล็กโทรลิซิส (prebake / Søderberg)",
+  "Electrolysis technology (prebake / Søderberg)": "เทคโนโลยีอิเล็กโทรลิซิส (พรีเบก / Søderberg)",
   "Smelting route — only for primary (unwrought) aluminium from electrolysis":
     "เส้นทางการถลุง ใช้เฉพาะอะลูมิเนียมปฐมภูมิที่ได้จากอิเล็กโทรลิซิส",
   "Relevant precursors & their embedded emissions": "วัตถุดิบตั้งต้นที่เกี่ยวข้องและการปล่อยที่ฝังอยู่",
@@ -772,7 +772,7 @@ export const TH: Record<string, string> = {
   "Sector rules applied automatically": "ใช้กฎเฉพาะกลุ่มสินค้าโดยอัตโนมัติ",
   "Every supplier in the chain, with its own figure": "ซัพพลายเออร์ทุกรายในห่วงโซ่ พร้อมค่าการปล่อยของตัวเอง",
   "Chain graded by its weakest link": "ให้เกรดห่วงโซ่ตามจุดที่อ่อนที่สุด",
-  "Scrap counted as zero, automatically": "นับเศษเหล็ก (scrap) เป็นศูนย์โดยอัตโนมัติ",
+  "Scrap counted as zero, automatically": "นับเศษเหล็กเป็นศูนย์โดยอัตโนมัติ",
   "20% default-value cap watched for you": "เฝ้าติดตามเพดานการใช้ค่าตั้งต้น 20% ให้คุณ",
 
   /* "Verification readiness" itself is already in the dictionary, under the
@@ -781,7 +781,7 @@ export const TH: Record<string, string> = {
   "Methodology document written for you": "จัดทำเอกสารวิธีการติดตาม (MMD) ให้คุณ",
   "Every version kept when you edit": "เก็บทุกเวอร์ชันไว้เมื่อคุณแก้ไข",
   "Documents attached to the right month": "แนบเอกสารเข้ากับเดือนที่ถูกต้อง",
-  "Materiality check": "การตรวจสอบสาระสำคัญ (materiality)",
+  "Materiality check": "การตรวจสอบสาระสำคัญ",
   "AI reads your documents, you approve": "AI อ่านเอกสารให้ แล้วคุณเป็นผู้อนุมัติ",
 
   "Sign-off & record": "การลงนามรับรองและบันทึกหลักฐาน",
@@ -878,7 +878,7 @@ export const TH: Record<string, string> = {
 
   /* Still referenced outside the billing screen. */
   "Talk to sales": "ติดต่อฝ่ายขาย",
-  Update: "อัปเดต",
+  Update: "อัพเดท",
   Confirmed: "ยืนยันแล้ว",
   annual: "รายปี",
 
@@ -950,7 +950,7 @@ export const TH: Record<string, string> = {
   "Account activity that matters — sign-ins, password changes and security alerts.":
     "กิจกรรมบัญชีที่สำคัญ ทั้งการเข้าสู่ระบบ การเปลี่ยนรหัสผ่าน และการแจ้งเตือนด้านความปลอดภัย",
   "Updates on declaration progress, approvals, revisions and reporting deadlines.":
-    "อัปเดตความคืบหน้าของรายการยื่นข้อมูล การอนุมัติ การแก้ไข และกำหนดส่งรายงาน",
+    "อัพเดทความคืบหน้าของรายการยื่นข้อมูล การอนุมัติ การแก้ไข และกำหนดส่งรายงาน",
   "When a supplier is invited, submits their data, or needs a follow-up.":
     "เมื่อมีการเชิญซัพพลายเออร์ เมื่อเขาส่งข้อมูล หรือเมื่อต้องติดตาม",
   "AI Review & Compliance": "การตรวจด้วย AI และการปฏิบัติตามกฎ",
@@ -959,7 +959,7 @@ export const TH: Record<string, string> = {
   Documents: "เอกสาร",
   "Missing, uploaded, approved, rejected or expiring documents.":
     "เอกสารที่ขาด อัปโหลดแล้ว อนุมัติแล้ว ถูกปฏิเสธ หรือใกล้หมดอายุ",
-  "Product updates": "อัปเดตผลิตภัณฑ์",
+  "Product updates": "อัพเดทผลิตภัณฑ์",
   "New features, improvements and platform announcements.": "ฟีเจอร์ใหม่ การปรับปรุง และประกาศเกี่ยวกับแพลตฟอร์ม",
   "Always on — protects your account": "เปิดตลอดเวลา เพื่อปกป้องบัญชีของคุณ",
   "Change password": "เปลี่ยนรหัสผ่าน",
@@ -977,9 +977,9 @@ export const TH: Record<string, string> = {
   "Confirm new password": "ยืนยันรหัสผ่านใหม่",
   "Re-enter new password": "กรอกรหัสผ่านใหม่อีกครั้ง",
   "Passwords don't match.": "รหัสผ่านไม่ตรงกัน",
-  "Update password": "อัปเดตรหัสผ่าน",
-  "Updating…": "กำลังอัปเดต…",
-  Updated: "อัปเดตแล้ว",
+  "Update password": "อัพเดทรหัสผ่าน",
+  "Updating…": "กำลังอัพเดท…",
+  Updated: "อัพเดทแล้ว",
   "Device login": "อุปกรณ์ที่เข้าสู่ระบบ",
   "Sign out of all other devices": "ออกจากระบบอุปกรณ์อื่นทั้งหมด",
   "Signing out of all other devices…": "กำลังออกจากระบบอุปกรณ์อื่นทั้งหมด…",
@@ -1040,7 +1040,7 @@ export const TH: Record<string, string> = {
   "{count} of {total} suppliers": "ซัพพลายเออร์ {count} จาก {total} ราย",
   "carry {pct}% of your chargeable emissions — about {amount} in certificates. That's the shortlist for a conversation about actual data, a cleaner route, or a different supplier.":
     "คิดเป็น {pct}% ของการปล่อยที่ต้องเสียค่าใช้จ่าย หรือราว {amount} ในรูปใบรับรอง นี่คือรายชื่อที่ควรคุยเรื่องข้อมูลจริง เส้นทางการผลิตที่สะอาดกว่า หรือเปลี่ยนซัพพลายเออร์",
-  "Data that needs refreshing": "ข้อมูลที่ต้องอัปเดต",
+  "Data that needs refreshing": "ข้อมูลที่ต้องอัพเดท",
   "Supplier records age. A figure past a year, or one reported for a period you're no longer filing, has to be re-confirmed before it goes into another declaration.":
     "ข้อมูลซัพพลายเออร์มีอายุ ตัวเลขที่เกินหนึ่งปี หรือที่รายงานไว้สำหรับรอบที่คุณไม่ได้ยื่นแล้ว ต้องยืนยันใหม่ก่อนนำไปใช้ในรายการยื่นข้อมูลอื่น",
   "No supplier records yet — they build up as suppliers submit, and each one makes the next request shorter.":
@@ -1049,7 +1049,7 @@ export const TH: Record<string, string> = {
   "All {count} supplier records are current.": "ข้อมูลซัพพลายเออร์ทั้ง {count} รายเป็นปัจจุบัน",
   "{count} goods on file": "มีสินค้าในระบบ {count} รายการ",
   "fed {count} declarations": "ใช้ในรายการยื่นข้อมูล {count} รายการ",
-  "last updated {days}d ago": "อัปเดตล่าสุด {days} วันก่อน",
+  "last updated {days}d ago": "อัพเดทล่าสุด {days} วันก่อน",
   "What this is built from": "ข้อมูลนี้สร้างจากอะไร",
   "{datasets} submitted supplier datasets across {declarations} declarations, costed with the same engine the declaration workspace uses — the Annex II direct-only rule for steel and aluminium, default-value markups where a supplier reported on defaults, and any carbon price already paid deducted. Nothing here is a filed figure.":
     "ชุดข้อมูลจากซัพพลายเออร์ {datasets} ชุด ครอบคลุม {declarations} รายการยื่นข้อมูล คิดต้นทุนด้วยระบบเดียวกับพื้นที่ทำงานของรายการยื่นข้อมูล ทั้งกฎ Annex II ที่นับเฉพาะการปล่อยทางตรงสำหรับเหล็กและอะลูมิเนียม ส่วนเพิ่มของค่าตั้งต้นเมื่อซัพพลายเออร์รายงานด้วยค่าตั้งต้น และหักราคาคาร์บอนที่ชำระไปแล้ว ตัวเลขทั้งหมดนี้ไม่ใช่ตัวเลขที่ยื่นจริง",
@@ -1187,7 +1187,7 @@ export const TH: Record<string, string> = {
   "O3CI · buyer · verifier": "O3CI · ผู้ซื้อ · ผู้ทวนสอบ",
   "Open this step": "เปิดขั้นตอนนี้",
   "{count} new submissions ready for review": "มีข้อมูลใหม่ {count} รายการ พร้อมให้ตรวจ",
-  "Supplier data has been updated.": "ข้อมูลจากซัพพลายเออร์ได้รับการอัปเดตแล้ว",
+  "Supplier data has been updated.": "ข้อมูลจากซัพพลายเออร์ได้รับการอัพเดทแล้ว",
   "{count} submissions": "ข้อมูลที่ส่งมา {count} รายการ",
   "waiting for your review.": "รอให้คุณตรวจ",
   "Review supplier data": "ตรวจข้อมูลจากซัพพลายเออร์",
@@ -1399,7 +1399,7 @@ export const TH: Record<string, string> = {
   "Automatic quality check": "ตรวจสอบคุณภาพข้อมูลอัตโนมัติ",
   "Gaps and outliers flagged before a verifier sees them.": "แจ้งเตือนข้อมูลที่ขาดและค่าผิดปกติ ก่อนที่ผู้ทวนสอบจะเห็น",
   "CBAM calculation engine": "ระบบคำนวณ CBAM",
-  "Embedded emissions computed to the EU method.": "คำนวณการปล่อยก๊าซแฝง (embedded emissions) ตามวิธีของสหภาพยุโรป",
+  "Embedded emissions computed to the EU method.": "คำนวณการปล่อยก๊าซแฝง ตามวิธีของสหภาพยุโรป",
   "Carbon benchmark dashboard": "แดชบอร์ดเทียบเกณฑ์คาร์บอน",
   "Your numbers against CBAM penalty rates, so you know what to fix.":
     "เทียบตัวเลขของคุณกับอัตราค่าปรับ CBAM เพื่อให้รู้ว่าต้องแก้ตรงไหน",
@@ -3956,7 +3956,7 @@ export const TH: Record<string, string> = {
   "Any readiness":
     "ความพร้อมทุกระดับ",
   "All sectors":
-    "ทุกสาขา",
+    "ทุกกลุ่ม",
   "All types":
     "ทุกประเภท",
   "All groups":
@@ -4216,7 +4216,7 @@ export const TH: Record<string, string> = {
   "can't be withheld from buyers — they're what the CBAM declaration is made of, and holding them back would only mean your goods can't clear. The rest is genuinely optional, and turning it off costs you nothing.":
     "ปิดบังจากผู้ซื้อไม่ได้ เพราะเป็นส่วนประกอบของการสำแดง CBAM การกักไว้มีแต่จะทำให้สินค้าของคุณผ่านพิธีการไม่ได้ ส่วนที่เหลือเป็นตัวเลือกจริง ๆ และการปิดไว้ไม่มีผลเสียกับคุณ",
   "On — their next request opens pre-filled and you confirm or update the figures instead of retyping them. Off — every request starts blank. Either way, data you've already submitted stays with them; this only governs what gets carried forward.":
-    "เปิด — คำขอครั้งถัดไปของเขาจะเปิดขึ้นพร้อมข้อมูลที่กรอกไว้ล่วงหน้า คุณเพียงยืนยันหรืออัปเดตตัวเลขแทนการพิมพ์ใหม่ ปิด — ทุกคำขอเริ่มจากแบบฟอร์มเปล่า ไม่ว่ากรณีใด ข้อมูลที่คุณส่งไปแล้วยังคงอยู่กับเขา การตั้งค่านี้ควบคุมเพียงว่าจะยกข้อมูลใดมาใช้ต่อ",
+    "เปิด — คำขอครั้งถัดไปของเขาจะเปิดขึ้นพร้อมข้อมูลที่กรอกไว้ล่วงหน้า คุณเพียงยืนยันหรืออัพเดทตัวเลขแทนการพิมพ์ใหม่ ปิด — ทุกคำขอเริ่มจากแบบฟอร์มเปล่า ไม่ว่ากรณีใด ข้อมูลที่คุณส่งไปแล้วยังคงอยู่กับเขา การตั้งค่านี้ควบคุมเพียงว่าจะยกข้อมูลใดมาใช้ต่อ",
   "This data lives in different teams — emissions with ESG, carbon price with finance, certificates with QA. Invite a colleague and assign the sections that are theirs. They get a link to just their part; you stay in control and sign at the end.":
     "ข้อมูลชุดนี้อยู่กับหลายทีม การปล่อยก๊าซอยู่กับฝ่าย ESG ราคาคาร์บอนอยู่กับฝ่ายการเงิน และใบรับรองอยู่กับฝ่ายประกันคุณภาพ เชิญเพื่อนร่วมงานแล้วมอบหมายหัวข้อที่เป็นของเขา เขาจะได้รับลิงก์เฉพาะส่วนของตน ส่วนคุณยังคุมภาพรวมและลงนามในตอนท้าย",
   "Completeness, validation, anomaly detection and standardization run automatically. Critical issues must be fixed; warnings you can acknowledge and proceed.":
@@ -4894,11 +4894,11 @@ export const TH: Record<string, string> = {
   "Tracking report":
     "กำลังติดตามรายงาน",
   "Updated with buyer":
-    "อัปเดตกับผู้ซื้อแล้ว",
+    "อัพเดทกับผู้ซื้อแล้ว",
   "Nothing has been asked for and nothing entered. Track a report to start chasing this figure.":
     "ยังไม่ได้ขอและยังไม่ได้กรอกอะไร กดติดตามรายงานเพื่อเริ่มตามตัวเลขนี้",
   "A report has been asked for — a Smart Link is out, or a report workspace is open for this entity.":
-    "ขอรายงานไปแล้ว โดยส่งลิงก์อัจฉริยะออกไป หรือเปิดพื้นที่ทำงานรายงานให้รายการนี้แล้ว",
+    "ขอรายงานไปแล้ว โดยส่งสมาร์ทลิงค์ออกไป หรือเปิดพื้นที่ทำงานรายงานให้รายการนี้แล้ว",
   "Being filled in — by the supplier on their link, or by you in the workspace.":
     "กำลังกรอกข้อมูล ไม่ว่าจะโดยซัพพลายเออร์ผ่านลิงก์ของเขา หรือโดยคุณในพื้นที่ทำงาน",
   "Verified and rolled into the chain. This figure is ready to hand to your buyer.":
@@ -5040,7 +5040,7 @@ export const TH: Record<string, string> = {
 
   /* ── The supplier's own link — the landing page and its section list ─────────────────────────────── */
   "No Smart Link goes out for these — {supplier} is you. Report the embedded emissions of your own installation the same way an external supplier would, and the declaration treats it identically: same {regulation} checklist, same AI check, same verification trail.":
-    "รายการเหล่านี้ไม่มีการส่งลิงก์อัจฉริยะออกไป เพราะ {supplier} คือคุณเอง ให้รายงานการปล่อยก๊าซที่ฝังอยู่ของสถานประกอบการของคุณแบบเดียวกับที่ซัพพลายเออร์ภายนอกทำ และการสำแดงจะปฏิบัติต่อข้อมูลนี้เหมือนกันทุกประการ ทั้งรายการตรวจสอบ {regulation} ชุดเดียวกัน การตรวจด้วย AI ชุดเดียวกัน และร่องรอยการตรวจสอบชุดเดียวกัน",
+    "รายการเหล่านี้ไม่มีการส่งสมาร์ทลิงค์ออกไป เพราะ {supplier} คือคุณเอง ให้รายงานการปล่อยก๊าซที่ฝังอยู่ของสถานประกอบการของคุณแบบเดียวกับที่ซัพพลายเออร์ภายนอกทำ และการสำแดงจะปฏิบัติต่อข้อมูลนี้เหมือนกันทุกประการ ทั้งรายการตรวจสอบ {regulation} ชุดเดียวกัน การตรวจด้วย AI ชุดเดียวกัน และร่องรอยการตรวจสอบชุดเดียวกัน",
   "You’re {supplier}. To keep shipping {origin} {sector} into the {destination}, {exporter} has to report the embedded emissions of the goods they buy from you — under {regulation}. This takes about 10 minutes, it’s free, and you don’t need an account.":
     "คุณคือ {supplier} เพื่อให้ส่งออกสินค้า {sector} จาก {origin} ไปยัง {destination} ได้ต่อไป {exporter} ต้องรายงานการปล่อยก๊าซที่ฝังอยู่ในสินค้าที่ซื้อจากคุณ ตาม {regulation} ขั้นตอนนี้ใช้เวลาประมาณ 10 นาที ไม่มีค่าใช้จ่าย และไม่ต้องสมัครบัญชี",
   "Your figures are checked automatically before you submit and land in your own supplier record, so the next declaration starts pre-filled instead of blank. Colleagues can be assigned the sections that belong to their department.":

@@ -13,7 +13,8 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, ChevronUp, Check, Calendar as CalendarIcon, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { cn } from "./ui";
-import { useT } from "@/lib/i18n";
+import { localeFor, useFormat, useLanguage, useT } from "@/lib/i18n";
+import { COUNTRIES } from "@/lib/config";
 
 const POPOVER_SHADOW = "0 8px 32px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.06)";
 
@@ -117,9 +118,24 @@ function useAnchoredStyle(
       });
     };
     compute();
-    // Re-measure next frame: the first pass may run before the popover has its
-    // natural size, so this locks in the correct clamped position.
-    raf = requestAnimationFrame(compute);
+    /* Measure again once the popover really exists. The popover is drawn through a Portal, which mounts one effect AFTER this
+       one, so the first pass (and, on a busy page, the next frame's too) can find no popover and place it by a width of
+       zero — which put the notifications menu at the bell's right edge, 351px wide, off a 375px screen. Keep trying frame
+       by frame until it is there, then measure once more with its natural size so the clamp is right. */
+    let tries = 0;
+    let measured = false;
+    const settle = () => {
+      compute();
+      if (popRef.current) {
+        if (!measured) {
+          measured = true;
+          raf = requestAnimationFrame(compute);
+        }
+      } else if (tries++ < 60) {
+        raf = requestAnimationFrame(settle);
+      }
+    };
+    raf = requestAnimationFrame(settle);
 
     // Scrolling INSIDE the popover must not reposition it. The capture listener
     // exists to follow the trigger when an ancestor scrolls; a long list (the
@@ -150,13 +166,48 @@ function useAnchoredStyle(
 const triggerBase =
   "flex w-full items-center justify-between gap-2 rounded-xl border bg-white px-4 py-3 text-left text-sm transition-colors focus:outline-none focus-visible:border-black/30";
 
-export type Option = { value: string; label: string; hint?: string };
+export type Option = {
+  value: string;
+  label: string;
+  hint?: string;
+  /** Shown, greyed, and not pickable — the option exists but is not available to this reader yet. */
+  disabled?: boolean;
+};
 
 /* ── Select (single) ──────────────────────────────────────── */
+/** The labels and hints a dropdown shows, in the language on screen. Callers hand over the lists they have — fuels, routes, frequencies, units — and
+    most are English source strings; passing them through the dictionary here means no dropdown has to remember to, and one that is already
+    translated passes through unchanged. */
+function useTranslatedOptions(options: Option[]): Option[] {
+  const t = useT();
+  const { lang } = useLanguage();
+  /* A country list is the one dropdown that is not a list of our own words: its labels are the English names of the ISO countries, and
+     the platform already knows every one of them in every language (Intl.DisplayNames). An option is a country when its value is a
+     country's code and its label is that country's English name — so a list that is something else is never touched. */
+  const display = React.useMemo(() => {
+    if (lang === "en") return null;
+    try {
+      return new Intl.DisplayNames([localeFor(lang)], { type: "region" });
+    } catch {
+      return null;
+    }
+  }, [lang]);
+  return React.useMemo(
+    () =>
+      options.map((o) => {
+        const country = display && COUNTRY_NAME_BY_CODE.get(o.value) === o.label ? display.of(o.value) : undefined;
+        return { ...o, label: country || t(o.label), hint: o.hint ? t(o.hint) : o.hint };
+      }),
+    [options, t, display],
+  );
+}
+
+const COUNTRY_NAME_BY_CODE = new Map<string, string>(COUNTRIES.map((c) => [c.code, c.name]));
+
 export function Select({
   value,
   onChange,
-  options,
+  options: optionsIn,
   placeholder = "Select…",
   className,
   ariaLabel,
@@ -183,6 +234,7 @@ export function Select({
   emptyLabel?: string;
 }) {
   const t = useT();
+  const options = useTranslatedOptions(optionsIn);
   const { open, setOpen, triggerRef, popRef } = usePopover();
   const anchor = useAnchoredStyle(open, triggerRef, popRef, { matchWidth: true });
   const [active, setActive] = React.useState(0);
@@ -274,7 +326,7 @@ export function Select({
       setActive((a) => Math.max(0, a - 1));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      if (shown[active]) {
+      if (shown[active] && !shown[active].disabled) {
         onChange(shown[active].value);
         setOpen(false);
       }
@@ -363,14 +415,17 @@ export function Select({
                 >
                   <button
                     type="button"
+                    disabled={o.disabled}
+                    aria-disabled={o.disabled || undefined}
                     onMouseEnter={() => setActive(i)}
                     onClick={() => {
+                      if (o.disabled) return;
                       onChange(o.value);
                       setOpen(false);
                     }}
                     className={cn(
                       "flex w-full items-start justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors",
-                      i === active ? "bg-[#f0eee8]" : "hover:bg-[#fafaf8]",
+                      o.disabled ? "cursor-not-allowed opacity-45" : i === active ? "bg-[#f0eee8]" : "hover:bg-[#fafaf8]",
                     )}
                   >
                     {/* The hint WRAPS. A one-line explanation cut off at the
@@ -397,7 +452,7 @@ export function Select({
 export function MultiSelect({
   values,
   onChange,
-  options,
+  options: optionsIn,
   placeholder = "Select…",
   className,
   ariaLabel,
@@ -409,15 +464,17 @@ export function MultiSelect({
   className?: string;
   ariaLabel?: string;
 }) {
+  const t = useT();
+  const options = useTranslatedOptions(optionsIn);
   const { open, setOpen, triggerRef, popRef } = usePopover();
   const anchor = useAnchoredStyle(open, triggerRef, popRef, { matchWidth: true });
   const toggle = (v: string) => onChange(values.includes(v) ? values.filter((x) => x !== v) : [...values, v]);
   const label =
     values.length === 0
-      ? placeholder
+      ? t(placeholder)
       : values.length === 1
-        ? options.find((o) => o.value === values[0])?.label ?? `${values.length} selected`
-        : `${values.length} selected`;
+        ? options.find((o) => o.value === values[0])?.label ?? t("{n} selected", { n: values.length })
+        : t("{n} selected", { n: values.length });
 
   return (
     <div className={cn("relative", className)}>
@@ -507,7 +564,6 @@ export function Dropdown({
 
 /* ── Calendar ─────────────────────────────────────────────── */
 const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
-const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 function toISO(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -526,6 +582,14 @@ export function Calendar({
   max?: string;
 }) {
   const t = useT();
+  const { lang } = useLanguage();
+  const { locale } = useFormat();
+  // Month and weekday names come from the platform for the language on screen — a Thai or Chinese reader gets their own, not English's.
+  const monthNames = React.useMemo(() => Array.from({ length: 12 }, (_, i) => new Intl.DateTimeFormat(locale, { month: "long" }).format(new Date(2000, i, 1))), [locale]);
+  const weekdays = React.useMemo(
+    () => (lang === "en" ? WEEKDAYS : Array.from({ length: 7 }, (_, i) => new Intl.DateTimeFormat(locale, { weekday: "short" }).format(new Date(2024, 0, 1 + i)))),
+    [lang, locale],
+  );
   const selected = value ? new Date(value + "T00:00:00") : undefined;
   const today = new Date();
   const minDate = min ? new Date(min + "T00:00:00") : undefined;
@@ -579,7 +643,7 @@ export function Calendar({
           <ChevronLeft size={15} strokeWidth={1.5} />
         </button>
         <span className="text-[13px] font-medium text-black/75">
-          {MONTH_NAMES[view.m]} {view.y}
+          {monthNames[view.m]} {view.y}
         </span>
         <button
           type="button"
@@ -592,7 +656,7 @@ export function Calendar({
         </button>
       </div>
       <div className="grid grid-cols-7 gap-0.5">
-        {WEEKDAYS.map((w) => (
+        {weekdays.map((w) => (
           <span key={w} className="grid h-7 place-items-center font-mono text-[10px] uppercase tracking-[0.08em] text-black/30">
             {w}
           </span>
@@ -652,11 +716,11 @@ export function DatePicker({
   invalid?: boolean;
   disabled?: boolean;
 }) {
+  const t = useT();
+  const format = useFormat();
   const { open, setOpen, triggerRef, popRef } = usePopover();
   const anchor = useAnchoredStyle(open, triggerRef, popRef);
-  const display = value
-    ? new Date(value + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
-    : placeholder;
+  const display = value ? format.date(new Date(value + "T00:00:00")) : t(placeholder);
   return (
     <div className={cn("relative", className)}>
       <button

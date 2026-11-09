@@ -353,12 +353,12 @@ export type Suggestion = {
 
 export function suggestTarget(workspaceId: string, subject: DocSubject, month: string | undefined, fuelType: string | undefined): Suggestion {
   const s = scopeOf(workspaceId);
-  if (!s) return { problem: "Workspace not found." };
+  if (!s) return { problem: "Product report not found." };
   if (subject === "unrelated") return { notNeeded: "This does not look like anything a CBAM verifier asks for." };
   if (subject === "unknown") return { problem: "Pick what this document is first." };
   // Supplier-portal documents: the workspace checklist has no row for them.
   if (subject === "cbam_communication" || subject === "certificate_of_origin") {
-    return { notNeeded: "This document belongs to a supplier's data request, not to this workspace's checklist." };
+    return { notNeeded: "This document belongs to a supplier's data request, not to this product report's checklist." };
   }
   if ((subject === "electricity_bill" || subject === "electricity_meter") && !s.requiresIndirect) {
     return { notNeeded: "Electricity emissions are not counted for {product}, so no electricity document is required." };

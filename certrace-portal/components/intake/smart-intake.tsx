@@ -26,7 +26,7 @@ import { Button, Card, cn, inputClass } from "@/components/ui";
 import { Select } from "@/components/controls";
 import { toast } from "@/components/toast";
 import { recordFillRun } from "@/lib/ai-fill";
-import { useLanguage, useT } from "@/lib/i18n";
+import { dateLocaleFor, useLanguage, useT } from "@/lib/i18n";
 import { FUEL_TYPES, fuelTypeLabelIn } from "@/lib/monthly-data";
 import { getWorkspace, monthsOf } from "@/lib/workspace";
 import { CONFIDENCE_FLOOR, type ExtractedField } from "@/lib/workspace-evidence";
@@ -96,7 +96,7 @@ export type IntakeResult = { docs: number; values: number; months: string[] };
 function useMonthLabel() {
   const { lang } = useLanguage();
   return React.useCallback(
-    (m: string) => new Date(`${m}-01T00:00:00`).toLocaleDateString(lang === "th" ? "th-TH" : "en-GB", { month: "short", year: "numeric" }),
+    (m: string) => new Date(`${m}-01T00:00:00`).toLocaleDateString(lang === "en" ? "en-GB" : dateLocaleFor(lang), { month: "short", year: "numeric" }),
     [lang],
   );
 }

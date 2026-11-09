@@ -75,7 +75,7 @@ type BtnProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 /* Shared with ButtonLink below, so a button and a link that sit side by side
    are the same control at the same size — see its header. */
 const btnBase =
-  "inline-flex items-center justify-center gap-2 rounded-xl uppercase tracking-[0.1em] transition-colors disabled:opacity-40 disabled:pointer-events-none";
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl uppercase tracking-[0.1em] transition-colors disabled:opacity-40 disabled:pointer-events-none";
 const btnSizing = (size: "md" | "sm") => (size === "sm" ? "px-4 py-2 text-[11px]" : "px-6 py-3 text-[13px]");
 const btnVariants: Record<"primary" | "secondary" | "ghost", string> = {
   primary: "bg-[#111] text-white hover:bg-[#333]",
@@ -414,6 +414,49 @@ export function Field({
       <FieldLabel label={label} optional={optional} />
       {children}
       {hint && <span className="mt-1.5 block text-xs text-black/35">{hint}</span>}
+    </label>
+  );
+}
+
+/* ── Checkbox ───────────────────────────────────────────────
+   The platform's checkbox: a 20 px rounded square, ink-filled with a white tick
+   when on, a hairline outline when off. The real <input> stays in the DOM
+   (visually hidden) so it keeps its keyboard behaviour, its label association
+   and its form semantics; the square is drawn from it with `peer`, and the focus
+   ring (DS §2.4) is drawn on the square, where the eye is, rather than on the
+   hidden input. Not the browser's native box — that one cannot follow the system. */
+export function Checkbox({
+  checked,
+  onChange,
+  label,
+  hint,
+  disabled,
+  className,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: React.ReactNode;
+  /** a second, quieter line under the label */
+  hint?: React.ReactNode;
+  disabled?: boolean;
+  className?: string;
+}) {
+  return (
+    <label className={cn("flex items-start gap-2.5", disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer", className)}>
+      <input type="checkbox" className="peer sr-only" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
+      <span
+        aria-hidden
+        className={cn(
+          "mt-px grid h-5 w-5 flex-none place-items-center rounded-md border transition-colors peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-black/40",
+          checked ? "border-transparent bg-[#111] text-white" : "border-black/25 bg-white",
+        )}
+      >
+        {checked && <Check size={12} strokeWidth={2.5} />}
+      </span>
+      <span className="min-w-0">
+        <span className="block text-[13px] leading-snug text-black/75">{label}</span>
+        {hint && <span className="mt-0.5 block text-[11.5px] leading-snug text-black/40">{hint}</span>}
+      </span>
     </label>
   );
 }
@@ -908,7 +951,7 @@ export function AutoSaveBadge({ status, savedAt, className }: { status: AutoSave
   };
   const { label, tone } = map[status];
   return (
-    <span className={cn("inline-flex items-center gap-1.5 text-[11px]", tone, className)} aria-live="polite">
+    <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap text-[11px]", tone, className)} aria-live="polite">
       {status === "saving" || status === "pending" ? (
         <span className={cn("h-2.5 w-2.5 rounded-full border-2 border-black/15 border-t-black/45", status === "saving" && "animate-spin")} aria-hidden />
       ) : status === "saved" ? (
@@ -965,6 +1008,24 @@ export function EmptyState({
    here, at the render, so a caller can keep passing a plain literal; the
    dictionary is keyed by the English source string, so `t(scope)` resolves
    exactly as a literal would. */
+/** A sentence with one phrase to stress, written inside the translation as **this**, so the stress travels with the words whatever order the
+    language puts them in — "Please answer **in English**." / "请**用英文**回答。". */
+export function Emphasis({ text, className }: { text: string; className?: string }) {
+  return (
+    <>
+      {text.split("**").map((part, i) =>
+        i % 2 === 1 ? (
+          <strong key={i} className={cn("font-medium", className)}>
+            {part}
+          </strong>
+        ) : (
+          <React.Fragment key={i}>{part}</React.Fragment>
+        ),
+      )}
+    </>
+  );
+}
+
 export function EnglishOnlyNotice({ className, scope = "everything you type" }: { className?: string; scope?: string }) {
   const t = useT();
   return (

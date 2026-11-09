@@ -84,7 +84,7 @@ function goodsFor(workspaceList: VerificationWorkspace[]): GoodRow[] {
       if (!dispatch) continue;
       const done = entry.status === "submitted" || entry.status === "reviewed";
       const c = countdownFor(entry.month, effectiveDueDay(dispatch, schedule.dueDay));
-      months.push({ month: entry.month, status: entry.status, due: c.due, countdown: c.label, overdue: c.overdue && !done, done, sentAt: dispatch.sentAt });
+      months.push({ month: entry.month, status: entry.status, due: c.due, countdown: c.text, overdue: c.overdue && !done, done, sentAt: dispatch.sentAt });
     }
 
     return { workspace: w, months: months.reverse(), percent: readiness.percentComplete, overall: readiness.overall };
@@ -107,7 +107,9 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
 
   const goods: GoodRow[] = React.useMemo(
     () => (supplier && workspaces ? goodsFor(workspaces.filter((w) => w.supplierId === supplier.id)) : []),
-    [supplier, workspaces],
+    // `t` is here only so a change of language recomputes the countdown wording, which is built inside goodsFor
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [supplier, workspaces, t],
   );
 
   if (supplierError || plantsError || workspacesError)
@@ -223,7 +225,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
         {plants.length === 0 ? (
           <Card className="p-6">
             <p className="text-[13px] leading-relaxed text-black/45">
-              {t("No installations recorded for this supplier yet. A workspace is scoped to a plant, so until one exists there is nothing to ask them for.")}
+              {t("No installations recorded for this supplier yet. A product report is scoped to a plant, so until one exists there is nothing to ask them for.")}
             </p>
             <Button className="mt-4" size="sm" onClick={() => setEditingPlant("new")}>
               <Plus size={14} strokeWidth={1.5} /> {t("Add their first installation")}
@@ -242,7 +244,6 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
                     </div>
                     <p className="mt-2 text-[12.5px] leading-relaxed text-black/50">
                       {[i.street, i.city, i.postcode, i.country].filter(Boolean).join(", ") || t("No address yet.")}
-                      {i.economicActivity ? ` · ${i.economicActivity}` : ""}
                     </p>
                   </div>
                   <button
@@ -269,11 +270,11 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
         {goods.length === 0 ? (
           <Card className="p-6">
             <p className="text-[13px] leading-relaxed text-black/45">
-              {t("No goods are being verified at this supplier yet. Create a workspace for one of their plants and its twelve months start here.")}
+              {t("No goods are being verified at this supplier yet. Create a product report for one of their plants and its twelve months start here.")}
             </p>
             <Link href="/workspaces/new" className="mt-4 inline-block">
               <Button size="sm" variant="secondary">
-                <Plus size={14} strokeWidth={1.5} /> {t("New workspace")}
+                <Plus size={14} strokeWidth={1.5} /> {t("New product report")}
               </Button>
             </Link>
           </Card>
@@ -282,8 +283,8 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
             <Card key={w.id} className="overflow-hidden p-0">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/[0.06] px-5 py-4">
                 <div className="min-w-0">
-                  <Link href={`/workspaces/${w.id}/tree`} className="text-[14px] text-black/85 hover:underline">
-                    {w.productName}
+                  <Link href={`/workspaces/${w.id}`} className="text-[14px] text-black/85 hover:underline">
+                    {t(w.productName)}
                   </Link>
                   <p className="mt-0.5 font-mono text-[11px] text-black/40">
                     CN {w.cnCode || "—"} · {w.installationName} · {w.year}
@@ -297,7 +298,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
 
               {months.length === 0 ? (
                 <p className="px-5 py-5 text-[12.5px] text-black/40">
-                  {t("Nothing sent yet. Open the workspace's Monthly data tab and send a month to start the trail.")}
+                  {t("Nothing sent yet. Open the product report's Monthly data tab and send a month to start the trail.")}
                 </p>
               ) : (
                 /* The Inbox's row shape, deliberately — same question, other
@@ -312,17 +313,17 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
                       <StatusDot tone={m.done ? "ok" : m.overdue ? "err" : "warn"} />
                       <span className="min-w-0 flex-1">
                         <span className="block text-[13.5px] text-black/80">{monthNameLong(m.month)}</span>
-                        <span className="mt-0.5 block truncate text-[11.5px] text-black/40">{workspaceTitle(w)}</span>
+                        <span className="mt-0.5 block truncate text-[11.5px] text-black/40">{workspaceTitle(w, t)}</span>
                       </span>
                       <span className="hidden flex-none text-right sm:block">
                         <span className="block font-mono text-[11px] text-black/40">{t(MONTH_STATUS_LABEL[m.status])}</span>
-                        <span className="mt-0.5 block font-mono text-[10.5px] text-black/30">sent {formatDate(new Date(m.sentAt))}</span>
+                        <span className="mt-0.5 block font-mono text-[10.5px] text-black/30">{t("sent {date}", { date: formatDate(new Date(m.sentAt)) })}</span>
                       </span>
                       <span className="flex-none text-right">
                         <span className={cn("block font-mono text-[11.5px]", m.done ? "text-[#047857]" : m.overdue ? "text-[#dc2626]" : "text-black/45")}>
                           {m.done ? t("in") : m.countdown}
                         </span>
-                        <span className="mt-0.5 block font-mono text-[10.5px] text-black/30">due {formatDate(m.due)}</span>
+                        <span className="mt-0.5 block font-mono text-[10.5px] text-black/30">{t("due {date}", { date: formatDate(m.due) })}</span>
                       </span>
                       <ArrowRight size={15} strokeWidth={1.5} className="flex-none text-black/25" />
                     </Link>
@@ -338,7 +339,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
       <section className="space-y-3">
         <Eyebrow>{t("Generated report")}</Eyebrow>
         <p className="max-w-2xl text-[12.5px] leading-relaxed text-black/45">
-          {t("One document per good, built from what this supplier has actually sent you. Generated on download rather than stored, so it always says what the workspace says today.")}
+          {t("One document per good, built from what this supplier has actually sent you. Generated on download rather than stored, so it always says what the product report says today.")}
         </p>
 
         {goods.length === 0 ? (
@@ -354,7 +355,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
                   <FileText size={15} strokeWidth={1.5} className="flex-none text-black/35" />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[13px] text-black/75">
-                      {w.productName} · {w.year}
+                      {t(w.productName)} · {w.year}
                     </span>
                     <span className="block font-mono text-[11px] text-black/40">
                       {w.installationName} · {inCount} {t("months in")}

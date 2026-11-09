@@ -115,7 +115,7 @@ export function entityTabs(node: TreeNode, chainWorkspaceId: string): EntityTabS
 
   // Only ever a precursor: the root installation always has a workspace (see
   // entityWorkspaceId above), so it always takes the four real tabs.
-  const locked = "This precursor has no workspace of its own yet. Track a report for it and its own months, readiness and settings open here.";
+  const locked = "This precursor has no product report of its own yet. Track a report for it and its own months, readiness and settings open here.";
 
   return [
     { key: "overview", label: "Overview", href: `/workspaces/${chainWorkspaceId}/tree/${entitySegment(node)}` },
@@ -145,7 +145,7 @@ export function entityTabs(node: TreeNode, chainWorkspaceId: string): EntityTabS
    with all the other suppliers on it.
 
    ONE PASS OVER EVERY CHAIN. `linkedWorkspaceId` lives on the precursor row,
-   so the question "who links to this workspace" can only be answered by
+   so the question "who links to this product report" can only be answered by
    looking — there is no back-pointer on the workspace, and adding one would
    be a second copy of the same fact to keep in step. Chains are small (a
    handful of rows each) and this runs once per navigation. */

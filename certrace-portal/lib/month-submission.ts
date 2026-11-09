@@ -30,6 +30,8 @@
    Frontend-only MVP: one localStorage key, same seam as the other stores.
    ════════════════════════════════════════════════════════════ */
 
+import { dateLocaleNow } from "./i18n";
+
 export type Attestation = {
   /** typed name — browser-local demo metadata, never an e-signature */
   fullName: string;
@@ -59,6 +61,9 @@ export type MonthSubmission = {
   state: ReviewState;
   /** set when the supplier submits; cleared when anyone edits afterwards */
   attestation: Attestation | null;
+  /** EVERY authorisation ever given for this month, oldest first. `attestation` is the one standing now; this is the record,
+      and an exporter's edit that voids the first does not remove it. */
+  history?: Attestation[];
   /** ISO timestamp of the supplier's submission */
   submittedAt?: string;
   /* ── The exporter's side ──────────────────────────────────── */
@@ -153,6 +158,7 @@ export function submitWithAttestation(workspaceId: string, month: string, attest
     ...prev,
     state: "submitted",
     attestation,
+    history: [...authorisationHistory(prev).slice().reverse(), attestation].slice(-50),
     submittedAt: new Date().toISOString(),
     editedByExporter: false,
     editedAt: undefined,
@@ -165,6 +171,22 @@ export function submitWithAttestation(workspaceId: string, month: string, attest
        cleared is the REQUEST: a resubmitted month is no longer outstanding. */
     editRequest: undefined,
   });
+}
+
+/** Who authorised this month and when, newest first. A month submitted before the record was kept still shows the one authorisation it had. */
+export function authorisationHistory(s: MonthSubmission | null | undefined): Attestation[] {
+  if (!s) return [];
+  const all = s.history && s.history.length > 0 ? s.history : s.attestation ? [s.attestation] : [];
+  return all.slice().sort((a, b) => b.at.localeCompare(a.at));
+}
+
+/** "25 Oct 2026 · 14:32" — the date the platform uses everywhere, and the time it was pressed. */
+export function formatAuthorisedAt(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const date = d.toLocaleDateString(dateLocaleNow(), { day: "numeric", month: "short", year: "numeric" });
+  const time = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
+  return `${date} · ${time}`;
 }
 
 /** Called whenever the EXPORTER changes a figure on a month that had already
@@ -286,5 +308,5 @@ export function formatSubmissionDate(iso: string | null | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  return d.toLocaleDateString(dateLocaleNow(), { day: "numeric", month: "short", year: "numeric" });
 }

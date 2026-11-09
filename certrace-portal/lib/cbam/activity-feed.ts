@@ -20,6 +20,8 @@ export type ActivityEvent = {
   kind: ActivityKind;
   at: string;
   label: string;
+  /** the label as a template and its parts, so a screen can say it in its own language; `month` is an ISO month ('2026-08') */
+  say?: { key: string; vars: Record<string, string | number> };
   workspaceId: string;
   workspaceLabel: string;
   deepLink: string;
@@ -35,6 +37,7 @@ export function activityFeedFor(workspaces: VerificationWorkspace[], limit = 15)
           kind: "supplier_submitted",
           at: s.smartLinkSubmittedAt,
           label: `${s.name || s.precursorName || "A precursor supplier"} submitted their data`,
+          say: { key: "{name} submitted their data", vars: { name: s.name || s.precursorName || "A precursor supplier" } },
           workspaceId: ws.id,
           workspaceLabel: ws.productName,
           deepLink: `/workspaces/${ws.id}/precursors`,
@@ -47,6 +50,7 @@ export function activityFeedFor(workspaces: VerificationWorkspace[], limit = 15)
         kind: "document_uploaded",
         at: item.capturedAt,
         label: `${item.fileName} uploaded${item.uploadedBy ? ` by ${item.uploadedBy}` : ""}`,
+        say: item.uploadedBy ? { key: "{file} uploaded by {who}", vars: { file: item.fileName, who: item.uploadedBy } } : { key: "{file} uploaded", vars: { file: item.fileName } },
         workspaceId: ws.id,
         workspaceLabel: ws.productName,
         deepLink: item.month ? `/workspaces/${ws.id}/monthly/${item.month}` : `/workspaces/${ws.id}/mmd`,
@@ -58,6 +62,7 @@ export function activityFeedFor(workspaces: VerificationWorkspace[], limit = 15)
         kind: "mmd_finalised",
         at: v.finalisedAt,
         label: `Monitoring plan v${v.n} finalised by ${v.author}`,
+        say: { key: "Monitoring plan v{n} finalised by {who}", vars: { n: v.n, who: v.author } },
         workspaceId: ws.id,
         workspaceLabel: ws.productName,
         deepLink: `/workspaces/${ws.id}/mmd`,
@@ -70,6 +75,7 @@ export function activityFeedFor(workspaces: VerificationWorkspace[], limit = 15)
           kind: "month_submitted",
           at: entry.submittedAt,
           label: `${monthNameLong(entry.month)} submitted${entry.submittedBy ? ` by ${entry.submittedBy}` : ""}`,
+          say: entry.submittedBy ? { key: "{month} submitted by {who}", vars: { month: entry.month, who: entry.submittedBy } } : { key: "{month} submitted", vars: { month: entry.month } },
           workspaceId: ws.id,
           workspaceLabel: ws.productName,
           deepLink: `/workspaces/${ws.id}/monthly/${entry.month}`,

@@ -41,13 +41,24 @@ const RATE_KEY = "certrace:eur-thb-rate";
 
 type PriceStore = CertificatePriceRow[];
 
-/** Confirmed at the time this table was seeded — see the prompt pack this
-    module was built from. Nothing later than 2026-Q2 is invented; add rows
-    through the Settings admin form as the Commission publishes them. */
+/** The Commission's quarterly CBAM certificate prices for 2026 imports, each published in the first week after its quarter
+    closes (EU ETS auction data). The newest is the one every cost figure in the portal is read at, so this table has to keep
+    moving: Q3 2026 (EUR 82.32, 5 October 2026) was missing here for three weeks and every figure was still being read at Q2.
+    From 2027 the price is weekly ("2027-W03"); add rows through the Settings admin form, or here, as the Commission publishes them.
+    Nothing later than the last published price is invented. */
+const NEWS_PAGE = "https://taxation-customs.ec.europa.eu/carbon-border-adjustment-mechanism/cbam-communication-and-news_en";
 const SEEDED_PRICES: PriceStore = [
-  { id: "2026-q1", periodLabel: "2026-Q1", priceEurPerTco2e: 75.36, publishedDate: "2026-01-01" },
-  { id: "2026-q2", periodLabel: "2026-Q2", priceEurPerTco2e: 75.28, publishedDate: "2026-04-01" },
+  { id: "2026-q1", periodLabel: "2026-Q1", priceEurPerTco2e: 75.36, publishedDate: "2026-04-07", sourceUrl: NEWS_PAGE },
+  { id: "2026-q2", periodLabel: "2026-Q2", priceEurPerTco2e: 75.28, publishedDate: "2026-07-06", sourceUrl: NEWS_PAGE },
+  { id: "2026-q3", periodLabel: "2026-Q3", priceEurPerTco2e: 82.32, publishedDate: "2026-10-05", sourceUrl: NEWS_PAGE },
 ];
+
+/** What is stored wins row by row — an edit made in Settings is the reader's — but a published price the stored list has never
+    heard of is added. Without this, anyone whose browser had saved the table once would be stuck on the prices of that day. */
+function withSeeded(stored: PriceStore): PriceStore {
+  const have = new Set(stored.map((r) => r.id));
+  return [...stored, ...SEEDED_PRICES.filter((r) => !have.has(r.id))];
+}
 
 function readPrices(): PriceStore {
   if (typeof window === "undefined") return SEEDED_PRICES;
@@ -55,7 +66,7 @@ function readPrices(): PriceStore {
     const raw = window.localStorage.getItem(PRICES_KEY);
     if (!raw) return SEEDED_PRICES;
     const parsed = JSON.parse(raw) as PriceStore;
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : SEEDED_PRICES;
+    return Array.isArray(parsed) && parsed.length > 0 ? withSeeded(parsed) : SEEDED_PRICES;
   } catch {
     return SEEDED_PRICES;
   }
@@ -100,8 +111,8 @@ export function latestCertificatePriceFor(year: number): CertificatePriceRow | n
    year would misstate the headline number the CEO reads first. */
 export type ExchangeRate = { eurToThb: number; asOf: string };
 
-/** Placeholder rate, clearly not a live feed — update via Settings. */
-const SEEDED_RATE: ExchangeRate = { eurToThb: 38.0, asOf: "2026-01-01" };
+/** The ECB euro reference rate of 23 October 2026 — not a live feed, and the screens say so with its date. Update via Settings. */
+const SEEDED_RATE: ExchangeRate = { eurToThb: 37.771, asOf: "2026-10-23" };
 
 export function getExchangeRate(): ExchangeRate {
   if (typeof window === "undefined") return SEEDED_RATE;
@@ -119,6 +130,35 @@ export function saveExchangeRate(rate: ExchangeRate): void {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(RATE_KEY, JSON.stringify(rate));
+  } catch {
+    /* ignore quota */
+  }
+}
+
+/* ── EUR → CNY and EUR → INR ────────────────────────────────────
+   The Carbon & Cost and Dashboard pages can show every figure in yuan and rupees as well as baht and euros. The certificate price is
+   in euros (it is the EU's), so each other currency is one rate away. Placeholders, like the baht rate above and for the same reason:
+   a stale rate for a year would misstate the headline number the reader sees first. Edit them on the Carbon & Cost tab. */
+export type ExtraRates = { eurToCny: number; eurToInr: number; asOf: string };
+const EXTRA_KEY = "certrace:eur-cny-inr-rates";
+const SEEDED_EXTRA: ExtraRates = { eurToCny: 7.466, eurToInr: 106.272, asOf: "2026-10-23" };
+
+export function getExtraRates(): ExtraRates {
+  if (typeof window === "undefined") return SEEDED_EXTRA;
+  try {
+    const raw = window.localStorage.getItem(EXTRA_KEY);
+    if (!raw) return SEEDED_EXTRA;
+    const p = JSON.parse(raw) as Partial<ExtraRates>;
+    return { eurToCny: Number(p.eurToCny) > 0 ? Number(p.eurToCny) : SEEDED_EXTRA.eurToCny, eurToInr: Number(p.eurToInr) > 0 ? Number(p.eurToInr) : SEEDED_EXTRA.eurToInr, asOf: p.asOf ?? SEEDED_EXTRA.asOf };
+  } catch {
+    return SEEDED_EXTRA;
+  }
+}
+
+export function saveExtraRates(rates: ExtraRates): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(EXTRA_KEY, JSON.stringify(rates));
   } catch {
     /* ignore quota */
   }
@@ -225,7 +265,7 @@ export function costAvoidanceFor(workspace: VerificationWorkspace, see: Workspac
   // would inflate the gap to the FULL default value and report a savings
   // number built on data that was never entered. This must stop here, not
   // pass a fabricated near-100% saving downstream.
-  if (!see.computable) return { status: "not_computable", reason: "No production data has been entered for this workspace yet." };
+  if (!see.computable) return { status: "not_computable", reason: "No production data has been entered for this product report yet." };
 
   const def = defaultSeeForWorkspace(workspace);
   if (!def) return { status: "no_default", reason: "No default emissions figure is on file for this product's category yet." };

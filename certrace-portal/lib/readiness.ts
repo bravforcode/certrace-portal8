@@ -43,9 +43,9 @@
 import { carbonPriceState, getCarbonPrice } from "./carbon-price";
 import { annualCoverage, annualScopeFor, CARBON_PRICE_KEY, coverageForMonth, isReviewed } from "./workspace-evidence";
 import { monthCounts, monthsForWorkspace, monthsMissingNcv, type MonthlyEntry } from "./monthly-data";
-import { precursorContribution } from "./precursor-suppliers";
+import { listSuppliers, precursorContribution } from "./precursor-suppliers";
 import { estimatedGapTCO2e, finalVersionCovering, loadDraft } from "./workspace-mmd";
-import { workspaceSEE } from "./workspace-see";
+import { workspaceSEE, internalContribution } from "./workspace-see";
 import { getWorkspace, isComplexWorkspace, monthNameLong, type VerificationWorkspace } from "./workspace";
 import { workspaceRequiresIndirectEmissions } from "./cbam/product-category-rules";
 
@@ -127,7 +127,8 @@ function mmdReadiness(ws: VerificationWorkspace): TabReadiness {
    that cannot be performed, and the annual figure would be wrong rather than
    incomplete. */
 const monthHasSubstance = (m: MonthlyEntry): boolean =>
-  m.productionTonnes > 0 && m.electricityMwh > 0 && m.fuels.length > 0;
+  // A month in which nothing was made is complete as it stands: the plant stood idle, so there is no production, power or fuel to be missing.
+  Boolean(m.notManufactured) || (m.productionTonnes > 0 && m.electricityMwh > 0 && m.fuels.length > 0);
 
 function monthlyReadiness(ws: VerificationWorkspace): TabReadiness {
   const missingNcv = monthsMissingNcv(ws);
@@ -177,32 +178,32 @@ function precursorReadiness(ws: VerificationWorkspace): TabReadiness {
     };
   }
 
-  if (result.overDefaultCap) {
-    return {
-      tab: "precursors",
-      state: "blocked",
-      blockingReason: `${(result.defaultValueShare * 100).toFixed(1)}% of the precursor contribution rests on default values, over the 20% cap for a complex good. Get an actual figure from the supplier behind the largest default-value tier, or the filing rests on values the EU marks up.`,
-      missing: result.byNode
-        .filter((n) => n.dataOrigin === "default_value" && !n.isScrap)
-        .map((n) => ({ label: `${n.name || n.precursorName || "Unnamed supplier"} — using a default value`, deepLink: link(ws.id, "/precursors") })),
-    };
-  }
-
-  if (result.byNode.length === 0) {
+  // Products this site makes itself are precursors too (items 18 and 19) — a good built only from those has a chain.
+  const madeHere = internalContribution(ws).rows;
+  if (result.byNode.length === 0 && madeHere.length === 0) {
     return {
       tab: "precursors",
       state: "incomplete",
       missing: [{ label: "No precursor suppliers recorded for a complex good", deepLink: link(ws.id, "/precursors") }],
     };
   }
+  const madeHereOpen = madeHere.filter((r) => r.issue).map((r) => ({ label: `${r.source?.productName ?? "A product made here"} — ${r.issue}`, deepLink: link(ws.id, "/precursors") }));
 
   return {
     tab: "precursors",
-    state: result.incomplete.length === 0 ? "complete" : "incomplete",
-    missing: result.incomplete.map((n) => ({
-      label: `${n.name || n.precursorName || "Unnamed supplier"} — missing quantity, installation or SEE`,
-      deepLink: link(ws.id, "/precursors"),
-    })),
+    state: result.incomplete.length === 0 && madeHereOpen.length === 0 ? "complete" : "incomplete",
+    missing: [...madeHereOpen, ...result.incomplete].map((n) => {
+      if ("deepLink" in n) return n;
+      const row = listSuppliers(ws.id).find((r) => r.id === n.id);
+      const who = n.precursorName || n.name || "Unnamed precursor";
+      const label =
+        row?.valueBasis === "actual"
+          ? `${who} — actual value chosen, not yet usable (the default stands in until the precursor's verified data is complete)`
+          : row?.valueBasis === "default"
+            ? `${who} — missing its CN code or the quantity used`
+            : `${who} — missing quantity, installation or SEE`;
+      return { label, deepLink: link(ws.id, "/precursors") };
+    }),
   };
 }
 
@@ -253,9 +254,9 @@ function evidenceReadiness(ws: VerificationWorkspace): TabReadiness {
   const price = getCarbonPrice(ws.id);
   for (const row of annualCoverage(ws.id, annualScopeFor(ws.id, ws.periodStart, ws.periodEnd, price.amountPerTonne > 0))) {
     if (row.covered) continue;
-    // The carbon-price receipt is claimed on Readiness; the other two annual
+    // The carbon-price receipt is claimed on the product's Carbon price tab; the other two annual
     // keys are asserted by the MMD, so that is where each one is fixed.
-    const target = row.key === CARBON_PRICE_KEY.key ? "/readiness#carbon-price" : "/mmd";
+    const target = row.key === CARBON_PRICE_KEY.key ? "/carbon-price" : "/mmd";
     missing.push({ label: `${row.label}: no document`, deepLink: link(ws.id, target) });
   }
 
@@ -288,7 +289,7 @@ function carbonPriceReadiness(ws: VerificationWorkspace): TabReadiness {
     return {
       tab: "carbon_price",
       state: "incomplete",
-      missing: [{ label: state.reason ?? "Carbon price not recorded", deepLink: link(ws.id, "/readiness#carbon-price") }],
+      missing: [{ label: state.reason ?? "Carbon price not recorded", deepLink: link(ws.id, "/carbon-price") }],
     };
   }
   return { tab: "carbon_price", state: "complete", missing: [] };
@@ -307,7 +308,8 @@ export type MaterialityResult = {
 
 export function materiality(ws: VerificationWorkspace): MaterialityResult {
   const see = workspaceSEE(ws);
-  const total = see.directTCO2 + see.indirectTCO2;
+  // Indirect emissions are part of the figure only for goods outside Annex II; for steel and aluminium the 5 % is read against the direct emissions.
+  const total = see.directTCO2 + (see.indirectCounted ? see.indirectTCO2 : 0);
   const draft = loadDraft(ws.id, ws.periodStart, ws.periodEnd);
   const final = finalVersionCovering(ws.id, ws.periodStart, ws.periodEnd);
   const estimated = estimatedGapTCO2e(final ? final.content : draft);

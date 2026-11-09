@@ -1,176 +1,159 @@
 "use client";
 
 /* ════════════════════════════════════════════════════════════
-   REPORTS — one report per product, wherever that product came from
+   REPORTS — one package per installation, for each reporting year
 
-   A REPORT IS A WORKSPACE. There is no separate reports store and no "create
-   report" step, because there is nothing a report could be built out of that
-   the workspace does not already hold: the twelve months, the methodology,
-   the chain and the documents attached to each. So this page lists workspaces
-   and calls them what the exporter came here for.
+   WHAT LEAVES THE PORTAL IS THE INSTALLATION'S, NOT THE PRODUCT'S. Annex IV to
+   Implementing Regulation (EU) 2025/2547 has an installation hand over a set —
+   the monitoring plan, the operator's emissions report, the summary report, and
+   a declarant-specific addendum where electricity is imported into the EU — and
+   each of them covers every product the site makes in the year. So this page
+   lists installations (one row per installation and year), not product reports,
+   and each row exports that installation's package: every report of the set,
+   zipped, one button.
 
-   ── THE TWO WAYS ONE APPEARS ───────────────────────────────────
-   Both are the same act — a workspace being created — and the list stays in
-   step with them because it is derived on read, never stored:
+   THE BUTTON FOLLOWS THE SAME RULE AS THE READINESS TAB, because it is the same
+   package (lib/cbam/package-status.ts): inactive until the installation's
+   information, every product report of the year and every report's own items
+   are in, and the card says what is holding it. A package that looks final and
+   is not is worse than none, since it gets sent.
 
-     · YOUR OWN PRODUCTS. Every workspace opened from Verification. One
-       product, at one installation, for one year: one report.
-
-     · PRECURSORS YOU ARE TRACKING. Pressing "Track report" on a chain row
-       creates a real workspace on that supplier's behalf, and the last step
-       of that flow is what mints it. It runs the identical pipeline, so it
-       produces an identical pack — it is a report, and it appears here as
-       one the moment it exists.
-
-   THEY ARE SHOWN AS TWO GROUPS RATHER THAN ONE LIST, and that is the only
-   thing this page does that a flat map over listWorkspaces() would not.
-   The distinction is not cosmetic: a pack for your own good is what you hand
-   your buyer, and a pack for a precursor is what you hand YOURSELF as the
-   evidence behind one line of that first pack. Same file, same gate,
-   different destination — and an exporter who mixes them up sends the wrong
-   one.
-
-   ── WHAT WAS REMOVED, AND WHY ──────────────────────────────────
-   · THE PLAN STRIP. A commercial badge in the middle of a work surface,
-     answering a question nobody asks while looking at their reports.
-   · THE FILED-PACKAGES ARCHIVE. Three CBAM packages hard-coded in a fixture
-     and rendered as this exporter's filing history — the same three, in every
-     account, each stamped "accepted". A history identical for everyone is not
-     a history, and "accepted" is a claim about an authority in a build with
-     no submission path at all.
-   · THE COUNTERS ABOVE IT, for the same reason: "3 packages filed" was that
-     fixture counted.
+   THE LIST IS DERIVED ON READ, never stored: an installation appears here the
+   moment a product report is opened at it. They are shown as two groups — your
+   own sites, and suppliers' sites you are tracking — because the first is what
+   you hand your buyer and the second is the evidence behind one line of it.
    ════════════════════════════════════════════════════════════ */
 
+import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Download } from "lucide-react";
-import { Card, EmptyState, PageHeader, Stat, Eyebrow, Button } from "@/components/ui";
+import { Button, ButtonLink, Card, Chip, EmptyState, Eyebrow, PageHeader, Progress, Stat } from "@/components/ui";
 import { ErrorState, LoadingState } from "@/components/query-state";
 import { toast } from "@/components/toast";
-import { useT } from "@/lib/i18n";
-import { StateChip } from "@/components/workspace/chrome";
-import { annualProductionFor } from "@/lib/monthly-data";
-import { trackedWorkspaceIndex, type PrecursorSupplier } from "@/lib/precursor-suppliers";
-import { workspaceReadiness } from "@/lib/readiness";
-import { downloadVerifierPack, PackBlockedError } from "@/lib/verifier-pack";
+import { useAccount } from "@/components/account-lock";
+import { documentsInPackage, packageStatus, reportsInPackage, type PackageStatus } from "@/lib/cbam/package-status";
+import { evidenceFilesForPackage } from "@/lib/cbam/package-evidence";
+import { reportPackageFileName } from "@/lib/cbam/report-set";
+import { downloadReportPackage } from "@/lib/cbam/report-set-pdf";
+import { installationForWorkspace, type Installation } from "@/lib/installations";
+import { signOffState } from "@/lib/pack-signoff";
 import { listWorkspaces, type VerificationWorkspace } from "@/lib/workspace";
+import { useT } from "@/lib/i18n";
 
 type Row = {
-  workspace: VerificationWorkspace;
-  readiness: ReturnType<typeof workspaceReadiness>;
-  production: ReturnType<typeof annualProductionFor>;
-  /** the chain row this report was opened for, when it was opened from one */
-  trackedFor: PrecursorSupplier | null;
+  installation: Installation;
+  year: number;
+  status: PackageStatus;
+  /** "Name, job title" of whoever signed the figures off, when somebody has */
+  signedBy?: string;
+  /** product names, for the line under the installation */
+  products: string[];
 };
+
+const keyOf = (r: Row) => `${r.installation.id}:${r.year}`;
 
 export default function ReportsPage() {
   const t = useT();
+  const { plan } = useAccount();
+  const methodologyLocked = !plan.features.methodologyDoc;
+  const [busy, setBusy] = React.useState<string | null>(null);
+
   const { data: rows, isError, refetch } = useQuery<Row[]>({
     queryKey: ["workspaces", "reports"],
     staleTime: 0,
     queryFn: () => {
-    const workspaces = listWorkspaces();
-    const tracked = trackedWorkspaceIndex(workspaces);
-    return workspaces.map((w) => ({
-      workspace: w,
-      readiness: workspaceReadiness(w),
-      production: annualProductionFor(w),
-      trackedFor: tracked.get(w.id) ?? null,
-    }));
+      const byInstallation = new Map<string, VerificationWorkspace[]>();
+      for (const w of listWorkspaces()) byInstallation.set(w.installationId, [...(byInstallation.get(w.installationId) ?? []), w]);
+
+      const out: Row[] = [];
+      for (const [id, workspaces] of byInstallation) {
+        const first = workspaces[0];
+        const installation = installationForWorkspace({ installationId: id, installationName: first.installationName, selfSupplied: first.selfSupplied, supplierId: first.supplierId });
+        const years = [...new Set(workspaces.map((w) => w.year))].sort((a, b) => b - a);
+        for (const year of years) {
+          const status = packageStatus({ installation, workspaces, year });
+          const sign = signOffState(status.signKey, status.ready, status.fingerprint);
+          out.push({
+            installation,
+            year,
+            status,
+            signedBy: sign.kind === "signed" ? `${sign.signOff.name}, ${sign.signOff.jobTitle}` : undefined,
+            products: workspaces.filter((w) => w.year === year).map((w) => w.productName),
+          });
+        }
+      }
+      return out.sort((a, b) => (a.installation.name || a.installation.id).localeCompare(b.installation.name || b.installation.id) || b.year - a.year);
     },
   });
 
   if (isError) return <ErrorState onRetry={() => void refetch()} />;
   if (!rows) return <LoadingState />;
 
-  const all = rows;
-  const own = all.filter((r) => !r.trackedFor);
-  const forPrecursors = all.filter((r) => r.trackedFor);
-  const ready = all.filter((r) => r.readiness.overall === "complete").length;
-  const blocked = all.filter((r) => r.readiness.overall === "blocked").length;
+  const own = rows.filter((r) => r.installation.self);
+  const suppliers = rows.filter((r) => !r.installation.self);
+  const ready = rows.filter((r) => r.status.packageReady).length;
 
-  const exportPack = (w: VerificationWorkspace, readiness: ReturnType<typeof workspaceReadiness>) => {
+  const exportPackage = async (row: Row) => {
+    const key = keyOf(row);
+    setBusy(key);
     try {
-      const pack = downloadVerifierPack(w, readiness);
-      toast({
-        message: pack.draft ? t("Draft pack downloaded") : t("Verifier pack downloaded"),
-        detail: pack.draft ? t("Stamped DRAFT — NOT READY FOR VERIFICATION on every page.") : pack.fileName,
-        tone: pack.draft ? "warn" : "ok",
-      });
+      const reports = reportsInPackage(row.status.set, methodologyLocked);
+      const fileName = reportPackageFileName(row.installation, row.year);
+      const extraFiles = evidenceFilesForPackage(row.status.reports.map((x) => x.w), row.year);
+      await downloadReportPackage(documentsInPackage(row.status.set, methodologyLocked), { installation: row.installation, year: row.year, signedBy: row.signedBy, extraFiles }, fileName);
+      toast({ message: t("Package downloaded"), detail: `${fileName} · ${reports.length} ${t("reports")} · ${extraFiles.length} ${t("documents")}`, tone: "ok" });
     } catch (e) {
-      if (e instanceof PackBlockedError) {
-        toast({ message: t("The pack cannot be assembled"), detail: e.reasons[0], tone: "err" });
-        return;
-      }
-      toast({ message: t("Could not build the pack"), detail: e instanceof Error ? e.message : String(e), tone: "err" });
+      toast({ message: t("Could not build the package"), detail: e instanceof Error ? e.message : String(e), tone: "err" });
+    } finally {
+      setBusy(null);
     }
   };
 
   return (
     <div className="space-y-8">
-      {/* CONCISE ON PURPOSE. Two sentences: what a report is, and where they
-          come from. Everything else this page used to explain up front —
-          how a pack is assembled, what it is stamped with, why it is
-          re-generated — is said on the card it applies to, at the moment it
-          matters, rather than as a paragraph to get past. */}
-      <PageHeader
-        eyebrow={t("Reports")}
-        title={t("One report per product.")}
-        lead={t("Every product you track gets a report — your own, and any supplier's you have started tracking. Each is built from that product's months, so it always says what its workspace says today.")}
-      />
+      {/* CONCISE ON PURPOSE. Two sentences: what leaves, and what it is built
+          from. Why a package is held is said on the card it applies to, at the
+          moment it matters, rather than as a paragraph to get past. */}
+      <PageHeader title={t("Reports")} lead={t("One package per site and year. It downloads once everything in it is complete.")} />
 
-      {all.length > 0 && (
+      {rows.length > 0 && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <Card className="p-5">
-            <Stat value={all.length} label={t("Reports")} sub={t("one per product")} />
+            <Stat value={rows.length} label={t("Packages")} />
           </Card>
           <Card className="p-5">
-            <Stat value={ready} label={t("Ready to send")} sub={t("nothing outstanding")} />
+            <Stat value={ready} label={t("Ready to send")} />
           </Card>
           <Card className="p-5">
-            <Stat value={blocked} label={t("Blocked")} sub={t("a figure cannot be worked out")} />
+            <Stat value={rows.length - ready} label={t("Still to do")} />
           </Card>
         </div>
       )}
 
-      {all.length === 0 ? (
+      {rows.length === 0 ? (
         <EmptyState
-          title={t("No reports yet")}
-          body={t("Create a workspace for a product, or press Track report on a supplier in a chain, and it appears here.")}
+          title={t("No packages yet")}
+          body={t("A package appears once you create a product report.")}
+          action={<ButtonLink href="/workspaces/new">{t("New product report")}</ButtonLink>}
         />
       ) : (
         <>
+          <Group title={t("Your sites")} blurb={t("What you send your buyer.")} rows={own} busy={busy} methodologyLocked={methodologyLocked} onExport={exportPackage} />
           <Group
-            title={t("Your products")}
-            blurb={t("What you send your buyer. One per product, installation and year.")}
-            rows={own}
-            onExport={exportPack}
+            title={t("Suppliers' sites")}
+            blurb={t("Your evidence for one line of the package. The buyer does not receive these.")}
+            rows={suppliers}
+            busy={busy}
+            methodologyLocked={methodologyLocked}
+            onExport={exportPackage}
           />
-          {forPrecursors.length > 0 && (
-            <Group
-              title={t("Precursors you are tracking")}
-              blurb={t("Started from Track report on a supply-chain row. These are your evidence for one line of the report above, not something the buyer receives.")}
-              rows={forPrecursors}
-              onExport={exportPack}
-            />
-          )}
         </>
       )}
     </div>
   );
 }
 
-function Group({
-  title,
-  blurb,
-  rows,
-  onExport,
-}: {
-  title: string;
-  blurb: string;
-  rows: Row[];
-  onExport: (w: VerificationWorkspace, r: ReturnType<typeof workspaceReadiness>) => void;
-}) {
+function Group({ title, blurb, rows, busy, methodologyLocked, onExport }: { title: string; blurb: string; rows: Row[]; busy: string | null; methodologyLocked: boolean; onExport: (r: Row) => void }) {
   const t = useT();
   if (rows.length === 0) return null;
 
@@ -183,42 +166,38 @@ function Group({
         <p className="mt-1.5 max-w-2xl text-[12.5px] leading-relaxed text-black/45">{blurb}</p>
       </div>
 
-      {/* A pack is GATED ON READINESS. Blocked means arithmetic that cannot be
-          performed, and a pack assembled past that point would be an assertion
-          the data does not support; incomplete stamps every page DRAFT — NOT
-          READY FOR VERIFICATION, because a pack that looks final and is not is
-          worse than no pack, since it gets sent. */}
-      {rows.map(({ workspace: w, readiness, production, trackedFor }) => (
-        <Card key={w.id} className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm text-[#111]">{w.productName}</span>
-              <StateChip state={readiness.overall} />
-            </div>
-            <p className="mt-1 font-mono text-[11.5px] text-black/40">
-              CN {w.cnCode || "—"} · {w.installationName} · {w.year} · {production.monthsCounted}/12 {t("months in")}
-            </p>
-            {/* Which chain row asked for this report. Named rather than
-                implied — "tracked" alone leaves the reader to work out whose. */}
-            {trackedFor && (
-              <p className="mt-1 text-[12px] text-black/40">
-                {t("Tracked for")} {trackedFor.name || trackedFor.installationName || t("a supplier")}
-                {trackedFor.precursorName ? ` · ${trackedFor.precursorName}` : ""}
+      {rows.map((row) => {
+        const { installation, year, status } = row;
+        const key = keyOf(row);
+        const blocked = status.reports.some((x) => x.r.overall === "blocked");
+        return (
+          <Card key={key} className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm text-[#111]">{installation.name || installation.id}</span>
+                <Chip tone={status.packageReady ? "ok" : blocked ? "err" : "warn"}>
+                  {status.packageReady ? t("Ready to send") : blocked ? t("Blocked") : t("{n} to do", { n: status.holding.length })}
+                </Chip>
+              </div>
+              <p className="mt-1 font-mono text-[11.5px] text-black/40">
+                {installation.id} · {year} · {t("{n} product reports", { n: status.reports.length })}
               </p>
-            )}
-            <p className="mt-1.5 text-[12px] text-black/45">
-              {readiness.overall === "blocked"
-                ? t("Blocked — one of the tabs has a figure that cannot be worked out yet.")
-                : readiness.overall === "complete"
-                  ? t("Ready. Downloads clean.")
-                  : t("Still incomplete — every page downloads stamped DRAFT.")}
-            </p>
-          </div>
-          <Button size="sm" variant="secondary" className="flex-none" disabled={readiness.overall === "blocked"} onClick={() => onExport(w, readiness)}>
-            <Download size={13} strokeWidth={1.5} /> {t("Export pack")}
-          </Button>
-        </Card>
-      ))}
+              <div className="mt-2 w-48 max-w-full">
+                <Progress value={status.percent} tone={blocked ? "err" : status.packageReady ? "ok" : "warn"} />
+              </div>
+              <p className="mt-1 truncate text-[12px] text-black/40" title={row.products.map((n) => t(n)).join(", ")}>
+                {row.products.map((n) => t(n)).join(" · ")}
+              </p>
+              {status.packageReady && methodologyLocked && <p className="mt-1.5 text-[12px] text-black/45">{t("Your free trial leaves the monitoring plan out.")}</p>}
+            </div>
+            <div className="flex flex-none items-center gap-2">
+              <Button size="sm" className="whitespace-nowrap" disabled={!status.packageReady || busy !== null} onClick={() => void onExport(row)} title={status.packageReady ? undefined : t("Every report has to be complete first")}>
+                <Download size={13} strokeWidth={1.5} /> {busy === key ? t("Building…") : t("Export package")}
+              </Button>
+            </div>
+          </Card>
+        );
+      })}
     </section>
   );
 }

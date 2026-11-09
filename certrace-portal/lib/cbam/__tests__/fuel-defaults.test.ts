@@ -156,3 +156,28 @@ test("the steel waste gases are marked, and their factors really are off the sca
   near(euStandardFor("blast_furnace_gas", "m3")!.efTco2PerGj, 0.26, 1e-9, "BFG EF");
   assert.match(pointGRow("Blast furnace gas")!.note!, /Equations 53–54/);
 });
+
+/* ── The whole standard is offered ──────────────────────────── */
+
+test("every one of Point G's 51 rows can be picked, and every pick maps to a real row", async () => {
+  const { FUEL_TYPES } = await import("../../monthly-data");
+  const offered = new Set(FUEL_TYPES.map((f) => FUEL_TYPE_TO_POINT_G[f.id]?.pointG).filter(Boolean));
+  const missing = POINT_G_TABLE.filter((r) => !offered.has(r.fuel)).map((r) => r.fuel);
+  assert.deepEqual(missing, [], "a Point G fuel the picker does not offer is one a plant has to file as Other");
+  assert.equal(new Set(FUEL_TYPES.map((f) => f.id)).size, FUEL_TYPES.length, "no id twice");
+  for (const f of FUEL_TYPES) assert.ok(FUEL_TYPE_TO_POINT_G[f.id], `${f.id} has no Point G mapping`);
+});
+
+test("a fuel that opens in tonnes gets its standard calorific value; one that opens in GJ needs none", () => {
+  near(euStandardFor("petroleum_coke", "t")!.ncvMjPerUnit!, 32_500, 1e-6, "petroleum coke NCV");
+  near(euStandardFor("petroleum_coke", "t")!.efTco2PerGj, 0.0975, 1e-9, "petroleum coke EF");
+  assert.equal(euStandardFor("refinery_gas", "GJ")!.ncvMjPerUnit, null);
+  near(euStandardFor("refinery_gas", "GJ")!.efTco2PerGj, 0.0576, 1e-9, "refinery gas EF");
+  // A volume the portal has no density for stays blank rather than assuming 1 kg per unit.
+  assert.equal(euStandardFor("refinery_gas", "m3")!.ncvMjPerUnit, null);
+});
+
+test("a biomass fuel from the rest of the table is flagged preliminary", () => {
+  assert.equal(euStandardFor("charcoal", "t")!.biomass, true);
+  assert.match(euStandardFor("charcoal", "t")!.caveat!, /PRELIMINARY/);
+});

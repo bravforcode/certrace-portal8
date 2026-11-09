@@ -1,3 +1,5 @@
+import { currentLang, localeFor } from "./i18n";
+import { FULL_CATALOGUE, GROUPS_BY_SECTOR, LEGACY_ONLY, PRIMARY_GROUPS_ALL } from "./cbam/cn-catalogue";
 /*
   Scalability backbone.
 
@@ -285,6 +287,17 @@ export const getCountry = (code: string) => COUNTRIES.find((c) => c.code === cod
 /** Display a stored country value — code if we know it, raw string otherwise. */
 export const countryName = (code: string) => getCountry(code)?.name ?? code;
 
+/** The same, in the language on screen — Thailand · ไทย. `countryName` stays English for what is written down (a report is not translated by the screen it was printed from). */
+export const countryNameShown = (code: string): string => {
+  const lang = currentLang();
+  if (lang === "en" || !code) return countryName(code);
+  try {
+    return new Intl.DisplayNames([localeFor(lang)], { type: "region" }).of(code.toUpperCase()) ?? countryName(code);
+  } catch {
+    return countryName(code);
+  }
+};
+
 /** The 27 EU member states plus the CBAM-exempted EEA/EFTA territories
     (Iceland, Liechtenstein, Norway) and Switzerland (linked ETS, treated as
     exempt under CBAM Art. 2). A precursor produced inside this set carries no
@@ -300,25 +313,20 @@ export const EU_AND_EXEMPT_COUNTRY_CODES: string[] = [
 export const isEuOrExempt = (countryCode: string): boolean => EU_AND_EXEMPT_COUNTRY_CODES.includes(countryCode.trim().toUpperCase());
 
 /* ── Pricing ────────────────────────────────────────────────
-   THE METER IS CN CODES, NOT SUPPLIERS. It used to be suppliers, and that was
-   the wrong thing to charge for: a Thai steel chain is two to four tiers deep
-   whether the exporter sells one CN code or twenty, so a supplier cap taxed
-   the exporter for the shape of their supply chain rather than the size of
-   their filing. Suppliers are unlimited and free on every tier, at any chain
-   depth — that is the wedge, and nothing in the product may cap them.
+   WHAT A PLAN SIZES IS THE FILING, NOT THE SUPPLY CHAIN. A Thai steel chain is two to four tiers deep whether the exporter
+   sells one CN code or six, so nothing here caps the people at the other end of a smart link: suppliers and precursor
+   suppliers enter and fill in through it without limit, on every plan, at any depth. What a plan counts is the exporter's
+   own side — companies, installations (each with its report package), CN codes, precursors, the one reporting year open,
+   the team seats — and the two things that cost something to run: the AI and the reading of uploaded files.
 
-   WHAT A TIER GATES: scale (codes, sites, open years, seats), assurance and
-   workload. NEVER correctness. Starter gets the whole engine, the full
-   six-tier precursor depth, the methodology document and the verifier pack,
-   because a depth-limited Starter would produce a WRONG number, and a wrong
-   number is not a cheaper product — it is a liability.
+   NEVER CORRECTNESS. Every plan gets the whole engine, the full six-tier precursor depth, the methodology document and the
+   verifier pack, because a limited plan that produced a WRONG number would not be a cheaper product but a liability.
 
-   Standard's gates are structural rather than artificial: year-on-year trend
-   needs more than one open year, and AI extraction carries a real marginal
-   cost per document.
+   NO FIGURES LIVE HERE FOR PRICE. All three are quoted, not listed — every card and every call to action goes to sales.
 
-   NO FIGURES LIVE HERE. Starter and Standard are quoted, not listed — the
-   card and the comparison column both say so, and every CTA goes to sales. */
+   THE TWO ALLOWANCES ARE STATED, NOT YET METERED. CN codes, installations, reporting years and seats are enforced across
+   the product (lib/plan.ts). Companies, precursors, AI questions and smart-upload pages are the plan's terms and are shown as
+   such; the page does not draw a usage bar for a number nothing measures. */
 
 /* CONTACT SALES IS A LINE CONVERSATION, NOT A WEB FORM. It used to open
    certrace.co and leave the reader to find a contact route on it. The price
@@ -337,11 +345,11 @@ export const MAX_CHAIN_TIERS = 6;
    product answer for a trial account without a second code path. */
 export type PlanId = "starter" | "standard" | "enterprise" | "trial";
 
-/** null means "not capped on this tier" — unlimited, or negotiated on Enterprise. */
+/** null means "not capped" — only the free trial is. */
 export type PlanCaps = {
   /** CN codes covered by the plan. */
   cnCodes: number | null;
-  /** Production sites the exporter may register. */
+  /** Installations the exporter may register — each carries one report package per reporting year. */
   sites: number | null;
   /** Reporting years that may be open at the same time. */
   years: number | null;
@@ -349,6 +357,19 @@ export type PlanCaps = {
   seats: number | null;
   /** Chain depth. Same everywhere; carried per-plan so the table can print it. */
   chainTiers: number;
+};
+
+/** The plan's other terms: counted, and shown, but not metered by the product yet. */
+export type PlanAllowance = {
+  /** Companies (legal entities) on the account. */
+  companies: number | null;
+  /** Precursors the plan covers. */
+  precursors: number | null;
+  /** AI tokens, and the number of questions they come to (ten to a question). Only the questions are shown; the tokens are the unit a meter would count in. */
+  aiTokens: number | null;
+  aiQuestions: number | null;
+  /** Pages Smart upload reads: an Excel file counts as 1 page, and each image inside it counts as one more. */
+  uploadPages: number | null;
 };
 
 /** Everything a tier switches on rather than counts. */
@@ -375,11 +396,9 @@ export type Plan = {
   unit: string;
   /** what the comparison column prints where a price would go */
   columnPrice: string;
-  builtFor: string;
   highlight?: boolean;
   caps: PlanCaps;
-  /** the cap rows at the foot of the card, in display order */
-  capRows: { label: string; value: string }[];
+  allowance: PlanAllowance;
   features: PlanFeatures;
 };
 
@@ -387,73 +406,55 @@ export const PLANS: Plan[] = [
   {
     id: "starter",
     name: "Starter",
-    tag: "One site",
-    line: "Everything you need, for one plant.",
-    amount: "Request the price",
-    unit: "5 CN codes · annual term",
+    tag: "One company",
+    line: "One company, one installation, one CN code.",
+    amount: "Price on request",
+    unit: "Annual term",
     columnPrice: "Price on request",
-    builtFor: "Your first CBAM year. A single production site, a focused export range, one or two people doing the work.",
-    caps: { cnCodes: 5, sites: 1, years: 1, seats: 3, chainTiers: MAX_CHAIN_TIERS },
-    capRows: [
-      { label: "CN codes", value: "5" },
-      { label: "Production sites", value: "1" },
-      { label: "Team seats", value: "3" },
-      { label: "Suppliers", value: "Unlimited" },
-    ],
-    features: { aiExtraction: false, methodologyDoc: true },
+    caps: { cnCodes: 1, sites: 1, years: 1, seats: 3, chainTiers: MAX_CHAIN_TIERS },
+    allowance: { companies: 1, precursors: 1, aiTokens: 500, aiQuestions: 50, uploadPages: 100 },
+    features: { aiExtraction: true, methodologyDoc: true },
   },
   {
     id: "standard",
     name: "Standard",
     tag: "Most chosen",
-    line: "More plants, more products, more years.",
-    amount: "Request the price",
-    unit: "20 CN codes · annual term",
+    line: "Two installations and three CN codes, with a chain behind them.",
+    amount: "Price on request",
+    unit: "Annual term",
     columnPrice: "Price on request",
-    builtFor: "Several plants, complex goods with real precursor chains, and more than one reporting year in flight.",
     highlight: true,
-    caps: { cnCodes: 20, sites: 5, years: 3, seats: 10, chainTiers: MAX_CHAIN_TIERS },
-    capRows: [
-      { label: "CN codes", value: "20" },
-      { label: "Production sites", value: "Up to 5" },
-      { label: "Team seats", value: "10" },
-      { label: "Suppliers", value: "Unlimited" },
-    ],
+    caps: { cnCodes: 3, sites: 2, years: 1, seats: 5, chainTiers: MAX_CHAIN_TIERS },
+    allowance: { companies: 2, precursors: 4, aiTokens: 1500, aiQuestions: 150, uploadPages: 300 },
     features: { aiExtraction: true, methodologyDoc: true },
   },
   {
     id: "enterprise",
     name: "Enterprise",
-    tag: "Custom",
-    line: "No limits, and we run the year with you.",
-    amount: "Priced on scope",
-    unit: "From 20+ CN codes",
-    columnPrice: "Custom",
-    builtFor: "Exporters and traders past 20 CN codes, or past five plants, who need the reporting year run with them.",
-    caps: { cnCodes: null, sites: null, years: null, seats: null, chainTiers: MAX_CHAIN_TIERS },
-    capRows: [
-      { label: "CN codes", value: "20+ custom" },
-      { label: "Production sites", value: "Unlimited" },
-      { label: "Team seats", value: "Unlimited" },
-      { label: "Suppliers", value: "Unlimited" },
-    ],
+    tag: "Widest",
+    line: "Three installations and six CN codes, with the most room to work.",
+    amount: "Price on request",
+    unit: "Annual term",
+    columnPrice: "Price on request",
+    caps: { cnCodes: 6, sites: 3, years: 1, seats: 10, chainTiers: MAX_CHAIN_TIERS },
+    allowance: { companies: 2, precursors: 8, aiTokens: 3000, aiQuestions: 300, uploadPages: 600 },
     features: { aiExtraction: true, methodologyDoc: true },
   },
 ];
 
 /* ── The free trial ─────────────────────────────────────────
-   ONE MONTH, ENTERPRISE-SHAPED, AND IT ENDS.
+   ONE MONTH, UNCAPPED, AND IT ENDS.
 
    IT IS NOT A FOURTH COLUMN. The trial is a state an account passes through,
-   not a tier anyone chooses between — putting it in PLANS would add a fifth
-   column to a comparison table that is already the widest thing in the
-   product, to sell something nobody buys. It lives on the billing page as the
-   account's own status strip, above the three tiers that are for sale.
+   not a tier anyone chooses between — putting it in PLANS would add a fourth
+   column to a comparison table to sell something nobody buys. It lives on the
+   billing page as the account's own status strip, above the tiers that are
+   for sale.
 
-   THE CAPS ARE ENTERPRISE'S — every one of them null. A trial that caps CN
-   codes at five teaches the exporter that Certrace is small; a trial that
-   runs their whole estate for a month teaches them what the year feels like,
-   and that is the only thing a trial is for. Nothing is metered.
+   NOTHING IS CAPPED. A trial that caps CN codes at one teaches the exporter
+   that Certrace is small; a trial that runs their whole estate for a month
+   teaches them what the year feels like, and that is the only thing a trial is
+   for. Nothing is metered.
 
    ONE THING IS HELD BACK: the Monitoring Methodology Documentation download.
    It is the correct thing to hold back precisely because everything else is
@@ -480,25 +481,29 @@ export const TRIAL_PLAN: Plan = {
   amount: "Free for 30 days",
   unit: "no limits · no card",
   columnPrice: "Free · 30 days",
-  builtFor: "Seeing what a real CBAM year looks like on your own estate before you commit to a tier.",
   caps: { cnCodes: null, sites: null, years: null, seats: null, chainTiers: MAX_CHAIN_TIERS },
-  capRows: [
-    { label: "CN codes", value: "Unlimited" },
-    { label: "Production sites", value: "Unlimited" },
-    { label: "Team seats", value: "Unlimited" },
-    { label: "Suppliers", value: "Unlimited" },
-  ],
+  allowance: { companies: null, precursors: null, aiTokens: null, aiQuestions: null, uploadPages: null },
   features: { aiExtraction: true, methodologyDoc: false },
 };
 
 /* ── The comparison ─────────────────────────────────────────
    DATA, not markup, so the table renders once and the same rows can be read
-   by anything else that needs to know what a tier includes.
+   by anything else that needs to know what a tier includes. It is short on
+   purpose: the plan's own terms and nothing else.
 
-   A cell is either a mark (`true` / `false`) or a short value string. Every
-   row names an OUTCOME and a LIMIT, never a mechanism — deliberately. */
+   A cell is a mark, a plain string, or a number with a unit — written as a
+   template and its parts, so each language says "100 pages" its own way
+   instead of finding a number glued to an English noun. */
 
-export type CompareCell = boolean | string;
+export type CompareValue = {
+  /** a dictionary key; `{n}` is replaced by `n` */
+  text: string;
+  n?: number;
+  /** a second, quieter line under it */
+  sub?: { text: string; n?: number };
+};
+
+export type CompareCell = boolean | string | CompareValue;
 
 export type CompareRow = {
   label: string;
@@ -509,99 +514,47 @@ export type CompareRow = {
 export type CompareGroup = {
   title: string;
   /* A LIMIT and a SENTENCE are set in different type, and which is which is
-     declared rather than guessed from the string. A limit ("Up to 5") reads
-     in the pixel face, uppercased, so a column of them scans as a column of
-     numbers; prose ("Priority · 1 business day") stays in the body face,
-     because uppercased prose is unreadable at 12px — and a regex sniffing for
-     the difference would get the first Thai translation wrong. */
+     declared rather than guessed from the string. A limit ("3") reads in the
+     pixel face, uppercased, so a column of them scans as a column of numbers;
+     prose ("Provided + 1 meeting session") stays in the body face, because
+     uppercased prose is unreadable at 12px. */
   prose?: boolean;
   rows: CompareRow[];
 };
 
-const yes: [CompareCell, CompareCell, CompareCell] = [true, true, true];
+const per = <T,>(pick: (p: Plan) => T): [T, T, T] => [pick(PLANS[0]), pick(PLANS[1]), pick(PLANS[2])];
+const num = (n: number | null): string => (n == null ? "Unlimited" : String(n));
+const same = <T,>(v: T): [T, T, T] => [v, v, v];
 
 export const PLAN_COMPARISON: CompareGroup[] = [
   {
-    title: "Scope & limits",
+    title: "What the plan covers",
     rows: [
-      { label: "CN codes included", cells: ["5", "20", "20+ · priced on scope"] },
-      { label: "Production sites", cells: ["1", "Up to 5", "Unlimited"] },
-      { label: "Reporting years open at once", cells: ["1", "3", "Unlimited"] },
-      { label: "Team seats", cells: ["3", "10", "Unlimited"] },
-      { label: "Suppliers — always free for them", cells: ["Unlimited", "Unlimited", "Unlimited"] },
-      { label: "Supply-chain tiers", cells: ["Up to 6", "Up to 6", "Up to 6"] },
+      { label: "Company", cells: per((p) => num(p.allowance.companies)) },
+      { label: "Installation & report package", cells: per((p) => num(p.caps.sites)) },
+      { label: "CN code", cells: per((p) => num(p.caps.cnCodes)) },
+      { label: "Precursor", cells: per((p) => num(p.allowance.precursors)) },
+      { label: "Reporting year", cells: per((p) => num(p.caps.years)) },
     ],
   },
   {
-    title: "Collecting from your suppliers",
+    title: "What you can use",
     rows: [
-      { label: "Suppliers answer by link — no account needed", cells: yes },
-      { label: "Step-by-step monthly form", cells: yes },
-      { label: "Copy last month's answers", cells: yes },
-      { label: "Thai and English everywhere", cells: yes },
-      { label: "Incomplete months are blocked", cells: yes },
-      { label: "All open requests on one board", cells: yes },
-      { label: "Send, resend and chase, with a record", cells: yes },
-      { label: "Set your own due day", cells: yes },
-    ],
-  },
-  {
-    title: "The calculation",
-    rows: [
-      { label: "Direct, indirect and precursor emissions", cells: yes },
-      { label: "Sector rules applied automatically", cells: yes },
-      { label: "Every supplier in the chain, with its own figure", cells: yes },
-      { label: "Chain graded by its weakest link", cells: yes },
-      { label: "Scrap counted as zero, automatically", cells: yes },
-      { label: "20% default-value cap watched for you", cells: yes },
-    ],
-  },
-  {
-    title: "Verification readiness",
-    rows: [
-      { label: "Shows exactly what is still missing", cells: yes },
-      { label: "Methodology document written for you", cells: yes },
-      { label: "Every version kept when you edit", cells: yes },
-      { label: "Documents attached to the right month", cells: yes },
-      { label: "Materiality check", cells: yes },
-      { label: "AI reads your documents, you approve", cells: [false, true, true] },
-    ],
-  },
-  {
-    title: "Sign-off & record",
-    rows: [
-      { label: "Everything saves as you type", cells: yes },
-      { label: "Sign off each month", cells: yes },
-      { label: "Signature voids if the figures change", cells: yes },
-      { label: "Send a month back for correction", cells: yes },
-      { label: "Activity feed across all reports", cells: yes },
-    ],
-  },
-  {
-    title: "What CBAM is costing you",
-    rows: [
-      { label: "Your figure against the EU default", cells: yes },
-      { label: "Estimated certificate cost, and what you save", cells: yes },
-      { label: "Full-year projection", cells: yes },
-      { label: "Trend and sector comparison", cells: yes },
-      { label: "What each precursor adds", cells: yes },
-    ],
-  },
-  {
-    title: "What you hand over",
-    rows: [
-      { label: "One PDF, with every document inside it", cells: yes },
-      { label: "Verifier pack showing the workings", cells: yes },
-      { label: "Incomplete work stamped DRAFT", cells: yes },
+      {
+        label: "AI",
+        cells: per((p): CompareValue => ({ text: "{n} questions", n: p.allowance.aiQuestions ?? 0 })),
+      },
+      { label: "Smart upload", cells: per((p): CompareValue => ({ text: "{n} pages", n: p.allowance.uploadPages ?? 0 })) },
+      { label: "Smart link", cells: same("Unlimited") },
+      { label: "Team seats", cells: per((p) => num(p.caps.seats)) },
     ],
   },
   {
     title: "Onboarding & support",
     prose: true,
     rows: [
-      { label: "Onboarding", cells: ["Self-serve, guided in-app", "Guided setup + data migration", "Dedicated implementation"] },
-      { label: "Support", cells: ["Email & LINE · 2 business days", "Priority · 1 business day", "Named manager · agreed SLA"] },
-      { label: "Training", cells: ["Help centre and videos", "One workshop for your team", "Team and supplier training, ongoing"] },
+      { label: "Onboarding", cells: same("Provided + 1 meeting session") },
+      { label: "Support", cells: same("1 business day") },
     ],
   },
 ];
@@ -693,7 +646,7 @@ export const BUYER_PERIODS: PeriodOption[] = [
 
    ⚠️ Master data is REAL. Only transactional values (quantities, suppliers,
    emissions) elsewhere in the app are mock. */
-export type ProductCategory = "Iron & Steel" | "Aluminium";
+export type ProductCategory = "Iron & Steel" | "Aluminium" | "Cement" | "Fertilisers" | "Hydrogen";
 export type CatalogProduct = {
   id: string;
   name: string;
@@ -704,85 +657,10 @@ export type CatalogProduct = {
   keywords: string[];
 };
 
-export const PRODUCT_CATALOG: CatalogProduct[] = [
-  // ── Iron & Steel · primary & precursors ──
-  { id: "ironore", name: "Iron ore, agglomerated (sinter / pellets)", category: "Iron & Steel", group: "Primary inputs", cnCode: "2601 12 00", hsCode: "2601", keywords: ["ore", "sinter", "pellet", "precursor"] },
-  { id: "pigiron", name: "Pig iron, non-alloy", category: "Iron & Steel", group: "Primary inputs", cnCode: "7201 10 90", hsCode: "7201", keywords: ["pig", "iron", "primary"] },
-  { id: "pigiron-alloy", name: "Pig iron, alloy / spiegeleisen", category: "Iron & Steel", group: "Primary inputs", cnCode: "7201 50 90", hsCode: "7201", keywords: ["pig", "spiegeleisen", "alloy"] },
-  { id: "femn", name: "Ferro-manganese", category: "Iron & Steel", group: "Primary inputs", cnCode: "7202 11 80", hsCode: "7202", keywords: ["ferro", "manganese", "alloy"] },
-  { id: "fecr", name: "Ferro-chromium", category: "Iron & Steel", group: "Primary inputs", cnCode: "7202 41 10", hsCode: "7202", keywords: ["ferro", "chromium", "alloy"] },
-  { id: "feni", name: "Ferro-nickel", category: "Iron & Steel", group: "Primary inputs", cnCode: "7202 60 00", hsCode: "7202", keywords: ["ferro", "nickel", "alloy"] },
-  { id: "dri", name: "Direct reduced iron (DRI / HBI)", category: "Iron & Steel", group: "Primary inputs", cnCode: "7203 10 00", hsCode: "7203", keywords: ["dri", "hbi", "sponge", "reduced"] },
-  { id: "granules", name: "Iron granules & powders", category: "Iron & Steel", group: "Primary inputs", cnCode: "7205 10 00", hsCode: "7205", keywords: ["granule", "powder"] },
-  // ── Iron & Steel · semi-finished ──
-  { id: "ingot", name: "Ingots, non-alloy steel", category: "Iron & Steel", group: "Semi-finished", cnCode: "7206 10 00", hsCode: "7206", keywords: ["ingot", "semi"] },
-  { id: "billet", name: "Billets (semi-finished)", category: "Iron & Steel", group: "Semi-finished", cnCode: "7207 11 90", hsCode: "7207", keywords: ["billet", "semi"] },
-  { id: "slab", name: "Slabs (semi-finished)", category: "Iron & Steel", group: "Semi-finished", cnCode: "7207 12 10", hsCode: "7207", keywords: ["slab", "semi"] },
-  // ── Iron & Steel · flat products ──
-  { id: "hrc", name: "Hot-rolled coil", category: "Iron & Steel", group: "Flat products", cnCode: "7208 39 00", hsCode: "7208", keywords: ["hrc", "coil", "flat", "hot rolled"] },
-  { id: "hrplate", name: "Hot-rolled plate (heavy)", category: "Iron & Steel", group: "Flat products", cnCode: "7208 51 20", hsCode: "7208", keywords: ["plate", "flat", "heavy"] },
-  { id: "crc", name: "Cold-rolled coil", category: "Iron & Steel", group: "Flat products", cnCode: "7209 18 99", hsCode: "7209", keywords: ["crc", "coil", "flat", "cold rolled"] },
-  { id: "galv", name: "Hot-dip galvanised sheet", category: "Iron & Steel", group: "Flat products", cnCode: "7210 49 00", hsCode: "7210", keywords: ["galvanised", "galvanized", "zinc", "coated", "sheet"] },
-  { id: "prepaint", name: "Pre-painted / colour-coated sheet", category: "Iron & Steel", group: "Flat products", cnCode: "7210 70 80", hsCode: "7210", keywords: ["painted", "coated", "colour", "color"] },
-  { id: "tinplate", name: "Tinplate (tin-coated sheet)", category: "Iron & Steel", group: "Flat products", cnCode: "7210 12 20", hsCode: "7210", keywords: ["tinplate", "tin", "coated"] },
-  { id: "narrowstrip", name: "Narrow strip (< 600 mm)", category: "Iron & Steel", group: "Flat products", cnCode: "7211 23 30", hsCode: "7211", keywords: ["strip", "narrow"] },
-  { id: "narrowstrip-coated", name: "Narrow strip, coated / plated (< 600 mm)", category: "Iron & Steel", group: "Flat products", cnCode: "7212 30 00", hsCode: "7212", keywords: ["strip", "narrow", "coated", "plated", "zinc"] },
-  // ── Iron & Steel · long products ──
-  { id: "wirerod", name: "Wire rod (in coils)", category: "Iron & Steel", group: "Long products", cnCode: "7213 91 10", hsCode: "7213", keywords: ["wire", "rod", "long"] },
-  { id: "rebar", name: "Reinforcing bar (rebar)", category: "Iron & Steel", group: "Long products", cnCode: "7214 20 00", hsCode: "7214", keywords: ["rebar", "bar", "reinforcing"] },
-  { id: "merchantbar", name: "Merchant bar", category: "Iron & Steel", group: "Long products", cnCode: "7215 50 19", hsCode: "7215", keywords: ["merchant", "bar"] },
-  { id: "section", name: "Sections (H / I-beams)", category: "Iron & Steel", group: "Long products", cnCode: "7216 33 00", hsCode: "7216", keywords: ["beam", "section", "structural", "h-beam", "i-beam"] },
-  { id: "angle", name: "Angles (L-sections)", category: "Iron & Steel", group: "Long products", cnCode: "7216 21 00", hsCode: "7216", keywords: ["angle", "l-section"] },
-  { id: "wire", name: "Steel wire", category: "Iron & Steel", group: "Long products", cnCode: "7217 10 90", hsCode: "7217", keywords: ["wire", "drawn"] },
-  // ── Iron & Steel · stainless & alloy ──
-  { id: "ss-semi", name: "Stainless steel, ingots & semi-finished", category: "Iron & Steel", group: "Stainless & alloy", cnCode: "7218 10 00", hsCode: "7218", keywords: ["stainless", "ingot", "semi", "inox"] },
-  { id: "ss-flat", name: "Stainless flat-rolled (≥ 600 mm)", category: "Iron & Steel", group: "Stainless & alloy", cnCode: "7219 34 00", hsCode: "7219", keywords: ["stainless", "flat", "inox"] },
-  { id: "ss-flat-narrow", name: "Stainless flat-rolled (< 600 mm)", category: "Iron & Steel", group: "Stainless & alloy", cnCode: "7220 20 00", hsCode: "7220", keywords: ["stainless", "flat", "narrow", "inox"] },
-  { id: "ss-wirerod", name: "Stainless wire rod", category: "Iron & Steel", group: "Stainless & alloy", cnCode: "7221 00 10", hsCode: "7221", keywords: ["stainless", "wire", "rod", "inox"] },
-  { id: "ss-bar", name: "Stainless bars & rods", category: "Iron & Steel", group: "Stainless & alloy", cnCode: "7222 20 00", hsCode: "7222", keywords: ["stainless", "bar"] },
-  { id: "ss-wire", name: "Stainless wire", category: "Iron & Steel", group: "Stainless & alloy", cnCode: "7223 00 19", hsCode: "7223", keywords: ["stainless", "wire", "inox"] },
-  { id: "alloy-semi", name: "Other alloy steel, ingots & semi-finished", category: "Iron & Steel", group: "Stainless & alloy", cnCode: "7224 10 90", hsCode: "7224", keywords: ["alloy", "ingot", "semi"] },
-  { id: "alloy-flat", name: "Other alloy steel, flat-rolled", category: "Iron & Steel", group: "Stainless & alloy", cnCode: "7225 40 00", hsCode: "7225", keywords: ["alloy", "flat"] },
-  { id: "alloy-flat-narrow", name: "Other alloy steel, flat-rolled (< 600 mm)", category: "Iron & Steel", group: "Stainless & alloy", cnCode: "7226 92 00", hsCode: "7226", keywords: ["alloy", "flat", "narrow"] },
-  { id: "alloy-wirerod", name: "Other alloy steel, wire rod", category: "Iron & Steel", group: "Stainless & alloy", cnCode: "7227 90 95", hsCode: "7227", keywords: ["alloy", "wire", "rod"] },
-  { id: "alloy-bar", name: "Other alloy steel, bars", category: "Iron & Steel", group: "Stainless & alloy", cnCode: "7228 30 00", hsCode: "7228", keywords: ["alloy", "bar"] },
-  { id: "alloy-wire", name: "Other alloy steel, wire", category: "Iron & Steel", group: "Stainless & alloy", cnCode: "7229 90 90", hsCode: "7229", keywords: ["alloy", "wire"] },
-  // ── Iron & Steel · tubes & pipes ──
-  { id: "castironpipe", name: "Cast-iron tubes & pipes", category: "Iron & Steel", group: "Tubes & pipes", cnCode: "7303 00 90", hsCode: "7303", keywords: ["pipe", "tube", "cast iron"] },
-  { id: "seamless", name: "Seamless tubes & pipes", category: "Iron & Steel", group: "Tubes & pipes", cnCode: "7304 39 88", hsCode: "7304", keywords: ["pipe", "tube", "seamless"] },
-  { id: "linepipe", name: "Welded large-diameter line pipe", category: "Iron & Steel", group: "Tubes & pipes", cnCode: "7305 11 00", hsCode: "7305", keywords: ["line", "pipe", "welded", "large"] },
-  { id: "weldtube", name: "Welded tubes & pipes", category: "Iron & Steel", group: "Tubes & pipes", cnCode: "7306 30 80", hsCode: "7306", keywords: ["welded", "tube", "pipe"] },
-  { id: "fittings", name: "Tube & pipe fittings", category: "Iron & Steel", group: "Tubes & pipes", cnCode: "7307 19 10", hsCode: "7307", keywords: ["fitting", "flange", "elbow"] },
-  // ── Iron & Steel · downstream articles ──
-  { id: "sheetpiling", name: "Sheet piling", category: "Iron & Steel", group: "Articles", cnCode: "7301 10 00", hsCode: "7301", keywords: ["sheet", "piling"] },
-  { id: "rails", name: "Railway rails", category: "Iron & Steel", group: "Articles", cnCode: "7302 10 22", hsCode: "7302", keywords: ["rail", "railway", "track"] },
-  { id: "structures", name: "Structures (towers, bridges, frames)", category: "Iron & Steel", group: "Articles", cnCode: "7308 90 98", hsCode: "7308", keywords: ["structure", "tower", "bridge", "frame"] },
-  { id: "scaffolding", name: "Scaffolding & props", category: "Iron & Steel", group: "Articles", cnCode: "7308 40 00", hsCode: "7308", keywords: ["scaffolding", "prop"] },
-  { id: "tanks", name: "Reservoirs & tanks (> 300 L)", category: "Iron & Steel", group: "Articles", cnCode: "7309 00 90", hsCode: "7309", keywords: ["tank", "reservoir"] },
-  { id: "drums", name: "Casks, drums & cans (≤ 300 L)", category: "Iron & Steel", group: "Articles", cnCode: "7310 10 00", hsCode: "7310", keywords: ["drum", "cask", "can"] },
-  { id: "gascylinders", name: "Gas containers (cylinders)", category: "Iron & Steel", group: "Articles", cnCode: "7311 00 99", hsCode: "7311", keywords: ["gas", "cylinder", "container"] },
-  { id: "fasteners", name: "Screws, bolts & nuts", category: "Iron & Steel", group: "Articles", cnCode: "7318 15 90", hsCode: "7318", keywords: ["bolt", "screw", "nut", "fastener"] },
-  { id: "articles", name: "Other articles of iron or steel", category: "Iron & Steel", group: "Articles", cnCode: "7326 90 98", hsCode: "7326", keywords: ["article", "other"] },
-  // ── Aluminium · unwrought ──
-  { id: "al-unwrought", name: "Unwrought aluminium, not alloyed", category: "Aluminium", group: "Unwrought", cnCode: "7601 10 90", hsCode: "7601", keywords: ["unwrought", "ingot", "primary"] },
-  { id: "al-unwrought-alloy", name: "Unwrought aluminium alloys", category: "Aluminium", group: "Unwrought", cnCode: "7601 20 80", hsCode: "7601", keywords: ["unwrought", "alloy", "ingot"] },
-  { id: "al-powder", name: "Aluminium powders & flakes", category: "Aluminium", group: "Unwrought", cnCode: "7603 10 00", hsCode: "7603", keywords: ["powder", "flake"] },
-  // ── Aluminium · wrought products ──
-  { id: "al-bar", name: "Aluminium bars & rods", category: "Aluminium", group: "Wrought products", cnCode: "7604 29 10", hsCode: "7604", keywords: ["bar", "rod"] },
-  { id: "al-profile", name: "Aluminium profiles (hollow)", category: "Aluminium", group: "Wrought products", cnCode: "7604 21 00", hsCode: "7604", keywords: ["profile", "extrusion", "hollow"] },
-  { id: "al-wire", name: "Aluminium wire", category: "Aluminium", group: "Wrought products", cnCode: "7605 11 00", hsCode: "7605", keywords: ["wire"] },
-  { id: "al-plate", name: "Aluminium plate / sheet / strip", category: "Aluminium", group: "Wrought products", cnCode: "7606 11 00", hsCode: "7606", keywords: ["plate", "sheet", "strip"] },
-  { id: "al-foil", name: "Aluminium foil", category: "Aluminium", group: "Wrought products", cnCode: "7607 11 00", hsCode: "7607", keywords: ["foil"] },
-  { id: "al-tube", name: "Aluminium tubes & pipes", category: "Aluminium", group: "Wrought products", cnCode: "7608 10 00", hsCode: "7608", keywords: ["tube", "pipe"] },
-  // ── Aluminium · articles ──
-  { id: "al-fittings", name: "Aluminium tube / pipe fittings", category: "Aluminium", group: "Articles", cnCode: "7609 00 00", hsCode: "7609", keywords: ["fitting"] },
-  { id: "al-structures", name: "Aluminium structures (frames, doors)", category: "Aluminium", group: "Articles", cnCode: "7610 90 90", hsCode: "7610", keywords: ["structure", "frame", "door", "window"] },
-  { id: "al-reservoir", name: "Aluminium reservoirs (> 300 L)", category: "Aluminium", group: "Articles", cnCode: "7611 00 00", hsCode: "7611", keywords: ["reservoir", "tank"] },
-  { id: "al-casks", name: "Aluminium casks & drums (≤ 300 L)", category: "Aluminium", group: "Articles", cnCode: "7612 90 20", hsCode: "7612", keywords: ["cask", "drum"] },
-  { id: "al-gas", name: "Aluminium gas containers", category: "Aluminium", group: "Articles", cnCode: "7613 00 00", hsCode: "7613", keywords: ["gas", "container"] },
-  { id: "al-cable", name: "Aluminium stranded wire & cables", category: "Aluminium", group: "Articles", cnCode: "7614 10 00", hsCode: "7614", keywords: ["cable", "stranded", "wire"] },
-  { id: "al-articles", name: "Other articles of aluminium", category: "Aluminium", group: "Articles", cnCode: "7616 99 90", hsCode: "7616", keywords: ["article", "other"] },
-];
+/* The catalogue is no longer typed here. It is the full CN-8 set in CBAM scope —
+   570 codes, generated from the regulation's own benchmark table — and the
+   whole story of where it comes from is in lib/cbam/cn-catalogue.ts. */
+export const PRODUCT_CATALOG: CatalogProduct[] = FULL_CATALOGUE;
 
 /* ── CBAM data fields (real reporting requirements) ───────────
    The data points an installation reports per good under the CBAM definitive
@@ -881,7 +759,7 @@ export const CBAM_FIELDS: CbamField[] = [
 
 /* Goods made from precursors ("complex goods") must carry their precursors'
    embedded emissions; primary inputs and unwrought metal do not. */
-export const PRIMARY_GROUPS = new Set(["Primary inputs", "Unwrought"]);
+export const PRIMARY_GROUPS = PRIMARY_GROUPS_ALL;
 export const isComplexGood = (p: CatalogProduct) => !PRIMARY_GROUPS.has(p.group);
 /* Electrolysis goods = primary (unwrought) aluminium — the only goods where a
    smelting-technology question makes sense. A downstream extruder must never
@@ -943,6 +821,11 @@ export function sectorLabelFor(selected: CatalogProduct[]): string {
 export const SCOPE2_IN_LIABILITY: Record<ProductCategory, boolean> = {
   "Iron & Steel": false,
   Aluminium: false, // Annex II good — direct-only in the definitive period
+  Hydrogen: false, // Annex II good
+  /* Cement and fertilisers are NOT in Annex II, so their indirect emissions
+     (electricity) count toward the obligation. */
+  Cement: true,
+  Fertilisers: true,
 };
 export type Scope2Treatment = { category: ProductCategory; included: boolean };
 /** Per-category Scope 2 treatment for the goods currently selected. */
@@ -966,9 +849,13 @@ export type ProductUnit = (typeof PRODUCT_UNITS)[number];
    in, so a quantity is never silently mis-typed as tonnes. */
 export const DEFAULT_UNIT = "";
 
-export const getCatalogProduct = (id: string) => PRODUCT_CATALOG.find((p) => p.id === id);
+/** By id — the 570 current codes first, then the old entries whose code was
+    not an 8-digit CN code, so a workspace saved before the catalogue was
+    replaced still resolves its product. */
+export const getCatalogProduct = (id: string): CatalogProduct | undefined =>
+  PRODUCT_CATALOG.find((p) => p.id === id) ?? LEGACY_ONLY.find((p) => p.id === id);
 export const productTemplate = (p: CatalogProduct) => `CBAM · ${p.category} · ${p.group}`;
-export const PRODUCT_CATEGORIES: ProductCategory[] = ["Iron & Steel", "Aluminium"];
+export const PRODUCT_CATEGORIES: ProductCategory[] = ["Iron & Steel", "Aluminium", "Fertilisers", "Cement", "Hydrogen"];
 
 /* ── Aggregated goods categories ───────────────────────────────
    The EU's own grouping, from Annex II of Implementing Regulation (EU)
@@ -989,11 +876,32 @@ export type AggregatedGoodsCategory =
   | "Crude steel"
   | "Iron or steel products"
   | "Unwrought aluminium"
-  | "Aluminium products";
+  | "Aluminium products"
+  | "Calcined clay"
+  | "Cement clinker"
+  | "Cement"
+  | "Aluminous cement"
+  | "Hydrogen"
+  | "Ammonia"
+  | "Nitric acid"
+  | "Urea"
+  | "Mixed fertilisers";
 
-/** CN heading → aggregated goods category. Longest prefix wins, so a heading
+/** CN prefix → aggregated goods category, from Table 1 of Annex I to
+    Implementing Regulation (EU) 2025/2547. Longest prefix wins, so a heading
     rule can be narrowed by a subheading rule without reordering the table. */
 const AGGREGATED_BY_CN: [prefix: string, category: AggregatedGoodsCategory][] = [
+  ["2507", "Calcined clay"],
+  ["2523", "Cement"],
+  ["252310", "Cement clinker"],
+  ["252330", "Aluminous cement"],
+  ["2804", "Hydrogen"],
+  ["2808", "Nitric acid"],
+  ["2814", "Ammonia"],
+  ["2834", "Mixed fertilisers"],
+  ["3102", "Mixed fertilisers"],
+  ["310210", "Urea"],
+  ["3105", "Mixed fertilisers"],
   ["2601", "Sintered ore"],
   ["7201", "Pig iron"],
   ["7205", "Pig iron"],
@@ -1019,7 +927,7 @@ export function aggregatedGoodsCategory(p: Pick<CatalogProduct, "cnCode" | "cate
     }
   }
   // Everything else in scope is a downstream good of its sector: chapters 72
-  // and 73 beyond the precursor headings, and chapters 7603–7616.
+  // and 73 beyond the precursor headings, and headings 7603–7616.
   return best ?? (p.category === "Aluminium" ? "Aluminium products" : "Iron or steel products");
 }
 
@@ -1042,7 +950,7 @@ export const PRODUCT_TYPE_HINT: Record<ProductType, string> = {
     "Rolled, coated, formed or assembled. Most of the embedded emissions arrive with the input material, so the precursor chain matters more than the site's own fuel.",
 };
 
-const PRECURSOR_GROUPS = new Set(["Primary inputs", "Unwrought"]);
+const PRECURSOR_GROUPS = PRIMARY_GROUPS_ALL;
 const SEMI_GROUPS = new Set(["Semi-finished"]);
 
 export function productType(p: Pick<CatalogProduct, "group">): ProductType {
@@ -1055,31 +963,34 @@ export function productType(p: Pick<CatalogProduct, "group">): ProductType {
     on the product picker read from this so a group added to the catalogue
     appears in the filter without a second edit. */
 export function productGroups(category?: ProductCategory): string[] {
-  const seen: string[] = [];
-  for (const p of PRODUCT_CATALOG) {
-    if (category && p.category !== category) continue;
-    if (!seen.includes(p.group)) seen.push(p.group);
-  }
-  return seen;
+  if (category) return GROUPS_BY_SECTOR[category] ?? [];
+  return PRODUCT_CATEGORIES.flatMap((c) => GROUPS_BY_SECTOR[c]).filter((g, i, all) => all.indexOf(g) === i);
 }
 
-/** Search by name, keyword, CN code or HS heading. Returns EVERY match — the
-    picker paginates by scrolling, and a silent `.slice(0, 12)` is why the
-    catalogue read as "not all 67 are there" when all 67 always were. */
+/** Search by name, keyword, official description, CN code or HS heading.
+    Returns EVERY match — the picker pages by "show more", and a silent
+    `.slice(0, 12)` is why the old catalogue read as incomplete when it was
+    merely truncated. A digit-only query matches a CN prefix ("7208 3" finds
+    every 7208 3x code), so the exporter can type what is on the declaration. */
 export function searchCatalog(
   query: string,
-  filters: { category?: ProductCategory; group?: string; type?: ProductType } = {},
+  filters: { category?: ProductCategory; group?: string; type?: ProductType; heading?: string } = {},
 ): CatalogProduct[] {
   const q = query.trim().toLowerCase();
   const digits = q.replace(/\D/g, "");
+  const textual = /[a-z]/.test(q);
   return PRODUCT_CATALOG.filter((p) => {
     if (filters.category && p.category !== filters.category) return false;
     if (filters.group && p.group !== filters.group) return false;
+    if (filters.heading && p.hsCode !== filters.heading) return false;
     if (filters.type && productType(p) !== filters.type) return false;
     if (!q) return true;
+    if (digits && !textual) return digitsOf(p.cnCode).startsWith(digits);
     if (p.name.toLowerCase().includes(q)) return true;
     if (p.group.toLowerCase().includes(q)) return true;
     if (p.keywords.some((k) => k.includes(q))) return true;
+    const description = (p as { description?: string }).description;
+    if (description && description.toLowerCase().includes(q)) return true;
     if (digits && (digitsOf(p.cnCode).startsWith(digits) || p.hsCode.startsWith(digits))) return true;
     return false;
   });

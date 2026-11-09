@@ -272,7 +272,7 @@ export async function renderReportPdf(doc: FinalReportDoc, onHeading?: HeadingSe
 
   if (doc.cover.outstanding.length > 0) {
     bullets(doc.cover.outstanding);
-    paragraph("The workspace's Readiness tab carries the complete list, each item linked to the screen that clears it.", 8);
+    paragraph("The product report's Readiness tab carries the complete list, each item linked to the screen that clears it.", 8);
   }
 
   if (doc.cover.workings.length > 0) {

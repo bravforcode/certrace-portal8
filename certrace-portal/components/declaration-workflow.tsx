@@ -1212,7 +1212,7 @@ function ExecSummary({ sub }: { sub: ReviewSubmission }) {
                 return (
                   <div key={e.productId} className="flex items-center justify-between rounded-lg border border-black/[0.06] bg-[#fafaf8] px-3 py-2">
                     <div className="min-w-0">
-                      <div className="truncate text-[13px] text-black/75">{e.productName}</div>
+                      <div className="truncate text-[13px] text-black/75">{t(e.productName)}</div>
                       <div className="font-mono text-[10px] text-black/40">CN {e.cnCode} · {e.tonnes.toLocaleString("en-US")} t</div>
                       {direct !== null && indirect !== null && (
                         <div className="font-mono text-[10px] text-black/35">direct {direct.toFixed(2)} · indirect {indirect.toFixed(2)} tCO₂e/t</div>
@@ -1829,7 +1829,7 @@ function BenchmarkRow({ supplierName, product }: { supplierName: string; product
   return (
     <div className="grid grid-cols-[1.5fr_0.8fr_0.8fr_1fr] items-center gap-3 border-b border-black/[0.04] px-5 py-3 last:border-0">
       <span className="min-w-0">
-        <span className="block truncate text-[13px] text-black/75">{product.productName}</span>
+        <span className="block truncate text-[13px] text-black/75">{t(product.productName)}</span>
         <span className="block truncate text-[11px] text-black/40">
           {supplierName}
           {product.defaultUsed && <span className="text-[#b45309]"> {t("· reported on defaults")}</span>}

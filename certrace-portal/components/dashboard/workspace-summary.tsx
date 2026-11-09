@@ -12,10 +12,10 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Card, cn } from "@/components/ui";
 import { DotStrip, StateChip } from "@/components/workspace/chrome";
-import { isBuyerReady, notBuyerReadyReason } from "@/lib/cbam/buyer-ready";
+import { buyerReasonText, isBuyerReady, notBuyerReadyReason } from "@/lib/cbam/buyer-ready";
 import { TAB_LABEL, dotStates, type ReadinessTab, type TabState, type WorkspaceReadiness } from "@/lib/readiness";
 import type { VerificationWorkspace } from "@/lib/workspace";
-import { useT } from "@/lib/i18n";
+import { useLanguage, useT } from "@/lib/i18n";
 
 export type WorkspaceSummaryRow = {
   workspace: VerificationWorkspace;
@@ -59,11 +59,11 @@ function HeroCard({ row }: { row: WorkspaceSummaryRow }) {
   const { workspace: w, readiness } = row;
   const buyerReady = isBuyerReady(readiness);
   return (
-    <Link href={`/workspaces/${w.id}/tree`} className="block">
+    <Link href={`/workspaces/${w.id}`} className="block">
       <Card className="p-7 transition-colors hover:border-black/15 hover:bg-[#fafaf8]">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
-            <div className="font-[family-name:var(--font-plex)] text-2xl font-light tracking-tight text-[#111]">{w.productName}</div>
+            <div className="font-[family-name:var(--font-plex)] text-2xl font-light tracking-tight text-[#111]">{t(w.productName)}</div>
             <p className="mt-1 font-mono text-[12px] text-black/40">
               CN {w.cnCode || "—"} · {w.installationName} · {w.year}
             </p>
@@ -84,7 +84,7 @@ function HeroCard({ row }: { row: WorkspaceSummaryRow }) {
         </div>
 
         <div className="mt-4 flex items-center gap-1.5 text-[12px] uppercase tracking-[0.08em] text-black/35">
-          {t("Open workspace")} <ArrowRight size={12} strokeWidth={1.5} />
+          {t("Open product report")} <ArrowRight size={12} strokeWidth={1.5} />
         </div>
       </Card>
     </Link>
@@ -92,15 +92,18 @@ function HeroCard({ row }: { row: WorkspaceSummaryRow }) {
 }
 
 function ListCard({ row }: { row: WorkspaceSummaryRow }) {
+  const t = useT();
+  const { lang } = useLanguage();
   const { workspace: w, readiness } = row;
   const buyerReady = isBuyerReady(readiness);
+  const reason = buyerReady ? null : notBuyerReadyReason(readiness);
   const dots = dotStates(readiness);
   return (
-    <Link href={`/workspaces/${w.id}/tree`} className="block">
+    <Link href={`/workspaces/${w.id}`} className="block">
       <Card className={cn("p-5 transition-colors hover:border-black/15 hover:bg-[#fafaf8]", readiness.overall === "blocked" && "border-[#fecaca]")}>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="truncate font-[family-name:var(--font-plex)] text-[15px] font-light text-[#111]">{w.productName}</div>
+            <div className="truncate font-[family-name:var(--font-plex)] text-[15px] font-light text-[#111]">{t(w.productName)}</div>
             <p className="mt-0.5 truncate font-mono text-[11px] text-black/40">
               CN {w.cnCode || "—"} · {w.installationName}
             </p>
@@ -116,7 +119,7 @@ function ListCard({ row }: { row: WorkspaceSummaryRow }) {
             capitals is the hardest way there is to read a sentence. */}
         <div className="mt-3">
           <span className={cn("block text-[12px] leading-snug", buyerReady ? "text-[#047857]" : "text-black/50")}>
-            {buyerReady ? "Buyer-ready" : notBuyerReadyReason(readiness) ?? "Not yet buyer-ready"}
+            {buyerReady ? t("Buyer-ready") : (reason ? buyerReasonText(reason, t, lang !== "en") : t("Not yet buyer-ready"))}
           </span>
         </div>
       </Card>
@@ -143,7 +146,7 @@ export function WorkspaceSummary({ rows }: { rows: WorkspaceSummaryRow[] }) {
   if (sorted.length === 1) {
     return (
       <section>
-        <h2 className="mb-3 text-[11px] uppercase tracking-[0.1em] text-black/40">{t("Your workspace")}</h2>
+        <h2 className="mb-3 text-[11px] uppercase tracking-[0.1em] text-black/40">{t("Your product report")}</h2>
         <HeroCard row={sorted[0]} />
       </section>
     );

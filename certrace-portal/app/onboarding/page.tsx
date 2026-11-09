@@ -6,7 +6,7 @@ import { ArrowRight, ArrowLeft, Building2, UserRound, Target, BarChart3, Check }
 import { Card, Button, Field, inputClass, Eyebrow, SaveButton, useSaveState, cn } from "@/components/ui";
 import { Select } from "@/components/controls";
 import { PhoneField } from "@/components/phone-field";
-import { LanguageToggle } from "@/components/lang-toggle";
+import { LanguageSelect } from "@/components/language-select";
 import { CertraceLogo } from "@/components/logo";
 import { apiConfigured, markOnboarded } from "@/lib/api";
 import { useProfile } from "@/lib/profile";
@@ -330,14 +330,14 @@ export default function OnboardingPage() {
         {/* The switcher lives here, not in the chrome — /onboarding renders
             before the portal shell exists, so the account-menu one is
             unreachable. Switching re-renders in place: the step and every
-            answer already given survive it. See components/lang-toggle.tsx. */}
+            answer already given survive it. See components/language-select.tsx. */}
         {/* Centred wordmark with the toggle pinned right — but only once
             there is room for both. Below sm the two collide (the wordmark is
             ~145px and the toggle ~110px in a 327px line), so the phone gets
             the honest split instead: logo left, toggle right. */}
         <div className="relative flex items-center justify-between sm:justify-center">
           <CertraceLogo className="h-5 w-auto" />
-          <LanguageToggle className="sm:absolute sm:right-0" />
+          <LanguageSelect className="sm:absolute sm:right-0" />
         </div>
 
         <div className="mt-8">

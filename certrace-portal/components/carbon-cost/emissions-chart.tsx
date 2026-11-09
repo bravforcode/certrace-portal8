@@ -62,7 +62,7 @@ import * as React from "react";
 import { Card, cn } from "@/components/ui";
 import { useT } from "@/lib/i18n";
 import type { EmissionsChartData } from "@/lib/cbam/carbon-scope";
-import { monthName, type VerificationWorkspace } from "@/lib/workspace";
+import { monthNameShown, type VerificationWorkspace } from "@/lib/workspace";
 
 /* ── The chart draws at ITS OWN SIZE, not at a fixed one scaled to fit ──
    A fixed viewBox stretched to the container is the usual way to make an SVG
@@ -171,16 +171,16 @@ export function EmissionsChart({
           {t("Embedded emissions, month by month")}
         </h2>
         <p className="font-mono text-[11px] text-black/35">
-          {workspace.productName} · {workspace.installationName} · {workspace.year}
+          {t(workspace.productName)} · {workspace.installationName} · {workspace.year}
         </p>
       </div>
       <p className="mt-1.5 max-w-2xl text-[12.5px] leading-relaxed text-black/45">
         {t(
-          "Per tonne of product, split into what your site emitted, what its electricity cost, and what was already in the materials you bought.",
+          "Per tonne: your site, its electricity and the materials you bought.",
         )}
         {data.multiple &&
           " " +
-            t("Your selection covers several products — per-tonne figures are only comparable within one, so this is the first of them.")}
+            t("Several products selected. Showing the first — per-tonne figures only compare within one product.")}
       </p>
 
       <Legend values={values} defaultSee={defaultSee} unit={unit} projected={projectedCount > 0} />
@@ -194,12 +194,12 @@ export function EmissionsChart({
       {plottable.length === 0 ? (
         <p className="mt-5 rounded-xl border border-dashed border-black/10 px-4 py-8 text-center text-[13px] leading-relaxed text-black/40">
           {points.length === 0
-            ? t("No submitted months with production yet. Each month you submit adds a point here.")
-            : t("None of the submitted months could be worked out yet — open Monthly data to see which readings are missing.")}
+            ? t("No submitted month yet.")
+            : t("The submitted months could not be worked out. Check Monthly data for missing readings.")}
         </p>
       ) : plottable.length === 1 ? (
         <p className="mt-5 rounded-xl border border-dashed border-black/10 px-4 py-8 text-center text-[13px] leading-relaxed text-black/40">
-          {t("One month in. A second submitted month gives the lines a direction to show.")}
+          {t("One month in. A second gives the lines a direction.")}
         </p>
       ) : (
         <>
@@ -207,8 +207,8 @@ export function EmissionsChart({
           {skipped > 0 && (
             <p className="mt-1.5 text-[11.5px] leading-relaxed text-[#b45309]">
               {skipped === 1
-                ? t("1 submitted month is not plotted — its emissions could not be worked out. Monthly data says which reading is missing.")
-                : t("{count} submitted months are not plotted — their emissions could not be worked out. Monthly data says which reading is missing.", {
+                ? t("1 month is not plotted — a reading is missing.")
+                : t("{count} months are not plotted — readings are missing.", {
                     count: skipped,
                   })}
             </p>
@@ -370,7 +370,7 @@ function Plot({
         height={H}
         className="mt-4 w-full"
         role="img"
-        aria-label={t("Embedded emissions per tonne for each submitted month, in {unit}. Current values are listed above the chart.", { unit })}
+        aria-label={t("Embedded emissions per tonne, by submitted month, in {unit}.", { unit })}
       >
         {/* Behind the gridlines, so a projected month is a region the chart
             sits ON rather than a rectangle drawn over it. */}
@@ -429,12 +429,12 @@ function Plot({
             <title>
               {p.projected
                 ? t("{month} — projected {total} {unit} at the year-to-date rate", {
-                    month: monthName(p.month),
+                    month: monthNameShown(p.month),
                     total: p.total.toFixed(4),
                     unit,
                   })
                 : t("{month} — total {total} {unit} (direct {direct}, indirect {indirect})", {
-                    month: monthName(p.month),
+                    month: monthNameShown(p.month),
                     total: p.total.toFixed(4),
                     unit,
                     direct: p.direct.toFixed(4),
@@ -455,24 +455,24 @@ function Plot({
         )}
 
         <text x={PAD.left} y={H - 9} fontSize={9} fill="rgba(0,0,0,0.35)">
-          {monthName(points[0].month)}
+          {monthNameShown(points[0].month)}
         </text>
         <text x={W - PAD.right} y={H - 9} textAnchor="end" fontSize={9} fill="rgba(0,0,0,0.35)">
-          {monthName(points[points.length - 1].month)}
+          {monthNameShown(points[points.length - 1].month)}
         </text>
       </svg>
 
       <p className="mt-2 text-[11.5px] leading-relaxed text-black/40">
-        {t("Months with no submitted production are left out rather than plotted as zero.")}
+        {t("Months without production are left out.")}
         {precursorPerTonne != null &&
           " " +
             t(
-              "The precursor line is level because a precursor figure is declared once for the whole reporting period, not month by month — the same way it enters the report.",
+              "The precursor line is level: it is declared once for the year.",
             )}
         {firstProjected >= 0 &&
           " " +
             t(
-              "The shaded months are not readings. They carry the year-to-date rate forward on the assumption that the rest of the year runs like the months you have submitted.",
+              "Shaded months are not readings. They carry the year-to-date rate forward.",
             )}
       </p>
     </div>

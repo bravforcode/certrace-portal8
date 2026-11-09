@@ -40,9 +40,10 @@ export const runtime = "edge";
 
 import * as React from "react";
 import { useParams } from "next/navigation";
-import { FileCheck2, MapPin, Paperclip, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowRight, FileCheck2, MapPin, Paperclip, ShieldCheck, Sparkles } from "lucide-react";
 import { CertraceLogo } from "@/components/logo";
-import { Button, EnglishWhyTip, Field, NumberInput, inputClass, cn } from "@/components/ui";
+import { LanguageSelect } from "@/components/language-select";
+import { Button, Emphasis, EnglishWhyTip, Field, NumberInput, inputClass, cn } from "@/components/ui";
 import { DatePicker, Select } from "@/components/controls";
 import { toast, Toaster } from "@/components/toast";
 import { SectionCard } from "@/components/workspace/chrome";
@@ -54,8 +55,18 @@ import { useT } from "@/lib/i18n";
 import { useInvalidatePrecursorSuppliers, usePrecursorLink, usePrecursorSupplier } from "@/lib/suppliers-query";
 import { useAnnualEvidence, useInvalidateWorkspaceData } from "@/lib/workspace-data-query";
 import { savePrecursorDraft, submitPrecursorLink } from "@/lib/precursor-link-sync";
+import { ActualValueForm } from "@/components/precursor/actual-value-form";
+import { CeraProvider, useCera, type CeraScope } from "@/components/cera/cera-provider";
+import { CeraButton } from "@/components/cera/cera-button";
+import { CeraPanel } from "@/components/cera/cera-panel";
+import { CeraMark } from "@/components/cera/cera-mark";
+import { applyPrecursorPlan } from "@/lib/cera/precursor-upload";
+import { focusElement } from "@/lib/cera/focus";
+import { commitPrecursor, supplierGaps } from "@/lib/cbam/precursor-basis";
+import { getWorkspace } from "@/lib/workspace";
 import {
   descendantsOf,
+  getSupplier,
   markLinkOpened,
   markLinkSubmitted,
   saveSupplier,
@@ -63,17 +74,48 @@ import {
   type PrecursorSupplier,
 } from "@/lib/precursor-suppliers";
 
-function Shell({ children }: { children: React.ReactNode }) {
+function Shell({ children, cera }: { children: React.ReactNode; /** the Cera button in the bar, and the panel it opens — only where there is a Cera provider above */ cera?: boolean }) {
   return (
     <div className="min-h-screen bg-[#f5f4f0]">
       <header className="sticky top-0 z-40 border-b border-black/[0.06] bg-[rgba(245,244,240,0.85)] backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-2xl items-center px-6">
+        <div className="mx-auto flex h-16 max-w-2xl items-center justify-between px-6">
           <CertraceLogo className="h-[18px] w-auto" />
+          <div className="flex items-center gap-2">
+            <LanguageSelect />
+            {cera && <CeraButton />}
+          </div>
         </div>
       </header>
       <main className="mx-auto max-w-2xl px-6 py-8">{children}</main>
       <Toaster />
+      {cera && <CeraPanel />}
     </div>
+  );
+}
+
+/* "Have the documents already?" — the same one button the plant's link has. It opens Cera with Smart upload on: the statement is read, laid out as
+   this form, and nothing is written until the operator has checked it and confirmed. */
+function PrecursorUploadCard() {
+  const t = useT();
+  const { openWithUpload } = useCera();
+  return (
+    <button
+      type="button"
+      onClick={openWithUpload}
+      className="group mt-6 flex w-full items-center gap-4 rounded-2xl border border-black/[0.08] bg-white px-5 py-4 text-left shadow-[0_1px_2px_rgba(0,0,0,0.03)] transition-all hover:-translate-y-px hover:border-black/25 hover:shadow-[0_10px_24px_-16px_rgba(0,0,0,0.3)]"
+    >
+      <span className="grid h-11 w-11 flex-none place-items-center rounded-xl bg-[#f6f5f1]">
+        <CeraMark className="h-[22px] w-auto" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[10px] uppercase tracking-[0.1em] text-black/40">{t("Have the documents already?")}</span>
+        <span className="mt-1 block text-[15px] text-black/85">{t("Add a document & auto-fill")}</span>
+        <span className="mt-0.5 block text-[12.5px] leading-relaxed text-black/50">
+          {t("Cera reads a verification statement or emissions summary (text or CSV) and fills in this form. You check every answer before it is kept — Cera can make mistakes.")}
+        </span>
+      </span>
+      <ArrowRight size={16} strokeWidth={1.5} className="flex-none text-black/30 transition-transform group-hover:translate-x-0.5 group-hover:text-black/60" />
+    </button>
   );
 }
 
@@ -183,12 +225,41 @@ function Form({ workspaceId, nodeId, exporterName, server }: { workspaceId: stri
     setDraft((d) => (d == null || d.verificationReportFileId === latest ? d : { ...d, verificationReportFileId: latest }));
   }, [evidence.data, nodeId]);
 
+  /* CERA'S HOLD ON THIS FORM. It reads the draft as it stands, and what the reader confirms is written into it here — the page's own autosave
+     then keeps it, exactly as if it had been typed. */
+  const draftRef = React.useRef<PrecursorSupplier | null>(null);
+  draftRef.current = draft;
+  const ceraScope = React.useMemo<CeraScope>(
+    () => ({
+      audience: "precursor",
+      workspaceId,
+      nodeId,
+      row: () => draftRef.current,
+      apply: (plan) => {
+        const cur = draftRef.current;
+        if (!cur) return { ok: false, row: cur as unknown as PrecursorSupplier, sections: [], missing: [] };
+        const out = applyPrecursorPlan(plan, cur);
+        if (out.ok) setDraft(out.row);
+        return out;
+      },
+      onApplied: (_node, focus) => {
+        if (focus) focusElement(focus);
+      },
+    }),
+    [workspaceId, nodeId],
+  );
+
   if (!draft) return null;
 
   const set = (p: Partial<PrecursorSupplier>) => setDraft((d) => (d ? { ...d, ...p } : d));
-  const gaps = precursorSubmissionGaps(draft);
+  const setDraftRow = (next: PrecursorSupplier) => setDraft(next);
+  /* A request for an ACTUAL value is answered on the registry's terms (Annex IV
+     items 23, 28, 35 and the verifier's details) and gated on the precursor's
+     own side only. Rows from before the Precursors tab keep the old form. */
+  const actual = draft.valueBasis === "actual";
+  const gaps = actual ? supplierGaps(draft) : precursorSubmissionGaps(draft);
   const evidenceKeys: RequiredKey[] = [
-    { key: `precursor:${nodeId}`, label: `${draft.precursorName || "Unnamed precursor"} — emissions figure` },
+    { key: `precursor:${nodeId}`, label: t("{precursor} — emissions figure", { precursor: draft.precursorName ? t(draft.precursorName) : t("Unnamed precursor") }) },
   ];
 
   const save = () => saveSupplier(draft);
@@ -197,7 +268,7 @@ function Form({ workspaceId, nodeId, exporterName, server }: { workspaceId: stri
     // Belt and braces: the button is disabled while gaps remain, but this
     // refuses to run even if something manages to call it anyway — the same
     // fail-closed rule the missing-field check itself follows.
-    if (precursorSubmissionGaps(draft).length > 0) return;
+    if ((actual ? supplierGaps(draft) : precursorSubmissionGaps(draft)).length > 0) return;
     const saved = saveSupplier({ ...draft, dataOrigin: draft.dataOrigin === "default_value" ? draft.dataOrigin : "supplier_verified" });
     // On a server link the submission is only real once the server has
     // stamped it: that is the answer the exporter pulls. If it fails, the
@@ -212,6 +283,13 @@ function Form({ workspaceId, nodeId, exporterName, server }: { workspaceId: stri
       }
     }
     markLinkSubmitted(workspaceId, nodeId);
+    /* On a local link the exporter's workspace is in this browser, so the figure
+       is checked for use right now (complete, accredited, covers the period —
+       Annex II A.1(4)); the default stands in if it does not qualify. On a
+       server link the exporter's side does the same when it pulls the answer. */
+    const exporterWs = getWorkspace(workspaceId);
+    const stored = getSupplier(workspaceId, nodeId);
+    if (actual && exporterWs && stored) commitPrecursor(stored, exporterWs);
 
     // Any upstream tier the supplier filled in themselves this session never
     // went through a real invite link (no smartLinkToken) — back-fill the
@@ -290,8 +368,9 @@ function Form({ workspaceId, nodeId, exporterName, server }: { workspaceId: stri
   }
 
   return (
-    <Shell>
-      <p className="text-[12px] uppercase tracking-[0.1em] text-black/40">Precursor data request from {exporterName}</p>
+    <CeraProvider scope={ceraScope}>
+    <Shell cera>
+      <p className="text-[12px] uppercase tracking-[0.1em] text-black/40">{t("Precursor data request from {exporter}", { exporter: exporterName })}</p>
       {/* THE "?" IS ON THE HEADING, not tucked into the paragraph under it.
           "In English" is the one instruction on this page that costs the
           reader weeks if they miss it, and the reason it exists is a
@@ -299,7 +378,7 @@ function Form({ workspaceId, nodeId, exporterName, server }: { workspaceId: stri
           question mark hard right — the reader who has already started typing
           still passes it on the way down. */}
       <div className="mt-2 flex items-start justify-between gap-3">
-        <h1 className="font-[family-name:var(--font-plex)] text-2xl font-light tracking-tight text-[#111]">{t("Your emissions data for this supply chain")}</h1>
+        <h1 className="font-[family-name:var(--font-plex)] text-2xl font-light tracking-tight text-[#111]">{actual ? t("Your final emissions data for the year") : t("Your emissions data for this supply chain")}</h1>
         <EnglishWhyTip className="mt-1 flex-none" />
       </div>
       {/* IN ENGLISH IS AN INSTRUCTION, not a note, so it does not read at the
@@ -311,10 +390,22 @@ function Form({ workspaceId, nodeId, exporterName, server }: { workspaceId: stri
           again on the first card, because the reader who most needs it is the
           one who started typing before reading anything. */}
       <p className="mt-2 max-w-lg text-sm leading-relaxed text-black/50">
-        {exporterName} buys a precursor that includes something you produce. Give your installation&rsquo;s specific embedded emissions, and the
-        accredited verification behind them — <strong className="font-medium text-black/80">{t("in English")}</strong>.
+        <Emphasis
+          className="text-black/80"
+          text={
+            actual
+              ? t("{exporter} uses a good you make as an input and has asked for your final, verified figure for the reporting year. One request, answered once — nothing is collected month by month. Please answer **in English**.", { exporter: exporterName })
+              : t("{exporter} buys a precursor that includes something you produce. Give your installation’s specific embedded emissions, and the accredited verification behind them — **in English**.", { exporter: exporterName })
+          }
+        />
       </p>
 
+      <PrecursorUploadCard />
+
+      {actual ? (
+        <ActualValueForm draft={draft} set={setDraftRow} workspaceId={workspaceId} exporterName={exporterName} onDocChange={() => invalidateWorkspaceData()} />
+      ) : (
+        <>
       {/* mt-6 rather than nothing. The card used to sit flush against the
           paragraph above it, so the page's opening line read as the first
           section's own preamble instead of as the page's. Every section below
@@ -323,12 +414,7 @@ function Form({ workspaceId, nodeId, exporterName, server }: { workspaceId: stri
       <SectionCard
         className="mt-6"
         title={t("Product installation")}
-        blurb={
-          <>
-            The plant this material was actually produced at, as a verifier would have to find it — named{" "}
-            <strong className="font-medium text-black/70">{t("in English")}</strong>.
-          </>
-        }
+        blurb={<Emphasis className="text-black/70" text={t("The plant this material was actually produced at, as a verifier would have to find it — named **in English**.")} />}
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label={t("Company")}>
@@ -506,6 +592,9 @@ function Form({ workspaceId, nodeId, exporterName, server }: { workspaceId: stri
         />
       </section>
 
+        </>
+      )}
+
       <div className="mt-6 flex items-center justify-between gap-3">
         <p className="text-[12px] text-black/40 flex items-center gap-1.5">
           <Sparkles size={12} strokeWidth={1.5} />{" "}
@@ -518,7 +607,7 @@ function Form({ workspaceId, nodeId, exporterName, server }: { workspaceId: stri
             a tooltip on the wrapper (a disabled button fires no mouse events,
             so the title has to hang off something enabled), because a Submit
             that refuses with no explanation at all is a dead end. */}
-        <span title={gaps.length > 0 ? `${gaps.length} required field${gaps.length === 1 ? "" : "s"} above still to fill in.` : undefined}>
+        <span title={gaps.length > 0 ? (gaps.length === 1 ? t("1 required field above still to fill in.") : t("{n} required fields above still to fill in.", { n: gaps.length })) : undefined}>
           <Button
             disabled={busy || gaps.length > 0}
             onClick={() => {
@@ -533,5 +622,6 @@ function Form({ workspaceId, nodeId, exporterName, server }: { workspaceId: stri
         </span>
       </div>
     </Shell>
+    </CeraProvider>
   );
 }

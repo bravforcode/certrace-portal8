@@ -45,8 +45,8 @@ function trustScoreFor(roll: ReviewRollup, facts: ComplianceFacts): { score: num
 
   if (facts.anyCapViolations) {
     const n = Object.values(facts.perSupplier).reduce((a, s) => a + s.capViolations.length, 0);
-    factors.push({ label: "Default-value cap breached", impact: -15, detail: `${n} complex-good product${n === 1 ? "" : "s"} report on default values with no actual data — exceeds the 20% cap for complex goods.` });
-    score -= 15;
+    factors.push({ label: "Complex goods on default values", impact: -5, detail: `${n} complex-good product${n === 1 ? "" : "s"} report on default values with no actual data. That is allowed (Annex II A.1(2)), but defaults carry a mark-up and usually give a higher figure.` });
+    score -= 5;
   }
 
   if (facts.anyUnverifiedActual) {

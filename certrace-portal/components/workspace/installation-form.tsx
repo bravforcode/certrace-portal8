@@ -21,11 +21,11 @@
    ════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
-import { Check, Plus, Trash2 } from "lucide-react";
-import { Button, Field, FieldLabel, HelpTip, Modal, inputClass, cn } from "@/components/ui";
+import { Check } from "lucide-react";
+import { Button, FieldLabel, HelpTip, Modal, inputClass, cn } from "@/components/ui";
+import { AnnexLegend, AnnexTag } from "@/components/precursor/annex-fields";
 import { Select } from "@/components/controls";
 import { COUNTRIES } from "@/lib/config";
-import { DIAL_CODES, dialCodeFor, joinPhone, splitPhone } from "@/lib/dial-codes";
 import { useLanguage, useT } from "@/lib/i18n";
 import {
   coordinateError,
@@ -38,86 +38,6 @@ import {
 } from "@/lib/installations";
 
 const countryOptions = COUNTRIES.map((c) => ({ value: c.code, label: c.name, hint: c.code }));
-
-/* The dialling-code list. Labelled by country so it is searchable by name —
-   nobody remembers that Thailand is 66, and a menu of 198 bare numbers is a
-   menu nobody can use. Deduplicated by code, so the +1 plan appears once. */
-const dialOptions = (() => {
-  const byCode = new Map<string, string[]>();
-  for (const c of COUNTRIES) {
-    const dial = DIAL_CODES[c.code];
-    if (!dial) continue;
-    byCode.set(dial, [...(byCode.get(dial) ?? []), c.name]);
-  }
-  return [...byCode.entries()]
-    .map(([dial, names]) => ({ value: dial, label: dial, hint: names.slice(0, 3).join(", ") + (names.length > 3 ? ` +${names.length - 3} more` : "") }))
-    .sort((a, b) => Number(a.value.slice(1)) - Number(b.value.slice(1)));
-})();
-
-/* ── Telephone ────────────────────────────────────────────────
-   Country code picked, subscriber number typed. See lib/dial-codes.ts for why
-   a free-text phone field produces four unusable spellings of one number. */
-function PhoneField({ value, country, onChange, disabled }: { value: string; country: string; onChange: (v: string) => void; disabled?: boolean }) {
-  const t = useT();
-  const parsed = splitPhone(value, country);
-  const [dial, setDial] = React.useState(parsed.dial);
-  const [number, setNumber] = React.useState(parsed.number);
-
-  // Follow the installation's country until the operator overrides the code —
-  // a Thai site whose contact is on a Singapore mobile is real, so this is a
-  // default, not a lock.
-  const touched = React.useRef(false);
-  React.useEffect(() => {
-    if (touched.current) return;
-    const next = dialCodeFor(country);
-    if (next && !number) setDial(next);
-  }, [country, number]);
-
-  // Re-sync when the record is replaced under us (modal reopened on another
-  // installation), never on our own keystrokes.
-  React.useEffect(() => {
-    const fresh = splitPhone(value, country);
-    if (joinPhone(dial, number) !== value) {
-      setDial(fresh.dial);
-      setNumber(fresh.number);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
-
-  const push = (d: string, n: string) => {
-    setDial(d);
-    setNumber(n);
-    onChange(joinPhone(d, n));
-  };
-
-  return (
-    <div className="flex gap-2">
-      <div className="w-[124px] flex-none">
-        <Select
-          value={dial}
-          onChange={(v) => {
-            touched.current = true;
-            push(v, number);
-          }}
-          options={dialOptions}
-          disabled={disabled}
-          searchable
-          searchPlaceholder={t("Country or code…")}
-          ariaLabel={t("Country calling code")}
-        />
-      </div>
-      <input
-        className={cn(inputClass, "min-w-0 flex-1")}
-        value={number}
-        inputMode="tel"
-        disabled={disabled}
-        onChange={(e) => push(dial, e.target.value)}
-        placeholder="38 123 456"
-        aria-label={t("Telephone number")}
-      />
-    </div>
-  );
-}
 
 /* ── UNLOCODE help, shared ──────────────────────────────────────
    Exported because this exact explanation has to appear everywhere the field
@@ -165,6 +85,57 @@ function FieldError({ children }: { children?: React.ReactNode }) {
   return <span className="mt-1.5 block text-[11.5px] leading-relaxed text-[#dc2626]">{children}</span>;
 }
 
+/* ── Annex IV labels ────────────────────────────────────────────
+   `annexTags` mode. The boxed number is the item of Annex IV to Implementing
+   Regulation (EU) 2025/2547 the answer goes into, and the box is also the
+   required / optional marker — see components/precursor/annex-fields.tsx.
+
+   "—" is a field that is not an Annex IV item at all: the installation
+   reference, which is Certrace's own key for the record (the CBAM Registry
+   identifier is a different thing, and sits under the operator). It is still
+   asked, and still marked required, so the reader can tell what blocks saving;
+   it just has no regulation number to quote. Everything the form used to ask
+   beyond the Annex items — the local-language name, the economic activity, the
+   authorised representative, the email — went into no report, so it is no
+   longer asked. */
+type Annex = { tag: string; need: "required" | "optional" } | undefined;
+
+/* A field is a grid item that is itself a two-row SUBGRID of the row it
+   sits in: the label is one track, the control (with its hint or error under
+   it) the other. That is what keeps the inputs level across a row when one
+   label runs to three lines and its neighbour to one — without it each cell
+   stacks on its own and the boxes step up and down. `gap-y-0` so the label sits
+   6px above its own box and the grid's row gap only separates one field from the
+   next. Always exactly two children, so no track is ever left empty. */
+const CELL = "grid grid-rows-subgrid row-span-2 gap-y-0";
+
+function TaggedLabel({ annex, label, children }: { annex: NonNullable<Annex>; label: string; children?: React.ReactNode }) {
+  return (
+    // The box stays beside the text however long the label runs.
+    <span className="mb-1.5 flex items-start gap-2">
+      <AnnexTag tag={annex.tag} need={annex.need} />
+      <span className="min-w-0 text-[12.5px] leading-snug text-black/75">
+        {label}
+        {children && <span className="ml-1.5 inline-flex align-middle">{children}</span>}
+      </span>
+    </span>
+  );
+}
+
+/** A labelled field: the Annex-tagged label when `annex` is given, the plain
+    one otherwise — and in both, a cell that lines up with its row. */
+function AField({ annex, label, optional, hint, children, id }: { annex?: Annex; label: string; optional?: boolean; hint?: string; children: React.ReactNode; id?: string }) {
+  return (
+    <label id={id} className={cn(CELL, "scroll-mt-44")}>
+      {annex ? <TaggedLabel annex={annex} label={label} /> : <FieldLabel label={label} optional={optional} />}
+      <div>
+        {children}
+        {hint && <span className="mt-1.5 block text-xs text-black/35">{hint}</span>}
+      </div>
+    </label>
+  );
+}
+
 export function InstallationFields({
   value,
   onChange,
@@ -174,7 +145,8 @@ export function InstallationFields({
   lockReference = false,
   lockReferenceNote = "Set by the exporter and fixed for this site. Everything already sent about this plant is filed under it, so it cannot be changed from here — if it names the wrong plant, stop and tell the exporter rather than answering for the wrong site.",
   showAllErrors = false,
-  requireEmail = false,
+  annexTags = false,
+  onReferenceBlur,
 }: {
   value: Installation;
   onChange: (next: Installation) => void;
@@ -210,20 +182,26 @@ export function InstallationFields({
      reader past: "fill in what is required" and then a form with nothing
      marked is worse than no message at all. */
   showAllErrors?: boolean;
-  /* Ask for the contact email, and refuse to save without it. Set by the
-     new-workspace flow — see `installationErrors` for why registering a site
-     and setting up a standing monthly ask are different asks. */
-  requireEmail?: boolean;
+  /* Put the boxed Annex IV item number in front of every label, the box doubling
+     as the required / optional marker (ink = required, white = optional) — the
+     same system the precursor and operator fields use. Opt-in: the wizard, the
+     supplier portal and Settings keep their plain labels. */
+  annexTags?: boolean;
+  /* The reference box lost focus. The installation page uses it to commit a
+     CHANGED reference — the reference is the record's key, so it is moved once,
+     when the reader has finished typing it, and never keystroke by keystroke. */
+  onReferenceBlur?: () => void;
 }) {
   const t = useT();
   const set = (p: Partial<Installation>) => onChange({ ...value, ...p });
+  const a = (tag: string, need: "required" | "optional" = "required"): Annex => (annexTags ? { tag, need } : undefined);
   const coordError = coordinateError(value.lat, value.lng);
   /* Errors are shown only for fields the reader has actually reached — an
      untouched form covered in red teaches people to ignore red. `touched`
      fills in as they type, and `canSaveInstallation` still gates the button
      on the complete set regardless of what is displayed. */
   const [touched, setTouched] = React.useState<Record<string, boolean>>({});
-  const errs = installationErrors(value, existingId, requireEmail);
+  const errs = installationErrors(value, existingId);
   const err = (k: string) => (showAllErrors || touched[k] ? errs[k as keyof typeof errs] : undefined);
   const mark = (k: string) => () => setTouched((t) => (t[k] ? t : { ...t, [k]: true }));
   /* A locked reference cannot be wrong by the reader's hand, so it does not
@@ -250,12 +228,15 @@ export function InstallationFields({
         </label>
       )}
 
-      {/* ii — the required one, so it leads. */}
+      {/* The name leads; the reference is Certrace's own key for the record and
+          sits beside it, because that is what it identifies. */}
       <div className="grid gap-4 sm:grid-cols-2">
         <LabelWithHelp
+          id="ip-name"
           label={t("Name of the installation (English)")}
+          annex={a("1(d)")}
           helpTitle={t("Which name goes here")}
-          help={<p>{t("The English name of the producing site — the one your buyer’s declarant and the verifier will use. A Thai name goes in the optional field beside it.")}</p>}
+          help={<p>{t("The English name of the producing site — the one your buyer’s declarant and the verifier will use.")}</p>}
         >
           <input
             className={cn(inputClass, err("name") && "border-[#dc2626]")}
@@ -267,29 +248,16 @@ export function InstallationFields({
           />
           <FieldError>{err("name")}</FieldError>
         </LabelWithHelp>
-        <Field label={t("Name of the installation")} optional hint={t("The local-language name. Field (i) of the EU template.")}>
-          <input
-            className={inputClass}
-            value={value.nameLocal}
-            disabled={disabled}
-            onChange={(e) => set({ nameLocal: e.target.value })}
-            placeholder="บริษัท ไทย ทินเพลท จำกัด"
-          />
-        </Field>
-      </div>
-
-      {/* Not a template field — Certrace's own key for the record. It sits with
-          the names because that is what it identifies. */}
-      <div>
         <LabelWithHelp
           label={t("Installation reference")}
+          annex={a("—")}
           helpTitle={t("Installation reference")}
           help={
             <>
               <p>{t("The id the buyer, the declarant and the verifier all quote for this site.")}</p>
               <p className="mt-2">{t("Country code first, then letters, numbers and single hyphens — 5 to 32 characters. The country must match, because a mismatched prefix is nearly always a reference copied from another plant.")}</p>
               <p className="mt-2">
-                <strong>{t("It has to be unique.")}</strong> {t("Two sites cannot share a reference: every workspace, shipment and document points at this id, and a duplicate would attach one plant’s year of data to another. To change a site you have already added, open it from Settings → Installations rather than re-entering it here.")}
+                <strong>{t("It has to be unique.")}</strong> {t("Two sites cannot share a reference: every product report, shipment and document points at this id, and a duplicate would attach one plant’s year of data to another. To change a site you have already added, open it from Settings → Installations rather than re-entering it here.")}
               </p>
             </>
           }
@@ -299,22 +267,25 @@ export function InstallationFields({
             value={value.id}
             readOnly={lockReference}
             disabled={disabled && !lockReference}
-            onBlur={mark("id")}
+            onBlur={() => {
+              mark("id")();
+              onReferenceBlur?.();
+            }}
             onChange={(e) => !lockReference && set({ id: normaliseReference(e.target.value) })}
             placeholder={t("TH-RAYONG-01")}
             aria-invalid={Boolean(refError)}
           />
+          {lockReference ? (
+            <span className="mt-1.5 block text-[11.5px] leading-relaxed text-black/40">{lockReferenceNote}</span>
+          ) : (
+            refError && <span className="mt-1.5 block text-[11.5px] leading-relaxed text-[#dc2626]">{refError}</span>
+          )}
         </LabelWithHelp>
-        {lockReference ? (
-          <span className="mt-1.5 block text-[11.5px] leading-relaxed text-black/40">{lockReferenceNote}</span>
-        ) : (
-          refError && <span className="mt-1.5 block text-[11.5px] text-[#dc2626]">{refError}</span>
-        )}
       </div>
 
-      {/* iii–viii — the address block, in template order. */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label={t("Street, number")}>
+      {/* The address, in template order. */}
+      <div className="grid gap-4">
+        <AField id="ip-address" annex={a("1(d)")} label={t("Street, number")}>
           <input
             className={cn(inputClass, err("street") && "border-[#dc2626]")}
             value={value.street}
@@ -324,30 +295,11 @@ export function InstallationFields({
             placeholder={t("88 Moo 4, Map Ta Phut Industrial Estate")}
           />
           <FieldError>{err("street")}</FieldError>
-        </Field>
-        <LabelWithHelp
-          label={t("Economic activity")}
-          optional
-          helpTitle={t("Economic activity")}
-          help={
-            <>
-              <p>{t("What this site actually does, not the company’s line of business. A verifier reads it against the MMD boundary, so “manufacture of steel” is too broad.")}</p>
-              <p className="mt-2 text-black/45">{t("It helps a verifier orient themselves, but nothing downstream depends on it.")}</p>
-            </>
-          }
-        >
-          <input
-            className={inputClass}
-            value={value.economicActivity}
-            disabled={disabled}
-            onChange={(e) => set({ economicActivity: e.target.value })}
-            placeholder={t("Hot rolling of purchased billet into reinforcing bar")}
-          />
-        </LabelWithHelp>
+        </AField>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Field label={t("Post code")}>
+        <AField annex={a("1(d)")} label={t("Post code")}>
           <input
             className={cn(inputClass, err("postcode") && "border-[#dc2626]")}
             value={value.postcode}
@@ -357,13 +309,13 @@ export function InstallationFields({
             placeholder="21150"
           />
           <FieldError>{err("postcode")}</FieldError>
-        </Field>
+        </AField>
         {/* Optional, and staying that way: most industrial sites do not have a
             P.O. Box, and requiring one would make the form unfillable for them. */}
-        <Field label={t("P.O. Box")} optional>
+        <AField annex={a("1(d)", "optional")} label={t("P.O. Box")} optional>
           <input className={inputClass} value={value.poBox} disabled={disabled} onChange={(e) => set({ poBox: e.target.value })} placeholder={t("P.O. Box 42")} />
-        </Field>
-        <Field label={t("City")}>
+        </AField>
+        <AField annex={a("1(d)")} label={t("City")}>
           <input
             className={cn(inputClass, err("city") && "border-[#dc2626]")}
             value={value.city}
@@ -373,15 +325,14 @@ export function InstallationFields({
             placeholder={t("Rayong")}
           />
           <FieldError>{err("city")}</FieldError>
-        </Field>
-        <Field label={t("Country")}>
+        </AField>
+        <AField annex={a("1(d)")} label={t("Country")}>
           <Select value={value.country} onChange={(v) => set({ country: v })} options={countryOptions} disabled={disabled} searchable ariaLabel={t("Country")} />
-        </Field>
+        </AField>
       </div>
 
-      {/* ix–xi */}
       <div className="grid gap-4 sm:grid-cols-3">
-        <LabelWithHelp label={t("UNLOCODE")} helpTitle={t("UNLOCODE")} help={<UnlocodeHelp />}>
+        <LabelWithHelp id="ip-unlocode" label={t("UNLOCODE")} annex={a("1(d)")} helpTitle={t("UNLOCODE")} help={<UnlocodeHelp />}>
           <input
             className={cn(inputClass, "font-mono", err("unlocode") && "border-[#dc2626]")}
             value={value.unlocode}
@@ -393,7 +344,9 @@ export function InstallationFields({
           <FieldError>{err("unlocode")}</FieldError>
         </LabelWithHelp>
         <LabelWithHelp
+          id="ip-coords"
           label={t("Latitude — main emission source")}
+          annex={a("1(d)")}
           helpTitle={t("Coordinates")}
           help={<p>{t("The main emission source, not the front gate — usually the stack of the furnace or kiln that dominates the figures. Decimal degrees, and both fields or neither.")}</p>}
         >
@@ -407,7 +360,7 @@ export function InstallationFields({
           />
           <FieldError>{err("lat")}</FieldError>
         </LabelWithHelp>
-        <Field label={t("Longitude — main emission source")}>
+        <AField annex={a("1(d)")} label={t("Longitude — main emission source")}>
           <input
             className={cn(inputClass, "font-mono", (coordError || err("lng")) && "border-[#dc2626]")}
             value={value.lng}
@@ -417,126 +370,9 @@ export function InstallationFields({
             placeholder="101.1590"
           />
           <FieldError>{err("lng")}</FieldError>
-        </Field>
+        </AField>
       </div>
       {coordError && <span className="-mt-2 block text-[11.5px] text-[#dc2626]">{coordError}</span>}
-
-      {/* xii–xiv */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        <LabelWithHelp
-          label={t("Name of authorised representative")}
-          optional
-          helpTitle={t("Authorised representative")}
-          help={
-            <>
-              <p>{t("The named person who can answer for these figures. A verifier will ask who signed the data off, and a department is not an answer.")}</p>
-              <p className="mt-2 text-black/45">{t("You can nominate the representative later without holding up the site record, but it is worth filling in before verification.")}</p>
-            </>
-          }
-        >
-          <input
-            className={inputClass}
-            value={value.contactName}
-            disabled={disabled}
-            onChange={(e) => set({ contactName: e.target.value })}
-            placeholder={t("Somchai Prasert")}
-          />
-        </LabelWithHelp>
-        {/* NO EXPLANATORY HINT. "Where this site's monthly link and every data
-            request are sent" is true, and it is also what an email address on
-            an installation record obviously is — a line under the box telling
-            a reader what email is for is a line they read once and skip
-            forever after. The absence of the "optional" marker is the whole
-            message: it is required, and the error underneath says so if it is
-            left empty. */}
-        <Field label={t("Email")} optional={!requireEmail}>
-          <input
-            className={cn(inputClass, err("contactEmail") && "border-[#dc2626]")}
-            type="email"
-            value={value.contactEmail}
-            disabled={disabled}
-            onBlur={mark("contactEmail")}
-            onChange={(e) => set({ contactEmail: e.target.value })}
-            placeholder={t("somchai@thaitinplate.co.th")}
-            aria-invalid={Boolean(err("contactEmail"))}
-          />
-          <FieldError>{err("contactEmail")}</FieldError>
-        </Field>
-        {/* Not a <Field>: that wraps its children in a <label>, and a label
-            holding two controls forwards every click to the first one — so
-            tapping the number box would open the dialling-code menu. The label
-            is built from the same pieces so the marker sits where it does on
-            every other field. */}
-        <div>
-          <FieldLabel label={t("Telephone")} optional />
-          <PhoneField value={value.contactPhone} country={value.country} disabled={disabled} onChange={(v) => set({ contactPhone: v })} />
-        </div>
-      </div>
-
-      {/* Not a template field. Lets a verifier confirm the reported boundary
-          covers only the CBAM good and nothing else this site makes. */}
-      <div>
-        <div className="mb-2 flex items-center justify-between">
-          <FieldLabel label={t("Other goods produced at this installation")} optional>
-            <HelpTip title={t("Other goods produced at this installation")}>
-              <p>
-                {t("If this site also makes products outside CBAM scope, list them so a verifier can confirm the boundary in this report covers only the CBAM good and nothing from another line.")}
-              </p>
-            </HelpTip>
-          </FieldLabel>
-          {!disabled && (
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => set({ otherGoods: [...value.otherGoods, { name: "", description: "" }] })}
-            >
-              <Plus size={12} strokeWidth={1.5} /> {t("Add a good")}
-            </Button>
-          )}
-        </div>
-        {value.otherGoods.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-black/[0.12] bg-[#faf9f7] px-4 py-3 text-[12px] leading-relaxed text-black/45">
-            {t("None declared. If this site also makes products outside CBAM scope, list them here — a verifier reads this to confirm the boundary above covers only the CBAM good.")}
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {value.otherGoods.map((g, i) => (
-              <div key={i} className="flex items-start gap-2 rounded-xl border border-black/[0.07] bg-[#faf9f7] p-3">
-                <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-2">
-                  <input
-                    className={inputClass}
-                    value={g.name}
-                    disabled={disabled}
-                    onChange={(e) =>
-                      set({ otherGoods: value.otherGoods.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)) })
-                    }
-                    placeholder={t("PVC pipe fittings")}
-                  />
-                  <input
-                    className={inputClass}
-                    value={g.description ?? ""}
-                    disabled={disabled}
-                    onChange={(e) =>
-                      set({ otherGoods: value.otherGoods.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)) })
-                    }
-                    placeholder={t("Separate extrusion line, not part of the steel process (optional)")}
-                  />
-                </div>
-                {!disabled && (
-                  <button
-                    type="button"
-                    aria-label={t("Remove")}
-                    onClick={() => set({ otherGoods: value.otherGoods.filter((_, j) => j !== i) })}
-                    className="flex-none rounded-lg p-2 text-black/35 hover:bg-black/[0.05] hover:text-black/60"
-                  >
-                    <Trash2 size={14} strokeWidth={1.5} />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   );
 }
@@ -548,24 +384,35 @@ function LabelWithHelp({
   helpTitle,
   children,
   optional,
+  annex,
+  id,
 }: {
+  id?: string;
   label: string;
   help: React.ReactNode;
   helpTitle?: string;
   children: React.ReactNode;
+  /** The Annex IV box that replaces the "optional" marker — see `TaggedLabel`. */
+  annex?: Annex;
   /* Marked on the label rather than left to be inferred from the absence of
      an error. A reader filling a long form needs to know what they can skip
      BEFORE they start, not after they try to submit. */
   optional?: boolean;
 }) {
   return (
-    <label className="block">
+    <label id={id} className={cn(CELL, "scroll-mt-44")}>
       {/* Same label primitive as <Field>, so a field with a help tip and one
           without cannot drift into two different ways of saying "optional". */}
-      <FieldLabel label={label} optional={optional}>
-        <HelpTip title={helpTitle}>{help}</HelpTip>
-      </FieldLabel>
-      {children}
+      {annex ? (
+        <TaggedLabel annex={annex} label={label}>
+          <HelpTip title={helpTitle}>{help}</HelpTip>
+        </TaggedLabel>
+      ) : (
+        <FieldLabel label={label} optional={optional}>
+          <HelpTip title={helpTitle}>{help}</HelpTip>
+        </FieldLabel>
+      )}
+      <div>{children}</div>
     </label>
   );
 }
@@ -579,8 +426,8 @@ function LabelWithHelp({
     one-line read of it so the two can never disagree.
 
     `existingId` is the record being edited — see `InstallationFields`. */
-export const canSaveInstallation = (i: Installation, existingId?: string, requireEmail = false): boolean =>
-  Object.keys(installationErrors(i, existingId, requireEmail)).length === 0;
+export const canSaveInstallation = (i: Installation, existingId?: string): boolean =>
+  Object.keys(installationErrors(i, existingId)).length === 0;
 
 /** "Add a different installation" — a POPUP, deliberately. Adding a site is a
     detour from choosing one, and replacing the picker with a form loses the
@@ -596,7 +443,6 @@ export function InstallationModal({
   allowSelfToggle = true,
   supplierId,
   self,
-  requireEmail = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -611,8 +457,6 @@ export function InstallationModal({
   supplierId?: string;
   /** Pre-mark the record as one of the exporter's own sites. */
   self?: boolean;
-  /** Refuse to save without a contact email — see `InstallationFields`. */
-  requireEmail?: boolean;
 }) {
   const t = useT();
   const blank = React.useCallback(
@@ -649,7 +493,7 @@ export function InstallationModal({
   }, [open]);
 
   const save = () => {
-    if (saved || !canSaveInstallation(draft, existingId, requireEmail)) return;
+    if (saved || !canSaveInstallation(draft, existingId)) return;
     const record = saveInstallation(draft);
     setSaved(true);
     window.setTimeout(() => {
@@ -667,7 +511,7 @@ export function InstallationModal({
           </Button>
           <Button
             size="sm"
-            disabled={!canSaveInstallation(draft, existingId, requireEmail)}
+            disabled={!canSaveInstallation(draft, existingId)}
             onClick={save}
             className={cn("min-w-[10.5rem]", saved && "bg-[#047857] hover:bg-[#047857]")}
           >
@@ -677,7 +521,11 @@ export function InstallationModal({
         </>
       }
     >
-      <InstallationFields value={draft} onChange={setDraft} showSelfToggle={allowSelfToggle} existingId={existingId} requireEmail={requireEmail} />
+      {/* The same boxes as the installation page's Overview: the Annex IV item
+          each answer goes into, black where it is required, white where it is
+          optional. */}
+      <AnnexLegend className="mb-5" showNeed showNoItem noVr />
+      <InstallationFields value={draft} onChange={setDraft} showSelfToggle={allowSelfToggle} existingId={existingId} annexTags />
     </Modal>
   );
 }

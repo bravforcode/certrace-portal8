@@ -21,7 +21,7 @@ import Link from "next/link";
 import { Calendar, CheckCircle2, Layers, Paperclip, ShieldAlert, Users } from "lucide-react";
 import { Card, cn } from "@/components/ui";
 import type { ActionItem, ActionItemType } from "@/lib/cbam/action-queue";
-import { useT } from "@/lib/i18n";
+import { useT, type TFunction } from "@/lib/i18n";
 
 const TYPE_ICON: Record<ActionItemType, typeof Calendar> = {
   monthly_data: Calendar,
@@ -39,10 +39,11 @@ const TYPE_LABEL: Record<ActionItemType, string> = {
   precursor_deadline: "Precursor deadline",
 };
 
-function dueLabel(daysUntilDue: number): { text: string; tone: "err" | "warn" } {
-  if (daysUntilDue < 0) return { text: `${Math.abs(daysUntilDue)} day${Math.abs(daysUntilDue) === 1 ? "" : "s"} overdue`, tone: "err" };
-  if (daysUntilDue === 0) return { text: "Needs attention", tone: "warn" };
-  return { text: `Due in ${daysUntilDue} day${daysUntilDue === 1 ? "" : "s"}`, tone: "warn" };
+function dueLabel(daysUntilDue: number, t: TFunction): { text: string; tone: "err" | "warn" } {
+  const n = Math.abs(daysUntilDue);
+  if (daysUntilDue < 0) return { text: n === 1 ? t("1 day overdue") : t("{n} days overdue", { n }), tone: "err" };
+  if (daysUntilDue === 0) return { text: t("Needs attention"), tone: "warn" };
+  return { text: daysUntilDue === 1 ? t("Due in 1 day") : t("Due in {n} days", { n: daysUntilDue }), tone: "warn" };
 }
 
 const SHOWN_FIRST = 5;
@@ -57,7 +58,7 @@ export function ActionQueue({ items }: { items: ActionItem[] }) {
         <h2 className="font-[family-name:var(--font-plex)] text-lg font-light tracking-tight text-[#111]">{t("Action queue")}</h2>
         {items.length > 0 && (
           <span className="rounded-full bg-[#111] px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.08em] text-white">
-            {items.length} item{items.length === 1 ? "" : "s"}
+            {items.length === 1 ? t("1 item") : t("{n} items", { n: items.length })}
           </span>
         )}
       </div>
@@ -71,7 +72,7 @@ export function ActionQueue({ items }: { items: ActionItem[] }) {
         <ul className="divide-y divide-black/[0.05]">
           {shown.map((item, i) => {
             const Icon = TYPE_ICON[item.type];
-            const due = dueLabel(item.daysUntilDue);
+            const due = dueLabel(item.daysUntilDue, t);
             return (
               <li key={`${item.workspaceId}-${item.type}-${i}`}>
                 <Link href={item.deepLink} className="flex items-center gap-3 py-3.5 transition-colors hover:bg-[#fafaf8]">
@@ -84,9 +85,9 @@ export function ActionQueue({ items }: { items: ActionItem[] }) {
                     <Icon size={16} strokeWidth={1.5} />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13px] text-black/80">{item.label}</span>
+                    <span className="block truncate text-[13px] text-black/80">{item.say ? t(item.say.key, item.say.vars) : t(item.label)}</span>
                     <span className="block truncate text-[11px] text-black/40">
-                      {t(TYPE_LABEL[item.type])} · {item.workspaceLabel}
+                      {t(TYPE_LABEL[item.type])} · {t(item.workspaceLabel)}
                     </span>
                   </span>
                   <span className={cn("flex-none whitespace-nowrap text-[11px] font-medium uppercase tracking-[0.06em]", due.tone === "err" ? "text-[#dc2626]" : "text-[#b45309]")}>

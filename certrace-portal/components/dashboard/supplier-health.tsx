@@ -15,6 +15,7 @@ import type { SupplierFunnel } from "@/lib/cbam/dashboard-aggregates";
 import { useT } from "@/lib/i18n";
 
 function FunnelBar({ funnel }: { funnel: SupplierFunnel }) {
+  const t = useT();
   const total = funnel.totalPrecursorSuppliers || 1;
   const stages = [
     { label: "Invited", count: funnel.invited, color: "#d4d4d4" },
@@ -25,14 +26,14 @@ function FunnelBar({ funnel }: { funnel: SupplierFunnel }) {
     <div>
       <div className="flex h-3 w-full overflow-hidden rounded-full bg-black/[0.04]">
         {stages.map((s) => (
-          <div key={s.label} style={{ width: `${(s.count / total) * 100}%`, background: s.color }} title={`${s.label}: ${s.count}`} />
+          <div key={s.label} style={{ width: `${(s.count / total) * 100}%`, background: s.color }} title={`${t(s.label)}: ${s.count}`} />
         ))}
       </div>
       <div className="mt-2.5 flex flex-wrap gap-x-5 gap-y-1">
         {stages.map((s) => (
           <span key={s.label} className="inline-flex items-center gap-1.5 text-[12px] text-black/50">
             <span className="h-2 w-2 flex-none rounded-full" style={{ background: s.color }} />
-            {s.label} — {s.count}
+            {t(s.label)} — {s.count}
           </span>
         ))}
       </div>
@@ -59,12 +60,12 @@ export function SupplierHealth({ funnel }: { funnel: SupplierFunnel }) {
               <span className="font-medium text-black/80">
                 {funnel.withAccount} of {funnel.totalPrecursorSuppliers}
               </span>{" "}
-              precursor suppliers have a Certrace account
+              {t("precursor suppliers have a Certrace account")}
             </p>
 
             {funnel.staleCount > 0 && (
               <Link href="/suppliers" className="flex-none rounded-lg border border-black/15 px-3 py-1.5 text-[11px] uppercase tracking-[0.08em] text-black/60 hover:border-black/30 hover:text-black">
-                Chase these {funnel.staleCount} supplier{funnel.staleCount === 1 ? "" : "s"} <ArrowRight size={11} strokeWidth={1.5} className="ml-1 inline" />
+                {funnel.staleCount === 1 ? t("Chase this 1 supplier") : t("Chase these {n} suppliers", { n: funnel.staleCount })} <ArrowRight size={11} strokeWidth={1.5} className="ml-1 inline" />
               </Link>
             )}
           </div>

@@ -61,7 +61,6 @@ import {
   Archive,
   ArchiveRestore,
   ArrowRight,
-  Building2,
   ChevronLeft,
   ChevronRight,
   Factory,
@@ -72,16 +71,18 @@ import {
   Table2,
   Trash2,
 } from "lucide-react";
-import { Button, Card, Chip, EmptyState, PageHeader, Progress, TagBadge, cn } from "@/components/ui";
+import { Button, Card, Chip, EmptyState, PageHeader, Progress, cn } from "@/components/ui";
 import { ErrorState, LoadingState } from "@/components/query-state";
 import { Select } from "@/components/controls";
 import { toast } from "@/components/toast";
-import { DotStrip, StateChip } from "@/components/workspace/chrome";
+import { StateChip } from "@/components/workspace/chrome";
 import { WorkspaceMenu } from "@/components/workspace/workspace-menu";
+import { InstallationMenu, installationHref } from "@/components/workspace/installation-menu";
+import { ProductReportCard, archivedOn, restore, toCards, type CardData } from "@/components/workspace/product-report-card";
 import { getCatalogProduct } from "@/lib/config";
-import { listInstallations } from "@/lib/installations";
-import { listSuppliers } from "@/lib/precursor-suppliers";
-import { dotStates, workspaceReadiness, type TabState } from "@/lib/readiness";
+import { installationForWorkspace, listInstallations } from "@/lib/installations";
+import { profileStatus } from "@/lib/cbam/installation-profile";
+import type { TabState } from "@/lib/readiness";
 import { groupBySupplier, routeLabel, type VerificationWorkspace } from "@/lib/workspace";
 import { type WorkspaceDraft } from "@/lib/workspace-drafts";
 import {
@@ -94,31 +95,6 @@ import {
 } from "@/lib/store";
 import { useOrgIdentity } from "@/lib/workspaces-query";
 import { useT } from "@/lib/i18n";
-
-type CardData = {
-  workspace: VerificationWorkspace;
-  overall: TabState;
-  dots: TabState[];
-  percent: number;
-  precursors: number;
-};
-
-function toCards(workspaces: VerificationWorkspace[]): CardData[] {
-  return workspaces.map((w) => {
-    const readiness = workspaceReadiness(w);
-    return {
-      workspace: w,
-      overall: readiness.overall,
-      dots: dotStates(readiness),
-      percent: readiness.percentComplete,
-      precursors: listSuppliers(w.id).length,
-    };
-  });
-}
-
-
-
-
 
 /* ── Active or archived ─────────────────────────────────────────
    One screen, two scopes, and the archive is a SCOPE rather than a page of
@@ -291,16 +267,15 @@ export default function WorkspacesPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow={t("Verification")}
-        title={t("Verification workspaces")}
-        lead={t("One workspace per installation × product × reporting year. It is the screen you monitor each month, and the screen you hand to a verifier at the end of it.")}
+        title={t("Verification")}
+        lead={t("Your sites, and the product reports you file at each one.")}
         actions={
           /* Deliberately the full-size button rather than size="sm". This is
              the only action on the screen and the one an exporter arrives
              wanting; a small secondary-looking control was reading as a
              utility next to the page title. */
           <Button className="whitespace-nowrap" onClick={() => router.push("/workspaces/new")}>
-            <Plus size={16} strokeWidth={1.5} /> {t("New workspace")}
+            <Plus size={16} strokeWidth={1.5} /> {t("New product report")}
           </Button>
         }
       />
@@ -332,8 +307,8 @@ export default function WorkspacesPage() {
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder={showingArchive ? "Search archived workspaces…" : "Search by product, CN code, supplier or installation…"}
-                aria-label={showingArchive ? "Search archived workspaces" : "Search workspaces"}
+                placeholder={showingArchive ? "Search archived product reports…" : "Search by product, CN code, supplier or installation…"}
+                aria-label={showingArchive ? "Search archived product reports" : "Search product reports"}
                 className="w-full rounded-xl border border-black/10 bg-white py-2.5 pl-10 pr-4 text-sm text-black/70 placeholder:text-black/25 transition-colors focus:border-black/25 focus:outline-none"
               />
             </div>
@@ -405,11 +380,11 @@ export default function WorkspacesPage() {
             <div className="flex items-center justify-between gap-3">
               <p className="text-[11.5px] text-black/40">
                 {filtered.length === 0 ? (
-                  <>No matches out of {all.length}.</>
+                  <>{t("No matches out of {n}.", { n: all.length })}</>
                 ) : (
                   <>
-                    Showing <strong className="font-medium text-black/60">{from}–{to}</strong> of {filtered.length}
-                    {filtered.length === all.length ? "" : ` filtered`} {showingArchive ? "archived " : ""}workspace{filtered.length === 1 ? "" : "s"}.
+                    {t("Showing")} <strong className="font-medium text-black/60">{from}–{to}</strong> {t("of")} {filtered.length}
+                    {filtered.length === all.length ? "" : ` · ${t("filtered")}`}
                   </>
                 )}
               </p>
@@ -428,29 +403,24 @@ export default function WorkspacesPage() {
         <EmptyState
           icon={<Archive size={28} strokeWidth={1.25} />}
           title={t("Nothing archived")}
-          body={t("Archiving takes a finished year out of the estate — off the dashboard, out of the Inbox, and no longer counted in Reports — without deleting a single reading. Anything you archive lands here, and comes back with one click.")}
+          body={t("Archived reports stay here, and come back with one click.")}
           action={
             <Button size="sm" variant="secondary" onClick={() => setScope("active")}>
-              {t("Back to active workspaces")}
+              {t("Back to active reports")}
             </Button>
           }
         />
       ) : all.length === 0 ? (
         <EmptyState
           icon={<LayoutGrid size={28} strokeWidth={1.25} />}
-          title={t("No verification workspaces yet")}
-          body={t("A workspace is one installation × one product × one reporting year — “Steel billet · Plant A · 2026”. Monthly readings, the MMD, the precursor chain and evidence all hang off it.")}
-          action={
-            <Button onClick={() => router.push("/workspaces/new")}>
-              <Plus size={16} strokeWidth={1.5} /> {t("Create the first workspace")}
-            </Button>
-          }
+          title={t("No product reports yet")}
+          body={t("One product at one site for one year — like “Steel billet · Plant A · 2026”.")}
         />
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={<Search size={28} strokeWidth={1.25} />}
           title={t("Nothing matches those filters")}
-          body={t("Clear them to see every workspace, or widen one — readiness and year are the two that narrow hardest.")}
+          body={t("Clear a filter to see more.")}
           action={
             <Button size="sm" variant="secondary" onClick={clear}>
               {t("Clear filters")}
@@ -474,43 +444,27 @@ export default function WorkspacesPage() {
           {view === "table" ? (
             <WorkspaceTable rows={paged} onChanged={refresh} archived={showingArchive} />
           ) : (
-            /* SUPPLIER → INSTALLATION → GOOD. The supplier is the headline
-               because it is the party an exporter chases; the installation is
-               the sub-heading because it is what a verifier scopes to; the
-               cards are the goods, because that is the unit of a workspace. */
+            /* COMPANY → INSTALLATION → REPORTING YEAR → PRODUCT REPORT.
+
+               The company is the headline because it is the party you chase.
+               The installation is a ROW you can act on — it holds what is
+               entered once, so it carries its own menu — and the reporting year
+               is the heading above the product reports of that year, so the
+               same CN code in two years is never two unlabelled cards. */
             grouped.map((group) => (
               <section key={group.supplierId} className="space-y-4">
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-black/[0.07] pb-2">
-                  <h2 className="flex items-center gap-2 font-[family-name:var(--font-plex)] text-2xl font-light tracking-tight text-[#111]">
-                    {group.self ? (
-                      <Factory size={17} strokeWidth={1.5} className="text-black/35" />
-                    ) : (
-                      <Building2 size={17} strokeWidth={1.5} className="text-black/35" />
-                    )}
-                    {group.supplierName}
-                  </h2>
-                  {group.self && <TagBadge tone="info">{t("Your own sites")}</TagBadge>}
+                  {/* The heading is just the company's name — no icon, no tag, whether
+                      it is your own company or a supplier. The factory icon belongs to
+                      the installation row beneath it, not to the company above. */}
+                  <h2 className="font-[family-name:var(--font-plex)] text-2xl font-light tracking-tight text-[#111]">{group.supplierName}</h2>
                   <span className="font-mono text-[11px] text-black/35">
-                    {group.installations.length} site{group.installations.length === 1 ? "" : "s"}
+                    {t(group.installations.length === 1 ? "{n} site" : "{n} sites", { n: group.installations.length })}
                   </span>
                 </div>
 
                 {group.installations.map((inst) => (
-                  <div key={inst.installationId} className="space-y-3">
-                    <div className="flex items-baseline gap-2.5 pl-0.5">
-                      <h3 className="font-pixel text-[11px] uppercase tracking-[0.16em] text-black/50">{inst.installationName}</h3>
-                      <span className="font-mono text-[11px] text-black/30">{inst.installationId}</span>
-                    </div>
-
-                    {/* items-stretch is the grid default and every card carries
-                        h-full through the link, so a row of cards is one height
-                        however long the product names are. */}
-                    <div className="grid items-stretch gap-3 md:grid-cols-2 xl:grid-cols-3">
-                      {inst.cards.map((c) => (
-                        <WorkspaceCard key={c.workspace.id} data={c} onChanged={refresh} archived={showingArchive} />
-                      ))}
-                    </div>
-                  </div>
+                  <InstallationBlock key={inst.installationId} inst={inst} onChanged={refresh} archived={showingArchive} />
                 ))}
               </section>
             ))
@@ -523,6 +477,86 @@ export default function WorkspacesPage() {
           is reachable without scrolling an entire page of cards first. It
           renders nothing when there is only one page. */}
       <Pager page={page} pageCount={pageCount} onChange={setPage} total={filtered.length} from={from} to={to} />
+    </div>
+  );
+}
+
+/* ── One installation, its years, and their product reports ──────
+   The row is the installation: its name opens the installation page, the
+   reference rides beside it, and the ⋯ at the right edge edits what is entered
+   once. The chip says how much of that one-time information is in — it is the
+   same count the installation's Readiness tab reports, so the two never
+   disagree. Under the row, reporting years run newest first, each with the
+   product reports of that year as cards. */
+function InstallationBlock({
+  inst,
+  onChanged,
+  archived,
+}: {
+  inst: { installationId: string; installationName: string; cards: CardData[] };
+  onChanged: () => void;
+  archived: boolean;
+}) {
+  const t = useT();
+  const first = inst.cards[0]?.workspace;
+  const record = React.useMemo(
+    () =>
+      installationForWorkspace({
+        installationId: inst.installationId,
+        installationName: inst.installationName,
+        selfSupplied: first?.selfSupplied,
+        supplierId: first?.supplierId,
+      }),
+    [inst.installationId, inst.installationName, first?.selfSupplied, first?.supplierId],
+  );
+  const status = profileStatus(record);
+  const years = [...new Set(inst.cards.map((c) => c.workspace.year))].sort((a, b) => b - a);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-3 rounded-2xl border border-black/[0.07] bg-white px-4 py-3 transition-colors hover:border-black/15">
+        <Link href={installationHref(inst.installationId)} className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1">
+          <span className="flex min-w-0 items-center gap-2">
+            <Factory size={15} strokeWidth={1.5} className="flex-none text-black/35" />
+            <span className="truncate text-[15px] text-black/85">{inst.installationName || inst.installationId}</span>
+          </span>
+          <span className="font-mono text-[11px] text-black/40">{inst.installationId}</span>
+          <span className="font-mono text-[11px] text-black/30">
+            {t(inst.cards.length === 1 ? "{n} product report" : "{n} product reports", { n: inst.cards.length })}
+          </span>
+        </Link>
+        <span
+          className={cn(
+            "hidden flex-none items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.1em] sm:inline-flex",
+            status.complete ? "border-[rgba(5,150,105,0.18)] bg-[#ecfdf5] text-[#047857]" : "border-[rgba(180,83,9,0.18)] bg-[#fffbeb] text-[#b45309]",
+          )}
+          title={status.complete ? t("Everything entered once for this installation is in.") : t("Information entered once for this installation is still missing.")}
+        >
+          {status.complete ? t("Installation info complete") : t("Installation info {a}/{b}", { a: status.answered, b: status.total })}
+        </span>
+        <InstallationMenu installationId={inst.installationId} name={inst.installationName || inst.installationId} />
+      </div>
+
+      {years.map((year) => {
+        const cards = inst.cards.filter((c) => c.workspace.year === year);
+        return (
+          <div key={year} className="space-y-2.5 pl-3 sm:pl-5">
+            <div className="flex items-baseline gap-2.5 border-l-2 border-black/15 pl-3">
+              <h3 className="font-pixel text-[11px] uppercase tracking-[0.16em] text-black/55">
+                {t("Reporting year")} {year}
+              </h3>
+              <span className="font-mono text-[11px] text-black/30">
+                {t(cards.length === 1 ? "{n} product report" : "{n} product reports", { n: cards.length })}
+              </span>
+            </div>
+            <div className="grid items-stretch gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {cards.map((c) => (
+                <ProductReportCard key={c.workspace.id} data={c} onChanged={onChanged} archived={archived} />
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -622,118 +656,10 @@ function Pager({
         </button>
       </div>
       <span className="hidden font-mono text-[11px] text-black/40 sm:block">
-        Page {page} of {pageCount}
+        {t("Page {page} of {total}", { page, total: pageCount })}
       </span>
     </nav>
   );
-}
-
-/* ── Card ─────────────────────────────────────────────────── */
-function WorkspaceCard({ data, onChanged, archived = false }: { data: CardData; onChanged: () => void; archived?: boolean }) {
-  const t = useT();
-  const restoreWs = useRestoreWorkspace();
-  const { workspace, overall, dots, percent, precursors } = data;
-  return (
-    <div className={cn("relative h-full", archived && "opacity-75 transition-opacity hover:opacity-100")}>
-      {/* h-full on the LINK as well as the card. Without it the anchor sizes to
-          its content and `h-full` on the card inside means 100% of that — so
-          the cards in a row ended up as tall as their own text rather than as
-          tall as the row. */}
-      <Link href={`/workspaces/${workspace.id}/tree`} className="block h-full">
-        <Card className="flex h-full flex-col p-5 transition-colors hover:border-black/20">
-          <div className="flex items-start justify-between gap-3 pr-8">
-            <div className="min-w-0">
-              <div className="truncate text-[15px] text-black/85">{workspace.productName}</div>
-              <div className="mt-0.5 font-mono text-[11px] text-black/40">
-                CN {workspace.cnCode || "—"} · {routeLabel(workspace.productionRoute)} · {workspace.year}
-              </div>
-              {/* Whose plant this is, on the card as well as in the heading
-                  above it. A card gets copied into a screenshot, opened from a
-                  search result and read on a phone where the heading has
-                  scrolled away — all three lose the grouping that would
-                  otherwise be the only place the supplier is named. */}
-              <div className="mt-2">
-                <TagBadge tone={workspace.selfSupplied ? "info" : "muted"}>
-                  {workspace.selfSupplied ? t("Our own site") : workspace.supplierName || t("Unassigned supplier")}
-                </TagBadge>
-              </div>
-            </div>
-            <StateChip state={overall} />
-          </div>
-
-          {/* READINESS, not months submitted. Twelve months of readings is a
-              fraction of the work on a complex good — the precursor chain, the
-              MMD, the evidence and the carbon price all have to land too, and
-              "8 of 12 months" read as nearly done while three of those were
-              still empty. This is the same figure the workspace's own
-              Readiness section reports (readiness.percentComplete, over the
-              applicable tabs), so the card and the section never disagree.
-              mt-auto pins it and the strip below to the bottom, so the figures
-              line up across a row whatever the header above them wrapped to. */}
-          <div className="mt-auto pt-4">
-            <div className="mb-1.5 flex items-baseline justify-between gap-2">
-              <span className="font-mono text-[10.5px] uppercase tracking-[0.1em] text-black/35">{t("Readiness")}</span>
-              <span className="font-mono text-[11px] text-black/45">{percent}%</span>
-            </div>
-            <Progress value={percent} tone={overall === "blocked" ? "err" : overall === "complete" ? "ok" : "warn"} />
-          </div>
-
-          <div className="mt-4 flex items-center justify-between gap-3">
-            <DotStrip states={dots} />
-            <span className="font-mono text-[10.5px] text-black/35">
-              {precursors} precursor{precursors === 1 ? "" : "s"}
-            </span>
-          </div>
-
-          {/* Restore ON the card, not only in the kebab. Bringing something
-              back is the one thing a reader is in the archive to do, and it
-              is safe — hiding it behind a ⋯ makes the archive read as a
-              graveyard rather than a drawer. */}
-          {archived && (
-            <div className="mt-4 flex items-center justify-between gap-3 border-t border-black/[0.06] pt-3">
-              <span className="font-mono text-[10.5px] text-black/35">Archived {archivedOn(workspace)}</span>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  restore(workspace, restoreWs.mutate);
-                }}
-                className="inline-flex flex-none items-center gap-1.5 rounded-lg border border-black/10 px-2.5 py-1.5 text-[11.5px] text-black/60 transition-colors hover:border-black/25 hover:text-black"
-              >
-                <ArchiveRestore size={12} strokeWidth={1.5} /> {t("Restore")}
-              </button>
-            </div>
-          )}
-        </Card>
-      </Link>
-      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events --
-   the row is a <Link>; this wrapper exists only to stop the link firing when the
-   menu inside it is used. It is plumbing, not a control — the menu it wraps is the
-   control, and that one is a real button. */}
-<span className="absolute right-3 top-3" onClick={(e) => e.preventDefault()}>
-        <WorkspaceMenu workspace={workspace} afterChange={onChanged} />
-      </span>
-    </div>
-  );
-}
-
-/* ── Archive helpers, shared by the card and the table row ───── */
-
-/** The date it was put away, in the short form the rest of the estate uses.
-    A workspace archived before `archivedAt` existed simply has no date — the
-    badge says so rather than inventing "today", which would make an old
-    archive look like something that just happened. */
-function archivedOn(w: VerificationWorkspace): string {
-  if (!w.archivedAt) return "—";
-  const d = new Date(w.archivedAt);
-  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
-}
-
-/* Restore goes through the mutation, which invalidates the whole
-   ["workspaces"] prefix itself — no hand-rolled refresh needed. */
-function restore(w: VerificationWorkspace, mutate: (id: string) => void) {
-  mutate(w.id);
-  toast({ message: "Workspace restored", detail: `${w.productName} · ${w.installationName} is back in the estate.`, tone: "ok" });
 }
 
 /* ── Table ────────────────────────────────────────────────── */
@@ -762,11 +688,11 @@ function WorkspaceTable({ rows, onChanged, archived = false }: { rows: CardData[
             {rows.map(({ workspace: w, overall, percent, precursors }) => (
               <tr
                 key={w.id}
-                onClick={() => router.push(`/workspaces/${w.id}/tree`)}
+                onClick={() => router.push(`/workspaces/${w.id}`)}
                 className="cursor-pointer border-b border-black/[0.05] transition-colors last:border-0 hover:bg-[#fafaf8]"
               >
                 <td className="px-4 py-3">
-                  <div className="text-[13px] text-black/80">{w.productName}</div>
+                  <div className="text-[13px] text-black/80">{t(w.productName)}</div>
                   <div className="font-mono text-[11px] text-black/40">CN {w.cnCode || "—"}</div>
                 </td>
                 <td className="px-4 py-3">
@@ -778,7 +704,7 @@ function WorkspaceTable({ rows, onChanged, archived = false }: { rows: CardData[
                   <div className="text-[12.5px] text-black/65">{w.installationName}</div>
                   <div className="font-mono text-[11px] text-black/35">{w.installationId}</div>
                 </td>
-                <td className="px-4 py-3 text-[12px] text-black/60">{routeLabel(w.productionRoute)}</td>
+                <td className="px-4 py-3 text-[12px] text-black/60">{t(routeLabel(w.productionRoute))}</td>
                 <td className="px-4 py-3 font-mono text-[12px] text-black/60">{w.year}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
@@ -917,7 +843,7 @@ function DraftCard({ draft, onDiscard }: { draft: WorkspaceDraft; onDiscard: () 
       <Link href={`/workspaces/new?draft=${draft.id}`} className="block h-full">
         <Card className="flex h-full flex-col border-dashed p-4 transition-colors hover:border-black/20 hover:bg-[#fafaf8]">
           <div className="min-w-0 pr-8">
-            <div className="truncate text-[14px] text-black/85">{draft.display.productName}</div>
+            <div className="truncate text-[14px] text-black/85">{t(draft.display.productName)}</div>
             <div className="mt-1 flex items-center gap-2">
               <Chip pulse={false}>{t("Draft")}</Chip>
               <span className="truncate font-mono text-[11px] text-black/40">
@@ -968,7 +894,7 @@ function ArchiveToggle({ active, count, onClick }: { active: boolean; count: num
       title={
         active
           ? "Back to the active estate"
-          : "Show archived workspaces — off the dashboard, out of the Inbox, not counted in Reports. Nothing is deleted."
+          : "Show archived product reports — off the dashboard, out of the Inbox, not counted in Reports. Nothing is deleted."
       }
       className={cn(
         "inline-flex h-10 flex-none items-center gap-2 rounded-xl border px-3 text-[12.5px] transition-colors",

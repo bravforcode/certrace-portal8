@@ -44,6 +44,16 @@ registerHooks({
       }
     }
 
+    // Next's own entry points are CommonJS files named without an extension in their imports (`next/navigation`) —
+    // lib/i18n.ts reads the route for the language a page may offer.
+    if (/^next\/[a-z-]+$/.test(specifier)) {
+      try {
+        return nextResolve(specifier, context);
+      } catch {
+        return nextResolve(`${specifier}.js`, context);
+      }
+    }
+
     return nextResolve(specifier, context);
   },
 });

@@ -38,7 +38,8 @@
    ════════════════════════════════════════════════════════════ */
 
 import Anthropic from "@anthropic-ai/sdk";
-import { applyEuStandard, fuelEvidenceKey, fuelTypeDef, fuelTypeLabel, isTypeIStandard, listMonths, type MonthlyEntry } from "./monthly-data";
+import { applyEuStandard, fuelEvidenceKey, fuelTypeDef, fuelTypeLabel, isTypeIStandard, listMonths, processEntryLabel, type MonthlyEntry } from "./monthly-data";
+import { scrapOf } from "./cbam/sector-pack";
 import { listSuppliers } from "./precursor-suppliers";
 import { loadDraft, listVersions } from "./workspace-mmd";
 import { getWorkspace } from "./workspace";
@@ -387,9 +388,32 @@ export const UTILITY_INVOICE_KEY: RequiredKey = {
     triggers it — evidence-cards.tsx uses this to render the "Not required"
     placeholder cards, the same way ALL_CONDITIONAL_ANNUAL_KEYS already does
     for the PPA/precursor/lab-analysis cards. */
-export const ALL_ELECTRICITY_KEYS: RequiredKey[] = [ELECTRICITY_CONSUMED_KEY, ELECTRICITY_FACTOR_KEY, UTILITY_INVOICE_KEY];
+/* Where the electricity factor rests on a generator of the plant's own choosing — a direct technical link or a power purchase
+   agreement — Annex II D.4.3 lists what has to be shown: the single line diagram of the link, and smart-meter data for what the
+   generator produced and what was delivered, in periods of an hour or less. (The contract itself is CONTRACT_OR_PPA_KEY.) */
+export const SINGLE_LINE_DIAGRAM_KEY: RequiredKey = {
+  key: "single-line-diagram",
+  label: "Single line diagram — the direct connection between the generator and the installation",
+  cite: "Annex II D.4.3, IR (EU) 2025/2547",
+  department: "operations",
+  frequency: "one_time",
+  whoToAsk: "The plant's electrical engineer, or the generator's operator",
+};
+
+export const SMART_METER_DATA_KEY: RequiredKey = {
+  key: "smart-meter-data",
+  label: "Smart-meter data — what the generator produced and what was delivered to the installation, in periods of an hour or less",
+  cite: "Annex II D.4.3, IR (EU) 2025/2547",
+  department: "operations",
+  frequency: "monthly",
+  whoToAsk: "The generator's operator, and the plant's metering staff",
+};
+
+export const ALL_ELECTRICITY_KEYS: RequiredKey[] = [ELECTRICITY_CONSUMED_KEY, ELECTRICITY_FACTOR_KEY, UTILITY_INVOICE_KEY, SMART_METER_DATA_KEY, SINGLE_LINE_DIAGRAM_KEY];
 
 export function requiredKeysForMonth(entry: MonthlyEntry, requiresIndirect: boolean): RequiredKey[] {
+  // A month in which nothing was made has no figures to evidence.
+  if (entry.notManufactured) return [];
   const keys: RequiredKey[] = [
     {
       key: "production",
@@ -405,6 +429,10 @@ export function requiredKeysForMonth(entry: MonthlyEntry, requiresIndirect: bool
     },
   ];
   if (requiresIndirect) keys.push(ELECTRICITY_CONSUMED_KEY, ELECTRICITY_FACTOR_KEY, UTILITY_INVOICE_KEY);
+  // Actual indirect emissions from a PPA or a direct technical link: the evidence Annex II D.4.3 lists.
+  const sources = entry.electricitySources ?? [];
+  if (requiresIndirect && sources.some((s) => s.sourceType === "ppa" || s.sourceType === "direct_technical_link")) keys.push(SMART_METER_DATA_KEY);
+  if (requiresIndirect && sources.some((s) => s.sourceType === "direct_technical_link")) keys.push(SINGLE_LINE_DIAGRAM_KEY);
   /* THE LABEL COMES FROM THE ROW, not from a guess.
 
      This used to call `fuelTypeLabel(f.fuelType)` with no second argument, so
@@ -460,6 +488,141 @@ export function requiredKeysForMonth(entry: MonthlyEntry, requiresIndirect: bool
       });
     }
   });
+
+  /* STEEL AND ALUMINIUM: THE DOCUMENTS BEHIND THE NEW ROWS.
+     Every source stream the form now asks for has a record somebody can show a
+     verifier — what was bought and used, the analysis behind a carbon content
+     that is not the EU's, the potline records behind the anode-effect figure and
+     the measurement behind a plant's own PFC factors, the receiving record of
+     scrap. They are listed only for the rows that are filled in, so a plant that
+     does not use electrodes is not asked for an electrode invoice. */
+  for (const e of entry.processEmissionEntries ?? []) {
+    if (!(Number(e.quantityT) !== 0)) continue;
+    const name = processEntryLabel(e);
+    keys.push({
+      key: `process:${e.id}`,
+      label: `${name} — purchase and consumption records for the source stream`,
+      cite: "Annex II B.4 · A.2(4), IR (EU) 2025/2547",
+      department: "operations",
+      frequency: "monthly",
+      whoToAsk: "Stores or purchasing — the delivery notes and the stock or consumption log",
+    });
+    if (e.method === "mass_balance" && e.carbonContent != null) {
+      keys.push({
+        key: `carbon-content:${e.id}`,
+        label: `${name} — laboratory analysis or supplier specification of the carbon content`,
+        cite: "Annex II B.3.2 · B.5, IR (EU) 2025/2547",
+        department: "lab",
+        frequency: "as_needed",
+        whoToAsk: "The supplier's specification sheet, or an accredited laboratory (ISO/IEC 17025 recommended)",
+      });
+    }
+  }
+  if (entry.pfc) {
+    keys.push({
+      key: "pfc",
+      label: "Potline records — anode-effect minutes per cell-day (or overvoltage and current efficiency) for the month",
+      cite: "Annex II B.7, IR (EU) 2025/2547",
+      department: "operations",
+      frequency: "monthly",
+      whoToAsk: "The potline control system or the smelter's process-engineering team",
+    });
+    if (entry.pfc.ownCf4Factor != null || entry.pfc.ownC2f6Fraction != null) {
+      keys.push({
+        key: "pfc-factors",
+        label: "Field-measurement report behind the installation's own CF₄ and C₂F₆ factors",
+        cite: "Annex II B.7.1 · B.7.2, IR (EU) 2025/2547",
+        department: "lab",
+        frequency: "one_time",
+        whoToAsk: "The consultant or laboratory that measured the duct — renewed at least every three years",
+      });
+    }
+  }
+  if (scrapOf(entry).tonnes > 0) {
+    keys.push({
+      key: "scrap",
+      label: "Scrap receiving records — tonnes by type and whether pre-consumer or post-consumer",
+      cite: "Annex IV item 35, IR (EU) 2025/2547",
+      department: "operations",
+      frequency: "monthly",
+      whoToAsk: "The scrapyard or the weighbridge log",
+    });
+  }
+  /* THE PAPER BEHIND A WORKED-OUT QUANTITY. A quantity the form calculated — from a
+     stock change, a share of a shared meter, a gas's volume and composition, a month's
+     alloy analysis — is only as good as the records the calculation started from, so
+     each is asked for only when the month uses it. */
+  /* THE REST OF WHAT THE REGULATION SAYS A VERIFIER WILL ASK FOR, each only when the month reports the thing:
+     measured emissions (B.6), CO₂ received or sent on (B.8), measurable heat bought or sold. */
+  if ((entry.measuredEmissions ?? []).some((e) => Number(e.tCO2e) > 0)) {
+    keys.push({
+      key: "cems-records",
+      label: "Continuous measurement records and the calibration (QAL2) certificate of each analyser",
+      cite: "Annex II B.6, IR (EU) 2025/2547",
+      department: "operations",
+      frequency: "monthly",
+      whoToAsk: "The environmental or instrumentation team that runs the analysers",
+    });
+  }
+  if (Number(entry.co2ReceivedT) > 0 || Number(entry.co2TransferredOutT) > 0) {
+    keys.push({
+      key: "co2-transfer-records",
+      label: "Records of the CO₂ received or sent on — the quantities, and the receiving installation's or storage site's confirmation",
+      cite: "Annex II B.8, IR (EU) 2025/2547",
+      department: "operations",
+      frequency: "monthly",
+      whoToAsk: "The process engineers, and the contact at the receiving installation",
+    });
+  }
+  if (Object.values(entry.heatGj ?? {}).some((n) => (n ?? 0) > 0)) {
+    keys.push({
+      key: "heat-records",
+      label: "Heat meter records and the statement of the installation the heat came from or went to",
+      department: "operations",
+      frequency: "monthly",
+      whoToAsk: "Engineering staff who read the heat meter",
+    });
+  }
+  if (entry.fuels.some((f) => f.stock) || (entry.processEmissionEntries ?? []).some((e) => e.stock)) {
+    keys.push({
+      key: "stock-records",
+      label: "Stock records — the quantity in store at the start and at the end of the month, and the delivery notes",
+      cite: "Annex II B.4.1, IR (EU) 2025/2547",
+      department: "operations",
+      frequency: "monthly",
+      whoToAsk: "Stores — the stock count or the tank-gauge log",
+    });
+  }
+  if (entry.fuels.some((f) => f.shared) || (entry.electricitySources ?? []).some((s) => s.shared)) {
+    keys.push({
+      key: "allocation-basis",
+      label: "Meter log and allocation basis — the whole meter's reading, and the figures the split between products is made from",
+      cite: "Annex IV items 26 · 29 · 30, IR (EU) 2025/2547",
+      department: "operations",
+      frequency: "monthly",
+      whoToAsk: "Engineering staff who read the shared meter",
+    });
+  }
+  if ((entry.wasteGases ?? []).length > 0) {
+    keys.push({
+      key: "waste-gas-records",
+      label: "Waste-gas flow and analysis records — the volume and the composition of each gas",
+      cite: "Annex IV item 17 · Annex II B.5, IR (EU) 2025/2547",
+      department: "lab",
+      frequency: "monthly",
+      whoToAsk: "The gas flow-meter log and the laboratory or chromatograph results",
+    });
+  }
+  if (entry.composition && [entry.composition.mnPct, entry.composition.crPct, entry.composition.niPct, entry.composition.otherPct].some((v) => v != null)) {
+    keys.push({
+      key: "mill-certificates",
+      label: "Mill test certificates — the alloy analysis of the heats made in the month",
+      cite: "Annex IV item 35, IR (EU) 2025/2547",
+      department: "lab",
+      frequency: "monthly",
+      whoToAsk: "The quality department — the mill test certificate of each heat",
+    });
+  }
   return keys;
 }
 
@@ -511,7 +674,7 @@ export const ANNUAL_REQUIRED_KEYS: RequiredKey[] = [
        measuring equipment is "calibrated, adjusted, and checked at regular
        intervals including prior to use, and checked against measurement
        standards traceable to international measurement standards". */
-    label: "Calibration certificate for measuring instruments",
+    label: "Calibration certificate for measuring instruments — and, where an instrument is under legal metrological control, its verification certificate",
     cite: "Annex II A.5(22)(a) · A.3(1)(b)–(c), IR (EU) 2025/2547",
     department: "operations",
     frequency: "monthly",
@@ -528,6 +691,7 @@ export const ANNUAL_REQUIRED_KEYS: RequiredKey[] = [
   {
     key: "internal-qa-record",
     label: "Internal QA record — the review log before data is submitted",
+    cite: "Annex II A.5(22)(e), IR (EU) 2025/2547",
     department: "organisation",
     frequency: "one_time",
   },
@@ -644,6 +808,15 @@ const STATIC_KEY_DEPARTMENT: Record<string, EvidenceDepartment> = {
   "supplier-communication-template": "suppliers",
   "mill-test-certificate": "suppliers",
   "contract-or-ppa": "organisation",
+  "single-line-diagram": "operations",
+  "smart-meter-data": "operations",
+  "cems-records": "operations",
+  "co2-transfer-records": "operations",
+  "heat-records": "operations",
+  "stock-records": "operations",
+  "allocation-basis": "operations",
+  "waste-gas-records": "lab",
+  "mill-certificates": "lab",
   "lab-analysis": "lab",
   "default-value-justification": "organisation",
   "carbon-price": "finance",
@@ -653,6 +826,9 @@ export function departmentForFieldKey(key: string): EvidenceDepartment {
   if (key.startsWith("fuel-invoice:")) return "finance";
   if (key.startsWith("fuel:")) return "operations";
   if (key.startsWith("precursor:")) return "suppliers";
+  // The steel and aluminium rows: what was used and what the potline logged is the plant's; an analysis or a measurement report is the laboratory's.
+  if (key.startsWith("process:") || key === "pfc" || key === "scrap") return "operations";
+  if (key.startsWith("carbon-content:") || key === "pfc-factors") return "lab";
   return STATIC_KEY_DEPARTMENT[key] ?? "organisation";
 }
 
@@ -852,7 +1028,7 @@ export function coverageForMonth(workspaceId: string, entry: MonthlyEntry, requi
     covered,
     total: rows.length,
     ratio: rows.length > 0 ? covered / rows.length : 1,
-    complete: rows.length > 0 && covered === rows.length,
+    complete: entry.notManufactured ? true : rows.length > 0 && covered === rows.length,
   };
 }
 
@@ -944,7 +1120,7 @@ export const EXTRACTION_PRIVACY_NOTE =
    the 0.8 floor. "ONLY JSON" is stated twice because a single stray sentence
    of prose breaks the parse. */
 const SYSTEM_PROMPT = [
-  "You read utility and fuel invoices, meter logs and production records for a CBAM emissions workspace.",
+  "You read utility and fuel invoices, meter logs and production records for a CBAM emissions product report.",
   "Return ONLY a JSON object. No prose, no explanation, no markdown fences.",
   "",
   "Shape:",

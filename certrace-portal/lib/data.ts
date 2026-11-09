@@ -155,9 +155,9 @@ export type ReportRecord = {
    FOUR STATES, ONE CONSTANT. Change `ORG_PLAN` to walk the product through
    every commercial posture it has:
 
-     "starter"      · 5 CN codes, 1 site, 3 seats, no AI extraction
-     "standard"     · 20 CN codes, 5 sites, 10 seats
-     "enterprise"   · nothing capped
+     "starter"      · 1 CN code, 1 installation, 3 seats
+     "standard"     · 3 CN codes, 2 installations, 5 seats
+     "enterprise"   · 6 CN codes, 3 installations, 10 seats
      "trial"        · nothing capped either, for one month — and then the
                       whole account goes read-only (see TRIAL_STARTED_ON)
 
@@ -225,27 +225,6 @@ export const USER = {
   emailVerified: true,
   memberSince: "Mar 2026",
 };
-
-export type NoticeCategory = "security" | "event" | "credential" | "offer";
-export type Notice = {
-  id: string;
-  category: NoticeCategory;
-  tone: "err" | "info" | "ok" | "warn" | "muted";
-  title: string;
-  meta: string;
-  href: string;
-  time: string;
-  read?: boolean;
-};
-
-export const NOTIFICATIONS: Notice[] = [
-  { id: "n1", category: "event", tone: "err", title: "G J Steel is overdue", meta: "CBAM Q2 2026 · 9 days no response", href: "/declarations/cbam-2026-q2-steel", time: "2h ago" },
-  { id: "n2", category: "credential", tone: "info", title: "Legal sign-off requested", meta: "Krit Legal Partners notified", href: "/declarations/cbam-2026-q1-steel", time: "1d ago" },
-  { id: "n3", category: "credential", tone: "ok", title: "Q1 2026 package accepted", meta: "EU importer confirmed receipt", href: "/reports", time: "3d ago" },
-  { id: "n4", category: "security", tone: "warn", title: "New sign-in from Chrome on macOS", meta: "Bangkok, TH · if this wasn't you, secure your account", href: "/settings?tab=privacy", time: "4d ago" },
-  { id: "n5", category: "event", tone: "ok", title: "Thai Metal Pro submitted their form", meta: "64% → 100% complete · ready to review", href: "/suppliers/d2", time: "5d ago" },
-  { id: "n6", category: "offer", tone: "muted", title: "EUDR coverage is opening soon", meta: "Join the waitlist from Coverage", href: "/regulations", time: "1w ago" },
-];
 
 // Steel & iron supply chain only — the precursors and inputs a CBAM steel
 // installation actually has to account for (pig iron, scrap, DRI, coatings, grid power).

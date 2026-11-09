@@ -34,7 +34,7 @@ export function PrecursorRiskWidget({ rows }: { rows: PrecursorRiskRow[] }) {
       <h2 className="font-[family-name:var(--font-plex)] text-lg font-light tracking-tight text-[#111]">{t("Precursor chain risk")}</h2>
 
       {rows.length === 0 ? (
-        <p className="mt-3 text-[13px] text-black/40">{t("No workspaces yet.")}</p>
+        <p className="mt-3 text-[13px] text-black/40">{t("No product reports yet.")}</p>
       ) : withChains.length === 0 ? (
         <p className="mt-3 text-[13px] text-[#047857]">{t("No risk flags across any precursor chain.")}</p>
       ) : (
@@ -44,7 +44,7 @@ export function PrecursorRiskWidget({ rows }: { rows: PrecursorRiskRow[] }) {
             return (
               <li key={workspace.id}>
                 <div className="flex items-center justify-between gap-3">
-                  <span className="min-w-0 flex-1 truncate text-[13px] text-black/75">{workspace.productName}</span>
+                  <span className="min-w-0 flex-1 truncate text-[13px] text-black/75">{t(workspace.productName)}</span>
                   <span className={cn("flex-none rounded-full border px-2.5 py-0.5 text-[10px] uppercase tracking-[0.08em]", b.border, b.bg, b.text)}>
                     {b.label} · {risk.score}
                   </span>
@@ -61,9 +61,12 @@ export function PrecursorRiskWidget({ rows }: { rows: PrecursorRiskRow[] }) {
                     viewport. This is what forced a horizontal page scroll at
                     mobile width. */}
                 {risk.topFactor && (
-                  <Link href={`/workspaces/${workspace.id}/tree`} className="mt-2 flex items-center gap-1.5 text-[11.5px] text-black/45 hover:text-black">
+                  <Link href={`/workspaces/${workspace.id}/precursors`} className="mt-2 flex items-center gap-1.5 text-[11.5px] text-black/45 hover:text-black">
                     <span className="min-w-0 flex-1 truncate">
-                      Top factor: {risk.topFactor.node.name || risk.topFactor.node.precursorName || "unnamed precursor"} — {risk.topFactor.reason}
+                      {t("Top factor: {name} — {reason}", {
+                        name: risk.topFactor.node.name || (risk.topFactor.node.precursorName ? t(risk.topFactor.node.precursorName) : t("unnamed precursor")),
+                        reason: t(risk.topFactor.reason),
+                      })}
                     </span>
                     <ArrowRight size={11} strokeWidth={1.5} className="flex-none" />
                   </Link>

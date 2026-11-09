@@ -144,7 +144,7 @@ function TrackReportAction({ workspaceId, node }: { workspaceId: string; node: T
     return (
       <ActionLink
         href={`/workspaces/${workspaceId}`}
-        title={t("Open this installation's own workspace — its months, its MMD and its readiness are this product's report.")}
+        title={t("Open this installation's own product report — its months, its MMD and its readiness are this product's report.")}
       >
         {t("Track report")}
       </ActionLink>
@@ -156,7 +156,7 @@ function TrackReportAction({ workspaceId, node }: { workspaceId: string; node: T
 
   if (supplier.linkedWorkspaceId) {
     return (
-      <ActionLink href={`/workspaces/${supplier.linkedWorkspaceId}`} title={t("Open the report workspace already open for this precursor.")}>
+      <ActionLink href={`/workspaces/${supplier.linkedWorkspaceId}`} title={t("Open the product report already open for this precursor.")}>
         {t("Track report")}
       </ActionLink>
     );
@@ -170,7 +170,7 @@ function TrackReportAction({ workspaceId, node }: { workspaceId: string; node: T
   return (
     <ActionLink
       href={`/workspaces/new?${qs.toString()}`}
-      title={t("Open a report workspace for this precursor — same months, MMD and readiness as your own, pre-filled with what this row already knows.")}
+      title={t("Open a product report for this precursor — same months, MMD and readiness as your own, pre-filled with what this row already knows.")}
     >
       {t("Track report")}
     </ActionLink>
@@ -201,7 +201,7 @@ function EnterVerifiedDataAction({ node, onEnterVerifiedData }: { node: TreeNode
       onClick={() => onEnterVerifiedData(node)}
       title={
         node.kind === "installation"
-          ? "This installation's verified figures are the year held in its own workspace — ask for a month, or open the screen it is entered on."
+          ? "This installation's verified figures are the year held in its own product report — ask for a month, or open the screen it is entered on."
           : "Record the verified figure, its documents and its verification checks for this entity."
       }
     >

@@ -235,7 +235,7 @@ export function ChainEditor({ rootNodeId, view = "tree" }: { rootNodeId?: string
         // blank page if the workspace record itself is somehow missing here.
         <EmptyState
           icon={<ListTree size={28} strokeWidth={1.25} />}
-          title={t("This workspace isn't set up yet")}
+          title={t("This product report isn't set up yet")}
           body={t("Something is missing before a chain can be built here.")}
           action={
             <Link

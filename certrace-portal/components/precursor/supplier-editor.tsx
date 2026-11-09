@@ -268,7 +268,7 @@ export function SupplierEditor({
             value={draft.productionRoute}
             onChange={(v) => set({ productionRoute: v })}
             placeholder={t("Route, where known")}
-            options={PRODUCTION_ROUTES.map((r) => ({ value: r.label, label: r.label, hint: `${r.standardName} — ${r.hint}` }))}
+            options={PRODUCTION_ROUTES.map((r) => ({ value: r.label, label: t(r.label), hint: `${t(r.standardName)} — ${t(r.hint)}` }))}
             searchable
             ariaLabel={t("Production route")}
           />

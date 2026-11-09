@@ -57,7 +57,6 @@ import {
   countByKind,
   countByState,
   countdown,
-  formatDay,
   SMART_LINK_KIND_BLURB,
   SMART_LINK_KIND_LABEL,
   SMART_LINK_STATE_BLURB,
@@ -73,7 +72,7 @@ import { SMART_LINKS_KEY, useMarkMonthSent, useSmartLinks } from "@/lib/workspac
 import { ensureWorkspaceLink } from "@/lib/workspace-link-sync";
 import { ensurePrecursorLink, pullAllPrecursorAnswers } from "@/lib/precursor-link-sync";
 import { useSavePrecursorSupplier } from "@/lib/suppliers-query";
-import { useT } from "@/lib/i18n";
+import { useFormat, useT, type TFunction } from "@/lib/i18n";
 
 type StateFilter = SmartLinkState | "all";
 type KindFilter = SmartLinkKind | "all";
@@ -82,14 +81,14 @@ type KindFilter = SmartLinkKind | "all";
    inline from conditional fragments: the inline version produced "monthly data
    links." as a complete sentence whenever only the kind was filtered, which is
    a noun phrase with a full stop after it and reads as a bug. */
-function emptyFilterLine(state: StateFilter, kind: KindFilter): string {
-  const s = state === "all" ? null : SMART_LINK_STATE_LABEL[state].toLowerCase();
-  const k = kind === "all" ? null : SMART_LINK_KIND_LABEL[kind].toLowerCase();
+function emptyFilterLine(state: StateFilter, kind: KindFilter, t: TFunction): string {
+  const s = state === "all" ? null : t(SMART_LINK_STATE_LABEL[state]);
+  const k = kind === "all" ? null : t(SMART_LINK_KIND_LABEL[kind]);
 
-  if (s && k) return `None of your ${k} links are ${s}.`;
-  if (s) return `No links are ${s} right now.`;
-  if (k) return `You have no ${k} links yet.`;
-  return "Clear the filter to see every link.";
+  if (s && k) return t("No {kind} links are {state}.", { kind: k, state: s });
+  if (s) return t("No links are {state}.", { state: s });
+  if (k) return t("No {kind} links yet.", { kind: k });
+  return t("Clear the filter to see every link.");
 }
 
 export default function SmartLinksPage() {
@@ -132,17 +131,16 @@ export default function SmartLinksPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow={t("Smart Links")}
-        title={t("Every link you have issued")}
-        lead={t("A workspace asks for twelve months of readings and a verified figure from each of its precursor suppliers. Each of those asks is a link somebody opens and fills in — this is all of them, from every workspace, with where each one stands.")}
+        title={t("Smart Links")}
+        lead={t("Every request for data, and where it stands.")}
       />
 
       {all.length === 0 ? (
         <EmptyState
           icon={<Link2 size={28} strokeWidth={1.25} />}
           title={t("No links yet")}
-          body={t("Links appear the moment a workspace exists — one for each month of its reporting year, and one for each precursor supplier you add to its chain. Create your first workspace and the year lays itself out here.")}
-          action={<ButtonLink href="/workspaces/new">{t("Create a workspace")}</ButtonLink>}
+          body={t("A product report gets one link for each month, and one for each precursor supplier.")}
+          action={<ButtonLink href="/workspaces/new">{t("New product report")}</ButtonLink>}
         />
       ) : (
         <>
@@ -159,7 +157,7 @@ export default function SmartLinksPage() {
           {shown.length === 0 ? (
             <Card className="px-6 py-10 text-center">
               <p className="text-[13.5px] text-black/55">{t("Nothing matches this filter.")}</p>
-              <p className="mx-auto mt-1.5 max-w-md text-[12.5px] leading-relaxed text-black/40">{emptyFilterLine(state, kind)}</p>
+              <p className="mx-auto mt-1.5 max-w-md text-[12.5px] leading-relaxed text-black/40">{emptyFilterLine(state, kind, t)}</p>
               <div className="mt-4">
                 <Button
                   size="sm"
@@ -210,8 +208,8 @@ function Filters({
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <span className="mr-1 font-pixel text-[10px] uppercase tracking-[0.16em] text-black/35">{t("Status")}</span>
-        <FilterChip active={state === "all"} onClick={() => onState("all")} title={t("Every link, whatever state it is in.")}>
-          All · {total}
+        <FilterChip active={state === "all"} onClick={() => onState("all")} title={t("Every link.")}>
+          {t("All")} · {total}
         </FilterChip>
         {SMART_LINK_STATES.map((s) => (
           <FilterChip key={s} active={state === s} onClick={() => onState(s)} title={t(SMART_LINK_STATE_BLURB[s])}>
@@ -223,8 +221,8 @@ function Filters({
 
       <div className="flex flex-wrap items-center gap-2">
         <span className="mr-1 font-pixel text-[10px] uppercase tracking-[0.16em] text-black/35">{t("Asking for")}</span>
-        <FilterChip active={kind === "all"} onClick={() => onKind("all")} title={t("Both kinds of ask.")}>
-          All · {total}
+        <FilterChip active={kind === "all"} onClick={() => onKind("all")} title={t("Both kinds.")}>
+          {t("All")} · {total}
         </FilterChip>
         <FilterChip active={kind === "monthly"} onClick={() => onKind("monthly")} title={t(SMART_LINK_KIND_BLURB.monthly)}>
           {t(SMART_LINK_KIND_LABEL.monthly)} · {kindCounts.monthly}
@@ -275,8 +273,20 @@ function deadlineTone(l: SmartLink): string {
   return l.msLeft <= 3 * 864e5 ? "text-[#b45309]" : "text-black/50";
 }
 
+/** The month a link covers, spelled in the active language; a precursor link keeps its supplier's name. */
+function useSubject() {
+  const { date } = useFormat();
+  return (l: SmartLink) => {
+    if (l.kind !== "monthly" || !l.month) return l.subject;
+    const [y, m] = l.month.split("-").map(Number);
+    return date(new Date(y, m - 1, 1), { month: "long", year: "numeric" });
+  };
+}
+
 function LinkTable({ links, onOpen }: { links: SmartLink[]; onOpen: (id: string) => void }) {
   const t = useT();
+  const { date } = useFormat();
+  const subjectOf = useSubject();
   return (
     <div className="overflow-x-auto rounded-2xl border border-black/[0.07] bg-white">
       {/* FIXED LAYOUT IS WHAT MAKES `truncate` WORK. In an auto-layout table a
@@ -287,7 +297,7 @@ function LinkTable({ links, onOpen }: { links: SmartLink[]; onOpen: (id: string)
       <table className="w-full table-fixed border-collapse text-left">
         <thead>
           <tr className="border-b border-black/[0.07] bg-[#faf9f7]">
-            <Th className="w-[46%] sm:w-[30%] sm:min-w-[170px]">{t("What is being asked")}</Th>
+            <Th className="w-[46%] sm:w-[30%] sm:min-w-[170px]">{t("Request")}</Th>
             <Th className="hidden w-[150px] lg:table-cell">{t("Asking for")}</Th>
             <Th className="hidden w-[22%] min-w-[160px] md:table-cell">{t("Who fills it in")}</Th>
             {/* Sized to the longest label the vocabulary has, so a chip never
@@ -296,7 +306,7 @@ function LinkTable({ links, onOpen }: { links: SmartLink[]; onOpen: (id: string)
             <Th className="hidden w-[150px] sm:table-cell">{t("Deadline")}</Th>
             <Th className="hidden w-[120px] xl:table-cell">{t("Filled in")}</Th>
             <Th className="w-[40px] sm:w-[48px]">
-              <span className="sr-only">{t("Open")}</span>
+              <span className="sr-only">{t("Open link")}</span>
             </Th>
           </tr>
         </thead>
@@ -312,9 +322,9 @@ function LinkTable({ links, onOpen }: { links: SmartLink[]; onOpen: (id: string)
               className="cursor-pointer border-b border-black/[0.05] align-top transition-colors last:border-b-0 hover:bg-[#fafaf8]"
             >
               <td className="px-2 py-3 sm:px-3">
-                <span className="block text-[13.5px] leading-snug text-black/80">{l.subject}</span>
-                <span className="mt-0.5 block truncate text-[11.5px] text-black/40" title={workspaceTitle(l.workspace)}>
-                  {workspaceTitle(l.workspace)}
+                <span className="block text-[13.5px] leading-snug text-black/80">{subjectOf(l)}</span>
+                <span className="mt-0.5 block truncate text-[11.5px] text-black/40" title={workspaceTitle(l.workspace, t)}>
+                  {workspaceTitle(l.workspace, t)}
                 </span>
 
                 {/* What the hidden columns were carrying, folded back in at
@@ -324,7 +334,7 @@ function LinkTable({ links, onOpen }: { links: SmartLink[]; onOpen: (id: string)
                   <span className="md:hidden"> · {t(l.recipient)}</span>
                 </span>
                 <span className={cn("mt-0.5 block font-mono text-[11px] sm:hidden", deadlineTone(l))}>
-                  {l.state === "done" ? "deadline met" : countdown(l.msLeft)} · {formatDay(l.due)}
+                  {l.state === "done" ? t("Deadline met") : countdown(l.msLeft, t, l.due)} · {date(l.due)}
                 </span>
               </td>
 
@@ -352,8 +362,8 @@ function LinkTable({ links, onOpen }: { links: SmartLink[]; onOpen: (id: string)
               </td>
 
               <td className="hidden whitespace-nowrap px-3 py-3 sm:table-cell">
-                <span className={cn("block font-mono text-[11.5px]", deadlineTone(l))}>{l.state === "done" ? "met" : countdown(l.msLeft)}</span>
-                <span className="mt-0.5 block font-mono text-[10.5px] text-black/30">{formatDay(l.due)}</span>
+                <span className={cn("block font-mono text-[11.5px]", deadlineTone(l))}>{l.state === "done" ? t("Met") : countdown(l.msLeft, t, l.due)}</span>
+                <span className="mt-0.5 block font-mono text-[10.5px] text-black/30">{date(l.due)}</span>
               </td>
 
               <td className="hidden whitespace-nowrap px-3 py-3 xl:table-cell">
@@ -364,7 +374,7 @@ function LinkTable({ links, onOpen }: { links: SmartLink[]; onOpen: (id: string)
                   <Progress value={l.percentComplete} tone={l.percentComplete >= 100 ? "ok" : l.overdue ? "err" : "warn"} />
                 </div>
                 <span className="mt-1 block font-mono text-[10.5px] text-black/35">
-                  {l.monthStatus ? MONTH_STATUS_LABEL[l.monthStatus] : `${l.percentComplete}%`}
+                  {l.monthStatus ? t(MONTH_STATUS_LABEL[l.monthStatus]) : `${l.percentComplete}%`}
                 </span>
               </td>
 
@@ -375,7 +385,7 @@ function LinkTable({ links, onOpen }: { links: SmartLink[]; onOpen: (id: string)
                     e.stopPropagation();
                     onOpen(l.id);
                   }}
-                  aria-label={`Open the link for ${l.subject}`}
+                  aria-label={`${t("Open link")} · ${subjectOf(l)}`}
                   className="rounded-lg p-1.5 text-black/25 transition-colors hover:bg-black/[0.04] hover:text-black"
                 >
                   <ArrowUpRight size={15} strokeWidth={1.5} />
@@ -397,6 +407,7 @@ function LinkTable({ links, onOpen }: { links: SmartLink[]; onOpen: (id: string)
    fails on a browser without clipboard permission leaves nothing behind. */
 function LinkDialog({ link, onClose }: { link: SmartLink | null; onClose: () => void }) {
   const t = useT();
+  const subjectOf = useSubject();
   const [copied, flashCopied] = useFlash();
   const [sent, flashSent] = useFlash();
   const markSent = useMarkMonthSent();
@@ -473,14 +484,14 @@ function LinkDialog({ link, onClose }: { link: SmartLink | null; onClose: () => 
     flashSent();
   };
 
-  const workspaceHref = link.kind === "monthly" ? `/workspaces/${link.workspace.id}/monthly` : `/workspaces/${link.workspace.id}/tree`;
+  const workspaceHref = link.kind === "monthly" ? `/workspaces/${link.workspace.id}/monthly` : `/workspaces/${link.workspace.id}/precursors`;
 
   return (
     <Modal
       open
       onClose={onClose}
       eyebrow={t(SMART_LINK_KIND_LABEL[link.kind])}
-      title={link.subject}
+      title={subjectOf(link)}
       lead={t(SMART_LINK_KIND_BLURB[link.kind])}
       footer={
         <>
@@ -488,7 +499,7 @@ function LinkDialog({ link, onClose }: { link: SmartLink | null; onClose: () => 
             {t("Close")}
           </Button>
           <ButtonLink href={workspaceHref} variant="secondary" size="sm">
-            {t("Open the workspace")}
+            {t("Open the product report")}
           </ButtonLink>
           <Button size="sm" onClick={send}>
             {sent ? (
@@ -497,7 +508,7 @@ function LinkDialog({ link, onClose }: { link: SmartLink | null; onClose: () => 
               </>
             ) : (
               <>
-                <Send size={13} strokeWidth={1.5} /> {link.sentAt ? "Send again" : "Send now"}
+                <Send size={13} strokeWidth={1.5} /> {link.sentAt ? t("Send again") : t("Send now")}
               </>
             )}
           </Button>
@@ -513,10 +524,10 @@ function LinkDialog({ link, onClose }: { link: SmartLink | null; onClose: () => 
 
         <Card warm className="p-4">
           <div className="flex items-baseline justify-between gap-3">
-            <span className="font-pixel text-[10px] uppercase tracking-[0.16em] text-black/35">{t("The link to hand over")}</span>
+            <span className="font-pixel text-[10px] uppercase tracking-[0.16em] text-black/35">{t("Link")}</span>
             <ActionButton onClick={copy} className="inline-flex flex-none items-center gap-1.5">
               {copied ? <Check size={11} strokeWidth={2} /> : <Copy size={11} strokeWidth={1.5} />}
-              {copied ? "Copied" : "Copy link"}
+              {copied ? t("Copied") : t("Copy link")}
             </ActionButton>
           </div>
           {/* break-all, not truncate: a token is unreadable either way, but a
@@ -524,7 +535,7 @@ function LinkDialog({ link, onClose }: { link: SmartLink | null; onClose: () => 
               pasted. */}
           <p className="mt-2 break-all font-mono text-[11.5px] leading-relaxed text-black/60">{url}</p>
           <p className="mt-2.5 text-[12px] leading-relaxed text-black/40">
-            {t("Whoever opens this fills the form in on their own — they need no Certrace account and see nothing else in yours. Certrace does not email it for you: Send records that you asked and puts the address on your clipboard to paste wherever you reach them.")}
+            {t("No account needed. Send marks it as asked and copies the link — paste it wherever you reach them.")}
           </p>
         </Card>
 
@@ -548,16 +559,17 @@ function LinkDialog({ link, onClose }: { link: SmartLink | null; onClose: () => 
     the reader learns where to look once. */
 function Facts({ link }: { link: SmartLink }) {
   const t = useT();
-  const stamp = (iso: string | null) => (iso ? formatDay(new Date(iso)) : "—");
+  const { date } = useFormat();
+  const stamp = (iso: string | null) => (iso ? date(new Date(iso)) : "—");
 
   const rows: [string, string][] = [
     [t("Who fills it in"), t(link.recipient)],
-    ["Workspace", workspaceTitle(link.workspace)],
-    ["Deadline", `${formatDay(link.due)} · ${link.state === "done" ? "met" : countdown(link.msLeft)}`],
-    ["First sent", stamp(link.sentAt)],
-    ...(link.resendCount > 0 ? ([["Chased", `${link.resendCount} time${link.resendCount === 1 ? "" : "s"} · last ${stamp(link.lastSentAt)}`]] as [string, string][]) : []),
-    ...(link.kind === "verified_data" ? ([["Opened", stamp(link.openedAt)]] as [string, string][]) : []),
-    ["Filled in", link.answeredAt ? stamp(link.answeredAt) : link.monthStatus ? MONTH_STATUS_LABEL[link.monthStatus] : `${link.percentComplete}% answered`],
+    [t("Product report"), workspaceTitle(link.workspace, t)],
+    [t("Deadline"), `${date(link.due)} · ${link.state === "done" ? t("Met") : countdown(link.msLeft, t, link.due)}`],
+    [t("First sent"), stamp(link.sentAt)],
+    ...(link.resendCount > 0 ? ([[t("Chased"), t("{n} times · last {date}", { n: link.resendCount, date: stamp(link.lastSentAt) })]] as [string, string][]) : []),
+    ...(link.kind === "verified_data" ? ([[t("Opened"), stamp(link.openedAt)]] as [string, string][]) : []),
+    [t("Filled in"), link.answeredAt ? stamp(link.answeredAt) : link.monthStatus ? t(MONTH_STATUS_LABEL[link.monthStatus]) : t("{n}% answered", { n: link.percentComplete })],
   ];
 
   return (

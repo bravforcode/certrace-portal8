@@ -88,9 +88,9 @@ export function PrecursorBreakdown({ workspace, result }: { workspace: Verificat
       {incomplete && (
         <p className="mt-4 border-t border-black/[0.06] pt-3 text-[11.5px] leading-relaxed text-[#92620d]">
           {result.incomplete.length === 1
-            ? t("The total above is not shown as final — 1 precursor row still needs a quantity, installation, or emissions figure before this figure is complete.")
+            ? t("Not final — 1 precursor still needs a quantity, site or emissions figure.")
             : t(
-                "The total above is not shown as final — {count} precursor rows still need a quantity, installation, or emissions figure before this figure is complete.",
+                "Not final — {count} precursors still need a quantity, site or emissions figure.",
                 { count: result.incomplete.length },
               )}
         </p>

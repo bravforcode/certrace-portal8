@@ -42,6 +42,69 @@ import { getOrgIdentity } from "./org";
    `name` is the ENGLISH name, because that is the one the template marks as
    required and the one that reaches the declarant. `nameLocal` is field (i),
    which is optional and is where "บริษัท ไทย ทินเพลท จำกัด" belongs. */
+/* ── The monitoring-plan summary, entered once ─────────────────
+   Annex IV to Implementing Regulation (EU) 2025/2547, items 2–6: what the
+   installation does, as opposed to which goods it made this year. These facts
+   change when the plant changes, not when the year does, so they are asked
+   once here and printed into every year's monitoring plan and operator's
+   emissions report. Free text is English (the report must be in English);
+   each yes/no carries a detail line that is asked only when the answer is yes. */
+export type YesNo = "" | "yes" | "no";
+
+export type InstallationMonitoring = {
+  /** 2(b) non-CBAM production processes carried out at the installation */
+  nonCbamProcesses: string;
+  /** 2(d) the five most important fuels, by energy content */
+  topFuels: string;
+  /** 2(e) the five most important materials leading to process emissions, by emissions */
+  topMaterials: string;
+  /** 2(f) continuous emissions measurement */
+  cems: YesNo;
+  cemsDetail: string;
+  /** 2(g) zero-rated fuels, and how zero-rating is demonstrated */
+  zeroRatedFuels: YesNo;
+  zeroRatedDetail: string;
+  /** 2(h) measurable heat imported from or exported to other installations */
+  heatTrade: YesNo;
+  heatDetail: string;
+  /** 3 electricity consumed from different sources */
+  electricityMixed: YesNo;
+  electricityDetail: string;
+  /** 4 electricity produced inside the installation */
+  onsiteElectricity: YesNo;
+  onsiteElectricityDetail: string;
+  /** 5 waste gases produced and used, imported or exported */
+  wasteGases: YesNo;
+  wasteGasDetail: string;
+  /** 6 CO₂ transferred to other installations or infrastructure */
+  co2Transfer: YesNo;
+  co2TransferDetail: string;
+  /** 1.1.1 electricity from this installation is imported into the EU — the only
+      trigger for the declarant-specific addendum */
+  electricityToEu: YesNo;
+};
+
+export const emptyMonitoring = (): InstallationMonitoring => ({
+  nonCbamProcesses: "",
+  topFuels: "",
+  topMaterials: "",
+  cems: "",
+  cemsDetail: "",
+  zeroRatedFuels: "",
+  zeroRatedDetail: "",
+  heatTrade: "",
+  heatDetail: "",
+  electricityMixed: "",
+  electricityDetail: "",
+  onsiteElectricity: "",
+  onsiteElectricityDetail: "",
+  wasteGases: "",
+  wasteGasDetail: "",
+  co2Transfer: "",
+  co2TransferDetail: "",
+  electricityToEu: "",
+});
+
 export type Installation = {
   /** operator reference — the id a verifier and the buyer both quote. Not a
       template field; it is how Certrace keys the record and groups workspaces. */
@@ -90,6 +153,20 @@ export type Installation = {
       CBAM good in a workspace and nothing else running through the same
       plant. Optional: an empty list is a complete, common answer. */
   otherGoods: { name: string; description?: string }[];
+
+  /* ── The operator, and the installation's identity in the CBAM Registry ──
+     Annex IV items 1(a)–(c) and 1(d). Entered once with the rest of this
+     record and printed on every report made at the site. */
+  /** 1(a) name of the operator — the legal person that runs the installation */
+  operatorName: string;
+  /** 1(b) corporate or activity registration number of the operator */
+  operatorRegistrationNumber: string;
+  /** 1(c) full address of the operator, in English */
+  operatorAddress: string;
+  /** 1(d) unique installation identifier in the CBAM Registry, once issued */
+  registryId: string;
+  /** items 2–6 */
+  monitoring: InstallationMonitoring;
   createdAt: string;
 };
 
@@ -157,31 +234,28 @@ export function referenceError(raw: string, countryCode?: string, excludeId?: st
 }
 
 /* ── Required and optional ──────────────────────────────────────
-   The EU template marks field (i) — the local-language name — optional, and
-   leaves the rest to the operator. Certrace is stricter, because a field left
+   The form asks for what Annex IV of 2025/2547 item 1(d) asks for — name,
+   address, UN/LOCODE, coordinates — plus the reference that keys the record.
+   Certrace is stricter than the template about those, because a field left
    blank here becomes a question the verifier asks three months later.
 
+   NOT ASKED ANY MORE: `nameLocal`, `economicActivity`, `contactName`,
+   `contactEmail` and `contactPhone`. None of them is an item of a report in the
+   set, so the form no longer carries them. They stay on the record (and in
+   anything already stored) so nothing is lost; the legacy workbook-shaped
+   documents still print them if they are there. The email in particular is NOT
+   where a supplier's monthly link goes — that is the supplier company's own
+   address (lib/reminder-registration.ts) — so an installation has no use for one.
+
    OPTIONAL, deliberately:
-     · nameLocal        — the template says so
-     · economicActivity — useful context, not an identifier
-     · contactName / contactPhone — a company can nominate its representative
-       later without blocking the site record
      · poBox            — most sites do not have one, and requiring it would
        make the form unfillable for them
 
    Everything else identifies the plant, and a workspace pointing at a site
-   with no city or no coordinates is a workspace a declarant cannot file.
-
-   THE EMAIL IS CONDITIONAL, and `requireEmail` is what asks for it. A site
-   registered on its own is a record; a site registered while creating a
-   WORKSPACE is a standing arrangement to ask somebody for data — the monthly
-   link and the chain's own "Send link" both go to this address, and every
-   screen that discovers it is blank discovers it months later, with nowhere
-   to send. So the new-workspace flow turns it on and the flows that only
-   record a site leave it as it was. */
+   with no city or no coordinates is a workspace a declarant cannot file. */
 export type InstallationFieldErrors = Partial<Record<keyof Installation | "coordinates", string>>;
 
-export function installationErrors(i: Installation, excludeId?: string, requireEmail = false): InstallationFieldErrors {
+export function installationErrors(i: Installation, excludeId?: string): InstallationFieldErrors {
   const e: InstallationFieldErrors = {};
   const req = (v: string, msg: string) => (v && v.trim() ? undefined : msg);
 
@@ -192,7 +266,6 @@ export function installationErrors(i: Installation, excludeId?: string, requireE
   e.city = req(i.city, "City.");
   e.country = req(i.country, "Country.");
   e.unlocode = req(i.unlocode, "UNLOCODE. If the site does not have one, apply through UNECE — see the help beside the field.");
-  if (requireEmail) e.contactEmail = emailError(i.contactEmail) ?? undefined;
   const coord = coordinateError(i.lat, i.lng);
   if (coord) e.coordinates = coord;
   else {
@@ -285,6 +358,11 @@ export function emptyInstallation(self = false): Installation {
     contactEmail: "",
     contactPhone: "",
     otherGoods: [],
+    operatorName: "",
+    operatorRegistrationNumber: "",
+    operatorAddress: "",
+    registryId: "",
+    monitoring: emptyMonitoring(),
     createdAt: new Date().toISOString(),
   };
 }
@@ -292,7 +370,12 @@ export function emptyInstallation(self = false): Installation {
 /** Records written before a field existed load as `undefined` and would render
     an uncontrolled input. Everything that reads a stored installation goes
     through here so a missing field is an empty string, never a crash. */
-export const hydrate = (raw: Partial<Installation>): Installation => ({ ...emptyInstallation(Boolean(raw.self)), ...raw });
+export const hydrate = (raw: Partial<Installation>): Installation => ({
+  ...emptyInstallation(Boolean(raw.self)),
+  ...raw,
+  // Nested, so a record saved before these existed gets every key rather than none.
+  monitoring: { ...emptyMonitoring(), ...(raw.monitoring ?? {}) },
+});
 
 /* ── The record a workspace points at ───────────────────────────
    THE OWNERSHIP COMES FROM THE WORKSPACE, NOT FROM A DEFAULT.
@@ -438,12 +521,9 @@ export function missingFields(i: Installation | null): string[] {
   if (!i.street.trim()) gaps.push("Street, number");
   if (!i.city.trim()) gaps.push("City");
   if (!i.country.trim()) gaps.push("Country");
-  if (!i.economicActivity.trim()) gaps.push("Economic activity");
   // The template asks for both coordinates of the main emission source, and a
   // site a verifier cannot place is a site they will ask about.
   if (!i.lat.trim() || !i.lng.trim()) gaps.push("Coordinates of the main emission source");
-  if (!i.contactName.trim()) gaps.push("Name of authorised representative");
-  if (!i.contactEmail.trim()) gaps.push("Email");
   return gaps;
 }
 

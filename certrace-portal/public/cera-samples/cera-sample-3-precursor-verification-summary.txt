@@ -1,0 +1,23 @@
+VERIFICATION AND EMISSIONS STATEMENT — SUMMARY
+Prepared for the exporter's CBAM file
+
+Operator: Chonburi Foundry Co., Ltd.
+Installation: Chonburi Works No. 2
+Installation identifier: TH-CHON-0042
+UN/LOCODE: THLCH
+Latitude: 13.1706
+Longitude: 100.9311
+Address: 88 Moo 4, Sriracha, Chonburi 20230
+
+Reporting period: 1 January 2025 – 31 December 2025
+Specific direct embedded emissions: 1.842 tCO2e/t
+Specific indirect embedded emissions: 0.213 tCO2e/t
+
+Verifier: SGS (Thailand) Limited
+Accreditation number: TH-ACC-0912
+Accreditation body: National Accreditation Body of Thailand
+Country of the accreditation body: Thailand
+Accreditation valid until: 30 June 2028
+Scope of accreditation: Iron & steel
+Date the verification statement was issued: 14 March 2026
+Reasonable assurance: Yes — no material misstatement or non-conformity

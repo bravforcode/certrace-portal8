@@ -39,7 +39,7 @@ export function BenchmarkWidget({ benchmarks }: { benchmarks: BenchmarkOutperfor
                 below the default emissions factor for {b.category}.
               </p>
               <p className="mt-1 font-mono text-[11px] text-black/35">
-                {b.workspace.productName} · {b.seeActual.toFixed(4)} vs {b.seeDefault.toFixed(4)} tCO₂e/t
+                {t(b.workspace.productName)} · {b.seeActual.toFixed(4)} vs {b.seeDefault.toFixed(4)} tCO₂e/t
               </p>
             </li>
           ))}

@@ -17,6 +17,8 @@ import {
   FileText,
   Sparkles,
   Megaphone,
+  Scale,
+  CreditCard,
   ExternalLink,
   Plus,
   X,
@@ -27,12 +29,16 @@ import { Select, Portal } from "@/components/controls";
 import { USER } from "@/lib/data";
 import { PRODUCT_SECTORS } from "@/lib/config";
 import { useAccountEmail, useProfile, generateUsername } from "@/lib/profile";
-import { type PrefKey, PREF_KEY, saveNotificationPrefs } from "@/lib/notification-prefs";
+import { type PrefKey, PREF_DEFAULTS, readNotificationPrefs, saveNotificationPrefs } from "@/lib/notification-prefs";
+import { recordEvent } from "@/lib/notifications/events";
 import { JOB_TITLES, JOB_TITLE_OPTIONS } from "@/lib/job-titles";
 import { useT } from "@/lib/i18n";
 import { LEGAL_PRIVACY_URL, LEGAL_TERMS_URL } from "@/lib/links";
 import { InstallationModal } from "@/components/workspace/installation-form";
 import { emptyInstallation, missingFields, type Installation } from "@/lib/installations";
+import { listArchivedWorkspaces, listWorkspaces } from "@/lib/workspace";
+import { InstallationMenu } from "@/components/workspace/installation-menu";
+import { toast } from "@/components/toast";
 import { useOwnInstallations, useRemoveInstallation, useSaveInstallation } from "@/lib/installations-query";
 import { CAP_LABEL } from "@/lib/plan";
 import { useCaps, useInvalidateCaps, useInvalidateWorkspaces } from "@/lib/workspaces-query";
@@ -247,7 +253,7 @@ function PlanCard() {
       </dl>
 
       <p className="mt-4 text-[12px] leading-relaxed text-black/40">
-        {t("Suppliers are free and unlimited on every tier, at any chain depth, and never take a seat.")}
+        {t("Suppliers and precursor suppliers fill in through their link without limit on every plan, at any chain depth, and never take a seat.")}
       </p>
     </Card>
   );
@@ -274,19 +280,22 @@ function OwnInstallationCard() {
   const own = useOwnInstallations().data;
   /** null = closed · "new" = adding · an Installation = editing that one */
   const [editing, setEditing] = React.useState<Installation | "new" | null>(null);
-  const [removing, setRemoving] = React.useState<string | null>(null);
   const saveOwn = useSaveInstallation();
   const removeOwn = useRemoveInstallation();
   /* The site cap counts these very installations, so every add/remove also
      re-measures the caps living under the workspaces key. */
   const invalidateCaps = useInvalidateWorkspaces();
 
-  /* PRODUCTION SITES ARE A TERM OF THE PLAN — Starter buys one, Standard five,
-     Enterprise as many as it runs. A SUPPLIER'S plant is not one of these and
-     is never counted: suppliers are free and unlimited on every tier. */
+  /* INSTALLATIONS ARE A TERM OF THE PLAN — Starter has one, Standard two,
+     Enterprise three. A SUPPLIER'S plant is not one of these and
+     is never counted: suppliers fill in without limit on every plan. */
   const cap = useCaps().data?.sites;
 
   if (!own || !cap) return null;
+
+  /* Every product report that still names a site, archived ones too — they read
+     the site's record exactly as the active ones do. */
+  const reportsOf = (id: string) => [...listWorkspaces(), ...listArchivedWorkspaces()].filter((w) => w.installationId === id).length;
 
   return (
     <Card className="p-6">
@@ -341,7 +350,6 @@ function OwnInstallationCard() {
                     </div>
                     <p className="mt-2 text-[12.5px] leading-relaxed text-black/50">
                       {[i.street, i.city, i.postcode, i.country].filter(Boolean).join(", ") || t("No address yet.")}
-                      {i.economicActivity ? ` · ${i.economicActivity}` : ""}
                     </p>
                     {/* Named, not counted. "3 fields missing" sends the reader
                         back into the form to find out which. */}
@@ -359,31 +367,28 @@ function OwnInstallationCard() {
                     >
                       {t("Edit")}
                     </button>
-                    {/* Two-press. Removing a site does NOT delete the
-                        workspaces that name it — those keep their denormalised
-                        installation name and reference, exactly as a workspace
-                        handed to a verifier must. */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (removing !== i.id) {
-                          setRemoving(i.id);
-                          return;
-                        }
-                        removeOwn.mutate(i.id, { onSuccess: invalidateCaps });
-                        setRemoving(null);
+                    {/* THE ⋯ MENU, NOT A BARE ✕. A lone, unlabelled cross beside
+                        Edit reads as "close this row", and it was the control
+                        that deletes the site. Removal now sits in the same menu
+                        the Verification page uses for the same site, last and
+                        red, armed by the first click. It is disabled while a
+                        product report still names the site — removing the
+                        record would take the operator details and the monitoring
+                        plan out from under it. */}
+                    <InstallationMenu
+                      installationId={i.id}
+                      name={i.name}
+                      remove={{
+                        reports: reportsOf(i.id),
+                        onRemove: () =>
+                          removeOwn.mutate(i.id, {
+                            onSuccess: () => {
+                              invalidateCaps();
+                              toast({ message: t("Site removed"), detail: t("{name} is off your list. Nothing else was deleted.", { name: i.name || i.id }), tone: "info" });
+                            },
+                          }),
                       }}
-                      onBlur={() => setRemoving((r) => (r === i.id ? null : r))}
-                      aria-label={t("Remove {name}", { name: i.name })}
-                      title={removing === i.id ? t("Click again to remove") : t("Remove this site")}
-                      className={
-                        removing === i.id
-                          ? "rounded-lg border border-[#dc2626]/40 px-2.5 py-1.5 text-[11px] uppercase tracking-[0.08em] text-[#dc2626]"
-                          : "grid h-8 w-8 place-items-center rounded-lg text-black/30 transition-colors hover:bg-black/[0.05] hover:text-[#dc2626]"
-                      }
-                    >
-                      {removing === i.id ? t("Confirm") : <X size={15} strokeWidth={1.5} />}
-                    </button>
+                    />
                   </div>
                 </div>
               </div>
@@ -402,7 +407,7 @@ function OwnInstallationCard() {
         allowSelfToggle={false}
         self
         title={editing === "new" ? t("Add a site") : t("Your installation")}
-        lead={t("These are the facts a verifier asks for about a producing site. Entered once here, reused by every workspace.")}
+        lead={t("These are the facts a verifier asks for about a producing site. Entered once here, reused by every product report.")}
         onSaved={(saved) => {
           saveOwn.mutate({ ...saved, self: true }, { onSuccess: invalidateCaps });
         }}
@@ -603,14 +608,14 @@ function ProfileTab() {
 }
 
 /* ── Notifications ────────────────────────────────────────── */
-const PREF_DEFAULTS: Record<PrefKey, boolean> = { declarations: true, suppliers: true, ai_review: true, documents: true, security: true, product: false };
-
 const PREF_ROWS: { key: PrefKey; icon: React.ElementType; title: string; body: string; locked?: boolean }[] = [
   { key: "security", icon: ShieldCheck, title: "Security", body: "Account activity that matters — sign-ins, password changes and security alerts.", locked: true },
   { key: "declarations", icon: Building2, title: "Declarations", body: "Updates on declaration progress, approvals, revisions and reporting deadlines." },
   { key: "suppliers", icon: UserRound, title: "Suppliers", body: "When a supplier is invited, submits their data, or needs a follow-up." },
   { key: "ai_review", icon: Sparkles, title: "AI Review & Compliance", body: "When AI flags an issue, finishes validating a submission, or compliance action is needed." },
   { key: "documents", icon: FileText, title: "Documents", body: "Missing, uploaded, approved, rejected or expiring documents." },
+  { key: "regulation", icon: Scale, title: "CBAM news", body: "Rule changes, new certificate prices and the dates that matter — as Certrace has them." },
+  { key: "billing", icon: CreditCard, title: "Plan & billing", body: "Your trial, the limits of your plan and anything that needs your attention on it." },
   { key: "product", icon: Megaphone, title: "Product updates", body: "New features, improvements and platform announcements." },
 ];
 
@@ -619,12 +624,7 @@ function NotificationsTab() {
   const [prefs, setPrefs] = React.useState<Record<PrefKey, boolean>>(PREF_DEFAULTS);
 
   React.useEffect(() => {
-    try {
-      const saved = JSON.parse(window.localStorage.getItem(PREF_KEY) ?? "null");
-      if (saved) setPrefs({ ...PREF_DEFAULTS, ...saved });
-    } catch {
-      /* ignore malformed local state */
-    }
+    setPrefs(readNotificationPrefs());
   }, []);
 
   const toggle = (key: PrefKey, value: boolean) => {
@@ -691,6 +691,7 @@ function PrivacyTab() {
       setNext("");
       setConfirm("");
       setTouched({ current: false, next: false, confirm: false });
+      recordEvent("password_changed");
     });
   };
 
@@ -698,6 +699,7 @@ function PrivacyTab() {
   const signOutOthers = () => {
     runSignOutOthers(() => {
       setSessions((s) => s.filter((x) => x.current));
+      recordEvent("sessions_signed_out");
     });
   };
 

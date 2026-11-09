@@ -2,7 +2,7 @@
    AI-FILLED VALUES
 
    Remembers which figures smart intake wrote from a document, so the screens
-   can show them in blue with an "AI filled" tag. A value is highlighted only
+   can show them in green with a "Cera filled" tag. A value is highlighted only
    while the box still holds exactly what AI wrote: the moment a person types
    over it, it is theirs and the highlight goes. Nothing about the figure
    itself changes — this is a marker beside it, kept in its own store.
@@ -103,5 +103,5 @@ export function useFillRun(scope: string): FillRun | null {
   );
 }
 
-/** Blue box for an AI-filled input. Leading `!` so it wins over inputClass. */
-export const AI_INPUT_CLASS = "!border-[#3C7ACB]/60 !bg-[#eff6ff] !text-[#1d4ed8]";
+/** Green box for an input Cera filled. Leading `!` so it wins over inputClass. */
+export const AI_INPUT_CLASS = "!border-[#43A97F]/60 !bg-[#ecfdf5] !text-[#065f46]";

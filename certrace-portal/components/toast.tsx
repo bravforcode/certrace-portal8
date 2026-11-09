@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { StatusDot } from "./ui";
+import { useT } from "@/lib/i18n";
 
 /* Lightweight, dependency-free toast.
    `toast(msg)` dispatches a window event; <Toaster/> (mounted once in the shell)
@@ -22,6 +23,9 @@ export function toast(input: string | ToastInput) {
 type Item = ToastInput & { id: number };
 
 export function Toaster() {
+  // Said in the language on screen WHEN SHOWN, not when raised: callers hand over English (a toast is fired from lib code and event
+  // handlers that have no `t`), and a reader who switches language with one open sees it switch with the page.
+  const tr = useT();
   const [items, setItems] = React.useState<Item[]>([]);
 
   React.useEffect(() => {
@@ -47,8 +51,8 @@ export function Toaster() {
             <StatusDot tone={t.tone ?? "ok"} glow pulse={t.tone === "info"} />
           </span>
           <div className="min-w-0">
-            <p className="text-[13px] leading-snug text-[#111]">{t.message}</p>
-            {t.detail && <p className="mt-0.5 text-[12px] leading-snug text-black/40">{t.detail}</p>}
+            <p className="text-[13px] leading-snug text-[#111]">{tr(t.message)}</p>
+            {t.detail && <p className="mt-0.5 text-[12px] leading-snug text-black/40">{tr(t.detail)}</p>}
           </div>
         </div>
       ))}

@@ -25,6 +25,8 @@
    ════════════════════════════════════════════════════════════ */
 
 import { annualProductionFor } from "./monthly-data";
+import { fieldStatuses } from "./cbam/precursor-fields";
+import { cnProductByCode } from "./cbam/cn-catalogue";
 import { aggregatedGoodsCategory, getCatalogProduct, isEuOrExempt } from "./config";
 import type { VerificationWorkspace } from "./workspace";
 import { secureId } from "./secure-id";
@@ -297,6 +299,38 @@ export type PrecursorSupplier = {
      ordinary way — Enter Verified Data plus an attached document, same as
      any other precursor. */
   linkedWorkspaceId?: string;
+
+  /* ── Default or actual, per direct precursor ──────────────────
+     Annex II A.1(2) to Implementing Regulation (EU) 2025/2547 lets an operator
+     take actual values, default values, or a mix — precursor by precursor.
+     `valueBasis` is that choice. Undefined on every row saved before the
+     Precursors tab existed; those keep the behaviour they always had.
+
+     "default" — Annex IV item 22: CN code, name of the good, country of origin
+                 where known, and the default value from the EU tables (the
+                 highest default for the CN code when the country is unknown).
+     "actual"  — Annex IV item 23: the precursor's operator supplies a verified
+                 figure. Until it is complete AND admissible under Annex II
+                 A.1(4), the default value stands in — see
+                 lib/cbam/precursor-basis.ts. */
+  valueBasis?: "default" | "actual";
+  /** the country of production cannot be identified — Annex IV to the
+      Regulation: the highest country default for the CN code applies */
+  originUnknown?: boolean;
+  /** Annex IV item 23(d): the precursor's period is presumed to be the one of
+      the complex good unless the operator evidences the actual time of production */
+  reportingPeriodBasis?: "default_period" | "actual_time";
+  /** Annex IV item 25 — the same CN code also arrives from other installations */
+  alsoFromOtherInstallations?: boolean;
+  /** Annex IV item 35, keyed by the registry's sector-parameter keys */
+  sectorParams?: Record<string, string>;
+  /* The verification report template, point 2.5(b)(7) */
+  verifierAddress?: string;
+  verifierLeadAuditor?: string;
+  verifierAccreditationBody?: string;
+  /** the statement concludes with reasonable assurance and no material
+      misstatement or non-conformity — only `true` makes the figure usable */
+  verifierReasonableAssurance?: boolean;
 };
 
 /* ── Store ──────────────────────────────────────────────────────
@@ -430,6 +464,14 @@ export const emptySupplier = (workspaceId: string, parentId: string | null = nul
 
     Pure — reads only what is stored on the row, writes nothing.
     `saveSupplier` is the only caller that acts on the result. */
+const SECTOR_WORDS: Record<string, string[]> = {
+  "Iron & Steel": ["iron", "steel"],
+  Aluminium: ["alumin"],
+  Cement: ["cement", "clinker", "clay"],
+  Fertilisers: ["fertili", "ammonia", "nitric", "urea", "nitrogen"],
+  Hydrogen: ["hydrogen"],
+};
+
 export function validateVerificationReport(
   s: Pick<
     PrecursorSupplier,
@@ -440,7 +482,7 @@ export function validateVerificationReport(
     | "verificationReportIssueDate"
     | "verificationSectoralScope"
     | "catalogProductId"
-  >,
+  > & { cnCode?: string },
 ): VerificationCheckResult {
   const failedReasons: string[] = [];
 
@@ -460,10 +502,21 @@ export function validateVerificationReport(
   // when one is on file — a typed precursor with no catalogue link has
   // nothing to check the claim against, so a non-empty self-declaration is
   // taken as the claim rather than rejected outright.
-  const catalogProduct = s.catalogProductId ? getCatalogProduct(s.catalogProductId) : undefined;
+  // The catalogue link when there is one; otherwise the CN code itself — a
+  // typed precursor still has a sector, and "Cement" does not cover steel.
+  const catalogProduct = s.catalogProductId ? getCatalogProduct(s.catalogProductId) : s.cnCode ? cnProductByCode(s.cnCode) : undefined;
   const expectedScope = catalogProduct ? aggregatedGoodsCategory(catalogProduct) : null;
   const claimedScope = s.verificationSectoralScope?.trim();
-  const sectoralScopeMatch = Boolean(claimedScope) && (expectedScope == null || claimedScope!.toLowerCase().includes(expectedScope.toLowerCase()));
+  /* A verifier's accreditation is scoped to a SECTOR — "iron and steel",
+     "cement", "fertilisers" — not to the regulation's aggregated goods category.
+     Demanding the category's own name would reject “Iron and steel” on a
+     crude-steel precursor, which is exactly the scope that covers it. So the
+     claim matches on the category name OR on its sector's words. */
+  const sectorWords = catalogProduct ? SECTOR_WORDS[catalogProduct.category] ?? [] : [];
+  const claimed = (claimedScope ?? "").toLowerCase();
+  const sectoralScopeMatch =
+    Boolean(claimedScope) &&
+    (expectedScope == null || claimed.includes(expectedScope.toLowerCase()) || sectorWords.some((w) => claimed.includes(w)));
 
   if (!hasFile) failedReasons.push("No verification report is attached.");
   if (!hasAccreditationDates) failedReasons.push("The verifier's accreditation expiry date and the report's issue date are not both recorded.");
@@ -728,8 +781,14 @@ export function matchesExistingInstallation(workspaceId: string, draft: Pick<Pre
    (M7). For an upstream tier it is Σ its tonnes ÷ Σ its PARENT's tonnes —
    tonnes of pig iron per tonne of billet — which is the same question one
    level up. */
-export const totalTonnes = (s: Pick<PrecursorSupplier, "monthlyQuantities">): number =>
-  s.monthlyQuantities.reduce((a, q) => a + (q.tonnes || 0), 0);
+export const totalTonnes = (s: Pick<PrecursorSupplier, "monthlyQuantities"> & { quantityUsedT?: number }): number => {
+  const monthly = s.monthlyQuantities.reduce((a, q) => a + (q.tonnes || 0), 0);
+  /* The Precursors tab asks for ONE annual figure (Annex IV items 20/21), not
+     twelve. It counts only when no monthly readings exist, so a row that has
+     both never counts the same tonne twice. */
+  if (monthly > 0) return monthly;
+  return s.quantityUsedT != null && Number.isFinite(s.quantityUsedT) && s.quantityUsedT > 0 ? s.quantityUsedT : 0;
+};
 
 /** Tonnes of this node per tonne of its parent's output (or of the finished
     good, for a direct input). Returns null when it cannot be established —
@@ -749,7 +808,11 @@ export function qtyPerTonne(node: SupplierNode, parentTonnes: number | null): nu
 export function effectiveSee(node: SupplierNode): number {
   if (node.isScrap) return 0;
 
-  if (node.children.length === 0) {
+  /* A direct precursor whose basis has been chosen is a leaf: its own figure —
+     default, or the operator's verified actual — IS its specific embedded
+     emissions. Any upstream tiers recorded before the Precursors tab existed
+     are kept, but they no longer feed the number. */
+  if (node.children.length === 0 || node.valueBasis) {
     const declared = node.seeTco2ePerT;
     return declared != null && Number.isFinite(declared) ? declared : 0;
   }
@@ -832,6 +895,8 @@ const EMPTY_RESULT: PrecursorResult = {
 /** A node is complete when it names its installation, has a quantity or a
     ratio, and either declares a SEE, is scrap, or has children that do. */
 export function nodeComplete(node: SupplierNode, ratio: number | null): boolean {
+  if (node.valueBasis === "default") return ratio != null && Boolean(node.precursorName.trim() || node.cnCode.trim());
+  if (node.valueBasis === "actual" && node.dataOrigin === "default_value") return false; // still waiting for an admissible actual value
   if (!node.name.trim() || !node.installationName.trim()) return false;
   if (ratio == null) return false;
   if (node.isScrap) return true;
@@ -898,7 +963,12 @@ export function precursorContribution(workspace: Pick<VerificationWorkspace, "id
     perTonne,
     byNode,
     defaultValueShare: share,
-    overDefaultCap: share > DEFAULT_VALUE_SHARE_CAP.value,
+    /* No longer a gate. Implementing Regulation (EU) 2025/2547 Article 15 and
+       Annex II A.1(2) allow default values for one, several or all precursors;
+       the 20 % ceiling came from the transitional-period rules and is not in
+       the definitive-period text. The share is still reported — it is what the
+       Precursors tab tells the exporter about — but it blocks nothing. */
+    overDefaultCap: false,
     incomplete: byNode.filter((n) => !n.complete),
     error: null,
   };
@@ -1060,6 +1130,19 @@ export type PrecursorRequirement = {
                       through those forms is required to bring it, or to be
                       scrap / EU-exempt, which need none of it. */
 export function precursorRequirements(s: PrecursorSupplier, scope: RequirementScope = "row"): PrecursorRequirement[] {
+  /* A row whose basis has been chosen is asked exactly what the registry says
+     (lib/cbam/precursor-fields.ts) — Annex IV items 22/23/28/35 — and nothing
+     more. The older, longer list below stays for rows that predate it. */
+  if (s.valueBasis) {
+    const attached = { report: Boolean(s.verificationReportFileId) };
+    const reqs = fieldStatuses(s, attached)
+      .filter((x) => x.field.need === "required")
+      .map((x) => ({ key: x.field.key, label: `${x.field.label} is required.`, met: x.answered }));
+    if (s.valueBasis === "actual" && s.verifierReasonableAssurance === false) {
+      reqs.push({ key: "assurance", label: "The verification statement must conclude with reasonable assurance.", met: false });
+    }
+    return reqs;
+  }
   const out: PrecursorRequirement[] = [];
   const need = (key: string, label: string, met: boolean) => out.push({ key, label, met: Boolean(met) });
 

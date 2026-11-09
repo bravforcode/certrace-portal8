@@ -9,6 +9,7 @@ import { AuthLayout, GoogleButton, Divider, GOOGLE_AUTH_ENABLED, AuthUnavailable
 import { EnglishOnly, useT } from "@/lib/i18n";
 import { authUnavailable, beginGoogleSignIn, demoModeEnabled, login } from "@/lib/api";
 import { EMAIL_RE, signInDestination, signInError } from "@/lib/auth-flow";
+import { recordSignIn } from "@/lib/notifications/events";
 
 /* Sign-in is English-only, like the rest of the auth screens — see
    EnglishOnly in lib/i18n.tsx. The EN/ไทย switcher starts on /onboarding,
@@ -62,6 +63,7 @@ function LoginScreen() {
        set. A production build with no backend does NOT land here — it never
        renders this form at all. See demoModeEnabled() in lib/api. */
     if (demoModeEnabled()) {
+      recordSignIn();
       window.setTimeout(() => router.push("/onboarding/setup"), 600);
       return;
     }
@@ -80,6 +82,7 @@ function LoginScreen() {
       /* `login` stores the session itself — the token is in localStorage
          before this line returns, so the next screen's requests carry it. */
       const session = await login({ email: email.trim(), password });
+      recordSignIn();
       router.push(signInDestination(session.user));
       /* Loading stays ON through the push. Clearing it here would flash an
          enabled form for the frame between the state update and the route

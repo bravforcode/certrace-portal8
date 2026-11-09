@@ -56,6 +56,9 @@ export const WORKSPACE_STORE_KEYS = [
   "certrace:workspace-evidence",
   "certrace:workspace-mmd-draft",
   "certrace:workspace-mmd-versions",
+  /* Which months the exporter has sent. The plant only READS it — to open the months it has been asked for — and the merge back to the
+     exporter below takes the month's answers, never this. */
+  "certrace:month-dispatch",
 ] as const;
 
 const EVIDENCE_KEY = "certrace:workspace-evidence";

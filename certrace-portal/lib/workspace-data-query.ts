@@ -41,7 +41,7 @@ import {
   submitWithAttestation,
   type Attestation,
 } from "./month-submission";
-import { getMonth, monthsForWorkspace, saveMonth, type MonthlyEntry } from "./monthly-data";
+import { clearNotManufactured, getMonth, markNotManufactured, monthsForWorkspace, saveMonth, type MonthlyEntry } from "./monthly-data";
 import { signOffPack, signOffState } from "./pack-signoff";
 import type { WorkspaceReadiness } from "./readiness";
 import { reportContents } from "./report-contents";
@@ -194,6 +194,20 @@ export const useMarkMonthSent = () =>
     },
     true,
   );
+
+/* Saying a month was idle answers it: the chase stops (locally by the status, on the server by closing the reminder) and the year can close. */
+export const useMarkNotManufactured = () =>
+  useWorkspaceWrite(
+    ({ workspaceId, month, by }: { workspaceId: string; month: string; by: string }) => {
+      const entry = markNotManufactured(workspaceId, month, by);
+      void registerMonthAnswered(workspaceId, month);
+      return entry;
+    },
+    true,
+  );
+
+export const useClearNotManufactured = () =>
+  useWorkspaceWrite(({ workspaceId, month }: { workspaceId: string; month: string }) => clearNotManufactured(workspaceId, month), true);
 
 export const useMarkMonthReminded = () =>
   useWorkspaceWrite(({ workspaceId, month }: { workspaceId: string; month: string }) => markMonthReminded(workspaceId, month), true);

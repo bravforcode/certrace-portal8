@@ -39,7 +39,8 @@ import { monthsForWorkspace } from "./monthly-data";
 import { materiality, MATERIALITY_THRESHOLD, type WorkspaceReadiness } from "./readiness";
 import { finalVersionCovering, loadDraft } from "./workspace-mmd";
 import { listEvidence } from "./workspace-evidence";
-import { getRoute, routeMatchesCategory, type VerificationWorkspace } from "./workspace";
+import { getRoute, type VerificationWorkspace } from "./workspace";
+import { routeIsValidFor } from "./cbam/routes";
 import { workspaceSEE } from "./workspace-see";
 import type { TFunction } from "./i18n";
 
@@ -109,7 +110,7 @@ export function reportContents(ws: VerificationWorkspace, readiness: WorkspaceRe
   const product = getCatalogProduct(ws.productId);
   const category = product ? aggregatedGoodsCategory(product) : null;
   const route = getRoute(ws.productionRoute);
-  const routeMismatch = Boolean(category && ws.productionRoute && !routeMatchesCategory(ws.productionRoute, category));
+  const routeMismatch = Boolean(product && ws.productionRoute && !routeIsValidFor(ws.productionRoute, product));
 
   const monthlyTab = readiness.tabs.find((t) => t.tab === "monthly");
   const evidenceTab = readiness.tabs.find((t) => t.tab === "evidence");
@@ -135,7 +136,7 @@ export function reportContents(ws: VerificationWorkspace, readiness: WorkspaceRe
         title: t("About the installation"),
         state: !inst ? "not_started" : instGaps.length === 0 ? "ready" : "in_progress",
         detail: !inst
-          ? t("No installation record is attached to this workspace.")
+          ? t("No installation record is attached to this product report.")
           : instGaps.length === 0
             ? t("All fourteen template fields are answered.")
             : instGaps.length === 1
@@ -168,7 +169,7 @@ export function reportContents(ws: VerificationWorkspace, readiness: WorkspaceRe
           (price.amountPerTonne > 0
             ? t("{amount} {currency} per tCO₂e claimed.", { amount: price.amountPerTonne, currency: price.currency })
             : t("Nothing claimed. Zero is a complete answer — record it rather than leaving it blank.")),
-        deepLink: link(ws.id, "/readiness#carbon-price"),
+        deepLink: link(ws.id, "/carbon-price"),
       },
     ],
   };
@@ -322,7 +323,7 @@ export function reportContents(ws: VerificationWorkspace, readiness: WorkspaceRe
               ? t("Claim, share and receipt are all on file.")
               : t("A deduction is claimed with something still missing behind it.")
             : t("Nothing claimed, so this section prints a nil return — which is a complete answer."),
-        deepLink: link(ws.id, "/readiness#carbon-price"),
+        deepLink: link(ws.id, "/carbon-price"),
       },
       {
         number: "A",

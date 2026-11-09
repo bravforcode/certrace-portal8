@@ -37,8 +37,8 @@ import type { ActivityDataset, FuelEntry, ElectricityEntry, ProcessEmissionEntry
 import { precursorSEE, type PrecursorNode } from "./precursor-tree";
 
 /* ── The sector rule, stated once ───────────────────────────────
-   Annex II to Regulation (EU) 2023/956: for iron & steel, aluminium and
-   hydrogen only DIRECT emissions enter the financial obligation, because
+   Annex II to Regulation (EU) 2023/956: for iron & steel, aluminium,
+   hydrogen and (since 2025/2083) electricity only DIRECT emissions enter the financial obligation, because
    those sectors receive indirect-cost compensation under the EU ETS
    State-aid framework. Indirect emissions are still REPORTED for every good
    — they just don't reach the certificate bill. */
@@ -50,7 +50,9 @@ export const INDIRECT_CHARGEABLE: Record<GoodsCategory, boolean> = {
   Hydrogen: false, // Annex II — direct only
   Cement: true,
   Fertilisers: true,
-  Electricity: true,
+  // Added to Annex II by Regulation (EU) 2025/2083 — indirect emissions are not
+  // relevant to electricity generation.
+  Electricity: false,
 };
 
 export const indirectIsChargeable = (category: GoodsCategory): boolean => INDIRECT_CHARGEABLE[category] ?? true;

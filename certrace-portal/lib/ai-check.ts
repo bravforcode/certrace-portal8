@@ -60,6 +60,14 @@ const num = (v: string | undefined) => {
 const DIRECT_BANDS: Record<ProductCategory, { low: number; high: number; hardMax: number; word: string }> = {
   "Iron & Steel": { low: 0.1, high: 2.8, hardMax: 6, word: "steel" },
   Aluminium: { low: 0.02, high: 2.2, hardMax: 5, word: "aluminium" },
+  /* ASSUMPTION — bands for the three sectors added when the catalogue grew to
+     the full CBAM scope. Wide on purpose, drawn from the spread of the
+     published default values (Implementing Regulation (EU) 2025/2621, Annex I,
+     direct emissions): they exist to catch unit errors, not to second-guess a
+     plant. Narrow them once a sector has real submissions behind it. */
+  Cement: { low: 0.2, high: 1.5, hardMax: 3, word: "cement" },
+  Fertilisers: { low: 0.05, high: 3.5, hardMax: 8, word: "fertiliser" },
+  Hydrogen: { low: 1, high: 14, hardMax: 25, word: "hydrogen" },
 };
 
 /** First numeric token in a free-text electricity factor ("0.399 tCO₂/MWh — grid OM"). */

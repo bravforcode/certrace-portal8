@@ -96,7 +96,7 @@ export function SupplierRolePrompt({
         initial={emptyInstallation(true)}
         allowSelfToggle={false}
         title={t("Register your installation")}
-        lead={t("Your own site is the installation a verifier will scope against. Register it once and every workspace reuses it.")}
+        lead={t("Your own site is the installation a verifier will scope against. Register it once and every product report reuses it.")}
         onSaved={(saved) => {
           saveInstallation({ ...saved, self: true });
           setRegistering(false);

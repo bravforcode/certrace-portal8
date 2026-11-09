@@ -45,6 +45,7 @@ import { uploadLinkFile } from "./api/files";
 import { getOrgIdentity } from "./org";
 import { getSupplier, listSuppliers, saveSupplier, type PrecursorSupplier } from "./precursor-suppliers";
 import { getWorkspace, listWorkspaces } from "./workspace";
+import { commitPrecursor } from "./cbam/precursor-basis";
 
 const PRECURSORS_KEY = "certrace:precursor-suppliers";
 const EVIDENCE_KEY = "certrace:workspace-evidence";
@@ -77,13 +78,26 @@ export const SUPPLIER_FIELDS = [
   "verificationSectoralScope",
   "verificationReportExpiresAt",
   "verificationReportFileId",
+  // Annex IV item 35 and the verification report template's verifier items
+  "sectorParams",
+  "verifierAddress",
+  "verifierLeadAuditor",
+  "verifierAccreditationBody",
+  "verifierReasonableAssurance",
 ] as const satisfies readonly (keyof PrecursorSupplier)[];
 
 /* Read by the submit gate (precursorRequirements) to decide what this row has
    to answer — a purchased good from an EU or exempt country needs no
    verification, scrap needs no figure. Sent so the supplier's form asks the
    same questions the exporter's does; never taken back. */
-const CONTEXT_FIELDS = ["origin", "isScrap"] as const satisfies readonly (keyof PrecursorSupplier)[];
+const CONTEXT_FIELDS = [
+  "origin",
+  "isScrap",
+  "valueBasis",
+  "reportingPeriodBasis",
+  "quantityUsedT",
+  "originUnknown",
+] as const satisfies readonly (keyof PrecursorSupplier)[];
 
 type Row = Record<string, unknown> & { id?: unknown };
 
@@ -170,8 +184,11 @@ const pick = (row: Row, keys: readonly string[] = SUPPLIER_FIELDS): Row => {
 function evidenceOf(workspaceId: string, nodeId: string): Row[] {
   const key = evidenceKeyFor(nodeId);
   const items = readJson<Record<string, Row[]>>(EVIDENCE_KEY, {})[workspaceId] ?? [];
+  // The report itself is filed under `precursor:<id>`; the optional documents
+  // (`precursor:<id>:summary`, …) travel with it.
+  const mine = (k: unknown) => typeof k === "string" && (k === key || k.startsWith(`${key}:`));
   return items
-    .filter((item) => Array.isArray(item.fieldKeys) && (item.fieldKeys as unknown[]).includes(key))
+    .filter((item) => Array.isArray(item.fieldKeys) && (item.fieldKeys as unknown[]).some(mine))
     .map((item) => {
       const rest = { ...item };
       delete rest.fileDataUrl;
@@ -188,7 +205,8 @@ function mergeEvidence(workspaceId: string, nodeId: string, incoming: Row[] | un
   const items = [...(store[workspaceId] ?? [])];
   for (const raw of incoming) {
     if (!raw || typeof raw.id !== "string") continue;
-    const item: Row = { ...raw, workspaceId, fieldKeys: [key] };
+    const kept = Array.isArray(raw.fieldKeys) ? (raw.fieldKeys as unknown[]).filter((k): k is string => typeof k === "string" && (k === key || k.startsWith(`${key}:`))) : [];
+    const item: Row = { ...raw, workspaceId, fieldKeys: kept.length > 0 ? kept : [key] };
     delete item.fileDataUrl;
     const at = items.findIndex((e) => e.id === item.id);
     if (at >= 0) items[at] = { ...items[at], ...item, fileDataUrl: items[at].fileDataUrl };
@@ -259,7 +277,7 @@ function mergeAnswer(workspaceId: string, nodeId: string, state: LinkState): boo
   for (const key of SUPPLIER_FIELDS) if (key in answer) patch[key] = answer[key];
   const submittedAt = versions[versions.length - 1]?.submittedAt;
   const at = typeof submittedAt === "number" ? new Date(submittedAt).toISOString() : new Date().toISOString();
-  saveSupplier({
+  const merged = saveSupplier({
     ...row,
     ...(patch as Partial<PrecursorSupplier>),
     // Same stamps the local form's submit wrote (app/p/[token]/page.tsx).
@@ -267,6 +285,11 @@ function mergeAnswer(workspaceId: string, nodeId: string, state: LinkState): boo
     smartLinkOpenedAt: row.smartLinkOpenedAt ?? at,
     smartLinkSubmittedAt: at,
   });
+  /* A request for an ACTUAL value: the figure is used only if it is complete
+     and admissible (Annex II A.1(4)) — checked here, where the exporter's
+     reporting year is known, not in the supplier's browser. */
+  const ws = getWorkspace(workspaceId);
+  if (merged.valueBasis && ws) commitPrecursor(merged, ws);
   mergeEvidence(workspaceId, nodeId, state.slice?.evidence);
   return true;
 }

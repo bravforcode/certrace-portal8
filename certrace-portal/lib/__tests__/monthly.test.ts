@@ -257,7 +257,7 @@ test("A6 — rebar ← billet (1.02) ← pig iron (0.85, SEE 1.9) gives 1.615 an
   near(prec.perTonne, 1.6473, 1e-3, "contribution = 1.02 × 1.615");
 });
 
-test("A6 — marking pig iron default_value pushes the share past the 20% cap", () => {
+test("A6 — marking pig iron default_value pushes the default share to 100%, and blocks nothing", () => {
   storage.clear();
   const ws = createWorkspace({ installationId: "TH-PLANT-A", installationName: "Plant A", productId: "rebar", productionRoute: "scrap_eaf", year: 2026 });
   for (const month of monthsOf(ws)) saveMonth({ ...emptyMonth(ws.id, month), month, productionTonnes: 875, status: "submitted" });
@@ -283,7 +283,8 @@ test("A6 — marking pig iron default_value pushes the share past the 20% cap", 
   });
 
   const prec = precursorContribution(ws);
-  assert.equal(prec.overDefaultCap, true, "a chain resting entirely on a default value is over the 20% cap");
+  assert.equal(prec.overDefaultCap, false, "there is no 20% cap in the definitive-period rules (Annex II A.1(2), Article 15)");
+  assert.ok(prec.defaultValueShare > 0.99, "the share is still reported — the Precursors tab tells the exporter about it");
   assert.equal(prec.byNode.find((n) => n.depth === 1)!.weakestOrigin, "default_value", "the weakest link propagates up");
 });
 
@@ -764,4 +765,80 @@ test("a fuel row with no quantity blocks — it is a row that should not exist",
   const issue = monthIssues(empty).find((i) => i.severity === "error" && i.field.endsWith(":quantity"));
   assert.ok(issue);
   assert.match(issue!.message, /remove the row/);
+});
+
+/* ── The rest of what a month reports (items 14, 16(b), 16(d), 17) ───── */
+
+test("continuously measured emissions are added to the month's direct emissions", () => {
+  const ws = seedWorkspace();
+  const march = monthsForWorkspace(ws).find((m) => m.month === "2026-03")!;
+  const base = monthResult(march);
+
+  const measured = { ...march, measuredEmissions: [{ id: "m1", source: "Furnace 2 stack", gas: "n2o" as const, tCO2e: 12.5 }] };
+  const r = monthResult(measured);
+  assert.equal(r.measuredTCO2, 12.5);
+  near(r.directTCO2, base.directTCO2 + 12.5, 1e-9, "Equation 4: Em_inst = Σ Em_calc + Σ Em_meas");
+});
+
+test("CO₂ sent on for storage comes off the month, and never takes it below zero", () => {
+  const ws = seedWorkspace();
+  const march = monthsForWorkspace(ws).find((m) => m.month === "2026-03")!;
+  const base = monthResult(march);
+
+  const sent = monthResult({ ...march, co2TransferredOutT: 10 });
+  near(sent.directTCO2, base.directTCO2 - 10, 1e-9, "counted as not emitted");
+  assert.equal(sent.transferredOutTCO2, 10);
+
+  const tooMuch = monthResult({ ...march, co2TransferredOutT: base.directTCO2 + 5000 });
+  assert.equal(tooMuch.directTCO2, 0, "floored: CO₂ cannot be un-emitted beyond what was counted");
+});
+
+test("received CO₂ is reported but does not move the month's emissions", () => {
+  const ws = seedWorkspace();
+  const march = monthsForWorkspace(ws).find((m) => m.month === "2026-03")!;
+  assert.equal(monthResult({ ...march, co2ReceivedT: 40 }).directTCO2, monthResult(march).directTCO2);
+});
+
+test("a measured source needs a name and a figure; more CO₂ sent on than existed is a warning", () => {
+  const ws = seedWorkspace();
+  const march = monthsForWorkspace(ws).find((m) => m.month === "2026-03")!;
+
+  const blank = monthIssues({ ...march, measuredEmissions: [{ id: "m1", source: "", gas: "co2" as const, tCO2e: 0 }] });
+  assert.equal(blank.filter((i) => i.severity === "error" && i.field.startsWith("measured:")).length, 2);
+
+  const silly = monthIssues({ ...march, co2TransferredOutT: 999_999 });
+  const w = silly.find((i) => i.field === "co2Transfer");
+  assert.ok(w && w.severity === "warn", "flagged, not blocking");
+});
+
+test("copying a month keeps the shape of the extras and none of their quantities", () => {
+  const ws = seedWorkspace();
+  const feb = monthsForWorkspace(ws).find((m) => m.month === "2026-02")!;
+  saveMonth({
+    ...feb,
+    measuredEmissions: [{ id: "m1", source: "Stack 1", gas: "co2" as const, tCO2e: 9 }],
+    nonCbamGoods: [{ id: "g1", name: "Galvanised sheet", tonnes: 300 }],
+  });
+  const copied = copyFromPreviousMonth(ws.id, "2026-03")!;
+  assert.equal(copied.measuredEmissions![0].source, "Stack 1");
+  assert.equal(copied.measuredEmissions![0].tCO2e, 0);
+  assert.equal(copied.nonCbamGoods![0].name, "Galvanised sheet");
+  assert.equal(copied.nonCbamGoods![0].tonnes, 0);
+});
+
+test("electricity does not hold back a month of a direct-only good — steel — but still does for a good that counts indirect emissions", async () => {
+  const cfg = await import("../config");
+  const steel = seedWorkspace("billet");
+  const march = monthsForWorkspace(steel).find((m) => m.month === "2026-03")!;
+  const noPower = { ...march, electricitySources: [], electricityMwh: 0 };
+  const steelIssues = monthIssues(noPower).filter((i) => i.field === "electricity");
+  assert.ok(steelIssues.length > 0, "it is still said, as a note");
+  assert.ok(steelIssues.every((i) => i.severity === "warn"), "steel is an Annex II good: only its direct emissions count, so missing power is not an error");
+  assert.match(steelIssues[0].message, /only direct emissions count/);
+
+  const cement = cfg.PRODUCT_CATALOG.find((p: { cnCode: string; category: string }) => cfg.aggregatedGoodsCategory(p as never) === "Cement")!;
+  const ws = seedWorkspace(cement.id);
+  const cMarch = monthsForWorkspace(ws).find((m) => m.month === "2026-03")!;
+  const cementIssues = monthIssues({ ...cMarch, electricitySources: [], electricityMwh: 0 }).filter((i) => i.field === "electricity");
+  assert.ok(cementIssues.some((i) => i.severity === "error"), "cement counts indirect emissions, so the power it drew is part of its figure");
 });

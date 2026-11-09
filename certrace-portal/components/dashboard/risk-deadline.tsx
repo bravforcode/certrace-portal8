@@ -33,7 +33,7 @@ export function RiskDeadlineOverview({ stats }: { stats: RiskDeadlineStats }) {
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
       <StatTile
         value={stats.workspacesBlocked}
-        label={t("Workspaces blocked")}
+        label={t("Product reports blocked")}
         sub={t("arithmetic that cannot run")}
         href="/workspaces"
         tone={stats.workspacesBlocked > 0 ? "err" : "muted"}
@@ -54,7 +54,7 @@ export function RiskDeadlineOverview({ stats }: { stats: RiskDeadlineStats }) {
       />
       <StatTile
         value={stats.workspacesWithOverdueCount}
-        label={t("Workspaces with an overdue item")}
+        label={t("Product reports with an overdue item")}
         sub={t("see the action queue above")}
         href="/workspaces"
         tone={stats.workspacesWithOverdueCount > 0 ? "warn" : "muted"}

@@ -26,12 +26,12 @@
    ════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
-import { Check, ExternalLink, FileCheck2, Paperclip, Trash2, Upload, User as UserIcon } from "lucide-react";
+import { Check, FileCheck2, Paperclip, Trash2, Upload } from "lucide-react";
 import { cn } from "@/components/ui";
 import { toast } from "@/components/toast";
 import { USER } from "@/lib/data";
 import { type MonthlyEntry } from "@/lib/monthly-data";
-import { openEvidenceDocument, sourceTypeForKey, uploadEvidence } from "@/components/workspace/evidence-panel";
+import { sourceTypeForKey, uploadEvidence } from "@/components/workspace/evidence-panel";
 import { useT } from "@/lib/i18n";
 import {
   ALL_CONDITIONAL_ANNUAL_KEYS,
@@ -89,11 +89,6 @@ function StatusPill({ status }: { status: CardStatus }) {
   );
 }
 
-function fmtDate(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-}
-
 /** The bind control shown inline once a file lands on a key with no target
     yet. One button, always: pressing it binds the document to the reporting
     year, and that is what turns the card's chip green.
@@ -108,6 +103,7 @@ function fmtDate(iso: string): string {
     dropdown only ever appeared on the annual grid, where the year is the
     answer anyway. */
 function BindControl({ year, item, onBound }: { year: number; item: EvidenceItem; onBound: () => void }) {
+  const t = useT();
   return (
     <button
       type="button"
@@ -117,7 +113,7 @@ function BindControl({ year, item, onBound }: { year: number; item: EvidenceItem
       }}
       className="rounded-lg border border-black/10 px-3 py-1.5 text-[11px] uppercase tracking-[0.08em] text-black/50 hover:border-black/25 hover:text-black"
     >
-      Bind to {year}
+      {t("Bind to {year}", { year })}
     </button>
   );
 }
@@ -162,68 +158,45 @@ function DocumentCard({
           <p className={cn("text-[13px] leading-snug", disabled ? "text-black/35" : "text-black/80")}>{t(row.label)}</p>
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-black/40">
             {row.frequency && <span>{t(EVIDENCE_FREQUENCY_LABEL[row.frequency])}</span>}
-            {row.whoToAsk && <span className="truncate">· {row.whoToAsk}</span>}
+            {row.whoToAsk && <span className="truncate">· {t(row.whoToAsk)}</span>}
           </div>
         </div>
         <StatusPill status={status} />
       </div>
 
       {disabled ? (
-        <p className="mt-2 text-[11px] italic text-black/30">{t("Not applicable to this workspace right now.")}</p>
+        <p className="mt-2 text-[11px] italic text-black/30">{t("Not applicable to this product report right now.")}</p>
       ) : (
         <>
           {row.items.length > 0 && (
             <ul className="mt-2.5 space-y-1.5">
               {row.items.map((item) => (
                 <li key={item.id} className="rounded-lg bg-[#faf9f7] px-2.5 py-1.5 text-[11px]">
-                  {/* THE FILE NAME OPENS THE FILE, AND GETS ITS OWN LINE.
-
-                      A row that prints a document's name, who attached it and
-                      when, and then does nothing when you press it, has
-                      answered every question about the document except the
-                      one the reader has — what is in it. `openEvidenceDocument`
-                      is the same opener the precursor Documents block uses,
-                      including its honest refusal when the file was too large
-                      to keep in the browser and only its record was stored.
-
-                      These cards sit three to a row on a wide screen and one
-                      to a narrow column on a phone, so the name shared a line
-                      with an uploader, a date and a bin: "efing.pdf"
-                      truncated to "e." — a link whose entire purpose is to be
-                      recognised, shortened past recognition. It takes the
-                      full width now and the provenance sits under it, which
-                      is also the order they are read in. */}
-                  <button
-                    type="button"
-                    onClick={() => openEvidenceDocument(item)}
-                    title={`Open ${item.fileName}`}
-                    className="group flex w-full min-w-0 items-center gap-1.5 text-left text-black/70 transition-colors hover:text-black"
-                  >
+                  {/* THE FILE, AND NOTHING ABOUT IT. A stored file cannot be previewed here — the browser keeps only what fits and the
+                      larger ones leave a record, not a copy — so the name is a label, not a link that sometimes works. Who attached it and
+                      when is no longer printed: the card says which document it is, and the bin takes it away. */}
+                  <div className="flex w-full min-w-0 items-center gap-1.5 text-black/70">
                     <Paperclip size={11} strokeWidth={1.5} className="flex-none text-black/30" />
-                    <span className="min-w-0 truncate underline decoration-black/15 underline-offset-2 group-hover:decoration-black/40">
+                    <span className="min-w-0 flex-1 truncate" title={item.fileName}>
                       {item.fileName}
                     </span>
-                    <ExternalLink size={10} strokeWidth={1.5} className="flex-none text-black/25 group-hover:text-black/55" />
-                  </button>
-                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="inline-flex items-center gap-1 text-black/35">
-                      <UserIcon size={10} strokeWidth={1.5} />
-                      {item.uploadedBy ?? "—"}
-                    </span>
-                    <span className="text-black/30">{fmtDate(item.capturedAt)}</span>
-                    {item.boundTo && <span className="rounded-full bg-black/[0.05] px-2 py-0.5 text-black/45">&rarr; {item.boundTo}</span>}
                     <button
                       type="button"
                       onClick={() => {
                         removeEvidence(item.workspaceId, item.id);
                         onChange();
                       }}
-                      className="ml-auto flex-none rounded p-1 text-black/25 hover:bg-[#fef2f2] hover:text-[#dc2626]"
+                      className="flex-none rounded p-1 text-black/25 hover:bg-[#fef2f2] hover:text-[#dc2626]"
                       aria-label={t("Remove")}
                     >
                       <Trash2 size={11} strokeWidth={1.5} />
                     </button>
                   </div>
+                  {item.boundTo && (
+                    <div className="mt-1">
+                      <span className="rounded-full bg-black/[0.05] px-2 py-0.5 text-black/45">&rarr; {item.boundTo}</span>
+                    </div>
+                  )}
                   {isReviewed(item) && !item.boundTo && !item.month && (
                     <div className="mt-1.5">
                       <BindControl year={year} item={item} onBound={onChange} />
@@ -242,7 +215,7 @@ function DocumentCard({
             )}
           >
             <Upload size={12} strokeWidth={1.5} />
-            {busy ? "Uploading…" : "Drop a file, or click to attach"}
+            {busy ? t("Uploading…") : t("Drop a file, or click to attach")}
             <input
               type="file"
               className="hidden"
@@ -279,8 +252,11 @@ function OnboardingBanner({ workspaceId, onDismiss }: { workspaceId: string; onD
       <div className="min-w-0 flex-1">
         <p className="font-medium text-black/80">{t("Work through these in order: Finance, then Operations, then Suppliers.")}</p>
         <p className="mt-1 leading-relaxed">
-          {t(EVIDENCE_DEPARTMENT_LABEL.finance)} is usually already on file. {t(EVIDENCE_DEPARTMENT_LABEL.operations)} may need a new logging habit.{" "}
-          {t(EVIDENCE_DEPARTMENT_LABEL.suppliers)} waits on someone outside your company — ask early, finish there.
+          {t("{finance} is usually already on file. {operations} may need a new logging habit. {suppliers} waits on someone outside your company — ask early, finish there.", {
+            finance: t(EVIDENCE_DEPARTMENT_LABEL.finance),
+            operations: t(EVIDENCE_DEPARTMENT_LABEL.operations),
+            suppliers: t(EVIDENCE_DEPARTMENT_LABEL.suppliers),
+          })}
         </p>
       </div>
       <button
@@ -309,6 +285,8 @@ export function DocumentsCardGrid({
   scope,
   onChange,
   allowUpload = true,
+  audience = "exporter",
+  uploadedBy,
 }: {
   workspaceId: string;
   year: number;
@@ -317,6 +295,11 @@ export function DocumentsCardGrid({
   onChange: () => void;
   /** See DocumentCard. */
   allowUpload?: boolean;
+  /** On the plant's own link the precursors' paperwork (verification reports, mill certificates of bought-in goods) is not asked:
+      the precursors are the exporter's, on their Precursors tab. */
+  audience?: "exporter" | "supplier";
+  /** who is attached to the file — the signed-in user in the portal, the plant on its link */
+  uploadedBy?: string;
 }) {
   const t = useT();
   const [busy, setBusy] = React.useState<string | null>(null);
@@ -332,11 +315,12 @@ export function DocumentsCardGrid({
     onChange();
   }, [onChange]);
 
+  const asked = React.useCallback((rows: CoverageRow[]) => (audience === "supplier" ? rows.filter((r) => r.department !== "suppliers") : rows), [audience]);
   const monthRows = React.useMemo(
-    () => coverageForMonth(workspaceId, entry, scope.requiresIndirectEmissions ?? false).rows,
-    [workspaceId, entry, scope.requiresIndirectEmissions, tick],
+    () => asked(coverageForMonth(workspaceId, entry, scope.requiresIndirectEmissions ?? false).rows),
+    [workspaceId, entry, scope.requiresIndirectEmissions, tick, asked],
   );
-  const annualRows = React.useMemo(() => annualCoverage(workspaceId, scope), [workspaceId, scope, tick]); // eslint-disable-line react-hooks/exhaustive-deps
+  const annualRows = React.useMemo(() => asked(annualCoverage(workspaceId, scope)), [workspaceId, scope, tick, asked]); // eslint-disable-line react-hooks/exhaustive-deps
   const activeKeys = React.useMemo(() => new Set([...monthRows, ...annualRows].map((r) => r.key)), [monthRows, annualRows]);
   // ALL_ELECTRICITY_KEYS alongside the annual conditionals: a workspace whose
   // category doesn't count indirect emissions still gets the three
@@ -345,7 +329,7 @@ export function DocumentsCardGrid({
   // indistinguishable from a requirement nobody ever asked about.
   const notRequiredRows: CoverageRow[] = React.useMemo(
     () =>
-      [...ALL_CONDITIONAL_ANNUAL_KEYS, ...ALL_ELECTRICITY_KEYS].filter((k) => !activeKeys.has(k.key)).map((k) => ({
+      [...ALL_CONDITIONAL_ANNUAL_KEYS, ...ALL_ELECTRICITY_KEYS].filter((k) => !activeKeys.has(k.key) && !(audience === "supplier" && k.department === "suppliers")).map((k) => ({
         key: k.key,
         label: k.label,
         cite: k.cite,
@@ -357,7 +341,7 @@ export function DocumentsCardGrid({
         awaitingBinding: 0,
         items: [],
       })),
-    [activeKeys],
+    [activeKeys, audience],
   );
 
   const notRequiredKeys = new Set(notRequiredRows.map((r) => r.key));
@@ -388,7 +372,7 @@ export function DocumentsCardGrid({
       month: monthRowKeys.has(row.key) ? entry.month : undefined,
       fieldKeys: [row.key],
       sourceType: sourceTypeForKey(row.key),
-      uploadedBy: USER.name,
+      uploadedBy: uploadedBy ?? USER.name,
       onProgress: (id) => {
         setBusy(id);
         reload();
@@ -400,11 +384,11 @@ export function DocumentsCardGrid({
 
   return (
     <div>
-      {showOnboarding && <OnboardingBanner workspaceId={workspaceId} onDismiss={() => setShowOnboarding(false)} />}
+      {showOnboarding && audience !== "supplier" && <OnboardingBanner workspaceId={workspaceId} onDismiss={() => setShowOnboarding(false)} />}
 
       <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
         <span className="text-[12px] text-black/45">
-          {liveCovered} of {liveTotal} required documents are bound and counted.
+          {t("{covered} of {total} required documents are bound and counted.", { covered: liveCovered, total: liveTotal })}
         </span>
         <span className="font-mono text-[12px] text-black/45">{liveTotal ? Math.round((liveCovered / liveTotal) * 100) : 0}%</span>
       </div>
@@ -442,23 +426,21 @@ export function DocumentsCardGrid({
                   </span>
                   {EVIDENCE_RECOMMENDED_ORDER.includes(dept) && (
                     <span className="hidden flex-none whitespace-nowrap rounded-full bg-black/[0.05] px-2 py-0.5 text-[10px] text-black/35 sm:inline">
-                      Step {EVIDENCE_RECOMMENDED_ORDER.indexOf(dept) + 1}
+                      {t("Step {n}", { n: EVIDENCE_RECOMMENDED_ORDER.indexOf(dept) + 1 })}
                     </span>
                   )}
                 </span>
                 <span className="flex flex-none items-center gap-2 whitespace-nowrap text-[11px] text-black/40 sm:gap-3">
                   {EVIDENCE_RECOMMENDED_ORDER.includes(dept) && (
                     <span className="rounded-full bg-black/[0.05] px-2 py-0.5 text-[10px] text-black/35 sm:hidden">
-                      Step {EVIDENCE_RECOMMENDED_ORDER.indexOf(dept) + 1}
+                      {t("Step {n}", { n: EVIDENCE_RECOMMENDED_ORDER.indexOf(dept) + 1 })}
                     </span>
                   )}
-                  <span>
-                    {coveredHere} of {applicableHere || rows.length} bound
-                  </span>
+                  <span>{t("{covered} of {total} bound", { covered: coveredHere, total: applicableHere || rows.length })}</span>
                 </span>
               </summary>
               <div className="border-t border-black/[0.06] px-4 py-3">
-                <p className="mb-3 text-[11px] text-black/40">{EVIDENCE_DEPARTMENT_WHO_TO_ASK[dept]}</p>
+                <p className="mb-3 text-[11px] text-black/40">{t(EVIDENCE_DEPARTMENT_WHO_TO_ASK[dept])}</p>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   {rows.map((row) => (
                     <DocumentCard

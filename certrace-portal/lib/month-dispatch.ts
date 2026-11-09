@@ -27,6 +27,7 @@
    ════════════════════════════════════════════════════════════ */
 
 import { writeBlocked } from "./plan";
+import { currentLang, dateLocaleFor, translate } from "./i18n";
 
 /** What a blocked send returns when the month has never gone out: the shape a
     caller expects, with empty timestamps so every "has this been sent?" test
@@ -183,14 +184,15 @@ export function reminderState(opts: {
   now?: Date;
 }): ReminderState {
   const now = opts.now ?? new Date();
-  if (!opts.dispatch) return { allowed: false, reason: "not_sent", label: "Send this month first" };
-  if (opts.submitted) return { allowed: false, reason: "submitted", label: "This month is already in" };
-  if (now <= opts.due) return { allowed: false, reason: "not_due", label: `Not late yet — due ${formatDate(opts.due)}` };
+  const lang = currentLang();
+  if (!opts.dispatch) return { allowed: false, reason: "not_sent", label: translate(lang, "Send this month first") };
+  if (opts.submitted) return { allowed: false, reason: "submitted", label: translate(lang, "This month is already in") };
+  if (now <= opts.due) return { allowed: false, reason: "not_due", label: translate(lang, "Not late yet — due {date}", { date: formatDate(opts.due) }) };
 
   const last = opts.dispatch.lastReminderAt ? new Date(opts.dispatch.lastReminderAt).getTime() : null;
   if (last !== null && now.getTime() - last < REMINDER_INTERVAL_MS) {
     const nextAt = new Date(last + REMINDER_INTERVAL_MS);
-    return { allowed: false, reason: "cooling_down", nextAt, label: `Already chased — you can chase again ${formatClock(nextAt)}` };
+    return { allowed: false, reason: "cooling_down", nextAt, label: translate(lang, "Already chased — you can chase again {when}", { when: formatClock(nextAt) }) };
   }
   return { allowed: true };
 }
@@ -198,13 +200,14 @@ export function reminderState(opts: {
 /** '14:30 today' / '02:00 tomorrow' — a reminder cooldown is measured in hours,
     so a bare date would tell the reader nothing about when it lifts. */
 export function formatClock(d: Date): string {
-  const time = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  const lang = currentLang();
+  const time = d.toLocaleTimeString(dateLocaleFor(lang), { hour: "2-digit", minute: "2-digit" });
   const midnight = new Date();
   midnight.setHours(0, 0, 0, 0);
   const days = Math.floor((d.getTime() - midnight.getTime()) / 86_400_000);
-  if (days <= 0) return `at ${time}`;
-  if (days === 1) return `at ${time} tomorrow`;
-  return `on ${formatDate(d)}`;
+  if (days <= 0) return translate(lang, "at {time}", { time });
+  if (days === 1) return translate(lang, "at {time} tomorrow", { time });
+  return translate(lang, "on {date}", { date: formatDate(d) });
 }
 
 export function removeDispatchesForWorkspace(workspaceId: string): void {
@@ -240,7 +243,17 @@ export function dueDateFor(month: string, dueDay: number): Date {
   return new Date(y, m, Math.min(Math.max(1, dueDay), 28));
 }
 
-export const formatDate = (d: Date): string => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+/** Whole calendar days from today to `due` — negative once the due day is behind. Counted on the calendar, as a person counts them
+    ("due the 15th, today the 26th: 11 days late"), not in elapsed hours, which is what made one late month read as 71 days on its
+    card, 72 in the Smart Links table and 73 in the bell. UTC of the local date parts, so a daylight-saving change cannot move it. */
+export function calendarDaysUntil(due: Date, now: Date = new Date()): number {
+  const a = Date.UTC(due.getFullYear(), due.getMonth(), due.getDate());
+  const b = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((a - b) / 86_400_000);
+}
+
+/** '15 Sept 2026' · '15 ก.ย. 2026' — in the language on screen, the year Gregorian in both. */
+export const formatDate = (d: Date): string => d.toLocaleDateString(dateLocaleFor(currentLang()), { day: "numeric", month: "short", year: "numeric" });
 
 /** Where a month stands against its own deadline. `pending` means the month
     has not ended yet, so nothing can be late. */
@@ -272,6 +285,8 @@ export type Countdown = {
   overdue: boolean;
   /** '9 days left' · '4 hours left' · '3 days late' */
   label: string;
+  /** the same sentence in the language on screen — `label` stays English, for what is written down */
+  text: string;
   due: Date;
 };
 
@@ -285,11 +300,15 @@ export function countdownFor(month: string, dueDay: number, now: Date = new Date
   const msLeft = due.getTime() - now.getTime();
   const overdue = msLeft < 0;
   const abs = Math.abs(msLeft);
-  const days = Math.floor(abs / 86_400_000);
+  // Late is counted in calendar days (the day after the due day is one day late); time left is counted in whole days, then hours on the last day.
+  const days = overdue ? Math.max(1, -calendarDaysUntil(dueDateFor(month, dueDay), now)) : Math.floor(abs / 86_400_000);
   const hours = Math.floor(abs / 3_600_000);
 
-  const amount = days >= 1 ? `${days} day${days === 1 ? "" : "s"}` : `${Math.max(1, hours)} hour${hours === 1 ? "" : "s"}`;
-  return { msLeft, overdue, due, label: overdue ? `${amount} late` : `${amount} left` };
+  const n = days >= 1 ? days : Math.max(1, hours);
+  const unit = days >= 1 ? "day" : "hour";
+  const amount = `${n} ${unit}${n === 1 ? "" : "s"}`;
+  const key = `{n} ${unit}${n === 1 ? "" : "s"} ${overdue ? "late" : "left"}`;
+  return { msLeft, overdue, due, label: overdue ? `${amount} late` : `${amount} left`, text: translate(currentLang(), key, { n }) };
 }
 
 export const DUE_STATE_LABEL: Record<DueState, string> = {

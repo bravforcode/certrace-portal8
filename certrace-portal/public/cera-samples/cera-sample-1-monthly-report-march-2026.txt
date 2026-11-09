@@ -1,0 +1,20 @@
+RAYONG WORKS - MONTHLY OPERATIONS REPORT
+Prepared by: Somchai Prasert, Plant Manager
+Installation: TH-RAYONG-01
+Reporting month: March 2026
+Product: Iron ore, agglomerated (sinter / pellets) - CN 2601 12 00
+
+PRODUCTION
+Sinter produced this month: 4,820.5 t
+
+FUELS BURNED
+Natural gas ........ 182,400 m3   (NCV 38.2 MJ/m3, supplier certificate)
+Diesel ............. 14,200 litres
+
+ELECTRICITY
+Electricity from solar PPA (Rayong Solar Farm 2): 2,140 MWh, emission factor 0.05 tCO2/MWh
+
+PROCESS MATERIALS
+Limestone (CaCO3) charged as flux: 310 t
+
+Notes: Furnace 2 was down for maintenance on 12-18 March, so output in that week was about half normal.

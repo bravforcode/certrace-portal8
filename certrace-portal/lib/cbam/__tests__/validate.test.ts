@@ -125,13 +125,18 @@ test("V8 — a cyclic chain blocks", () => {
   assert.equal(finding!.severity, "error");
 });
 
-test("V9 / V16 — complex-good defaults and unverified actuals block", () => {
+test("V9 / V16 — a complex good on defaults is flagged but allowed; an unverified actual blocks", () => {
   const input = cleanInput();
   input.defaultOnlyComplexGoods = ["Thai Metal Pro — Billets"];
   input.unverifiedActualGoods = ["G J Steel — Hot-rolled coil"];
-  const found = ids(input);
-  assert.ok(found.has("V9"));
-  assert.ok(found.has("V16"));
+  const all = validate(input);
+  const v9 = all.find((f) => f.id === "V9");
+  assert.ok(v9);
+  // Annex II A.1(2) / Article 15 of 2025/2547 allow default values for any precursor.
+  assert.notEqual(v9!.severity, "error", "there is no 20% cap in the definitive-period rules");
+  const v16 = all.find((f) => f.id === "V16");
+  assert.ok(v16);
+  assert.equal(v16!.severity, "error");
 });
 
 test("V10 — an evidence pointer to a deleted file is not coverage", () => {

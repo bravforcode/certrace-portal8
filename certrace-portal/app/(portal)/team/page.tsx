@@ -60,13 +60,13 @@ const roleMeta: Partial<Record<SeatRole, { label: string; tone: Tone; icon: Reac
     label: "Owner",
     tone: "info",
     icon: Crown,
-    desc: "Everything a member can do, plus billing, seats and deleting workspaces. There is always exactly one.",
+    desc: "Everything a member can do, plus billing, seats and deleting product reports. There is always exactly one.",
   },
-  member: { label: "Member", tone: "muted", icon: User, desc: "Build and manage workspaces, fill months in, chase suppliers." },
+  member: { label: "Member", tone: "muted", icon: User, desc: "Build and manage product reports, fill months in, chase suppliers." },
   legal: { label: "Legal / compliance", tone: "info", icon: ShieldCheck, desc: "Everything a member can do, plus reviewing and signing packages off before they leave." },
 };
 
-const FALLBACK_ROLE = { label: "Member", tone: "muted" as Tone, icon: User, desc: "Build and manage workspaces." };
+const FALLBACK_ROLE = { label: "Member", tone: "muted" as Tone, icon: User, desc: "Build and manage product reports." };
 const metaFor = (r: SeatRole) => roleMeta[r] ?? FALLBACK_ROLE;
 
 const stateMeta: Record<string, { label: string; tone: Tone }> = {
@@ -125,7 +125,7 @@ export default function TeamPage() {
       <PageHeader
         eyebrow={t("Team & seats")}
         title={t("Who is on the account.")}
-        lead={t("Your team and what each person can do. Suppliers are always free and never take a seat — they answer through a link, without an account.")}
+        lead={t("Your team and what each person can do. Suppliers never take a seat — they fill in through a link, without an account.")}
         actions={
           <Button size="sm" onClick={() => setShowAdd(true)} disabled={cap.atCap} title={cap.atCap ? t("No seats left on your plan.") : undefined}>
             <UserPlus size={14} strokeWidth={1.5} /> {t("Add person")}
@@ -230,8 +230,8 @@ export default function TeamPage() {
             <Eyebrow>{t("Add someone new")}</Eyebrow>
             <p className="mt-2 text-[12.5px] leading-relaxed text-black/50">
               {cap.atCap
-                ? t("Every seat on your plan is taken. Remove someone to free one, or talk to sales — suppliers still cost nothing and never take a seat.")
-                : t("They join your team and take a seat. You can hand them a month to review from that month's screen in any workspace.")}
+                ? t("Every seat on your plan is taken. Remove someone to release a seat, or talk to sales — suppliers never take a seat.")
+                : t("They join your team and take a seat. You can hand them a month to review from that month's screen in any product report.")}
             </p>
             <Button className="mt-3 w-full" variant="secondary" size="sm" onClick={() => setShowAdd(true)} disabled={cap.atCap}>
               <Plus size={14} strokeWidth={1.5} /> {t("Add person")}
@@ -243,7 +243,7 @@ export default function TeamPage() {
       <AddMemberModal
         open={showAdd && !cap.atCap}
         onClose={() => setShowAdd(false)}
-        note={t("They join your team roster and take a seat. Hand them their first month to review from any workspace.")}
+        note={t("They join your team roster and take a seat. Hand them their first month to review from any product report.")}
         onAdded={(m) => {
           invalidateTeam();
           setSeats((prev) =>

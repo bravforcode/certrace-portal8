@@ -24,7 +24,7 @@
    language the flow was finished in. */
 
 import * as React from "react";
-import { LANGUAGES, useLanguage, useT } from "@/lib/i18n";
+import { useLanguage, useT } from "@/lib/i18n";
 import { cn } from "./ui";
 
 /* `sm` exists for the supplier portal's top bar, which already carries the
@@ -36,7 +36,7 @@ import { cn } from "./ui";
    and type scale come down to sit level with its neighbours. */
 export function LanguageToggle({ className, size = "md" }: { className?: string; size?: "md" | "sm" }) {
   const t = useT();
-  const { lang, setLang } = useLanguage();
+  const { lang, setLang, languages } = useLanguage();
   const sm = size === "sm";
   return (
     <div
@@ -44,7 +44,7 @@ export function LanguageToggle({ className, size = "md" }: { className?: string;
       role="group"
       aria-label={t("Language")}
     >
-      {LANGUAGES.map((l) => (
+      {languages.map((l) => (
         <button
           key={l.code}
           type="button"
@@ -60,7 +60,7 @@ export function LanguageToggle({ className, size = "md" }: { className?: string;
             l.code === lang ? "bg-[#111] text-white" : "text-black/45 hover:text-black",
           )}
         >
-          {l.code === "th" ? l.nativeLabel : l.glyph}
+          {l.code === "th" || l.code === "zh" || l.code === "hi" ? l.nativeLabel : l.glyph}
         </button>
       ))}
     </div>

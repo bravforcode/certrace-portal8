@@ -46,13 +46,6 @@ export type RevisionArea = {
    reads top-to-bottom in the order they will be worked through. */
 export const REVISION_AREAS: RevisionArea[] = [
   {
-    id: "installation",
-    step: "installation",
-    anchor: "qf-installation",
-    label: "The installation record",
-    hint: "Address, economic activity, UNLOCODE, the coordinates of the main emission source, the authorised representative.",
-  },
-  {
     id: "mmd-boundary",
     step: "mmd",
     anchor: "qf-mmd-boundaryDescription",
@@ -130,13 +123,6 @@ export const REVISION_AREAS: RevisionArea[] = [
     hint: "Emissions from the materials themselves rather than from fuel.",
   },
   {
-    id: "precursors",
-    step: "precursors",
-    anchor: "qf-precursors",
-    label: "Precursors received",
-    hint: "How much of each bought-in CBAM input arrived this month.",
-  },
-  {
     id: "documents",
     step: "documents",
     anchor: "qf-documents",
@@ -155,7 +141,7 @@ export const resolveAreas = (ids: string[] | undefined): RevisionArea[] =>
 /** Grouped for the exporter's picker: one block per step of the flow, so the
     list reads as the screens the supplier will actually visit. */
 export const AREAS_BY_STEP: { step: FindingStep; areas: RevisionArea[] }[] = (
-  ["installation", "mmd", "monthly", "precursors", "documents"] as FindingStep[]
+  ["mmd", "monthly", "documents"] as FindingStep[]
 ).map((step) => ({ step, areas: REVISION_AREAS.filter((a) => a.step === step) }));
 
 /* ── The blue ──────────────────────────────────────────────────

@@ -156,14 +156,13 @@ export function RevisionRequestPanel({
     >
       {disabled ? (
         <p className="text-[13px] leading-relaxed text-black/45">
-          Nothing has been submitted for {monthNameLong(month)} yet, so there is nobody to send it back to. Send the month&rsquo;s link from the
-          Monthly data tab first.
+          {t("Nothing has been submitted for {month} yet, so there is nobody to send it back to. Send the month’s link from the Monthly data tab first.", { month: monthNameLong(month) })}
         </p>
       ) : !open ? (
         <p className="text-[13px] leading-relaxed text-black/45">
           {submission.state === "confirmed"
-            ? "You have confirmed this month. Asking for a revision reopens the conversation and puts it back with the supplier."
-            : "A note on its own leaves them matching one sentence against twenty screens. Tick the parts as well and their screen marks them."}
+            ? t("You have confirmed this month. Asking for a revision reopens the conversation and puts it back with the supplier.")
+            : t("A note on its own leaves them matching one sentence against twenty screens. Tick the parts as well and their screen marks them.")}
         </p>
       ) : (
         <div className="space-y-5">
@@ -179,13 +178,13 @@ export function RevisionRequestPanel({
                 <strong className="font-medium">{t("Your edited version is what goes back.")}</strong> {t("You have changed figures since this was submitted, so sending the original would ask them to fix something you have already fixed. They will see your numbers and revise from there.")}
               </>
             ) : (
-              <>The version they submitted goes back unchanged. You have not edited it.</>
+              <>{t("The version they submitted goes back unchanged. You have not edited it.")}</>
             )}
           </div>
 
           <div>
             <span className="mb-2 block text-[11px] uppercase tracking-[0.1em] text-black/55">
-              Which parts {picked.length > 0 && <span className="text-black/35">· {picked.length} selected</span>}
+              {t("Which parts")} {picked.length > 0 && <span className="text-black/35">· {t("{n} selected", { n: picked.length })}</span>}
             </span>
             <div className="grid gap-4 sm:grid-cols-2">
               {AREAS_BY_STEP.map((group) => (

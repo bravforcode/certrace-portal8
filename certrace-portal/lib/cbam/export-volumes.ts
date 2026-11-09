@@ -88,3 +88,15 @@ export function totalExportVolume(workspaceId: string, reportingPeriod: number):
   if (rows.length === 0) return null;
   return rows.reduce((a, r) => a + (r.volumeTonnes || 0), 0);
 }
+
+/** The year's tonnes shipped to the EU, as ONE figure — what the Carbon & Cost tab asks for. Replaces any annual row already on file for the
+    year (a month-by-month split, if one exists, is left alone), and `null` takes the annual figure back out. */
+export function setAnnualExportVolume(workspaceId: string, reportingPeriod: number, productCnCode: string, tonnes: number | null): void {
+  const store = read();
+  const keep = (store[workspaceId] ?? []).filter((r) => !(r.reportingPeriod === reportingPeriod && !r.month));
+  if (tonnes != null && Number.isFinite(tonnes) && tonnes >= 0) {
+    keep.push({ id: uid(), workspaceId, reportingPeriod, productCnCode, volumeTonnes: tonnes, source: "manual_entry" });
+  }
+  store[workspaceId] = keep;
+  write(store);
+}

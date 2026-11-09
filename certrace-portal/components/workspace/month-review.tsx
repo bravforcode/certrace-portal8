@@ -162,7 +162,7 @@ export function MonthReviewBar({
 
             {submission.state === "in_review" && submission.reviewerName && (
               <p className="mt-1 flex items-center gap-1.5 text-[12px] text-black/45">
-                <UserRound size={12} strokeWidth={1.5} /> With {submission.reviewerName}.
+                <UserRound size={12} strokeWidth={1.5} /> {t("With {name}.", { name: submission.reviewerName })}
               </p>
             )}
             {submission.state === "changes_requested" && submission.revisionNote && (
@@ -171,7 +171,7 @@ export function MonthReviewBar({
               </p>
             )}
             {submission.state === "confirmed" && submission.confirmedBy && (
-              <p className="mt-1 text-[12px] text-[#047857]">Confirmed by {submission.confirmedBy}.</p>
+              <p className="mt-1 text-[12px] text-[#047857]">{t("Confirmed by {name}.", { name: submission.confirmedBy })}</p>
             )}
           </div>
 

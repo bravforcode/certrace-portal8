@@ -4,7 +4,7 @@
    NEW WORKSPACE — four steps, one page each
 
    It used to be a single dialog holding an installation form, the whole
-   67-good catalogue, two dropdowns and a duplicate warning. Everything was
+   catalogue, two dropdowns and a duplicate warning. Everything was
    correct and the screen was unreadable: a first-time exporter met every
    decision at once and had no way to tell which of them mattered.
 
@@ -12,8 +12,10 @@
    count:
 
      1 · Supplier      who produces this good — very often the exporter itself
-     2 · Good          which CBAM good, from the catalogue
-     3 · Route & year  how it is produced, and the year being reported
+     2 · Country & good  where it is made, and which CBAM good — any of the 570
+                         CN codes in scope, each showing the EU rate for that country
+     3 · Route & year  how it is produced (every route the EU recognises for
+                       that CN code), and the year being reported
      4 · Schedule      when each month is asked for and when it falls due
 
    STEP 1 IS THE ONE THAT CHANGED SHAPE. A Thai exporter of rolled coil is very
@@ -48,10 +50,17 @@ import { Select } from "@/components/controls";
 import { toast } from "@/components/toast";
 import { ProductPicker, RowTag } from "@/components/workspace/product-picker";
 import { InstallationFields, InstallationModal, canSaveInstallation } from "@/components/workspace/installation-form";
+import { installationHref } from "@/components/workspace/installation-menu";
+import { AnnexLegend } from "@/components/precursor/annex-fields";
 import { SupplierModal } from "@/components/workspace/supplier-form";
-import { aggregatedGoodsCategory, getCatalogProduct, productType } from "@/lib/config";
+import { COUNTRIES, countryNameShown as countryName, getCatalogProduct, isEuOrExempt, productType } from "@/lib/config";
+import { CnRatePanel } from "@/components/workspace/cn-rate-panel";
+import { lookupDefault } from "@/lib/cbam/eu-rates";
+import { routeOptionsFor } from "@/lib/cbam/routes";
+import { useDefaultsReady } from "@/lib/cbam/use-rates";
 import {
   emptyInstallation,
+  getInstallation,
   installationsForSupplier,
   isInstallationComplete,
   type Installation,
@@ -64,11 +73,13 @@ import {
 } from "@/lib/installations-query";
 import { getSupplierCompany } from "@/lib/supplier-companies";
 import { useInvalidateSupplierCompanies, useSavePrecursorSupplier, useSupplierCompanies } from "@/lib/suppliers-query";
-import { dueDayOptions, routesForCategory } from "@/lib/workspace";
+import { dueDayOptions } from "@/lib/workspace";
 import { useCaps, useCreateWorkspace, useDeleteWorkspaceDraft, useSaveWorkspaceDraft, useWorkspaces } from "@/lib/workspaces-query";
 import { PlanCapNotice } from "@/components/plan-cap-notice";
 import { getSupplier } from "@/lib/precursor-suppliers";
-import { useT } from "@/lib/i18n";
+import { useOrdinal, useT } from "@/lib/i18n";
+import { useProfile } from "@/lib/profile";
+import type { ProductCategory } from "@/lib/config";
 import {
   draftId,
   getWorkspaceDraft,
@@ -81,16 +92,11 @@ const YEARS = [THIS_YEAR - 2, THIS_YEAR - 1, THIS_YEAR, THIS_YEAR + 1, THIS_YEAR
 
 const STEPS = [
   { key: "supplier", label: "Supplier" },
-  { key: "good", label: "Good" },
+  { key: "good", label: "Country & good" },
   { key: "route", label: "Route & year" },
   { key: "schedule", label: "Schedule" },
 ] as const;
 
-const ordinal = (n: number) => {
-  const s = ["th", "st", "nd", "rd"];
-  const v = n % 100;
-  return `${n}${s[(v - 20) % 10] ?? s[v] ?? s[0]}`;
-};
 
 /* ── Section heading ──────────────────────────────────────────
    The help tip sits BESIDE the heading, never in the card's top-right corner.
@@ -106,20 +112,21 @@ function Heading({ children, help, helpTitle }: { children: React.ReactNode; hel
 }
 
 function Stepper({ step, goto }: { step: number; goto: (i: number) => void }) {
+  const t = useT();
   return (
     <div>
       <div className="mb-2 flex items-center justify-between">
         <span className="text-[11px] uppercase tracking-[0.12em] text-black/40">
-          Step {step + 1} of {STEPS.length}
+          {t("Step {n} of {total}", { n: step + 1, total: STEPS.length })}
         </span>
-        <span className="font-pixel text-[11px] uppercase tracking-[0.16em] text-black/65 sm:hidden">{STEPS[step].label}</span>
+        <span className="font-pixel text-[11px] uppercase tracking-[0.16em] text-black/65 sm:hidden">{t(STEPS[step].label)}</span>
       </div>
       <div className="flex gap-1.5">
         {STEPS.map((s, i) => (
           <button key={s.key} type="button" onClick={() => i <= step && goto(i)} disabled={i > step} className="min-w-0 flex-1 text-left">
             <span className={cn("block h-1 overflow-hidden rounded-full transition-colors", i <= step ? "bg-[#111]" : "bg-black/[0.1]")} />
             <span className={cn("mt-2 hidden truncate text-[10px] uppercase tracking-[0.08em] sm:block", i === step ? "text-black/70" : "text-black/30")}>
-              {s.label}
+              {t(s.label)}
             </span>
           </button>
         ))}
@@ -139,8 +146,13 @@ export default function NewWorkspacePage() {
   );
 }
 
+/** The organisation's sector (Settings → Organisation) and the part of the catalogue it lives in. */
+const SECTOR_CATEGORY: Record<string, ProductCategory | undefined> = { steel: "Iron & Steel", aluminium: "Aluminium", cement: "Cement", fertiliser: "Fertilisers", hydrogen: "Hydrogen" };
+
 function NewWorkspaceFlow() {
   const t = useT();
+  const { profile } = useProfile();
+  const ordinal = useOrdinal();
   const router = useRouter();
   const params = useSearchParams();
   const resumeId = params.get("draft");
@@ -154,6 +166,10 @@ function NewWorkspaceFlow() {
     if (!precursorId || !parentWorkspaceId) return null;
     return { precursorId, parentWorkspaceId, supplier: getSupplier(parentWorkspaceId, precursorId) };
   });
+
+  /* Arrived from an installation's own page ("New product report" on its Products tab or its menu): the site is already answered, so the
+     first step is too. Read once, like the precursor above. Closing the flow puts the reader back on that installation. */
+  const [fromInstallationId] = React.useState(() => params.get("installation"));
 
   const [step, setStep] = React.useState(0);
   const [id] = React.useState(() => resumeId ?? draftId());
@@ -184,6 +200,11 @@ function NewWorkspaceFlow() {
   const [adding, setAdding] = React.useState(false);
 
   const [productId, setProductId] = React.useState("");
+  /* The country the goods are made in — the country the EU's default values are
+     read for. It starts as the chosen installation's own country, and stops
+     following it the moment the exporter touches it. */
+  const [country, setCountry] = React.useState("TH");
+  const [countryTouched, setCountryTouched] = React.useState(false);
   const [route, setRoute] = React.useState("");
   const [year, setYear] = React.useState(THIS_YEAR);
 
@@ -241,11 +262,25 @@ function NewWorkspaceFlow() {
       setSupplierId(s.supplierId ?? "");
       setProductId(s.productId);
       setRoute(s.route);
+      if (s.country) {
+        setCountry(s.country);
+        setCountryTouched(true);
+      }
       setYear(s.year);
       // Drafts saved under the old two-field schedule carry requestDay +
       // dueAfterDays; their real deadline was the sum. See scheduleFor().
       setDueDay(s.dueDay ?? Math.min(28, (s.requestDay ?? 5) + (s.dueAfterDays ?? 7)));
       setStep(Math.min(s.step, STEPS.length - 1));
+    } else if (fromInstallationId && getInstallation(fromInstallationId)) {
+      const site = getInstallation(fromInstallationId)!;
+      if (site.self) setSupplierChoice("self");
+      else {
+        setSupplierChoice("other");
+        setSupplierId(site.supplierId);
+      }
+      setInstallationId(site.id);
+      setInstallationName(site.name);
+      setStep(1);
     } else if (fromPrecursor) {
       // No draft to resume — prefill what the precursor row already knows.
       // The row's own installation/company were never entered as a real
@@ -278,10 +313,27 @@ function NewWorkspaceFlow() {
   }, [supplierId, supplierChoice]);
 
   const product = productId ? getCatalogProduct(productId) : undefined;
-  const routes = React.useMemo(
-    () => (product ? routesForCategory(aggregatedGoodsCategory(product)) : []),
-    [product],
+
+  /* The chosen installation's country, so the Country field starts on the right
+     answer — a Thai plant's goods are Thai unless the exporter says otherwise. */
+  const chosenInstallation = React.useMemo(
+    () => own.find((o) => o.id === installationId) ?? supplierPlants.find((o) => o.id === installationId) ?? null,
+    [own, supplierPlants, installationId],
   );
+  const installationCountry = chosenInstallation?.country || (isSelf && own.length === 0 ? ownDraft.country : "");
+  React.useEffect(() => {
+    if (!countryTouched && installationCountry) setCountry(installationCountry.toUpperCase());
+  }, [installationCountry, countryTouched]);
+
+  /* Every route the EU names for this CN code, in the reporting year — and the
+     one it built this country's default value on, so the exporter can see which
+     answer is the EU's own assumption. */
+  const defaultsReady = useDefaultsReady(country);
+  const euRoute = React.useMemo(
+    () => (product && defaultsReady ? (lookupDefault(product.cnCode, country)?.rates.route ?? "") : ""),
+    [product, country, defaultsReady],
+  );
+  const routes = React.useMemo(() => (product ? routeOptionsFor(product, { year, euRoute }) : []), [product, year, euRoute]);
 
   /* Null until measured — an unmeasured estate never blocks, so a slow load
      cannot stop a workspace the account is entitled to. */
@@ -294,6 +346,8 @@ function NewWorkspaceFlow() {
   // into a sector where it means nothing.
   React.useEffect(() => {
     if (route && !routes.some((r) => r.id === route)) setRoute("");
+    // One answer is not a question: an EU good with a single route has it chosen.
+    else if (!route && routes.length === 1) setRoute(routes[0].id);
   }, [route, routes]);
 
   /* When "this installation is us" is chosen and the exporter has exactly ONE
@@ -326,6 +380,7 @@ function NewWorkspaceFlow() {
     supplierId,
     productId,
     route,
+    country,
     year,
     dueDay,
     step,
@@ -335,7 +390,7 @@ function NewWorkspaceFlow() {
     step === 0
       ? supplierChoice === "self"
         ? ownNeedsFilling
-          ? canSaveInstallation(ownDraft, undefined, true)
+          ? canSaveInstallation(ownDraft, undefined)
           : Boolean(installationId.trim())
         : supplierChoice === "other"
           ? // BOTH are required: a plant with no supplier above it is the gap
@@ -343,14 +398,14 @@ function NewWorkspaceFlow() {
             Boolean(supplierId && installationId.trim() && installationName.trim())
           : false
       : step === 1
-        ? Boolean(productId) && !codeBlocked
+        ? Boolean(productId) && Boolean(country) && !isEuOrExempt(country) && !codeBlocked
         : step === 2
           ? Boolean(route) && !yearBlocked
           : true;
 
   const commitOwnIfNeeded = () => {
     if (!isSelf || !ownNeedsFilling) return;
-    if (!canSaveInstallation(ownDraft, undefined, true)) return;
+    if (!canSaveInstallation(ownDraft, undefined)) return;
     saveOwnSite.mutate(
       { ...ownDraft, self: true },
       {
@@ -384,8 +439,10 @@ function NewWorkspaceFlow() {
      clicks to undo. Every other way in still lands on the estate, which is
      where those came from. */
   const exitTarget = fromPrecursor
-    ? `/workspaces/${fromPrecursor.parentWorkspaceId}/tree?node=${encodeURIComponent(fromPrecursor.precursorId)}`
-    : "/workspaces";
+    ? `/workspaces/${fromPrecursor.parentWorkspaceId}/precursors`
+    : fromInstallationId && getInstallation(fromInstallationId)
+      ? installationHref(fromInstallationId, "products")
+      : "/workspaces";
 
   /* Closing saves rather than discards. Four steps is long enough that
      somebody will be interrupted, and the dashboard surfaces the draft. */
@@ -404,14 +461,14 @@ function NewWorkspaceFlow() {
           stepCount: STEPS.length,
         },
       });
-      toast({ message: "Saved as a draft", detail: "It is waiting at the top of your verification workspaces.", tone: "info" });
+      toast({ message: "Saved as a draft", detail: "It is waiting at the top of your verification product reports.", tone: "info" });
     }
     router.push(exitTarget);
   };
 
   /* Creating shows its progress IN THE BUTTON, not in a toast.
 
-     A popup that announces "Workspace created" while the router is already
+     A popup that announces "Product report created" while the router is already
      navigating to that workspace tells the reader something they are about to
      see for themselves, and it lands over the top of the screen they asked
      for. The button spins, then the workspace opens — the arrival is the
@@ -426,6 +483,7 @@ function NewWorkspaceFlow() {
           installationName: installationName.trim(),
           productId,
           productionRoute: route,
+          country,
           year,
           selfSupplied: isSelf,
           // Denormalised at creation, like productName and cnCode: a supplier can
@@ -444,22 +502,19 @@ function NewWorkspaceFlow() {
               savePrecursor.mutate({ ...fromPrecursor.supplier, linkedWorkspaceId: ws.id });
             }
             deleteDraft.mutate(id);
-            /* WHERE THE FINISHED WORKSPACE OPENS DEPENDS ON WHAT WAS JUST CREATED.
+            /* WHERE THE FINISHED REPORT OPENS DEPENDS ON WHAT WAS JUST CREATED.
 
-               From the estate, this flow creates a NEW PRODUCT, and a product's own
-               page is its chain: the reader's next move is to hang suppliers under
-               it, so it opens on /tree.
+               A new product report at an installation opens on THAT INSTALLATION'S
+               Overview: the reports open with the site's one-time information (the 17
+               answers), and until it is there the new report reads Blocked — so the
+               reader's next move is the Overview, not the empty report. The report is one
+               click away on the Products tab.
 
-               From "Track report" on a precursor, it creates that precursor's own
-               report — and the report is the four tabs. Landing on /tree instead
-               put a chain of one node in front of them, and made the first visit a
-               different page from every later one: Track report on the same row
-               from then on resolves to `/workspaces/<linked>` (see
-               TrackReportAction in components/chain-actions.tsx), which is the
-               Overview. Same row, same button, one page on the first press and
-               another on the second. It is the Overview both times now — the same
-               page the chain's own root installation opens on. */
-            router.push(fromPrecursor ? `/workspaces/${ws.id}` : `/workspaces/${ws.id}/tree`);
+               From "Track report" on a precursor it creates that precursor's own report,
+               and the report is the four tabs — the same page `TrackReportAction` (components/chain-actions.tsx)
+               resolves to from then on, so the first visit and every later one are the same
+               page. That one still opens the report. */
+            router.push(fromPrecursor ? `/workspaces/${ws.id}` : installationHref(ws.installationId));
           },
         },
       );
@@ -472,10 +527,10 @@ function NewWorkspaceFlow() {
     <div className="mx-auto max-w-3xl space-y-7 pb-4">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <Eyebrow>{t("New workspace")}</Eyebrow>
+          <Eyebrow>{t("New product report")}</Eyebrow>
           <h1 className="mt-2 font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111]">{t("What are we getting verified?")}</h1>
           <p className="mt-2 max-w-xl text-sm leading-relaxed text-black/45">
-            {t("One installation, one good, one reporting year. Everything a verifier asks about is scoped that way.")}
+            {t("One installation, one CN code, one reporting year. Everything a verifier asks about is scoped that way.")}
           </p>
           {fromPrecursor && (
             <p className="mt-2 max-w-xl text-[12.5px] leading-relaxed text-black/45">
@@ -503,7 +558,7 @@ function NewWorkspaceFlow() {
               helpTitle={t("Who produces this good")}
               help={
                 <>
-                  <p>{t("A workspace covers one producing installation. Often that is your own plant — an exporter who rolls their own coil is the supplier too.")}</p>
+                  <p>{t("A product report covers one producing installation. Often that is your own plant — an exporter who rolls their own coil is the supplier too.")}</p>
                   <p className="mt-2">{t("Pick your own site and the monthly data lands in your inbox. Pick another supplier and they get a link each month.")}</p>
                 </>
               }
@@ -541,7 +596,8 @@ function NewWorkspaceFlow() {
                     <p className="mb-4 text-[12.5px] leading-relaxed text-black/50">
                       {t("You have not registered your own installation yet. Fill it in here — it is saved to your organisation and appears in Settings, so you only enter it once.")}
                     </p>
-                    <InstallationFields value={ownDraft} onChange={setOwnDraft} requireEmail />
+                    <AnnexLegend className="mb-5" showNeed showNoItem noVr />
+                    <InstallationFields value={ownDraft} onChange={setOwnDraft} annexTags />
                   </>
                 ) : (
                   <>
@@ -580,7 +636,6 @@ function NewWorkspaceFlow() {
                               </div>
                               <p className="mt-2 text-[12px] leading-relaxed text-black/45">
                                 {[chosen.street, chosen.city, chosen.postcode].filter(Boolean).join(", ")}
-                                {chosen.economicActivity ? ` · ${chosen.economicActivity}` : ""}
                               </p>
                               {gaps && (
                                 <p className="mt-2 text-[11.5px] text-[#b45309]">
@@ -681,10 +736,6 @@ function NewWorkspaceFlow() {
               onClose={() => setAdding(false)}
               allowSelfToggle={false}
               supplierId={supplierId}
-              /* A plant added HERE is being set up to be asked for data
-                 every month, so the address that ask goes to is not
-                 optional. See installationErrors' `requireEmail`. */
-              requireEmail
               title={supplier ? `Add an installation for ${supplier.name}` : "Add an installation"}
               onSaved={(saved) => {
                 invalidateInstallations();
@@ -698,7 +749,6 @@ function NewWorkspaceFlow() {
               onClose={() => setAddingOwn(false)}
               allowSelfToggle={false}
               self
-              requireEmail
               title={t("Add another site of ours")}
               lead={t("A second plant you operate yourself. Its months land in your own inbox, exactly like the first.")}
               onSaved={(saved) => {
@@ -710,23 +760,52 @@ function NewWorkspaceFlow() {
           </Card>
         )}
 
-        {/* ── 2 · Good ───────────────────────────────────────── */}
+        {/* ── 2 · Country & good ─────────────────────────────── */}
         {step === 1 && (
           <Card className="p-5 sm:p-6">
             <Heading
               helpTitle={t("Choosing the good")}
               help={
                 <>
-                  <p>{t("Search by name or by the CN code on your customs declaration — CN is usually the faster of the two.")}</p>
+                  <p>{t("The country decides which EU default values apply — the EU sets a different number for the same CN code in Thailand, Vietnam or India.")}</p>
+                  <p className="mt-2">{t("Search by the CN code on your customs declaration — typing the first digits narrows the list. The rate on each row is the EU default value for your country in the reporting year.")}</p>
                   <p className="mt-2">
-                    {t("The type tag on each row is what decides the shape of the rest of the workspace: a precursor has nothing above it, a finished product carries a chain.")}
+                    {t("The type tag on each row is what decides the shape of the rest of the product report: a precursor has nothing above it, a finished product carries precursors.")}
                   </p>
                 </>
               }
             >
-              {t("Which good")}
+              {t("Which country and which good")}
             </Heading>
-            <ProductPicker value={productId} onChange={setProductId} />
+
+            <div className="mb-5 max-w-sm">
+              <Field
+                label={t("Country of production")}
+                hint={
+                  isEuOrExempt(country)
+                    ? t("Goods made in the EU, Iceland, Liechtenstein, Norway or Switzerland are outside CBAM — no default value applies.")
+                    : t("Where the goods are made. The EU default values on the list below are read for this country.")
+                }
+              >
+                <Select
+                  value={country}
+                  onChange={(v) => {
+                    setCountry(v);
+                    setCountryTouched(true);
+                  }}
+                  options={COUNTRIES.filter((c) => !isEuOrExempt(c.code)).map((c) => ({ value: c.code, label: c.name, hint: c.code }))}
+                  placeholder={t("Choose a country")}
+                  ariaLabel={t("Country of production")}
+                  searchable
+                  searchPlaceholder={t("Country name…")}
+                />
+              </Field>
+            </div>
+
+            <ProductPicker value={productId} onChange={setProductId} country={country} year={year} defaultCategory={SECTOR_CATEGORY[profile.sector]} />
+
+            {product && <CnRatePanel className="mt-5" product={product} country={country} year={year} />}
+
             {/* Named after the pick, not before it: every code already in the
                 estate is still free to choose, so warning up front would be
                 wrong on most of the list. */}
@@ -750,7 +829,7 @@ function NewWorkspaceFlow() {
               help={
                 <>
                   <p>{t("The route decides which precursors are even possible above this good, and it is the first thing a verifier checks the MMD’s boundary description against.")}</p>
-                  <p className="mt-2">{t("It is declared once per workspace: a route that changes mid-year is a re-baseline, and that is a second workspace.")}</p>
+                  <p className="mt-2">{t("It is declared once per product report: a route that changes mid-year is a re-baseline, and that is a second product report.")}</p>
                 </>
               }
             >
@@ -760,22 +839,33 @@ function NewWorkspaceFlow() {
             {product && (
               <div className="mb-5 flex flex-wrap items-center gap-1.5">
                 <RowTag>CN {product.cnCode}</RowTag>
-                <RowTag>{productType(product)}</RowTag>
-                <span className="text-[12px] text-black/45">{product.name}</span>
+                <RowTag>{t(productType(product))}</RowTag>
+                <span className="text-[12px] text-black/45">{t(product.name)}</span>
               </div>
             )}
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label={t("Production route")} hint={`Routes valid for ${product?.category ?? "this sector"}.`}>
+              <Field
+                label={t("Production route")}
+                hint={
+                  routes.length === 1
+                    ? t("The EU recognises one route for this good, so it is chosen for you.")
+                    : t("{n} routes the EU recognises for CN {code}.", { n: routes.length, code: product?.cnCode ?? "" })
+                }
+              >
                 <Select
                   value={route}
                   onChange={setRoute}
                   placeholder={t("Choose a route")}
-                  options={routes.map((r) => ({ value: r.id, label: r.label, hint: r.hint }))}
+                  options={routes.map((r) => ({
+                    value: r.id,
+                    label: `${t(r.label)}${r.letter ? ` (${r.letter})` : ""}`,
+                    hint: `${r.isEuDefault ? `${t("EU default for {country}", { country: countryName(country) })} · ` : ""}${t(r.hint)}`,
+                  }))}
                   ariaLabel={t("Production route")}
                 />
               </Field>
-              <Field label={t("Reporting year")} hint={t("The workspace covers 1 January to 31 December of this year.")}>
+              <Field label={t("Reporting year")} hint={t("The product report covers 1 January to 31 December of this year.")}>
                 <Select
                   value={String(year)}
                   onChange={(v) => setYear(Number(v))}
@@ -803,18 +893,29 @@ function NewWorkspaceFlow() {
                 const r = routes.find((x) => x.id === route);
                 if (!r) return null;
                 return (
-                  <dl className="mt-5 grid gap-3 rounded-xl border border-black/[0.07] bg-[#faf9f7] p-4 sm:grid-cols-3">
-                    {[
-                      ["Standard name", r.standardName],
-                      ["Precursors this implies", r.precursors],
-                      ["Where the emissions are", r.dominantSource],
-                    ].map(([k, v]) => (
-                      <div key={k}>
-                        <dt className="text-[10px] uppercase tracking-[0.1em] text-black/40">{k}</dt>
-                        <dd className="mt-1 text-[12px] leading-relaxed text-black/60">{v}</dd>
-                      </div>
-                    ))}
-                  </dl>
+                  <>
+                    <dl className="mt-5 grid gap-3 rounded-xl border border-black/[0.07] bg-[#faf9f7] p-4 sm:grid-cols-3">
+                      {[
+                        ["Standard name", r.standardName],
+                        ["Precursors this implies", r.precursors],
+                        ["Where the emissions are", r.dominantSource],
+                      ].map(([k, v]) => (
+                        <div key={k}>
+                          <dt className="text-[10px] uppercase tracking-[0.1em] text-black/40">{t(k)}</dt>
+                          <dd className="mt-1 text-[12px] leading-relaxed text-black/60">{t(v)}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                    <p className="mt-3 text-[12px] leading-relaxed text-black/45">
+                      {t("In the EU communication template this route reads")} <strong className="font-medium text-black/65">“{r.templateRoute}”</strong>.
+                      {r.letter ? ` ${t("Benchmark route")} ${r.letter} — ${r.letterLabel}.` : ""}
+                      {r.benchmark?.default != null ? ` ${t("Free-allocation benchmark")} ${r.benchmark.default.toFixed(3)} tCO₂e/t${r.benchmark.process != null ? ` (${t("process benchmark")} ${r.benchmark.process.toFixed(3)})` : ""}.` : ""}
+                      {r.isEuDefault ? ` ${t("This is the route the EU built the default value for {country} on.", { country: countryName(country) })}` : ""}
+                    </p>
+                    {product && (
+                      <CnRatePanel className="mt-4" product={product} country={country} year={year} routeLetter={r.letter ?? (euRoute || undefined)} />
+                    )}
+                  </>
                 );
               })()}
           </Card>
@@ -829,7 +930,7 @@ function NewWorkspaceFlow() {
                 <>
                   <p>{t("The same three sections — MMD, monthly data and precursors — are needed for every month of the year, so this is a schedule rather than a form.")}</p>
                   <p className="mt-2">{t("A month can only be asked for once it has ENDED, so the request is dated the last day of the month it covers. That is fixed — asking earlier is impossible, and asking later only shortens the time the other end has.")}</p>
-                  <p className="mt-2">{t("What you choose is the last date the data may be sent. You can change it later in the workspace’s Settings tab, and months already sent keep the date they went out with.")}</p>
+                  <p className="mt-2">{t("What you choose is the last date the data may be sent. You can change it later in the product report’s Settings tab, and months already sent keep the date they went out with.")}</p>
                 </>
               }
             >
@@ -838,8 +939,8 @@ function NewWorkspaceFlow() {
 
             <p className="mb-5 text-[13px] leading-relaxed text-black/50">
               {isSelf
-                ? "This installation is yours, so each month appears in your own inbox once you send it — nothing goes to a third party."
-                : `Each month is asked of ${installationName || "the supplier"} once it has ended, and is due by the date you set below.`}
+                ? t("This installation is yours, so each month appears in your own inbox once you send it — nothing goes to a third party.")
+                : t("Each month is asked of {name} once it has ended, and is due by the date you set below.", { name: installationName || t("the supplier") })}
             </p>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -856,7 +957,7 @@ function NewWorkspaceFlow() {
                 <Select
                   value={String(dueDay)}
                   onChange={(v) => setDueDay(Number(v))}
-                  options={dueDayOptions().map((d) => ({ value: String(d), label: `${ordinal(d)} of the following month` }))}
+                  options={dueDayOptions().map((d) => ({ value: String(d), label: t("{day} of the following month", { day: ordinal(d) }) }))}
                   ariaLabel={t("Last date to send")}
                 />
               </Field>
@@ -865,10 +966,11 @@ function NewWorkspaceFlow() {
             <dl className="mt-6 grid gap-3 rounded-xl border border-black/[0.07] bg-white p-4 sm:grid-cols-2">
               {!isSelf && <Summary label={t("Supplier")} value={supplier?.name ?? "—"} />}
               <Summary label={t("Installation")} value={`${installationName || "—"} · ${installationId || "—"}`} />
-              <Summary label={t("Good")} value={product ? `${product.name} · CN ${product.cnCode}` : "—"} />
+              <Summary label={t("Country of production")} value={countryName(country)} />
+              <Summary label={t("Good")} value={product ? `${t(product.name)} · CN ${product.cnCode}` : "—"} />
               <Summary label={t("Route")} value={routes.find((r) => r.id === route)?.label ?? "—"} />
               <Summary label={t("Reporting year")} value={`1 Jan ${year} to 31 Dec ${year}`} />
-              <Summary label={t("Each month")} value={`Asked when it ends, due by the ${ordinal(dueDay)} of the next month`} />
+              <Summary label={t("Each month")} value={t("Asked when it ends, due by the {day} of the next month", { day: ordinal(dueDay) })} />
             </dl>
           </Card>
         )}
@@ -909,7 +1011,7 @@ function NewWorkspaceFlow() {
               </>
             ) : (
               <>
-                Create workspace <ArrowRight size={15} strokeWidth={1.5} />
+                {t("Create product report")} <ArrowRight size={15} strokeWidth={1.5} />
               </>
             )}
           </Button>

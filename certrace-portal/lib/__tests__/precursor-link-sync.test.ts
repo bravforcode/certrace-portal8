@@ -88,6 +88,7 @@ function stubServer() {
   const docs = new Map<string, { supplierView: unknown }>();
   const states = new Map<string, Record<string, unknown>>();
   let minted = 0;
+  let clock = 0;
   const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
   configureApi({
     baseUrl: "https://api.certrace.co",
@@ -116,10 +117,14 @@ function stubServer() {
         const token = decodeURIComponent(m[1]);
         const prior = states.get(token) ?? {};
         const versions = Array.isArray(prior.versions) ? (prior.versions as unknown[]) : [];
+        /* A real server stamps each write later than the last. Date.now() alone repeats inside one millisecond, and the exporter skips a
+           state whose stamp is not newer than the one it already pulled — so a draft and a submit in the same millisecond looked like
+           one write and the test passed or failed by the clock. */
+        clock = Math.max(clock + 1, Date.now());
         const next =
           m[2] === "submit"
-            ? { ...body.state, status: "submitted", versions: [...versions, { n: versions.length + 1, submittedAt: Date.now() }], updatedAt: Date.now() }
-            : { ...body.state, versions, updatedAt: Date.now() };
+            ? { ...body.state, status: "submitted", versions: [...versions, { n: versions.length + 1, submittedAt: clock }], updatedAt: clock }
+            : { ...body.state, versions, updatedAt: clock };
         states.set(token, next);
         return json(next);
       }

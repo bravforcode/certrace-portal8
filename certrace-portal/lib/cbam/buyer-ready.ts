@@ -8,6 +8,7 @@
    already exists, not a new rule.
    ════════════════════════════════════════════════════════════ */
 
+import type { TFunction } from "../i18n";
 import type { ReadinessTab, WorkspaceReadiness } from "../readiness";
 
 const GATES: ReadinessTab[] = ["mmd", "monthly", "precursors", "evidence"];
@@ -35,4 +36,16 @@ export function notBuyerReadyReason(readiness: WorkspaceReadiness): string | nul
     }
   }
   return null;
+}
+
+/** The reason above, in the reader's language. The headline is a fixed set of words and always translates; the sentence after it is
+    sometimes built from numbers and months, and an English tail on a non-English screen is worse than none — so there it is left out
+    when there is no translation for it. */
+export function buyerReasonText(reason: string, t: TFunction, translated: boolean): string {
+  const m = /^Blocked on (MMD|Monthly data|Precursors|Documents)(?: — ([\s\S]+))?$/.exec(reason);
+  if (!m) return t(reason);
+  const head = t("Blocked on {label}", { label: t(m[1]) });
+  if (!m[2]) return head;
+  const tail = t(m[2]);
+  return translated && tail === m[2] ? head : `${head} — ${tail}`;
 }

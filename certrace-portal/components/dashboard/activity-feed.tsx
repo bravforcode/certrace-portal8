@@ -12,7 +12,7 @@ import Link from "next/link";
 import { FileUp, Layers, Send, Calendar } from "lucide-react";
 import { Card } from "@/components/ui";
 import type { ActivityEvent, ActivityKind } from "@/lib/cbam/activity-feed";
-import { useT } from "@/lib/i18n";
+import { dateLocaleNow, useT } from "@/lib/i18n";
 
 const KIND_ICON: Record<ActivityKind, typeof FileUp> = {
   supplier_submitted: Send,
@@ -31,7 +31,7 @@ function ago(iso: string): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.round(hours / 24);
   if (days < 30) return `${days}d ago`;
-  return new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  return new Date(iso).toLocaleDateString(dateLocaleNow(), { day: "numeric", month: "short", year: "numeric" });
 }
 
 export function ActivityFeed({ events }: { events: ActivityEvent[] }) {

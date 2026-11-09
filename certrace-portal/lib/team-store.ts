@@ -50,7 +50,7 @@ export type TeamMember = {
    invites their accredited body here would reasonably believe the body had
    been given something. It comes back when there is a portal behind it. */
 export const POSITION_OPTIONS: { value: string; dept: string; kind: "internal" | "external"; hint: string }[] = [
-  { value: "Member", dept: "Operations", kind: "internal", hint: "builds workspaces and fills months in" },
+  { value: "Member", dept: "Operations", kind: "internal", hint: "builds product reports and fills months in" },
   { value: "Legal / compliance", dept: "Legal", kind: "internal", hint: "reviews and signs off before it leaves" },
 ];
 

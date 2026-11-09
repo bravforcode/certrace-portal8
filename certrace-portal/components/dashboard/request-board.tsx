@@ -65,7 +65,7 @@ export function RequestBoard({ stats }: { stats: RequestBoardStats }) {
       </div>
 
       {total === 0 ? (
-        <p className="text-[13px] text-black/45">{t("No requests yet. They appear here the moment a workspace asks for its first month.")}</p>
+        <p className="text-[13px] text-black/45">{t("No requests yet. They appear here the moment a product report asks for its first month.")}</p>
       ) : (
         <ul className="divide-y divide-black/[0.05]">
           {ROWS.map((row) => {

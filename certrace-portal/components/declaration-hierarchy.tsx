@@ -137,7 +137,7 @@ function ReportRow({ status, onOpen, onResolve }: { status: AnnualReportStatus; 
           <Zap size={15} strokeWidth={1.5} />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[14px] text-black/60">{report.productName}</span>
+          <span className="block truncate text-[14px] text-black/60">{t(report.productName)}</span>
           <span className="mt-0.5 block text-[11.5px] leading-relaxed text-black/45">{status.subtitle}</span>
         </span>
         <TagBadge tone="muted">{t("Input — no report")}</TagBadge>
@@ -157,7 +157,7 @@ function ReportRow({ status, onOpen, onResolve }: { status: AnnualReportStatus; 
             <TriangleAlert size={15} strokeWidth={1.5} />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-[14px] text-black/85">{report.productName}</span>
+            <span className="block truncate text-[14px] text-black/85">{t(report.productName)}</span>
             <span className="mt-0.5 block text-[11.5px] text-[#991b1b]">{status.subtitle}</span>
           </span>
           <Button size="sm" variant="secondary" onClick={() => setPicking(true)}>
@@ -199,7 +199,7 @@ function ReportRow({ status, onOpen, onResolve }: { status: AnnualReportStatus; 
       </span>
 
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[14px] text-black/85">{report.productName}</span>
+        <span className="block truncate text-[14px] text-black/85">{t(report.productName)}</span>
         <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
           <span className="rounded bg-black/[0.05] px-1.5 py-0.5 font-mono text-[10.5px] text-black/55">CN {report.cnCode || "—"}</span>
           <span className="text-[11.5px] text-black/45">{status.subtitle}</span>

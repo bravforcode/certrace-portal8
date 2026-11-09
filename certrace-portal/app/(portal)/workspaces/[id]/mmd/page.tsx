@@ -33,13 +33,14 @@ import { AutoSaveBadge, Button, Field, NumberInput, inputClass, useAutoSave, cn 
 import { DatePicker, MultiSelect, OrderedMultiSelect, Select, SelectWithOther } from "@/components/controls";
 import { ExclusionGroundSelect, ExclusionProcessSelect } from "@/components/workspace/exclusion-process-select";
 import { InstrumentRows } from "@/components/workspace/instrument-rows";
+import { MonitoringPlanCard } from "@/components/workspace/monitoring-plan-card";
 import { toast } from "@/components/toast";
 import { ExampleToggle, GroupHeading, Note, SectionCard } from "@/components/workspace/chrome";
 import { SectionEvidence } from "@/components/workspace/evidence-panel";
 import { useWorkspace } from "@/components/workspace/provider";
 import { USER } from "@/lib/data";
-import { FUEL_FAMILIES, FUEL_TYPES, FUEL_TYPE_OTHER, fuelFamilyLabelIn, fuelTypeLabelIn, fuelTypeNoteIn } from "@/lib/monthly-data";
-import { useLanguage, useT } from "@/lib/i18n";
+import { FUEL_FAMILIES, FUEL_TYPES, FUEL_TYPE_OTHER, fuelFamilyLabelIn, fuelNcvNoteIn, fuelTypeLabelIn, fuelTypeNoteIn } from "@/lib/monthly-data";
+import { translate, useLanguage, useT } from "@/lib/i18n";
 import { ANNUAL_REQUIRED_KEYS } from "@/lib/workspace-evidence";
 import {
   DIAGRAM_NOTE,
@@ -59,6 +60,8 @@ import {
   emptyExclusion,
   emptyGap,
   emptyMeasurement,
+  ELECTRICITY_PARAMETERS,
+  FUEL_PARAMETERS,
   mmdIssues,
   type DirectMethod,
   type QualityAssurance,
@@ -108,13 +111,13 @@ function useFuelOptions() {
         FUEL_TYPES.filter((f) => f.family === family).map((f) => ({
           value: f.id,
           label: fuelTypeLabelIn(lang, f.id),
-          hint: [fuelFamilyLabelIn(lang, family), f.typicalNcv, fuelTypeNoteIn(lang, f.id)].filter(Boolean).join(" · "),
+          hint: [fuelFamilyLabelIn(lang, family), fuelNcvNoteIn(lang, f.id), fuelTypeNoteIn(lang, f.id)].filter(Boolean).join(" · "),
         })),
       ),
       {
         value: FUEL_TYPE_OTHER,
-        label: lang === "th" ? "เชื้อเพลิงอื่น ๆ (Other fuel) — ระบุ" : "Other fuel — specify",
-        hint: "Anything the list does not name. Describe it in the field below.",
+        label: translate(lang, "Other fuel — specify"),
+        hint: translate(lang, "Anything the list does not name. Describe it in the field below."),
       },
     ],
     [lang],
@@ -225,7 +228,7 @@ export default function WorkspaceMmdPage() {
             <span className="flex flex-wrap items-center gap-3">
               <AutoSaveBadge status={autosave.status} savedAt={autosave.savedAt} />
               <Button size="sm" onClick={finalise}>
-                Finalise{latest ? ` as v${latest.n + 1}` : ""}
+                {latest ? t("Finalise as v{n}", { n: latest.n + 1 }) : t("Finalise")}
               </Button>
             </span>
           </div>
@@ -428,7 +431,7 @@ export default function WorkspaceMmdPage() {
           <Field label={t("Fuel types burned")} hint={t("The same codes the monthly rows use, so the methodology and the readings cannot name different fuels.")}>
             <MultiSelect
               values={shown.fuelTypeIds}
-              onChange={(v) => patch({ fuelTypeIds: v })}
+              onChange={(v) => patch(v.includes(FUEL_TYPE_OTHER) ? { fuelTypeIds: v } : { fuelTypeIds: v, fuelTypesOther: "" })}
               options={fuelOptions}
               placeholder={t("Select every fuel this installation burns")}
               ariaLabel={t("Fuel types")}
@@ -458,7 +461,7 @@ export default function WorkspaceMmdPage() {
             addLabel={t("Add a fuel instrument")}
             showCems={shown.directMethod === "measurement"}
             disabled={locked}
-            parameterPlaceholder={t("Natural gas consumption")}
+            parameterOptions={FUEL_PARAMETERS}
             instrumentPlaceholder={MMD_EXAMPLE.instrument}
             emptyHint={
               shown.fuelTypeIds.length === 0
@@ -522,7 +525,7 @@ export default function WorkspaceMmdPage() {
             makeRow={() => electricityInstrument()}
             addLabel={t("Add an electricity meter")}
             disabled={locked}
-            parameterPlaceholder={t("Electricity consumption")}
+            parameterOptions={ELECTRICITY_PARAMETERS}
             instrumentPlaceholder={t("PEA revenue meter, 115 kV incomer")}
             emptyHint={t("Choose a source above and a row appears here, ready for the meter details.")}
           />
@@ -813,6 +816,9 @@ export default function WorkspaceMmdPage() {
         />
         <ExampleToggle example={t("“Factory-licence-TH-RAYONG-01.pdf” for identity; “FT-2201-calibration-2026-03-12.pdf” for the gas meter named in section 4.")} />
       </SectionCard>
+
+      {/* 9 · The seven monitoring-plan elements nothing above answers (Annex II A.5) */}
+      <MonitoringPlanCard value={shown} onChange={patch} disabled={locked} title={t("9 · Monitoring plan elements")} />
 
       {issues.length > 0 && !locked && (
         <Note tone="warn">

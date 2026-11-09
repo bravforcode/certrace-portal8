@@ -26,13 +26,13 @@
    ════════════════════════════════════════════════════════════ */
 
 import { downloadFile } from "./download";
-import { getCarbonPrice, CARBON_PRICE_CLAIMED_NOTE, CARBON_PRICE_INSTRUMENT_LABEL } from "./carbon-price";
+import { getCarbonPrice, shareFraction, CARBON_PRICE_CLAIMED_NOTE, CARBON_PRICE_INSTRUMENT_LABEL } from "./carbon-price";
 import { getOrgIdentity } from "./org";
 import { fuelTypeLabel, monthResult, monthsForWorkspace, MONTH_STATUS_LABEL, monthCounts } from "./monthly-data";
 import { DATA_ORIGIN_LABEL } from "./precursor-suppliers";
 import { materiality, workspaceReadiness, TAB_LABEL, TAB_STATE_LABEL, type WorkspaceReadiness } from "./readiness";
 import { reconcileMass, shipmentsForWorkspace, shippedTonnesForWorkspace } from "./shipments";
-import { annualEvidence, EVIDENCE_SOURCE_LABEL, evidenceForMonth, isReviewed } from "./workspace-evidence";
+import { annualEvidence, CARBON_PRICE_KEY, EVIDENCE_SOURCE_LABEL, evidenceForMonth, isReviewed, listEvidence } from "./workspace-evidence";
 import {
   finalVersionCovering,
   loadDraft,
@@ -139,6 +139,9 @@ export function buildVerifierPack(ws: VerificationWorkspace, readiness?: Workspa
      the stored version, and a v1 from last year still renders. */
   const mmdContent = mmd ? migrateMmd(mmd.content, ws.periodStart, ws.periodEnd) : loadDraft(ws.id, ws.periodStart, ws.periodEnd);
   const price = getCarbonPrice(ws.id);
+  /* The receipt is attached on the Evidence tab against the `carbon-price` key and the record's own pointer is only set for one linked directly —
+     the pack reads both, as readiness does, or it reports "not attached" beside a receipt that is. */
+  const carbonReceipt = Boolean(price.evidenceItemId) || listEvidence(ws.id).some((i) => i.fieldKeys.includes(CARBON_PRICE_KEY.key));
   const mat = materiality(ws);
   const shipments = shipmentsForWorkspace(ws.id);
   const shipped = shippedTonnesForWorkspace(ws.id);
@@ -416,7 +419,7 @@ export function buildVerifierPack(ws: VerificationWorkspace, readiness?: Workspa
                   `<tr><td>${esc(s.date)}</td><td>${dash(s.invoiceRef)}</td><td>${esc(s.buyer)}</td><td>${dash(s.buyerEori)}</td><td class="n">${num(s.quantityTonnes, 3)} t</td><td class="n">${num(s.quantityTonnes * see.seeChargeable, 3)} tCO₂e</td></tr>`,
               )
               .join("")
-          : `<tr><td colspan="6" class="muted">No shipments assigned to this workspace.</td></tr>`
+          : `<tr><td colspan="6" class="muted">No shipments assigned to this product report.</td></tr>`
       }</tbody>
       <tfoot><tr><th colspan="4">Total</th><th class="n">${num(shipped, 3)} t</th><th class="n">${num(shipped * see.seeChargeable, 3)} tCO₂e</th></tr></tfoot>
     </table>
@@ -433,8 +436,11 @@ export function buildVerifierPack(ws: VerificationWorkspace, readiness?: Workspa
     <dl class="kv">
       <dt>Amount</dt><dd>${num(price.amountPerTonne, 2)} ${esc(price.currency)} per tCO₂e</dd>
       <dt>Instrument</dt><dd>${esc(CARBON_PRICE_INSTRUMENT_LABEL[price.instrument])}</dd>
-      <dt>Rebates / free allocation</dt><dd>${dash(price.rebates)}</dd>
-      <dt>Payment evidence</dt><dd>${price.evidenceItemId ? "Attached — see the evidence index" : price.amountPerTonne > 0 ? "<strong>Not attached</strong>" : "Not required (nothing claimed)"}</dd>
+      <dt>Share of emissions covered</dt><dd>${price.amountPerTonne > 0 ? (shareFraction(price) == null ? "<strong>Not recorded</strong>" : `${num((shareFraction(price) ?? 0) * 100, 1)}%`) : "Not required (nothing claimed)"}</dd>
+      <dt>Rebates / free allocation</dt><dd>${dash(price.rebates)}${price.rebateAmountPerTonne ? ` — ${num(price.rebateAmountPerTonne, 2)} ${esc(price.currency)} per tCO₂e` : ""}</dd>
+      <dt>Charged under</dt><dd>${price.amountPerTonne > 0 ? dash(price.legalBasis) : "Not required (nothing claimed)"}</dd>
+      <dt>Payment certified by</dt><dd>${price.amountPerTonne > 0 ? dash(price.certifiedBy) : "Not required (nothing claimed)"}</dd>
+      <dt>Payment evidence</dt><dd>${carbonReceipt ? "Attached — see the evidence index" : price.amountPerTonne > 0 ? "<strong>Not attached</strong>" : "Not required (nothing claimed)"}</dd>
       <dt>Recorded</dt><dd>${price.recorded ? esc(price.updatedAt.slice(0, 10)) : "Not yet recorded"}</dd>
     </dl>
     <div class="note">${esc(CARBON_PRICE_CLAIMED_NOTE)}</div>`);

@@ -127,7 +127,7 @@ const FIELD_LABEL: Record<string, string> = {
   verificationSectoralScope: "Sectoral scope",
   verificationChecks: "Verification checks",
   reducingAgent: "Reducing agent",
-  linkedWorkspaceId: "Report workspace",
+  linkedWorkspaceId: "Product report",
 
   /* Installation records (the chain root). Named to the EU sheet's own
      wording, the same way lib/installations.ts holds them — a history that

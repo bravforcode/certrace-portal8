@@ -28,7 +28,7 @@ import { ArrowRight, ArrowLeft } from "lucide-react";
 import { Card, Button, Field, inputClass, Eyebrow, cn } from "@/components/ui";
 import { Select } from "@/components/controls";
 import { PhoneField } from "@/components/phone-field";
-import { LanguageToggle } from "@/components/lang-toggle";
+import { LanguageSelect } from "@/components/language-select";
 import { CertraceLogo } from "@/components/logo";
 import { useProfile, type Profile } from "@/lib/profile";
 import { PRODUCT_SECTORS } from "@/lib/config";
@@ -151,14 +151,17 @@ export function useSetupDraft() {
 }
 
 /* ── Chrome ─────────────────────────────────────────────────────
-   Logo, language toggle, progress, card.
+   Logo, language menu, progress, card.
 
-   The EN/ไทย toggle is here because this flow renders BEFORE the portal shell
-   exists — there is no top bar and no account menu yet, so the switcher in
-   there is unreachable and a Thai exporter would otherwise fill in four steps
-   of English with no way out of it.
+   The language menu (English · ไทย · 中文 — the same one a supplier or a precursor
+   maker has on their link) is here because this flow renders BEFORE the portal
+   shell exists — there is no top bar and no account menu yet, so the switcher
+   in there is unreachable and a Thai exporter would otherwise fill in four
+   steps of English with no way out of it. Chinese is offered here and nowhere
+   in the portal: it is kept for this flow and never written over the portal's
+   own choice (lib/i18n.ts).
 
-   It is a TOGGLE, never a `?lang=` link: switching language must not navigate,
+   It is a MENU that changes the language in place, never a `?lang=` link: switching language must not navigate,
    or the step and every answer already typed — all of it React state on this
    page — would be thrown away by the remount. Setting the context re-renders
    the same tree in place. */
@@ -182,7 +185,7 @@ export function OnboardingShell({
             right — and only wider screens centre the mark. */}
         <div className="relative flex items-center justify-between sm:justify-center">
           <CertraceLogo className="h-5 w-auto" />
-          <LanguageToggle className="sm:absolute sm:right-0" />
+          <LanguageSelect className="sm:absolute sm:right-0" />
         </div>
 
         <div className="mt-8">

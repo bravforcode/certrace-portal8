@@ -77,7 +77,8 @@
    the dashboard can never disagree about when something is late.
    ════════════════════════════════════════════════════════════ */
 
-import { dispatchesFor, effectiveDueDay, type MonthDispatch } from "./month-dispatch";
+import { dateLocaleNow, type TFunction } from "./i18n";
+import { calendarDaysUntil, dispatchesFor, effectiveDueDay, type MonthDispatch } from "./month-dispatch";
 import { monthsForWorkspace, type MonthStatus } from "./monthly-data";
 import { precursorCompleteness, listSuppliers, trackedWorkspaceIndex, type PrecursorSupplier } from "./precursor-suppliers";
 import { makePrecursorLinkToken } from "./precursor-link";
@@ -91,15 +92,15 @@ export type SmartLinkKind = "monthly" | "verified_data";
 
 export const SMART_LINK_KIND_LABEL: Record<SmartLinkKind, string> = {
   monthly: "Monthly data",
-  verified_data: "Verified data",
+  verified_data: "Precursor data",
 };
 
 /** What each kind is actually asking for, in one sentence, for the filter's
     own tooltip and the detail dialog's lead. Written for somebody who has not
     read the regulation. */
 export const SMART_LINK_KIND_BLURB: Record<SmartLinkKind, string> = {
-  monthly: "One month of production, fuel and electricity readings from the installation that made the goods.",
-  verified_data: "One precursor supplier's emissions figure for the whole year, and the verification report behind it.",
+  monthly: "One month of production, fuel and electricity.",
+  verified_data: "A precursor supplier's verified emissions for the whole year.",
 };
 
 /* ── The five states ───────────────────────────────────────── */
@@ -117,11 +118,11 @@ export const SMART_LINK_STATE_LABEL: Record<SmartLinkState, string> = {
 /** One line each, shown under the filter so the words are defined where they
     are used rather than in a help page nobody opens. */
 export const SMART_LINK_STATE_BLURB: Record<SmartLinkState, string> = {
-  send_now: "Nobody has been asked yet, and it can be answered now. You owe the send.",
-  in_process: "Sent and waiting, still inside the deadline. Nothing to do yet.",
-  late: "Sent, past its deadline, still unanswered. Chase whoever it went to.",
+  send_now: "Not asked yet. Send it now.",
+  in_process: "Sent and waiting. Nothing to do yet.",
+  late: "Past the deadline, still unanswered. Chase it.",
   done: "Answered. Nothing outstanding.",
-  not_due: "Not sent, and not answerable yet — the month it covers is still running.",
+  not_due: "The month is still running.",
 };
 
 /** Design-system tones, so the chips on this page read the same as every
@@ -341,14 +342,16 @@ export function countByKind(links: SmartLink[]): Record<SmartLinkKind, number> {
     card uses, kept here so the table and the dialog cannot word it
     differently. Deliberately never "0 days": a deadline that lands today is
     the one an exporter most needs to read as today. */
-export function countdown(msLeft: number): string {
-  const days = Math.round(Math.abs(msLeft) / 864e5);
+export function countdown(msLeft: number, t: TFunction = (k, v) => k.replace(/\{(\w+)\}/g, (_, n) => String(v?.[n] ?? "")), due?: Date): string {
+  // With the deadline in hand the days are counted on the calendar, the same way the month card and the bell count them;
+  // without it, from the milliseconds as before.
+  const days = due ? Math.abs(calendarDaysUntil(due, new Date(due.getTime() - msLeft))) : Math.round(Math.abs(msLeft) / 864e5);
   // A deadline that rounds to today is "due today" on either side of it. "0
   // days late" is technically true and reads as a glitch, and it is the one
   // deadline an exporter most needs to read as today's problem.
-  if (days === 0) return "due today";
-  if (msLeft < 0) return `${days} day${days === 1 ? "" : "s"} late`;
-  return `in ${days} day${days === 1 ? "" : "s"}`;
+  if (days === 0) return t("Due today");
+  if (msLeft < 0) return t(days === 1 ? "{n} day late" : "{n} days late", { n: days });
+  return t(days === 1 ? "In {n} day" : "In {n} days", { n: days });
 }
 
-export const formatDay = (d: Date): string => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+export const formatDay = (d: Date): string => d.toLocaleDateString(dateLocaleNow(), { day: "numeric", month: "short", year: "numeric" });

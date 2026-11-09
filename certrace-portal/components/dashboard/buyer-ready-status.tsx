@@ -13,10 +13,12 @@ import Link from "next/link";
 import { CheckCircle2, Download } from "lucide-react";
 import { Card, Progress } from "@/components/ui";
 import type { BuyerReadyRow } from "@/lib/cbam/dashboard-aggregates";
-import { useT } from "@/lib/i18n";
+import { buyerReasonText } from "@/lib/cbam/buyer-ready";
+import { useLanguage, useT } from "@/lib/i18n";
 
 export function BuyerReadyStatus({ rows }: { rows: BuyerReadyRow[] }) {
   const t = useT();
+  const { lang } = useLanguage();
   const readyCount = rows.filter((r) => r.ready).length;
   const total = rows.length;
   const percent = total > 0 ? (readyCount / total) * 100 : 0;
@@ -60,8 +62,8 @@ export function BuyerReadyStatus({ rows }: { rows: BuyerReadyRow[] }) {
                 href={`/workspaces/${r.workspace.id}/readiness`}
                 className="flex flex-col gap-0.5 py-2.5 transition-colors hover:bg-[#fafaf8] sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"
               >
-                <span className="min-w-0 truncate text-[13px] text-black/75 sm:flex-1">{r.workspace.productName}</span>
-                <span className="min-w-0 text-[12px] leading-snug text-black/40 sm:max-w-[60%] sm:text-right">{r.reason ?? "Not yet ready"}</span>
+                <span className="min-w-0 truncate text-[13px] text-black/75 sm:flex-1">{t(r.workspace.productName)}</span>
+                <span className="min-w-0 text-[12px] leading-snug text-black/40 sm:max-w-[60%] sm:text-right">{r.reason ? buyerReasonText(r.reason, t, lang !== "en") : t("Not yet ready")}</span>
               </Link>
             </li>
           ))}
