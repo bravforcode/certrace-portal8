@@ -1,0 +1,12 @@
+{
+  "name": "certrace-migrations",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.3.10",
+  "scripts": {
+    "migrate": "prisma migrate deploy"
+  },
+  "dependencies": {
+    "prisma": "7.10.0"
+  }
+}

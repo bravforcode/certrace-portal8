@@ -1,0 +1,121 @@
+name: Publish application images
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: publish-certrace-main
+  cancel-in-progress: false
+jobs:
+  checks:
+    uses: ./.github/workflows/checks.yml
+
+  migration-tests:
+    name: Database migration tests
+    uses: ./.github/workflows/migrations.yml
+
+  build:
+    name: Build ${{ matrix.service }} (amd64)
+    if: github.ref == 'refs/heads/main'
+    needs: [checks, migration-tests]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [migrate, backend, frontend]
+        include:
+          - service: migrate
+            dockerfile: certrace-backend/Dockerfile
+            target: migrate
+          - service: backend
+            dockerfile: certrace-backend/Dockerfile
+            target: runtime
+          - service: frontend
+            dockerfile: certrace-portal/Dockerfile
+            target: runtime
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lowercase registry path
+        id: registry
+        env:
+          REPOSITORY: ${{ github.repository }}
+        run: echo "prefix=ghcr.io/${REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+        id: buildx
+      - name: Restore Next.js compiler cache
+        if: matrix.service == 'frontend'
+        id: next-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/next-cache
+          key: next-linux-amd64-v1-${{ hashFiles('bun.lock', 'certrace-portal/next.config.ts') }}-${{ github.sha }}
+          restore-keys: |
+            next-linux-amd64-v1-${{ hashFiles('bun.lock', 'certrace-portal/next.config.ts') }}-
+      # The Docker GHA layer cache does not persist RUN cache mounts. Extract
+      # this mount in the post step before actions/cache saves it for the next run.
+      - name: Inject and extract Next.js compiler cache
+        if: matrix.service == 'frontend'
+        uses: reproducible-containers/buildkit-cache-dance@5b81f4d29dc8397a7d341dba3aeecc7ec54d6361 # v3.3.0
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          cache-map: |
+            {"${{ runner.temp }}/next-cache": {"target": "/app/certrace-portal/.next/cache", "sharing": "locked"}}
+          skip-extraction: ${{ steps.next-cache.outputs.cache-hit }}
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and publish release image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          target: ${{ matrix.target }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.registry.outputs.prefix }}/${{ matrix.service }}:sha-${{ github.sha }}-amd64
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          build-args: |
+            NEXT_PUBLIC_API_BASE_URL=/backend
+            NEXT_PUBLIC_GOOGLE_CLIENT_ID=${{ vars.CERTRACE_GOOGLE_CLIENT_ID }}
+            FRONTEND_BUILD_MODE=ci
+          cache-from: |
+            type=gha,scope=${{ matrix.service }}-amd64
+            type=gha,scope=migration-tests-amd64
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}-amd64
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # Publish latest only when every image for this commit has built successfully.
+      - name: Promote the complete release
+        env:
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          prefix="ghcr.io/${REPOSITORY,,}"
+          for service in migrate backend frontend; do
+            docker buildx imagetools create \
+              --tag "$prefix/$service:sha-$RELEASE_SHA" \
+              --tag "$prefix/$service:latest" \
+              "$prefix/$service:sha-$RELEASE_SHA-amd64"
+          done
+          echo "Published migrate, backend and frontend: sha-$RELEASE_SHA and latest" >> "$GITHUB_STEP_SUMMARY"

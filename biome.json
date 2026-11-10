@@ -1,0 +1,50 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "ignoreUnknown": true,
+    "includes": [
+      "**",
+      "!**/bun.lock",
+      "!certrace-backend/prisma/**",
+      "!certrace-backend/src/generated/**",
+      "!certrace-backend/src/modules/reporting/catalogue.ts",
+      "!certrace-backend/src/modules/reporting/sections.ts",
+      "!certrace-backend/src/modules/evidence/autofill-reference.ts",
+      "!certrace-backend/test/fixtures/**",
+      "!certrace-portal/lib/api/validators.js",
+      "!certrace-portal/lib/api/validators.d.ts",
+      "!certrace-portal/lib/i18n-hi.ts",
+      "!certrace-portal/lib/report-storage-keys.ts",
+      "!certrace-portal/next-env.d.ts",
+      "!certrace-portal/public/**",
+      "!certrace-portal/lib/data/**",
+      "!docs/fixtures/**"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineEnding": "lf",
+    "lineWidth": 80
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "double",
+      "jsxQuoteStyle": "double",
+      "semicolons": "always",
+      "trailingCommas": "all",
+      "arrowParentheses": "always"
+    }
+  },
+  "css": {
+    "parser": { "tailwindDirectives": true }
+  },
+  "linter": { "enabled": false },
+  "assist": { "enabled": false }
+}

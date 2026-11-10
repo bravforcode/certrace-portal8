@@ -1,0 +1,118 @@
+name: Code checks
+on:
+  pull_request:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  checks:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - check: format
+            name: Formatting
+          - check: lint
+            name: ESLint
+          - check: types
+            name: Types and generated contracts
+          - check: frontend-tests
+            name: Frontend unit tests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        if: matrix.check != 'format'
+        with:
+          node-version: "22"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.10
+      - uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-1.3.10-${{ hashFiles('bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-1.3.10-
+      - name: Install formatter only
+        if: matrix.check == 'format'
+        run: bun install --frozen-lockfile --filter certrace
+      - name: Install workspace dependencies
+        if: matrix.check != 'format'
+        run: bun install --frozen-lockfile
+      - name: Restore ESLint cache
+        if: matrix.check == 'lint'
+        uses: actions/cache@v4
+        with:
+          path: certrace-portal/.eslintcache
+          key: eslint-${{ runner.os }}-${{ hashFiles('bun.lock', 'certrace-portal/eslint.config.mjs') }}-${{ github.sha }}
+          restore-keys: eslint-${{ runner.os }}-${{ hashFiles('bun.lock', 'certrace-portal/eslint.config.mjs') }}-
+      - name: Check Biome formatting
+        if: matrix.check == 'format'
+        run: bun run format:check
+      - name: Check ESLint
+        if: matrix.check == 'lint'
+        run: bun run lint --cache --cache-strategy content
+      - name: Generate Prisma client
+        if: matrix.check == 'types'
+        run: bun run db:generate
+      - name: Generate Next.js route types
+        if: matrix.check == 'types'
+        run: bun run --cwd certrace-portal next typegen
+      - name: Check types and generated report contracts
+        if: matrix.check == 'types'
+        run: bun run typecheck
+      - name: Check generated API validators
+        if: matrix.check == 'types'
+        run: bun run --cwd certrace-portal api:check
+      - name: Run frontend unit tests
+        if: matrix.check == 'frontend-tests'
+        run: bun run test:frontend
+
+  backend-tests:
+    name: Backend integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: certrace
+          POSTGRES_PASSWORD: ci-test-only
+          POSTGRES_DB: certrace
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U certrace -d certrace"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://certrace:ci-test-only@localhost:5432/certrace
+      CERTRACE_JWT_SECRET: ci-test-only-not-a-production-secret
+      CERTRACE_APP_BASE_URL: http://localhost:3000
+      CERTRACE_CORS_ALLOWED_ORIGINS: http://localhost:3000
+      COOKIE_SECURE: "false"
+      CERTRACE_EMAIL_DELIVERY: "off"
+      CERTRACE_SUPPLIER_EMAILS: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.10
+      - uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-1.3.10-${{ hashFiles('bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-1.3.10-
+      - run: bun install --frozen-lockfile --filter @certrace/backend
+      - name: Generate Prisma client
+        run: bun run db:generate
+      - name: Apply migrations to isolated test database
+        run: bun run db:migrate
+      - name: Run backend integration tests
+        run: bun run test:backend --timeout 120000

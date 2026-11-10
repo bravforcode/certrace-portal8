@@ -1,0 +1,3 @@
+portal.certrace.co {
+	reverse_proxy frontend:3000
+}

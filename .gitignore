@@ -6,21 +6,22 @@ certrace-portal/.env*.local
 certrace-portal/test-results/
 certrace-portal/playwright-report/
 certrace-portal/.open-next/
-
-# Admin Next.js
-certrace-admin-portal/node_modules/
-certrace-admin-portal/.next/
-certrace-admin-portal/out/
-certrace-admin-portal/.env*.local
+certrace-portal/tsconfig.tsbuildinfo
+certrace-portal/tmp/
 
 # Python virtualenv & cache
+__pycache__/
+.pytest_cache/
 certrace-backend/.venv/
 certrace-backend/__pycache__/
 certrace-backend/*.pyc
 certrace-backend/.env
+certrace-backend/.env.localdev
 
 # Backups and archives
 *.zip
+*.dump
+*.dump.partial
 
 # OS files
 .DS_Store
@@ -32,3 +33,12 @@ Thumbs.db
 !.dev.vars.example
 .env*
 !.env.example
+!.env.production.example
+
+# Bun / Prisma
+node_modules/
+certrace-backend/src/generated/
+*.tsbuildinfo
+**/.eslintcache
+
+certrace-new/

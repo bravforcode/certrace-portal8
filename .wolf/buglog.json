@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "bugs": [
+    {
+      "id": "bug-001",
+      "timestamp": "2026-11-10T20:38:51.450Z",
+      "error_message": "Incorrect value in code",
+      "file": "docs/superpowers/specs/2026-11-10-portal8-production-design.md",
+      "root_cause": "Had `lib/factory/measur.ts`",
+      "fix": "Changed to 's energy formulas are not used. | The user'",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "md"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-10T20:38:51.450Z"
+    },
+    {
+      "id": "bug-002",
+      "timestamp": "2026-11-10T20:58:17.843Z",
+      "error_message": "Significant refactor of ",
+      "file": "docs/MEASUR-FLOW-REFERENCE.md",
+      "root_cause": "2 lines replaced/restructured",
+      "fix": "Rewrote 5→6 lines (2 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "md"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-10T20:58:17.843Z"
+    }
+  ]
+}

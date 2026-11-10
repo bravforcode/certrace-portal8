@@ -1,7 +1,26 @@
 {
-  "name": "certrace-root",
+  "name": "certrace",
   "private": true,
+  "type": "module",
+  "workspaces": [
+    "certrace-backend",
+    "certrace-portal"
+  ],
   "scripts": {
-    "build-pages": "cd landingpage/certrace-landing && npm run build-pages"
+    "dev": "docker compose up --build",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "lint": "bun run --cwd certrace-portal lint",
+    "typecheck": "bun run --cwd certrace-backend db:report-catalogue && bun run --cwd certrace-backend typecheck && bun run --cwd certrace-portal typecheck",
+    "test:backend": "bun run --cwd certrace-backend test",
+    "test:frontend": "bun run --cwd certrace-portal test:unit",
+    "test:migrations": "bun scripts/test-migrations.ts",
+    "test:verification-schema": "bun --no-env-file scripts/test-verification-schema.ts",
+    "db:migrate": "bun run --cwd certrace-backend db:migrate",
+    "db:generate": "bun run --cwd certrace-backend db:generate"
+  },
+  "packageManager": "bun@1.3.10",
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15"
   }
 }

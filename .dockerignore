@@ -1,0 +1,14 @@
+.git
+**/node_modules
+**/.next
+**/.venv
+**/__pycache__
+**/.env*
+!**/.env.example
+**/test-results
+**/playwright-report
+**/src/generated
+**/*.tsbuildinfo
+**/*.dump
+**/*.dump.partial
+**/.eslintcache

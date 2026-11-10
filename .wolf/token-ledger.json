@@ -1,0 +1,147 @@
+{
+  "version": 1,
+  "created_at": "2026-11-10T19:53:23.277Z",
+  "lifetime": {
+    "total_tokens_estimated": 2258,
+    "total_reads": 0,
+    "total_writes": 12,
+    "total_sessions": 2,
+    "anatomy_hits": 0,
+    "anatomy_misses": 0,
+    "repeated_reads_warned": 0,
+    "repeated_reads_blocked": 0,
+    "estimated_savings_vs_bare_cli": 0
+  },
+  "sessions": [
+    {
+      "id": "session-2026-11-10T19-53-23-593Z",
+      "started": "2026-11-10T19:53:23.595Z",
+      "ended": "2026-11-10T20:41:55.109Z",
+      "reads": [],
+      "writes": [
+        {
+          "file": "C:/Certrace/certrace-portal8/docs/superpowers/specs/2026-11-10-portal8-production-design.md",
+          "tokens_estimated": 273,
+          "action": "edit"
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/docs/superpowers/specs/2026-11-10-portal8-production-design.md",
+          "tokens_estimated": 620,
+          "action": "edit"
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/docs/MEASUR-FLOW-REFERENCE.md",
+          "tokens_estimated": 19,
+          "action": "edit"
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/docs/MEASUR-FLOW-REFERENCE.md",
+          "tokens_estimated": 116,
+          "action": "edit"
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/docs/superpowers/specs/2026-11-10-portal8-production-design.md",
+          "tokens_estimated": 332,
+          "action": "edit"
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/docs/superpowers/specs/2026-11-10-portal8-production-design.md",
+          "tokens_estimated": 39,
+          "action": "edit"
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/docs/superpowers/specs/2026-11-10-portal8-production-design.md",
+          "tokens_estimated": 22,
+          "action": "edit"
+        }
+      ],
+      "totals": {
+        "input_tokens_estimated": 0,
+        "output_tokens_estimated": 1421,
+        "reads_count": 0,
+        "writes_count": 7,
+        "repeated_reads_warned": 0,
+        "repeated_reads_blocked": 0,
+        "anatomy_lookups": 0
+      },
+      "provider_usage": {
+        "status": "unknown",
+        "measurement_kind": "unknown",
+        "provider": null,
+        "model": null,
+        "source": "stop_hook",
+        "usage": {
+          "input_tokens": null,
+          "cached_input_tokens": null,
+          "output_tokens": null,
+          "reasoning_output_tokens": null,
+          "total_tokens": null
+        },
+        "reason": "The stop hook has no provider-native usage receipt. Codex JSONL token_count semantics remain unverified."
+      }
+    },
+    {
+      "id": "session-2026-11-10T20-55-08-066Z",
+      "started": "2026-11-10T20:55:08.067Z",
+      "ended": "2026-11-10T21:06:34.600Z",
+      "reads": [],
+      "writes": [
+        {
+          "file": "C:/Certrace/certrace-portal8/docs/superpowers/plans/2026-11-10-portal8-production-plan.md",
+          "tokens_estimated": 126,
+          "action": "edit"
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/docs/superpowers/plans/2026-11-10-portal8-production-plan.md",
+          "tokens_estimated": 108,
+          "action": "edit"
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/docs/MEASUR-FLOW-REFERENCE.md",
+          "tokens_estimated": 517,
+          "action": "edit"
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/docs/MEASUR-FLOW-REFERENCE.md",
+          "tokens_estimated": 36,
+          "action": "edit"
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/docs/MEASUR-FLOW-REFERENCE.md",
+          "tokens_estimated": 50,
+          "action": "edit"
+        }
+      ],
+      "totals": {
+        "input_tokens_estimated": 0,
+        "output_tokens_estimated": 837,
+        "reads_count": 0,
+        "writes_count": 5,
+        "repeated_reads_warned": 0,
+        "repeated_reads_blocked": 0,
+        "anatomy_lookups": 0
+      },
+      "provider_usage": {
+        "status": "unknown",
+        "measurement_kind": "unknown",
+        "provider": null,
+        "model": null,
+        "source": "stop_hook",
+        "usage": {
+          "input_tokens": null,
+          "cached_input_tokens": null,
+          "output_tokens": null,
+          "reasoning_output_tokens": null,
+          "total_tokens": null
+        },
+        "reason": "The stop hook has no provider-native usage receipt. Codex JSONL token_count semantics remain unverified."
+      }
+    }
+  ],
+  "daemon_usage": [],
+  "waste_flags": [],
+  "optimization_report": {
+    "last_generated": null,
+    "patterns": []
+  }
+}

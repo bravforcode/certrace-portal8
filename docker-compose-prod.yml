@@ -1,0 +1,94 @@
+# VPS: copy this file, Caddyfile and .env.production.example (as .env), then:
+# docker compose -f docker-compose-prod.yml pull
+# docker compose -f docker-compose-prod.yml up -d
+# All three application images use the same release tag. No source/build needed.
+name: certrace
+services:
+  database:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: certrace
+      POSTGRES_USER: certrace
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - database:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U certrace -d certrace"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  migrate:
+    image: ${IMAGE_PREFIX:-ghcr.io/mikaoverdose/ceatrace}/migrate:${IMAGE_TAG:-latest}
+    restart: "no"
+    environment:
+      DATABASE_URL: postgresql://certrace:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@database:5432/certrace
+    depends_on:
+      database:
+        condition: service_healthy
+
+  backend:
+    image: ${IMAGE_PREFIX:-ghcr.io/mikaoverdose/ceatrace}/backend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql://certrace:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@database:5432/certrace
+      PORT: "8000"
+      CERTRACE_APP_BASE_URL: ${APP_BASE_URL:?Set APP_BASE_URL in .env}
+      CERTRACE_CORS_ALLOWED_ORIGINS: ${APP_BASE_URL:?Set APP_BASE_URL in .env}
+      CERTRACE_JWT_SECRET: ${CERTRACE_JWT_SECRET:?Set CERTRACE_JWT_SECRET in .env}
+      CERTRACE_EMAIL_DELIVERY: ${CERTRACE_EMAIL_DELIVERY:-off}
+      CERTRACE_FILE_STORAGE: ${CERTRACE_FILE_STORAGE:-database}
+      NODE_ENV: production
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      database:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "bun", "-e", "const r=await fetch('http://localhost:8000/readyz');process.exit(r.ok?0:1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  frontend:
+    image: ${IMAGE_PREFIX:-ghcr.io/mikaoverdose/ceatrace}/frontend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      BACKEND_INTERNAL_URL: http://backend:8000
+      PORT: "3000"
+      HOSTNAME: 0.0.0.0
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      backend:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2.11.4-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      frontend:
+        condition: service_started
+
+# Keep the same project/volume name as compose.yaml to retain existing data.
+volumes:
+  database:
+  caddy_data:
+  caddy_config:
