@@ -27,13 +27,27 @@
    ════════════════════════════════════════════════════════════ */
 
 import { downloadFile } from "../download";
-import { getCarbonPrice, CARBON_PRICE_INSTRUMENT_LABEL } from "../carbon-price";
+import {
+  getCarbonPrice,
+  shareFraction,
+  CARBON_PRICE_INSTRUMENT_LABEL,
+} from "../carbon-price";
 import { getInstallation } from "../installations";
 import { getOrgIdentity } from "../org";
 import { workspaceReadiness, type WorkspaceReadiness } from "../readiness";
 import { workspaceSEE } from "../workspace-see";
-import { directMethodSummary, finalVersionCovering, loadDraft, migrateMmd } from "../workspace-mmd";
-import { goodsCategory, routeLabel, workspaceTitle, type VerificationWorkspace } from "../workspace";
+import {
+  directMethodSummary,
+  finalVersionCovering,
+  loadDraft,
+  migrateMmd,
+} from "../workspace-mmd";
+import {
+  goodsCategory,
+  routeLabel,
+  workspaceTitle,
+  type VerificationWorkspace,
+} from "../workspace";
 import {
   COMMUNICATION_COLUMNS,
   ELECTRICITY_EF_SOURCES,
@@ -61,9 +75,15 @@ const esc = (v: unknown): string =>
     .replace(/"/g, "&quot;");
 
 const sig = (v: number, dp = 4): string =>
-  Number.isFinite(v) ? v.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: dp }) : "—";
+  Number.isFinite(v)
+    ? v.toLocaleString("en-GB", {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: dp,
+      })
+    : "—";
 
-const dash = (v: string | null | undefined): string => (v && String(v).trim() ? esc(v) : "—");
+const dash = (v: string | null | undefined): string =>
+  v && String(v).trim() ? esc(v) : "—";
 
 /* ── The design system, inlined ─────────────────────────────────
    Certrace tokens: #3C7ACB primary, #f5f4f0 ground, #111 ink. No webfont
@@ -150,7 +170,12 @@ export type ReportResult = { html: string; fileName: string; draft: boolean };
     combiner (see lib/cbam/final-report.ts) can place it alongside another
     document's fragment inside one shared shell. `buildCommunicationReport`
     below is a thin wrapper around this for standalone use. */
-export type ReportSection = { bodyHtml: string; styleCss: string; draft: boolean; fileNameSlug: string };
+export type ReportSection = {
+  bodyHtml: string;
+  styleCss: string;
+  draft: boolean;
+  fileNameSlug: string;
+};
 
 /* What was outstanding when the report was generated. Readiness carries this
    per tab as `missing` plus an optional `blockingReason`; the report needs one
@@ -184,7 +209,10 @@ type ProductRow = {
   special: { label: string; value: string }[];
 };
 
-export function buildCommunicationReportSection(ws: VerificationWorkspace, readiness?: WorkspaceReadiness): ReportSection {
+export function buildCommunicationReportSection(
+  ws: VerificationWorkspace,
+  readiness?: WorkspaceReadiness,
+): ReportSection {
   const r = readiness ?? workspaceReadiness(ws);
   const draft = r.overall !== "complete";
   const see = workspaceSEE(ws);
@@ -192,7 +220,9 @@ export function buildCommunicationReportSection(ws: VerificationWorkspace, readi
   const inst = getInstallation(ws.installationId);
   const cp = getCarbonPrice(ws.id);
   const mmdFinal = finalVersionCovering(ws.id, ws.periodStart, ws.periodEnd);
-  const mmd = mmdFinal ? migrateMmd(mmdFinal.content, ws.periodStart, ws.periodEnd) : loadDraft(ws.id, ws.periodStart, ws.periodEnd);
+  const mmd = mmdFinal
+    ? migrateMmd(mmdFinal.content, ws.periodStart, ws.periodEnd)
+    : loadDraft(ws.id, ws.periodStart, ws.periodEnd);
 
   /* The aggregated goods category comes from the CN CODE, not from the
      portal's sector label. `goodsCategory()` returns "Iron & Steel" — a sector,
@@ -277,7 +307,13 @@ ${
 }`);
 
   /* ── §3 The communication table ─────────────────────────── */
-  const row = productRow(ws, see, categoryLabel, good?.unit ?? "t", mmd.electricitySupply);
+  const row = productRow(
+    ws,
+    see,
+    categoryLabel,
+    good?.unit ?? "t",
+    mmd.electricitySupply,
+  );
   parts.push(renderCommunicationTable([row]));
 
   /* ── §4 The workings ────────────────────────────────────── */
@@ -336,7 +372,14 @@ ${
   <dt>Electricity metering point</dt><dd>${dash(mmd.electricityMeteringPoint)}</dd>
   <dt>Quality assurance</dt><dd>${dash(mmd.qualityAssurance)} ${mmd.reviewerName ? `· ${esc(mmd.reviewerName)}` : ""}</dd>
   <dt>Data gaps declared</dt>
-  <dd>${mmd.dataGaps.length ? `${mmd.dataGaps.length} — ${sig(mmd.dataGaps.reduce((a, g) => a + (Number(g.estimatedTCO2e) || 0), 0), 2)} tCO₂e estimated` : "None"}</dd>
+  <dd>${
+    mmd.dataGaps.length
+      ? `${mmd.dataGaps.length} — ${sig(
+          mmd.dataGaps.reduce((a, g) => a + (Number(g.estimatedTCO2e) || 0), 0),
+          2,
+        )} tCO₂e estimated`
+      : "None"
+  }</dd>
 </dl>`);
 
   /* ── §8 Readiness ───────────────────────────────────────── */
@@ -347,7 +390,9 @@ ${
 <p><span class="pill">${esc(r.overall)}</span> ${r.percentComplete}% of applicable tabs complete</p>
 ${
   outstanding(r).length > 0
-    ? `<ul>${outstanding(r).map((m) => `<li>${esc(m)}</li>`).join("")}</ul>`
+    ? `<ul>${outstanding(r)
+        .map((m) => `<li>${esc(m)}</li>`)
+        .join("")}</ul>`
     : `<p class="muted">Nothing outstanding.</p>`
 }`);
 
@@ -367,7 +412,10 @@ ${parts.join("\n")}
   return { bodyHtml, styleCss: STYLE, draft, fileNameSlug };
 }
 
-export function buildCommunicationReport(ws: VerificationWorkspace, readiness?: WorkspaceReadiness): ReportResult {
+export function buildCommunicationReport(
+  ws: VerificationWorkspace,
+  readiness?: WorkspaceReadiness,
+): ReportResult {
   const section = buildCommunicationReportSection(ws, readiness);
   const title = `CBAM communication — ${workspaceTitle(ws)}`;
   const html = `<!doctype html>
@@ -377,7 +425,11 @@ export function buildCommunicationReport(ws: VerificationWorkspace, readiness?: 
 <style>${section.styleCss}</style>
 </head><body>${section.bodyHtml}</body></html>`;
 
-  return { html, fileName: `cbam-communication-${section.fileNameSlug}${section.draft ? "-draft" : ""}.html`, draft: section.draft };
+  return {
+    html,
+    fileName: `cbam-communication-${section.fileNameSlug}${section.draft ? "-draft" : ""}.html`,
+    draft: section.draft,
+  };
 }
 
 /* ── The communication row ──────────────────────────────────────
@@ -413,12 +465,18 @@ function productRow(
     defaultShare: see.precursors.defaultValueShare ?? 0,
     electricityEfSource: electricitySupply || "—",
     embeddedElectricity: null,
-    special: (good ? specialParametersFor(good.id) : []).map((label) => ({ label, value: "—" })),
+    special: (good ? specialParametersFor(good.id) : []).map((label) => ({
+      label,
+      value: "—",
+    })),
   };
 }
 
 function renderCommunicationTable(rows: ProductRow[]): string {
-  const head = COMMUNICATION_COLUMNS.map((c) => `<th class="${c.key.startsWith("see") || c.key === "defaultShare" || c.key === "embeddedElectricity" ? "n" : ""}">${esc(c.label)}<br><span class="ref">${esc(c.column)}</span></th>`).join("");
+  const head = COMMUNICATION_COLUMNS.map(
+    (c) =>
+      `<th class="${c.key.startsWith("see") || c.key === "defaultShare" || c.key === "embeddedElectricity" ? "n" : ""}">${esc(c.label)}<br><span class="ref">${esc(c.column)}</span></th>`,
+  ).join("");
   const body = rows
     .map(
       (row) => `<tr>
@@ -509,7 +567,10 @@ function renderPrecursors(see: ReturnType<typeof workspaceSEE>): string {
   rather than missing data.</div>`;
 }
 
-function renderCarbonPrice(cp: ReturnType<typeof getCarbonPrice>, see: ReturnType<typeof workspaceSEE>): string {
+function renderCarbonPrice(
+  cp: ReturnType<typeof getCarbonPrice>,
+  see: ReturnType<typeof workspaceSEE>,
+): string {
   /* F_Tools §2. The workbook's chain, kept in its own order:
        covered SE   = SE(total) × share covered
        CP per tonne = covered SE × price per tCO₂e
@@ -518,13 +579,13 @@ function renderCarbonPrice(cp: ReturnType<typeof getCarbonPrice>, see: ReturnTyp
      overstatement here is an under-payment of CBAM — which is why the report
      prints the share and the instrument beside it rather than just the money. */
   const claimed = Number(cp?.amountPerTonne ?? 0);
-  /* F_Tools!H101 takes the covered SHARE as an input, 0–1. Certrace does not
-     collect it yet, so the report states 1.0 explicitly and says so, rather
-     than quietly assuming full coverage inside the arithmetic. A share the
-     reader cannot see is a share nobody checks. */
-  const share: number = 1;
-  const shareAssumed = true;
-  const rebate = 0;
+  /* F_Tools!H101 takes the covered SHARE as an input, 0–1, and the carbon price tab asks for it (as a percentage). A price with no share entered is
+     NOT assumed to cover everything — that overstated the deduction, and an overstated deduction is an under-payment of CBAM. It prints as "not
+     recorded" and deducts nothing until it is. A nil return needs no share. */
+  const recordedShare = cp ? shareFraction(cp) : null;
+  const shareMissing = claimed > 0 && recordedShare == null;
+  const share: number = recordedShare ?? 0;
+  const rebate = Math.max(0, Number(cp?.rebateAmountPerTonne ?? 0) || 0);
   const coveredSE = see.seeTotal * share;
   const due = coveredSE * claimed;
   const rebateDue = coveredSE * rebate;
@@ -540,17 +601,25 @@ function renderCarbonPrice(cp: ReturnType<typeof getCarbonPrice>, see: ReturnTyp
   <dt>Currency</dt><dd>${dash(cp?.currency)}</dd>
   <dt>SEE (total)</dt><dd>${sig(see.seeTotal)} ${TEMPLATE_UNITS.emissionsPerTonne}</dd>
   <dt>Share of emissions covered</dt>
-  <dd>${sig(share, 4)}${shareAssumed ? ` <span class="muted">— assumed, not recorded. See the note below.</span>` : ""}</dd>
+  <dd>${shareMissing ? `<span class="muted">not recorded — see the note below</span>` : claimed > 0 || recordedShare != null ? sig(share, 4) : "—"}</dd>
   <dt>Covered SE</dt><dd>${sig(coveredSE)} ${TEMPLATE_UNITS.emissionsPerTonne}</dd>
   <dt>Carbon price due</dt><dd>${sig(claimed, 2)} per tCO₂e</dd>
   <dt>Rebate</dt><dd>${sig(rebate, 2)} per tCO₂e${cp?.rebates ? ` <span class="muted">— ${esc(cp.rebates)}</span>` : ""}</dd>
 </dl>
 ${
-  shareAssumed
-    ? `<div class="note warn"><strong>The covered share is assumed to be 1.0.</strong> The EU template asks for the
-       fraction of total specific emissions the carbon price actually covers (F_Tools!H101), and Certrace does not yet
-       collect it. If the domestic instrument covers only part of these emissions — most do — the figure below is too
-       high, and the declarant must not deduct it until the real share is entered.</div>`
+  shareMissing
+    ? `<div class="note warn"><strong>The covered share has not been entered.</strong> The EU template asks for the
+       fraction of total specific emissions the carbon price actually covers (F_Tools!H101). Most domestic instruments
+       cover only part of a good's emissions, so nothing is deducted below until the real share is recorded on the
+       Carbon price tab.</div>`
+    : ""
+}
+${
+  claimed > 0 && (cp?.legalBasis?.trim() || cp?.certifiedBy?.trim())
+    ? `<dl class="kv">
+  ${cp?.legalBasis?.trim() ? `<dt>Charged under</dt><dd>${esc(cp.legalBasis)}</dd>` : ""}
+  ${cp?.certifiedBy?.trim() ? `<dt>Payment certified by</dt><dd>${esc(cp.certifiedBy)}</dd>` : ""}
+</dl>`
     : ""
 }
 <div class="work">
@@ -560,14 +629,14 @@ ${
   <div class="res">= ${sig(effective, 2)} ${esc(cp?.currency ?? "")} per tonne</div>
 </div>
 ${
-  claimed > 0 && share === 0
+  claimed > 0 && !shareMissing && share === 0
     ? `<div class="note warn">A carbon price is stated but the share of emissions it covers is zero, so nothing is
        deductible. If the price genuinely covers part of these emissions, set the share — leaving it at zero forfeits
        the deduction.</div>`
     : ""
 }
 ${
-  rebate > due && due > 0
+  rebateDue > due && due > 0
     ? `<div class="note warn">The rebate exceeds the price paid. The effective figure is floored at zero: CBAM has no
        mechanism by which a domestic rebate produces a credit against EU liability.</div>`
     : ""
@@ -580,7 +649,10 @@ ${ELECTRICITY_EF_SOURCES.map((s) => `<tr><td><span class="ref">${esc(s.code)}</s
 </tbody></table></div>`;
 }
 
-export function downloadCommunicationReport(ws: VerificationWorkspace, readiness?: WorkspaceReadiness): ReportResult {
+export function downloadCommunicationReport(
+  ws: VerificationWorkspace,
+  readiness?: WorkspaceReadiness,
+): ReportResult {
   const report = buildCommunicationReport(ws, readiness);
   downloadFile(report.fileName, report.html, "text/html");
   return report;

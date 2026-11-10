@@ -1,3 +1,4 @@
+import { accountStorage } from "../account-storage";
 /* ════════════════════════════════════════════════════════════
    MONITORING METHODOLOGY DOCUMENTATION (gap G5)
 
@@ -22,8 +23,19 @@
    document.
    ════════════════════════════════════════════════════════════ */
 
-import { PROCESS_STEP_LABEL, displayDate, displayPeriod, type Boundary, type ReportingPeriod } from "./boundary";
-import { PROVENANCE_LABEL, isAssumption, provenanceRefs, type ActivityDataset } from "./activity";
+import {
+  PROCESS_STEP_LABEL,
+  displayDate,
+  displayPeriod,
+  type Boundary,
+  type ReportingPeriod,
+} from "./boundary";
+import {
+  PROVENANCE_LABEL,
+  isAssumption,
+  provenanceRefs,
+  type ActivityDataset,
+} from "./activity";
 import { FUEL_LABEL, ELECTRICITY_FACTOR_LABEL } from "./activity";
 import { ESTIMATION_METHOD_LABEL, type GapEntry } from "./data-gaps";
 import { FUEL_UNIT_LABEL, needsNcv, ncvUnitLabel } from "./units";
@@ -34,9 +46,18 @@ import { FUEL_UNIT_LABEL, needsNcv, ncvUnitLabel } from "./units";
    tested. "Internal audits" is the one place in this product where the word
    audit is correct — it is the name of a specific QA practice, not our
    framing of the verification process. */
-export type QualityAssurance = "third_party_verification" | "internal_audits" | "four_eyes" | "none";
+export type QualityAssurance =
+  | "third_party_verification"
+  | "internal_audits"
+  | "four_eyes"
+  | "none";
 
-export const QUALITY_ASSURANCE_OPTIONS: QualityAssurance[] = ["third_party_verification", "internal_audits", "four_eyes", "none"];
+export const QUALITY_ASSURANCE_OPTIONS: QualityAssurance[] = [
+  "third_party_verification",
+  "internal_audits",
+  "four_eyes",
+  "none",
+];
 
 export const QUALITY_ASSURANCE_LABEL: Record<QualityAssurance, string> = {
   third_party_verification: "Third-party verification",
@@ -101,16 +122,23 @@ export const MMD_SECTION_TITLE: Record<MmdSection, string> = {
 };
 
 export const MMD_SECTION_BLURB: Record<MmdSection, string> = {
-  identity: "Who produced the goods, and where. Pulled from the installation profile.",
-  boundary: "Which production steps are inside the boundary and which are explicitly outside. The boundary is the process, not the site.",
+  identity:
+    "Who produced the goods, and where. Pulled from the installation profile.",
+  boundary:
+    "Which production steps are inside the boundary and which are explicitly outside. The boundary is the process, not the site.",
   period: "The window every figure in the dossier belongs to.",
-  parameters: "Everything monitored, derived from what you entered as activity data.",
-  measurement: "How each parameter is measured — the instrument, how often, and when it was last calibrated.",
-  factors: "Every emission factor and calorific value, with the source behind it.",
+  parameters:
+    "Everything monitored, derived from what you entered as activity data.",
+  measurement:
+    "How each parameter is measured — the instrument, how often, and when it was last calibrated.",
+  factors:
+    "Every emission factor and calorific value, with the source behind it.",
   gaps: "Where primary data was missing, how it was estimated, and why the estimate cannot flatter you.",
   qa: "What stops an error reaching the filing.",
-  assumptions: "Every input declared as an assumption. A verifier reads this list first and tests it hardest.",
-  diagram: "A process flow showing the boundary. Almost always the fastest way to answer the completeness question.",
+  assumptions:
+    "Every input declared as an assumption. A verifier reads this list first and tests it hardest.",
+  diagram:
+    "A process flow showing the boundary. Almost always the fastest way to answer the completeness question.",
 };
 
 /* ── The document ───────────────────────────────────────────────
@@ -119,13 +147,43 @@ export const MMD_SECTION_BLURB: Record<MmdSection, string> = {
    changed. That split is what makes "regenerate without losing my edits"
    possible, and it keeps the provenance of the document itself honest. */
 export type MmdContent = {
-  identity: { installationName: string; operator: string; country: string; address: string; unlocode: string; coordinates: string };
-  boundary: { description: string; included: string[]; excluded: string[]; undecided: string[] };
-  period: { start: string; end: string; type: ReportingPeriod["type"]; display: string };
+  identity: {
+    installationName: string;
+    operator: string;
+    country: string;
+    address: string;
+    unlocode: string;
+    coordinates: string;
+  };
+  boundary: {
+    description: string;
+    included: string[];
+    excluded: string[];
+    undecided: string[];
+  };
+  period: {
+    start: string;
+    end: string;
+    type: ReportingPeriod["type"];
+    display: string;
+  };
   parameters: { name: string; unit: string; source: string }[];
   measurement: MeasurementRow[];
-  factors: { parameter: string; value: string; unit: string; source: string; isAssumption: boolean }[];
-  gaps: { parameter: string; window: string; reason: string; method: string; justification: string; estimatedTCO2e: number }[];
+  factors: {
+    parameter: string;
+    value: string;
+    unit: string;
+    source: string;
+    isAssumption: boolean;
+  }[];
+  gaps: {
+    parameter: string;
+    window: string;
+    reason: string;
+    method: string;
+    justification: string;
+    estimatedTCO2e: number;
+  }[];
   qa: { method: QualityAssurance; note: string };
   assumptions: { input: string; reference: string; enteredBy: string }[];
   diagram: { fileId: string | null; fileName: string | null };
@@ -146,7 +204,10 @@ export type MmdDraft = {
   /** exporter edits, applied over the generated content */
   overrides: Partial<MmdContent>;
   qa: { method: QualityAssurance; note: string };
-  measurement: Record<string, Pick<MeasurementRow, "instrument" | "frequency" | "calibrationDate">>;
+  measurement: Record<
+    string,
+    Pick<MeasurementRow, "instrument" | "frequency" | "calibrationDate">
+  >;
   /** sections the exporter has read and confirmed this cycle */
   confirmed: MmdSection[];
   updatedAt: number;
@@ -169,18 +230,28 @@ export function generateMmd(input: MmdInputs): MmdContent {
   const { dataset, boundary, period, gaps, draft } = input;
 
   const decided = new Set([...boundary.included, ...boundary.excluded]);
-  const undecided = (Object.keys(PROCESS_STEP_LABEL) as (keyof typeof PROCESS_STEP_LABEL)[]).filter((s) => !decided.has(s));
+  const undecided = (
+    Object.keys(PROCESS_STEP_LABEL) as (keyof typeof PROCESS_STEP_LABEL)[]
+  ).filter((s) => !decided.has(s));
 
   /* Parameters: exactly what was entered, named the way the exporter will
      recognise it on their own meter list. */
   const parameters: MmdContent["parameters"] = [
-    { name: "Annual production quantity", unit: "t", source: PROVENANCE_LABEL[dataset.annualProductionProvenance.source] },
+    {
+      name: "Annual production quantity",
+      unit: "t",
+      source: PROVENANCE_LABEL[dataset.annualProductionProvenance.source],
+    },
     ...dataset.fuels.map((f) => ({
       name: `${FUEL_LABEL[f.fuel]} consumption`,
       unit: FUEL_UNIT_LABEL[f.unit],
       source: PROVENANCE_LABEL[f.provenance.source],
     })),
-    ...dataset.electricity.map(() => ({ name: "Electricity consumption", unit: "MWh (period total)", source: "Utility metering" })),
+    ...dataset.electricity.map(() => ({
+      name: "Electricity consumption",
+      unit: "MWh (period total)",
+      source: "Utility metering",
+    })),
     ...dataset.processEmissions.map((p) => ({
       name: `${p.material || "Process material"} consumption`,
       unit: "t",
@@ -195,7 +266,9 @@ export function generateMmd(input: MmdInputs): MmdContent {
     return {
       key: ref.key,
       parameter: ref.label,
-      source: PROVENANCE_LABEL[ref.provenance.source] + (ref.provenance.reference ? ` — ${ref.provenance.reference}` : ""),
+      source:
+        PROVENANCE_LABEL[ref.provenance.source] +
+        (ref.provenance.reference ? ` — ${ref.provenance.reference}` : ""),
       instrument: saved?.instrument ?? "",
       frequency: saved?.frequency ?? "",
       calibrationDate: saved?.calibrationDate ?? "",
@@ -211,7 +284,9 @@ export function generateMmd(input: MmdInputs): MmdContent {
       parameter: `${FUEL_LABEL[f.fuel]} — emission factor`,
       value: String(f.emissionFactor),
       unit: "tCO₂/GJ",
-      source: PROVENANCE_LABEL[f.efProvenance.source] + (f.efProvenance.reference ? ` — ${f.efProvenance.reference}` : ""),
+      source:
+        PROVENANCE_LABEL[f.efProvenance.source] +
+        (f.efProvenance.reference ? ` — ${f.efProvenance.reference}` : ""),
       isAssumption: isAssumption(f.efProvenance),
     });
     if (needsNcv(f.unit)) {
@@ -220,13 +295,20 @@ export function generateMmd(input: MmdInputs): MmdContent {
         value: String(f.ncv ?? ""),
         unit: ncvUnitLabel(f.unit),
         source: f.ncvProvenance
-          ? PROVENANCE_LABEL[f.ncvProvenance.source] + (f.ncvProvenance.reference ? ` — ${f.ncvProvenance.reference}` : "")
+          ? PROVENANCE_LABEL[f.ncvProvenance.source] +
+            (f.ncvProvenance.reference ? ` — ${f.ncvProvenance.reference}` : "")
           : "Not stated",
         isAssumption: isAssumption(f.ncvProvenance),
       });
     }
     if (f.oxidationFactor != null && f.oxidationFactor !== 1) {
-      factors.push({ parameter: `${FUEL_LABEL[f.fuel]} — oxidation factor`, value: String(f.oxidationFactor), unit: "—", source: "Operator", isAssumption: false });
+      factors.push({
+        parameter: `${FUEL_LABEL[f.fuel]} — oxidation factor`,
+        value: String(f.oxidationFactor),
+        unit: "—",
+        source: "Operator",
+        isAssumption: false,
+      });
     }
   }
   for (const e of dataset.electricity) {
@@ -243,7 +325,9 @@ export function generateMmd(input: MmdInputs): MmdContent {
       parameter: `${p.material || "Process material"} — carbon content`,
       value: String(p.carbonContent),
       unit: "mass fraction",
-      source: PROVENANCE_LABEL[p.provenance.source] + (p.provenance.reference ? ` — ${p.provenance.reference}` : ""),
+      source:
+        PROVENANCE_LABEL[p.provenance.source] +
+        (p.provenance.reference ? ` — ${p.provenance.reference}` : ""),
       isAssumption: isAssumption(p.provenance),
     });
   }
@@ -256,7 +340,12 @@ export function generateMmd(input: MmdInputs): MmdContent {
       excluded: boundary.excluded.map((s) => PROCESS_STEP_LABEL[s]),
       undecided: undecided.map((s) => PROCESS_STEP_LABEL[s]),
     },
-    period: { start: period.start, end: period.end, type: period.type, display: displayPeriod(period) },
+    period: {
+      start: period.start,
+      end: period.end,
+      type: period.type,
+      display: displayPeriod(period),
+    },
     parameters,
     measurement,
     factors,
@@ -271,7 +360,11 @@ export function generateMmd(input: MmdInputs): MmdContent {
     qa: draft.qa,
     assumptions: provenanceRefs(dataset)
       .filter((r) => isAssumption(r.provenance))
-      .map((r) => ({ input: r.label, reference: r.provenance.reference ?? "", enteredBy: r.provenance.enteredBy })),
+      .map((r) => ({
+        input: r.label,
+        reference: r.provenance.reference ?? "",
+        enteredBy: r.provenance.enteredBy,
+      })),
     diagram: { fileId: boundary.diagramFileId ?? null, fileName: null },
   };
 
@@ -285,30 +378,81 @@ export type MmdIssue = { section: MmdSection; message: string };
 
 export function mmdIssues(c: MmdContent): MmdIssue[] {
   const out: MmdIssue[] = [];
-  if (!c.identity.installationName.trim()) out.push({ section: "identity", message: "Installation name is missing." });
-  if (!c.identity.coordinates.trim()) out.push({ section: "identity", message: "Geographic coordinates are missing — CBAM identifies the installation by them." });
-  if (!c.boundary.description.trim()) out.push({ section: "boundary", message: "The boundary has no description." });
+  if (!c.identity.installationName.trim())
+    out.push({ section: "identity", message: "Installation name is missing." });
+  if (!c.identity.coordinates.trim())
+    out.push({
+      section: "identity",
+      message:
+        "Geographic coordinates are missing — CBAM identifies the installation by them.",
+    });
+  if (!c.boundary.description.trim())
+    out.push({
+      section: "boundary",
+      message: "The boundary has no description.",
+    });
   if (c.boundary.undecided.length > 0) {
-    out.push({ section: "boundary", message: `${c.boundary.undecided.length} production step${c.boundary.undecided.length === 1 ? " is" : "s are"} neither included nor excluded — an open boundary fails the completeness test.` });
+    out.push({
+      section: "boundary",
+      message: `${c.boundary.undecided.length} production step${c.boundary.undecided.length === 1 ? " is" : "s are"} neither included nor excluded — an open boundary fails the completeness test.`,
+    });
   }
-  if (c.parameters.length === 0) out.push({ section: "parameters", message: "No parameters are monitored — enter activity data first." });
+  if (c.parameters.length === 0)
+    out.push({
+      section: "parameters",
+      message: "No parameters are monitored — enter activity data first.",
+    });
   const noInstrument = c.measurement.filter((m) => !m.instrument.trim()).length;
-  if (noInstrument > 0) out.push({ section: "measurement", message: `${noInstrument} parameter${noInstrument === 1 ? " has" : "s have"} no instrument recorded.` });
-  const noCalibration = c.measurement.filter((m) => m.instrument.trim() && !m.calibrationDate).length;
-  if (noCalibration > 0) out.push({ section: "measurement", message: `${noCalibration} instrument${noCalibration === 1 ? " has" : "s have"} no calibration date.` });
-  const unsourced = c.factors.filter((f) => !f.source.trim() || f.source === "Not stated").length;
-  if (unsourced > 0) out.push({ section: "factors", message: `${unsourced} calculation factor${unsourced === 1 ? " has" : "s have"} no source. A factor without a citation is an assumption.` });
+  if (noInstrument > 0)
+    out.push({
+      section: "measurement",
+      message: `${noInstrument} parameter${noInstrument === 1 ? " has" : "s have"} no instrument recorded.`,
+    });
+  const noCalibration = c.measurement.filter(
+    (m) => m.instrument.trim() && !m.calibrationDate,
+  ).length;
+  if (noCalibration > 0)
+    out.push({
+      section: "measurement",
+      message: `${noCalibration} instrument${noCalibration === 1 ? " has" : "s have"} no calibration date.`,
+    });
+  const unsourced = c.factors.filter(
+    (f) => !f.source.trim() || f.source === "Not stated",
+  ).length;
+  if (unsourced > 0)
+    out.push({
+      section: "factors",
+      message: `${unsourced} calculation factor${unsourced === 1 ? " has" : "s have"} no source. A factor without a citation is an assumption.`,
+    });
   for (const g of c.gaps) {
-    if (!g.justification.trim()) out.push({ section: "gaps", message: `"${g.parameter || "A gap"}" has no conservativeness justification.` });
+    if (!g.justification.trim())
+      out.push({
+        section: "gaps",
+        message: `"${g.parameter || "A gap"}" has no conservativeness justification.`,
+      });
   }
-  if (c.qa.method === "none") out.push({ section: "qa", message: "No quality assurance is claimed. A verifier will ask what stops an error reaching the filing." });
-  if (!c.diagram.fileId) out.push({ section: "diagram", message: "No installation diagram attached." });
+  if (c.qa.method === "none")
+    out.push({
+      section: "qa",
+      message:
+        "No quality assurance is claimed. A verifier will ask what stops an error reaching the filing.",
+    });
+  if (!c.diagram.fileId)
+    out.push({
+      section: "diagram",
+      message: "No installation diagram attached.",
+    });
   return out;
 }
 
 /* ── Versioning & diff ──────────────────────────────────────────
    The consistency test, made answerable. */
-export type MmdChange = { section: MmdSection; field: string; before: string; after: string };
+export type MmdChange = {
+  section: MmdSection;
+  field: string;
+  before: string;
+  after: string;
+};
 
 /* A row in a generated table — a monitored parameter, a factor, a gap —
    described the way the person reading the change list would say it out loud.
@@ -319,8 +463,10 @@ function describeItem(v: unknown): string {
   if (v == null) return "";
   if (typeof v !== "object") return String(v);
   const o = v as Record<string, unknown>;
-  const label = o.name ?? o.parameter ?? o.input ?? o.material ?? o.affectedParameter ?? "";
-  const detail = o.value ?? o.instrument ?? o.method ?? o.source ?? o.unit ?? "";
+  const label =
+    o.name ?? o.parameter ?? o.input ?? o.material ?? o.affectedParameter ?? "";
+  const detail =
+    o.value ?? o.instrument ?? o.method ?? o.source ?? o.unit ?? "";
   const text = [label, detail].filter((x) => x !== "" && x != null).join(" — ");
   return text || JSON.stringify(v);
 }
@@ -332,7 +478,10 @@ const asText = (v: unknown): string => {
   return String(v);
 };
 
-export function diffVersions(before: MmdContent, after: MmdContent): MmdChange[] {
+export function diffVersions(
+  before: MmdContent,
+  after: MmdContent,
+): MmdChange[] {
   const changes: MmdChange[] = [];
   for (const section of MMD_SECTIONS) {
     const a = before[section] as unknown;
@@ -348,20 +497,30 @@ export function diffVersions(before: MmdContent, after: MmdContent): MmdChange[]
       const beforeSet = new Set(beforeItems);
       const afterSet = new Set(afterItems);
       for (const item of afterItems) {
-        if (!beforeSet.has(item)) changes.push({ section, field: "added", before: "—", after: item });
+        if (!beforeSet.has(item))
+          changes.push({ section, field: "added", before: "—", after: item });
       }
       for (const item of beforeItems) {
-        if (!afterSet.has(item)) changes.push({ section, field: "removed", before: item, after: "—" });
+        if (!afterSet.has(item))
+          changes.push({ section, field: "removed", before: item, after: "—" });
       }
       continue;
     }
 
     if (a && b && typeof a === "object" && typeof b === "object") {
-      const keys = new Set([...Object.keys(a as object), ...Object.keys(b as object)]);
+      const keys = new Set([
+        ...Object.keys(a as object),
+        ...Object.keys(b as object),
+      ]);
       for (const k of keys) {
-        const av = asText((a as Record<string, unknown>)[k]);
-        const bv = asText((b as Record<string, unknown>)[k]);
-        if (av !== bv) changes.push({ section, field: k, before: av, after: bv });
+        const calendarField =
+          section === "period" && (k === "start" || k === "end");
+        const beforeText = asText((a as Record<string, unknown>)[k]);
+        const afterText = asText((b as Record<string, unknown>)[k]);
+        const av = calendarField ? beforeText.slice(0, 10) : beforeText;
+        const bv = calendarField ? afterText.slice(0, 10) : afterText;
+        if (av !== bv)
+          changes.push({ section, field: k, before: av, after: bv });
       }
       continue;
     }
@@ -382,7 +541,7 @@ const VERSION_KEY = "certrace:mmd-versions";
 function read<T>(key: string): Record<string, T> {
   if (typeof window === "undefined") return {};
   try {
-    const raw = window.localStorage.getItem(key);
+    const raw = accountStorage.getItem(key);
     if (!raw) return {};
     const parsed = JSON.parse(raw) as Record<string, T>;
     return parsed && typeof parsed === "object" ? parsed : {};
@@ -394,7 +553,7 @@ function read<T>(key: string): Record<string, T> {
 function write<T>(key: string, value: Record<string, T>): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(key, JSON.stringify(value));
+    accountStorage.setItem(key, JSON.stringify(value));
   } catch {
     /* ignore quota */
   }
@@ -409,7 +568,8 @@ export const emptyDraft = (declarationId: string): MmdDraft => ({
   updatedAt: Date.now(),
 });
 
-export const loadDraft = (declarationId: string): MmdDraft => read<MmdDraft>(DRAFT_KEY)[declarationId] ?? emptyDraft(declarationId);
+export const loadDraft = (declarationId: string): MmdDraft =>
+  read<MmdDraft>(DRAFT_KEY)[declarationId] ?? emptyDraft(declarationId);
 
 export function saveDraft(draft: MmdDraft): MmdDraft {
   const all = read<MmdDraft>(DRAFT_KEY);
@@ -420,14 +580,20 @@ export function saveDraft(draft: MmdDraft): MmdDraft {
 }
 
 export const listVersions = (declarationId: string): MmdVersion[] =>
-  (read<MmdVersion[]>(VERSION_KEY)[declarationId] ?? []).sort((a, b) => a.n - b.n);
+  (read<MmdVersion[]>(VERSION_KEY)[declarationId] ?? []).sort(
+    (a, b) => a.n - b.n,
+  );
 
 export const latestVersion = (declarationId: string): MmdVersion | null => {
   const list = listVersions(declarationId);
   return list.length ? list[list.length - 1] : null;
 };
 
-export function finaliseVersion(declarationId: string, content: MmdContent, author: string): MmdVersion {
+export function finaliseVersion(
+  declarationId: string,
+  content: MmdContent,
+  author: string,
+): MmdVersion {
   const all = read<MmdVersion[]>(VERSION_KEY);
   const list = all[declarationId] ?? [];
   const version: MmdVersion = {

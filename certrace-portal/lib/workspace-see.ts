@@ -46,8 +46,16 @@ import {
   type AnnualProduction,
   type MonthResult,
 } from "./monthly-data";
-import { precursorContribution, type PrecursorResult } from "./precursor-suppliers";
-import { goodsCategory, type VerificationWorkspace } from "./workspace";
+import {
+  precursorContribution,
+  type PrecursorResult,
+} from "./precursor-suppliers";
+import { listInternal } from "./internal-precursors";
+import {
+  getWorkspace,
+  goodsCategory,
+  type VerificationWorkspace,
+} from "./workspace";
 
 /* ── µ_year ─────────────────────────────────────────────────────
    The default-value markup applies to figures built on published defaults,
@@ -78,6 +86,10 @@ export type WorkspaceSEE = {
   directTCO2: number;
   fuelTCO2: number;
   processTCO2: number;
+  /** item 16(b), counted in `directTCO2` */
+  measuredTCO2: number;
+  /** item 16(d), taken off `directTCO2` */
+  transferredOutTCO2: number;
   /** M5 — tCO₂ */
   indirectTCO2: number;
   /** M4 */
@@ -102,8 +114,97 @@ export type WorkspaceSEE = {
   workings: SeeWorkings[];
 };
 
+/* ── Products made at the same site (Annex IV items 18, 19, 27) ─────────
+   Each row is a link to another product report of the installation (lib/internal-
+   precursors.ts). The embedded emissions it carries are THAT report's own chargeable
+   figure — read here, every time, so nothing is typed twice and nothing goes stale. */
+export type InternalRow = {
+  id: string;
+  sourceWorkspaceId: string;
+  /** null when the report it pointed at no longer exists */
+  source: VerificationWorkspace | null;
+  quantityUsedT: number | null;
+  /** t of the precursor per t of this good */
+  ratio: number | null;
+  /** the source's specific embedded emissions that travel with it, tCO₂e/t */
+  see: number;
+  /** ratio × see — what it adds to this good's SEE */
+  contribution: number;
+  /** why it cannot be counted yet, in words; null when it can */
+  issue: string | null;
+};
+
+// Reports being worked out right now. A loop (A uses B, B uses A) stops here instead of running forever; the form refuses to make one.
+const working = new Set<string>();
+
+export function internalContribution(
+  workspace: Pick<VerificationWorkspace, "id" | "year">,
+): { rows: InternalRow[]; perTonne: number } {
+  const links = listInternal(workspace.id);
+  if (links.length === 0 || working.has(workspace.id))
+    return { rows: [], perTonne: 0 };
+  const annual = annualProductionFor(workspace).tonnes;
+  working.add(workspace.id);
+  try {
+    const rows = links.map((l): InternalRow => {
+      const source = getWorkspace(l.sourceWorkspaceId);
+      const quantityUsedT =
+        l.quantityUsedT != null && l.quantityUsedT > 0 ? l.quantityUsedT : null;
+      const ratio =
+        quantityUsedT != null && annual > 0 ? quantityUsedT / annual : null;
+      const base = {
+        id: l.id,
+        sourceWorkspaceId: l.sourceWorkspaceId,
+        source: source ?? null,
+        quantityUsedT,
+        ratio,
+      };
+      if (!source || source.archivedAt)
+        return {
+          ...base,
+          see: 0,
+          contribution: 0,
+          issue: "The product report it came from no longer exists.",
+        };
+      const made = workspaceSEE(source);
+      if (!made.computable)
+        return {
+          ...base,
+          see: 0,
+          contribution: 0,
+          issue: `${source.productName} has no production counted yet, so it has no embedded emissions to carry.`,
+        };
+      const see = made.seeChargeable;
+      if (quantityUsedT == null)
+        return {
+          ...base,
+          see,
+          contribution: 0,
+          issue: "Enter how many tonnes of it this good used.",
+        };
+      if (ratio == null)
+        return {
+          ...base,
+          see,
+          contribution: 0,
+          issue:
+            "This good has no production counted yet, so the quantity cannot be put per tonne.",
+        };
+      return { ...base, see, contribution: ratio * see, issue: null };
+    });
+    return { rows, perTonne: rows.reduce((a, r) => a + r.contribution, 0) };
+  } finally {
+    working.delete(workspace.id);
+  }
+}
+
 const n = (v: number, dp = 4): string =>
-  Number.isFinite(v) ? v.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: dp }) : "—";
+  Number.isFinite(v)
+    ? v.toLocaleString("en-GB", {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: dp,
+      })
+    : "—";
 
 /* Fixed decimals, for the substitution lines a verifier re-keys into their
    own sheet. "45" and "45.0" are the same number but not the same evidence:
@@ -111,7 +212,12 @@ const n = (v: number, dp = 4): string =>
    them reproduce the arithmetic and land on the same answer rather than
    wondering whether something was rounded on the way past. */
 const fix = (v: number, dp: number): string =>
-  Number.isFinite(v) ? v.toLocaleString("en-GB", { minimumFractionDigits: dp, maximumFractionDigits: dp }) : "—";
+  Number.isFinite(v)
+    ? v.toLocaleString("en-GB", {
+        minimumFractionDigits: dp,
+        maximumFractionDigits: dp,
+      })
+    : "—";
 
 export function workspaceSEE(workspace: VerificationWorkspace): WorkspaceSEE {
   const entries = monthsForWorkspace(workspace);
@@ -125,7 +231,14 @@ export function workspaceSEE(workspace: VerificationWorkspace): WorkspaceSEE {
 
   const fuelTCO2 = months.reduce((a, m) => a + m.fuelTCO2, 0);
   const processTCO2 = months.reduce((a, m) => a + m.processTCO2, 0);
-  const directTCO2 = fuelTCO2 + processTCO2; // M3
+  const measuredTCO2 = months.reduce((a, m) => a + m.measuredTCO2, 0);
+  const transferredOutTCO2 = months.reduce(
+    (a, m) => a + m.transferredOutTCO2,
+    0,
+  );
+  // Each month's own total, floored at zero: CO₂ sent on cannot take a month
+  // below nothing, and a negative month must not subtract from a positive one.
+  const directTCO2 = months.reduce((a, m) => a + m.directTCO2, 0); // M3
   const indirectTCO2 = months.reduce((a, m) => a + m.indirectTCO2, 0); // M5
 
   const q = production.tonnes;
@@ -135,12 +248,15 @@ export function workspaceSEE(workspace: VerificationWorkspace): WorkspaceSEE {
   const seeIndirect = computable ? indirectTCO2 / q : 0; // M6
 
   const precursors = precursorContribution(workspace); // M7 + M8
-  const seePrecursor = precursors.perTonne;
+  const internal = internalContribution(workspace);
+  const seePrecursor = precursors.perTonne + internal.perTonne;
 
   const seeTotal = seeDirect + seeIndirect + seePrecursor; // M9
 
   const indirectCounted = indirectIsChargeable(goodsCategory(workspace));
-  const seeChargeable = (seeDirect + seePrecursor + (indirectCounted ? seeIndirect : 0)) * (1 + NO_MARKUP); // M10
+  const seeChargeable =
+    (seeDirect + seePrecursor + (indirectCounted ? seeIndirect : 0)) *
+    (1 + NO_MARKUP); // M10
 
   const errors = months.flatMap((m) => m.errors);
 
@@ -157,7 +273,12 @@ export function workspaceSEE(workspace: VerificationWorkspace): WorkspaceSEE {
       id: "M3",
       label: "Direct emissions",
       formula: "direct_CO₂_annual = Σ_m (fuel_CO₂_m + process_CO₂_m)",
-      substitution: `${n(fuelTCO2, 2)} tCO₂ (fuel) + ${n(processTCO2, 2)} tCO₂ (process)`,
+      substitution:
+        `${n(fuelTCO2, 2)} tCO₂ (fuel) + ${n(processTCO2, 2)} tCO₂ (process)` +
+        (measuredTCO2 > 0 ? ` + ${n(measuredTCO2, 2)} tCO₂e (measured)` : "") +
+        (transferredOutTCO2 > 0
+          ? ` − ${n(transferredOutTCO2, 2)} tCO₂ (sent on, not emitted)`
+          : ""),
       result: `${n(directTCO2, 2)} tCO₂`,
       value: directTCO2,
     },
@@ -165,7 +286,7 @@ export function workspaceSEE(workspace: VerificationWorkspace): WorkspaceSEE {
       id: "M4",
       label: "Direct SEE",
       formula: "SEE_direct = direct_CO₂_annual / production_annual",
-      substitution: `(${fix(fuelTCO2, 1)} + ${fix(processTCO2, 1)}) tCO₂ / ${n(q, 0)} t`,
+      substitution: `(${fix(fuelTCO2, 1)} + ${fix(processTCO2, 1)}${measuredTCO2 > 0 ? ` + ${fix(measuredTCO2, 1)}` : ""}${transferredOutTCO2 > 0 ? ` − ${fix(transferredOutTCO2, 1)}` : ""}) tCO₂ / ${n(q, 0)} t`,
       result: `${fix(seeDirect, 4)} tCO₂e/t`,
       value: seeDirect,
     },
@@ -173,7 +294,10 @@ export function workspaceSEE(workspace: VerificationWorkspace): WorkspaceSEE {
       id: "M5",
       label: "Electricity emissions",
       formula: "elec_CO₂_annual = Σ_m (MWh_m × EF_elec_m)",
-      substitution: `${n(months.reduce((a, m) => a + m.indirectTCO2, 0), 2)} tCO₂ across ${months.length} months`,
+      substitution: `${n(
+        months.reduce((a, m) => a + m.indirectTCO2, 0),
+        2,
+      )} tCO₂ across ${months.length} months`,
       result: `${n(indirectTCO2, 2)} tCO₂`,
       value: indirectTCO2,
     },
@@ -190,10 +314,18 @@ export function workspaceSEE(workspace: VerificationWorkspace): WorkspaceSEE {
       label: "Precursor SEE",
       formula: "SEE_prec = Σ_i ( m_i × SEE_eff(i) )",
       substitution:
-        precursors.byNode
-          .filter((p) => p.depth === 1)
-          .map((p) => `${n(p.ratioFromGood ?? 0, 3)} t/t × ${p.isScrap ? "0 (scrap)" : n(p.see, 4)}`)
-          .join(" + ") || "no precursors recorded",
+        [
+          ...precursors.byNode
+            .filter((p) => p.depth === 1)
+            .map(
+              (p) =>
+                `${n(p.ratioFromGood ?? 0, 3)} t/t × ${p.isScrap ? "0 (scrap)" : n(p.see, 4)}`,
+            ),
+          ...internal.rows.map(
+            (r) =>
+              `${n(r.ratio ?? 0, 3)} t/t × ${n(r.see, 4)} (${r.source?.productName ?? "made here"})`,
+          ),
+        ].join(" + ") || "no precursors recorded",
       result: `${fix(seePrecursor, 4)} tCO₂e/t`,
       value: seePrecursor,
     },
@@ -208,7 +340,8 @@ export function workspaceSEE(workspace: VerificationWorkspace): WorkspaceSEE {
     {
       id: "M10",
       label: "Chargeable SEE",
-      formula: "SEE_charge = (SEE_direct + SEE_prec + ind_p × SEE_indirect) × (1 + µ_year)",
+      formula:
+        "SEE_charge = (SEE_direct + SEE_prec + ind_p × SEE_indirect) × (1 + µ_year)",
       substitution:
         `(${fix(seeDirect, 4)} + ${fix(seePrecursor, 4)} + ${indirectCounted ? "1" : "0"} × ${fix(seeIndirect, 4)}) × ${fix(1 + NO_MARKUP, 1)}` +
         (indirectCounted
@@ -225,6 +358,8 @@ export function workspaceSEE(workspace: VerificationWorkspace): WorkspaceSEE {
     directTCO2,
     fuelTCO2,
     processTCO2,
+    measuredTCO2,
+    transferredOutTCO2,
     indirectTCO2,
     seeDirect,
     seeIndirect,

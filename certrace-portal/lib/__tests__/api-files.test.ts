@@ -42,8 +42,14 @@ g.localStorage = storage;
 const { configureApi } = await import("../api/config");
 const { ApiError } = await import("../api/errors");
 const { saveSession, clearSession } = await import("../api/session");
-const { uploadDeclarationFile, uploadLinkFile, downloadFile, deleteFile, uploadLimits, listLinkFiles } =
-  await import("../api/files");
+const {
+  uploadDeclarationFile,
+  uploadLinkFile,
+  downloadFile,
+  deleteFile,
+  uploadLimits,
+  listLinkFiles,
+} = await import("../api/files");
 
 type Captured = { url: string; init: RequestInit };
 
@@ -73,14 +79,20 @@ const storedFile = (over: Record<string, unknown> = {}) => ({
 });
 
 const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
 
 /* A File is not in every Node build's globals the way Blob is, so the tests
    construct one only where the real class exists and fall back to a Blob with
    the two properties the client actually reads. */
 function fileOf(name: string, type: string, bytes: Uint8Array): File {
-  if (typeof File === "function") return new File([bytes as BlobPart], name, { type });
-  const blob = new Blob([bytes as BlobPart], { type }) as Blob & { name: string };
+  if (typeof File === "function")
+    return new File([bytes as BlobPart], name, { type });
+  const blob = new Blob([bytes as BlobPart], { type }) as Blob & {
+    name: string;
+  };
   blob.name = name;
   return blob as unknown as File;
 }
@@ -89,7 +101,11 @@ const PDF = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37]);
 
 test("the file goes up as itself, not wrapped in JSON", async () => {
   const calls = stubServer(() => json(storedFile()));
-  saveSession({ accessToken: "tok", refreshToken: "r", user: { id: "u", email: "e@x.co", onboarded: true } });
+  saveSession({
+    accessToken: "tok",
+    refreshToken: "r",
+    user: { id: "u", email: "e@x.co", onboarded: true, ready: true },
+  });
 
   const file = fileOf("mill cert.pdf", "application/pdf", PDF);
   await uploadDeclarationFile("decl-1", file);
@@ -101,15 +117,27 @@ test("the file goes up as itself, not wrapped in JSON", async () => {
     "application/pdf",
     "the browser's own type for the file is what the server checks the bytes against",
   );
-  assert.equal(call.init.body, file, "the File itself is the body — base64 in JSON costs a third more bytes");
+  assert.equal(
+    call.init.body,
+    file,
+    "the File itself is the body — base64 in JSON costs a third more bytes",
+  );
   clearSession();
 });
 
 test("the filename travels encoded in the query string", async () => {
   const calls = stubServer(() => json(storedFile()));
-  saveSession({ accessToken: "tok", refreshToken: "r", user: { id: "u", email: "e@x.co", onboarded: true } });
+  saveSession({
+    accessToken: "tok",
+    refreshToken: "r",
+    user: { id: "u", email: "e@x.co", onboarded: true, ready: true },
+  });
 
-  await uploadDeclarationFile("decl 1/x", fileOf("cert #7 (final).pdf", "application/pdf", PDF), "iso-14064");
+  await uploadDeclarationFile(
+    "decl 1/x",
+    fileOf("cert #7 (final).pdf", "application/pdf", PDF),
+    "iso-14064",
+  );
 
   const url = new URL(calls[0].url);
   assert.equal(url.pathname, "/api/v1/declarations/decl%201%2Fx/files");
@@ -120,11 +148,22 @@ test("the filename travels encoded in the query string", async () => {
 
 test("the exporter's upload carries their credential", async () => {
   const calls = stubServer(() => json(storedFile()));
-  saveSession({ accessToken: "tok-abc", refreshToken: "r", user: { id: "u", email: "e@x.co", onboarded: true } });
+  saveSession({
+    accessToken: "tok-abc",
+    refreshToken: "r",
+    user: { id: "u", email: "e@x.co", onboarded: true, ready: true },
+  });
 
-  await uploadDeclarationFile("decl-1", fileOf("a.pdf", "application/pdf", PDF));
+  await uploadDeclarationFile(
+    "decl-1",
+    fileOf("a.pdf", "application/pdf", PDF),
+  );
 
-  assert.equal((calls[0].init.headers as Record<string, string>).Authorization, "Bearer tok-abc");
+  assert.equal(
+    (calls[0].init.headers as Record<string, string>).Authorization,
+    undefined,
+  );
+  assert.equal(calls[0].init.credentials, "include");
   clearSession();
 });
 
@@ -132,8 +171,14 @@ test("a supplier's upload carries no credential, even when one is stored", async
   /* The exporter opens the Smart Link in their own browser to see what the
      supplier sees. Their token must not travel to a route that has to work
      for someone who has none. */
-  const calls = stubServer(() => json(storedFile({ uploadedBySupplier: true })));
-  saveSession({ accessToken: "exporter-token", refreshToken: "r", user: { id: "u", email: "e@x.co", onboarded: true } });
+  const calls = stubServer(() =>
+    json(storedFile({ uploadedBySupplier: true })),
+  );
+  saveSession({
+    accessToken: "exporter-token",
+    refreshToken: "r",
+    user: { id: "u", email: "e@x.co", onboarded: true, ready: true },
+  });
 
   await uploadLinkFile("tok-123", fileOf("a.pdf", "application/pdf", PDF));
   await listLinkFiles("tok-123");
@@ -148,18 +193,67 @@ test("a supplier's upload carries no credential, even when one is stored", async
   clearSession();
 });
 
+test("a Smart Link file upload can outlast the default JSON request timeout", async () => {
+  configureApi({
+    baseUrl: "https://api.certrace.co",
+    defaultTimeoutMs: 1,
+    fetchImpl: (async (_url: string | URL | Request, init?: RequestInit) => {
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(resolve, 20);
+        init?.signal?.addEventListener(
+          "abort",
+          () => {
+            clearTimeout(timer);
+            reject(new Error("aborted"));
+          },
+          { once: true },
+        );
+      });
+      return json(storedFile({ uploadedBySupplier: true }));
+    }) as typeof fetch,
+  });
+  try {
+    await uploadLinkFile(
+      "tok-123",
+      fileOf("report.pdf", "application/pdf", PDF),
+    );
+  } finally {
+    configureApi({ defaultTimeoutMs: 15_000 });
+  }
+});
+
 test("a refusal keeps the server's code and message", async () => {
   stubServer(() =>
-    json({ detail: { code: "FILE_TOO_LARGE", message: "That file is 41,000,000 bytes and the limit is 15,728,640." } }, 422),
+    json(
+      {
+        detail: {
+          code: "FILE_TOO_LARGE",
+          message: "That file is 41,000,000 bytes and the limit is 15,728,640.",
+        },
+      },
+      422,
+    ),
   );
-  saveSession({ accessToken: "tok", refreshToken: "r", user: { id: "u", email: "e@x.co", onboarded: true } });
+  saveSession({
+    accessToken: "tok",
+    refreshToken: "r",
+    user: { id: "u", email: "e@x.co", onboarded: true, ready: true },
+  });
 
   await assert.rejects(
-    () => uploadDeclarationFile("decl-1", fileOf("huge.pdf", "application/pdf", PDF)),
+    () =>
+      uploadDeclarationFile(
+        "decl-1",
+        fileOf("huge.pdf", "application/pdf", PDF),
+      ),
     (error: unknown) => {
       assert.ok(error instanceof ApiError);
       assert.equal(error.code, "FILE_TOO_LARGE");
-      assert.match(error.message, /15,728,640/, "the portal shows the server's own message");
+      assert.match(
+        error.message,
+        /15,728,640/,
+        "the portal shows the server's own message",
+      );
       return true;
     },
   );
@@ -170,7 +264,11 @@ test("a file the browser cannot type is refused before it is sent", async () => 
   /* An empty `type` would be declared as nothing, and the server refuses an
      upload with no declared type. Saying so here names the file. */
   const calls = stubServer(() => json(storedFile()));
-  saveSession({ accessToken: "tok", refreshToken: "r", user: { id: "u", email: "e@x.co", onboarded: true } });
+  saveSession({
+    accessToken: "tok",
+    refreshToken: "r",
+    user: { id: "u", email: "e@x.co", onboarded: true, ready: true },
+  });
 
   await assert.rejects(
     () => uploadDeclarationFile("decl-1", fileOf("scan.xyz", "", PDF)),
@@ -181,8 +279,18 @@ test("a file the browser cannot type is refused before it is sent", async () => 
 });
 
 test("a download comes back as bytes, not as parsed JSON", async () => {
-  stubServer(() => new Response(PDF as unknown as BodyInit, { status: 200, headers: { "Content-Type": "application/pdf" } }));
-  saveSession({ accessToken: "tok", refreshToken: "r", user: { id: "u", email: "e@x.co", onboarded: true } });
+  stubServer(
+    () =>
+      new Response(PDF as unknown as BodyInit, {
+        status: 200,
+        headers: { "Content-Type": "application/pdf" },
+      }),
+  );
+  saveSession({
+    accessToken: "tok",
+    refreshToken: "r",
+    user: { id: "u", email: "e@x.co", onboarded: true, ready: true },
+  });
 
   const blob = await downloadFile("f-1");
   assert.equal(blob.size, PDF.byteLength);
@@ -191,7 +299,11 @@ test("a download comes back as bytes, not as parsed JSON", async () => {
 
 test("a delete accepts the empty 204 body", async () => {
   stubServer(() => new Response(null, { status: 204 }));
-  saveSession({ accessToken: "tok", refreshToken: "r", user: { id: "u", email: "e@x.co", onboarded: true } });
+  saveSession({
+    accessToken: "tok",
+    refreshToken: "r",
+    user: { id: "u", email: "e@x.co", onboarded: true, ready: true },
+  });
 
   await deleteFile("f-1");
   clearSession();
@@ -199,12 +311,23 @@ test("a delete accepts the empty 204 body", async () => {
 
 test("the limits are readable without a session", async () => {
   const calls = stubServer(() =>
-    json({ maxBytes: 15_728_640, allowedContentTypes: ["application/pdf"], allowedExtensions: [".pdf"] }),
+    json({
+      maxBytes: 15_728_640,
+      allowedContentTypes: ["application/pdf"],
+      allowedExtensions: [".pdf"],
+    }),
   );
-  saveSession({ accessToken: "tok", refreshToken: "r", user: { id: "u", email: "e@x.co", onboarded: true } });
+  saveSession({
+    accessToken: "tok",
+    refreshToken: "r",
+    user: { id: "u", email: "e@x.co", onboarded: true, ready: true },
+  });
 
   const limits = await uploadLimits();
   assert.equal(limits.maxBytes, 15_728_640);
-  assert.equal((calls[0].init.headers as Record<string, string>).Authorization, undefined);
+  assert.equal(
+    (calls[0].init.headers as Record<string, string>).Authorization,
+    undefined,
+  );
   clearSession();
 });

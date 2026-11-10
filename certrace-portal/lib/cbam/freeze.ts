@@ -1,3 +1,4 @@
+import { accountStorage } from "../account-storage";
 /* ════════════════════════════════════════════════════════════
    FREEZE, VERSION, FOUR EYES (gap G8)
 
@@ -89,7 +90,7 @@ type Store = Record<string, CalculationSnapshot[]>;
 function read(): Store {
   if (typeof window === "undefined") return {};
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = accountStorage.getItem(KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw) as Store;
     return parsed && typeof parsed === "object" ? parsed : {};
@@ -101,7 +102,7 @@ function read(): Store {
 function write(store: Store): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(store));
+    accountStorage.setItem(KEY, JSON.stringify(store));
   } catch {
     /* ignore quota */
   }
@@ -111,12 +112,15 @@ export const listSnapshots = (declarationId: string): CalculationSnapshot[] =>
   (read()[declarationId] ?? []).sort((a, b) => a.version - b.version);
 
 /** The current snapshot — what the UI shows and what new outputs bind to. */
-export function activeSnapshot(declarationId: string): CalculationSnapshot | null {
+export function activeSnapshot(
+  declarationId: string,
+): CalculationSnapshot | null {
   const list = listSnapshots(declarationId);
   return list.length ? list[list.length - 1] : null;
 }
 
-export const isFrozen = (declarationId: string): boolean => activeSnapshot(declarationId) !== null;
+export const isFrozen = (declarationId: string): boolean =>
+  activeSnapshot(declarationId) !== null;
 
 /** The snapshot that was valid on a given date — Formula 5's `decl(s)`.
 
@@ -124,14 +128,22 @@ export const isFrozen = (declarationId: string): boolean => activeSnapshot(decla
     what was approved in March, whatever has been re-baselined since. Returns
     null when nothing was in force yet, which leaves those tonnes visibly
     unpriced rather than silently valued at today's figure. */
-export function snapshotForDate(declarationId: string, isoDate: string): CalculationSnapshot | null {
-  const eligible = listSnapshots(declarationId).filter((s) => s.effectiveFrom <= isoDate);
+export function snapshotForDate(
+  declarationId: string,
+  isoDate: string,
+): CalculationSnapshot | null {
+  const eligible = listSnapshots(declarationId).filter(
+    (s) => s.effectiveFrom <= isoDate,
+  );
   return eligible.length ? eligible[eligible.length - 1] : null;
 }
 
 /** Chargeable SEE per tonne valid on a date — the resolver lib/shipments.ts
     and the engine's perBuyerTotals both take. */
-export const chargeableSeeForDate = (declarationId: string, isoDate: string): number | null =>
+export const chargeableSeeForDate = (
+  declarationId: string,
+  isoDate: string,
+): number | null =>
   snapshotForDate(declarationId, isoDate)?.outputs.chargeablePerTonne ?? null;
 
 /* ── Hashing ────────────────────────────────────────────────────
@@ -144,7 +156,9 @@ async function hashSnapshot(payload: unknown): Promise<string> {
     if (typeof crypto !== "undefined" && crypto.subtle) {
       const bytes = new TextEncoder().encode(json);
       const digest = await crypto.subtle.digest("SHA-256", bytes);
-      return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+      return [...new Uint8Array(digest)]
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
     }
   } catch {
     /* fall through */
@@ -153,7 +167,8 @@ async function hashSnapshot(payload: unknown): Promise<string> {
      detects accidental drift, and it is labelled so nobody mistakes it for a
      cryptographic guarantee. */
   let h = 0;
-  for (let i = 0; i < json.length; i++) h = (Math.imul(31, h) + json.charCodeAt(i)) | 0;
+  for (let i = 0; i < json.length; i++)
+    h = (Math.imul(31, h) + json.charCodeAt(i)) | 0;
   return `weak-${(h >>> 0).toString(16)}`;
 }
 
@@ -173,11 +188,18 @@ export type FreezeInput = {
 /** Freeze the calculation. Throws rather than returning an error object: a
     caller that ignores a failed freeze would leave the exporter believing
     their figures are locked when they are not. */
-export async function freezeCalculation(input: FreezeInput): Promise<CalculationSnapshot> {
+export async function freezeCalculation(
+  input: FreezeInput,
+): Promise<CalculationSnapshot> {
   if (!input.preparerId.trim() || !input.approverId.trim()) {
-    throw new FourEyesError("A frozen calculation needs both a named preparer and a named approver.");
+    throw new FourEyesError(
+      "A frozen calculation needs both a named preparer and a named approver.",
+    );
   }
-  if (input.preparerId.trim().toLowerCase() === input.approverId.trim().toLowerCase()) {
+  if (
+    input.preparerId.trim().toLowerCase() ===
+    input.approverId.trim().toLowerCase()
+  ) {
     throw new FourEyesError(
       "The person who prepared these figures cannot also approve them. Segregation of duties is one of the seven things a verifier tests, and it is checked here rather than hidden in the UI — pick a different approver.",
     );
@@ -257,7 +279,13 @@ export async function driftedFromSnapshot(
       productionTonnes: engine.productionTonnes,
       indirectCounted: engine.totals.indirectCounted,
     };
-    const hash = await hashSnapshot({ dataset, precursorTree, category, outputs, engineVersion: ENGINE_VERSION });
+    const hash = await hashSnapshot({
+      dataset,
+      precursorTree,
+      category,
+      outputs,
+      engineVersion: ENGINE_VERSION,
+    });
     return hash !== snapshot.contentHash;
   } catch {
     // The live inputs no longer even compute — that is drift by any measure.
@@ -266,9 +294,17 @@ export async function driftedFromSnapshot(
 }
 
 /** A readable change list between two versions, for the verification trail. */
-export type SnapshotChange = { field: string; before: number; after: number; deltaPct: number | null };
+export type SnapshotChange = {
+  field: string;
+  before: number;
+  after: number;
+  deltaPct: number | null;
+};
 
-export function compareSnapshots(before: CalculationSnapshot, after: CalculationSnapshot): SnapshotChange[] {
+export function compareSnapshots(
+  before: CalculationSnapshot,
+  after: CalculationSnapshot,
+): SnapshotChange[] {
   const fields: (keyof SnapshotOutputs)[] = [
     "directPerTonne",
     "indirectPerTonne",
@@ -282,7 +318,12 @@ export function compareSnapshots(before: CalculationSnapshot, after: Calculation
     const a = Number(before.outputs[f]);
     const b = Number(after.outputs[f]);
     if (a === b) continue;
-    out.push({ field: f, before: a, after: b, deltaPct: a !== 0 ? ((b - a) / a) * 100 : null });
+    out.push({
+      field: f,
+      before: a,
+      after: b,
+      deltaPct: a !== 0 ? ((b - a) / a) * 100 : null,
+    });
   }
   return out;
 }

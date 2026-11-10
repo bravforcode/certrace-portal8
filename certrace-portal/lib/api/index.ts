@@ -3,16 +3,10 @@
 
    Screens and stores import from `@/lib/api`; only the modules inside this
    folder import each other. That keeps the surface small enough to change:
-   when a path in docs/API-CONTRACT.md moves, it moves in one file here and
+   when an API path moves, it moves in one file here and
    nowhere in the app.
 
-   Migration order, so a reader knows where this is going:
-
-     1. This layer lands with nothing calling it yet (here).
-     2. Screens call it behind `apiConfigured()`, keeping the localStorage
-        path for a laptop with no backend pointed at it.
-     3. Once every store has moved and the backend is live, the localStorage
-        fallbacks come out.
+   Account and link data require the backend in every deployment.
    ════════════════════════════════════════════════════════════ */
 
 export {
@@ -34,7 +28,13 @@ export {
 } from "./suspension";
 export type { SuspensionNotice } from "./suspension";
 
-export { configureApi, apiBaseUrl, apiConfigured, apiTimeoutMs, demoModeEnabled, authUnavailable } from "./config";
+export {
+  configureApi,
+  apiBaseUrl,
+  apiConfigured,
+  apiTimeoutMs,
+  authUnavailable,
+} from "./config";
 export type { ApiConfig } from "./config";
 
 export { request } from "./http";
@@ -72,7 +72,11 @@ export {
   GoogleCallbackError,
   GOOGLE_CALLBACK_PATH,
 } from "./google";
-export type { GoogleCallbackProblem, GoogleCallbackResult, GoogleIntent } from "./google";
+export type {
+  GoogleCallbackProblem,
+  GoogleCallbackResult,
+  GoogleIntent,
+} from "./google";
 export type {
   AuthUser,
   RegisterInput,

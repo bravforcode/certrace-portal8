@@ -1,3 +1,4 @@
+import { accountStorage } from "../account-storage";
 /* ════════════════════════════════════════════════════════════
    THE VERIFIER PRE-CHECK — V1…V16 (spec §6)
 
@@ -27,16 +28,40 @@
 import { monthsInPeriod } from "./boundary";
 import { isAssumption, provenanceRefs, type ActivityDataset } from "./activity";
 import { needsNcv } from "./units";
-import { flattenTree, seeForNode, massBalanceYield, PrecursorTreeError, type PrecursorNode } from "./precursor-tree";
-import { FUEL_EF_BAND, ELECTRICITY_INTENSITY_BAND, MASS_BALANCE_BAND } from "./reference";
+import {
+  flattenTree,
+  seeForNode,
+  massBalanceYield,
+  PrecursorTreeError,
+  type PrecursorNode,
+} from "./precursor-tree";
+import {
+  FUEL_EF_BAND,
+  ELECTRICITY_INTENSITY_BAND,
+  MASS_BALANCE_BAND,
+} from "./reference";
 import { unexplainedMonths, gapShare, type GapEntry } from "./data-gaps";
 import { SHIPPED_OVER_PRODUCED_TOLERANCE } from "../annual-production";
 
 export type Severity = "error" | "warn";
 
 export type RuleId =
-  | "V1" | "V2" | "V3" | "V4" | "V5" | "V6" | "V7" | "V8"
-  | "V9" | "V10" | "V11" | "V12" | "V13" | "V14" | "V15" | "V16";
+  | "V1"
+  | "V2"
+  | "V3"
+  | "V4"
+  | "V5"
+  | "V6"
+  | "V7"
+  | "V8"
+  | "V9"
+  | "V10"
+  | "V11"
+  | "V12"
+  | "V13"
+  | "V14"
+  | "V15"
+  | "V16";
 
 export type Finding = {
   id: RuleId;
@@ -48,7 +73,10 @@ export type Finding = {
 
 /** Which screen fixes a given rule. The readiness score is only useful if
     every failure is one click from being addressed. */
-export const RULE_SCREEN: Record<RuleId, { label: string; path: (declId: string) => string }> = {
+export const RULE_SCREEN: Record<
+  RuleId,
+  { label: string; path: (declId: string) => string }
+> = {
   V1: { label: "Activity data", path: (d) => `/declarations/${d}/activity` },
   V2: { label: "Activity data", path: (d) => `/declarations/${d}/activity` },
   V3: { label: "Activity data", path: (d) => `/declarations/${d}/activity` },
@@ -63,7 +91,10 @@ export const RULE_SCREEN: Record<RuleId, { label: string; path: (declId: string)
   V12: { label: "Data gaps", path: (d) => `/declarations/${d}/activity` },
   V13: { label: "Internal sign-off", path: (d) => `/declarations/${d}` },
   V14: { label: "Supplier data", path: (d) => `/declarations/${d}` },
-  V15: { label: "Monitoring methodology", path: (d) => `/declarations/${d}/mmd` },
+  V15: {
+    label: "Monitoring methodology",
+    path: (d) => `/declarations/${d}/mmd`,
+  },
   V16: { label: "Supplier data", path: (d) => `/declarations/${d}` },
 };
 
@@ -76,7 +107,7 @@ export const RULE_TITLE: Record<RuleId, string> = {
   V6: "Mass balance holds",
   V7: "Scrap is zero-rated",
   V8: "Precursor chain is acyclic",
-  V9: "Complex-good default cap respected",
+  V9: "Complex-good default values reviewed",
   V10: "Every filed input has evidence",
   V11: "Every month is accounted for",
   V12: "Estimated share is under control",
@@ -91,8 +122,22 @@ export const RULE_TITLE: Record<RuleId, string> = {
    a conversation. Weighted so the score moves most when the exporter fixes
    the thing that actually blocks them. */
 export const RULE_WEIGHT: Record<RuleId, number> = {
-  V1: 3, V2: 3, V3: 3, V4: 1, V5: 1, V6: 1, V7: 3, V8: 3,
-  V9: 2, V10: 3, V11: 2, V12: 1, V13: 3, V14: 1, V15: 2, V16: 2,
+  V1: 3,
+  V2: 3,
+  V3: 3,
+  V4: 1,
+  V5: 1,
+  V6: 1,
+  V7: 3,
+  V8: 3,
+  V9: 2,
+  V10: 3,
+  V11: 2,
+  V12: 1,
+  V13: 3,
+  V14: 1,
+  V15: 2,
+  V16: 2,
 };
 
 export type ValidationInput = {
@@ -150,7 +195,10 @@ export function validate(input: ValidationInput): Finding[] {
   if (d) {
     for (const fuel of d.fuels) {
       const band = FUEL_EF_BAND[fuel.fuel];
-      if (fuel.emissionFactor > 0 && (fuel.emissionFactor < band.low || fuel.emissionFactor > band.high)) {
+      if (
+        fuel.emissionFactor > 0 &&
+        (fuel.emissionFactor < band.low || fuel.emissionFactor > band.high)
+      ) {
         f.push({
           id: "V2",
           severity: "error",
@@ -166,13 +214,19 @@ export function validate(input: ValidationInput): Finding[] {
     f.push({
       id: "V3",
       severity: "error",
-      message: "Annual production quantity is missing. Every per-tonne figure divides by it.",
+      message:
+        "Annual production quantity is missing. Every per-tonne figure divides by it.",
       field: "production:annual:value",
     });
   }
 
   /* V4 — shipped ≤ produced × 1.05. Opening stock explains a few percent. */
-  if (d && d.annualProductionTonnes > 0 && input.shippedTonnes > d.annualProductionTonnes * SHIPPED_OVER_PRODUCED_TOLERANCE.value) {
+  if (
+    d &&
+    d.annualProductionTonnes > 0 &&
+    input.shippedTonnes >
+      d.annualProductionTonnes * SHIPPED_OVER_PRODUCED_TOLERANCE.value
+  ) {
     f.push({
       id: "V4",
       severity: "warn",
@@ -186,7 +240,9 @@ export function validate(input: ValidationInput): Finding[] {
      One shared band would accept both a typo and the truth. */
   if (d && d.annualProductionTonnes > 0 && d.electricity.length > 0) {
     const band = ELECTRICITY_INTENSITY_BAND[input.electricityBand];
-    const mwhPerTonne = d.electricity.reduce((a, e) => a + e.mwhAbsolute, 0) / d.annualProductionTonnes;
+    const mwhPerTonne =
+      d.electricity.reduce((a, e) => a + e.mwhAbsolute, 0) /
+      d.annualProductionTonnes;
     if (mwhPerTonne < band.low || mwhPerTonne > band.high) {
       f.push({
         id: "V5",
@@ -200,7 +256,10 @@ export function validate(input: ValidationInput): Finding[] {
   /* V6 — 1 / Σ(input per tonne). Below 70% the bill of materials consumes
      more than any real process needs; above 100% it claims to create mass. */
   const yieldValue = massBalanceYield(input.precursorTree);
-  if (yieldValue != null && (yieldValue < MASS_BALANCE_BAND.low || yieldValue > MASS_BALANCE_BAND.high)) {
+  if (
+    yieldValue != null &&
+    (yieldValue < MASS_BALANCE_BAND.low || yieldValue > MASS_BALANCE_BAND.high)
+  ) {
     f.push({
       id: "V6",
       severity: "warn",
@@ -220,7 +279,12 @@ export function validate(input: ValidationInput): Finding[] {
         effective = 0; // V8 reports the structural problem
       }
       if (effective !== 0) {
-        f.push({ id: "V7", severity: "error", message: `"${node.name}" is marked as scrap but resolves to ${effective} tCO₂e/t. Scrap is zero-rated.`, field: "precursors" });
+        f.push({
+          id: "V7",
+          severity: "error",
+          message: `"${node.name}" is marked as scrap but resolves to ${effective} tCO₂e/t. Scrap is zero-rated.`,
+          field: "precursors",
+        });
       }
     }
   }
@@ -233,18 +297,26 @@ export function validate(input: ValidationInput): Finding[] {
     f.push({
       id: "V8",
       severity: "error",
-      message: err instanceof PrecursorTreeError ? err.message : "The precursor chain cannot be resolved.",
+      message:
+        err instanceof PrecursorTreeError
+          ? err.message
+          : "The precursor chain cannot be resolved.",
       field: "precursors",
     });
   }
 
-  /* V9 — complex goods may lean on default values for at most 20% of their
-     embedded emissions. A good wholly on defaults is a full breach. */
+  /* V9 — a complex good reported entirely on default values. A WARNING, not an
+     error: Annex II A.1(2) to Implementing Regulation (EU) 2025/2547 lets an
+     operator use default values for one, several or all precursors (Article
+     15), and neither Regulation 2023/956 nor its 2025 amendment caps the share.
+     The 20 % ceiling was a transitional-period rule. What is true, and worth
+     saying, is that defaults carry a mark-up and tend to cost more than a
+     verified actual value. */
   for (const good of input.defaultOnlyComplexGoods) {
     f.push({
       id: "V9",
-      severity: "error",
-      message: `${good} is a complex good reported entirely on default values. At most ${COMPLEX_GOOD_DEFAULT_CAP * 100}% of a complex good's embedded emissions may come from defaults.`,
+      severity: "warn",
+      message: `${good} is a complex good reported entirely on default values. That is allowed, but defaults carry a mark-up and usually give a higher figure than a verified actual value would.`,
       field: "supplier-data",
     });
   }
@@ -256,7 +328,12 @@ export function validate(input: ValidationInput): Finding[] {
       if (!ref.critical) continue;
       const id = ref.provenance.evidenceFileId;
       if (!id || !input.liveEvidenceIds.has(id)) {
-        f.push({ id: "V10", severity: "error", message: `${ref.label} has no evidence attached.`, field: ref.key });
+        f.push({
+          id: "V10",
+          severity: "error",
+          message: `${ref.label} has no evidence attached.`,
+          field: ref.key,
+        });
       }
     }
   }
@@ -264,7 +341,11 @@ export function validate(input: ValidationInput): Finding[] {
   /* V11 — a month with neither a reading nor an explanation is the only real
      completeness failure. */
   if (d) {
-    const missing = unexplainedMonths(d.period, d.monthsCovered ?? [], input.gaps);
+    const missing = unexplainedMonths(
+      d.period,
+      d.monthsCovered ?? [],
+      input.gaps,
+    );
     if (missing.length > 0) {
       f.push({
         id: "V11",
@@ -278,13 +359,30 @@ export function validate(input: ValidationInput): Finding[] {
   /* V12 — past a fifth of the total, the estimate IS the number. */
   const share = gapShare(input.gaps, input.totalTCO2e);
   if (share.escalate) {
-    f.push({ id: "V12", severity: "warn", message: share.message ?? "Estimated emissions exceed the escalation threshold.", field: "data-gaps" });
+    f.push({
+      id: "V12",
+      severity: "warn",
+      message:
+        share.message ?? "Estimated emissions exceed the escalation threshold.",
+      field: "data-gaps",
+    });
   }
 
   /* V13 — segregation of duties. Also enforced at the store layer in
      lib/cbam/freeze.ts; this is the version that shows in the score. */
-  if (input.preparerId && input.approverId && input.preparerId.trim().toLowerCase() === input.approverId.trim().toLowerCase()) {
-    f.push({ id: "V13", severity: "error", message: "The preparer and the approver are the same person. Sign-off needs two.", field: "signoff" });
+  if (
+    input.preparerId &&
+    input.approverId &&
+    input.preparerId.trim().toLowerCase() ===
+      input.approverId.trim().toLowerCase()
+  ) {
+    f.push({
+      id: "V13",
+      severity: "error",
+      message:
+        "The preparer and the approver are the same person. Sign-off needs two.",
+      field: "signoff",
+    });
   }
 
   /* V14 — precursor data reused from a record that was already stale when the
@@ -302,15 +400,28 @@ export function validate(input: ValidationInput): Finding[] {
      marked ASSUMPTION has to appear in the MMD's register. */
   if (d) {
     for (const ref of provenanceRefs(d)) {
-      if (isAssumption(ref.provenance) && !input.disclosedAssumptions.has(ref.key)) {
-        f.push({ id: "V15", severity: "error", message: `${ref.label} is an assumption but does not appear in the MMD's assumptions register.`, field: ref.key });
+      if (
+        isAssumption(ref.provenance) &&
+        !input.disclosedAssumptions.has(ref.key)
+      ) {
+        f.push({
+          id: "V15",
+          severity: "error",
+          message: `${ref.label} is an assumption but does not appear in the MMD's assumptions register.`,
+          field: ref.key,
+        });
       }
     }
   }
 
   /* V16 — claiming actual data without a verification statement. */
   for (const good of input.unverifiedActualGoods) {
-    f.push({ id: "V16", severity: "error", message: `${good} claims actual data with no accredited verification statement on file.`, field: "supplier-data" });
+    f.push({
+      id: "V16",
+      severity: "error",
+      message: `${good} claims actual data with no accredited verification statement on file.`,
+      field: "supplier-data",
+    });
   }
 
   return f;
@@ -346,27 +457,65 @@ export type Readiness = {
   verdict: "not ready" | "nearly" | "ready";
 };
 
-const ALL_RULES: RuleId[] = ["V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8", "V9", "V10", "V11", "V12", "V13", "V14", "V15", "V16"];
+const ALL_RULES: RuleId[] = [
+  "V1",
+  "V2",
+  "V3",
+  "V4",
+  "V5",
+  "V6",
+  "V7",
+  "V8",
+  "V9",
+  "V10",
+  "V11",
+  "V12",
+  "V13",
+  "V14",
+  "V15",
+  "V16",
+];
 
-export function readiness(findings: Finding[], declarationId: string): Readiness {
+export function readiness(
+  findings: Finding[],
+  declarationId: string,
+): Readiness {
   const byRule = new Map<RuleId, Finding[]>();
   for (const f of findings) byRule.set(f.id, [...(byRule.get(f.id) ?? []), f]);
 
   const rules: RuleResult[] = ALL_RULES.map((id) => {
     const list = byRule.get(id) ?? [];
-    const status: RuleResult["status"] = list.some((x) => x.severity === "error") ? "fail" : list.length > 0 ? "warn" : "pass";
+    const status: RuleResult["status"] = list.some(
+      (x) => x.severity === "error",
+    )
+      ? "fail"
+      : list.length > 0
+        ? "warn"
+        : "pass";
     return {
       id,
       title: RULE_TITLE[id],
       status,
       findings: list,
       weight: RULE_WEIGHT[id],
-      screen: { label: RULE_SCREEN[id].label, path: RULE_SCREEN[id].path(declarationId) },
+      screen: {
+        label: RULE_SCREEN[id].label,
+        path: RULE_SCREEN[id].path(declarationId),
+      },
     };
   });
 
   const totalWeight = rules.reduce((a, r) => a + r.weight, 0);
-  const earned = rules.reduce((a, r) => a + (r.status === "pass" ? r.weight : r.status === "warn" ? r.weight * 0.5 : 0), 0);
+  const earned = rules.reduce(
+    (a, r) =>
+      a +
+      (r.status === "pass"
+        ? r.weight
+        : r.status === "warn"
+          ? r.weight * 0.5
+          : 0),
+    0,
+  );
   const score = Math.round((earned / totalWeight) * 100);
   const errors = findings.filter((x) => x.severity === "error").length;
   const warnings = findings.filter((x) => x.severity === "warn").length;
@@ -386,29 +535,40 @@ export function readiness(findings: Finding[], declarationId: string): Readiness
    A warning can be accepted, but never silently. The justification is stored
    and travels into the dossier, because "we knew and here is why" is a
    defensible position and "nobody looked" is not. */
-export type Override = { ruleId: RuleId; field?: string; justification: string; by: string; at: number };
+export type Override = {
+  ruleId: RuleId;
+  field?: string;
+  justification: string;
+  by: string;
+  at: number;
+};
 
 const KEY = "certrace:validation-overrides";
 
 export function listOverrides(declarationId: string): Override[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = accountStorage.getItem(KEY);
     if (!raw) return [];
-    return ((JSON.parse(raw) as Record<string, Override[]>)[declarationId] ?? []);
+    return (JSON.parse(raw) as Record<string, Override[]>)[declarationId] ?? [];
   } catch {
     return [];
   }
 }
 
-export function saveOverride(declarationId: string, override: Override): Override[] {
+export function saveOverride(
+  declarationId: string,
+  override: Override,
+): Override[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = accountStorage.getItem(KEY);
     const all = raw ? (JSON.parse(raw) as Record<string, Override[]>) : {};
-    const list = (all[declarationId] ?? []).filter((o) => !(o.ruleId === override.ruleId && o.field === override.field));
+    const list = (all[declarationId] ?? []).filter(
+      (o) => !(o.ruleId === override.ruleId && o.field === override.field),
+    );
     all[declarationId] = [...list, override];
-    window.localStorage.setItem(KEY, JSON.stringify(all));
+    accountStorage.setItem(KEY, JSON.stringify(all));
     return all[declarationId];
   } catch {
     return [];

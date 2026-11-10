@@ -11,11 +11,22 @@
 
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, ChevronUp, Check, Calendar as CalendarIcon, ChevronLeft, ChevronRight, X } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  Check,
+  Calendar as CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
+  X,
+} from "lucide-react";
 import { cn } from "./ui";
-import { useT } from "@/lib/i18n";
+import { localeFor, useFormat, useLanguage, useT } from "@/lib/i18n";
+import { COUNTRIES } from "@/lib/config";
+import { calendarDate } from "@/lib/calendar-date";
 
-const POPOVER_SHADOW = "0 8px 32px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.06)";
+const POPOVER_SHADOW =
+  "0 8px 32px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.06)";
 
 /* ── The stacking order, stated once ──────────────────────────
    toast 100 · sidebar/topbar 40–50 · add-member dialog 220 · Modal 300 ·
@@ -31,7 +42,8 @@ const POPOVER_SHADOW = "0 8px 32px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.06)"
    surface, so the top of the stack is where it belongs. */
 const POPOVER_Z = 400;
 
-const useIsoLayoutEffect = typeof window !== "undefined" ? React.useLayoutEffect : React.useEffect;
+const useIsoLayoutEffect =
+  typeof window !== "undefined" ? React.useLayoutEffect : React.useEffect;
 
 /* ── Portal ───────────────────────────────────────────────── */
 export function Portal({ children }: { children: React.ReactNode }) {
@@ -52,7 +64,8 @@ function usePopover() {
     if (!open) return;
     const onDown = (e: MouseEvent) => {
       const t = e.target as Node;
-      if (triggerRef.current?.contains(t) || popRef.current?.contains(t)) return;
+      if (triggerRef.current?.contains(t) || popRef.current?.contains(t))
+        return;
       setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
@@ -78,9 +91,20 @@ function useAnchoredStyle(
   open: boolean,
   triggerRef: React.RefObject<HTMLElement | null>,
   popRef: React.RefObject<HTMLElement | null>,
-  { matchWidth = false, align = "left", gap = 6 }: { matchWidth?: boolean; align?: "left" | "right"; gap?: number } = {},
+  {
+    matchWidth = false,
+    align = "left",
+    gap = 6,
+    maxHeight: cap = MAX_POPOVER_HEIGHT,
+  }: { matchWidth?: boolean; align?: "left" | "right"; gap?: number; maxHeight?: number } = {},
 ) {
-  const [style, setStyle] = React.useState<React.CSSProperties>({ position: "fixed", top: -9999, left: -9999, visibility: "hidden", zIndex: POPOVER_Z });
+  const [style, setStyle] = React.useState<React.CSSProperties>({
+    position: "fixed",
+    top: -9999,
+    left: -9999,
+    visibility: "hidden",
+    zIndex: POPOVER_Z,
+  });
   useIsoLayoutEffect(() => {
     if (!open) return;
     const trigger = triggerRef.current;
@@ -91,7 +115,7 @@ function useAnchoredStyle(
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       const margin = 8;
-      const maxHeight = Math.min(MAX_POPOVER_HEIGHT, vh - margin * 2);
+      const maxHeight = Math.min(cap, vh - margin * 2);
       const pop = popRef.current;
       const h = Math.min(pop ? pop.offsetHeight : maxHeight, maxHeight);
       const width = matchWidth ? r.width : pop ? pop.offsetWidth : 0;
@@ -117,9 +141,24 @@ function useAnchoredStyle(
       });
     };
     compute();
-    // Re-measure next frame: the first pass may run before the popover has its
-    // natural size, so this locks in the correct clamped position.
-    raf = requestAnimationFrame(compute);
+    /* Measure again once the popover really exists. The popover is drawn through a Portal, which mounts one effect AFTER this
+       one, so the first pass (and, on a busy page, the next frame's too) can find no popover and place it by a width of
+       zero — which put the notifications menu at the bell's right edge, 351px wide, off a 375px screen. Keep trying frame
+       by frame until it is there, then measure once more with its natural size so the clamp is right. */
+    let tries = 0;
+    let measured = false;
+    const settle = () => {
+      compute();
+      if (popRef.current) {
+        if (!measured) {
+          measured = true;
+          raf = requestAnimationFrame(compute);
+        }
+      } else if (tries++ < 60) {
+        raf = requestAnimationFrame(settle);
+      }
+    };
+    raf = requestAnimationFrame(settle);
 
     // Scrolling INSIDE the popover must not reposition it. The capture listener
     // exists to follow the trigger when an ancestor scrolls; a long list (the
@@ -129,7 +168,12 @@ function useAnchoredStyle(
     // what makes that list scrollable at all.
     const onScroll = (e: Event) => {
       const t = e.target as Node | null;
-      if (t && popRef.current && (t === popRef.current || popRef.current.contains(t))) return;
+      if (
+        t &&
+        popRef.current &&
+        (t === popRef.current || popRef.current.contains(t))
+      )
+        return;
       compute();
     };
     window.addEventListener("resize", compute);
@@ -150,13 +194,59 @@ function useAnchoredStyle(
 const triggerBase =
   "flex w-full items-center justify-between gap-2 rounded-xl border bg-white px-4 py-3 text-left text-sm transition-colors focus:outline-none focus-visible:border-black/30";
 
-export type Option = { value: string; label: string; hint?: string };
+export type Option = {
+  value: string;
+  label: string;
+  hint?: string;
+  /** Shown, greyed, and not pickable — the option exists but is not available to this reader yet. */
+  disabled?: boolean;
+  /** Drawn before the label, in the list and on the trigger (a country's flag). */
+  icon?: React.ReactNode;
+};
 
 /* ── Select (single) ──────────────────────────────────────── */
+/** The labels and hints a dropdown shows, in the language on screen. Callers hand over the lists they have — fuels, routes, frequencies, units — and
+    most are English source strings; passing them through the dictionary here means no dropdown has to remember to, and one that is already
+    translated passes through unchanged. */
+function useTranslatedOptions(options: Option[]): Option[] {
+  const t = useT();
+  const { lang } = useLanguage();
+  /* A country list is the one dropdown that is not a list of our own words: its labels are the English names of the ISO countries, and
+     the platform already knows every one of them in every language (Intl.DisplayNames). An option is a country when its value is a
+     country's code and its label is that country's English name — so a list that is something else is never touched. */
+  const display = React.useMemo(() => {
+    if (lang === "en") return null;
+    try {
+      return new Intl.DisplayNames([localeFor(lang)], { type: "region" });
+    } catch {
+      return null;
+    }
+  }, [lang]);
+  return React.useMemo(
+    () =>
+      options.map((o) => {
+        const country =
+          display && COUNTRY_NAME_BY_CODE.get(o.value) === o.label
+            ? display.of(o.value)
+            : undefined;
+        return {
+          ...o,
+          label: country || t(o.label),
+          hint: o.hint ? t(o.hint) : o.hint,
+        };
+      }),
+    [options, t, display],
+  );
+}
+
+const COUNTRY_NAME_BY_CODE = new Map<string, string>(
+  COUNTRIES.map((c) => [c.code, c.name]),
+);
+
 export function Select({
   value,
   onChange,
-  options,
+  options: optionsIn,
   placeholder = "Select…",
   className,
   ariaLabel,
@@ -183,8 +273,11 @@ export function Select({
   emptyLabel?: string;
 }) {
   const t = useT();
+  const options = useTranslatedOptions(optionsIn);
   const { open, setOpen, triggerRef, popRef } = usePopover();
-  const anchor = useAnchoredStyle(open, triggerRef, popRef, { matchWidth: true });
+  const anchor = useAnchoredStyle(open, triggerRef, popRef, {
+    matchWidth: true,
+  });
   const [active, setActive] = React.useState(0);
   const [query, setQuery] = React.useState("");
   const searchRef = React.useRef<HTMLInputElement | null>(null);
@@ -197,7 +290,12 @@ export function Select({
   const shown = React.useMemo(() => {
     if (!searchable || !query.trim()) return options;
     const q = query.trim().toLowerCase();
-    return options.filter((o) => o.label.toLowerCase().includes(q) || o.value.toLowerCase().includes(q) || (o.hint ?? "").toLowerCase().includes(q));
+    return options.filter(
+      (o) =>
+        o.label.toLowerCase().includes(q) ||
+        o.value.toLowerCase().includes(q) ||
+        (o.hint ?? "").toLowerCase().includes(q),
+    );
   }, [options, query, searchable]);
 
   /* Reset on OPEN only.
@@ -213,7 +311,14 @@ export function Select({
   React.useEffect(() => {
     if (!open) return;
     setQuery("");
-    setActive(Math.max(0, latest.current.options.findIndex((o) => o.value === latest.current.value)));
+    setActive(
+      Math.max(
+        0,
+        latest.current.options.findIndex(
+          (o) => o.value === latest.current.value,
+        ),
+      ),
+    );
   }, [open]);
 
   // Keep the highlight inside the filtered list as the query narrows it.
@@ -253,14 +358,18 @@ export function Select({
       const top = el.offsetTop - pad;
       const bottom = el.offsetTop + el.offsetHeight;
       if (top < list.scrollTop) list.scrollTop = Math.max(0, top);
-      else if (bottom > list.scrollTop + list.clientHeight) list.scrollTop = bottom - list.clientHeight;
+      else if (bottom > list.scrollTop + list.clientHeight)
+        list.scrollTop = bottom - list.clientHeight;
     });
     return () => cancelAnimationFrame(raf);
   }, [open, active, shown.length, searchable, popRef]);
 
   const onKey = (e: React.KeyboardEvent) => {
     if (disabled) return;
-    if (!open && (e.key === "Enter" || e.key === " " || e.key === "ArrowDown")) {
+    if (
+      !open &&
+      (e.key === "Enter" || e.key === " " || e.key === "ArrowDown")
+    ) {
       e.preventDefault();
       setOpen(true);
       return;
@@ -274,7 +383,7 @@ export function Select({
       setActive((a) => Math.max(0, a - 1));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      if (shown[active]) {
+      if (shown[active] && !shown[active].disabled) {
         onChange(shown[active].value);
         setOpen(false);
       }
@@ -304,19 +413,39 @@ export function Select({
                 : "border-black/10 hover:border-black/20",
         )}
       >
-        <span className={cn("truncate", selected ? "text-black/75" : "text-black/35")}>
-          {selected ? selected.label : t(placeholder)}
+        <span
+          className={cn(
+            "flex min-w-0 items-center gap-2 truncate",
+            selected ? "text-black/75" : "text-black/35",
+          )}
+        >
+          {selected?.icon}
+          <span className="truncate">{selected ? selected.label : t(placeholder)}</span>
         </span>
-        <ChevronDown size={15} strokeWidth={1.5} className={cn("flex-none text-black/35 transition-transform", open && "rotate-180")} />
+        <ChevronDown
+          size={15}
+          strokeWidth={1.5}
+          className={cn(
+            "flex-none text-black/35 transition-transform",
+            open && "rotate-180",
+          )}
+        />
       </button>
       {open && (
         <Portal>
           <ul
             ref={popRef as React.RefObject<HTMLUListElement>}
             role="listbox"
-            style={{ ...anchor, boxShadow: POPOVER_SHADOW, overscrollBehavior: "contain" }}
+            style={{
+              ...anchor,
+              boxShadow: POPOVER_SHADOW,
+              overscrollBehavior: "contain",
+            }}
             /* NO TOP PADDING WHEN SEARCHABLE — see the sticky <li> below. */
-            className={cn("ct-pop overflow-auto rounded-xl border border-black/[0.07] bg-white px-1 pb-1", searchable ? "pt-0" : "pt-1")}
+            className={cn(
+              "ct-pop overflow-auto rounded-xl border border-black/[0.07] bg-white px-1 pb-1",
+              searchable ? "pt-0" : "pt-1",
+            )}
           >
             {searchable && (
               /* Sticky so the filter stays reachable while a long list scrolls.
@@ -335,7 +464,10 @@ export function Select({
                  the sticky position, so nothing shifts and nothing shows above
                  it. `-mx-1` keeps the full-bleed rule; `px-2` puts the inner
                  padding back. */
-              <li ref={searchWrapRef} className="sticky top-0 z-10 -mx-1 mb-1 border-b border-black/[0.06] bg-white px-2 pb-2 pt-2">
+              <li
+                ref={searchWrapRef}
+                className="sticky top-0 z-10 -mx-1 mb-1 border-b border-black/[0.06] bg-white px-2 pb-2 pt-2"
+              >
                 <input
                   ref={searchRef}
                   value={query}
@@ -348,7 +480,9 @@ export function Select({
               </li>
             )}
             {shown.length === 0 && (
-              <li className="px-2.5 py-3 text-center text-[12px] text-black/35">{t(emptyLabel)}</li>
+              <li className="px-2.5 py-3 text-center text-[12px] text-black/35">
+                {t(emptyLabel)}
+              </li>
             )}
             {shown.map((o, i) => {
               const on = o.value === value;
@@ -363,14 +497,21 @@ export function Select({
                 >
                   <button
                     type="button"
+                    disabled={o.disabled}
+                    aria-disabled={o.disabled || undefined}
                     onMouseEnter={() => setActive(i)}
                     onClick={() => {
+                      if (o.disabled) return;
                       onChange(o.value);
                       setOpen(false);
                     }}
                     className={cn(
                       "flex w-full items-start justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors",
-                      i === active ? "bg-[#f0eee8]" : "hover:bg-[#fafaf8]",
+                      o.disabled
+                        ? "cursor-not-allowed opacity-45"
+                        : i === active
+                          ? "bg-[#f0eee8]"
+                          : "hover:bg-[#fafaf8]",
                     )}
                   >
                     {/* The hint WRAPS. A one-line explanation cut off at the
@@ -378,10 +519,28 @@ export function Select({
                         reader learns there was something to know and not what
                         it was, which is exactly when people guess. */}
                     <span className="min-w-0">
-                      <span className={cn("block", on ? "text-black/85" : "text-black/65")}>{o.label}</span>
-                      {o.hint && <span className="mt-0.5 block text-[11px] leading-snug text-black/40">{o.hint}</span>}
+                      <span
+                        className={cn(
+                          "flex items-center gap-2",
+                          on ? "text-black/85" : "text-black/65",
+                        )}
+                      >
+                        {o.icon}
+                        {o.label}
+                      </span>
+                      {o.hint && (
+                        <span className="mt-0.5 block text-[11px] leading-snug text-black/40">
+                          {o.hint}
+                        </span>
+                      )}
                     </span>
-                    {on && <Check size={14} strokeWidth={2} className="mt-0.5 flex-none text-[#111]" />}
+                    {on && (
+                      <Check
+                        size={14}
+                        strokeWidth={2}
+                        className="mt-0.5 flex-none text-[#111]"
+                      />
+                    )}
                   </button>
                 </li>
               );
@@ -397,7 +556,7 @@ export function Select({
 export function MultiSelect({
   values,
   onChange,
-  options,
+  options: optionsIn,
   placeholder = "Select…",
   className,
   ariaLabel,
@@ -409,15 +568,23 @@ export function MultiSelect({
   className?: string;
   ariaLabel?: string;
 }) {
+  const t = useT();
+  const options = useTranslatedOptions(optionsIn);
   const { open, setOpen, triggerRef, popRef } = usePopover();
-  const anchor = useAnchoredStyle(open, triggerRef, popRef, { matchWidth: true });
-  const toggle = (v: string) => onChange(values.includes(v) ? values.filter((x) => x !== v) : [...values, v]);
+  const anchor = useAnchoredStyle(open, triggerRef, popRef, {
+    matchWidth: true,
+  });
+  const toggle = (v: string) =>
+    onChange(
+      values.includes(v) ? values.filter((x) => x !== v) : [...values, v],
+    );
   const label =
     values.length === 0
-      ? placeholder
+      ? t(placeholder)
       : values.length === 1
-        ? options.find((o) => o.value === values[0])?.label ?? `${values.length} selected`
-        : `${values.length} selected`;
+        ? (options.find((o) => o.value === values[0])?.label ??
+          t("{n} selected", { n: values.length }))
+        : t("{n} selected", { n: values.length });
 
   return (
     <div className={cn("relative", className)}>
@@ -428,10 +595,27 @@ export function MultiSelect({
         aria-expanded={open}
         aria-label={ariaLabel}
         onClick={() => setOpen((v) => !v)}
-        className={cn(triggerBase, open ? "border-black/30" : "border-black/10 hover:border-black/20")}
+        className={cn(
+          triggerBase,
+          open ? "border-black/30" : "border-black/10 hover:border-black/20",
+        )}
       >
-        <span className={cn("truncate", values.length ? "text-black/75" : "text-black/35")}>{label}</span>
-        <ChevronDown size={15} strokeWidth={1.5} className={cn("flex-none text-black/35 transition-transform", open && "rotate-180")} />
+        <span
+          className={cn(
+            "truncate",
+            values.length ? "text-black/75" : "text-black/35",
+          )}
+        >
+          {label}
+        </span>
+        <ChevronDown
+          size={15}
+          strokeWidth={1.5}
+          className={cn(
+            "flex-none text-black/35 transition-transform",
+            open && "rotate-180",
+          )}
+        />
       </button>
       {open && (
         <Portal>
@@ -439,7 +623,11 @@ export function MultiSelect({
             ref={popRef as React.RefObject<HTMLUListElement>}
             role="listbox"
             aria-multiselectable
-            style={{ ...anchor, boxShadow: POPOVER_SHADOW, overscrollBehavior: "contain" }}
+            style={{
+              ...anchor,
+              boxShadow: POPOVER_SHADOW,
+              overscrollBehavior: "contain",
+            }}
             className="ct-pop overflow-auto rounded-xl border border-black/[0.07] bg-white p-1"
           >
             {options.map((o) => {
@@ -451,12 +639,30 @@ export function MultiSelect({
                     onClick={() => toggle(o.value)}
                     className="flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition-colors hover:bg-[#fafaf8]"
                   >
-                    <span className={cn("mt-0.5 grid h-4 w-4 flex-none place-items-center rounded-[5px] border", on ? "border-transparent bg-[#111] text-white" : "border-black/20")}>
+                    <span
+                      className={cn(
+                        "mt-0.5 grid h-4 w-4 flex-none place-items-center rounded-[5px] border",
+                        on
+                          ? "border-transparent bg-[#111] text-white"
+                          : "border-black/20",
+                      )}
+                    >
                       {on && <Check size={11} strokeWidth={3} />}
                     </span>
                     <span className="min-w-0">
-                      <span className={cn("block", on ? "text-black/85" : "text-black/65")}>{o.label}</span>
-                      {o.hint && <span className="mt-0.5 block text-[11px] leading-snug text-black/40">{o.hint}</span>}
+                      <span
+                        className={cn(
+                          "block",
+                          on ? "text-black/85" : "text-black/65",
+                        )}
+                      >
+                        {o.label}
+                      </span>
+                      {o.hint && (
+                        <span className="mt-0.5 block text-[11px] leading-snug text-black/40">
+                          {o.hint}
+                        </span>
+                      )}
                     </span>
                   </button>
                 </li>
@@ -476,18 +682,29 @@ export function Dropdown({
   align = "left",
   className,
   width = "w-56",
+  panelClassName,
+  maxHeight,
 }: {
   trigger: (open: boolean) => React.ReactNode;
   children: (close: () => void) => React.ReactNode;
   align?: "left" | "right";
   className?: string;
   width?: string;
+  /** Classes for the panel itself — e.g. a flex column whose own list scrolls, so the panel and the list never both do. */
+  panelClassName?: string;
+  /** A taller cap than the default (still never taller than the screen). */
+  maxHeight?: number;
 }) {
   const { open, setOpen, triggerRef, popRef } = usePopover();
-  const anchor = useAnchoredStyle(open, triggerRef, popRef, { align });
+  const anchor = useAnchoredStyle(open, triggerRef, popRef, { align, maxHeight });
   return (
     <div className={cn("relative", className)}>
-      <button ref={triggerRef as React.RefObject<HTMLButtonElement>} type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+      <button
+        ref={triggerRef as React.RefObject<HTMLButtonElement>}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+      >
         {trigger(open)}
       </button>
       {open && (
@@ -495,7 +712,11 @@ export function Dropdown({
           <div
             ref={popRef as React.RefObject<HTMLDivElement>}
             style={{ ...anchor, boxShadow: POPOVER_SHADOW }}
-            className={cn("ct-pop overflow-auto rounded-xl border border-black/[0.07] bg-white p-1", width)}
+            className={cn(
+              "ct-pop overflow-auto rounded-xl border border-black/[0.07] bg-white p-1",
+              width,
+              panelClassName,
+            )}
           >
             {children(() => setOpen(false))}
           </div>
@@ -507,7 +728,6 @@ export function Dropdown({
 
 /* ── Calendar ─────────────────────────────────────────────── */
 const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
-const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 function toISO(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -526,16 +746,48 @@ export function Calendar({
   max?: string;
 }) {
   const t = useT();
-  const selected = value ? new Date(value + "T00:00:00") : undefined;
+  const { lang } = useLanguage();
+  const { locale } = useFormat();
+  // Month and weekday names come from the platform for the language on screen — a Thai or Chinese reader gets their own, not English's.
+  const monthNames = React.useMemo(
+    () =>
+      Array.from({ length: 12 }, (_, i) =>
+        new Intl.DateTimeFormat(locale, { month: "long" }).format(
+          new Date(2000, i, 1),
+        ),
+      ),
+    [locale],
+  );
+  const weekdays = React.useMemo(
+    () =>
+      lang === "en"
+        ? WEEKDAYS
+        : Array.from({ length: 7 }, (_, i) =>
+            new Intl.DateTimeFormat(locale, { weekday: "short" }).format(
+              new Date(2024, 0, 1 + i),
+            ),
+          ),
+    [lang, locale],
+  );
+  const selected = calendarDate(value);
   const today = new Date();
-  const minDate = min ? new Date(min + "T00:00:00") : undefined;
-  const maxDate = max ? new Date(max + "T00:00:00") : undefined;
+  const minDate = calendarDate(min);
+  const maxDate = calendarDate(max);
 
   // Open on a month the operator is allowed to pick from. Landing on today
   // when today is outside the bounds means the first thing they see is a grid
   // of disabled days and two arrows that do nothing.
-  const init = selected ?? (minDate && today < minDate ? minDate : maxDate && today > maxDate ? maxDate : today);
-  const [view, setView] = React.useState({ y: init.getFullYear(), m: init.getMonth() });
+  const init =
+    selected ??
+    (minDate && today < minDate
+      ? minDate
+      : maxDate && today > maxDate
+        ? maxDate
+        : today);
+  const [view, setView] = React.useState({
+    y: init.getFullYear(),
+    m: init.getMonth(),
+  });
 
   const firstOffset = (new Date(view.y, view.m, 1).getDay() + 6) % 7; // Monday-first
   const daysInMonth = new Date(view.y, view.m + 1, 0).getDate();
@@ -564,7 +816,11 @@ export function Calendar({
     });
   };
 
-  const isSame = (a: Date, b?: Date) => b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  const isSame = (a: Date, b?: Date) =>
+    b &&
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
 
   return (
     <div className="w-[266px] p-3">
@@ -579,7 +835,7 @@ export function Calendar({
           <ChevronLeft size={15} strokeWidth={1.5} />
         </button>
         <span className="text-[13px] font-medium text-black/75">
-          {MONTH_NAMES[view.m]} {view.y}
+          {monthNames[view.m]} {view.y}
         </span>
         <button
           type="button"
@@ -592,8 +848,11 @@ export function Calendar({
         </button>
       </div>
       <div className="grid grid-cols-7 gap-0.5">
-        {WEEKDAYS.map((w) => (
-          <span key={w} className="grid h-7 place-items-center font-mono text-[10px] uppercase tracking-[0.08em] text-black/30">
+        {weekdays.map((w) => (
+          <span
+            key={w}
+            className="grid h-7 place-items-center font-mono text-[10px] uppercase tracking-[0.08em] text-black/30"
+          >
             {w}
           </span>
         ))}
@@ -603,7 +862,9 @@ export function Calendar({
         {Array.from({ length: daysInMonth }, (_, i) => {
           const day = i + 1;
           const date = new Date(view.y, view.m, day);
-          const disabled = (minDate ? date < minDate : false) || (maxDate ? date > maxDate : false);
+          const disabled =
+            (minDate ? date < minDate : false) ||
+            (maxDate ? date > maxDate : false);
           const sel = isSame(date, selected);
           const isToday = isSame(date, today);
           return (
@@ -614,9 +875,12 @@ export function Calendar({
               onClick={() => onSelect(toISO(date))}
               className={cn(
                 "grid h-8 place-items-center rounded-lg text-[13px] transition-colors",
-                sel ? "bg-[#111] text-white" : "text-black/65 hover:bg-[#f0eee8]",
+                sel
+                  ? "bg-[#111] text-white"
+                  : "text-black/65 hover:bg-[#f0eee8]",
                 !sel && isToday && "ring-1 ring-inset ring-black/15",
-                disabled && "cursor-not-allowed text-black/20 hover:bg-transparent",
+                disabled &&
+                  "cursor-not-allowed text-black/20 hover:bg-transparent",
               )}
             >
               {day}
@@ -652,11 +916,12 @@ export function DatePicker({
   invalid?: boolean;
   disabled?: boolean;
 }) {
+  const t = useT();
+  const format = useFormat();
   const { open, setOpen, triggerRef, popRef } = usePopover();
   const anchor = useAnchoredStyle(open, triggerRef, popRef);
-  const display = value
-    ? new Date(value + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
-    : placeholder;
+  const selected = calendarDate(value);
+  const display = selected ? format.date(selected) : t(placeholder);
   return (
     <div className={cn("relative", className)}>
       <button
@@ -678,16 +943,38 @@ export function DatePicker({
         )}
       >
         <span className="flex min-w-0 items-center gap-2.5">
-          <CalendarIcon size={15} strokeWidth={1.5} className="flex-none text-black/35" />
-          <span className={cn("truncate whitespace-nowrap", value ? "text-black/75" : "text-black/35")}>{display}</span>
+          <CalendarIcon
+            size={15}
+            strokeWidth={1.5}
+            className="flex-none text-black/35"
+          />
+          <span
+            className={cn(
+              "truncate whitespace-nowrap",
+              value ? "text-black/75" : "text-black/35",
+            )}
+          >
+            {display}
+          </span>
         </span>
-        <ChevronDown size={15} strokeWidth={1.5} className={cn("flex-none text-black/35 transition-transform", open && "rotate-180")} />
+        <ChevronDown
+          size={15}
+          strokeWidth={1.5}
+          className={cn(
+            "flex-none text-black/35 transition-transform",
+            open && "rotate-180",
+          )}
+        />
       </button>
       {open && (
         <Portal>
           <div
             ref={popRef as React.RefObject<HTMLDivElement>}
-            style={{ ...anchor, boxShadow: POPOVER_SHADOW, overscrollBehavior: "contain" }}
+            style={{
+              ...anchor,
+              boxShadow: POPOVER_SHADOW,
+              overscrollBehavior: "contain",
+            }}
             className="ct-pop overflow-auto rounded-xl border border-black/[0.07] bg-white"
           >
             <Calendar
@@ -750,13 +1037,22 @@ export function SelectWithOther({
 }) {
   const t = useT();
   const isOther = value === otherValue;
-  const all: Option[] = [...options, { value: otherValue, label: otherLabel, hint: "Anything the list above does not name. Describe it in the field that appears." }];
+  const all: Option[] = [
+    ...options,
+    {
+      value: otherValue,
+      label: otherLabel,
+      hint: "Anything the list above does not name. Describe it in the field that appears.",
+    },
+  ];
 
   return (
     <div className={cn("space-y-2", className)}>
       <Select
         value={value}
-        onChange={(v) => onChange({ value: v, otherText: v === otherValue ? otherText : "" })}
+        onChange={(v) =>
+          onChange({ value: v, otherText: v === otherValue ? otherText : "" })
+        }
         options={all}
         placeholder={placeholder ? t(placeholder) : undefined}
         searchable={searchable}
@@ -767,7 +1063,9 @@ export function SelectWithOther({
         <input
           className={cn(
             "w-full rounded-xl border bg-white px-4 py-3 text-sm text-black/70 placeholder:text-black/25 focus:outline-none transition-colors",
-            otherText.trim() ? "border-black/10 focus:border-black/25" : "border-[#f59e0b]/50 focus:border-[#f59e0b]",
+            otherText.trim()
+              ? "border-black/10 focus:border-black/25"
+              : "border-[#f59e0b]/50 focus:border-[#f59e0b]",
           )}
           value={otherText}
           disabled={disabled}
@@ -841,7 +1139,8 @@ export function OrderedMultiSelect({
   }, [otherDraft !== null]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const available = options.filter((o) => !values.includes(o.value));
-  const labelFor = (v: string) => options.find((o) => o.value === v)?.label ?? v;
+  const labelFor = (v: string) =>
+    options.find((o) => o.value === v)?.label ?? v;
 
   const OTHER = "__other__";
   const commitOther = () => {
@@ -863,13 +1162,24 @@ export function OrderedMultiSelect({
   return (
     <div className={cn("space-y-2", className)}>
       {values.length === 0 ? (
-        emptyLabel ? <p className="rounded-xl border border-dashed border-black/10 px-4 py-3 text-[12.5px] text-black/40">{t(emptyLabel)}</p> : null
+        emptyLabel ? (
+          <p className="rounded-xl border border-dashed border-black/10 px-4 py-3 text-[12.5px] text-black/40">
+            {t(emptyLabel)}
+          </p>
+        ) : null
       ) : (
         <ol className="space-y-1.5">
           {values.map((v, i) => (
-            <li key={v} className="flex items-center gap-2 rounded-xl border border-black/[0.08] bg-white px-3 py-2">
-              <span className="grid h-6 w-6 flex-none place-items-center rounded-lg bg-[#f0eee8] font-mono text-[11px] text-black/50">{i + 1}</span>
-              <span className="min-w-0 flex-1 truncate text-[13px] text-black/75">{labelFor(v)}</span>
+            <li
+              key={v}
+              className="flex items-center gap-2 rounded-xl border border-black/[0.08] bg-white px-3 py-2"
+            >
+              <span className="grid h-6 w-6 flex-none place-items-center rounded-lg bg-[#f0eee8] font-mono text-[11px] text-black/50">
+                {i + 1}
+              </span>
+              <span className="min-w-0 flex-1 truncate text-[13px] text-black/75">
+                {labelFor(v)}
+              </span>
               <span className="flex flex-none items-center gap-0.5">
                 <button
                   type="button"
@@ -944,20 +1254,35 @@ export function OrderedMultiSelect({
           </button>
         </div>
       )}
-      {!disabled && otherDraft === null && (available.length > 0 || allowOther) && (
-        <Select
-          value=""
-          onChange={(v) => (v === OTHER ? setOtherDraft("") : onChange([...values, v]))}
-          options={
-            allowOther
-              ? [...available, { value: OTHER, label: otherLabel, hint: "Anything the list above does not name. You type the name and it joins the sequence." }]
-              : available
-          }
-          placeholder={t(values.length === 0 ? (firstPlaceholder ?? placeholder) : placeholder)}
-          ariaLabel={ariaLabel}
-          searchable={options.length > 10}
-        />
-      )}
+      {!disabled &&
+        otherDraft === null &&
+        (available.length > 0 || allowOther) && (
+          <Select
+            value=""
+            onChange={(v) =>
+              v === OTHER ? setOtherDraft("") : onChange([...values, v])
+            }
+            options={
+              allowOther
+                ? [
+                    ...available,
+                    {
+                      value: OTHER,
+                      label: otherLabel,
+                      hint: "Anything the list above does not name. You type the name and it joins the sequence.",
+                    },
+                  ]
+                : available
+            }
+            placeholder={t(
+              values.length === 0
+                ? (firstPlaceholder ?? placeholder)
+                : placeholder,
+            )}
+            ariaLabel={ariaLabel}
+            searchable={options.length > 10}
+          />
+        )}
     </div>
   );
 }

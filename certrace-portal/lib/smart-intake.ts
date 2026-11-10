@@ -1,31 +1,8 @@
-/* ════════════════════════════════════════════════════════════
-   SMART INTAKE — drop the documents first, work out what they are after
+import { accountStorage } from "./account-storage";
+/** Document intake: read real PDF text, propose values, then file after review. */
 
-   PROTOTYPE. The upload flow everywhere else in the portal is SLOT-FIRST: the
-   reader picks "Utility invoice — March" and then attaches a file to it. BD and
-   ESG asked for the opposite order — throw the pile in, and let the product say
-   what each file is, which month it covers and which checklist row it belongs
-   to. This module is that order, and nothing else in the portal depends on it.
-
-   DETECTION IS A MOCK. Nothing here calls a model. A file is recognised one of
-   three ways, and the UI says which:
-
-     document  — the sample PDFs in public/mock-documents carry the answer in
-                 their Keywords metadata (scripts/make-mock-documents.mjs), so
-                 a demo shows realistic values, confidences and failure cases
-     filename  — any other file is guessed from its name alone, with lower
-                 confidence and no values, because nothing inside was read
-     none      — no guess; the reader picks
-
-   The seam for a real model is `detect()`: same input, same `Detection` out.
-
-   THE RULE FROM lib/workspace-evidence.ts STILL HOLDS: detection PROPOSES.
-   Nothing is filed until a human confirms the card, and only the fields they
-   leave ticked are written. Unticked fields are dropped rather than stored
-   unaccepted, so a filed document always counts as reviewed.
-   ════════════════════════════════════════════════════════════ */
-
-import { PDFDocument } from "pdf-lib";
+import { readDocumentPages, readPdfPages } from "./document-reading";
+import { documentDataUrl, storeDocumentFile } from "./document-files";
 import {
   CONFIDENCE_FLOOR,
   INLINE_BYTES_LIMIT,
@@ -39,9 +16,22 @@ import {
   type ExtractedField,
   type RequiredKey,
 } from "./workspace-evidence";
-import { emptyFuel, emptyElectricitySource, applyEuStandard, fuelTypeDef, getMonth, emptyMonth, saveMonth, type MonthlyEntry } from "./monthly-data";
+import {
+  emptyFuel,
+  emptyElectricitySource,
+  applyEuStandard,
+  fuelTypeDef,
+  getMonth,
+  emptyMonth,
+  saveMonth,
+  type MonthlyEntry,
+} from "./monthly-data";
 import { markAiFilled } from "./ai-fill";
-import { getWorkspace, monthsOf, type VerificationWorkspace } from "./workspace";
+import {
+  getWorkspace,
+  monthsOf,
+  type VerificationWorkspace,
+} from "./workspace";
 import { workspaceRequiresIndirectEmissions } from "./cbam/product-category-rules";
 import { getCarbonPrice } from "./carbon-price";
 
@@ -118,7 +108,8 @@ const SOURCE_TYPE: Record<DocSubject, EvidenceSourceType> = {
 };
 
 /** Subjects that need a fuel type to find their row. */
-export const needsFuel = (s: DocSubject): boolean => s === "fuel_invoice" || s === "fuel_meter";
+export const needsFuel = (s: DocSubject): boolean =>
+  s === "fuel_invoice" || s === "fuel_meter";
 
 /* ── Detection ────────────────────────────────────────────────── */
 export type DetectionSource = "document" | "filename" | "none";
@@ -134,54 +125,52 @@ export type Detection = {
   summary: string;
   fields: ExtractedField[];
   via: DetectionSource;
+  periodConflict?: boolean;
 };
 
-const MOCK_PREFIX = "certrace-mock:";
-
-type MockPayload = {
-  v: 1;
-  subject: DocSubject;
-  subjectConfidence: number;
-  month?: string;
-  monthConfidence?: number;
-  fuelType?: string;
-  issuer?: string;
-  summary: string;
-  fields: { key: string; value: string; unit?: string; confidence: number }[];
-};
-
-const b64urlToText = (s: string): string => {
-  const b64 = s.replace(/-/g, "+").replace(/_/g, "/");
-  const bin = atob(b64);
-  return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
-};
-
-async function readEmbedded(bytes: ArrayBuffer): Promise<MockPayload | null> {
-  try {
-    const pdf = await PDFDocument.load(bytes, { updateMetadata: false, ignoreEncryption: true });
-    const kw = pdf.getKeywords() ?? "";
-    const at = kw.indexOf(MOCK_PREFIX);
-    if (at < 0) return null;
-    const token = kw.slice(at + MOCK_PREFIX.length).split(/[\s,;]/)[0];
-    const parsed = JSON.parse(b64urlToText(token)) as MockPayload;
-    return parsed?.v === 1 && DOC_SUBJECTS.includes(parsed.subject) ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-const MONTHS_EN = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
-const MONTHS_TH = ["ม.ค", "ก.พ", "มี.ค", "เม.ย", "พ.ค", "มิ.ย", "ก.ค", "ส.ค", "ก.ย", "ต.ค", "พ.ย", "ธ.ค"];
+const MONTHS_EN = [
+  "jan",
+  "feb",
+  "mar",
+  "apr",
+  "may",
+  "jun",
+  "jul",
+  "aug",
+  "sep",
+  "oct",
+  "nov",
+  "dec",
+];
+const MONTHS_TH = [
+  "ม.ค",
+  "ก.พ",
+  "มี.ค",
+  "เม.ย",
+  "พ.ค",
+  "มิ.ย",
+  "ก.ค",
+  "ส.ค",
+  "ก.ย",
+  "ต.ค",
+  "พ.ย",
+  "ธ.ค",
+];
 
 /** A month named in the file name, if any. Buddhist-era years are converted. */
-export function monthFromName(name: string, fallbackYear: number): string | undefined {
+export function monthFromName(
+  name: string,
+  fallbackYear: number,
+): string | undefined {
   const lower = name.toLowerCase();
   const iso = /(20\d\d|25\d\d)[-_. ]?(0[1-9]|1[0-2])(?!\d)/.exec(lower);
   const toCe = (y: number) => (y > 2400 ? y - 543 : y);
   if (iso) return `${toCe(Number(iso[1]))}-${iso[2]}`;
   const yearMatch = /(20\d\d|25\d\d)/.exec(lower);
   const year = yearMatch ? toCe(Number(yearMatch[1])) : fallbackYear;
-  const en = MONTHS_EN.findIndex((m) => new RegExp(`(^|[^a-z])${m}`).test(lower));
+  const en = MONTHS_EN.findIndex((m) =>
+    new RegExp(`(^|[^a-z])${m}`).test(lower),
+  );
   if (en >= 0) return `${year}-${String(en + 1).padStart(2, "0")}`;
   const th = MONTHS_TH.findIndex((m) => name.includes(m));
   if (th >= 0) return `${year}-${String(th + 1).padStart(2, "0")}`;
@@ -189,7 +178,10 @@ export function monthFromName(name: string, fallbackYear: number): string | unde
 }
 
 const NAME_RULES: { test: RegExp; subject: DocSubject; fuelType?: string }[] = [
-  { test: /cbam|communication|emission.?sheet|embedded/, subject: "cbam_communication" },
+  {
+    test: /cbam|communication|emission.?sheet|embedded/,
+    subject: "cbam_communication",
+  },
   { test: /origin|\bcoo\b|form.?d|ถิ่นกำเนิด/, subject: "certificate_of_origin" },
   { test: /mill.?test|mtc|3\.1/, subject: "mill_test_certificate" },
   { test: /calib|สอบเทียบ/, subject: "calibration" },
@@ -199,11 +191,18 @@ const NAME_RULES: { test: RegExp; subject: DocSubject; fuelType?: string }[] = [
   { test: /\blab\b|ncv|analysis|วิเคราะห์/, subject: "lab_report" },
   { test: /diesel|ดีเซล/, subject: "fuel_invoice", fuelType: "diesel" },
   { test: /lpg/, subject: "fuel_invoice", fuelType: "lpg" },
-  { test: /natural.?gas|ngv|ก๊าซธรรมชาติ/, subject: "fuel_invoice", fuelType: "natural_gas" },
+  {
+    test: /natural.?gas|ngv|ก๊าซธรรมชาติ/,
+    subject: "fuel_invoice",
+    fuelType: "natural_gas",
+  },
   { test: /coal|ถ่านหิน/, subject: "fuel_invoice", fuelType: "bituminous_coal" },
   { test: /fuel|น้ำมัน|ptt/, subject: "fuel_invoice" },
   { test: /meter|มิเตอร์/, subject: "electricity_meter" },
-  { test: /electric|ค่าไฟ|ไฟฟ้า|\bpea\b|\bmea\b|utility|power.?bill/, subject: "electricity_bill" },
+  {
+    test: /electric|ค่าไฟ|ไฟฟ้า|\bpea\b|\bmea\b|utility|power.?bill/,
+    subject: "electricity_bill",
+  },
   { test: /production|erp|ผลิต|output/, subject: "production" },
   { test: /receipt|ใบเสร็จ|stationery|office/, subject: "unrelated" },
 ];
@@ -218,7 +217,8 @@ function detectFromName(name: string, year: number): Detection {
       subjectConfidence: 0,
       month,
       monthConfidence: month ? 0.5 : 0,
-      summary: "Nothing in the file name says what this is. Pick the document type below.",
+      summary:
+        "Nothing in the file name says what this is. Pick the document type below.",
       fields: [],
       via: "none",
     };
@@ -229,57 +229,103 @@ function detectFromName(name: string, year: number): Detection {
     month,
     monthConfidence: month ? 0.55 : 0,
     fuelType: rule.fuelType,
-    summary: "Guessed from the file name only. Nothing inside the file was read, so no values were proposed.",
+    summary:
+      "Guessed from the file name only. Nothing inside the file was read, so no values were proposed.",
     fields: [],
     via: "filename",
   };
 }
 
-const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-/** THE SEAM. A real model call replaces the body; the shape stays. */
-export async function detect(file: File, bytes: ArrayBuffer, year: number): Promise<Detection> {
-  await wait(700 + Math.random() * 1100);
-  const embedded = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf") ? await readEmbedded(bytes) : null;
-  if (!embedded) return detectFromName(file.name, year);
-  return {
-    subject: embedded.subject,
-    subjectConfidence: embedded.subjectConfidence,
-    month: embedded.month,
-    monthConfidence: embedded.monthConfidence ?? (embedded.month ? 0.9 : 0),
-    fuelType: embedded.fuelType,
-    issuer: embedded.issuer,
-    summary: embedded.summary,
-    fields: embedded.fields.map((f) => ({ ...f, confidence: Math.min(1, Math.max(0, f.confidence)), accepted: f.confidence >= CONFIDENCE_FLOOR })),
-    via: "document",
-  };
+/** Read content locally; filename guesses never supply quantities. */
+export async function detect(
+  file: File,
+  bytes: ArrayBuffer,
+  year: number,
+): Promise<Detection> {
+  const fallback = detectFromName(file.name, year);
+  if (
+    file.type !== "application/pdf" &&
+    !file.name.toLowerCase().endsWith(".pdf")
+  ) {
+    return {
+      ...fallback,
+      summary:
+        "Image attached. Enter its values manually; automatic reading currently supports text PDFs.",
+    };
+  }
+  try {
+    const reading = readDocumentPages(await readPdfPages(bytes));
+    return {
+      subject:
+        reading.subject === "unknown" ? fallback.subject : reading.subject,
+      subjectConfidence:
+        reading.subject === "unknown" ? fallback.subjectConfidence : 0.9,
+      month: reading.month,
+      monthConfidence: reading.month ? 0.95 : 0,
+      fuelType: reading.fuelType ?? fallback.fuelType,
+      summary: reading.summary,
+      fields: reading.fields.map((f) => ({ ...f, accepted: true })),
+      via: "document",
+      periodConflict: reading.periodConflict,
+    };
+  } catch (error) {
+    console.warn("[document-reading] PDF extraction unavailable", error);
+    return {
+      ...fallback,
+      fields: [],
+      summary:
+        "This PDF could not be read. Check that it is unlocked and has readable text, or enter values manually. The file is still attached.",
+    };
+  }
 }
 
 /* ── Where a document files to ────────────────────────────────── */
 export type Target = RequiredKey & { scope: "month" | "annual" };
 
-type WorkspaceScope = { workspace: VerificationWorkspace; requiresIndirect: boolean };
+type WorkspaceScope = {
+  workspace: VerificationWorkspace;
+  requiresIndirect: boolean;
+};
 
 function scopeOf(workspaceId: string): WorkspaceScope | null {
   const workspace = getWorkspace(workspaceId);
   if (!workspace) return null;
-  return { workspace, requiresIndirect: workspaceRequiresIndirectEmissions(workspace.productId) };
+  return {
+    workspace,
+    requiresIndirect: workspaceRequiresIndirectEmissions(workspace.productId),
+  };
 }
 
 /** Every row a document could file to, for the month picked (if any) plus the
     year. Conditional annual rows are offered even when not yet triggered —
     the reader may be holding the document that proves they apply. */
-export function targetsFor(workspaceId: string, month: string | undefined): Target[] {
+export function targetsFor(
+  workspaceId: string,
+  month: string | undefined,
+): Target[] {
   const s = scopeOf(workspaceId);
   if (!s) return [];
   const out: Target[] = [];
   if (month) {
-    const entry = getMonth(workspaceId, month) ?? emptyMonth(workspaceId, month);
-    for (const k of requiredKeysForMonth(entry, s.requiresIndirect)) out.push({ ...k, scope: "month" });
+    const entry =
+      getMonth(workspaceId, month) ?? emptyMonth(workspaceId, month);
+    for (const k of requiredKeysForMonth(entry, true))
+      out.push({ ...k, scope: "month" });
   }
-  const scope = annualScopeFor(workspaceId, s.workspace.periodStart, s.workspace.periodEnd, getCarbonPrice(workspaceId).amountPerTonne > 0);
-  const annual = annualRequiredKeys({ ...scope, hasPurchasedPrecursors: true, carbonPricePaid: true, usesLabAnalysis: true });
-  for (const k of annual) if (!out.some((o) => o.key === k.key)) out.push({ ...k, scope: "annual" });
+  const scope = annualScopeFor(
+    workspaceId,
+    s.workspace.periodStart,
+    s.workspace.periodEnd,
+    getCarbonPrice(workspaceId).amountPerTonne > 0,
+  );
+  const annual = annualRequiredKeys({
+    ...scope,
+    hasPurchasedPrecursors: true,
+    carbonPricePaid: true,
+    usesLabAnalysis: true,
+  });
+  for (const k of annual)
+    if (!out.some((o) => o.key === k.key)) out.push({ ...k, scope: "annual" });
   return out;
 }
 
@@ -320,11 +366,25 @@ const SHORT_LABEL: Record<string, string> = {
   "carbon-price": "Carbon price receipt",
 };
 
-export function shortTargetLabel(workspaceId: string, key: string, month: string | undefined, fallbackFuelType?: string): ShortLabel {
+export function shortTargetLabel(
+  workspaceId: string,
+  key: string,
+  month: string | undefined,
+  fallbackFuelType?: string,
+): ShortLabel {
   const [prefix, rowId] = key.split(":");
   if (rowId) {
-    const fuelType = (month ? getMonth(workspaceId, month)?.fuels.find((f) => f.id === rowId)?.fuelType : undefined) || fallbackFuelType;
-    const text = prefix === "fuel-invoice" ? "{fuel} — invoice" : prefix === "biomass" ? "{fuel} — biomass sustainability documents" : "{fuel} — consumption records";
+    const fuelType =
+      (month
+        ? getMonth(workspaceId, month)?.fuels.find((f) => f.id === rowId)
+            ?.fuelType
+        : undefined) || fallbackFuelType;
+    const text =
+      prefix === "fuel-invoice"
+        ? "{fuel} — invoice"
+        : prefix === "biomass"
+          ? "{fuel} — biomass sustainability documents"
+          : "{fuel} — consumption records";
     return { text, fuelType };
   }
   return { text: SHORT_LABEL[key] ?? key };
@@ -351,38 +411,54 @@ export type Suggestion = {
   notNeeded?: string;
 };
 
-export function suggestTarget(workspaceId: string, subject: DocSubject, month: string | undefined, fuelType: string | undefined): Suggestion {
+export function suggestTarget(
+  workspaceId: string,
+  subject: DocSubject,
+  month: string | undefined,
+  fuelType: string | undefined,
+): Suggestion {
   const s = scopeOf(workspaceId);
   if (!s) return { problem: "Workspace not found." };
-  if (subject === "unrelated") return { notNeeded: "This does not look like anything a CBAM verifier asks for." };
-  if (subject === "unknown") return { problem: "Pick what this document is first." };
+  if (subject === "unrelated")
+    return {
+      notNeeded: "This does not look like anything a CBAM verifier asks for.",
+    };
+  if (subject === "unknown")
+    return { problem: "Pick what this document is first." };
   // Supplier-portal documents: the workspace checklist has no row for them.
   if (subject === "cbam_communication" || subject === "certificate_of_origin") {
-    return { notNeeded: "This document belongs to a supplier's data request, not to this workspace's checklist." };
+    return {
+      notNeeded:
+        "This document belongs to a supplier's data request, not to this workspace's checklist.",
+    };
   }
-  if ((subject === "electricity_bill" || subject === "electricity_meter") && !s.requiresIndirect) {
-    return { notNeeded: "Electricity emissions are not counted for {product}, so no electricity document is required." };
-  }
-  const monthly = subject === "electricity_bill" || subject === "electricity_meter" || subject === "production" || needsFuel(subject);
-  if (monthly && !month) return { problem: "Pick which month this document covers." };
+  const monthly =
+    subject === "electricity_bill" ||
+    subject === "electricity_meter" ||
+    subject === "production" ||
+    needsFuel(subject);
+  if (monthly && !month)
+    return { problem: "Pick which month this document covers." };
   if (month && !monthsOf(s.workspace).includes(month)) {
-    return { problem: `The month is outside this workspace's reporting year (${s.workspace.year}).` };
+    return {
+      problem: `The month is outside this workspace's reporting year (${s.workspace.year}).`,
+    };
   }
   if (needsFuel(subject)) {
     if (!fuelType) return { problem: "Pick which fuel this is for." };
-    const entry = getMonth(workspaceId, month!) ?? emptyMonth(workspaceId, month!);
+    const entry =
+      getMonth(workspaceId, month!) ?? emptyMonth(workspaceId, month!);
     const row = entry.fuels.find((f) => f.fuelType === fuelType);
     if (!row) return { addFuelRow: fuelType };
-    return { key: `${subject === "fuel_invoice" ? "fuel-invoice" : "fuel"}:${row.id}` };
+    return {
+      key: `${subject === "fuel_invoice" ? "fuel-invoice" : "fuel"}:${row.id}`,
+    };
   }
   return { key: FIXED_KEY[subject] };
 }
 
-/* ── The queue ────────────────────────────────────────────────────
-   In memory, per workspace, so moving between tabs or supplier steps keeps
-   the pile. A reload clears it — anything already filed lives in the evidence
-   store, and a prototype queue that outlived a reload would need a story for
-   files too big to keep in the browser. */
+/* Queue metadata survives navigation/reload in localStorage; originals live in
+   IndexedDB and are hydrated only in the browser. */
 export type IntakeStatus = "reading" | "review" | "filed" | "discarded";
 
 export type IntakeDoc = {
@@ -405,6 +481,9 @@ export type IntakeDoc = {
   fields: ExtractedField[];
   /** another document in the pile, or already filed, with the same bytes */
   duplicateOf?: string;
+  localFileId?: string;
+  overwriteConfirmed?: boolean;
+  electricitySourceId?: string;
   filedTo?: { key: string; label: string; month?: string; short: ShortLabel };
   /** set when the reader dismissed it as not needed, rather than set it aside */
   notNeededReason?: string;
@@ -422,14 +501,51 @@ export const subscribeIntake = (l: () => void) => {
   return () => listeners.delete(l);
 };
 
-export const intakeQueue = (workspaceId: string): IntakeDoc[] => queues.get(workspaceId) ?? EMPTY;
+export function intakeQueue(workspaceId: string): IntakeDoc[] {
+  if (queues.has(workspaceId)) return queues.get(workspaceId)!;
+  if (typeof window === "undefined") return EMPTY;
+  try {
+    const restored = JSON.parse(
+      accountStorage.getItem(`certrace:intake:${workspaceId}`) ?? "[]",
+    ) as IntakeDoc[];
+    if (!Array.isArray(restored)) return EMPTY;
+    const rows = restored.map((d) =>
+      d.status === "reading" ? { ...d, status: "review" as const } : d,
+    );
+    queues.set(workspaceId, rows);
+    for (const doc of rows)
+      if (doc.localFileId && !doc.fileDataUrl) {
+        void documentDataUrl(doc.localFileId)
+          .then((url) => {
+            if (url) patchDoc(workspaceId, doc.id, { fileDataUrl: url });
+          })
+          .catch(() => {});
+      }
+    return rows;
+  } catch {
+    queues.set(workspaceId, EMPTY);
+    return EMPTY;
+  }
+}
 
 function setQueue(workspaceId: string, next: IntakeDoc[]) {
   queues.set(workspaceId, next);
+  try {
+    accountStorage.setItem(
+      `certrace:intake:${workspaceId}`,
+      JSON.stringify(next.map((doc) => ({ ...doc, fileDataUrl: undefined }))),
+    );
+  } catch {
+    /* Originals remain in IndexedDB. */
+  }
   emit();
 }
 
-export function patchDoc(workspaceId: string, id: string, patch: Partial<IntakeDoc>) {
+export function patchDoc(
+  workspaceId: string,
+  id: string,
+  patch: Partial<IntakeDoc>,
+) {
   setQueue(
     workspaceId,
     intakeQueue(workspaceId).map((d) => (d.id === id ? { ...d, ...patch } : d)),
@@ -439,13 +555,17 @@ export function patchDoc(workspaceId: string, id: string, patch: Partial<IntakeD
 export const clearFinished = (workspaceId: string) =>
   setQueue(
     workspaceId,
-    intakeQueue(workspaceId).filter((d) => d.status === "reading" || d.status === "review"),
+    intakeQueue(workspaceId).filter(
+      (d) => d.status === "reading" || d.status === "review",
+    ),
   );
 
 async function sha256(bytes: ArrayBuffer): Promise<string | undefined> {
   try {
     const digest = await crypto.subtle.digest("SHA-256", bytes);
-    return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    return [...new Uint8Array(digest)]
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
   } catch {
     return undefined;
   }
@@ -454,12 +574,18 @@ async function sha256(bytes: ArrayBuffer): Promise<string | undefined> {
 const toDataUrl = (bytes: ArrayBuffer, mime: string): string => {
   let bin = "";
   const view = new Uint8Array(bytes);
-  for (let i = 0; i < view.length; i += 0x8000) bin += String.fromCharCode(...view.subarray(i, i + 0x8000));
+  for (let i = 0; i < view.length; i += 0x8000)
+    bin += String.fromCharCode(...view.subarray(i, i + 0x8000));
   return `data:${mime || "application/octet-stream"};base64,${btoa(bin)}`;
 };
 
 /** Add files to the pile and start reading each one. */
-export async function addFiles(workspaceId: string, files: File[], onQueued?: (ids: string[]) => void): Promise<void> {
+export async function addFiles(
+  workspaceId: string,
+  files: File[],
+  onQueued?: (ids: string[]) => void,
+  defaultMonth?: string,
+): Promise<void> {
   const workspace = getWorkspace(workspaceId);
   const year = workspace?.year ?? new Date().getFullYear();
   const fresh: IntakeDoc[] = files.map((f) => ({
@@ -477,27 +603,68 @@ export async function addFiles(workspaceId: string, files: File[], onQueued?: (i
   // The popup follows exactly this batch — told before any reading starts.
   onQueued?.(fresh.map((d) => d.id));
 
-  const filedNames = new Set(listEvidence(workspaceId).map((e) => `${e.fileName}|${e.sizeBytes ?? ""}`));
+  const filedNames = new Set(
+    listEvidence(workspaceId).map((e) => `${e.fileName}|${e.sizeBytes ?? ""}`),
+  );
 
   await Promise.all(
     files.map(async (file, i) => {
       const doc = fresh[i];
-      const bytes = await file.arrayBuffer();
-      const hash = await sha256(bytes);
-      const earlier = intakeQueue(workspaceId).find((d) => d.id !== doc.id && d.hash && d.hash === hash && d.status !== "discarded");
-      const duplicateOf = earlier?.fileName ?? (filedNames.has(`${file.name}|${file.size}`) ? `${file.name} (already filed)` : undefined);
-      const detection = await detect(file, bytes, year);
-      patchDoc(workspaceId, doc.id, {
-        hash,
-        fileDataUrl: file.size <= INLINE_BYTES_LIMIT ? toDataUrl(bytes, file.type) : undefined,
-        status: "review",
-        detection,
-        subject: detection.subject,
-        month: detection.month,
-        fuelType: detection.fuelType,
-        fields: detection.fields,
-        duplicateOf,
-      });
+      try {
+        if (file.size > 15 * 1024 * 1024)
+          throw new Error(
+            "Please upload a file smaller than 15 MB, or split it into relevant pages.",
+          );
+        const bytes = await file.arrayBuffer();
+        const hash = await sha256(bytes);
+        const earlier = hash
+          ? intakeQueue(workspaceId).find(
+              (d) =>
+                d.id !== doc.id && d.hash === hash && d.status !== "discarded",
+            )
+          : undefined;
+        const duplicateOf =
+          earlier?.fileName ??
+          (hash
+            ? listEvidence(workspaceId).find((e) => e.fileHash === hash)
+                ?.fileName
+            : undefined) ??
+          (filedNames.has(`${file.name}|${file.size}`)
+            ? `${file.name} (already filed)`
+            : undefined);
+        patchDoc(workspaceId, doc.id, { hash, duplicateOf });
+        await storeDocumentFile(doc.id, file);
+        patchDoc(workspaceId, doc.id, {
+          hash,
+          localFileId: doc.id,
+          fileDataUrl: toDataUrl(bytes, file.type),
+          duplicateOf,
+        });
+        const detection = await detect(file, bytes, year);
+        patchDoc(workspaceId, doc.id, {
+          status: "review",
+          detection,
+          subject: detection.subject,
+          month: detection.month ?? defaultMonth,
+          fuelType: detection.fuelType,
+          fields: detection.fields,
+        });
+      } catch (error) {
+        patchDoc(workspaceId, doc.id, {
+          status: "review",
+          detection: {
+            subject: "unknown",
+            subjectConfidence: 0,
+            monthConfidence: 0,
+            via: "none",
+            fields: [],
+            summary:
+              error instanceof Error
+                ? error.message
+                : "Upload failed. Please try again.",
+          },
+        });
+      }
     }),
   );
 }
@@ -516,19 +683,41 @@ export type DocVerdict = {
 };
 
 export function verdictFor(doc: IntakeDoc): DocVerdict {
-  const suggestion = suggestTarget(doc.workspaceId, doc.subject, doc.month, doc.fuelType);
+  const suggestion = suggestTarget(
+    doc.workspaceId,
+    doc.subject,
+    doc.month,
+    doc.fuelType,
+  );
   const key = doc.targetOverride ?? suggestion.key;
-  const target = key ? targetsFor(doc.workspaceId, doc.month).find((t) => t.key === key) : undefined;
+  const target = key
+    ? targetsFor(doc.workspaceId, doc.month).find((t) => t.key === key)
+    : undefined;
   const d = doc.detection;
   // A row picked by hand overrides "not needed" — the reader knows something
   // the product rules don't.
-  const notNeeded = doc.status === "review" && !target && suggestion.notNeeded ? suggestion.notNeeded : null;
-  const blocked =
+  const notNeeded =
+    doc.status === "review" && !target && suggestion.notNeeded
+      ? suggestion.notNeeded
+      : null;
+  const targetBlocked =
     doc.status !== "review" || notNeeded
       ? null
       : target || suggestion.addFuelRow
         ? null
         : (suggestion.problem ?? "Pick a checklist row for this document.");
+  const blocked = doc.duplicateOf
+    ? "This file is already in the workspace. Use the existing document or set this copy aside."
+    : !doc.fileDataUrl
+      ? (doc.detection?.summary ??
+        "Upload the file again; its contents are unavailable.")
+      : doc.month &&
+          suggestion.addFuelRow &&
+          ["submitted", "reviewed"].includes(
+            getMonth(doc.workspaceId, doc.month)?.status ?? "",
+          )
+        ? "Reopen this month before adding a fuel source."
+        : (fillProblem(doc) ?? targetBlocked);
   const confident =
     !blocked &&
     !notNeeded &&
@@ -549,9 +738,129 @@ export const WRITES_TO: Record<string, string> = {
   "electricity-consumed": "Electricity consumed (MWh)",
   "production-tonnes": "Production (t)",
   "fuel-quantity": "Fuel quantity",
+  "fuel-delivered": "Fuel received (not consumed)",
 };
 
 const num = (v: string) => Number(String(v).replace(/[,\s]/g, ""));
+
+function normalizedValue(f: ExtractedField): number | null {
+  if (!f.value.trim()) return null;
+  const n = num(f.value);
+  if (!Number.isFinite(n) || n < 0) return null;
+  const unit = f.unit?.toLowerCase();
+  if (f.key === "electricity-consumed")
+    return unit === "kwh" ? n / 1000 : unit === "mwh" ? n : null;
+  if (f.key === "production-tonnes")
+    return unit === "kg" ? n / 1000 : unit === "t" ? n : null;
+  return n;
+}
+
+export function previousFieldValue(
+  doc: IntakeDoc,
+  key: string,
+): number | undefined {
+  if (!doc.month) return;
+  const entry = getMonth(doc.workspaceId, doc.month);
+  if (!entry) return;
+  if (key === "production-tonnes") return entry.productionTonnes;
+  if (key === "electricity-consumed")
+    return (
+      entry.electricitySources?.find((s) =>
+        doc.electricitySourceId
+          ? s.id === doc.electricitySourceId
+          : entry.electricitySources?.length === 1,
+      )?.mwh ??
+      (!entry.electricitySources?.length ? entry.electricityMwh : undefined)
+    );
+  const row = entry.fuels.find((f) =>
+    doc.targetOverride?.includes(":")
+      ? f.id === doc.targetOverride.split(":")[1]
+      : f.fuelType === doc.fuelType,
+  );
+  return key === "fuel-delivered" ? row?.deliveredQuantity : row?.quantity;
+}
+
+export function fillProblem(doc: IntakeDoc): string | null {
+  const selected = doc.fields.filter((f) => f.accepted && f.key in WRITES_TO);
+  if (!selected.length) return null;
+  if (!doc.month) return "Choose the month these values cover.";
+  const workspace = getWorkspace(doc.workspaceId);
+  if (
+    !workspace ||
+    doc.month < workspace.periodStart.slice(0, 7) ||
+    doc.month > workspace.periodEnd.slice(0, 7)
+  )
+    return "Choose a month inside this workspace’s reporting period.";
+  if (doc.detection?.periodConflict)
+    return "This total covers multiple months. Untick its values to keep the file as evidence, then use monthly readings.";
+  if (doc.detection?.month && doc.detection.month !== doc.month)
+    return `The readings cover ${doc.detection.month}. Choose that month, or untick the values to keep evidence only.`;
+  const entry = getMonth(doc.workspaceId, doc.month);
+  if (entry && (entry.status === "submitted" || entry.status === "reviewed"))
+    return "This month is submitted. Reopen it in Monthly data before changing values.";
+  for (const field of selected) {
+    const target = doc.targetOverride;
+    const expected =
+      field.key === "production-tonnes"
+        ? ["production"]
+        : field.key === "electricity-consumed"
+          ? ["utility-invoice", "electricity-consumed"]
+          : [];
+    if (target && expected.length && !expected.includes(target))
+      return "Match the document to the evidence row for the value being filled.";
+    if (
+      target &&
+      field.key.startsWith("fuel-") &&
+      !target.startsWith(
+        field.key === "fuel-delivered" ? "fuel-invoice:" : "fuel:",
+      )
+    )
+      return "Choose the corresponding fuel evidence row.";
+    const value = normalizedValue(field);
+    if (value == null)
+      return "Check the quantity and unit. Electricity uses kWh/MWh and production uses kg/t.";
+    if (
+      field.key === "electricity-consumed" &&
+      !["electricity_bill", "electricity_meter"].includes(doc.subject)
+    )
+      return "Electricity values must be matched to an electricity document.";
+    if (field.key === "production-tonnes" && doc.subject !== "production")
+      return "Match production output to a production record.";
+    if (field.key === "fuel-quantity" && doc.subject !== "fuel_meter")
+      return "A fuel delivery is not consumption. Untick the consumed quantity or choose a consumption record.";
+    if (field.key === "fuel-delivered" && doc.subject !== "fuel_invoice")
+      return "Match fuel deliveries to a fuel invoice or delivery note.";
+    if (
+      field.key === "electricity-consumed" &&
+      (entry?.electricitySources?.length ?? 0) > 1 &&
+      !entry?.electricitySources?.some((s) => s.id === doc.electricitySourceId)
+    )
+      return "Choose which electricity source this reading belongs to.";
+    if (field.key.startsWith("fuel-")) {
+      const rows =
+        entry?.fuels.filter((f) => f.fuelType === doc.fuelType) ?? [];
+      if (rows.length > 1 && !doc.targetOverride)
+        return "Choose the fuel row this document belongs to.";
+      const row = rows.find(
+        (f) => !doc.targetOverride || f.id === doc.targetOverride.split(":")[1],
+      );
+      if (doc.targetOverride && !row)
+        return "Choose a row for the same fuel as the document.";
+      const unit = row?.unit ?? fuelTypeDef(doc.fuelType ?? "")?.typicalUnit;
+      if (field.unit?.toLowerCase() !== unit?.toLowerCase())
+        return `The fuel row uses ${unit ?? "an unknown unit"}. Convert the document quantity to that unit before accepting.`;
+    }
+    const previous = previousFieldValue(doc, field.key);
+    if (
+      previous != null &&
+      previous !== 0 &&
+      previous !== value &&
+      !doc.overwriteConfirmed
+    )
+      return "A value is already entered. Review it and confirm replacement below.";
+  }
+  return null;
+}
 
 /** What filing wrote, as a dictionary key plus values — the card translates it. */
 export type IntakeNote = { text: string; vars?: Record<string, string> };
@@ -580,17 +889,34 @@ function applyFields(
       /* Into a SOURCE ROW. The month editor shows electricity only as source
          rows, so a bare electricityMwh used to be stored and never seen. */
       if (next.electricitySources && next.electricitySources.length > 0) {
-        const idx = Math.max(0, next.electricitySources.findIndex((s) => s.sourceType === "grid_default"));
+        const idx = doc.electricitySourceId
+          ? next.electricitySources.findIndex(
+              (s) => s.id === doc.electricitySourceId,
+            )
+          : 0;
         const rowId = next.electricitySources[idx].id;
-        next = { ...next, electricitySources: next.electricitySources.map((s, i) => (i === idx ? { ...s, mwh } : s)) };
+        next = {
+          ...next,
+          electricitySources: next.electricitySources.map((s, i) =>
+            i === idx ? { ...s, mwh } : s,
+          ),
+        };
         marks.push({ key: `elec:${rowId}`, value: mwh });
       } else {
-        next = { ...next, electricitySources: [{ ...emptyElectricitySource(), id: elecRowId, mwh }] };
+        next = {
+          ...next,
+          electricitySources: [
+            { ...emptyElectricitySource(), id: elecRowId, mwh },
+          ],
+        };
         marks.push({ key: `elec:${elecRowId}`, value: mwh });
       }
       notes.push(
         unit === "kwh"
-          ? { text: "Electricity: {kwh} kWh → {mwh} MWh", vars: { kwh: fmtNum(n), mwh: fmtNum(mwh) } }
+          ? {
+              text: "Electricity: {kwh} kWh → {mwh} MWh",
+              vars: { kwh: fmtNum(n), mwh: fmtNum(mwh) },
+            }
           : { text: "Electricity: {mwh} MWh", vars: { mwh: fmtNum(mwh) } },
       );
     }
@@ -600,27 +926,60 @@ function applyFields(
       marks.push({ key: "production", value: t });
       notes.push({ text: "Production: {t} t", vars: { t: fmtNum(t) } });
     }
-    if (f.key === "fuel-quantity" && Number.isFinite(n) && fuelRowId) {
+    if (
+      (f.key === "fuel-quantity" || f.key === "fuel-delivered") &&
+      Number.isFinite(n) &&
+      fuelRowId
+    ) {
       const row = next.fuels.find((x) => x.id === fuelRowId);
       const u = f.unit === "L" ? "l" : f.unit;
-      if (row && (!u || u === row.unit)) {
-        next = { ...next, fuels: next.fuels.map((x) => (x.id === fuelRowId ? { ...x, quantity: n } : x)) };
-        marks.push({ key: `fuel:${fuelRowId}`, value: n });
-        notes.push({ text: "Fuel quantity: {qty} {unit}", vars: { qty: fmtNum(n), unit: row.unit } });
+      if (row && u?.toLowerCase() === row.unit.toLowerCase()) {
+        next = {
+          ...next,
+          fuels: next.fuels.map((x) =>
+            x.id === fuelRowId
+              ? {
+                  ...x,
+                  ...(f.key === "fuel-delivered"
+                    ? { deliveredQuantity: n }
+                    : { quantity: n }),
+                }
+              : x,
+          ),
+        };
+        marks.push({
+          key: `fuel:${fuelRowId}${f.key === "fuel-delivered" ? ":received" : ""}`,
+          value: n,
+        });
+        notes.push({
+          text: "Fuel quantity: {qty} {unit}",
+          vars: { qty: fmtNum(n), unit: row.unit },
+        });
       } else if (row) {
-        notes.push({ text: "Fuel quantity not written — the document says {docUnit}, the row is in {rowUnit}", vars: { docUnit: f.unit ?? "", rowUnit: row.unit } });
+        notes.push({
+          text: "Fuel quantity not written — the document says {docUnit}, the row is in {rowUnit}",
+          vars: { docUnit: f.unit ?? "", rowUnit: row.unit },
+        });
       }
     }
   }
-  if (next.status === "empty" && next !== entry) next = { ...next, status: "draft" };
+  if (next.status === "empty" && next !== entry)
+    next = { ...next, status: "draft" };
   return { entry: next, notes, marks };
 }
 
 /** How the caller wants a month changed. The supplier flow holds the open
     month in an edit buffer, so it must not be written behind its back. */
-export type MonthWriter = (month: string, update: (entry: MonthlyEntry) => MonthlyEntry) => void;
+export type MonthWriter = (
+  month: string,
+  update: (entry: MonthlyEntry) => MonthlyEntry,
+) => void;
 
-export function fileDoc(doc: IntakeDoc, uploadedBy: string, writeMonth: MonthWriter): { ok: boolean; message: string } {
+export function fileDoc(
+  doc: IntakeDoc,
+  uploadedBy: string,
+  writeMonth: MonthWriter,
+): { ok: boolean; message: string } {
   const v = verdictFor(doc);
   if (v.blocked) return { ok: false, message: v.blocked };
   if (v.notNeeded) return { ok: false, message: v.notNeeded };
@@ -632,10 +991,13 @@ export function fileDoc(doc: IntakeDoc, uploadedBy: string, writeMonth: MonthWri
 
   if (!key && v.suggestion.addFuelRow && doc.month) {
     const def = fuelTypeDef(v.suggestion.addFuelRow);
-    const row = applyEuStandard({ ...emptyFuel(), fuelType: v.suggestion.addFuelRow, unit: def?.typicalUnit ?? "m3" });
+    const row = applyEuStandard({
+      ...emptyFuel(),
+      fuelType: v.suggestion.addFuelRow,
+      unit: def?.typicalUnit ?? "m3",
+    });
     addedRow = row;
     fuelRowId = row.id;
-    writeMonth(doc.month, (e) => ({ ...e, fuels: [...e.fuels, row], status: e.status === "empty" ? "draft" : e.status }));
     key = `${doc.subject === "fuel_invoice" ? "fuel-invoice" : "fuel"}:${row.id}`;
     // The row may only exist in the supplier's edit buffer yet, so the label
     // is built here rather than looked up from the store.
@@ -651,15 +1013,22 @@ export function fileDoc(doc: IntakeDoc, uploadedBy: string, writeMonth: MonthWri
   const isMonthKey = !!doc.month && isMonthlyKey(key);
   const accepted = doc.fields.filter((f) => f.accepted);
 
-  saveEvidence({
+  const saved = saveEvidence({
     id: uid(),
     workspaceId: doc.workspaceId,
     month: isMonthKey ? doc.month : undefined,
-    boundTo: isMonthKey ? undefined : (doc.month ?? String(getWorkspace(doc.workspaceId)?.year ?? "")),
+    boundTo: isMonthKey
+      ? undefined
+      : (doc.month ?? String(getWorkspace(doc.workspaceId)?.year ?? "")),
     fieldKeys: [key],
     sourceType: SOURCE_TYPE[doc.subject],
     fileName: doc.fileName,
-    fileDataUrl: doc.fileDataUrl,
+    fileDataUrl:
+      doc.sizeBytes <= INLINE_BYTES_LIMIT ? doc.fileDataUrl : undefined,
+    localFileId: doc.localFileId,
+    fileHash: doc.hash,
+    reviewedBy: uploadedBy,
+    reviewedAt: new Date().toISOString(),
     mimeType: doc.mimeType,
     sizeBytes: doc.sizeBytes,
     capturedAt: new Date().toISOString(),
@@ -673,6 +1042,21 @@ export function fileDoc(doc: IntakeDoc, uploadedBy: string, writeMonth: MonthWri
         }
       : undefined,
   });
+  if (!saved.stored)
+    return {
+      ok: false,
+      message:
+        "The document could not be saved. Free browser storage and retry; no values were filled.",
+    };
+
+  if (addedRow && doc.month) {
+    const row = addedRow;
+    writeMonth(doc.month, (e) => ({
+      ...e,
+      fuels: [...e.fuels, row],
+      status: e.status === "empty" ? "draft" : e.status,
+    }));
+  }
 
   /* Notes come from a dry run against what the store holds (plus any row just
      added): the supplier's writer applies its update later, inside a React
@@ -680,19 +1064,38 @@ export function fileDoc(doc: IntakeDoc, uploadedBy: string, writeMonth: MonthWri
   let notes: IntakeNote[] = [];
   if (doc.month && accepted.some((f) => f.key in WRITES_TO)) {
     const month = doc.month;
-    const stored = getMonth(doc.workspaceId, month) ?? emptyMonth(doc.workspaceId, month);
-    const preview = addedRow && !stored.fuels.some((x) => x.id === addedRow.id) ? { ...stored, fuels: [...stored.fuels, addedRow] } : stored;
+    const stored =
+      getMonth(doc.workspaceId, month) ?? emptyMonth(doc.workspaceId, month);
+    const preview =
+      addedRow && !stored.fuels.some((x) => x.id === addedRow.id)
+        ? { ...stored, fuels: [...stored.fuels, addedRow] }
+        : stored;
     const elecRowId = uid();
     notes = applyFields(preview, doc, fuelRowId, elecRowId).notes;
     writeMonth(month, (e) => {
       const r = applyFields(e, doc, fuelRowId, elecRowId);
-      for (const m of r.marks) markAiFilled(`ws:${doc.workspaceId}`, `${month}:${m.key}`, m.value, doc.fileName);
+      for (const m of r.marks)
+        markAiFilled(
+          `ws:${doc.workspaceId}`,
+          `${month}:${m.key}`,
+          m.value,
+          doc.fileName,
+        );
       return r.entry;
     });
   }
 
-  const short = shortTargetLabel(doc.workspaceId, key, doc.month, addedRow?.fuelType ?? doc.fuelType);
-  patchDoc(doc.workspaceId, doc.id, { status: "filed", filedTo: { key, label, month: isMonthKey ? doc.month : undefined, short }, notes });
+  const short = shortTargetLabel(
+    doc.workspaceId,
+    key,
+    doc.month,
+    addedRow?.fuelType ?? doc.fuelType,
+  );
+  patchDoc(doc.workspaceId, doc.id, {
+    status: "filed",
+    filedTo: { key, label, month: isMonthKey ? doc.month : undefined, short },
+    notes,
+  });
   return { ok: true, message: short.fuelType ? label : short.text };
 }
 
@@ -701,5 +1104,7 @@ export function fileDoc(doc: IntakeDoc, uploadedBy: string, writeMonth: MonthWri
 export const storeMonthWriter =
   (workspaceId: string): MonthWriter =>
   (month, update) => {
-    saveMonth(update(getMonth(workspaceId, month) ?? emptyMonth(workspaceId, month)));
+    saveMonth(
+      update(getMonth(workspaceId, month) ?? emptyMonth(workspaceId, month)),
+    );
   };

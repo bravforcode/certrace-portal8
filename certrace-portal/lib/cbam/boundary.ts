@@ -63,17 +63,22 @@ export const PROCESS_STEP_LABEL: Record<ProcessStep, string> = {
 /** One line of context per step — what a verifier expects to see accounted
     for if the step is inside the boundary. */
 export const PROCESS_STEP_HINT: Record<ProcessStep, string> = {
-  raw_material_handling: "Scrap yards, ore handling, on-site transport and pre-heating.",
-  melting_eaf: "Electric arc furnace melting — electrode consumption sits here.",
-  melting_bf_bof: "Blast furnace and basic oxygen route, including coke and sinter use.",
-  melting_dri_eaf: "Direct-reduction shaft plus EAF melting — reductant gas belongs here.",
+  raw_material_handling:
+    "Scrap yards, ore handling, on-site transport and pre-heating.",
+  melting_eaf:
+    "Electric arc furnace melting — electrode consumption sits here.",
+  melting_bf_bof:
+    "Blast furnace and basic oxygen route, including coke and sinter use.",
+  melting_dri_eaf:
+    "Direct-reduction shaft plus EAF melting — reductant gas belongs here.",
   casting: "Continuous casting or ingot casting, tundish and ladle heating.",
   hot_rolling: "Reheat furnaces and the hot mill.",
   cold_rolling: "Cold reduction mill, annealing and temper rolling.",
   pickling: "Acid pickling lines and acid regeneration.",
   coating_galvanizing: "Zinc, tin or paint lines including the coating pot.",
   finishing_cutting: "Slitting, cutting to length, packing.",
-  onsite_utilities: "Compressed air, on-site power generation, steam, lighting.",
+  onsite_utilities:
+    "Compressed air, on-site power generation, steam, lighting.",
 };
 
 export type Boundary = {
@@ -98,13 +103,16 @@ export const emptyBoundary = (declarationId: string): Boundary => ({
 
 /** Steps the exporter has answered neither way. Completeness is only claimable
     once this is empty — an unanswered step is an unclosed boundary. */
-export function undecidedSteps(b: Pick<Boundary, "included" | "excluded">): ProcessStep[] {
+export function undecidedSteps(
+  b: Pick<Boundary, "included" | "excluded">,
+): ProcessStep[] {
   const decided = new Set<ProcessStep>([...b.included, ...b.excluded]);
   return PROCESS_STEPS.filter((s) => !decided.has(s));
 }
 
-export const boundaryComplete = (b: Pick<Boundary, "included" | "excluded" | "description">): boolean =>
-  undecidedSteps(b).length === 0 && b.description.trim().length > 0;
+export const boundaryComplete = (
+  b: Pick<Boundary, "included" | "excluded" | "description">,
+): boolean => undecidedSteps(b).length === 0 && b.description.trim().length > 0;
 
 /* ── Reporting period ──────────────────────────────────────────── */
 export type ReportingPeriod = {
@@ -135,12 +143,15 @@ export function displayDate(iso: string | null | undefined): string {
   return m ? `${m[1]}/${m[2]}/${m[3]}` : iso;
 }
 
-export const displayPeriod = (p: Pick<ReportingPeriod, "start" | "end">): string =>
-  `${displayDate(p.start)} — ${displayDate(p.end)}`;
+export const displayPeriod = (
+  p: Pick<ReportingPeriod, "start" | "end">,
+): string => `${displayDate(p.start)} — ${displayDate(p.end)}`;
 
 /** The calendar months a period covers, as 'YYYY-MM'. Drives V11 (a reporting
     period needs a reading for every month, or a data-gap entry saying why not). */
-export function monthsInPeriod(p: Pick<ReportingPeriod, "start" | "end">): string[] {
+export function monthsInPeriod(
+  p: Pick<ReportingPeriod, "start" | "end">,
+): string[] {
   const s = /^(\d{4})-(\d{2})/.exec(p.start ?? "");
   const e = /^(\d{4})-(\d{2})/.exec(p.end ?? "");
   if (!s || !e) return [];
@@ -168,5 +179,7 @@ export const monthLabel = (ym: string): string => {
 
 /** Is an ISO date inside the period (inclusive)? String compare is safe and
     timezone-proof for 'YYYY-MM-DD'. */
-export const withinPeriod = (iso: string, p: Pick<ReportingPeriod, "start" | "end">): boolean =>
-  Boolean(iso) && iso >= p.start && iso <= p.end;
+export const withinPeriod = (
+  iso: string,
+  p: Pick<ReportingPeriod, "start" | "end">,
+): boolean => Boolean(iso) && iso >= p.start && iso <= p.end;

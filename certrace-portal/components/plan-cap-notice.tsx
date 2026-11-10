@@ -14,11 +14,22 @@
 import { TriangleAlert, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { Card, ButtonLink, Button } from "./ui";
-import { CAP_REMEDY, CONTACT_SALES_URL, capBlockedText, type CapState } from "@/lib/plan";
+import {
+  CAP_REMEDY,
+  CONTACT_SALES_URL,
+  capBlockedText,
+  type CapState,
+} from "@/lib/plan";
 import { useAccount } from "./account-lock";
 import { useT } from "@/lib/i18n";
 
-export function PlanCapNotice({ cap, className }: { cap: CapState; className?: string }) {
+export function PlanCapNotice({
+  cap,
+  className,
+}: {
+  cap: CapState;
+  className?: string;
+}) {
   const t = useT();
   /* Through the context, not currentPlan(): a screen that does not consume it
      never re-renders when the plan resolves on the client, and this banner
@@ -34,7 +45,9 @@ export function PlanCapNotice({ cap, className }: { cap: CapState; className?: s
             <TriangleAlert size={17} strokeWidth={1.5} />
           </span>
           <div>
-            <p className="text-sm text-[#111]">{t(capBlockedText(cap), { plan: plan.name, cap: cap.cap })}</p>
+            <p className="text-sm text-[#111]">
+              {t(capBlockedText(cap), { plan: plan.name, cap: cap.cap })}
+            </p>
             <p className="mt-1 text-sm text-black/45">{t(CAP_REMEDY)}</p>
           </div>
         </div>
@@ -44,7 +57,12 @@ export function PlanCapNotice({ cap, className }: { cap: CapState; className?: s
               {t("Compare plans")}
             </Button>
           </Link>
-          <ButtonLink href={CONTACT_SALES_URL} external variant="secondary" size="sm">
+          <ButtonLink
+            href={CONTACT_SALES_URL}
+            external
+            variant="secondary"
+            size="sm"
+          >
             {t("Contact Sales")} <ArrowRight size={14} strokeWidth={1.5} />
           </ButtonLink>
         </div>

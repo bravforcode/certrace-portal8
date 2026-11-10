@@ -26,8 +26,17 @@ import { Check } from "lucide-react";
 import { Button, Field, HelpTip, Modal, inputClass, cn } from "@/components/ui";
 import { Select } from "@/components/controls";
 import { COUNTRIES } from "@/lib/config";
-import { DIAL_CODES, MAX_SUBSCRIBER_DIGITS, MIN_SUBSCRIBER_DIGITS, dialCodeFor, isValidSubscriberNumber, joinPhone, splitPhone } from "@/lib/dial-codes";
+import {
+  DIAL_CODES,
+  MAX_SUBSCRIBER_DIGITS,
+  MIN_SUBSCRIBER_DIGITS,
+  dialCodeFor,
+  isValidSubscriberNumber,
+  joinPhone,
+  splitPhone,
+} from "@/lib/dial-codes";
 import { useT } from "@/lib/i18n";
+import { persistReportChange } from "@/lib/persist-report-change";
 import {
   canSaveSupplier,
   emptySupplier,
@@ -36,7 +45,11 @@ import {
   type SupplierCompany,
 } from "@/lib/supplier-companies";
 
-const countryOptions = COUNTRIES.map((c) => ({ value: c.code, label: c.name, hint: c.code }));
+const countryOptions = COUNTRIES.map((c) => ({
+  value: c.code,
+  label: c.name,
+  hint: c.code,
+}));
 
 /* Labelled by country so it is searchable by name — nobody remembers that
    Thailand is 66, and a menu of 198 bare numbers is a menu nobody can use. */
@@ -51,7 +64,9 @@ const dialOptions = (() => {
     .map(([dial, names]) => ({
       value: dial,
       label: dial,
-      hint: names.slice(0, 3).join(", ") + (names.length > 3 ? ` +${names.length - 3} more` : ""),
+      hint:
+        names.slice(0, 3).join(", ") +
+        (names.length > 3 ? ` +${names.length - 3} more` : ""),
     }))
     .sort((a, b) => Number(a.value.slice(1)) - Number(b.value.slice(1)));
 })();
@@ -60,7 +75,15 @@ const dialOptions = (() => {
     facts (see PrecursorSupplier's own note), and its editor must not spell
     the telephone differently — a free-text second copy is exactly the four
     unusable spellings lib/dial-codes.ts exists to prevent. */
-export function SupplierPhoneField({ value, country, onChange }: { value: string; country: string; onChange: (v: string) => void }) {
+export function SupplierPhoneField({
+  value,
+  country,
+  onChange,
+}: {
+  value: string;
+  country: string;
+  onChange: (v: string) => void;
+}) {
   const t = useT();
   const parsed = splitPhone(value, country);
   /* The picker guarantees the "+66". Nothing used to check the rest, so
@@ -119,7 +142,11 @@ export function SupplierPhoneField({ value, country, onChange }: { value: string
           />
         </div>
         <input
-          className={cn(inputClass, "min-w-0 flex-1", invalid && "border-[#dc2626]")}
+          className={cn(
+            inputClass,
+            "min-w-0 flex-1",
+            invalid && "border-[#dc2626]",
+          )}
           value={number}
           inputMode="tel"
           onChange={(e) => push(dial, e.target.value)}
@@ -139,10 +166,18 @@ export function SupplierPhoneField({ value, country, onChange }: { value: string
   );
 }
 
-export function SupplierFields({ value, onChange }: { value: SupplierCompany; onChange: (next: SupplierCompany) => void }) {
+export function SupplierFields({
+  value,
+  onChange,
+}: {
+  value: SupplierCompany;
+  onChange: (next: SupplierCompany) => void;
+}) {
   const t = useT();
   const set = (p: Partial<SupplierCompany>) => onChange({ ...value, ...p });
-  const emailError = value.contactEmail.trim() ? supplierEmailError(value.contactEmail) : null;
+  const emailError = value.contactEmail.trim()
+    ? supplierEmailError(value.contactEmail)
+    : null;
 
   return (
     <div className="space-y-5">
@@ -152,14 +187,30 @@ export function SupplierFields({ value, onChange }: { value: SupplierCompany; on
           helpTitle={t("Which name goes here")}
           help={
             <p>
-              {t("The company you buy from and chase, as it appears on their invoices. Their individual plants are added underneath — one supplier can run several.")}
+              {t(
+                "The company you buy from and chase, as it appears on their invoices. Their individual plants are added underneath — one supplier can run several.",
+              )}
             </p>
           }
         >
-          <input className={inputClass} value={value.name} onChange={(e) => set({ name: e.target.value })} placeholder={t("G J Steel Public Company Limited")} />
+          <input
+            className={inputClass}
+            value={value.name}
+            onChange={(e) => set({ name: e.target.value })}
+            placeholder={t("G J Steel Public Company Limited")}
+          />
         </LabelWithHelp>
-        <Field label={t("Country")} hint={t("Where the company is registered.")}>
-          <Select value={value.country} onChange={(v) => set({ country: v })} options={countryOptions} searchable ariaLabel={t("Country")} />
+        <Field
+          label={t("Country")}
+          hint={t("Where the company is registered.")}
+        >
+          <Select
+            value={value.country}
+            onChange={(v) => set({ country: v })}
+            options={countryOptions}
+            searchable
+            ariaLabel={t("Country")}
+          />
         </Field>
       </div>
 
@@ -167,16 +218,33 @@ export function SupplierFields({ value, onChange }: { value: SupplierCompany; on
         <LabelWithHelp
           label={t("Contact person")}
           helpTitle={t("Who this is")}
-          help={<p>{t("The named person who fills the monthly data in. A verifier asks who answered for the figures, and a department is not an answer.")}</p>}
+          help={
+            <p>
+              {t(
+                "The named person who fills the monthly data in. A verifier asks who answered for the figures, and a department is not an answer.",
+              )}
+            </p>
+          }
         >
-          <input className={inputClass} value={value.contactName} onChange={(e) => set({ contactName: e.target.value })} placeholder={t("Somchai Prasert")} />
+          <input
+            className={inputClass}
+            value={value.contactName}
+            onChange={(e) => set({ contactName: e.target.value })}
+            placeholder={t("Somchai Prasert")}
+          />
         </LabelWithHelp>
         {/* Not a <Field>: that wraps its children in a <label>, and a label
             holding two controls forwards every click to the first one — so
             tapping the number box would open the dialling-code menu. */}
         <div>
-          <span className="mb-2 block text-[11px] uppercase tracking-[0.1em] text-black/55">{t("Telephone")}</span>
-          <SupplierPhoneField value={value.contactPhone} country={value.country} onChange={(v) => set({ contactPhone: v })} />
+          <span className="mb-2 block text-[11px] uppercase tracking-[0.1em] text-black/55">
+            {t("Telephone")}
+          </span>
+          <SupplierPhoneField
+            value={value.contactPhone}
+            country={value.country}
+            onChange={(v) => set({ contactPhone: v })}
+          />
         </div>
       </div>
 
@@ -184,7 +252,13 @@ export function SupplierFields({ value, onChange }: { value: SupplierCompany; on
         <LabelWithHelp
           label={t("Email")}
           helpTitle={t("Where each month goes")}
-          help={<p>{t("This is the address the monthly link is sent to. It is the one field here that stops the whole arrangement working if it is wrong.")}</p>}
+          help={
+            <p>
+              {t(
+                "This is the address the monthly link is sent to. It is the one field here that stops the whole arrangement working if it is wrong.",
+              )}
+            </p>
+          }
         >
           <input
             className={cn(inputClass, emailError && "border-[#dc2626]")}
@@ -195,7 +269,11 @@ export function SupplierFields({ value, onChange }: { value: SupplierCompany; on
             aria-invalid={Boolean(emailError)}
           />
         </LabelWithHelp>
-        {emailError && <span className="mt-1.5 block text-[11.5px] text-[#dc2626]">{emailError}</span>}
+        {emailError && (
+          <span className="mt-1.5 block text-[11.5px] text-[#dc2626]">
+            {emailError}
+          </span>
+        )}
       </div>
     </div>
   );
@@ -243,7 +321,9 @@ export function SupplierModal({
   lead?: string;
 }) {
   const t = useT();
-  const [draft, setDraft] = React.useState<SupplierCompany>(initial ?? emptySupplier());
+  const [draft, setDraft] = React.useState<SupplierCompany>(
+    initial ?? emptySupplier(),
+  );
 
   React.useEffect(() => {
     if (open) setDraft(initial ?? emptySupplier());
@@ -252,46 +332,89 @@ export function SupplierModal({
   /* Confirmed on the button, then closed — the same shape as the installation
      dialog next to it. See the note on its `save`. */
   const [saved, setSaved] = React.useState(false);
+  const [saving, setSaving] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
   React.useEffect(() => {
-    if (!open) setSaved(false);
+    if (!open) {
+      setSaved(false);
+      setError(null);
+    }
   }, [open]);
 
-  const save = () => {
-    if (saved || !canSaveSupplier(draft)) return;
-    const record = saveSupplierCompany(draft);
-    setSaved(true);
-    window.setTimeout(() => {
-      onSaved(record);
-      onClose();
-    }, 760);
+  const save = async () => {
+    if (saving || saved || !canSaveSupplier(draft)) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const record = await persistReportChange(() =>
+        saveSupplierCompany(draft),
+      );
+      setSaved(true);
+      window.setTimeout(() => {
+        onSaved(record);
+        onClose();
+      }, 760);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setSaving(false);
+    }
+  };
+  const close = () => {
+    if (!saving && !saved) onClose();
   };
 
   return (
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={close}
       eyebrow={t("Supplier")}
       title={title ?? (initial ? "Edit supplier" : "Add a supplier")}
       lead={t(lead)}
       width="max-w-2xl"
       footer={
         <>
-          <Button size="sm" variant="secondary" onClick={onClose}>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={saving || saved}
+            onClick={close}
+          >
             {t("Cancel")}
           </Button>
           <Button
             size="sm"
-            disabled={!canSaveSupplier(draft)}
+            disabled={saving || saved || !canSaveSupplier(draft)}
             onClick={save}
-            className={cn("min-w-[9.5rem]", saved && "bg-[#047857] hover:bg-[#047857]")}
+            className={cn(
+              "min-w-[9.5rem]",
+              saved && "bg-[#047857] hover:bg-[#047857]",
+            )}
           >
-            {saved && <Check size={13} strokeWidth={2} className="ct-confirm" />}
-            {saved ? (initial ? "Supplier saved" : "Supplier added") : initial ? "Save supplier" : "Add supplier"}
+            {saved && (
+              <Check size={13} strokeWidth={2} className="ct-confirm" />
+            )}
+            {saving
+              ? t("Saving…")
+              : saved
+                ? initial
+                  ? "Supplier saved"
+                  : "Supplier added"
+                : initial
+                  ? "Save supplier"
+                  : "Add supplier"}
           </Button>
         </>
       }
     >
-      <SupplierFields value={draft} onChange={setDraft} />
+      {error && (
+        <p role="alert" className="mb-4 text-sm text-[#dc2626]">
+          {error}
+        </p>
+      )}
+      <fieldset disabled={saving || saved}>
+        <SupplierFields value={draft} onChange={setDraft} />
+      </fieldset>
     </Modal>
   );
 }

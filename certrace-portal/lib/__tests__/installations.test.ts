@@ -51,7 +51,9 @@ const {
 } = await import("../installations");
 const { getOrgIdentity } = await import("../org");
 
-const filled = (over: Partial<Awaited<ReturnType<typeof emptyInstallation>>> = {}) => ({
+const filled = (
+  over: Partial<Awaited<ReturnType<typeof emptyInstallation>>> = {},
+) => ({
   ...emptyInstallation(false),
   id: "TH-SOMEWHERE-01",
   name: "A plant",
@@ -69,11 +71,27 @@ const filled = (over: Partial<Awaited<ReturnType<typeof emptyInstallation>>> = {
 
 test("a new own installation carries no reference and no company name", () => {
   storage.clear();
+  storage.setItem(
+    "certrace:profile",
+    JSON.stringify({
+      companyName: "Exporter Ltd",
+      installationId: "TH-EXPORTER-01",
+      jurisdiction: "TH",
+    }),
+  );
   const blank = emptyInstallation(true);
   const org = getOrgIdentity();
 
-  assert.equal(blank.id, "", "the reference is the record's key — it is never seeded");
-  assert.notEqual(blank.id, org.installationId, "and specifically never the org profile's operator reference");
+  assert.equal(
+    blank.id,
+    "",
+    "the reference is the record's key — it is never seeded",
+  );
+  assert.notEqual(
+    blank.id,
+    org.installationId,
+    "and specifically never the org profile's operator reference",
+  );
   assert.equal(blank.name, "", "a company is not an installation");
   assert.notEqual(blank.name, org.name);
   assert.equal(blank.self, true);
@@ -84,6 +102,14 @@ test("a new own installation carries no reference and no company name", () => {
 
 test("a new supplier installation carries nothing of the exporter's", () => {
   storage.clear();
+  storage.setItem(
+    "certrace:profile",
+    JSON.stringify({
+      companyName: "Exporter Ltd",
+      installationId: "TH-EXPORTER-01",
+      jurisdiction: "TH",
+    }),
+  );
   const blank = emptyInstallation(false);
   const org = getOrgIdentity();
 
@@ -99,48 +125,93 @@ test("an own site and a supplier's site are two records with two references", ()
   storage.clear();
 
   const own = saveInstallation(
-    filled({ id: "TH-RAYONG-01", name: "Rayong Works Line 2", self: true, city: "Rayong", economicActivity: "EAF billet casting" }),
+    filled({
+      id: "TH-RAYONG-01",
+      name: "Rayong Works Line 2",
+      self: true,
+      city: "Rayong",
+      economicActivity: "EAF billet casting",
+    }),
   );
 
   // The supplier's plant is created next, in the same session, exactly as the
   // Suppliers page and the new-workspace flow do it.
-  const supplierBlank = { ...emptyInstallation(false), supplierId: "sup-gjsteel" };
-  assert.equal(supplierBlank.id, "", "the form opens with an EMPTY reference, not the site just saved");
+  const supplierBlank = {
+    ...emptyInstallation(false),
+    supplierId: "sup-gjsteel",
+  };
+  assert.equal(
+    supplierBlank.id,
+    "",
+    "the form opens with an EMPTY reference, not the site just saved",
+  );
   assert.notEqual(supplierBlank.id, own.id);
   assert.equal(supplierBlank.name, "", "nor the name");
 
   const theirs = saveInstallation({
-    ...filled({ ...supplierBlank, id: "TH-CHONBURI-77", name: "G J Steel Chonburi Mill", city: "Chonburi", economicActivity: "Hot rolling" }),
+    ...filled({
+      ...supplierBlank,
+      id: "TH-CHONBURI-77",
+      name: "G J Steel Chonburi Mill",
+      city: "Chonburi",
+      economicActivity: "Hot rolling",
+    }),
     supplierId: "sup-gjsteel",
   });
 
-  assert.equal(listInstallations().length, 2, "two sites, two records — neither overwrote the other");
+  assert.equal(
+    listInstallations().length,
+    2,
+    "two sites, two records — neither overwrote the other",
+  );
   assert.notEqual(theirs.id, own.id);
   assert.notEqual(theirs.name, own.name);
 
   const readBack = getInstallation("TH-CHONBURI-77")!;
-  assert.equal(readBack.name, "G J Steel Chonburi Mill", "the supplier record does not read back as the exporter's");
+  assert.equal(
+    readBack.name,
+    "G J Steel Chonburi Mill",
+    "the supplier record does not read back as the exporter's",
+  );
   assert.equal(readBack.self, false);
   assert.equal(readBack.supplierId, "sup-gjsteel");
   // Every identity field is the supplier's own, not a copy of the site above.
   assert.equal(readBack.city, "Chonburi");
   assert.equal(readBack.economicActivity, "Hot rolling");
   assert.notEqual(readBack.city, own.city);
-  assert.equal(getInstallation("TH-RAYONG-01")!.name, "Rayong Works Line 2", "and the exporter's own site is untouched");
-  assert.equal(getInstallation("TH-RAYONG-01")!.economicActivity, "EAF billet casting");
+  assert.equal(
+    getInstallation("TH-RAYONG-01")!.name,
+    "Rayong Works Line 2",
+    "and the exporter's own site is untouched",
+  );
+  assert.equal(
+    getInstallation("TH-RAYONG-01")!.economicActivity,
+    "EAF billet casting",
+  );
 
-  assert.deepEqual(ownInstallations().map((i) => i.id), ["TH-RAYONG-01"]);
-  assert.deepEqual(installationsForSupplier("sup-gjsteel").map((i) => i.id), ["TH-CHONBURI-77"]);
+  assert.deepEqual(
+    ownInstallations().map((i) => i.id),
+    ["TH-RAYONG-01"],
+  );
+  assert.deepEqual(
+    installationsForSupplier("sup-gjsteel").map((i) => i.id),
+    ["TH-CHONBURI-77"],
+  );
 });
 
 /* ── And a genuine duplicate is still refused ────────────────── */
 
 test("the uniqueness check still catches two records that really do share a reference", () => {
   storage.clear();
-  saveInstallation(filled({ id: "TH-RAYONG-01", name: "Rayong Works Line 2", self: true }));
+  saveInstallation(
+    filled({ id: "TH-RAYONG-01", name: "Rayong Works Line 2", self: true }),
+  );
 
   assert.equal(referenceTaken("TH-RAYONG-01"), true);
-  assert.match(referenceError("TH-RAYONG-01", "TH")!, /already belongs to another installation/);
+  assert.match(
+    referenceError("TH-RAYONG-01", "TH")!,
+    /already belongs to another installation/,
+  );
   // Editing that same site does not report its own reference as taken.
   assert.equal(referenceError("TH-RAYONG-01", "TH", "TH-RAYONG-01"), null);
 });
@@ -156,32 +227,73 @@ test("a workspace's blank installation takes its ownership from the workspace", 
     selfSupplied: false,
     supplierId: "sup-gjsteel",
   });
-  assert.equal(supplierSide.id, "TH-CHONBURI-77", "the workspace's own reference, never the org profile's");
+  assert.equal(
+    supplierSide.id,
+    "TH-CHONBURI-77",
+    "the workspace's own reference, never the org profile's",
+  );
   assert.equal(supplierSide.self, false);
-  assert.equal(supplierSide.supplierId, "sup-gjsteel", "the plant still belongs to the company it belongs to");
+  assert.equal(
+    supplierSide.supplierId,
+    "sup-gjsteel",
+    "the plant still belongs to the company it belongs to",
+  );
 
-  const ownSide = installationForWorkspace({ installationId: "TH-RAYONG-01", installationName: "Rayong Works Line 2", selfSupplied: true });
-  assert.equal(ownSide.self, true, "an own site round-tripped through this screen stays an own site");
+  const ownSide = installationForWorkspace({
+    installationId: "TH-RAYONG-01",
+    installationName: "Rayong Works Line 2",
+    selfSupplied: true,
+  });
+  assert.equal(
+    ownSide.self,
+    true,
+    "an own site round-tripped through this screen stays an own site",
+  );
   assert.equal(ownSide.supplierId, "", "and never picks up a supplier");
 });
 
 test("a stored record wins over the fabricated one", () => {
   storage.clear();
-  saveInstallation(filled({ id: "TH-CHONBURI-77", name: "G J Steel Chonburi Mill", supplierId: "sup-gjsteel", city: "Chonburi" }));
+  saveInstallation(
+    filled({
+      id: "TH-CHONBURI-77",
+      name: "G J Steel Chonburi Mill",
+      supplierId: "sup-gjsteel",
+      city: "Chonburi",
+    }),
+  );
 
-  const got = installationForWorkspace({ installationId: "TH-CHONBURI-77", installationName: "Stale name from the workspace", supplierId: "sup-gjsteel" });
-  assert.equal(got.name, "G J Steel Chonburi Mill", "the record on file is the answer, not the workspace's denormalised copy");
+  const got = installationForWorkspace({
+    installationId: "TH-CHONBURI-77",
+    installationName: "Stale name from the workspace",
+    supplierId: "sup-gjsteel",
+  });
+  assert.equal(
+    got.name,
+    "G J Steel Chonburi Mill",
+    "the record on file is the answer, not the workspace's denormalised copy",
+  );
   assert.equal(got.city, "Chonburi");
 });
 
 test("saving an own site through the workspace screen does not demote it", () => {
   storage.clear();
-  saveInstallation(filled({ id: "TH-RAYONG-01", name: "Rayong Works Line 2", self: true }));
+  saveInstallation(
+    filled({ id: "TH-RAYONG-01", name: "Rayong Works Line 2", self: true }),
+  );
 
   // What autosave does on that screen: read the record, write it back.
-  const shown = installationForWorkspace({ installationId: "TH-RAYONG-01", installationName: "Rayong Works Line 2", selfSupplied: true });
+  const shown = installationForWorkspace({
+    installationId: "TH-RAYONG-01",
+    installationName: "Rayong Works Line 2",
+    selfSupplied: true,
+  });
   saveInstallation(shown);
 
-  assert.equal(getInstallation("TH-RAYONG-01")!.self, true, "still one of the exporter's own sites");
+  assert.equal(
+    getInstallation("TH-RAYONG-01")!.self,
+    true,
+    "still one of the exporter's own sites",
+  );
   assert.equal(ownInstallations().length, 1);
 });

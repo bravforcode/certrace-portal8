@@ -17,7 +17,11 @@
 import * as React from "react";
 import { Zap, X } from "lucide-react";
 import { Card, Button, Eyebrow, cn } from "@/components/ui";
-import { acknowledgeMigration, migrationAcknowledged, type ElectricityMigrationRow } from "@/lib/cbam/electricity-migration";
+import {
+  acknowledgeMigration,
+  migrationAcknowledged,
+  type ElectricityMigrationRow,
+} from "@/lib/cbam/electricity-migration";
 import { useT } from "@/lib/i18n";
 
 export function UnitChangeNotice({
@@ -48,14 +52,27 @@ export function UnitChangeNotice({
           <Zap size={15} strokeWidth={1.5} />
         </span>
         <div className="min-w-0 flex-1">
-          <Eyebrow className="text-[#b45309]">{t("Unit change · electricity")}</Eyebrow>
+          <Eyebrow className="text-[#b45309]">
+            {t("Unit change · electricity")}
+          </Eyebrow>
           <p className="mt-2 text-sm leading-relaxed text-black/60">
-            {t("Electricity is now collected as an")} <span className="text-black/80">{t("absolute total for the reporting period")}</span>{t(", not per tonne. The per-tonne figure is derived once, inside the calculation, by dividing by your output — previously it was divided a second time, which understated indirect emissions.")}
+            {t("Electricity is now collected as an")}{" "}
+            <span className="text-black/80">
+              {t("absolute total for the reporting period")}
+            </span>
+            {t(
+              ", not per tonne. The per-tonne figure is derived once, inside the calculation, by dividing by your output — previously it was divided a second time, which understated indirect emissions.",
+            )}
           </p>
           <p className="mt-2 text-sm leading-relaxed text-black/45">
-            {rows.length === 1 ? "One figure was" : `${rows.length} figures were`} entered before this change and {rows.length === 1 ? "is" : "are"} being
-            read as MWh per tonne. Check {rows.length === 1 ? "it" : "them"} below, then re-enter{" "}
-            {rows.length === 1 ? "it" : "them"} as a period total on the supplier form.
+            {rows.length === 1
+              ? "One figure was"
+              : `${rows.length} figures were`}{" "}
+            entered before this change and {rows.length === 1 ? "is" : "are"}{" "}
+            being read as MWh per tonne. Check{" "}
+            {rows.length === 1 ? "it" : "them"} below, then re-enter{" "}
+            {rows.length === 1 ? "it" : "them"} as a period total on the
+            supplier form.
           </p>
 
           <div className="mt-4 overflow-x-auto">
@@ -71,20 +88,40 @@ export function UnitChangeNotice({
               </thead>
               <tbody>
                 {rows.map((r) => (
-                  <tr key={`${r.supplierName ?? ""}-${r.productId}`} className="border-b border-black/[0.04] last:border-0 align-top">
+                  <tr
+                    key={`${r.supplierName ?? ""}-${r.productId}`}
+                    className="border-b border-black/[0.04] last:border-0 align-top"
+                  >
                     <td className="py-2.5 pr-4 text-[13px] text-black/70">
                       {r.productName}
-                      {r.supplierName && <span className="block text-[11px] text-black/35">{r.supplierName}</span>}
+                      {r.supplierName && (
+                        <span className="block text-[11px] text-black/35">
+                          {r.supplierName}
+                        </span>
+                      )}
                     </td>
-                    <td className="py-2.5 pr-4 font-mono text-[12px] text-black/55">{r.beforeMWhPerTonne} MWh/t</td>
-                    <td className={cn("py-2.5 pr-4 font-mono text-[12px]", r.blockedOnOutput ? "text-[#b45309]" : "text-black/70")}>
-                      {r.afterMWhAbsolute != null ? `${r.afterMWhAbsolute.toLocaleString("en-US")} MWh` : "needs output"}
+                    <td className="py-2.5 pr-4 font-mono text-[12px] text-black/55">
+                      {r.beforeMWhPerTonne} MWh/t
+                    </td>
+                    <td
+                      className={cn(
+                        "py-2.5 pr-4 font-mono text-[12px]",
+                        r.blockedOnOutput ? "text-[#b45309]" : "text-black/70",
+                      )}
+                    >
+                      {r.afterMWhAbsolute != null
+                        ? `${r.afterMWhAbsolute.toLocaleString("en-US")} MWh`
+                        : "needs output"}
                     </td>
                     <td className="py-2.5 pr-4 font-mono text-[12px] text-black/45">
-                      {r.outputTonnes != null ? `${r.outputTonnes.toLocaleString("en-US")} t` : "—"}
+                      {r.outputTonnes != null
+                        ? `${r.outputTonnes.toLocaleString("en-US")} t`
+                        : "—"}
                     </td>
                     <td className="py-2.5 font-mono text-[12px] text-black/55">
-                      {r.indirectPerTonne != null ? `${r.indirectPerTonne.toFixed(4)} tCO₂e/t` : "—"}
+                      {r.indirectPerTonne != null
+                        ? `${r.indirectPerTonne.toFixed(4)} tCO₂e/t`
+                        : "—"}
                     </td>
                   </tr>
                 ))}
@@ -93,13 +130,24 @@ export function UnitChangeNotice({
           </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-3">
-            <Button size="sm" variant="secondary" className="bg-white" onClick={dismiss}>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="bg-white"
+              onClick={dismiss}
+            >
               {t("Understood")}
             </Button>
-            <span className="text-[11px] text-black/35">{t("Dismissing does not change any stored value.")}</span>
+            <span className="text-[11px] text-black/35">
+              {t("Dismissing does not change any stored value.")}
+            </span>
           </div>
         </div>
-        <button onClick={dismiss} aria-label={t("Dismiss")} className="flex-none text-black/25 hover:text-black/60">
+        <button
+          onClick={dismiss}
+          aria-label={t("Dismiss")}
+          className="flex-none text-black/25 hover:text-black/60"
+        >
           <X size={16} strokeWidth={1.5} />
         </button>
       </div>

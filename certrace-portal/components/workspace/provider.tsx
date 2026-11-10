@@ -25,7 +25,12 @@
 
 import * as React from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { workspaceReadiness, type ReadinessTab, type TabState, type WorkspaceReadiness } from "@/lib/readiness";
+import {
+  workspaceReadiness,
+  type ReadinessTab,
+  type TabState,
+  type WorkspaceReadiness,
+} from "@/lib/readiness";
 import type { VerificationWorkspace } from "@/lib/workspace";
 import { useInvalidateWorkspaces } from "@/lib/workspaces-query";
 import { useInvalidateWorkspaceData } from "@/lib/workspace-data-query";
@@ -41,7 +46,8 @@ const WorkspaceContext = React.createContext<Ctx | null>(null);
 
 export function useWorkspace(): Ctx {
   const ctx = React.useContext(WorkspaceContext);
-  if (!ctx) throw new Error("useWorkspace must be used inside a workspace route");
+  if (!ctx)
+    throw new Error("useWorkspace must be used inside a workspace route");
   return ctx;
 }
 
@@ -73,7 +79,9 @@ export function WorkspaceProvider({
   /* The cache is empty on the provider's very first render — the query fills
      it a tick later. Computed synchronously once, like the old lazy
      initializer, so children never see readiness missing. */
-  const [initialReadiness] = React.useState<WorkspaceReadiness>(() => workspaceReadiness(workspace));
+  const [initialReadiness] = React.useState<WorkspaceReadiness>(() =>
+    workspaceReadiness(workspace),
+  );
   const readiness = readinessQuery.data ?? initialReadiness;
 
   const invalidateWorkspaces = useInvalidateWorkspaces();
@@ -96,7 +104,14 @@ export function WorkspaceProvider({
     return map;
   }, [readiness]);
 
-  const value = React.useMemo<Ctx>(() => ({ workspace, readiness, states, refresh }), [workspace, readiness, states, refresh]);
+  const value = React.useMemo<Ctx>(
+    () => ({ workspace, readiness, states, refresh }),
+    [workspace, readiness, states, refresh],
+  );
 
-  return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
+  return (
+    <WorkspaceContext.Provider value={value}>
+      {children}
+    </WorkspaceContext.Provider>
+  );
 }

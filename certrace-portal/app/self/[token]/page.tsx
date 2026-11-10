@@ -20,15 +20,28 @@ import Link from "next/link";
 import { ArrowLeft, Building2 } from "lucide-react";
 import { CertraceLogo } from "@/components/logo";
 import { Card, Button } from "@/components/ui";
-import { resolveRequest } from "@/lib/supplier";
 import { SupplierPortal } from "@/components/supplier/portal";
 import { useT } from "@/lib/i18n";
+import { useQuery } from "@tanstack/react-query";
+import { useSessionUser } from "@/lib/profile";
+import { resolveSelfSupply } from "@/lib/self-supply";
+import { ErrorState, LoadingState } from "@/components/query-state";
 
 export default function SelfSupplyPage() {
   const t = useT();
   const params = useParams<{ token: string }>();
   const token = decodeURIComponent(params.token);
-  const req = React.useMemo(() => resolveRequest(token), [token]);
+  const user = useSessionUser();
+  const request = useQuery({
+    queryKey: ["self-supply", user?.id, token],
+    queryFn: () => resolveSelfSupply(token),
+    enabled: Boolean(user),
+    staleTime: Infinity,
+  });
+  const req = request.data?.req;
+  if (user && request.isPending) return <LoadingState />;
+  if (request.isError)
+    return <ErrorState onRetry={() => void request.refetch()} />;
 
   if (!req || !req.selfSupplied) {
     return (
@@ -39,11 +52,13 @@ export default function SelfSupplyPage() {
           </div>
         </header>
         <main className="mx-auto max-w-lg px-6 py-16">
-          <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white text-black/40 shadow-sm">
+          <span className="grid h-12 w-12 place-items-center rounded-2xl border border-black/[0.07] bg-white text-black/40">
             <Building2 size={22} strokeWidth={1.5} />
           </span>
           <h1 className="mt-5 font-[family-name:var(--font-plex)] text-2xl font-light tracking-tight text-[#111]">
-            {req ? "This product isn't self-supplied." : "This link looks invalid or expired."}
+            {req
+              ? "This product isn't self-supplied."
+              : "This link looks invalid or expired."}
           </h1>
           <p className="mt-2 text-sm text-black/50">
             {req
@@ -52,14 +67,12 @@ export default function SelfSupplyPage() {
           </p>
           <Card className="mt-6 p-4">
             <div className="flex flex-wrap items-center gap-2">
-              {req && (
-                <Link href={`/s/${token}`}>
-                  <Button variant="secondary" size="sm">{t("Open the supplier link instead")}</Button>
-                </Link>
-              )}
-              <Link href={req ? `/declarations/${req.declId}` : "/declarations"}>
+              <Link
+                href={req ? `/declarations/${req.declId}` : "/declarations"}
+              >
                 <Button size="sm">
-                  <ArrowLeft size={13} strokeWidth={1.5} /> {t("Back to declarations")}
+                  <ArrowLeft size={13} strokeWidth={1.5} />{" "}
+                  {t("Back to declarations")}
                 </Button>
               </Link>
             </div>
@@ -69,5 +82,12 @@ export default function SelfSupplyPage() {
     );
   }
 
-  return <SupplierPortal req={req} />;
+  if (!request.data?.initialState) return <LoadingState />;
+  return (
+    <SupplierPortal
+      key={req.token}
+      req={req}
+      initialState={request.data?.initialState}
+    />
+  );
 }

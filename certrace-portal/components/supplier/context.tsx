@@ -1,7 +1,7 @@
 "use client";
 
 /* Supplier portal — the brain. Holds the resolved request + all supplier state
-   (values, docs, seats, profile, versions), persists to localStorage on change,
+   (values, docs, seats, profile, versions), saves to the link API on change,
    and exposes the actions the views call. One provider so the hub-and-spoke
    views share state without prop-drilling or re-reading storage per view. */
 
@@ -20,9 +20,7 @@ import {
   verificationRequired,
 } from "@/lib/supplier";
 import { isComplexGood } from "@/lib/config";
-import { apiConfigured } from "@/lib/api/config";
 import { uploadLinkFile } from "@/lib/api/files";
-import { INLINE_BYTES_LIMIT } from "@/lib/cbam/evidence";
 import { precursorContribution } from "@/lib/precursors";
 import { stampElectricityUnit } from "@/lib/cbam/electricity-migration";
 import {
@@ -30,22 +28,16 @@ import {
   type SupplierProfile,
   type Seat,
   type SubmissionStatus,
-  emptyState,
-  loadState,
-  saveState,
   saveProfileFor,
   pushEvent,
   uid,
 } from "@/lib/supplier-store";
 import {
   assessFreshness,
-  canReuse,
   defaultAccessPolicy,
   getRecord,
-  readRequestFromRecord,
   setReuseForOrg,
   setSectionAccess,
-  writeSubmissionToRecord,
   ATTESTATION_STATEMENT,
   type AccessPolicy,
   type Audience,
@@ -56,7 +48,17 @@ import { useSaveLinkState, useSubmitLink } from "@/lib/links-query";
 import { toast } from "@/components/toast";
 import { useT } from "@/lib/i18n";
 
-export type View = "landing" | "profile" | "overview" | "form" | "documents" | "sharing" | "team" | "check" | "submit" | "done";
+export type View =
+  | "landing"
+  | "profile"
+  | "overview"
+  | "form"
+  | "documents"
+  | "sharing"
+  | "team"
+  | "check"
+  | "submit"
+  | "done";
 
 export type DocFlag = { severity: "warning" | "revision"; message: string };
 export type SaveStatus = "idle" | "saving" | "saved" | "offline";
@@ -80,16 +82,20 @@ type Ctx = {
   sections: SupplierSection[];
   // values
   getValue: (fieldId: string, productId?: string) => string;
-  setValue: (fieldId: string, productId: string | undefined, value: string) => void;
+  setValue: (
+    fieldId: string,
+    productId: string | undefined,
+    value: string,
+  ) => void;
   isEditable: (key: string) => boolean;
   autoValue: (fieldId: string, productId?: string) => string | null;
 
   // documents (multi-file)
-  addFiles: (docId: string, files: { name: string; size: number; fileId?: string; dataUrl?: string }[]) => void;
-  /** Put real files behind a document slot: to the server when there is one,
-      inline as base64 when there is not. Resolves with whatever was refused,
-      so the view can say which file and why rather than dropping it. */
-  uploadFiles: (docId: string, files: File[]) => Promise<{ name: string; reason: string }[]>;
+  /** Upload document originals to the server and report each refused file. */
+  uploadFiles: (
+    docId: string,
+    files: File[],
+  ) => Promise<{ name: string; reason: string }[]>;
   removeFile: (docId: string, index: number) => void;
   clearDoc: (docId: string) => void;
   isDocEditable: (docId: string) => boolean;
@@ -104,13 +110,17 @@ type Ctx = {
   hasSavedProfile: boolean;
 
   // completion
-  sectionProgress: (section: SupplierSection) => { done: number; total: number; complete: boolean };
+  sectionProgress: (section: SupplierSection) => {
+    done: number;
+    total: number;
+    complete: boolean;
+  };
   overall: { done: number; total: number; pct: number };
 
   // submission
   runCheck: () => CheckResult;
-  submit: (signedBy: string, role: string) => void;
-  simulateRevision: () => void; // demo: exporter requests changes
+  submit: (signedBy: string, role: string) => Promise<void>;
+  submitting: boolean;
 
   // "lead the supplier to the field" — flags + scroll-to-field focus
   flagged: Map<string, FieldFlag>;
@@ -142,7 +152,11 @@ type Ctx = {
 
   // who may see what — the supplier's own policy on their record
   access: AccessPolicy;
-  setAccess: (section: SectionKey, audience: Audience, allowed: boolean) => void;
+  setAccess: (
+    section: SectionKey,
+    audience: Audience,
+    allowed: boolean,
+  ) => void;
   reuseAllowed: boolean;
   setReuse: (allowed: boolean) => void;
 
@@ -163,148 +177,69 @@ export function SupplierProvider({
   children,
 }: {
   req: SupplierRequest;
-  /* Server-backed mode: the state resolved from the API for a real Smart Link.
-     When present it IS the source of truth — no localStorage read, no
-     carried-forward pre-fill (that reads a local record a real supplier has
-     none of) — and every change autosaves back to the server. Absent = the
-     localStorage demo path, unchanged. */
-  initialState?: SupplierState;
+  /** The saved state resolved from the server-issued link. */
+  initialState: SupplierState;
   children: React.ReactNode;
 }) {
   const t = useT();
-  const apiMode = initialState != null;
   const saveMutation = useSaveLinkState(req.token);
   const submitMutation = useSubmitLink(req.token);
-  // Start from an empty state on BOTH server and client so the first render
-  // matches (no hydration mismatch); the mount effect below loads the real
-  // localStorage state right after. In API mode the server state seeds it
-  // directly — it arrived on the client, so there is no SSR to mismatch.
-  const [state, setState] = React.useState<SupplierState>(() => initialState ?? emptyState(req.token));
+  const [state, setState] = React.useState<SupplierState>(() => initialState);
+  const [acknowledged, setAcknowledged] = React.useState(initialState);
+  const [submitting, setSubmitting] = React.useState(false);
+  const submitInFlight = React.useRef(false);
   const [view, setView] = React.useState<View>("landing");
   const sections = React.useMemo(() => sectionsForRequest(req), [req]);
 
-  // hydrate from storage once on mount (avoids SSR/client mismatch). In API mode
-  // the state is already the server's, so treat it as hydrated from the start.
-  const hydrated = React.useRef(apiMode);
+  // The portal remounts for a different token; refetches must preserve typing.
   React.useEffect(() => {
-    if (apiMode) {
-      // Server state already seeded; just land on the right view for it.
-      if (initialState.status === "submitted") setView("done");
-      else if (initialState.status === "revision_requested") setView("overview");
-      return;
-    }
-    if (hydrated.current) return;
-    hydrated.current = true;
-    const loaded = loadState(req.token);
-
-    /* First time this Smart Link is opened, the supplier's OWN record answers
-       most of it already (lib/supplier-records.ts). Pull the slice this request
-       asks for — their installation, and the goods it covers — so a returning
-       mill confirms figures instead of retyping them. Nothing is carried when
-       they've told us not to reuse their data for this exporter. */
-    if (loaded.status === "new" && loaded.versions.length === 0) {
-      const record = getRecord(req.supplierName);
-      const read = canReuse(record, req.exporterName) ? readRequestFromRecord(req, record) : null;
-      if (read && read.carriedKeys.length > 0) {
-        const seeded: SupplierState = {
-          ...loaded,
-          values: { ...read.values, ...loaded.values }, // anything already typed wins
-          docs: { ...read.docs, ...loaded.docs },
-          profile: record?.profile ?? loaded.profile,
-          profileSaved: Boolean(record?.profile) || loaded.profileSaved,
-          carried: {
-            keys: read.carriedKeys,
-            docIds: Object.keys(read.docs),
-            sourceAt: read.sourceAt,
-            sourcePeriods: read.sourcePeriods,
-            acknowledgedAt: null,
-          },
-        };
-        setState(
-          pushEvent(
-            seeded,
-            "carried_forward",
-            `${read.carriedKeys.length} field${read.carriedKeys.length === 1 ? "" : "s"} pre-filled from this company's saved record — pending confirmation for ${req.period}`,
-          ),
-        );
-        return;
-      }
-    }
-
-    setState(loaded);
-    // returning supplier with a submitted/revision request lands on the hub
-    if (loaded.status === "submitted") setView("done");
-    else if (loaded.status === "revision_requested") setView("overview");
-    // Runs on the resolved request; apiMode/initialState are fixed for a given
-    // link, so re-running on their identity is neither wanted nor possible.
+    if (initialState.status === "submitted") setView("done");
+    else if (initialState.status === "revision_requested") setView("overview");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [req]);
+  }, [req.token]);
 
-  // persist on every change + reflect a cloud-style autosave status. We always
-  // write to localStorage; the status copy mirrors "synced when online, not
-  // synced when offline" so the supplier can trust their progress is kept.
   const [saveStatus, setSaveStatus] = React.useState<SaveStatus>("idle");
-  const firstPersist = React.useRef(true);
   React.useEffect(() => {
-    if (!hydrated.current) return;
-    if (apiMode) {
-      // Once submitted the form is read-only; the submit POST is the only writer
-      // of that state, so there is nothing to autosave.
-      if (state.status === "submitted") return;
-      // Skip the first run: that state IS what we just resolved, re-PUTting it
-      // on open would be a pointless write.
-      if (firstPersist.current) {
-        firstPersist.current = false;
-        return;
-      }
-      // Debounced so a burst of keystrokes is one request. The mutation carries
-      // durability (retry + offline-pause); `saveStatus` is driven off it below.
-      const id = setTimeout(() => saveMutation.mutate(state), 800);
-      return () => clearTimeout(id);
-    }
-    saveState(state);
-    if (typeof navigator !== "undefined" && navigator.onLine === false) {
-      setSaveStatus("offline");
+    if (state.status === "submitted" || submitting || state === acknowledged)
       return;
-    }
-    setSaveStatus("saving");
-    const t = setTimeout(() => setSaveStatus("saved"), 600);
-    return () => clearTimeout(t);
-    // Persist fires on state change only; apiMode/req.token/mutate are fixed per
-    // link (mutate is referentially stable), so re-running on them is unwanted.
+    // The mutation scope orders autosaves and submission for this link.
+    const id = setTimeout(
+      () =>
+        saveMutation.mutate(state, {
+          onSuccess: () => setAcknowledged(state),
+        }),
+      800,
+    );
+    return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state]);
+  }, [state, submitting, acknowledged]);
 
-  // API mode: mirror the autosave mutation's lifecycle into the header status.
-  // isPaused = queued while offline (networkMode 'online'), will resume on
-  // reconnect; isError = retries exhausted. Demo mode drives status itself above.
   React.useEffect(() => {
-    if (!apiMode) return;
-    if (saveMutation.isPaused || saveMutation.isError) setSaveStatus("offline");
-    else if (saveMutation.isPending) setSaveStatus("saving");
-    else if (saveMutation.isSuccess) setSaveStatus("saved");
-  }, [apiMode, saveMutation.isPaused, saveMutation.isError, saveMutation.isPending, saveMutation.isSuccess]);
-
-  // React to the browser going on/offline so the indicator stays honest.
-  React.useEffect(() => {
-    const goOnline = () => setSaveStatus("saved");
-    const goOffline = () => setSaveStatus("offline");
-    window.addEventListener("online", goOnline);
-    window.addEventListener("offline", goOffline);
-    return () => {
-      window.removeEventListener("online", goOnline);
-      window.removeEventListener("offline", goOffline);
-    };
-  }, []);
+    if (submitting) setSaveStatus("saving");
+    else if (state === acknowledged)
+      setSaveStatus(saveMutation.isSuccess ? "saved" : "idle");
+    else if (saveMutation.isPaused || saveMutation.isError)
+      setSaveStatus("offline");
+    else setSaveStatus("saving");
+  }, [
+    state,
+    acknowledged,
+    submitting,
+    saveMutation.isPaused,
+    saveMutation.isError,
+    saveMutation.isSuccess,
+  ]);
 
   /* ── editability (revision lock) ─────────────────────────── */
   const isEditable = React.useCallback(
     (key: string) => {
+      if (submitting) return false;
       if (state.status === "submitted") return false;
-      if (state.status === "revision_requested" && state.unlocked.length > 0) return state.unlocked.includes(key);
+      if (state.status === "revision_requested" && state.unlocked.length > 0)
+        return state.unlocked.includes(key);
       return true; // new / draft / in_check
     },
-    [state.status, state.unlocked],
+    [state.status, state.unlocked, submitting],
   );
 
   /* ── values ──────────────────────────────────────────────── */
@@ -320,12 +255,24 @@ export function SupplierProvider({
           return rp ? `${rp.totalTonnes.toLocaleString("en-US")} t` : null;
         case "total-emissions": {
           if (!rp) return null;
-          const d = Number(state.values[valueKey("direct-emissions", productId)] || "");
-          const i = Number(state.values[valueKey("indirect-emissions", productId)] || "");
+          const d = Number(
+            state.values[valueKey("direct-emissions", productId)] || "",
+          );
+          const i = Number(
+            state.values[valueKey("indirect-emissions", productId)] || "",
+          );
           if (Number.isNaN(d) && Number.isNaN(i)) return null;
           // Total embedded = own process + precursor contribution (complex goods)
-          const prec = isComplexGood(rp.product) ? precursorContribution(state.values[valueKey("precursors", productId)]) : 0;
-          return ((Number.isNaN(d) ? 0 : d) + (Number.isNaN(i) ? 0 : i) + prec).toFixed(2);
+          const prec = isComplexGood(rp.product)
+            ? precursorContribution(
+                state.values[valueKey("precursors", productId)],
+              )
+            : 0;
+          return (
+            (Number.isNaN(d) ? 0 : d) +
+            (Number.isNaN(i) ? 0 : i) +
+            prec
+          ).toFixed(2);
         }
         default:
           return null;
@@ -350,20 +297,39 @@ export function SupplierProvider({
            through this app is absolute MWh; an untagged value can then only be
            one collected before the unit change, which is exactly how
            lib/cbam/electricity-migration.ts recognises legacy data. */
-        if (fieldId === "elec-consumed") Object.assign(values, stampElectricityUnit(productId));
+        if (fieldId === "elec-consumed")
+          Object.assign(values, stampElectricityUnit(productId));
         // keep total-emissions in sync when any component changes — own direct
         // + own indirect + precursor contribution for complex goods
-        if (fieldId === "direct-emissions" || fieldId === "indirect-emissions" || fieldId === "precursors") {
-          const d = Number(values[valueKey("direct-emissions", productId)] || "");
-          const i = Number(values[valueKey("indirect-emissions", productId)] || "");
-          const product = req.products.find((rp) => rp.product.id === productId)?.product;
-          const prec = product && isComplexGood(product) ? precursorContribution(values[valueKey("precursors", productId)]) : 0;
+        if (
+          fieldId === "direct-emissions" ||
+          fieldId === "indirect-emissions" ||
+          fieldId === "precursors"
+        ) {
+          const d = Number(
+            values[valueKey("direct-emissions", productId)] || "",
+          );
+          const i = Number(
+            values[valueKey("indirect-emissions", productId)] || "",
+          );
+          const product = req.products.find(
+            (rp) => rp.product.id === productId,
+          )?.product;
+          const prec =
+            product && isComplexGood(product)
+              ? precursorContribution(values[valueKey("precursors", productId)])
+              : 0;
           if (!Number.isNaN(d) || !Number.isNaN(i) || prec > 0) {
-            values[valueKey("total-emissions", productId)] = ((Number.isNaN(d) ? 0 : d) + (Number.isNaN(i) ? 0 : i) + prec).toFixed(2);
+            values[valueKey("total-emissions", productId)] = (
+              (Number.isNaN(d) ? 0 : d) +
+              (Number.isNaN(i) ? 0 : i) +
+              prec
+            ).toFixed(2);
           }
         }
-        const status: SubmissionStatus = s.status === "new" ? "draft" : s.status;
-        return { ...s, values, status };
+        const status: SubmissionStatus =
+          s.status === "new" ? "draft" : s.status;
+        return { ...s, values, lastCheck: null, status };
       });
     },
     [req.products],
@@ -371,71 +337,76 @@ export function SupplierProvider({
 
   /* ── documents (multi-file) ──────────────────────────────── */
   const addFiles = React.useCallback(
-    (docId: string, files: { name: string; size: number; fileId?: string; dataUrl?: string }[]) => {
+    (
+      docId: string,
+      files: {
+        name: string;
+        size: number;
+        fileId: string;
+      }[],
+    ) => {
       if (files.length === 0) return;
       const label = req.documents.find((d) => d.id === docId)?.label ?? docId;
       setState((s) => {
         const existing = s.docs[docId]?.files ?? [];
         const merged = [
           ...existing,
-          ...files.map((f) => ({ name: f.name, size: f.size, fileId: f.fileId, dataUrl: f.dataUrl, addedAt: Date.now() })),
+          ...files.map((f) => ({
+            name: f.name,
+            size: f.size,
+            fileId: f.fileId,
+            addedAt: Date.now(),
+          })),
         ];
         const next = {
           ...s,
-          docs: { ...s.docs, [docId]: { id: docId, status: "uploaded" as const, files: merged } },
+          docs: {
+            ...s.docs,
+            [docId]: { id: docId, status: "uploaded" as const, files: merged },
+          },
+          lastCheck: null,
           status: (s.status === "new" ? "draft" : s.status) as SubmissionStatus,
         };
-        return pushEvent(next, "doc_upload", `${files.length > 1 ? `${files.length} files` : files[0].name} attached to ${label}`);
+        return pushEvent(
+          next,
+          "doc_upload",
+          `${files.length > 1 ? `${files.length} files` : files[0].name} attached to ${label}`,
+        );
       });
     },
     [req.documents],
   );
-  /* ── Where a certificate actually goes ─────────────────────
-     With a backend, the bytes go to it and the state keeps a reference. That
-     is the whole of R5: before it, a file over ~1.5 MB reached the exporter
-     as a filename and a size, and mill certificates are mostly over it.
-
-     Without one — demo mode — the old inline path stands, cap and all. It is
-     not a fallback anyone should ship to a customer; it is what lets the demo
-     keep working with no server behind it.
-
-     Failures come back rather than throwing: one refused file out of four
-     must not lose the other three, and "why" belongs next to the file that
-     was refused. */
+  /** Upload originals through the token-scoped file API; report each failed file. */
   const uploadFiles = React.useCallback(
-    async (docId: string, files: File[]): Promise<{ name: string; reason: string }[]> => {
+    async (
+      docId: string,
+      files: File[],
+    ): Promise<{ name: string; reason: string }[]> => {
       if (files.length === 0) return [];
-      const accepted: { name: string; size: number; fileId?: string; dataUrl?: string }[] = [];
+      const accepted: {
+        name: string;
+        size: number;
+        fileId: string;
+      }[] = [];
       const refused: { name: string; reason: string }[] = [];
 
       for (const file of files) {
-        if (apiConfigured()) {
-          try {
-            const stored = await uploadLinkFile(req.token, file, docId);
-            accepted.push({ name: stored.filename, size: stored.sizeBytes, fileId: stored.id });
-          } catch (cause) {
-            refused.push({
-              name: file.name,
-              reason: cause instanceof Error ? cause.message : "That file could not be uploaded.",
-            });
-          }
-          continue;
+        try {
+          const stored = await uploadLinkFile(req.token, file, docId);
+          accepted.push({
+            name: stored.filename,
+            size: stored.sizeBytes,
+            fileId: stored.id,
+          });
+        } catch (cause) {
+          refused.push({
+            name: file.name,
+            reason:
+              cause instanceof Error
+                ? cause.message
+                : "That file could not be uploaded.",
+          });
         }
-
-        /* Demo mode: no server, so the bytes ride along inline or not at all.
-           Over the cap the row keeps name and size, which is what the exporter
-           saw for every large file before this pipeline existed. */
-        if (file.size > INLINE_BYTES_LIMIT) {
-          accepted.push({ name: file.name, size: file.size });
-          continue;
-        }
-        const dataUrl = await new Promise<string | undefined>((resolve) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : undefined);
-          reader.onerror = () => resolve(undefined);
-          reader.readAsDataURL(file);
-        });
-        accepted.push({ name: file.name, size: file.size, dataUrl });
       }
 
       if (accepted.length) addFiles(docId, accepted);
@@ -449,12 +420,21 @@ export function SupplierProvider({
       const label = req.documents.find((d) => d.id === docId)?.label ?? docId;
       setState((s) => {
         const removed = s.docs[docId]?.files[index];
-        const files = (s.docs[docId]?.files ?? []).filter((_, i) => i !== index);
+        const files = (s.docs[docId]?.files ?? []).filter(
+          (_, i) => i !== index,
+        );
         const docs = { ...s.docs };
-        if (files.length) docs[docId] = { id: docId, status: "uploaded", files };
+        if (files.length)
+          docs[docId] = { id: docId, status: "uploaded", files };
         else delete docs[docId];
-        const next = { ...s, docs };
-        return removed ? pushEvent(next, "doc_remove", `${removed.name} removed from ${label}`) : next;
+        const next = { ...s, docs, lastCheck: null };
+        return removed
+          ? pushEvent(
+              next,
+              "doc_remove",
+              `${removed.name} removed from ${label}`,
+            )
+          : next;
       });
     },
     [req.documents],
@@ -463,7 +443,7 @@ export function SupplierProvider({
     setState((s) => {
       const docs = { ...s.docs };
       delete docs[docId];
-      return { ...s, docs };
+      return { ...s, docs, lastCheck: null };
     });
   }, []);
   // During a revision the exporter's unlocked documents can be REPLACED, and
@@ -471,32 +451,56 @@ export function SupplierProvider({
   // always be able to volunteer missing required evidence.
   const isDocEditable = React.useCallback(
     (docId: string) => {
+      if (submitting) return false;
       if (state.status === "submitted") return false;
       if (state.status === "revision_requested") {
-        return state.unlockedDocs.includes(docId) || (state.docs[docId]?.status !== "uploaded");
+        return (
+          state.unlockedDocs.includes(docId) ||
+          state.docs[docId]?.status !== "uploaded"
+        );
       }
       return true;
     },
-    [state.status, state.unlockedDocs, state.docs],
+    [state.status, state.unlockedDocs, state.docs, submitting],
   );
 
   /* ── seats ───────────────────────────────────────────────── */
-  const addSeat = React.useCallback((s: { name: string; email: string; department: string }) => {
-    setState((prev) => ({ ...prev, seats: [...prev.seats, { id: uid(), invitedAt: Date.now(), sections: [], ...s }] }));
-  }, []);
+  const addSeat = React.useCallback(
+    (s: { name: string; email: string; department: string }) => {
+      setState((prev) => ({
+        ...prev,
+        seats: [
+          ...prev.seats,
+          { id: uid(), invitedAt: Date.now(), sections: [], ...s },
+        ],
+      }));
+    },
+    [],
+  );
   const removeSeat = React.useCallback((id: string) => {
-    setState((prev) => ({ ...prev, seats: prev.seats.filter((x) => x.id !== id) }));
-  }, []);
-  const toggleAssign = React.useCallback((seatId: string, section: SectionKey) => {
     setState((prev) => ({
       ...prev,
-      seats: prev.seats.map((x) =>
-        x.id === seatId
-          ? { ...x, sections: x.sections.includes(section) ? x.sections.filter((s) => s !== section) : [...x.sections, section] }
-          : x,
-      ),
+      seats: prev.seats.filter((x) => x.id !== id),
     }));
   }, []);
+  const toggleAssign = React.useCallback(
+    (seatId: string, section: SectionKey) => {
+      setState((prev) => ({
+        ...prev,
+        seats: prev.seats.map((x) =>
+          x.id === seatId
+            ? {
+                ...x,
+                sections: x.sections.includes(section)
+                  ? x.sections.filter((s) => s !== section)
+                  : [...x.sections, section],
+              }
+            : x,
+        ),
+      }));
+    },
+    [],
+  );
 
   /* ── profile ─────────────────────────────────────────────── */
   const saveProfile = React.useCallback(
@@ -510,16 +514,24 @@ export function SupplierProvider({
         values["inst-unlocode"] = p.unlocode;
         values["inst-coords"] = p.coordinates;
         // production route applies per product
-        for (const rp of req.products) values[valueKey("process-route", rp.product.id)] = p.route || values[valueKey("process-route", rp.product.id)] || "";
-        return { ...s, values, profile: p, profileSaved: true, status: s.status === "new" ? "draft" : s.status };
+        for (const rp of req.products)
+          values[valueKey("process-route", rp.product.id)] =
+            p.route || values[valueKey("process-route", rp.product.id)] || "";
+        return {
+          ...s,
+          values,
+          lastCheck: null,
+          profile: p,
+          profileSaved: true,
+          status: s.status === "new" ? "draft" : s.status,
+        };
       });
       saveProfileFor(req.supplierName, p);
     },
     [req.products, req.supplierName],
   );
 
-  // Based on this request's own state (set after hydration) — avoids reading
-  // global localStorage during render, which would mismatch on hydration.
+  // Use this link's server-provided profile, never another browser's record.
   const hasSavedProfile = Boolean(state.profile);
 
   /* ── completion ──────────────────────────────────────────── */
@@ -527,8 +539,14 @@ export function SupplierProvider({
     (section: SupplierSection) => {
       if (section.scope === "docs") {
         const required = req.documents.filter((d) => d.required);
-        const done = required.filter((d) => state.docs[d.id]?.status === "uploaded").length;
-        return { done, total: required.length, complete: required.length > 0 && done === required.length };
+        const done = required.filter(
+          (d) => state.docs[d.id]?.status === "uploaded",
+        ).length;
+        return {
+          done,
+          total: required.length,
+          complete: required.length > 0 && done === required.length,
+        };
       }
       const fields = fieldsForSection(req, section);
       let total = 0;
@@ -536,13 +554,21 @@ export function SupplierProvider({
       for (const f of fields) {
         if (isOnceField(f.group)) {
           if (!f.required) continue;
-          if (f.id === "verification" && !verificationRequired(req, state.values)) continue;
+          if (
+            f.id === "verification" &&
+            !verificationRequired(req, state.values)
+          )
+            continue;
           total++;
           if (state.values[valueKey(f.id)]?.trim()) done++;
         } else {
           // only count a field against the goods it applies to & is required for
           for (const rp of req.products) {
-            if (!fieldAppliesTo(f, rp.product) || !fieldRequiredFor(f, rp.product)) continue;
+            if (
+              !fieldAppliesTo(f, rp.product) ||
+              !fieldRequiredFor(f, rp.product)
+            )
+              continue;
             total++;
             if (state.values[valueKey(f.id, rp.product.id)]?.trim()) done++;
           }
@@ -568,111 +594,52 @@ export function SupplierProvider({
   const runCheck = React.useCallback(() => {
     const result = runQualityCheck(req, state.values, state.docs);
     setState((s) => {
-      const next = { ...s, lastCheck: result, status: (s.status === "submitted" ? s.status : "in_check") as SubmissionStatus };
-      return pushEvent(next, "check_run", `AI quality check run — score ${result.score}, ${result.critical} critical, ${result.warnings} warning${result.warnings === 1 ? "" : "s"}`);
+      const next = {
+        ...s,
+        lastCheck: result,
+        status: (s.status === "submitted"
+          ? s.status
+          : "in_check") as SubmissionStatus,
+      };
+      return pushEvent(
+        next,
+        "check_run",
+        `AI quality check run — score ${result.score}, ${result.critical} critical, ${result.warnings} warning${result.warnings === 1 ? "" : "s"}`,
+      );
     });
     return result;
   }, [req, state.values, state.docs]);
 
   const submit = React.useCallback(
-    (signedBy: string, role: string) => {
+    async (signedBy: string, role: string) => {
+      if (submitInFlight.current)
+        throw new Error("A submission is already in progress.");
       const s = state;
-      const result = s.lastCheck ?? runQualityCheck(req, s.values, s.docs);
-      const n = (s.versions[s.versions.length - 1]?.n ?? 0) + 1;
-      const version = {
-        n,
-        submittedAt: Date.now(),
-        score: result.score,
-        warnings: result.warnings,
-        signedBy,
-        signedRole: role,
-        note: s.status === "revision_requested" ? s.revisionNote : undefined,
-      };
-      /* The signature is also the ATTESTATION — a named person, their role,
-         the date, and the statement they agreed to, stored verbatim. Without
-         it a submission is an anonymous spreadsheet and the first question at
-         verification is "who says so?". Persisting it here means the record
-         carries it forward to every future declaration, and the verifier
-         dossier can show who stood behind each figure. */
+      const result = runQualityCheck(req, s.values, s.docs);
       const attestation = {
         signatoryName: signedBy,
         signatoryRole: role,
         signedAt: new Date().toISOString().slice(0, 10),
         statement: ATTESTATION_STATEMENT,
       };
-      const submitted: SupplierState = {
-        ...s,
-        status: "submitted",
-        versions: [...s.versions, version],
-        unlocked: [],
-        unlockedDocs: [],
-        revisionNote: "",
-        attestation,
-        // submitting IS the confirmation that carried figures still hold
-        carried: s.carried ? { ...s.carried, acknowledgedAt: s.carried.acknowledgedAt ?? Date.now() } : null,
-      };
-      const trail = `Version ${n} signed by ${signedBy} (${role}) and submitted — score ${result.score}, ${result.warnings} warning${result.warnings === 1 ? "" : "s"}`;
-
-      if (apiMode) {
-        /* The server owns the evidence fields — the version number, its
-           timestamp, the signer read off the attestation, the status. Send the
-           PRE-submit state so the server appends the version (sending our
-           optimistic one would double it), and reconcile with the authoritative
-           blob it returns. Reflect the optimistic state now so the Done view
-           renders without waiting on the round trip; the autosave effect skips
-           it because status is already "submitted". */
-        setState(pushEvent(submitted, "submit", trail));
-        submitMutation.mutate(
-          { state: s, attestation, check: result },
-          {
-            onSuccess: (server) => setState(server),
-            // Retries exhausted: roll back to pre-submit so the Done view does
-            // not show a "submitted" the server never received — they re-sign.
-            onError: () => {
-              setState(s);
-              toast({ message: "Submission failed", detail: "We could not reach the server. Please try signing again.", tone: "err" });
-            },
-          },
-        );
-        return;
+      // Only the server receipt can mark this form as submitted.
+      submitInFlight.current = true;
+      setSubmitting(true);
+      try {
+        const server = await submitMutation.mutateAsync({
+          state: s,
+          attestation,
+          check: result,
+        });
+        setAcknowledged(server);
+        setState(server);
+      } finally {
+        submitInFlight.current = false;
+        setSubmitting(false);
       }
-
-      /* Demo path: no server, so distil the submission into the company's own
-         local record. The declaration keeps the ask; the DATA now outlives it,
-         ready to answer the next request from this or any other exporter. */
-      writeSubmissionToRecord(req, submitted, {
-        declId: req.declId,
-        declName: req.declName,
-        periodLabel: req.period,
-        periodEnd: req.periodEnd,
-        selfSupplied: req.selfSupplied,
-      });
-      setState(pushEvent(submitted, "submit", trail));
     },
-    [req, state, apiMode, submitMutation],
+    [req, state, submitMutation],
   );
-
-  // Demo only: simulate the exporter requesting a revision of specific fields and
-  // a document re-upload, so both the field and the file-upload loops are shown.
-  const simulateRevision = React.useCallback(() => {
-    setState((s) => {
-      const firstProduct = req.products[0]?.product.id;
-      const unlocked = firstProduct
-        ? [valueKey("direct-emissions", firstProduct), valueKey("method", firstProduct)]
-        : [];
-      const firstDoc = req.documents.find((d) => d.required)?.id;
-      const note = "Please re-check the direct emissions figure for the main product and confirm whether actual or default data was used. Also re-upload the Mill Test Certificate — the copy attached was unreadable.";
-      const next: SupplierState = {
-        ...s,
-        status: "revision_requested",
-        unlocked,
-        unlockedDocs: firstDoc ? [firstDoc] : [],
-        revisionNote: note,
-      };
-      return pushEvent(next, "revision_requested", `${req.exporterName} requested a revision — "${note}"`);
-    });
-    setView("overview");
-  }, [req.products, req.documents]);
 
   /* ── required-field completeness (gates the AI run) ──────────
      Never spend an AI run until every legally-required field has a value. */
@@ -687,7 +654,8 @@ export function SupplierProvider({
         if (f.required) keys.push(valueKey(f.id));
       } else {
         for (const rp of req.products) {
-          if (fieldAppliesTo(f, rp.product) && fieldRequiredFor(f, rp.product)) keys.push(valueKey(f.id, rp.product.id));
+          if (fieldAppliesTo(f, rp.product) && fieldRequiredFor(f, rp.product))
+            keys.push(valueKey(f.id, rp.product.id));
         }
       }
     }
@@ -701,7 +669,9 @@ export function SupplierProvider({
   const missingRequiredCount = incompleteRequired.length;
   const requiredComplete = missingRequiredCount === 0;
   const hasAnyInput = React.useMemo(
-    () => Object.values(state.values).some((v) => v?.trim()) || Object.keys(state.docs).length > 0,
+    () =>
+      Object.values(state.values).some((v) => v?.trim()) ||
+      Object.keys(state.docs).length > 0,
     [state.values, state.docs],
   );
   // Once the supplier tries to run the check with gaps, light up every gap.
@@ -717,7 +687,11 @@ export function SupplierProvider({
 
     if (state.status === "revision_requested") {
       for (const key of state.unlocked) {
-        m.set(key, { severity: "revision", kind: "value", message: "The exporter asked you to review and revise this field." });
+        m.set(key, {
+          severity: "revision",
+          kind: "value",
+          message: "The exporter asked you to review and revise this field.",
+        });
       }
       return m;
     }
@@ -726,7 +700,11 @@ export function SupplierProvider({
     if (showRequiredGaps) {
       for (const key of requiredFieldKeys) {
         if (!state.values[key]?.trim()) {
-          m.set(key, { severity: "warning", kind: "missing", message: `Required for ${req.regulationShort} — fill this in to run the quality check.` });
+          m.set(key, {
+            severity: "warning",
+            kind: "missing",
+            message: `Required for ${req.regulationShort} — fill this in to run the quality check.`,
+          });
         }
       }
     }
@@ -737,15 +715,25 @@ export function SupplierProvider({
       for (const f of c.findings) {
         if (f.severity === "pass" || !f.fieldId) continue;
         const key = valueKey(f.fieldId, f.productId);
-        const kind: FieldFlag["kind"] = f.category === "Completeness" ? "missing" : "value";
+        const kind: FieldFlag["kind"] =
+          f.category === "Completeness" ? "missing" : "value";
         const message = f.fix ? `${f.detail} ${f.fix}` : f.detail;
         const prev = m.get(key);
-        if (prev?.severity === "critical" && f.severity !== "critical") continue;
+        if (prev?.severity === "critical" && f.severity !== "critical")
+          continue;
         m.set(key, { severity: f.severity, kind, message });
       }
     }
     return m;
-  }, [state.lastCheck, state.status, state.unlocked, showRequiredGaps, requiredFieldKeys, state.values, req.regulationShort]);
+  }, [
+    state.lastCheck,
+    state.status,
+    state.unlocked,
+    showRequiredGaps,
+    requiredFieldKeys,
+    state.values,
+    req.regulationShort,
+  ]);
 
   // First field still needing attention (a missing field that's now filled no
   // longer counts) — what "Jump to first issue" targets.
@@ -763,7 +751,11 @@ export function SupplierProvider({
     const m = new Map<string, DocFlag>();
     if (state.status === "submitted") return m;
     if (state.status === "revision_requested") {
-      for (const id of state.unlockedDocs) m.set(id, { severity: "revision", message: "The exporter asked you to update this document." });
+      for (const id of state.unlockedDocs)
+        m.set(id, {
+          severity: "revision",
+          message: "The exporter asked you to update this document.",
+        });
       return m;
     }
     const c = state.lastCheck;
@@ -791,7 +783,9 @@ export function SupplierProvider({
   const focusDoc = React.useCallback((docId: string) => {
     setView("documents");
     setFocusDocId(null);
-    requestAnimationFrame(() => requestAnimationFrame(() => setFocusDocId(docId)));
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => setFocusDocId(docId)),
+    );
   }, []);
 
   const focusRevision = React.useCallback(() => {
@@ -804,15 +798,39 @@ export function SupplierProvider({
      Reused figures are a gift until they're wrong. Both signals — how old the
      data is, and whether it was reported for a different period — are judged
      against THIS request, and the supplier confirms once. */
-  const carriedKeys = React.useMemo(() => new Set(state.carried?.keys ?? []), [state.carried]);
+  const carriedKeys = React.useMemo(
+    () => new Set(state.carried?.keys ?? []),
+    [state.carried],
+  );
   const carriedVerdict = React.useMemo(
-    () => (state.carried ? assessFreshness({ sourceAt: state.carried.sourceAt, sourcePeriods: state.carried.sourcePeriods }, req.period) : null),
+    () =>
+      state.carried
+        ? assessFreshness(
+            {
+              sourceAt: state.carried.sourceAt,
+              sourcePeriods: state.carried.sourcePeriods,
+            },
+            req.period,
+          )
+        : null,
     [state.carried, req.period],
   );
-  const carriedPending = Boolean(state.carried && !state.carried.acknowledgedAt && state.status !== "submitted");
+  const carriedPending = Boolean(
+    state.carried &&
+      !state.carried.acknowledgedAt &&
+      state.status !== "submitted",
+  );
   const confirmCarried = React.useCallback(() => {
-    setState((s) => (s.carried ? { ...s, carried: { ...s.carried, acknowledgedAt: Date.now() } } : s));
-    toast({ message: "Confirmed", detail: "Carried-over figures marked as still valid for this period.", tone: "ok" });
+    setState((s) =>
+      s.carried
+        ? { ...s, carried: { ...s.carried, acknowledgedAt: Date.now() } }
+        : s,
+    );
+    toast({
+      message: "Confirmed",
+      detail: "Carried-over figures marked as still valid for this period.",
+      tone: "ok",
+    });
   }, []);
 
   /* ── access control ──────────────────────────────────────────
@@ -820,7 +838,8 @@ export function SupplierProvider({
      policy is that it survives the declaration and governs every future one.
      Held in React state here so the toggles are instant, written through on
      every change. */
-  const [access, setAccessState] = React.useState<AccessPolicy>(defaultAccessPolicy);
+  const [access, setAccessState] =
+    React.useState<AccessPolicy>(defaultAccessPolicy);
   React.useEffect(() => {
     const r = getRecord(req.supplierName);
     if (r) setAccessState(r.access);
@@ -828,7 +847,12 @@ export function SupplierProvider({
 
   const setAccess = React.useCallback(
     (section: SectionKey, audience: Audience, allowed: boolean) => {
-      const next = setSectionAccess(req.supplierName, section, audience, allowed);
+      const next = setSectionAccess(
+        req.supplierName,
+        section,
+        audience,
+        allowed,
+      );
       setAccessState(next.access);
       setState((s) =>
         pushEvent(
@@ -872,7 +896,13 @@ export function SupplierProvider({
       return;
     }
     setView("check");
-  }, [hasAnyInput, requiredComplete, firstIncompleteRequired, missingRequiredCount, focusField]);
+  }, [
+    hasAnyInput,
+    requiredComplete,
+    firstIncompleteRequired,
+    missingRequiredCount,
+    focusField,
+  ]);
 
   const value: Ctx = {
     req,
@@ -884,7 +914,6 @@ export function SupplierProvider({
     setValue,
     isEditable,
     autoValue,
-    addFiles,
     uploadFiles,
     removeFile,
     clearDoc,
@@ -898,7 +927,7 @@ export function SupplierProvider({
     overall,
     runCheck,
     submit,
-    simulateRevision,
+    submitting,
     flagged,
     firstFlagKey,
     focusKey,

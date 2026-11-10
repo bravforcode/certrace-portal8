@@ -25,6 +25,9 @@
    ════════════════════════════════════════════════════════════ */
 
 import { request } from "./http";
+import { api, result } from "./client";
+import { decode } from "./decode";
+import { isStoredFile } from "./validators.js";
 
 /** What the server says about a stored file. Never its storage key: that is
     the address of the object, and a client that learns one will use it. */
@@ -51,7 +54,7 @@ export type UploadLimits = {
 /** What will be accepted, so a 40 MB scan can be refused at the file picker
     rather than after it has been sent. Public: a supplier has no session. */
 export const uploadLimits = (): Promise<UploadLimits> =>
-  request<UploadLimits>("/api/v1/uploads/limits", { auth: false });
+  result(api(false).api.v1.uploads.limits.get());
 
 /* A browser gives an empty `type` for a file it does not recognise, and the
    server refuses an upload with no declared type rather than guessing. Saying
@@ -79,42 +82,84 @@ const query = (filename: string, docId?: string): string => {
 };
 
 /** The exporter's own upload, against a declaration they own. */
-export async function uploadDeclarationFile(declarationId: string, file: File, docId?: string): Promise<StoredFile> {
+export async function uploadDeclarationFile(
+  declarationId: string,
+  file: File,
+  docId?: string,
+): Promise<StoredFile> {
   const contentType = contentTypeOf(file);
-  return request<StoredFile>(
-    `/api/v1/declarations/${encodeURIComponent(declarationId)}/files?${query(file.name, docId)}`,
-    { method: "POST", rawBody: file, contentType },
+  return decode(
+    await request<unknown>(
+      `/api/v1/declarations/${encodeURIComponent(declarationId)}/files?${query(file.name, docId)}`,
+      { method: "POST", rawBody: file, contentType },
+    ),
+    isStoredFile,
   );
 }
 
-export const listDeclarationFiles = (declarationId: string): Promise<{ files: StoredFile[] }> =>
-  request<{ files: StoredFile[] }>(`/api/v1/declarations/${encodeURIComponent(declarationId)}/files`);
+export const listDeclarationFiles = (
+  declarationId: string,
+): Promise<{ files: StoredFile[] }> =>
+  result(
+    api()
+      .api.v1.declarations({
+        declaration_id: encodeURIComponent(declarationId),
+      })
+      .files.get(),
+  );
 
 export const downloadFile = (fileId: string): Promise<Blob> =>
-  request<Blob>(`/api/v1/files/${encodeURIComponent(fileId)}`, { responseType: "blob" });
+  request<Blob>(`/api/v1/files/${encodeURIComponent(fileId)}`, {
+    responseType: "blob",
+  });
 
 export const deleteFile = (fileId: string): Promise<void> =>
-  request<void>(`/api/v1/files/${encodeURIComponent(fileId)}`, { method: "DELETE" });
+  request<void>(`/api/v1/files/${encodeURIComponent(fileId)}`, {
+    method: "DELETE",
+  });
 
 /** The supplier's upload, against a live Smart Link and nothing else. */
-export async function uploadLinkFile(token: string, file: File, docId?: string): Promise<StoredFile> {
+export async function uploadLinkFile(
+  token: string,
+  file: File,
+  docId?: string,
+): Promise<StoredFile> {
   const contentType = contentTypeOf(file);
-  return request<StoredFile>(`/api/v1/links/${encodeURIComponent(token)}/files?${query(file.name, docId)}`, {
-    method: "POST",
-    rawBody: file,
-    contentType,
-    auth: false,
-  });
+  return decode(
+    await request<unknown>(
+      `/api/v1/links/${encodeURIComponent(token)}/files?${query(file.name, docId)}`,
+      {
+        method: "POST",
+        rawBody: file,
+        contentType,
+        auth: false,
+        timeoutMs: 120_000,
+      },
+    ),
+    isStoredFile,
+  );
 }
 
-export const listLinkFiles = (token: string): Promise<{ files: StoredFile[] }> =>
-  request<{ files: StoredFile[] }>(`/api/v1/links/${encodeURIComponent(token)}/files`, { auth: false });
+export const listLinkFiles = (
+  token: string,
+): Promise<{ files: StoredFile[] }> =>
+  result(
+    api(false)
+      .api.v1.links({ token: encodeURIComponent(token) })
+      .files.get(),
+  );
 
-export const downloadLinkFile = (token: string, fileId: string): Promise<Blob> =>
-  request<Blob>(`/api/v1/links/${encodeURIComponent(token)}/files/${encodeURIComponent(fileId)}`, {
-    responseType: "blob",
-    auth: false,
-  });
+export const downloadLinkFile = (
+  token: string,
+  fileId: string,
+): Promise<Blob> =>
+  request<Blob>(
+    `/api/v1/links/${encodeURIComponent(token)}/files/${encodeURIComponent(fileId)}`,
+    {
+      responseType: "blob",
+      auth: false,
+    },
+  );
 
 /* ── Handing the file to the person looking at it ──────────────
    A stored file cannot be a plain href: the exporter's route needs an

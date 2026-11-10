@@ -71,7 +71,11 @@
    ════════════════════════════════════════════════════════════ */
 
 import { annualProductionFor, monthsForWorkspace } from "../monthly-data";
-import { groupByInstallation, monthsOf, type VerificationWorkspace } from "../workspace";
+import {
+  groupByInstallation,
+  monthsOf,
+  type VerificationWorkspace,
+} from "../workspace";
 import { workspaceSEE, type WorkspaceSEE } from "../workspace-see";
 import { defaultSeeForWorkspace } from "./cost-exposure";
 import { benchmarkOutperformance } from "./see-trend";
@@ -93,11 +97,17 @@ export type ScopeKind = "all" | "installation" | "workspace";
 export type ScopeValue = string;
 
 export const SCOPE_ALL = "all";
-export const scopeForInstallation = (installationId: string): ScopeValue => `inst:${installationId}`;
-export const scopeForWorkspace = (workspaceId: string): ScopeValue => `ws:${workspaceId}`;
+export const scopeForInstallation = (installationId: string): ScopeValue =>
+  `inst:${installationId}`;
+export const scopeForWorkspace = (workspaceId: string): ScopeValue =>
+  `ws:${workspaceId}`;
 
-export function parseScope(value: ScopeValue): { kind: ScopeKind; id: string | null } {
-  if (value.startsWith("inst:")) return { kind: "installation", id: value.slice(5) };
+export function parseScope(value: ScopeValue): {
+  kind: ScopeKind;
+  id: string | null;
+} {
+  if (value.startsWith("inst:"))
+    return { kind: "installation", id: value.slice(5) };
   if (value.startsWith("ws:")) return { kind: "workspace", id: value.slice(3) };
   return { kind: "all", id: null };
 }
@@ -106,16 +116,21 @@ export function parseScope(value: ScopeValue): { kind: ScopeKind; id: string | n
     are gated on it — the precursor breakdown, the projection toggle — for the
     same reason: they describe ONE good's recipe or ONE good's year, and there
     is no honest way to draw either across a mixture of goods. */
-export const isSingleProduct = (value: ScopeValue): boolean => parseScope(value).kind === "workspace";
+export const isSingleProduct = (value: ScopeValue): boolean =>
+  parseScope(value).kind === "workspace";
 
 /** Which workspaces a scope selects, out of the ones already narrowed to a
     year. An unknown id resolves to none rather than to everything — a stale
     selection must not silently widen back to the portfolio while still
     displaying one product's name. */
-export function workspacesInScope(inYear: VerificationWorkspace[], value: ScopeValue): VerificationWorkspace[] {
+export function workspacesInScope(
+  inYear: VerificationWorkspace[],
+  value: ScopeValue,
+): VerificationWorkspace[] {
   const { kind, id } = parseScope(value);
   if (kind === "all") return inYear;
-  if (kind === "installation") return inYear.filter((w) => w.installationId === id);
+  if (kind === "installation")
+    return inYear.filter((w) => w.installationId === id);
   return inYear.filter((w) => w.id === id);
 }
 
@@ -131,8 +146,10 @@ export function reportingYears(workspaces: VerificationWorkspace[]): number[] {
   return [...new Set(workspaces.map((w) => w.year))].sort((a, b) => b - a);
 }
 
-export const workspacesInYear = (workspaces: VerificationWorkspace[], year: number): VerificationWorkspace[] =>
-  workspaces.filter((w) => w.year === year);
+export const workspacesInYear = (
+  workspaces: VerificationWorkspace[],
+  year: number,
+): VerificationWorkspace[] => workspaces.filter((w) => w.year === year);
 
 /* ── The options each picker draws ──────────────────────────────
    Installations first, each immediately followed by its own products, so the
@@ -165,10 +182,20 @@ export type ScopeOptionHint =
   | { kind: "installation_products"; count: number }
   | { kind: "name"; name: string };
 
-export type ScopeOption = { value: ScopeValue; label: ScopeOptionLabel; hint: ScopeOptionHint };
+export type ScopeOption = {
+  value: ScopeValue;
+  label: ScopeOptionLabel;
+  hint: ScopeOptionHint;
+};
 
 export function scopeOptions(inYear: VerificationWorkspace[]): ScopeOption[] {
-  const out: ScopeOption[] = [{ value: SCOPE_ALL, label: { kind: "all" }, hint: { kind: "count", count: inYear.length } }];
+  const out: ScopeOption[] = [
+    {
+      value: SCOPE_ALL,
+      label: { kind: "all" },
+      hint: { kind: "count", count: inYear.length },
+    },
+  ];
 
   for (const group of groupByInstallation(inYear)) {
     if (group.workspaces.length > 1) {
@@ -227,7 +254,11 @@ export function scopeOptions(inYear: VerificationWorkspace[]): ScopeOption[] {
    SCRAP IS NOT COUNTED AGAINST THE TEST. Its contribution is zero by
    construction, there is no figure to verify, and failing a year for it would
    make a zero-rated input permanently unofficial. */
-export type StandingReason = "official" | "partial_year" | "unverified_data" | "no_data";
+export type StandingReason =
+  | "official"
+  | "partial_year"
+  | "unverified_data"
+  | "no_data";
 
 export type WorkspaceStanding = {
   workspaceId: string;
@@ -248,23 +279,38 @@ export type WorkspaceStanding = {
   projectable: boolean;
 };
 
-export function workspaceStanding(workspace: VerificationWorkspace, see: WorkspaceSEE): WorkspaceStanding {
+export function workspaceStanding(
+  workspace: VerificationWorkspace,
+  see: WorkspaceSEE,
+): WorkspaceStanding {
   const monthsCounted = see.production.monthsCounted;
-  const monthsEntered = monthsForWorkspace(workspace).filter((m) => m.status !== "empty").length;
+  const monthsEntered = monthsForWorkspace(workspace).filter(
+    (m) => m.status !== "empty",
+  ).length;
 
   /* Depth-1 only, matching the breakdown the page draws: an upstream tier
      already reaches the finished good through its parent's effectiveSee, so
      testing every depth would fail a chain twice for one unverified figure —
      once on the row itself and again on the parent that inherited it. */
-  const roots = see.precursors.byNode.filter((n) => n.depth === 1 && !n.isScrap);
-  const unverifiedPrecursors = roots.filter((n) => n.weakestOrigin !== "supplier_verified").length;
+  const roots = see.precursors.byNode.filter(
+    (n) => n.depth === 1 && !n.isScrap,
+  );
+  const unverifiedPrecursors = roots.filter(
+    (n) => n.weakestOrigin !== "supplier_verified",
+  ).length;
   const incompletePrecursors = roots.filter((n) => !n.complete).length;
 
   const yearComplete = monthsCounted >= MONTHS_IN_YEAR;
   const verified = unverifiedPrecursors === 0 && incompletePrecursors === 0;
 
   const reason: StandingReason =
-    monthsCounted === 0 ? "no_data" : !yearComplete ? "partial_year" : !verified ? "unverified_data" : "official";
+    monthsCounted === 0
+      ? "no_data"
+      : !yearComplete
+        ? "partial_year"
+        : !verified
+          ? "unverified_data"
+          : "official";
 
   return {
     workspaceId: workspace.id,
@@ -306,7 +352,9 @@ export function scopeStanding(standings: WorkspaceStanding[]): {
 
   const reason: StandingReason = standings.every((s) => s.reason === "no_data")
     ? "no_data"
-    : standings.some((s) => s.reason === "partial_year" || s.reason === "no_data")
+    : standings.some(
+          (s) => s.reason === "partial_year" || s.reason === "no_data",
+        )
       ? "partial_year"
       : standings.some((s) => s.reason === "unverified_data")
         ? "unverified_data"
@@ -347,13 +395,20 @@ export type ScopeFigures = {
   monthsPossible: number;
   /** kept per workspace so the projection can annualise each one on its OWN
       months rather than on the scope's pooled ratio — see `scopeProjection` */
-  perWorkspace: { id: string; embedded: number | null; monthsCounted: number }[];
+  perWorkspace: {
+    id: string;
+    embedded: number | null;
+    monthsCounted: number;
+  }[];
   /** whether these figures can be sent to anybody, and why not — see
       `workspaceStanding` */
   standing: ScopeStanding;
 };
 
-export function scopeFigures(workspaces: VerificationWorkspace[], seeByWorkspace: Map<string, WorkspaceSEE>): ScopeFigures {
+export function scopeFigures(
+  workspaces: VerificationWorkspace[],
+  seeByWorkspace: Map<string, WorkspaceSEE>,
+): ScopeFigures {
   let embedded: number | null = null;
   let productionTonnes = 0;
   let monthsCounted = 0;
@@ -375,19 +430,25 @@ export function scopeFigures(workspaces: VerificationWorkspace[], seeByWorkspace
       own = finite(see.seeTotal * see.production.tonnes);
       if (own != null) embedded = (embedded ?? 0) + own;
     }
-    perWorkspace.push({ id: w.id, embedded: own, monthsCounted: see.production.monthsCounted });
+    perWorkspace.push({
+      id: w.id,
+      embedded: own,
+      monthsCounted: see.production.monthsCounted,
+    });
 
     productionTonnes += see.production.tonnes;
     monthsCounted += see.production.monthsCounted;
 
     const bench = benchmarkOutperformance(w, see);
-    if (bench && Number.isFinite(bench.outperformancePercent)) gaps.push(bench.outperformancePercent);
+    if (bench && Number.isFinite(bench.outperformancePercent))
+      gaps.push(bench.outperformancePercent);
   }
 
   return {
     workspaces,
     totalEmbeddedTCO2e: embedded,
-    avgGapPercent: gaps.length > 0 ? gaps.reduce((a, b) => a + b, 0) / gaps.length : null,
+    avgGapPercent:
+      gaps.length > 0 ? gaps.reduce((a, b) => a + b, 0) / gaps.length : null,
     comparableCount: gaps.length,
     productionTonnes,
     monthsCounted,
@@ -458,7 +519,13 @@ export function scopeProjection(figures: ScopeFigures): ScopeProjection {
   const complete = monthsPossible > 0 && monthsCounted >= monthsPossible;
 
   if (monthsCounted === 0 || monthsPossible === 0) {
-    return { totalEmbeddedTCO2e: null, avgGapPercent: null, monthsCounted, monthsPossible, complete: false };
+    return {
+      totalEmbeddedTCO2e: null,
+      avgGapPercent: null,
+      monthsCounted,
+      monthsPossible,
+      complete: false,
+    };
   }
 
   let projected: number | null = null;
@@ -546,9 +613,14 @@ export function emissionsChartData(
   multiple: boolean,
   project = false,
 ): EmissionsChartData {
-  const precursorPerTonne = Number.isFinite(see.seePrecursor) && see.seePrecursor > 0 ? see.seePrecursor : null;
+  const precursorPerTonne =
+    Number.isFinite(see.seePrecursor) && see.seePrecursor > 0
+      ? see.seePrecursor
+      : null;
   const def = defaultSeeForWorkspace(workspace);
-  const defaultSee = def ? finite(def.defaultSeeDirect + def.defaultSeeIndirect) : null;
+  const defaultSee = def
+    ? finite(def.defaultSeeDirect + def.defaultSeeIndirect)
+    : null;
 
   const measured: EmissionsSeriesPoint[] = see.months
     // A month with no production has no intensity. Plotted as zero it would
@@ -567,13 +639,22 @@ export function emissionsChartData(
         // month whose direct figure the engine refused has no total, and
         // silently substituting zero for the refused half would publish a
         // figure lower than the truth on a compliance screen.
-        total: direct == null || indirect == null ? null : direct + indirect + (precursorPerTonne ?? 0),
+        total:
+          direct == null || indirect == null
+            ? null
+            : direct + indirect + (precursorPerTonne ?? 0),
         projected: false,
       };
     });
 
   if (!project || measured.length === 0) {
-    return { points: measured, precursorPerTonne, defaultSee, multiple, projectedCount: 0 };
+    return {
+      points: measured,
+      precursorPerTonne,
+      defaultSee,
+      multiple,
+      projectedCount: 0,
+    };
   }
 
   /* THE RATE CARRIED FORWARD IS THE ANNUAL ONE, not the last month's. M4 and
@@ -586,7 +667,13 @@ export function emissionsChartData(
   const rateDirect = finite(see.seeDirect);
   const rateIndirect = finite(see.seeIndirect);
   if (rateDirect == null || rateIndirect == null) {
-    return { points: measured, precursorPerTonne, defaultSee, multiple, projectedCount: 0 };
+    return {
+      points: measured,
+      precursorPerTonne,
+      defaultSee,
+      multiple,
+      projectedCount: 0,
+    };
   }
 
   const byMonth = new Map(measured.map((p) => [p.month, p] as const));
@@ -633,11 +720,17 @@ export const scopeProduction = (f: ScopeFigures): ScopeProduction =>
     ? f.standing.monthsEntered > 0
       ? { kind: "started", months: f.standing.monthsEntered }
       : { kind: "none" }
-    : { kind: "submitted", tonnes: f.productionTonnes, months: f.monthsCounted };
+    : {
+        kind: "submitted",
+        tonnes: f.productionTonnes,
+        months: f.monthsCounted,
+      };
 
 /** Re-exported so a caller can build the SEE map without importing two
     modules to do one thing. */
-export const seeMapFor = (workspaces: VerificationWorkspace[]): Map<string, WorkspaceSEE> =>
+export const seeMapFor = (
+  workspaces: VerificationWorkspace[],
+): Map<string, WorkspaceSEE> =>
   new Map(workspaces.map((w) => [w.id, workspaceSEE(w)] as const));
 
 /** Production, for the callers that need it without the whole SEE. */

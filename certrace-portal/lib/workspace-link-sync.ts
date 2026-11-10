@@ -1,12 +1,19 @@
+import { loadDocumentFile } from "./document-files";
+import {
+  accountStorage,
+  flushAccount,
+  refreshAccountRecords,
+  publicScope,
+} from "./account-storage";
 /* ════════════════════════════════════════════════════════════
    THE MONTHLY LINK, CARRIED BY THE SERVER
 
    /w/<token> used to be a browser-local form. The token was base64 of
    "ws|<workspaceId>|<month>", every answer was written to this browser's
-   localStorage, and a supplier who opened the link on their own machine
+   browser storage, and a supplier who opened the link on their own machine
    filled in a form whose answers never reached the exporter.
 
-   Now the monthly link is an ordinary smart link (docs/API-CONTRACT.md §3):
+   Now the monthly link is an ordinary smart link:
 
      exporter  stores the workspace's supplier slice as a declaration document
                of kind "workspace" (id `ws-<workspaceId>`), mints a link for
@@ -14,13 +21,11 @@
      supplier  opens it with no account; the slice is written into THIS
                browser's stores, the form runs exactly as before, and every
                change is saved back to the link's state
-     exporter  pulls each month's state and merges it into their own stores
+     exporter  refreshes the account records promoted by the server on submission
 
    ── Why the stores stay the working copy ───────────────────────
-   The supplier form is ~1,500 lines over eight localStorage stores. Moving
-   each of them behind the API is D2, and still a decision. This file is the
-   seam instead: everything reads and writes the same stores as before, and
-   the server is where a slice of them travels between two browsers.
+   The supplier form uses an isolated in-memory working copy. This file sends
+   a slice of that copy through the link API between the two browsers.
 
    Every store involved is keyed by workspace id, so "the slice" is simply
    store[workspaceId] for each key below, plus the workspace itself and its
@@ -32,16 +37,26 @@
    keeps `serverFileId`; `fileDataUrl` is stripped from everything that goes
    up and never overwritten by what comes down.
 
-   Legacy base64 tokens keep resolving locally: demo builds and links already
-   handed out must not break.
+   Only server-issued tokens resolve in the public form.
    ════════════════════════════════════════════════════════════ */
 
 import { apiConfigured } from "./api/config";
-import { request } from "./api/http";
+import { api, result } from "./api/client";
+import { decode, jsonDocument } from "./api/decode";
+import {
+  isWorkspaceResolution,
+  isWorkspaceLinkState,
+} from "./api/validators.js";
 import { uploadLinkFile } from "./api/files";
 import type { WorkspaceRequest } from "./workspace-link";
 import { defaultMonthFor } from "./workspace-link";
 import { getWorkspace, monthsOf } from "./workspace";
+import {
+  approveEditRequest,
+  requestRevision,
+  submissionFor,
+} from "./month-submission";
+import { reopenMonth } from "./monthly-data";
 
 /* ── The stores a monthly link moves ───────────────────────────── */
 
@@ -62,8 +77,6 @@ const EVIDENCE_KEY = "certrace:workspace-evidence";
 
 /** Exporter side: which server token carries which (workspace, month). */
 const LINKS_KEY = "certrace:workspace-server-links";
-/** Exporter side: the updatedAt of each link state already merged in. */
-const PULLED_KEY = "certrace:workspace-links-pulled";
 
 export type WorkspaceSlice = {
   workspace: Record<string, unknown> | null;
@@ -71,7 +84,7 @@ export type WorkspaceSlice = {
   stores: Record<string, unknown>;
 };
 
-type WorkspaceLinkState = {
+export type WorkspaceLinkState = {
   token?: string;
   status?: string;
   slice?: WorkspaceSlice;
@@ -79,7 +92,7 @@ type WorkspaceLinkState = {
   [key: string]: unknown;
 };
 
-type WorkspaceResolution = {
+export type WorkspaceResolution = {
   token: string;
   kind?: string;
   declId: string;
@@ -95,7 +108,7 @@ type Row = Record<string, unknown> & { id?: unknown };
 function readJson<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
   try {
-    const raw = window.localStorage.getItem(key);
+    const raw = accountStorage.getItem(key);
     if (!raw) return fallback;
     const parsed = JSON.parse(raw) as T;
     return parsed ?? fallback;
@@ -106,14 +119,11 @@ function readJson<T>(key: string, fallback: T): T {
 
 function writeJson(key: string, value: unknown): void {
   if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(key, JSON.stringify(value));
-  } catch {
-    /* Quota: the same failure every store here already tolerates. */
-  }
+  accountStorage.setItem(key, JSON.stringify(value));
 }
 
-export const workspaceDocId = (workspaceId: string): string => `ws-${workspaceId}`;
+export const workspaceDocId = (workspaceId: string): string =>
+  `ws-${workspaceId}`;
 
 /* ── Collect and apply ─────────────────────────────────────────── */
 
@@ -129,16 +139,21 @@ const withoutFileBytes = (value: unknown): unknown =>
 
 /** This workspace's share of every store, with no file bytes in it. */
 export function collectSlice(workspaceId: string): WorkspaceSlice {
-  const workspace = readJson<Row[]>(WORKSPACES_KEY, []).find((w) => w.id === workspaceId) ?? null;
+  const workspace =
+    readJson<Row[]>(WORKSPACES_KEY, []).find((w) => w.id === workspaceId) ??
+    null;
   const installationId = workspace?.installationId;
   const installation =
     typeof installationId === "string" && installationId
-      ? (readJson<Row[]>(INSTALLATIONS_KEY, []).find((i) => i.id === installationId) ?? null)
+      ? (readJson<Row[]>(INSTALLATIONS_KEY, []).find(
+          (i) => i.id === installationId,
+        ) ?? null)
       : null;
   const stores: Record<string, unknown> = {};
   for (const key of WORKSPACE_STORE_KEYS) {
     const value = readJson<Record<string, unknown>>(key, {})[workspaceId];
-    if (value !== undefined) stores[key] = key === EVIDENCE_KEY ? withoutFileBytes(value) : value;
+    if (value !== undefined)
+      stores[key] = key === EVIDENCE_KEY ? withoutFileBytes(value) : value;
   }
   return { workspace, installation, stores };
 }
@@ -158,16 +173,22 @@ function mergeEvidence(local: unknown, incoming: unknown): unknown {
   const bytes = new Map<string, unknown>();
   if (Array.isArray(local)) {
     for (const item of local as Row[]) {
-      if (typeof item?.id === "string" && item.fileDataUrl) bytes.set(item.id, item.fileDataUrl);
+      if (typeof item?.id === "string" && item.fileDataUrl)
+        bytes.set(item.id, item.fileDataUrl);
     }
   }
   return (incoming as Row[]).map((item) =>
-    typeof item?.id === "string" && bytes.has(item.id) ? { ...item, fileDataUrl: bytes.get(item.id) } : item,
+    typeof item?.id === "string" && bytes.has(item.id)
+      ? { ...item, fileDataUrl: bytes.get(item.id) }
+      : item,
   );
 }
 
 /** Write a whole slice into this browser's stores, replacing this workspace's share. */
-export function applySlice(workspaceId: string, slice: WorkspaceSlice | undefined | null): void {
+export function applySlice(
+  workspaceId: string,
+  slice: WorkspaceSlice | undefined | null,
+): void {
   if (!slice) return;
   upsertById(WORKSPACES_KEY, slice.workspace);
   upsertById(INSTALLATIONS_KEY, slice.installation);
@@ -175,72 +196,11 @@ export function applySlice(workspaceId: string, slice: WorkspaceSlice | undefine
     if (!(key in (slice.stores ?? {}))) continue;
     const store = readJson<Record<string, unknown>>(key, {});
     const incoming = slice.stores[key];
-    store[workspaceId] = key === EVIDENCE_KEY ? mergeEvidence(store[workspaceId], incoming) : incoming;
+    store[workspaceId] =
+      key === EVIDENCE_KEY
+        ? mergeEvidence(store[workspaceId], incoming)
+        : incoming;
     writeJson(key, store);
-  }
-}
-
-/* ── Month-scoped merge, for the exporter ──────────────────────────
-   A supplier answers one month. What comes back replaces THAT month and
-   upserts the rows they could touch; it must never wipe another month the
-   exporter holds, or rows the supplier's snapshot predates. */
-
-const monthOf = (row: unknown): unknown => (row && typeof row === "object" ? (row as Row).month : undefined);
-
-function mergeRowsById(local: unknown, incoming: unknown, keep: (row: Row) => boolean = () => true): Row[] {
-  const out = new Map<string, Row>();
-  for (const row of Array.isArray(local) ? (local as Row[]) : []) {
-    if (typeof row?.id === "string") out.set(row.id, row);
-  }
-  for (const row of Array.isArray(incoming) ? (incoming as Row[]) : []) {
-    if (typeof row?.id === "string" && keep(row)) out.set(row.id, { ...(out.get(row.id) ?? {}), ...row });
-  }
-  return [...out.values()];
-}
-
-export function mergeMonthFromSupplier(workspaceId: string, month: string, slice: WorkspaceSlice): void {
-  const stores = slice.stores ?? {};
-
-  // The month's own entry: theirs replaces ours, every other month stays.
-  const monthly = readJson<Record<string, Row[]>>("certrace:monthly-data", {});
-  const incomingEntry = (Array.isArray(stores["certrace:monthly-data"]) ? (stores["certrace:monthly-data"] as Row[]) : []).find(
-    (row) => monthOf(row) === month,
-  );
-  if (incomingEntry) {
-    monthly[workspaceId] = [...(monthly[workspaceId] ?? []).filter((row) => monthOf(row) !== month), incomingEntry];
-    writeJson("certrace:monthly-data", monthly);
-  }
-
-  // The month's submission record (attestation, state).
-  const submissions = readJson<Record<string, Record<string, unknown>>>("certrace:month-submissions", {});
-  const incomingSubmission = (stores["certrace:month-submissions"] as Record<string, unknown> | undefined)?.[month];
-  if (incomingSubmission) {
-    submissions[workspaceId] = { ...(submissions[workspaceId] ?? {}), [month]: incomingSubmission };
-    writeJson("certrace:month-submissions", submissions);
-  }
-
-  // Evidence for this month, and precursor rows: upserted by id.
-  const evidence = readJson<Record<string, Row[]>>(EVIDENCE_KEY, {});
-  evidence[workspaceId] = mergeEvidence(
-    evidence[workspaceId],
-    mergeRowsById(evidence[workspaceId], stores[EVIDENCE_KEY], (row) => monthOf(row) === month),
-  ) as Row[];
-  writeJson(EVIDENCE_KEY, evidence);
-
-  const precursors = readJson<Record<string, Row[]>>("certrace:precursor-suppliers", {});
-  if (Array.isArray(stores["certrace:precursor-suppliers"])) {
-    precursors[workspaceId] = mergeRowsById(precursors[workspaceId], stores["certrace:precursor-suppliers"]);
-    writeJson("certrace:precursor-suppliers", precursors);
-  }
-
-  // The installation and the monitoring methodology are "correctable here"
-  // on the supplier's side: their latest word stands.
-  upsertById(INSTALLATIONS_KEY, slice.installation);
-  const draft = (stores["certrace:workspace-mmd-draft"] as unknown) ?? undefined;
-  if (draft !== undefined) {
-    const drafts = readJson<Record<string, unknown>>("certrace:workspace-mmd-draft", {});
-    drafts[workspaceId] = draft;
-    writeJson("certrace:workspace-mmd-draft", drafts);
   }
 }
 
@@ -248,68 +208,85 @@ export function mergeMonthFromSupplier(workspaceId: string, month: string, slice
 
 type LinkIndex = Record<string, Record<string, string>>;
 
-export const cachedWorkspaceToken = (workspaceId: string, month: string): string | null =>
-  readJson<LinkIndex>(LINKS_KEY, {})[workspaceId]?.[month] ?? null;
+export const cachedWorkspaceToken = (
+  workspaceId: string,
+  month: string,
+): string | null => {
+  const token = readJson<LinkIndex>(LINKS_KEY, {})[workspaceId]?.[month];
+  return token && isServerToken(token) ? token : null;
+};
 
 const linkUrl = (token: string): string =>
-  typeof window === "undefined" ? `/w/${token}` : `${window.location.origin}/w/${token}`;
+  typeof window === "undefined"
+    ? `/w/${token}`
+    : `${window.location.origin}/w/${token}`;
 
 /** Refresh the supplier's slice on the server. Called before every hand-over,
     so a link opened next week shows the installation as it is next week. */
 export async function publishWorkspace(workspaceId: string): Promise<void> {
   const supplierView = collectSlice(workspaceId);
-  await request(`/api/v1/declarations/${encodeURIComponent(workspaceDocId(workspaceId))}`, {
-    method: "PUT",
-    body: { kind: "workspace", title: String(supplierView.workspace?.name ?? ""), supplierView },
-  });
+  await result(
+    api()
+      .api.v1.declarations({
+        declaration_id: encodeURIComponent(workspaceDocId(workspaceId)),
+      })
+      .put(
+        jsonDocument({
+          kind: "workspace",
+          title: String(supplierView.workspace?.name ?? ""),
+          supplierView,
+        }),
+      ),
+  );
 }
 
-/** The URL to give the supplier for one month — minted once, then reused.
-    Null when there is no backend: the caller falls back to the local link. */
-export async function ensureWorkspaceLink(workspaceId: string, month: string): Promise<string | null> {
+/** The durable URL to give the supplier for one month, reused after creation. */
+export async function ensureWorkspaceLink(
+  workspaceId: string,
+  month: string,
+): Promise<string | null> {
   if (!apiConfigured()) return null;
+  await flushAccount();
   await publishWorkspace(workspaceId);
   const cached = cachedWorkspaceToken(workspaceId, month);
   if (cached) return linkUrl(cached);
-  const minted = await request<{ token: string }>(
-    `/api/v1/declarations/${encodeURIComponent(workspaceDocId(workspaceId))}/links`,
-    { method: "POST", body: { supplierId: workspaceId, month } },
+  const minted = await result(
+    api()
+      .api.v1.declarations({
+        declaration_id: encodeURIComponent(workspaceDocId(workspaceId)),
+      })
+      .links.post({ supplierId: workspaceId, month }),
   );
   const index = readJson<LinkIndex>(LINKS_KEY, {});
   index[workspaceId] = { ...(index[workspaceId] ?? {}), [month]: minted.token };
   writeJson(LINKS_KEY, index);
+  await flushAccount();
   return linkUrl(minted.token);
 }
 
-/** Pull every month a supplier has touched since the last pull. Returns the
-    months that changed, so the caller knows whether to refresh anything. */
-export async function pullWorkspaceAnswers(workspaceId: string): Promise<string[]> {
-  if (!apiConfigured()) return [];
-  const months = readJson<LinkIndex>(LINKS_KEY, {})[workspaceId] ?? {};
-  const pulled = readJson<Record<string, number>>(PULLED_KEY, {});
-  const changed: string[] = [];
-  for (const [month, token] of Object.entries(months)) {
-    try {
-      const { state } = await request<{ state: WorkspaceLinkState }>(
-        `/api/v1/declarations/${encodeURIComponent(workspaceDocId(workspaceId))}/submissions/${encodeURIComponent(token)}`,
-      );
-      const stamp = typeof state?.updatedAt === "number" ? state.updatedAt : 0;
-      if (!state?.slice || stamp <= (pulled[token] ?? 0)) continue;
-      mergeMonthFromSupplier(workspaceId, month, state.slice);
-      pulled[token] = stamp;
-      changed.push(month);
-    } catch (cause) {
-      // One dead link (revoked, expired) must not stop the others.
-      console.warn(`[workspace-links] could not pull ${month}:`, cause);
-    }
-  }
-  writeJson(PULLED_KEY, pulled);
-  return changed;
+/** Supplier submissions are promoted atomically by the backend. Refresh the
+ * account instead of re-merging an older supplier snapshot over owner edits. */
+export async function pullWorkspaceAnswers(
+  workspaceId: string,
+): Promise<string[]> {
+  const before = JSON.stringify(collectSlice(workspaceId));
+  await refreshAccountRecords();
+  return before === JSON.stringify(collectSlice(workspaceId))
+    ? []
+    : Object.keys(readJson<LinkIndex>(LINKS_KEY, {})[workspaceId] ?? {});
 }
 
 /* ── Supplier: open, autosave, submit ──────────────────────────── */
 
-type Session = { token: string; workspaceId: string; month: string; state: WorkspaceLinkState; last: string };
+type Session = {
+  token: string;
+  workspaceId: string;
+  month: string;
+  state: WorkspaceLinkState;
+  last: string;
+  writes: Promise<unknown>;
+  scope: string | null;
+};
 
 let session: Session | null = null;
 
@@ -325,17 +302,38 @@ export function isServerToken(token: string): boolean {
 }
 
 /** Resolve a server-issued monthly link and load its slice into this browser. */
-export async function openWorkspaceLink(token: string): Promise<WorkspaceRequest | null> {
+export async function openWorkspaceLink(
+  token: string,
+): Promise<WorkspaceRequest | null> {
+  const scope = publicScope();
+  const prior = session;
+  if (prior?.token === token && prior.scope === scope)
+    await prior.writes.catch(() => {});
   // Already open in this tab: this browser's stores are the newer copy. The
   // query behind the page refetches on focus, and re-applying the server's
   // slice then would overwrite whatever was typed since the last autosave.
-  if (session?.token === token) {
+  if (
+    session?.token === token &&
+    session.scope === scope &&
+    session.state.status !== "submitted"
+  ) {
     const open = getWorkspace(session.workspaceId);
-    if (open) return { workspace: open, month: session.month, months: [session.month] };
+    if (open)
+      return { workspace: open, month: session.month, months: [session.month] };
   }
-  const resolved = await request<WorkspaceResolution>(`/api/v1/links/${encodeURIComponent(token)}`, { auth: false });
+  const resolved = decode(
+    await result(
+      api(false)
+        .api.v1.links({ token: encodeURIComponent(token) })
+        .get(),
+    ),
+    isWorkspaceResolution,
+  );
+  if (publicScope() !== scope || session !== prior) return null;
   if (resolved.kind !== "workspace") return null;
-  const workspaceId = String(resolved.workspace?.workspace?.id ?? resolved.supplierId);
+  const workspaceId = String(
+    resolved.workspace?.workspace?.id ?? resolved.supplierId,
+  );
   applySlice(workspaceId, resolved.workspace);
   // What they already typed wins over the exporter's snapshot.
   applySlice(workspaceId, resolved.state?.slice);
@@ -343,8 +341,19 @@ export async function openWorkspaceLink(token: string): Promise<WorkspaceRequest
   const workspace = getWorkspace(workspaceId);
   if (!workspace) return null;
   const months = monthsOf(workspace);
-  const month = resolved.month && months.includes(resolved.month) ? resolved.month : defaultMonthFor(workspace);
-  session = { token, workspaceId, month, state: resolved.state ?? {}, last: JSON.stringify(collectSlice(workspaceId)) };
+  const month =
+    resolved.month && months.includes(resolved.month)
+      ? resolved.month
+      : defaultMonthFor(workspace);
+  session = {
+    token,
+    workspaceId,
+    month,
+    state: resolved.state ?? {},
+    last: JSON.stringify(collectSlice(workspaceId)),
+    writes: Promise.resolve(),
+    scope,
+  };
   // One server link is one month: the picker offers only that one.
   return { workspace, month, months: [month] };
 }
@@ -353,52 +362,138 @@ export async function openWorkspaceLink(token: string): Promise<WorkspaceRequest
 async function uploadPendingFiles(s: Session): Promise<void> {
   const evidence = readJson<Record<string, Row[]>>(EVIDENCE_KEY, {});
   const items = evidence[s.workspaceId] ?? [];
-  let changed = false;
   for (const item of items) {
-    if (item.serverFileId || typeof item.fileDataUrl !== "string" || typeof item.id !== "string") continue;
+    if (item.serverFileId || typeof item.id !== "string") continue;
     try {
-      const blob = await (await fetch(item.fileDataUrl)).blob();
-      const file = new File([blob], String(item.fileName ?? "evidence"), { type: blob.type });
+      const blob =
+        typeof item.fileDataUrl === "string"
+          ? await (await fetch(item.fileDataUrl)).blob()
+          : typeof item.localFileId === "string"
+            ? await loadDocumentFile(item.localFileId)
+            : undefined;
+      if (!blob) continue;
+      const file = new File([blob], String(item.fileName ?? "evidence"), {
+        type: blob.type,
+      });
       const stored = await uploadLinkFile(s.token, file, item.id);
-      item.serverFileId = stored.id;
-      changed = true;
+      if (session !== s || publicScope() !== s.scope)
+        throw new Error("This link changed during upload.");
+      // Preserve files attached or removed while this upload was in flight.
+      const current = readJson<Record<string, Row[]>>(EVIDENCE_KEY, {});
+      current[s.workspaceId] = (current[s.workspaceId] ?? []).map((row) =>
+        row.id === item.id ? { ...row, serverFileId: stored.id } : row,
+      );
+      writeJson(EVIDENCE_KEY, current);
     } catch (cause) {
-      console.warn(`[workspace-links] ${String(item.fileName)} was not uploaded:`, cause);
+      throw new Error(
+        `Could not upload ${String(item.fileName)}. Your submission has not been saved.`,
+        { cause },
+      );
     }
   }
-  if (changed) writeJson(EVIDENCE_KEY, { ...evidence, [s.workspaceId]: items });
+  if (session !== s || publicScope() !== s.scope)
+    throw new Error("This link changed. Reopen it before saving.");
+}
+
+/** Autosave and submit share one queue: a late draft must never undo a submission. */
+function writeLink<T>(s: Session, action: () => Promise<T>): Promise<T> {
+  const job = s.writes
+    .catch(() => {})
+    .then(async () => {
+      if (session !== s || publicScope() !== s.scope)
+        throw new Error("This link changed. Reopen it before saving.");
+      return action();
+    });
+  s.writes = job;
+  return job;
 }
 
 /** Save the supplier's slice if anything changed since the last save. */
-export async function saveLinkIfChanged(): Promise<boolean> {
+export function saveLinkIfChanged(): Promise<boolean> {
   const s = session;
-  if (!s) return false;
-  await uploadPendingFiles(s);
-  const slice = collectSlice(s.workspaceId);
-  const serialised = JSON.stringify(slice);
-  if (serialised === s.last) return false;
-  const status = s.state.status === "submitted" ? "submitted" : "draft";
-  s.state = await request<WorkspaceLinkState>(`/api/v1/links/${encodeURIComponent(s.token)}/state`, {
-    method: "PUT",
-    body: { state: { ...s.state, status, slice } },
-    auth: false,
+  if (!s) return Promise.resolve(false);
+  return writeLink(s, async () => {
+    await uploadPendingFiles(s);
+    const slice = collectSlice(s.workspaceId);
+    const serialised = JSON.stringify(slice);
+    if (serialised === s.last) return false;
+    const status = s.state.status === "submitted" ? "submitted" : "draft";
+    s.state = decode(
+      await result(
+        api(false)
+          .api.v1.links({ token: encodeURIComponent(s.token) })
+          .state.put({ state: jsonDocument({ ...s.state, status, slice }) }),
+      ),
+      isWorkspaceLinkState,
+    );
+    s.last = serialised;
+    return true;
   });
-  s.last = serialised;
-  return true;
 }
 
 /** Submit through the server, which stamps the version and the signer. */
-export async function submitWorkspaceLink(attestation: { signatoryName: string; signatoryRole: string }, check: { score: number; warnings: number }): Promise<void> {
+export async function submitWorkspaceLink(
+  attestation: { signatoryName: string; signatoryRole: string },
+  check: { score: number; warnings: number },
+): Promise<void> {
   const s = session;
-  if (!s) return;
-  await uploadPendingFiles(s);
-  const slice = collectSlice(s.workspaceId);
-  s.state = await request<WorkspaceLinkState>(`/api/v1/links/${encodeURIComponent(s.token)}/submit`, {
-    method: "POST",
-    body: { state: { ...s.state, slice }, attestation, check },
-    auth: false,
+  if (!s) throw new Error("Reopen the supplier link before submitting.");
+  await writeLink(s, async () => {
+    await uploadPendingFiles(s);
+    const slice = collectSlice(s.workspaceId);
+    s.state = decode(
+      await result(
+        api(false)
+          .api.v1.links({ token: encodeURIComponent(s.token) })
+          .submit.post({
+            state: jsonDocument({ ...s.state, slice }),
+            attestation: attestation,
+            check: check,
+          }),
+      ),
+      isWorkspaceLinkState,
+    );
+    // Only acknowledged server state may lock the form and supply its signature.
+    if (session === s && publicScope() === s.scope) {
+      applySlice(s.workspaceId, s.state.slice);
+      s.last = JSON.stringify(collectSlice(s.workspaceId));
+    }
   });
-  s.last = JSON.stringify(slice);
+}
+
+/** Reopen both copies atomically; the server uses the owner's latest saved figures. */
+export async function requestWorkspaceRevision(
+  workspaceId: string,
+  month: string,
+  note: string,
+  areas: string[] = [],
+  approvalBy?: string,
+) {
+  await flushAccount();
+  const token = cachedWorkspaceToken(workspaceId, month);
+  if (!token) {
+    // Own-site months have no public link to reopen.
+    const next = approvalBy
+      ? approveEditRequest(workspaceId, month, approvalBy)
+      : requestRevision(workspaceId, month, note, areas);
+    reopenMonth(workspaceId, month);
+    await flushAccount();
+    return next;
+  }
+  await result(
+    api()
+      .api.v1.declarations({
+        declaration_id: encodeURIComponent(workspaceDocId(workspaceId)),
+      })
+      .links({ token: encodeURIComponent(token) })
+      .revision.post({
+        note,
+        areas,
+        action: approvalBy ? "approve_edit" : "revision",
+      }),
+  );
+  await refreshAccountRecords();
+  return submissionFor(workspaceId, month);
 }
 
 /** Tests only. */

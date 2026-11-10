@@ -8,8 +8,9 @@
 import * as React from "react";
 import { X, UserPlus } from "lucide-react";
 import { Card, Button, Eyebrow, Field, inputClass } from "./ui";
-import { Select, Portal } from "./controls";
-import { addTeamMember, POSITION_OPTIONS, type TeamMember } from "@/lib/team-store";
+import { Portal } from "./controls";
+import { addTeamMember, type TeamMember } from "@/lib/team-store";
+import { flushAccount } from "@/lib/account-storage";
 import { useT } from "@/lib/i18n";
 
 export function AddMemberModal({
@@ -28,31 +29,43 @@ export function AddMemberModal({
   const t = useT();
   const [name, setName] = React.useState("");
   const [email, setEmail] = React.useState("");
-  const [role, setRole] = React.useState(POSITION_OPTIONS[0].value);
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState("");
 
   // reset the form each time the popup opens
   React.useEffect(() => {
     if (open) {
       setName("");
       setEmail("");
-      setRole(POSITION_OPTIONS[0].value);
+      setError("");
     }
   }, [open]);
 
   React.useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const onKey = (e: KeyboardEvent) =>
+      e.key === "Escape" && !busy && onClose();
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open, onClose, busy]);
 
   if (!open) return null;
 
   const valid = name.trim().length > 0 && /\S+@\S+\.\S+/.test(email);
-  const submit = () => {
-    if (!valid) return;
-    onAdded(addTeamMember({ name, email, role }));
-    onClose();
+  const submit = async () => {
+    if (!valid || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const member = addTeamMember({ name, email });
+      await flushAccount();
+      onAdded(member);
+      onClose();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -63,51 +76,69 @@ export function AddMemberModal({
       <div
         className="fixed inset-0 z-[220] flex items-center justify-center bg-black/25 p-4 backdrop-blur-[2px]"
         onMouseDown={(e) => {
-          if (e.target === e.currentTarget) onClose();
+          if (e.target === e.currentTarget && !busy) onClose();
         }}
       >
         <Card className="ct-enter w-full max-w-md p-6">
           <div className="flex items-start justify-between gap-3">
             <div>
               <Eyebrow>{t("Team")}</Eyebrow>
-              <h3 className="mt-1.5 font-[family-name:var(--font-plex)] text-xl font-light tracking-tight text-[#111]">{t("Add a person")}</h3>
+              <h3 className="mt-1.5 font-[family-name:var(--font-plex)] text-xl font-light tracking-tight text-[#111]">
+                {t("Add a person")}
+              </h3>
             </div>
-            <button onClick={onClose} aria-label={t("Close")} className="grid h-8 w-8 flex-none place-items-center rounded-lg text-black/35 transition-colors hover:bg-black/[0.05] hover:text-black">
+            <button
+              disabled={busy}
+              onClick={onClose}
+              aria-label={t("Close")}
+              className="grid h-8 w-8 flex-none place-items-center rounded-lg text-black/35 transition-colors hover:bg-black/[0.05] hover:text-black"
+            >
               <X size={16} strokeWidth={1.5} />
             </button>
           </div>
           <p className="mt-2 text-[12.5px] leading-relaxed text-black/50">
-            {note ?? t("They join your team list and can be assigned to any check. We email them an invite with scoped, read-only access — they never see anything outside what you share.")}
+            {note ??
+              t(
+                "Save a reviewer contact. To give them company access, invite them from Team.",
+              )}
           </p>
 
-          <div className="mt-5 space-y-3">
+          {error && (
+            <p role="alert" className="mt-3 text-sm text-[#dc2626]">
+              {error}
+            </p>
+          )}
+          <fieldset disabled={busy} className="mt-5 space-y-3">
             <Field label={t("Full name")}>
-              <input className={inputClass} placeholder={t("e.g. Preeda C.")} value={name} onChange={(e) => setName(e.target.value)} autoFocus />
-            </Field>
-            <Field label={t("Email")}>
-              <input className={inputClass} type="email" placeholder={t("name@firm.com")} value={email} onChange={(e) => setEmail(e.target.value)} />
-            </Field>
-            {/* ROLE, NOT "POSITION". It used to offer five job titles that
-                all resolved to two roles — see the note above POSITION_OPTIONS
-                in lib/team-store.ts. The hint under each option is what that
-                role can actually do, so the choice is made against the access
-                rather than against an org chart. */}
-            <Field label={t("Role")}>
-              <Select
-                value={role}
-                onChange={setRole}
-                options={POSITION_OPTIONS.map((p) => ({ value: p.value, label: t(p.value), hint: t(p.hint) }))}
-                ariaLabel={t("Role")}
+              <input
+                className={inputClass}
+                placeholder={t("e.g. Preeda C.")}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoFocus
               />
             </Field>
-          </div>
+            <Field label={t("Email")}>
+              <input
+                className={inputClass}
+                type="email"
+                placeholder={t("name@firm.com")}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </Field>
+          </fieldset>
 
           <div className="mt-5 flex items-center justify-end gap-2 border-t border-black/[0.06] pt-4">
-            <Button variant="ghost" size="sm" onClick={onClose}>
+            <Button variant="ghost" size="sm" disabled={busy} onClick={onClose}>
               {t("Cancel")}
             </Button>
-            <Button size="sm" disabled={!valid} onClick={submit}>
-              <UserPlus size={14} strokeWidth={1.5} /> {t("Add & invite")}
+            <Button
+              size="sm"
+              disabled={!valid || busy}
+              onClick={() => void submit()}
+            >
+              <UserPlus size={14} strokeWidth={1.5} /> {t("Add contact")}
             </Button>
           </div>
         </Card>

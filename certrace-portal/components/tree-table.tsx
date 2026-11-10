@@ -23,7 +23,11 @@
 
 import * as React from "react";
 import { cn } from "@/components/ui";
-import { ChainDocumentActions, ChainJourneyActions, type ChainRowActions } from "@/components/chain-actions";
+import {
+  ChainDocumentActions,
+  ChainJourneyActions,
+  type ChainRowActions,
+} from "@/components/chain-actions";
 import { ScoreChip, StageMeter } from "@/components/chain-status";
 import { NodeStatusBadge, TIER_LABEL } from "@/components/tree-node-card";
 import type { TreeNode } from "@/types/supplier-tree";
@@ -39,9 +43,21 @@ function flattenTree(nodes: TreeNode[], depth = 0, out: Row[] = []): Row[] {
   return out;
 }
 
-function Th({ children, className }: { children: React.ReactNode; className?: string }) {
+function Th({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <th scope="col" className={cn("whitespace-nowrap px-3 py-2.5 text-[10px] font-normal uppercase tracking-[0.1em] text-black/40", className)}>
+    <th
+      scope="col"
+      className={cn(
+        "whitespace-nowrap px-3 py-2.5 text-[10px] font-normal uppercase tracking-[0.1em] text-black/40",
+        className,
+      )}
+    >
       {children}
     </th>
   );
@@ -84,19 +100,36 @@ export function TreeTable({
           {rows.map(({ node, depth }) => (
             // Same id the cards carry, so ?node=<id> scrolls to the right row
             // in whichever view is on screen.
-            <tr key={node.id} id={`tree-node-${node.id}`} className="scroll-mt-40 border-b border-black/[0.05] align-top last:border-b-0 hover:bg-black/[0.012]">
+            <tr
+              key={node.id}
+              id={`tree-node-${node.id}`}
+              className="scroll-mt-40 border-b border-black/[0.05] align-top last:border-b-0 hover:bg-black/[0.012]"
+            >
               <td className="px-3 py-3">
                 {/* Indent by tier rather than a nested table: a chain several
                     tiers deep would otherwise need a table per tier, and the
                     columns would stop lining up at exactly the moment they
                     are being compared. */}
                 <div style={{ paddingLeft: depth * 16 }}>
-                  <span className="block text-[10px] uppercase tracking-[0.08em] text-black/35">{TIER_LABEL(node.tier, node.kind)}</span>
-                  <span className="mt-0.5 block truncate text-[13.5px] text-black/80" title={node.name}>
+                  <span className="block text-[10px] uppercase tracking-[0.08em] text-black/35">
+                    {TIER_LABEL(node.tier, node.kind)}
+                  </span>
+                  <span
+                    className="mt-0.5 block truncate text-[13.5px] text-black/80"
+                    title={node.name}
+                  >
                     {node.name || "Unnamed"}
                   </span>
-                  {node.cnCode && <span className="mt-0.5 block font-mono text-[11px] text-black/35">CN {node.cnCode}</span>}
-                  {node.cyclicReference && <span className="mt-1 block text-[11px] text-[#dc2626]">{t("Cycle detected — chain not shown")}</span>}
+                  {node.cnCode && (
+                    <span className="mt-0.5 block font-mono text-[11px] text-black/35">
+                      CN {node.cnCode}
+                    </span>
+                  )}
+                  {node.cyclicReference && (
+                    <span className="mt-1 block text-[11px] text-[#dc2626]">
+                      {t("Cycle detected — chain not shown")}
+                    </span>
+                  )}
                 </div>
               </td>
 
@@ -104,14 +137,20 @@ export function TreeTable({
                 {node.see != null ? (
                   <>
                     {node.see.toFixed(4)}
-                    <span className="ml-1 text-black/30">tCO₂e/{node.functionalUnit === "tonne" || !node.functionalUnit ? "t" : node.functionalUnit}</span>
+                    <span className="ml-1 text-black/30">
+                      tCO₂e/
+                      {node.functionalUnit === "tonne" || !node.functionalUnit
+                        ? "t"
+                        : node.functionalUnit}
+                    </span>
                   </>
                 ) : (
                   <span className="text-black/25">—</span>
                 )}
                 {node.quantityRatio && (
                   <span className="mt-0.5 block text-[11px] text-black/30">
-                    {node.quantityRatio.precursorMassConsumed.toLocaleString()}t / {node.quantityRatio.outputMassProduced.toLocaleString()}t
+                    {node.quantityRatio.precursorMassConsumed.toLocaleString()}t
+                    / {node.quantityRatio.outputMassProduced.toLocaleString()}t
                   </span>
                 )}
               </td>
@@ -139,7 +178,11 @@ export function TreeTable({
                   onEnterVerifiedData={onEnterVerifiedData}
                   onAddPrecursor={onAddPrecursor}
                 />
-                <ChainDocumentActions node={node} workspaceId={workspaceId} className="mt-1.5" />
+                <ChainDocumentActions
+                  node={node}
+                  workspaceId={workspaceId}
+                  className="mt-1.5"
+                />
               </td>
             </tr>
           ))}

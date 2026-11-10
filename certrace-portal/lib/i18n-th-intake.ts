@@ -4,7 +4,7 @@
    lib/i18n.ts. Keyed by the English source string, same as the main file. */
 
 export const TH_INTAKE: Record<string, string> = {
-  "Smart upload": "อัปโหลดอัจฉริยะ",
+  "Smart upload": "สมาร์ทอัพโหลด",
 
   /* Drop zone */
   "Drop any documents here": "โยนเอกสารมาได้เลย",
@@ -14,7 +14,8 @@ export const TH_INTAKE: Record<string, string> = {
   "Choose files": "เลือกไฟล์",
   "Try sample documents": "ลองด้วยเอกสารตัวอย่าง",
   "Sample documents could not be loaded": "โหลดเอกสารตัวอย่างไม่สำเร็จ",
-  "Prototype — detection is simulated. Nothing leaves this browser.": "ต้นแบบ (Prototype) — ผลการตรวจจับเป็นการจำลอง ไม่มีข้อมูลออกจากเบราว์เซอร์นี้",
+  "Prototype — detection is simulated. Nothing leaves this browser.":
+    "ต้นแบบ — ผลการตรวจจับเป็นการจำลอง ไม่มีข้อมูลออกจากเบราว์เซอร์นี้",
 
   /* Summary strip */
   "{n} reading": "กำลังอ่าน {n}",
@@ -46,7 +47,8 @@ export const TH_INTAKE: Record<string, string> = {
   "Pick a checklist row": "เลือกช่องใน checklist",
   "There is no {fuel} row in {month} yet. Filing adds one, with the EU standard factors.":
     "เดือน {month} ยังไม่มีแถว {fuel} ถ้ายืนยัน ระบบจะเพิ่มแถวให้ พร้อมค่า factor มาตรฐาน EU",
-  "Values found — untick anything you don't want kept": "ค่าที่อ่านได้ — เอาเครื่องหมายถูกออกจากค่าที่ไม่ต้องการเก็บ",
+  "Values found — untick anything you don't want kept":
+    "ค่าที่อ่านได้ — เอาเครื่องหมายถูกออกจากค่าที่ไม่ต้องการเก็บ",
   "writes {field}": "ใส่ลงช่อง {field}",
   "Check this against the document": "ตรวจค่านี้กับเอกสารอีกครั้ง",
   "Set aside": "พักไว้ก่อน",
@@ -67,8 +69,8 @@ export const TH_INTAKE: Record<string, string> = {
   "Fuel consumption record": "บันทึกการใช้เชื้อเพลิง",
   "Production record / ERP export": "บันทึกการผลิต / รายงานจาก ERP",
   "Calibration certificate": "ใบรับรองการสอบเทียบ",
-  "Mill test certificate": "ใบรับรองผลทดสอบ (Mill test certificate)",
-  "Precursor verification report": "รายงานทวนสอบวัตถุดิบตั้งต้น (Precursor)",
+  "Mill test certificate": "ใบรับรองผลทดสอบ",
+  "Precursor verification report": "รายงานทวนสอบวัตถุดิบตั้งต้น",
   "Carbon price receipt": "หลักฐานการจ่ายราคาคาร์บอน",
   "Installation diagram": "แผนผังโรงงาน",
   "Laboratory analysis": "ผลวิเคราะห์จากห้องปฏิบัติการ",
@@ -107,7 +109,8 @@ export const TH_INTAKE: Record<string, string> = {
   "Needs your check": "รอคุณตรวจ",
   "Not needed": "ไม่ต้องใช้",
   Fills: "กรอกช่อง",
-  "Not filled until you tick it on the card — check it against the document.": "จะยังไม่กรอกจนกว่าคุณจะติ๊กบนการ์ด — ตรวจกับเอกสารก่อน",
+  "Not filled until you tick it on the card — check it against the document.":
+    "จะยังไม่กรอกจนกว่าคุณจะติ๊กบนการ์ด — ตรวจกับเอกสารก่อน",
   "Replaces {old}": "แทนค่าเดิม {old}",
   "+{n} more values kept with the document": "+ อีก {n} ค่าเก็บไว้กับเอกสาร",
   "Review one by one": "ตรวจทีละไฟล์",
@@ -121,7 +124,8 @@ export const TH_INTAKE: Record<string, string> = {
   /* Review popup as the one review screen + landing banner */
   "Check and confirm": "ตรวจและยืนยัน",
   "Nothing waiting for review": "ไม่มีเอกสารรอตรวจ",
-  "{n} still need your tick — they stay here for later.": "ยังรอคุณติ๊กอีก {n} ไฟล์ — เก็บไว้ให้ตรวจทีหลังได้",
+  "{n} still need your tick — they stay here for later.":
+    "ยังรอคุณติ๊กอีก {n} ไฟล์ — เก็บไว้ให้ตรวจทีหลังได้",
   Later: "ไว้ทีหลัง",
   "Needs your check ({n})": "รอคุณตรวจ ({n})",
   "Answer the question above first": "ตอบคำถามด้านบนก่อน",
@@ -129,29 +133,38 @@ export const TH_INTAKE: Record<string, string> = {
   "Checked — this file will be filed": "ตรวจแล้ว — ไฟล์นี้จะถูกบันทึก",
   "Tap again to leave it out.": "แตะอีกครั้งถ้าไม่ต้องการบันทึก",
   "Unticked files are not filed.": "ไฟล์ที่ไม่ได้ติ๊กจะไม่ถูกบันทึก",
-  "Compare the values with the document, then tap here. Unticked files are not filed.": "เทียบค่ากับเอกสาร แล้วแตะที่นี่ ไฟล์ที่ไม่ได้ติ๊กจะไม่ถูกบันทึก",
-  "This file can be ticked once every question is answered.": "ติ๊กได้เมื่อตอบคำถามครบแล้ว",
+  "Compare the values with the document, then tap here. Unticked files are not filed.":
+    "เทียบค่ากับเอกสาร แล้วแตะที่นี่ ไฟล์ที่ไม่ได้ติ๊กจะไม่ถูกบันทึก",
+  "This file can be ticked once every question is answered.":
+    "ติ๊กได้เมื่อตอบคำถามครบแล้ว",
   "Ready ({n})": "พร้อมบันทึก ({n})",
   Change: "แก้ไข",
   "{n} not needed — won't be filed": "ไม่ต้องใช้ {n} ไฟล์ — จะไม่ถูกบันทึก",
-  "Everything you dropped has been filed or set aside.": "เอกสารที่ใส่มาถูกบันทึกหรือพักไว้หมดแล้ว",
-  "Not filled unless you tick it below — check it against the document.": "จะยังไม่กรอกจนกว่าคุณจะติ๊กด้านล่าง — ตรวจกับเอกสารก่อน",
-  "Confirm {docs} documents · fill {values} values": "ยืนยัน {docs} ไฟล์ · กรอก {values} ค่า",
+  "Everything you dropped has been filed or set aside.":
+    "เอกสารที่ใส่มาถูกบันทึกหรือพักไว้หมดแล้ว",
+  "Not filled unless you tick it below — check it against the document.":
+    "จะยังไม่กรอกจนกว่าคุณจะติ๊กด้านล่าง — ตรวจกับเอกสารก่อน",
+  "Confirm {docs} documents · fill {values} values":
+    "ยืนยัน {docs} ไฟล์ · กรอก {values} ค่า",
   "Confirm {docs} documents": "ยืนยัน {docs} ไฟล์",
-  "Guessed from the file name — check what it is.": "เดาจากชื่อไฟล์ — ตรวจว่าเป็นเอกสารอะไร",
+  "Guessed from the file name — check what it is.":
+    "เดาจากชื่อไฟล์ — ตรวจว่าเป็นเอกสารอะไร",
   "{n} documents waiting for your check": "มีเอกสาร {n} ไฟล์รอคุณตรวจ",
   "Continue review": "ตรวจต่อ",
-  "AI filled {n} values from your documents — they are in blue.": "AI กรอกให้ {n} ค่าจากเอกสารของคุณ — คือค่าที่เป็นสีฟ้า",
+  "AI filled {n} values from your documents — they are in blue.":
+    "AI กรอกให้ {n} ค่าจากเอกสารของคุณ — คือค่าที่เป็นสีฟ้า",
   "AI can make mistakes — check each value against its document. Typing over a value makes it yours.":
     "AI อาจผิดพลาดได้ — ตรวจแต่ละค่ากับเอกสารอีกครั้ง ถ้าพิมพ์ทับ ค่านั้นจะนับเป็นค่าที่คุณกรอกเอง",
   "AI can make mistakes, even on rows marked ready. Check each value against its document before you confirm.":
     "AI อาจผิดพลาดได้ แม้แต่รายการที่ขึ้นว่าพร้อมบันทึก ตรวจแต่ละค่ากับเอกสารก่อนกดยืนยัน",
-  "AI can make mistakes. You check every value before anything is saved.": "AI อาจผิดพลาดได้ คุณจะได้ตรวจทุกค่าก่อนมีการบันทึก",
+  "AI can make mistakes. You check every value before anything is saved.":
+    "AI อาจผิดพลาดได้ คุณจะได้ตรวจทุกค่าก่อนมีการบันทึก",
   "Also filled:": "กรอกให้เดือนอื่นด้วย:",
 
   /* Smart Link overview shortcut */
   "Have the documents already?": "มีเอกสารอยู่แล้วใช่ไหม",
-  "Add documents and let Certrace fill the form": "เพิ่มเอกสาร แล้วให้ Certrace กรอกข้อมูลให้",
+  "Add documents and let Certrace fill the form":
+    "เพิ่มเอกสาร แล้วให้ Certrace กรอกข้อมูลให้",
   "Drop this month's bills, fuel invoices and ERP exports. AI reads each one, files it and fills the matching figures. You check everything before it is saved — AI can make mistakes.":
     "ใส่บิลค่าไฟ ใบแจ้งหนี้เชื้อเพลิง และรายงานจาก ERP ของเดือนนี้ AI จะอ่านทีละไฟล์ บันทึกเข้าช่อง และกรอกตัวเลขที่ตรงกันให้ คุณจะได้ตรวจทุกอย่างก่อนบันทึก — AI อาจผิดพลาดได้",
   "Add documents & auto-fill": "เพิ่มเอกสารและกรอกข้อมูลอัตโนมัติ",
@@ -163,14 +176,17 @@ export const TH_INTAKE: Record<string, string> = {
   "6 steps — installation, methodology, monthly data, precursors, documents, then check and sign. Everything saves as you type.":
     "6 ขั้น — โรงงาน วิธีการวัด ข้อมูลรายเดือน วัตถุดิบตั้งต้น เอกสาร แล้วตรวจและลงนาม ระบบบันทึกให้ระหว่างพิมพ์",
   "See the steps": "ดูรายละเอียดแต่ละขั้น",
-  "Copy starts from last month's figures. Clear empties this month only.": "คัดลอกจะเริ่มจากตัวเลขเดือนที่แล้ว ล้างจะลบเฉพาะเดือนนี้",
-  "First month of the year — nothing to copy from yet.": "เดือนแรกของปี — ยังไม่มีข้อมูลให้คัดลอก",
+  "Copy starts from last month's figures. Clear empties this month only.":
+    "คัดลอกจะเริ่มจากตัวเลขเดือนที่แล้ว ล้างจะลบเฉพาะเดือนนี้",
+  "First month of the year — nothing to copy from yet.":
+    "เดือนแรกของปี — ยังไม่มีข้อมูลให้คัดลอก",
 
   /* Monitor — the phone view */
   Monitor: "ติดตามงาน",
   "Where the year stands": "ภาพรวมของปีนี้",
   "Open the phone view": "เปิดมุมมองสำหรับมือถือ",
-  "Where every month stands, and what is waiting on you.": "ดูว่าแต่ละเดือนถึงไหนแล้ว และมีอะไรรอคุณอยู่",
+  "Where every month stands, and what is waiting on you.":
+    "ดูว่าแต่ละเดือนถึงไหนแล้ว และมีอะไรรอคุณอยู่",
   "Months received so far": "เดือนที่ได้รับข้อมูลแล้ว",
   "Waiting for your review": "รอคุณตรวจ",
   "Months overdue": "เดือนที่เกินกำหนด",
@@ -226,14 +242,16 @@ export const TH_INTAKE: Record<string, string> = {
   "{exporter} did not ask for this document. Pick a requested document above if it belongs to one.":
     "{exporter} ไม่ได้ขอเอกสารนี้ ถ้าเอกสารนี้ตรงกับรายการที่ถูกขอ ให้เลือกด้านบน",
   "Locked — not part of this revision.": "ล็อกอยู่ — ไม่ได้อยู่ในรอบแก้ไขนี้",
-  "The file is no longer in this page. Drop it again.": "ไฟล์ไม่อยู่ในหน้านี้แล้ว โยนไฟล์ใหม่อีกครั้ง",
+  "The file is no longer in this page. Drop it again.":
+    "ไฟล์ไม่อยู่ในหน้านี้แล้ว โยนไฟล์ใหม่อีกครั้ง",
   "Pick a requested document for this file.": "เลือกเอกสารที่ถูกขอให้ไฟล์นี้",
   "Values found": "ค่าที่อ่านได้",
-  "Shown for reference — these values are not written into the questionnaire.": "แสดงเพื่ออ้างอิงเท่านั้น — ค่าเหล่านี้ไม่ได้ถูกใส่ลงแบบสอบถาม",
+  "Shown for reference — these values are not written into the questionnaire.":
+    "แสดงเพื่ออ้างอิงเท่านั้น — ค่าเหล่านี้ไม่ได้ถูกใส่ลงแบบสอบถาม",
   "Requested documents": "เอกสารที่ถูกขอ",
   required: "จำเป็น",
-  "CBAM communication sheet": "แบบฟอร์มสื่อสาร CBAM (Communication sheet)",
-  "Certificate of Origin": "หนังสือรับรองถิ่นกำเนิดสินค้า (Certificate of Origin)",
+  "CBAM communication sheet": "แบบฟอร์มสื่อสาร CBAM",
+  "Certificate of Origin": "หนังสือรับรองถิ่นกำเนิดสินค้า",
   "This document belongs to a supplier's data request, not to this workspace's checklist.":
     "เอกสารนี้เป็นของคำขอข้อมูลถึงซัพพลายเออร์ ไม่ได้อยู่ใน checklist ของงานนี้",
   "Direct emissions": "การปล่อยทางตรง",
@@ -251,8 +269,10 @@ export const TH_INTAKE: Record<string, string> = {
   "What Certrace read": "สิ่งที่ Certrace อ่านได้",
   kept: "เก็บ",
   "not kept": "ไม่เก็บ",
-  "This file is too large to keep in the browser, so there is nothing to show.": "ไฟล์ใหญ่เกินกว่าจะเก็บไว้ในเบราว์เซอร์ จึงแสดงไม่ได้",
-  "No preview for this file type. Open it in a new tab instead.": "ไฟล์ประเภทนี้แสดงตัวอย่างไม่ได้ ให้เปิดในแท็บใหม่แทน",
+  "This file is too large to keep in the browser, so there is nothing to show.":
+    "ไฟล์ใหญ่เกินกว่าจะเก็บไว้ในเบราว์เซอร์ จึงแสดงไม่ได้",
+  "No preview for this file type. Open it in a new tab instead.":
+    "ไฟล์ประเภทนี้แสดงตัวอย่างไม่ได้ ให้เปิดในแท็บใหม่แทน",
   "No values were read from this document.": "ไม่มีค่าที่อ่านได้จากเอกสารนี้",
 
   /* What filing wrote */
@@ -273,7 +293,8 @@ export const TH_INTAKE: Record<string, string> = {
   "Electricity emission factor": "ค่า emission factor ของไฟฟ้า",
   "{fuel} — invoice": "{fuel} — ใบแจ้งหนี้",
   "{fuel} — consumption records": "{fuel} — บันทึกการใช้",
-  "{fuel} — biomass sustainability documents": "{fuel} — เอกสารความยั่งยืนของชีวมวล",
+  "{fuel} — biomass sustainability documents":
+    "{fuel} — เอกสารความยั่งยืนของชีวมวล",
   "Installation identity": "ข้อมูลโรงงาน",
   "Internal QA record": "บันทึกการตรวจสอบภายใน (QA)",
   "Electricity contract / PPA": "สัญญาซื้อไฟฟ้า / PPA",
@@ -296,7 +317,8 @@ export const TH_INTAKE: Record<string, string> = {
 
   /* Why a document cannot file yet */
   "Workspace not found.": "ไม่พบ workspace",
-  "This does not look like anything a CBAM verifier asks for.": "เอกสารนี้ดูไม่ใช่สิ่งที่ผู้ทวนสอบ CBAM ขอ",
+  "This does not look like anything a CBAM verifier asks for.":
+    "เอกสารนี้ดูไม่ใช่สิ่งที่ผู้ทวนสอบ CBAM ขอ",
   "Pick what this document is first.": "เลือกก่อนว่าเอกสารนี้คืออะไร",
   "This product does not count electricity emissions, so the checklist has no electricity row to file it to.":
     "สินค้านี้ไม่นับการปล่อยก๊าซจากไฟฟ้า จึงไม่มีช่องไฟฟ้าใน checklist ให้บันทึก",
@@ -306,17 +328,24 @@ export const TH_INTAKE: Record<string, string> = {
   "No checklist row to file to.": "ไม่มีช่องใน checklist ให้บันทึก",
 
   /* Detection summaries for the sample documents */
-  "Nothing in the file name says what this is. Pick the document type below.": "ชื่อไฟล์ไม่บอกว่าเป็นเอกสารอะไร เลือกประเภทเอกสารด้านล่าง",
+  "Nothing in the file name says what this is. Pick the document type below.":
+    "ชื่อไฟล์ไม่บอกว่าเป็นเอกสารอะไร เลือกประเภทเอกสารด้านล่าง",
   "Guessed from the file name only. Nothing inside the file was read, so no values were proposed.":
     "เดาจากชื่อไฟล์อย่างเดียว ไม่ได้อ่านเนื้อหาในไฟล์ จึงไม่มีค่าที่เสนอให้",
-  "Electricity bill for March 2026 — 412,800 kWh on meter SMP-7781204.": "บิลค่าไฟเดือนมีนาคม 2569 — 412,800 kWh มิเตอร์ SMP-7781204",
+  "Electricity bill for March 2026 — 412,800 kWh on meter SMP-7781204.":
+    "บิลค่าไฟเดือนมีนาคม 2569 — 412,800 kWh มิเตอร์ SMP-7781204",
   "Scanned electricity bill for April 2026. Several digits are smudged; the total kWh is partly obscured and a handwritten note repeats it with a question mark.":
     "บิลค่าไฟเดือนเมษายน 2569 แบบสแกน ตัวเลขหลายตัวเลอะ ยอด kWh รวมมองเห็นไม่ชัด และมีลายมือเขียนซ้ำพร้อมเครื่องหมายคำถาม",
-  "Natural gas invoice for March 2026 — 185,400 Sm³ delivered at RY-DP-014.": "ใบแจ้งหนี้ก๊าซธรรมชาติเดือนมีนาคม 2569 — 185,400 Sm³ ส่งที่จุด RY-DP-014",
-  "Delivery note for 12,000 litres of diesel B7 on 18 April 2026. No price on the note.": "ใบส่งน้ำมันดีเซล B7 จำนวน 12,000 ลิตร วันที่ 18 เมษายน 2569 ไม่มีราคาในเอกสาร",
-  "ERP production summary for March 2026 — 8,420.5 t of hot-rolled coil.": "สรุปการผลิตจาก ERP เดือนมีนาคม 2569 — เหล็กม้วนรีดร้อน 8,420.5 t",
+  "Natural gas invoice for March 2026 — 185,400 Sm³ delivered at RY-DP-014.":
+    "ใบแจ้งหนี้ก๊าซธรรมชาติเดือนมีนาคม 2569 — 185,400 Sm³ ส่งที่จุด RY-DP-014",
+  "Delivery note for 12,000 litres of diesel B7 on 18 April 2026. No price on the note.":
+    "ใบส่งน้ำมันดีเซล B7 จำนวน 12,000 ลิตร วันที่ 18 เมษายน 2569 ไม่มีราคาในเอกสาร",
+  "ERP production summary for March 2026 — 8,420.5 t of hot-rolled coil.":
+    "สรุปการผลิตจาก ERP เดือนมีนาคม 2569 — เหล็กม้วนรีดร้อน 8,420.5 t",
   "Calibration certificate for gas flow meter GFM-22-0391, calibrated 12 January 2026, next due 12 January 2027.":
     "ใบรับรองการสอบเทียบมิเตอร์ก๊าซ GFM-22-0391 สอบเทียบ 12 มกราคม 2569 ครั้งถัดไป 12 มกราคม 2570",
-  "EN 10204 3.1 certificate for 250 t of SS400 slab, heat H26-03117, delivered March 2026.": "ใบรับรอง EN 10204 3.1 สำหรับ slab SS400 250 t heat H26-03117 ส่งเดือนมีนาคม 2569",
-  "Receipt for paper and printer ink. Nothing on it relates to emissions, energy or production.": "ใบเสร็จค่ากระดาษและหมึกพิมพ์ ไม่เกี่ยวกับการปล่อยก๊าซ พลังงาน หรือการผลิต",
+  "EN 10204 3.1 certificate for 250 t of SS400 slab, heat H26-03117, delivered March 2026.":
+    "ใบรับรอง EN 10204 3.1 สำหรับ slab SS400 250 t heat H26-03117 ส่งเดือนมีนาคม 2569",
+  "Receipt for paper and printer ink. Nothing on it relates to emissions, energy or production.":
+    "ใบเสร็จค่ากระดาษและหมึกพิมพ์ ไม่เกี่ยวกับการปล่อยก๊าซ พลังงาน หรือการผลิต",
 };

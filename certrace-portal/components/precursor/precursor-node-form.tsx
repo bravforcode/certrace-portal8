@@ -69,7 +69,9 @@ export function PrecursorNodeForm({
 
   const reload = React.useCallback(() => {
     setDraft(getSupplier(workspaceId, nodeId));
-    setChildren(listSuppliers(workspaceId).filter((s) => s.parentId === nodeId));
+    setChildren(
+      listSuppliers(workspaceId).filter((s) => s.parentId === nodeId),
+    );
   }, [workspaceId, nodeId]);
 
   React.useEffect(reload, [reload]);
@@ -79,11 +81,18 @@ export function PrecursorNodeForm({
      setDraft rather than set(), because an attach is not an edit: it must not
      turn the Save button on by itself. */
   React.useEffect(() => {
-    const items = annualEvidence(workspaceId).filter((i) => i.fieldKeys.includes(`precursor:${nodeId}`));
+    const items = annualEvidence(workspaceId).filter((i) =>
+      i.fieldKeys.includes(`precursor:${nodeId}`),
+    );
     const latest = items[0]?.id; // annualEvidence is already newest-first
-    setDraft((d) => (d == null || d.verificationReportFileId === latest ? d : { ...d, verificationReportFileId: latest }));
+    setDraft((d) =>
+      d == null || d.verificationReportFileId === latest
+        ? d
+        : { ...d, verificationReportFileId: latest },
+    );
     const stored = getSupplier(workspaceId, nodeId);
-    if (stored && stored.verificationReportFileId !== latest) saveSupplier({ ...stored, verificationReportFileId: latest });
+    if (stored && stored.verificationReportFileId !== latest)
+      saveSupplier({ ...stored, verificationReportFileId: latest });
   }, [workspaceId, nodeId, evidenceVersion]);
 
   if (!draft) return null;
@@ -94,33 +103,58 @@ export function PrecursorNodeForm({
   };
 
   const evidenceKeys: RequiredKey[] = [
-    { key: `precursor:${nodeId}`, label: `${draft.precursorName || "Unnamed precursor"} — emissions figure` },
+    {
+      key: `precursor:${nodeId}`,
+      label: `${draft.precursorName || "Unnamed precursor"} — emissions figure`,
+    },
   ];
 
   const save = () => {
-    const named = Boolean(draft.installationUniqueId?.trim() || draft.unlocode?.trim());
+    const named = Boolean(
+      draft.installationUniqueId?.trim() || draft.unlocode?.trim(),
+    );
     const matches = matchesExistingInstallation(workspaceId, draft);
-    const saved = saveSupplier({ ...draft, pendingExporterConfirmation: named && !matches });
+    const saved = saveSupplier({
+      ...draft,
+      pendingExporterConfirmation: named && !matches,
+    });
     setDraft(saved);
     setDirty(false);
     onChange();
     toast({
       message: "Saved",
-      detail: matches ? "Matched to an installation already on file." : named ? "Recorded — the exporter will confirm this is a new installation." : "Saved.",
+      detail: matches
+        ? "Matched to an installation already on file."
+        : named
+          ? "Recorded — the exporter will confirm this is a new installation."
+          : "Saved.",
       tone: "ok",
     });
   };
 
   const addUpstream = () => {
-    const child = saveSupplier({ ...emptySupplier(workspaceId, nodeId), addedBy: "supplier" });
+    const child = saveSupplier({
+      ...emptySupplier(workspaceId, nodeId),
+      addedBy: "supplier",
+    });
     setChildren((prev) => [...prev, child]);
     onChange();
   };
 
   return (
-    <div className={cn("rounded-2xl border border-black/[0.07] bg-white p-5", depth > 1 && "border-black/[0.09]")} style={depth > 1 ? { marginLeft: (depth - 1) * 16 } : undefined}>
+    <div
+      className={cn(
+        "rounded-2xl border border-black/[0.07] bg-white p-5",
+        depth > 1 && "border-black/[0.09]",
+      )}
+      style={depth > 1 ? { marginLeft: (depth - 1) * 16 } : undefined}
+    >
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <span className="text-[11px] uppercase tracking-[0.1em] text-black/55">{depth === 1 ? "An upstream precursor of your own" : `${depth} tiers upstream of you`}</span>
+        <span className="text-[11px] uppercase tracking-[0.1em] text-black/55">
+          {depth === 1
+            ? "An upstream precursor of your own"
+            : `${depth} tiers upstream of you`}
+        </span>
         {dirty ? (
           <Button size="sm" variant="secondary" onClick={save}>
             <Check size={13} strokeWidth={1.5} /> {t("Save")}
@@ -136,49 +170,122 @@ export function PrecursorNodeForm({
           reference gets typed on one tier and skipped on the next. */}
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label={t("Company")}>
-          <input className={inputClass} value={draft.name} onChange={(e) => set({ name: e.target.value })} placeholder={t("Their supplier")} />
+          <input
+            className={inputClass}
+            value={draft.name}
+            onChange={(e) => set({ name: e.target.value })}
+            placeholder={t("Their supplier")}
+          />
         </Field>
-        <Field label={t("Installation")} hint={t("Where it was actually produced.")}>
-          <input className={inputClass} value={draft.installationName} onChange={(e) => set({ installationName: e.target.value })} placeholder={t("Their installation")} />
+        <Field
+          label={t("Installation")}
+          hint={t("Where it was actually produced.")}
+        >
+          <input
+            className={inputClass}
+            value={draft.installationName}
+            onChange={(e) => set({ installationName: e.target.value })}
+            placeholder={t("Their installation")}
+          />
         </Field>
         <Field label={t("Country")}>
-          <Select value={draft.country} onChange={(v) => set({ country: v })} searchable options={COUNTRIES.map((c) => ({ value: c.code, label: c.name }))} ariaLabel={t("Country")} />
+          <Select
+            value={draft.country}
+            onChange={(v) => set({ country: v })}
+            searchable
+            options={COUNTRIES.map((c) => ({ value: c.code, label: c.name }))}
+            ariaLabel={t("Country")}
+          />
         </Field>
-        <Field label={t("Installation reference")} hint={t("That plant's own reference for itself.")}>
-          <input className={inputClass} value={draft.installationUniqueId ?? ""} onChange={(e) => set({ installationUniqueId: e.target.value })} placeholder={t("TH-CHON-0042")} />
+        <Field
+          label={t("Installation reference")}
+          hint={t("That plant's own reference for itself.")}
+        >
+          <input
+            className={inputClass}
+            value={draft.installationUniqueId ?? ""}
+            onChange={(e) => set({ installationUniqueId: e.target.value })}
+            placeholder={t("TH-CHON-0042")}
+          />
         </Field>
         <Field label={t("UN/LOCODE")}>
-          <input className={cn(inputClass, "font-mono")} value={draft.unlocode ?? ""} onChange={(e) => set({ unlocode: e.target.value.toUpperCase() })} placeholder={t("THLCH")} />
+          <input
+            className={cn(inputClass, "font-mono")}
+            value={draft.unlocode ?? ""}
+            onChange={(e) => set({ unlocode: e.target.value.toUpperCase() })}
+            placeholder={t("THLCH")}
+          />
         </Field>
         <Field label={t("Full address")}>
-          <input className={inputClass} value={draft.fullAddress ?? ""} onChange={(e) => set({ fullAddress: e.target.value })} placeholder={t("88 Moo 4, Sriracha, Chonburi 20230")} />
+          <input
+            className={inputClass}
+            value={draft.fullAddress ?? ""}
+            onChange={(e) => set({ fullAddress: e.target.value })}
+            placeholder={t("88 Moo 4, Sriracha, Chonburi 20230")}
+          />
         </Field>
-        <Field label={t("Latitude")} hint={coordinateError(String(draft.latitude ?? ""), String(draft.longitude ?? "")) ?? undefined}>
+        <Field
+          label={t("Latitude")}
+          hint={
+            coordinateError(
+              String(draft.latitude ?? ""),
+              String(draft.longitude ?? ""),
+            ) ?? undefined
+          }
+        >
           <NumberInput
             value={draft.latitude}
             min={-90}
             max={90}
-            invalid={Boolean(coordinateError(String(draft.latitude ?? ""), String(draft.longitude ?? "")))}
+            invalid={Boolean(
+              coordinateError(
+                String(draft.latitude ?? ""),
+                String(draft.longitude ?? ""),
+              ),
+            )}
             onChange={(v) => set({ latitude: v })}
             ariaLabel={t("Latitude")}
           />
         </Field>
         <Field label={t("Longitude")}>
-          <NumberInput value={draft.longitude} min={-180} max={180} onChange={(v) => set({ longitude: v })} ariaLabel={t("Longitude")} />
+          <NumberInput
+            value={draft.longitude}
+            min={-180}
+            max={180}
+            onChange={(v) => set({ longitude: v })}
+            ariaLabel={t("Longitude")}
+          />
         </Field>
       </div>
 
       <div className="mt-4 rounded-xl border border-black/[0.07] bg-[#faf9f7] p-4">
-        <span className="mb-3 block text-[11px] uppercase tracking-[0.1em] text-black/55">{t("Precursor product")}</span>
+        <span className="mb-3 block text-[11px] uppercase tracking-[0.1em] text-black/55">
+          {t("Precursor product")}
+        </span>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label={t("Product name")}>
-            <input className={inputClass} value={draft.precursorName} onChange={(e) => set({ precursorName: e.target.value })} placeholder={t("Steel billet")} />
+            <input
+              className={inputClass}
+              value={draft.precursorName}
+              onChange={(e) => set({ precursorName: e.target.value })}
+              placeholder={t("Steel billet")}
+            />
           </Field>
           <Field label={t("CN code")}>
-            <input className={cn(inputClass, "font-mono")} value={draft.cnCode} onChange={(e) => set({ cnCode: e.target.value })} placeholder="7207 11 90" />
+            <input
+              className={cn(inputClass, "font-mono")}
+              value={draft.cnCode}
+              onChange={(e) => set({ cnCode: e.target.value })}
+              placeholder="7207 11 90"
+            />
           </Field>
           <Field label={t("Production route")} hint={t("How they make it.")}>
-            <input className={inputClass} value={draft.productionRoute} onChange={(e) => set({ productionRoute: e.target.value })} placeholder={t("Scrap-based EAF")} />
+            <input
+              className={inputClass}
+              value={draft.productionRoute}
+              onChange={(e) => set({ productionRoute: e.target.value })}
+              placeholder={t("Scrap-based EAF")}
+            />
           </Field>
         </div>
       </div>
@@ -186,26 +293,59 @@ export function PrecursorNodeForm({
       <section className="mt-4 rounded-xl border border-black/[0.07] bg-[#faf9f7] p-4">
         <div className="mb-3 flex items-center gap-2">
           <MapPin size={13} strokeWidth={1.5} className="text-black/35" />
-          <span className="text-[11px] uppercase tracking-[0.1em] text-black/55">{t("Specific embedded emissions")}</span>
+          <span className="text-[11px] uppercase tracking-[0.1em] text-black/55">
+            {t("Specific embedded emissions")}
+          </span>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label={t("Direct")} hint={t("Their own CBAM communication figure.")}>
-            <NumberInput value={draft.specificEmbeddedDirectTco2PerT} min={0} unit="tCO₂e/t" onChange={(v) => set({ specificEmbeddedDirectTco2PerT: v })} ariaLabel={t("Direct SEE")} />
+          <Field
+            label={t("Direct")}
+            hint={t("Their own CBAM communication figure.")}
+          >
+            <NumberInput
+              value={draft.specificEmbeddedDirectTco2PerT}
+              min={0}
+              unit="tCO₂e/t"
+              onChange={(v) => set({ specificEmbeddedDirectTco2PerT: v })}
+              ariaLabel={t("Direct SEE")}
+            />
           </Field>
           <Field label={t("Indirect")}>
-            <NumberInput value={draft.specificEmbeddedIndirectTco2PerT} min={0} unit="tCO₂e/t" onChange={(v) => set({ specificEmbeddedIndirectTco2PerT: v })} ariaLabel={t("Indirect SEE")} />
+            <NumberInput
+              value={draft.specificEmbeddedIndirectTco2PerT}
+              min={0}
+              unit="tCO₂e/t"
+              onChange={(v) => set({ specificEmbeddedIndirectTco2PerT: v })}
+              ariaLabel={t("Indirect SEE")}
+            />
           </Field>
           <Field label={t("Reporting period start")}>
-            <DatePicker value={draft.reportingPeriodStart ?? ""} onChange={(iso) => set({ reportingPeriodStart: iso })} ariaLabel={t("Reporting period start")} />
+            <DatePicker
+              value={draft.reportingPeriodStart ?? ""}
+              onChange={(iso) => set({ reportingPeriodStart: iso })}
+              ariaLabel={t("Reporting period start")}
+            />
           </Field>
           <Field label={t("Reporting period end")}>
-            <DatePicker value={draft.reportingPeriodEnd ?? ""} onChange={(iso) => set({ reportingPeriodEnd: iso })} ariaLabel={t("Reporting period end")} />
+            <DatePicker
+              value={draft.reportingPeriodEnd ?? ""}
+              onChange={(iso) => set({ reportingPeriodEnd: iso })}
+              ariaLabel={t("Reporting period end")}
+            />
           </Field>
           <Field
             label={t("Quantity — per-tonne ratio")}
-            hint={t("The TOTAL they consumed to produce what they sell you, including material that never reaches the finished good — offcuts, spillage, scrap, burn-off.")}
+            hint={t(
+              "The TOTAL they consumed to produce what they sell you, including material that never reaches the finished good — offcuts, spillage, scrap, burn-off.",
+            )}
           >
-            <NumberInput value={draft.qtyPerTonneOverride} min={0} unit="t/t" onChange={(v) => set({ qtyPerTonneOverride: v })} ariaLabel={t("Per-tonne ratio")} />
+            <NumberInput
+              value={draft.qtyPerTonneOverride}
+              min={0}
+              unit="t/t"
+              onChange={(v) => set({ qtyPerTonneOverride: v })}
+              ariaLabel={t("Per-tonne ratio")}
+            />
           </Field>
         </div>
       </section>
@@ -213,17 +353,26 @@ export function PrecursorNodeForm({
       <section className="mt-4 rounded-xl border border-black/[0.07] bg-[#faf9f7] p-4">
         <div className="mb-3 flex items-center gap-2">
           <ShieldCheck size={13} strokeWidth={1.5} className="text-black/35" />
-          <span className="text-[11px] uppercase tracking-[0.1em] text-black/55">{t("Verification evidence")}</span>
+          <span className="text-[11px] uppercase tracking-[0.1em] text-black/55">
+            {t("Verification evidence")}
+          </span>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label={t("Verifier name")}>
-            <input className={inputClass} value={draft.verifierName ?? ""} onChange={(e) => set({ verifierName: e.target.value })} placeholder={t("SGS Thailand")} />
+            <input
+              className={inputClass}
+              value={draft.verifierName ?? ""}
+              onChange={(e) => set({ verifierName: e.target.value })}
+              placeholder={t("SGS Thailand")}
+            />
           </Field>
           <Field label={t("Accreditation number")}>
             <input
               className={inputClass}
               value={draft.verifierAccreditationNumber ?? ""}
-              onChange={(e) => set({ verifierAccreditationNumber: e.target.value })}
+              onChange={(e) =>
+                set({ verifierAccreditationNumber: e.target.value })
+              }
               placeholder={t("TH-ACC-001")}
             />
           </Field>
@@ -237,16 +386,26 @@ export function PrecursorNodeForm({
             />
           </Field>
           <Field label={t("Accreditation expiry date")}>
-            <DatePicker value={draft.verifierAccreditationExpiryDate ?? ""} onChange={(iso) => set({ verifierAccreditationExpiryDate: iso })} ariaLabel={t("Accreditation expiry date")} />
+            <DatePicker
+              value={draft.verifierAccreditationExpiryDate ?? ""}
+              onChange={(iso) => set({ verifierAccreditationExpiryDate: iso })}
+              ariaLabel={t("Accreditation expiry date")}
+            />
           </Field>
           <Field label={t("Report issue date")}>
-            <DatePicker value={draft.verificationReportIssueDate ?? ""} onChange={(iso) => set({ verificationReportIssueDate: iso })} ariaLabel={t("Report issue date")} />
+            <DatePicker
+              value={draft.verificationReportIssueDate ?? ""}
+              onChange={(iso) => set({ verificationReportIssueDate: iso })}
+              ariaLabel={t("Report issue date")}
+            />
           </Field>
           <Field label={t("Sectoral scope")} hint={t("e.g. Iron and steel.")}>
             <input
               className={inputClass}
               value={draft.verificationSectoralScope ?? ""}
-              onChange={(e) => set({ verificationSectoralScope: e.target.value })}
+              onChange={(e) =>
+                set({ verificationSectoralScope: e.target.value })
+              }
               placeholder={t("Iron and steel")}
             />
           </Field>
@@ -255,8 +414,18 @@ export function PrecursorNodeForm({
               expiry date, and forcing one would put a made-up date on a
               compliance record. It is here — rather than exporter-only, as it
               was — because the supplier is the party holding the report. */}
-          <Field label={t("Report expires")} optional hint={t("When this report itself needs renewing — leave blank if it does not lapse.")}>
-            <DatePicker value={draft.verificationReportExpiresAt ?? ""} onChange={(iso) => set({ verificationReportExpiresAt: iso })} ariaLabel={t("Report expiry date")} />
+          <Field
+            label={t("Report expires")}
+            optional
+            hint={t(
+              "When this report itself needs renewing — leave blank if it does not lapse.",
+            )}
+          >
+            <DatePicker
+              value={draft.verificationReportExpiresAt ?? ""}
+              onChange={(iso) => set({ verificationReportExpiresAt: iso })}
+              ariaLabel={t("Report expiry date")}
+            />
           </Field>
         </div>
       </section>
@@ -266,15 +435,21 @@ export function PrecursorNodeForm({
       <section className="mt-4 rounded-xl border border-black/[0.07] bg-[#faf9f7] p-4">
         <div className="mb-3 flex items-center gap-2">
           <Paperclip size={13} strokeWidth={1.5} className="text-black/35" />
-          <span className="text-[11px] uppercase tracking-[0.1em] text-black/55">{t("Documents")}</span>
+          <span className="text-[11px] uppercase tracking-[0.1em] text-black/55">
+            {t("Documents")}
+          </span>
         </div>
         <p className="mb-3 text-[12px] leading-relaxed text-black/45">
-          {t("The verification report, and anything else that stands behind this figure.")}
+          {t(
+            "The verification report, and anything else that stands behind this figure.",
+          )}
         </p>
         <SectionEvidence
           workspaceId={workspaceId}
           keys={evidenceKeys}
-          emptyLabel={t("Nothing attached yet — this figure needs something behind it.")}
+          emptyLabel={t(
+            "Nothing attached yet — this figure needs something behind it.",
+          )}
           openable
           onChange={() => setEvidenceVersion((v) => v + 1)}
         />
@@ -282,14 +457,21 @@ export function PrecursorNodeForm({
 
       <div className="mt-4 flex justify-end border-t border-black/[0.06] pt-4">
         <Button size="sm" variant="secondary" onClick={addUpstream}>
-          <Plus size={13} strokeWidth={1.5} /> {t("Add an upstream precursor of theirs")}
+          <Plus size={13} strokeWidth={1.5} />{" "}
+          {t("Add an upstream precursor of theirs")}
         </Button>
       </div>
 
       {children.length > 0 && (
         <div className="mt-3 space-y-3">
           {children.map((c) => (
-            <PrecursorNodeForm key={c.id} workspaceId={workspaceId} nodeId={c.id} depth={depth + 1} onChange={onChange} />
+            <PrecursorNodeForm
+              key={c.id}
+              workspaceId={workspaceId}
+              nodeId={c.id}
+              depth={depth + 1}
+              onChange={onChange}
+            />
           ))}
         </div>
       )}

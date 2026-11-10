@@ -53,7 +53,15 @@
    ════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
-import { Check, Clock, Copy, History, Mail, Paperclip, Send } from "lucide-react";
+import {
+  Check,
+  Clock,
+  Copy,
+  History,
+  Mail,
+  Paperclip,
+  Send,
+} from "lucide-react";
 import { Button, Modal, Progress, cn } from "@/components/ui";
 import { SupplierEditor } from "@/components/precursor/supplier-editor";
 import { SectionEvidence } from "@/components/workspace/evidence-panel";
@@ -62,7 +70,11 @@ import { ensurePrecursorLink } from "@/lib/precursor-link-sync";
 import type { RequiredKey } from "@/lib/workspace-evidence";
 import { precursorCompleteness } from "@/lib/precursor-suppliers";
 import type { SupplierNode } from "@/lib/precursor-suppliers";
-import { formatVersionDate, listVersions, type PrecursorVersion } from "@/lib/precursor-versions";
+import {
+  formatVersionDate,
+  listVersions,
+  type PrecursorVersion,
+} from "@/lib/precursor-versions";
 import { useT } from "@/lib/i18n";
 
 /* Shared chrome for the blocks around the editor — the same card shape the
@@ -89,7 +101,14 @@ function Panel({
   children?: React.ReactNode;
 }) {
   return (
-    <section className={cn("rounded-xl border p-4", tone === "lead" ? "border-black/[0.09] bg-[#faf9f7]" : "border-black/[0.07] bg-white")}>
+    <section
+      className={cn(
+        "rounded-xl border p-4",
+        tone === "lead"
+          ? "border-black/[0.09] bg-[#faf9f7]"
+          : "border-black/[0.07] bg-white",
+      )}
+    >
       {/* THE BUTTONS DROP BELOW THE SENTENCE ON A NARROW SCREEN. Held on one
           row at every width, two uppercase buttons squeezed the title and the
           blurb into a four-word-wide column — "Ask the / supplier" over eight
@@ -100,11 +119,19 @@ function Panel({
         <div className="flex min-w-0 items-start gap-2.5">
           <span className="mt-0.5 flex-none text-black/35">{icon}</span>
           <div className="min-w-0">
-            <h3 className="text-[11px] uppercase tracking-[0.1em] text-black/55">{title}</h3>
-            <div className="mt-1 text-[12px] leading-relaxed text-black/45">{blurb}</div>
+            <h3 className="text-[11px] uppercase tracking-[0.1em] text-black/55">
+              {title}
+            </h3>
+            <div className="mt-1 text-[12px] leading-relaxed text-black/45">
+              {blurb}
+            </div>
           </div>
         </div>
-        {action && <div className="flex flex-wrap items-center gap-2 sm:flex-none sm:justify-end">{action}</div>}
+        {action && (
+          <div className="flex flex-wrap items-center gap-2 sm:flex-none sm:justify-end">
+            {action}
+          </div>
+        )}
       </div>
       {children && <div className="mt-3.5">{children}</div>}
     </section>
@@ -136,8 +163,12 @@ function hoursUntilResend(node: SupplierNode): number {
   const last = node.smartLinkLastSentAt ?? node.smartLinkSentAt;
   if (!last) return 0;
   const elapsed = Date.now() - new Date(last).getTime();
-  if (!Number.isFinite(elapsed) || elapsed < 0 || elapsed >= RESEND_WINDOW_MS) return 0;
-  return Math.max(1, Math.ceil((RESEND_WINDOW_MS - elapsed) / (60 * 60 * 1000)));
+  if (!Number.isFinite(elapsed) || elapsed < 0 || elapsed >= RESEND_WINDOW_MS)
+    return 0;
+  return Math.max(
+    1,
+    Math.ceil((RESEND_WINDOW_MS - elapsed) / (60 * 60 * 1000)),
+  );
 }
 
 /* ── Feedback lives IN the button, not in a corner of the screen ──
@@ -156,7 +187,12 @@ const FLASH_MS = 2200;
 function useFlash(ms = FLASH_MS): readonly [boolean, () => void] {
   const [on, setOn] = React.useState(false);
   const timer = React.useRef<number | null>(null);
-  React.useEffect(() => () => { if (timer.current) window.clearTimeout(timer.current); }, []);
+  React.useEffect(
+    () => () => {
+      if (timer.current) window.clearTimeout(timer.current);
+    },
+    [],
+  );
   const fire = React.useCallback(() => {
     setOn(true);
     if (timer.current) window.clearTimeout(timer.current);
@@ -167,12 +203,20 @@ function useFlash(ms = FLASH_MS): readonly [boolean, () => void] {
 
 /** The panel's own status line — what the toast used to say, kept on the
     panel so it survives being looked away from. */
-function PanelNote({ tone, children }: { tone: "ok" | "warn"; children: React.ReactNode }) {
+function PanelNote({
+  tone,
+  children,
+}: {
+  tone: "ok" | "warn";
+  children: React.ReactNode;
+}) {
   return (
     <p
       className={cn(
         "flex items-start gap-2 rounded-lg border-l-[3px] px-3 py-2 text-[12px] leading-relaxed",
-        tone === "ok" ? "border-l-[#047857] bg-[#ecfdf5] text-[#047857]" : "border-l-[#b45309] bg-[#fffbeb] text-[#b45309]",
+        tone === "ok"
+          ? "border-l-[#047857] bg-[#ecfdf5] text-[#047857]"
+          : "border-l-[#b45309] bg-[#fffbeb] text-[#b45309]",
       )}
     >
       {children}
@@ -180,14 +224,23 @@ function PanelNote({ tone, children }: { tone: "ok" | "warn"; children: React.Re
   );
 }
 
-function AskSupplierPanel({ node, onSend }: { node: SupplierNode; onSend?: () => void }) {
+function AskSupplierPanel({
+  node,
+  onSend,
+}: {
+  node: SupplierNode;
+  onSend?: () => void;
+}) {
   const t = useT();
   const email = (node.contactEmail ?? "").trim();
   const sent = Boolean(node.smartLinkSentAt);
 
   const [copied, flashCopied] = useFlash();
   const [justSent, flashSent] = useFlash(2600);
-  const [note, setNote] = React.useState<{ tone: "ok" | "warn"; text: string } | null>(null);
+  const [note, setNote] = React.useState<{
+    tone: "ok" | "warn";
+    text: string;
+  } | null>(null);
 
   /* THE SEND IS NOT THIS COMPONENT'S, so the button does not congratulate
      itself on the click. ChainEditor owns it, and on a row that has been
@@ -225,9 +278,13 @@ function AskSupplierPanel({ node, onSend }: { node: SupplierNode; onSend?: () =>
      so what is pasted to the producer opens on their machine; the local demo
      link otherwise. */
   const copy = async () => {
-    const url = (await ensurePrecursorLink(node.workspaceId, node.id).catch(() => null)) ?? precursorLinkFor(node.workspaceId, node.id);
+    const url =
+      (await ensurePrecursorLink(node.workspaceId, node.id).catch(
+        () => null,
+      )) ?? precursorLinkFor(node.workspaceId, node.id);
     if (!url) return;
-    if (typeof navigator !== "undefined" && navigator.clipboard) void navigator.clipboard.writeText(url).catch(() => {});
+    if (typeof navigator !== "undefined" && navigator.clipboard)
+      void navigator.clipboard.writeText(url).catch(() => {});
     flashCopied();
   };
 
@@ -245,16 +302,28 @@ function AskSupplierPanel({ node, onSend }: { node: SupplierNode; onSend?: () =>
          breaks everything when it is wrong. */
       blurb={
         <>
-          <span className="block">{t("Send this supplier their own link and they answer it themselves — no account, no spreadsheet coming back.")}</span>
+          <span className="block">
+            {t(
+              "Send this supplier their own link and they answer it themselves — no account, no spreadsheet coming back.",
+            )}
+          </span>
           {email ? (
             <span className="mt-1.5 flex min-w-0 items-center gap-1.5 text-black/50">
-              <Mail size={12} strokeWidth={1.5} className="flex-none text-black/30" />
+              <Mail
+                size={12}
+                strokeWidth={1.5}
+                className="flex-none text-black/30"
+              />
               <span className="truncate font-mono text-[11.5px]">{email}</span>
             </span>
           ) : (
             <span className="mt-1.5 flex min-w-0 items-start gap-1.5 text-[#b45309]">
               <Mail size={12} strokeWidth={1.5} className="mt-0.5 flex-none" />
-              <span>{t("No email on file — add one below, or the link has nowhere to go.")}</span>
+              <span>
+                {t(
+                  "No email on file — add one below, or the link has nowhere to go.",
+                )}
+              </span>
             </span>
           )}
         </>
@@ -268,14 +337,33 @@ function AskSupplierPanel({ node, onSend }: { node: SupplierNode; onSend?: () =>
             size="sm"
             variant="secondary"
             onClick={() => void copy()}
-            className={cn("min-w-[7.75rem]", copied && "border-[rgba(5,150,105,0.35)] bg-[#ecfdf5] text-[#047857] hover:border-[rgba(5,150,105,0.35)] hover:bg-[#ecfdf5] hover:text-[#047857]")}
+            className={cn(
+              "min-w-[7.75rem]",
+              copied &&
+                "border-[rgba(5,150,105,0.35)] bg-[#ecfdf5] text-[#047857] hover:border-[rgba(5,150,105,0.35)] hover:bg-[#ecfdf5] hover:text-[#047857]",
+            )}
           >
-            {copied ? <Check size={13} strokeWidth={1.5} /> : <Copy size={13} strokeWidth={1.5} />}
+            {copied ? (
+              <Check size={13} strokeWidth={1.5} />
+            ) : (
+              <Copy size={13} strokeWidth={1.5} />
+            )}
             {copied ? "Copied" : "Copy link"}
           </Button>
           {onSend && (
-            <Button size="sm" onClick={send} className={cn("min-w-[8.5rem]", justSent && "bg-[#047857] hover:bg-[#047857]")}>
-              {justSent ? <Check size={13} strokeWidth={1.5} /> : <Send size={13} strokeWidth={1.5} />}
+            <Button
+              size="sm"
+              onClick={send}
+              className={cn(
+                "min-w-[8.5rem]",
+                justSent && "bg-[#047857] hover:bg-[#047857]",
+              )}
+            >
+              {justSent ? (
+                <Check size={13} strokeWidth={1.5} />
+              ) : (
+                <Send size={13} strokeWidth={1.5} />
+              )}
               {justSent ? "Sent" : sent ? "Resend link" : "Send link"}
             </Button>
           )}
@@ -331,7 +419,14 @@ function CompletenessPanel({ node }: { node: SupplierNode }) {
           </span>{" "}
           answered
         </span>
-        <span className={cn("font-mono text-[13px] tabular-nums", done ? "text-[#047857]" : "text-black/45")}>{c.percent}%</span>
+        <span
+          className={cn(
+            "font-mono text-[13px] tabular-nums",
+            done ? "text-[#047857]" : "text-black/45",
+          )}
+        >
+          {c.percent}%
+        </span>
       </div>
       <Progress value={c.percent} tone={done ? "ok" : "warn"} />
     </Panel>
@@ -360,20 +455,40 @@ function VersionsPanel({ versions }: { versions: PrecursorVersion[] }) {
       }
     >
       {versions.length === 0 ? (
-        <p className="text-[12px] text-black/40">{t("Nothing saved yet — the first change you make becomes version 1.")}</p>
+        <p className="text-[12px] text-black/40">
+          {t(
+            "Nothing saved yet — the first change you make becomes version 1.",
+          )}
+        </p>
       ) : (
         <>
           <ul className="divide-y divide-black/[0.05]">
             {shown.map((v, i) => (
-              <li key={v.version} className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 py-2 text-[12.5px]">
-                <span className="font-mono text-[11.5px] tabular-nums text-black/70">v{v.version}</span>
-                <span className="text-black/55">{formatVersionDate(v.savedAt)}</span>
+              <li
+                key={v.version}
+                className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 py-2 text-[12.5px]"
+              >
+                <span className="font-mono text-[11.5px] tabular-nums text-black/70">
+                  v{v.version}
+                </span>
+                <span className="text-black/55">
+                  {formatVersionDate(v.savedAt)}
+                </span>
                 {/* The newest one is the row as it stands — worth saying, so
                     nobody reads the list as a stack of drafts behind a
                     fourth, current, invisible one. */}
-                {i === 0 && !expanded && <span className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[10px] uppercase tracking-[0.08em] text-black/40">{t("Current")}</span>}
-                <span className="min-w-0 flex-1 truncate text-[11.5px] text-black/35" title={v.changed.join(", ")}>
-                  {v.changed.length === 0 ? "First recorded" : v.changed.join(", ")}
+                {i === 0 && !expanded && (
+                  <span className="rounded-full bg-black/[0.04] px-2 py-0.5 text-[10px] uppercase tracking-[0.08em] text-black/40">
+                    {t("Current")}
+                  </span>
+                )}
+                <span
+                  className="min-w-0 flex-1 truncate text-[11.5px] text-black/35"
+                  title={v.changed.join(", ")}
+                >
+                  {v.changed.length === 0
+                    ? "First recorded"
+                    : v.changed.join(", ")}
                 </span>
               </li>
             ))}
@@ -434,7 +549,12 @@ export function TreeVerifiedDataModal({
   React.useEffect(() => reloadVersions(), [reloadVersions]);
 
   const evidenceKeys: RequiredKey[] = node
-    ? [{ key: `precursor:${node.id}`, label: `${node.name || "Unnamed precursor"} — emissions figure` }]
+    ? [
+        {
+          key: `precursor:${node.id}`,
+          label: `${node.name || "Unnamed precursor"} — emissions figure`,
+        },
+      ]
     : [];
 
   return (
@@ -442,8 +562,14 @@ export function TreeVerifiedDataModal({
       open={node != null}
       onClose={onClose}
       eyebrow={t(eyebrow)}
-      title={node ? `Enter verified data — ${node.name || "Unnamed supplier"}` : "Enter verified data"}
-      lead={t("Send the supplier their own link, or record a report you already hold — it is all on this one screen, and it saves as you go.")}
+      title={
+        node
+          ? `Enter verified data — ${node.name || "Unnamed supplier"}`
+          : "Enter verified data"
+      }
+      lead={t(
+        "Send the supplier their own link, or record a report you already hold — it is all on this one screen, and it saves as you go.",
+      )}
       width="max-w-3xl"
       footer={
         <Button size="sm" variant="secondary" onClick={onClose}>
@@ -481,9 +607,13 @@ export function TreeVerifiedDataModal({
                   <Paperclip size={14} strokeWidth={1.5} />
                 </span>
                 <div className="min-w-0">
-                  <h3 className="text-[11px] uppercase tracking-[0.1em] text-black/55">{t("Documents")}</h3>
+                  <h3 className="text-[11px] uppercase tracking-[0.1em] text-black/55">
+                    {t("Documents")}
+                  </h3>
                   <p className="mt-1 text-[12px] leading-relaxed text-black/45">
-                    {t("The verification report, and anything else that stands behind this figure.")}
+                    {t(
+                      "The verification report, and anything else that stands behind this figure.",
+                    )}
                   </p>
                 </div>
               </div>
@@ -491,7 +621,9 @@ export function TreeVerifiedDataModal({
                 <SectionEvidence
                   workspaceId={node.workspaceId}
                   keys={evidenceKeys}
-                  emptyLabel={t("Nothing attached yet — this figure needs something behind it.")}
+                  emptyLabel={t(
+                    "Nothing attached yet — this figure needs something behind it.",
+                  )}
                   openable
                   onChange={() => setEvidenceVersion((v) => v + 1)}
                 />

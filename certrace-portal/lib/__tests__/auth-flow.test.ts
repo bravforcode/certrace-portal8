@@ -11,7 +11,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 const { ApiError } = await import("../api/errors");
-const { signInError, signUpError, signInDestination, EMAIL_RE } = await import("../auth-flow");
+const { signInError, signUpError, signInDestination, BLANK_SIGNUP, EMAIL_RE } =
+  await import("../auth-flow");
 
 /* ── signing in ────────────────────────────────────────────── */
 
@@ -25,7 +26,8 @@ test("a rejected sign-in blames the pair, never one of the two", () => {
 });
 
 test("a request that never landed asks the reader to check their connection", () => {
-  const expected = "We couldn't reach the server. Check your connection and try again.";
+  const expected =
+    "We couldn't reach the server. Check your connection and try again.";
   assert.equal(signInError(new ApiError("NETWORK", "…")), expected);
   assert.equal(signInError(new ApiError("TIMEOUT", "…")), expected);
 });
@@ -35,17 +37,23 @@ test("a 5xx does NOT send the reader off to debug their own network", () => {
      the reader owns can fix it, so "check your connection" is a wild goose
      chase — the distinction this assertion exists to hold. */
   const message = signInError(new ApiError("AUTH_NOT_CONFIGURED", "…", 503));
-  assert.equal(message, "The server is having trouble. Please try again in a moment.");
+  assert.equal(
+    message,
+    "The server is having trouble. Please try again in a moment.",
+  );
   assert.ok(!/connection/i.test(message));
 });
 
 test("anything else still says something, and does not leak the raw error", () => {
-  const message = signInError(new TypeError("Cannot read properties of undefined"));
+  const message = signInError(
+    new TypeError("Cannot read properties of undefined"),
+  );
   assert.equal(message, "We couldn't sign you in. Please try again.");
 });
 
 test("a suspended account is told so, in the server's own words", () => {
-  const said = "This account is suspended. Please contact contact@certrace.co to restore access.";
+  const said =
+    "This account is suspended. Please contact contact@certrace.co to restore access.";
 
   const message = signInError(new ApiError("ACCOUNT_SUSPENDED", said, 403));
 
@@ -65,6 +73,17 @@ test("a taken address lands on the email field and points at sign-in", () => {
   assert.match(failure.message, /Sign in/);
 });
 
+test("changed policy versions ask for renewed agreement without blaming the email address", () => {
+  const failure = signUpError(
+    new ApiError("LEGAL_VERSION_CHANGED", "Updated", 409),
+  );
+  assert.equal(failure.field, null);
+  assert.equal(
+    failure.message,
+    "The Terms of Service or Privacy Policy changed. Review them and agree again.",
+  );
+});
+
 test("a transport failure is the form's, not the email field's", () => {
   const failure = signUpError(new ApiError("NETWORK", "…"));
   assert.equal(failure.field, null);
@@ -79,11 +98,37 @@ test("an unrecognised signup failure never claims the address is taken", () => {
 
 /* ── where a sign-in lands ─────────────────────────────────── */
 
-test("a finished account confirms its details; an abandoned signup resumes", () => {
-  assert.equal(signInDestination({ onboarded: true }), "/onboarding/setup");
-  /* The half-finished signup. `onboarded` lives on the server precisely so
-     this survives the browser they closed the tab in. */
-  assert.equal(signInDestination({ onboarded: false }), "/onboarding");
+test("returning ready accounts enter the workspace and unready accounts wait", () => {
+  assert.equal(
+    signInDestination({ onboarded: true, ready: true }),
+    "/dashboard",
+  );
+  assert.equal(
+    signInDestination({ onboarded: false, ready: true }),
+    "/dashboard",
+  );
+  assert.equal(
+    signInDestination({ onboarded: false, ready: false }),
+    "/pending",
+  );
+  assert.equal(
+    signInDestination({ onboarded: true, ready: false }),
+    "/pending",
+  );
+});
+
+test("a new registration cannot inherit another account's questionnaire answers", () => {
+  assert.deepEqual(BLANK_SIGNUP.goalAchieve, []);
+  assert.deepEqual(BLANK_SIGNUP.currentManagement, []);
+  assert.deepEqual(BLANK_SIGNUP.biggestChallenge, []);
+  for (const answer of [
+    BLANK_SIGNUP.cbamProductCount,
+    BLANK_SIGNUP.supplierCount,
+    BLANK_SIGNUP.installationCount,
+    BLANK_SIGNUP.customerCount,
+    BLANK_SIGNUP.hearAbout,
+  ])
+    assert.equal(answer, "");
 });
 
 /* ── the shape of an email ─────────────────────────────────── */

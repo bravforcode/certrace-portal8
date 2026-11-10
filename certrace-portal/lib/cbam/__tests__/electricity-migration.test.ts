@@ -7,14 +7,21 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readElectricity, ELEC_UNIT_FIELD, OUTPUT_FIELD, stampElectricityUnit, planElectricityMigration } from "../electricity-migration";
+import {
+  readElectricity,
+  ELEC_UNIT_FIELD,
+  OUTPUT_FIELD,
+  stampElectricityUnit,
+  planElectricityMigration,
+} from "../electricity-migration";
 import { toAbsoluteMWh, UnitError } from "../units";
 
 const Q_PROD = 10_500;
 const EF = 0.4999; // tCO₂/MWh — Thailand grid, EGAT/TGO 2023
-const EXPECTED_SEE_IND = 0.2249550;
+const EXPECTED_SEE_IND = 0.224955;
 
-const seeInd = (mwhAbsolute: number, production: number) => (mwhAbsolute * EF) / production;
+const seeInd = (mwhAbsolute: number, production: number) =>
+  (mwhAbsolute * EF) / production;
 
 test("legacy MWh/t and new absolute MWh produce the same indirect SEE", () => {
   const legacy = {
@@ -43,10 +50,16 @@ test("legacy MWh/t and new absolute MWh produce the same indirect SEE", () => {
 test("a per-tonne value is never divided by production a second time", () => {
   // The bug: 0.45 MWh/t treated as absolute, then divided by 10,500.
   const wrong = seeInd(0.45, Q_PROD);
-  assert.ok(wrong < EXPECTED_SEE_IND / 1000, "the old path understates by ~4 orders of magnitude");
+  assert.ok(
+    wrong < EXPECTED_SEE_IND / 1000,
+    "the old path understates by ~4 orders of magnitude",
+  );
 
   const reading = readElectricity(
-    { "rebar::elec-consumed": "0.45", [`rebar::${OUTPUT_FIELD}`]: String(Q_PROD) },
+    {
+      "rebar::elec-consumed": "0.45",
+      [`rebar::${OUTPUT_FIELD}`]: String(Q_PROD),
+    },
     "rebar",
   );
   assert.equal(reading.mwhAbsolute, 4725);
@@ -77,8 +90,13 @@ test("stamping the unit takes a value out of the migration plan", () => {
   assert.equal(before.rows.length, 1);
   assert.equal(before.rows[0].beforeMWhPerTonne, 0.45);
   assert.equal(before.rows[0].afterMWhAbsolute, 4725);
-  assert.ok(Math.abs(before.rows[0].indirectPerTonne! - EXPECTED_SEE_IND) < 1e-6);
+  assert.ok(
+    Math.abs(before.rows[0].indirectPerTonne! - EXPECTED_SEE_IND) < 1e-6,
+  );
 
-  const after = planElectricityMigration({ ...values, ...stampElectricityUnit("rebar") }, products);
+  const after = planElectricityMigration(
+    { ...values, ...stampElectricityUnit("rebar") },
+    products,
+  );
   assert.equal(after.clean, true);
 });

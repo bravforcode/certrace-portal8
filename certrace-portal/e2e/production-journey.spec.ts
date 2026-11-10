@@ -1,9 +1,18 @@
 import { createHash, randomBytes } from "node:crypto";
-import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
-import { AUGUST_PRODUCTION, fillAugust, signAndSubmitAugust } from "./support/supplier-month";
+import {
+  test,
+  expect,
+  type APIRequestContext,
+  type Page,
+} from "@playwright/test";
+import {
+  AUGUST_PRODUCTION,
+  fillAugust,
+  signAndSubmitAugust,
+} from "./support/supplier-month";
 
 /* ════════════════════════════════════════════════════════════
-   THE MVP LOOP, ON THE REAL DOMAIN (PROJECT_STATUS.md R2 / QA-2)
+   THE MVP LOOP, ON THE REAL DOMAIN
 
    mvp-journey.spec.ts walks the same month, but its "link" is base64 in one
    browser's localStorage — it proves the form, not the transport. This one
@@ -45,7 +54,10 @@ import { AUGUST_PRODUCTION, fillAugust, signAndSubmitAugust } from "./support/su
 
 const EMAIL = process.env.E2E_ACCOUNT_EMAIL ?? "";
 const PASSWORD = process.env.E2E_ACCOUNT_PASSWORD ?? "";
-const API = (process.env.E2E_API_URL ?? "https://api.certrace.co").replace(/\/+$/, "");
+const API = (process.env.E2E_API_URL ?? "https://api.certrace.co").replace(
+  /\/+$/,
+  "",
+);
 
 const MONTH = "2026-08";
 const RUN = randomBytes(8).toString("hex");
@@ -59,30 +71,75 @@ const SIGNER = { name: "E2E Supplier Signatory", role: "Production Manager" };
 /* Only example.com addresses: nothing in this run mails anyone, and if that
    ever changed the message would go nowhere. */
 const SEED: Record<string, string> = {
-  "certrace:supplier-companies": JSON.stringify([{
-    id: SUPPLIER_ID, name: `E2E Supplier ${RUN.slice(0, 6)}`, country: "TH",
-    contactName: "E2E Contact", contactEmail: "e2e-supplier@example.com", contactPhone: "+66 800000000",
-    createdAt: "2026-09-08T02:54:36.071Z",
-  }]),
-  "certrace:installations": JSON.stringify([{
-    id: INSTALLATION_ID, name: INSTALLATION_NAME, nameLocal: "", self: false,
-    supplierId: SUPPLIER_ID, street: "1 Test Road", economicActivity: "Electric arc furnace steelmaking and billet casting",
-    postcode: "21150", poBox: "", city: "Rayong", country: "TH", unlocode: "THMAT", lat: "12.6810", lng: "101.1590",
-    contactName: "E2E Contact", contactEmail: "e2e-supplier@example.com", contactPhone: "+66 800000000",
-    otherGoods: [], createdAt: "2026-09-08T02:54:56.341Z",
-  }]),
-  "certrace:workspaces": JSON.stringify([{
-    id: WS, installationId: INSTALLATION_ID, installationName: INSTALLATION_NAME,
-    productId: "billet", productName: "Billets (semi-finished)", cnCode: "7207 11 90",
-    productionRoute: "scrap_eaf", year: 2026, periodStart: "2026-01-01", periodEnd: "2026-12-31",
-    declarationIds: [], createdAt: "2026-09-08T02:55:59.242Z", selfSupplied: false,
-    supplierId: SUPPLIER_ID, supplierName: `E2E Supplier ${RUN.slice(0, 6)}`,
-    schedule: { dueDay: 15 }, internalSignoff: null, verifierSignoff: null,
-  }]),
+  "certrace:supplier-companies": JSON.stringify([
+    {
+      id: SUPPLIER_ID,
+      name: `E2E Supplier ${RUN.slice(0, 6)}`,
+      country: "TH",
+      contactName: "E2E Contact",
+      contactEmail: "e2e-supplier@example.com",
+      contactPhone: "+66 800000000",
+      createdAt: "2026-09-08T02:54:36.071Z",
+    },
+  ]),
+  "certrace:installations": JSON.stringify([
+    {
+      id: INSTALLATION_ID,
+      name: INSTALLATION_NAME,
+      nameLocal: "",
+      self: false,
+      supplierId: SUPPLIER_ID,
+      street: "1 Test Road",
+      economicActivity: "Electric arc furnace steelmaking and billet casting",
+      postcode: "21150",
+      poBox: "",
+      city: "Rayong",
+      country: "TH",
+      unlocode: "THMAT",
+      lat: "12.6810",
+      lng: "101.1590",
+      contactName: "E2E Contact",
+      contactEmail: "e2e-supplier@example.com",
+      contactPhone: "+66 800000000",
+      otherGoods: [],
+      createdAt: "2026-09-08T02:54:56.341Z",
+    },
+  ]),
+  "certrace:workspaces": JSON.stringify([
+    {
+      id: WS,
+      installationId: INSTALLATION_ID,
+      installationName: INSTALLATION_NAME,
+      productId: "billet",
+      productName: "Billets (semi-finished)",
+      cnCode: "7207 11 90",
+      productionRoute: "scrap_eaf",
+      year: 2026,
+      periodStart: "2026-01-01",
+      periodEnd: "2026-12-31",
+      declarationIds: [],
+      createdAt: "2026-09-08T02:55:59.242Z",
+      selfSupplied: false,
+      supplierId: SUPPLIER_ID,
+      supplierName: `E2E Supplier ${RUN.slice(0, 6)}`,
+      schedule: { dueDay: 15 },
+      internalSignoff: null,
+      verifierSignoff: null,
+    },
+  ]),
   // Local only: lets the August card offer Copy link without pressing Send.
   "certrace:month-dispatch": JSON.stringify({
-    [WS]: { [MONTH]: { workspaceId: WS, month: MONTH, sentAt: "2026-09-08T02:56:58.645Z",
-      lastActionAt: "2026-09-08T02:56:58.645Z", resendCount: 0, reminderCount: 0, dueDay: 15 } },
+    [WS]: {
+      [MONTH]: {
+        workspaceId: WS,
+        month: MONTH,
+        sentAt: "2026-09-08T02:56:58.645Z",
+        lastActionAt: "2026-09-08T02:56:58.645Z",
+        resendCount: 0,
+        reminderCount: 0,
+        dueDay: 15,
+      },
+    },
   }),
 };
 
@@ -105,7 +162,10 @@ async function signIn(page: Page): Promise<string> {
   const handle = await page.waitForFunction(
     () => {
       try {
-        return JSON.parse(window.localStorage.getItem("certrace:auth") ?? "null")?.accessToken ?? null;
+        return (
+          JSON.parse(window.localStorage.getItem("certrace:auth") ?? "null")
+            ?.accessToken ?? null
+        );
       } catch {
         return null;
       }
@@ -120,25 +180,44 @@ async function signIn(page: Page): Promise<string> {
 async function warm(request: APIRequestContext): Promise<void> {
   const res = await request.get(`${API}/readyz`, { timeout: 120_000 });
   expect(res.status(), "api /readyz").toBe(200);
-  expect((await res.json()).databaseConfigured, "api has a database").toBe(true);
+  expect((await res.json()).databaseConfigured, "api has a database").toBe(
+    true,
+  );
 }
 
 test.describe("Production MVP loop — real accounts, real links, real files", () => {
   test.beforeEach(({}, testInfo) => {
-    test.skip(testInfo.project.name !== "production", "needs a deployed backend; run with --project=production");
-    test.skip(!EMAIL || !PASSWORD, "set E2E_ACCOUNT_EMAIL and E2E_ACCOUNT_PASSWORD to a test account");
+    test.skip(
+      testInfo.project.name !== "production",
+      "needs a deployed backend; run with --project=production",
+    );
+    test.skip(
+      !EMAIL || !PASSWORD,
+      "set E2E_ACCOUNT_EMAIL and E2E_ACCOUNT_PASSWORD to a test account",
+    );
   });
 
   test.afterEach(async ({ request }) => {
     if (!accessToken) return;
     // Cascades the link, its saved state and the uploaded file.
-    const res = await request.delete(`${API}/api/v1/declarations/${DOC_ID}`, { headers: bearer() });
+    const res = await request.delete(`${API}/api/v1/declarations/${DOC_ID}`, {
+      headers: bearer(),
+    });
     expect(res.status(), `cleanup: DELETE ${DOC_ID}`).toBe(204);
-    const gone = await request.get(`${API}/api/v1/declarations/${DOC_ID}`, { headers: bearer() });
-    expect(gone.status(), "the workspace declaration is gone after cleanup").toBe(404);
+    const gone = await request.get(`${API}/api/v1/declarations/${DOC_ID}`, {
+      headers: bearer(),
+    });
+    expect(
+      gone.status(),
+      "the workspace declaration is gone after cleanup",
+    ).toBe(404);
   });
 
-  test("exporter mints a month, supplier answers it from another browser, exporter reads it back", async ({ page, browser, request }, testInfo) => {
+  test("exporter mints a month, supplier answers it from another browser, exporter reads it back", async ({
+    page,
+    browser,
+    request,
+  }, testInfo) => {
     test.setTimeout(420_000);
     page.on("pageerror", (e) => console.log("EXPORTER PAGE ERROR:", e.message));
     console.log(`run ${RUN}: workspace ${WS}`);
@@ -154,21 +233,30 @@ test.describe("Production MVP loop — real accounts, real links, real files", (
 
     /* ── 2 · A workspace on this browser, then Copy link ─────── */
     await page.evaluate((seed) => {
-      for (const [k, v] of Object.entries(seed)) window.localStorage.setItem(k, v);
+      for (const [k, v] of Object.entries(seed))
+        window.localStorage.setItem(k, v);
     }, SEED);
     await page.goto(`/workspaces/${WS}/monthly`);
-    await expect(page.locator("body")).toContainText("Annual production", { timeout: 30_000 });
+    await expect(page.locator("body")).toContainText("Annual production", {
+      timeout: 30_000,
+    });
 
-    // Only a month that has gone out offers Copy link, and only August was
-    // seeded as sent — so there is exactly one, and it is August's.
-    const copyLink = page.getByRole("button", { name: "Copy link" });
-    await expect(copyLink).toHaveCount(1);
+    // Every month can be copied before it is marked sent. Select August,
+    // which is the month this supplier journey answers.
+    const copyLink = page
+      .locator(`[data-month="${MONTH}"]`)
+      .getByRole("button", { name: "Copy link" });
     await copyLink.click();
 
     const tokenHandle = await page.waitForFunction(
       ([ws, month]) => {
         try {
-          return JSON.parse(window.localStorage.getItem("certrace:workspace-server-links") ?? "{}")?.[ws]?.[month] ?? null;
+          return (
+            JSON.parse(
+              window.localStorage.getItem("certrace:workspace-server-links") ??
+                "{}",
+            )?.[ws]?.[month] ?? null
+          );
         } catch {
           return null;
         }
@@ -177,12 +265,19 @@ test.describe("Production MVP loop — real accounts, real links, real files", (
       { timeout: 60_000 },
     );
     const token = (await tokenHandle.jsonValue()) as string;
-    expect(token, "a server-issued token, not the demo's base64").not.toMatch(/^d3N8/);
+    expect(token, "a server-issued token, not the demo's base64").not.toMatch(
+      /^d3N8/,
+    );
     console.log(`minted link token (${token.length} chars)`);
 
     // The server holds the workspace slice and resolves the token publicly.
-    const published = await request.get(`${API}/api/v1/declarations/${DOC_ID}`, { headers: bearer() });
-    expect(published.status(), "workspace published as a declaration").toBe(200);
+    const published = await request.get(
+      `${API}/api/v1/declarations/${DOC_ID}`,
+      { headers: bearer() },
+    );
+    expect(published.status(), "workspace published as a declaration").toBe(
+      200,
+    );
     const resolved = await request.get(`${API}/api/v1/links/${token}`);
     expect(resolved.status(), "public resolve of the new link").toBe(200);
     expect((await resolved.json()).kind).toBe("workspace");
@@ -195,7 +290,9 @@ test.describe("Production MVP loop — real accounts, real links, real files", (
     });
     try {
       const supplier = await supplierContext.newPage();
-      supplier.on("pageerror", (e) => console.log("SUPPLIER PAGE ERROR:", e.message));
+      supplier.on("pageerror", (e) =>
+        console.log("SUPPLIER PAGE ERROR:", e.message),
+      );
 
       await supplier.goto(`/w/${token}`);
       await fillAugust(supplier, INSTALLATION_NAME);
@@ -207,34 +304,62 @@ test.describe("Production MVP loop — real accounts, real links, real files", (
       );
       expect(upload.status(), `upload: ${await upload.text()}`).toBe(201);
       const stored = await upload.json();
-      expect(stored.sha256).toBe(createHash("sha256").update(EVIDENCE).digest("hex"));
+      expect(stored.sha256).toBe(
+        createHash("sha256").update(EVIDENCE).digest("hex"),
+      );
 
       const submitted = supplier.waitForResponse(
-        (r) => r.url().includes(`/api/v1/links/${token}/submit`) && r.request().method() === "POST",
+        (r) =>
+          r.url().includes(`/api/v1/links/${token}/submit`) &&
+          r.request().method() === "POST",
         { timeout: 60_000 },
       );
       await signAndSubmitAugust(supplier, SIGNER);
       const submitResponse = await submitted;
       expect(submitResponse.status(), "server accepted the submit").toBe(200);
-      await expect(supplier.locator("body")).toContainText(/Submitted/i, { timeout: 15_000 });
+      await expect(supplier.locator("body")).toContainText(/Submitted/i, {
+        timeout: 15_000,
+      });
 
       /* ── 4 · The exporter reads it back ─────────────────────── */
-      const state = await request.get(`${API}/api/v1/declarations/${DOC_ID}/submissions/${token}`, { headers: bearer() });
+      const state = await request.get(
+        `${API}/api/v1/declarations/${DOC_ID}/submissions/${token}`,
+        { headers: bearer() },
+      );
       expect(state.status()).toBe(200);
       const answer = (await state.json()).state;
       expect(answer.status).toBe("submitted");
-      expect(answer.versions.at(-1)).toMatchObject({ n: 1, signedBy: SIGNER.name, signedRole: SIGNER.role });
+      expect(answer.versions.at(-1)).toMatchObject({
+        n: 1,
+        signedBy: SIGNER.name,
+        signedRole: SIGNER.role,
+      });
 
-      const files = await request.get(`${API}/api/v1/declarations/${DOC_ID}/files`, { headers: bearer() });
+      const files = await request.get(
+        `${API}/api/v1/declarations/${DOC_ID}/files`,
+        { headers: bearer() },
+      );
       expect(files.status()).toBe(200);
-      const file = (await files.json()).files.find((f: { id: string }) => f.id === stored.id);
-      expect(file, "the supplier's upload is listed for the exporter").toBeTruthy();
-      const bytes = await request.get(`${API}/api/v1/files/${stored.id}`, { headers: bearer() });
+      const file = (await files.json()).files.find(
+        (f: { id: string }) => f.id === stored.id,
+      );
+      expect(
+        file,
+        "the supplier's upload is listed for the exporter",
+      ).toBeTruthy();
+      const bytes = await request.get(`${API}/api/v1/files/${stored.id}`, {
+        headers: bearer(),
+      });
       expect(bytes.status()).toBe(200);
-      expect(Buffer.compare(await bytes.body(), EVIDENCE), "same bytes back").toBe(0);
+      expect(
+        Buffer.compare(await bytes.body(), EVIDENCE),
+        "same bytes back",
+      ).toBe(0);
 
       await page.goto(`/workspaces/${WS}/monthly`);
-      await expect(page.locator("body")).toContainText(AUGUST_PRODUCTION, { timeout: 30_000 });
+      await expect(page.locator("body")).toContainText(AUGUST_PRODUCTION, {
+        timeout: 30_000,
+      });
       await expect(page.locator("body")).toContainText(/1\s*\/\s*12/);
     } finally {
       await supplierContext.close();

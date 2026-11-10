@@ -8,9 +8,7 @@
    frozen. `LockGuard` is what enforces the freeze.
 
    ── WHY A PROVIDER AND NOT JUST lib/plan.ts ────────────────
-   The plan can be overridden per browser (`?plan=trial`, `?trialDay=31` — see
-   lib/plan.ts), and the trial countdown depends on today's date. Both are
-   facts the SERVER cannot know, so reading either during render would produce
+   The trial countdown depends on today's date, so reading it during render would produce
    markup React then refuses to hydrate. The provider therefore renders
    `ready: false` on the server and on the first client paint, and fills the
    real state in from an effect. Screens show nothing plan-shaped until
@@ -47,11 +45,9 @@
 
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { ORG } from "@/lib/data";
 import {
   LOCK_DESTINATION,
   accountLocked,
-  activateDemoOverride,
   currentPlan,
   currentPlanId,
   trialState,
@@ -72,7 +68,7 @@ export type AccountState = {
 
 const INITIAL: AccountState = {
   ready: false,
-  planId: ORG.plan,
+  planId: "standard",
   plan: currentPlan(),
   trial: { onTrial: false },
   locked: false,
@@ -95,9 +91,14 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = React.useState<AccountState>(INITIAL);
 
   React.useEffect(() => {
-    activateDemoOverride();
     const read = () =>
-      setState({ ready: true, planId: currentPlanId(), plan: currentPlan(), trial: trialState(), locked: accountLocked() });
+      setState({
+        ready: true,
+        planId: currentPlanId(),
+        plan: currentPlan(),
+        trial: trialState(),
+        locked: accountLocked(),
+      });
     read();
     /* A trial that runs out while the tab is open should lock the tab, not
        wait for a reload. Once an hour is plenty for a countdown measured in
@@ -122,7 +123,8 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
    /workspaces/new/step-2 needs no second entry. */
 const CREATE_ROUTES = ["/workspaces/new"];
 
-const isCreateRoute = (path: string) => CREATE_ROUTES.some((r) => path === r || path.startsWith(`${r}/`));
+const isCreateRoute = (path: string) =>
+  CREATE_ROUTES.some((r) => path === r || path.startsWith(`${r}/`));
 
 /* Anything that changes stored state. `label[for]` is here because clicking a
    label activates the control it points at, so leaving it out would let a
@@ -131,7 +133,23 @@ const MUTATING =
   'button, input, textarea, select, summary, label[for], [contenteditable="true"], [role="button"], [role="switch"], [role="checkbox"], [role="radio"], [role="menuitemcheckbox"], [role="menuitemradio"]';
 
 /** Keys that only move the cursor or dismiss something — never a change. */
-const INERT_KEYS = new Set(["Tab", "Escape", "Shift", "Control", "Meta", "Alt", "CapsLock", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown"]);
+const INERT_KEYS = new Set([
+  "Tab",
+  "Escape",
+  "Shift",
+  "Control",
+  "Meta",
+  "Alt",
+  "CapsLock",
+  "ArrowUp",
+  "ArrowDown",
+  "ArrowLeft",
+  "ArrowRight",
+  "Home",
+  "End",
+  "PageUp",
+  "PageDown",
+]);
 
 function LockGuard({ locked }: { locked: boolean }) {
   const router = useRouter();
@@ -161,7 +179,8 @@ function LockGuard({ locked }: { locked: boolean }) {
       const now = Date.now();
       if (now - lastNav < 700) return;
       lastNav = now;
-      if (window.location.pathname !== LOCK_DESTINATION) router.push(LOCK_DESTINATION);
+      if (window.location.pathname !== LOCK_DESTINATION)
+        router.push(LOCK_DESTINATION);
     };
 
     const handle = (e: Event) => {
@@ -194,12 +213,27 @@ function LockGuard({ locked }: { locked: boolean }) {
 
       // Only a deliberate activation navigates. Tabbing across a frozen form
       // must not throw the reader off the page they are reading.
-      if (e.type === "click" || e.type === "submit" || (e instanceof KeyboardEvent && (e.key === "Enter" || e.key === " "))) goToBilling();
+      if (
+        e.type === "click" ||
+        e.type === "submit" ||
+        (e instanceof KeyboardEvent && (e.key === "Enter" || e.key === " "))
+      )
+        goToBilling();
     };
 
-    const types = ["pointerdown", "mousedown", "click", "keydown", "paste", "drop", "submit", "change"] as const;
+    const types = [
+      "pointerdown",
+      "mousedown",
+      "click",
+      "keydown",
+      "paste",
+      "drop",
+      "submit",
+      "change",
+    ] as const;
     types.forEach((type) => document.addEventListener(type, handle, true));
-    return () => types.forEach((type) => document.removeEventListener(type, handle, true));
+    return () =>
+      types.forEach((type) => document.removeEventListener(type, handle, true));
   }, [locked, router]);
 
   return null;

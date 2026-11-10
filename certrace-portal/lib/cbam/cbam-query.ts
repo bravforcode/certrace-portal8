@@ -15,11 +15,17 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ActivityDataset } from "./activity";
+import { persistReportChange } from "../persist-report-change";
 import { loadDataset, saveDataset } from "./activity-store";
 import type { Boundary, ReportingPeriod } from "./boundary";
 import { loadBoundary, saveBoundary } from "./boundary-store";
 import { listGaps } from "./data-gaps";
-import { listEvidence, addEvidence, removeEvidence, type EvidenceFile } from "./evidence";
+import {
+  listEvidence,
+  addEvidence,
+  removeEvidence,
+  type EvidenceFile,
+} from "./evidence";
 import { activeSnapshot } from "./freeze";
 import {
   finaliseVersion,
@@ -55,10 +61,17 @@ export function useActivityDataset(
 export function useSaveActivityDataset() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (input: { dataset: ActivityDataset; confirmedAgainstShippedTonnes?: number }) =>
-      Promise.resolve(saveDataset(input.dataset, input.confirmedAgainstShippedTonnes)),
+    mutationFn: (input: {
+      dataset: ActivityDataset;
+      confirmedAgainstShippedTonnes?: number;
+    }) =>
+      persistReportChange(() =>
+        saveDataset(input.dataset, input.confirmedAgainstShippedTonnes),
+      ),
     onSuccess: (saved) =>
-      void client.invalidateQueries({ queryKey: [...KEY, saved.declarationId] }),
+      void client.invalidateQueries({
+        queryKey: [...KEY, saved.declarationId],
+      }),
   });
 }
 
@@ -99,9 +112,12 @@ export function useMmdDraft(declId: string | undefined) {
 export function useSaveMmdDraft() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (draft: MmdDraft) => Promise.resolve(saveDraft(draft)),
+    mutationFn: (draft: MmdDraft) =>
+      persistReportChange(() => saveDraft(draft)),
     onSuccess: (saved) =>
-      void client.invalidateQueries({ queryKey: [...KEY, saved.declarationId] }),
+      void client.invalidateQueries({
+        queryKey: [...KEY, saved.declarationId],
+      }),
   });
 }
 
@@ -127,10 +143,18 @@ export function useLatestMmdVersion(declId: string | undefined) {
 export function useFinaliseMmdVersion() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (input: { declarationId: string; content: MmdContent; author: string }) =>
-      Promise.resolve(finaliseVersion(input.declarationId, input.content, input.author)),
+    mutationFn: (input: {
+      declarationId: string;
+      content: MmdContent;
+      author: string;
+    }) =>
+      persistReportChange(() =>
+        finaliseVersion(input.declarationId, input.content, input.author),
+      ),
     onSuccess: (version) =>
-      void client.invalidateQueries({ queryKey: [...KEY, version.declarationId] }),
+      void client.invalidateQueries({
+        queryKey: [...KEY, version.declarationId],
+      }),
   });
 }
 
@@ -149,9 +173,11 @@ export function useSaveBoundary() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (input: { boundary: Boundary; updatedBy: string }) =>
-      Promise.resolve(saveBoundary(input.boundary, input.updatedBy)),
+      persistReportChange(() => saveBoundary(input.boundary, input.updatedBy)),
     onSuccess: (saved) =>
-      void client.invalidateQueries({ queryKey: [...KEY, saved.declarationId] }),
+      void client.invalidateQueries({
+        queryKey: [...KEY, saved.declarationId],
+      }),
   });
 }
 
@@ -169,7 +195,8 @@ export function useEvidence(declId: string | undefined) {
 export function useAddEvidence() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (file: EvidenceFile) => Promise.resolve(addEvidence(file)),
+    mutationFn: (file: EvidenceFile) =>
+      persistReportChange(() => addEvidence(file)),
     onSuccess: (_files, file) =>
       void client.invalidateQueries({ queryKey: [...KEY, file.declarationId] }),
   });
@@ -179,9 +206,11 @@ export function useRemoveEvidence() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (input: { declarationId: string; id: string }) =>
-      Promise.resolve(removeEvidence(input.declarationId, input.id)),
+      persistReportChange(() => removeEvidence(input.declarationId, input.id)),
     onSuccess: (_files, input) =>
-      void client.invalidateQueries({ queryKey: [...KEY, input.declarationId] }),
+      void client.invalidateQueries({
+        queryKey: [...KEY, input.declarationId],
+      }),
   });
 }
 
@@ -204,5 +233,7 @@ export function useExporterState(declId: string | undefined) {
 export function useInvalidateCbam(declId?: string): () => void {
   const client = useQueryClient();
   return () =>
-    void client.invalidateQueries({ queryKey: declId ? [...KEY, declId] : KEY });
+    void client.invalidateQueries({
+      queryKey: declId ? [...KEY, declId] : KEY,
+    });
 }

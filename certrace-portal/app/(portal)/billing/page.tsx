@@ -1,52 +1,66 @@
 "use client";
+import { useCompanyDirectory } from "@/lib/team-query";
 
 /* ════════════════════════════════════════════════════════════
-   PLAN & BILLING — the tier summaries, then the whole comparison
+   PLAN & BILLING — where this account stands, the three plans, and one short table
 
-   THE METER CHANGED, AND THIS PAGE IS WHERE IT SHOWS. It used to sell
-   supplier seats: three cards with a THB figure on each, a supplier cap under
-   it, and a checkout that took a card. All four of those facts are now wrong.
-   Suppliers are unlimited and free on every tier at any chain depth; what a
-   plan sizes is the FILING — CN codes, the sites behind them, the years open
-   at once, and the people working on it.
+   WHAT A PLAN SIZES IS THE FILING. Companies, installations (each with its report package), CN codes, precursors, the one
+   reporting year open, team seats — and the two things that cost something to run, the AI and the reading of uploaded
+   files. That is the whole table: the plan's own terms, and nothing about how the product works. Suppliers and precursor
+   suppliers enter and fill in through their smart link on every plan without limit, and the page says so once, in words,
+   rather than as a row of ticks.
 
-   WHAT WAS REMOVED, AND WHY:
+   WHAT IS NOT HERE, AND WHY:
 
-   · THE PRICES, on Starter and Standard. They are quoted, not listed. A
-     figure on the card is a promise the sales conversation then has to
-     re-open, so the card asks for the conversation instead and every CTA
-     lands on the LINE account where a specialist answers.
+   · THE PRICES. They are quoted, not listed. A figure on the card is a promise the sales conversation then has to re-open,
+     so every card asks for the conversation instead and every CTA lands on the LINE account where a specialist answers.
 
-   · THE CHECKOUT MODAL. It charged a card for a figure the page no longer
-     names. There is nothing to self-serve when the price is quoted.
+   · A CHECKOUT, A STORED CARD, AN INVOICE LIST. They described a self-serve subscription this account does not have.
+     Billing is handled with sales, on the agreed term.
 
-   · THE PAYMENT METHOD CARD and THE INVOICE LIST. Same reason: a stored card
-     and a ฿360,000 receipt described a self-serve subscription this account
-     does not have. Billing is handled with sales, on the agreed term.
+   · THE LONG FEATURE COMPARISON. It listed forty things every plan does alike. The table is eleven rows, so it no longer
+     needs a pinned header, and a phone reads it without a second scrollbar's worth of apparatus.
 
-   WHAT WAS ADDED: the usage strip. The caps are enforced across the product
-   now (lib/plan.ts), so the page that sells them is the page that has to show
-   how much of each is spent — otherwise "20 CN codes" is a number the reader
-   can only test by hitting the wall somewhere else.
+   THE USAGE STRIP shows how much of each ENFORCED limit is spent (lib/plan.ts): CN codes, installations, reporting years,
+   seats. Companies, precursors, AI questions and smart-upload pages are stated terms the product does not measure yet, so no
+   bar is drawn for them — a bar nothing fills would be a promise.
 
-   AND THEN THE TRIAL. A free-trial account has no caps to meter, so the strip
-   above the tiers becomes a CLOCK instead: how much of the month is left, and
-   what happens when it is not. It is the only screen in the product that says
-   anything at all about the trial ending — see components/account-lock.tsx
-   for why the other forty screens say nothing and simply come here.
+   THE TRIAL. A free-trial account has no limits to meter, so the strip above the tiers becomes a CLOCK instead: how much
+   of the month is left, and what happens when it is not. It is the only screen in the product that says anything at all
+   about the trial ending — see components/account-lock.tsx for why the other screens say nothing and simply come here.
 
-   THE DOUBLE RULE IS GONE. Each block inside a tier card carries exactly ONE
-   border, on its top edge. The source layout gave the price block a rule
-   above AND below and then opened the next block with a rule of its own, so
-   two hairlines sat a gap apart and read as a rendering fault.
+   ONE RULE PER BOUNDARY. Each block inside a tier card carries exactly ONE border, on its top edge, so two hairlines never
+   sit a gap apart and read as a rendering fault.
    ════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
 import Link from "next/link";
 import { Check, ArrowRight, Minus } from "lucide-react";
-import { Card, PageHeader, Button, ButtonLink, Chip, StatusDot, cn } from "@/components/ui";
-import { PLANS, PLAN_COMPARISON, PLAN_COLOPHON, CONTACT_SALES_URL, type Plan, type CompareCell } from "@/lib/config";
-import { CAP_LABEL, isUpgrade, type CapState, type PlanId, type TrialState } from "@/lib/plan";
+import {
+  Card,
+  PageHeader,
+  Button,
+  ButtonLink,
+  Chip,
+  StatusDot,
+  cn,
+} from "@/components/ui";
+import {
+  PLANS,
+  PLAN_COMPARISON,
+  PLAN_COLOPHON,
+  CONTACT_SALES_URL,
+  type Plan,
+  type CompareCell,
+  type CompareValue,
+} from "@/lib/config";
+import {
+  CAP_LABEL,
+  isUpgrade,
+  type CapState,
+  type PlanId,
+  type TrialState,
+} from "@/lib/plan";
 import { useCaps, useInvalidateCaps } from "@/lib/workspaces-query";
 import { useAccount } from "@/components/account-lock";
 import { useFormat, useT, type TFunction } from "@/lib/i18n";
@@ -57,6 +71,7 @@ import { useFormat, useT, type TFunction } from "@/lib/i18n";
 const RENEWS = new Date("2027-07-01T00:00:00Z");
 
 export default function BillingPage() {
+  const company = useCompanyDirectory();
   const t = useT();
   const { ready, planId, plan, trial } = useAccount();
 
@@ -65,7 +80,9 @@ export default function BillingPage() {
      query only resolves on the client, and a plan change (the demo override
      landing, the hourly re-read) re-measures via invalidation. */
   const capData = useCaps().data;
-  const caps = capData ? [capData.cnCodes, capData.sites, capData.years, capData.seats] : null;
+  const caps = capData
+    ? [capData.cnCodes, capData.sites, capData.years, capData.seats]
+    : null;
   const invalidateCaps = useInvalidateCaps();
   const lastPlan = React.useRef(planId);
   React.useEffect(() => {
@@ -78,20 +95,34 @@ export default function BillingPage() {
   }, [planId]);
 
   const onTrial = ready && trial.onTrial;
+  if (company && !company.isOwner)
+    return (
+      <Card className="p-6">
+        <h1 className="text-xl">Billing for {company.name}</h1>
+        <p className="mt-2">The company owner manages the {plan.name} plan.</p>
+        <Link className="mt-3 inline-block underline" href="/team">
+          Open Team
+        </Link>
+      </Card>
+    );
 
   return (
     <div className="space-y-10">
       <PageHeader
         eyebrow={t("Plan & billing")}
-        title={t("Pricing that scales with CN codes, not suppliers.")}
+        title={t("Plans sized to your filing.")}
         lead={t(
-          "Three tiers, annual term. Suppliers answer for free on every tier, at any chain depth — what a plan sizes is your filing: the CN codes it covers, the sites behind them, and the people working on it.",
+          "Annual term. A plan counts your own side — companies, installations, CN codes, precursors and seats. Suppliers and precursor suppliers enter and fill in through their smart link on every plan, without limit.",
         )}
       />
 
       {/* ── Where this account stands ─────────────────────── */}
       <div className="space-y-3">
-        {onTrial && trial.onTrial ? <TrialClock trial={trial} t={t} /> : <PaidStrip planName={plan.name} t={t} />}
+        {onTrial && trial.onTrial ? (
+          <TrialClock trial={trial} t={t} />
+        ) : (
+          <PaidStrip planName={plan.name} t={t} />
+        )}
 
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {(caps ?? []).map((c) => (
@@ -99,14 +130,28 @@ export default function BillingPage() {
           ))}
           {/* Same height as a measured meter, so the strip does not jump when
               the four counts arrive. */}
-          {!caps && [0, 1, 2, 3].map((i) => <Card key={i} className="h-[104px] p-4" aria-hidden><span /></Card>)}
+          {!caps &&
+            [0, 1, 2, 3].map((i) => (
+              <Card key={i} className="h-[104px] p-4" aria-hidden>
+                <span />
+              </Card>
+            ))}
         </div>
       </div>
 
       {/* ── The three tiers, in brief ──────────────────────── */}
-      <section aria-label={t("Plans at a glance")} className="grid gap-3 lg:grid-cols-3">
+      <section
+        aria-label={t("Plans at a glance")}
+        className="grid gap-3 xl:grid-cols-3"
+      >
         {PLANS.map((p) => (
-          <TierCard key={p.id} plan={p} current={planId} onTrial={onTrial} t={t} />
+          <TierCard
+            key={p.id}
+            plan={p}
+            current={planId}
+            onTrial={onTrial}
+            t={t}
+          />
         ))}
       </section>
 
@@ -121,7 +166,10 @@ export default function BillingPage() {
 
       <p className="text-center text-xs text-black/35">
         {t("Need EUDR, CSRD or another origin country?")}{" "}
-        <Link href="/regulations" className="text-black/55 underline-offset-2 hover:text-black hover:underline">
+        <Link
+          href="/regulations"
+          className="text-black/55 underline-offset-2 hover:text-black hover:underline"
+        >
           {t("See what's coming")} →
         </Link>
       </p>
@@ -133,15 +181,20 @@ export default function BillingPage() {
 function PaidStrip({ planName, t }: { planName: string; t: TFunction }) {
   const fmt = useFormat();
   return (
-    <Card warm className="flex flex-col items-start justify-between gap-3 p-5 sm:flex-row sm:items-center">
-      <div className="flex items-center gap-3">
+    <Card
+      warm
+      className="flex flex-col items-start justify-between gap-3 p-5 sm:flex-row sm:items-center"
+    >
+      <div className="flex min-w-0 items-center gap-3">
         <StatusDot tone="ok" glow pulse />
         <p className="text-sm text-black/60">
           {t("You're on")} <span className="text-[#111]">{t(planName)}</span> ·{" "}
           {t("annual term · renews {date}", { date: fmt.date(RENEWS) })}
         </p>
       </div>
-      <Chip tone="ok">{t("suppliers free")}</Chip>
+      <Chip tone="ok" className="flex-none whitespace-nowrap">
+        {t("smart links unlimited")}
+      </Chip>
     </Card>
   );
 }
@@ -172,24 +225,42 @@ function TrialClock({ trial, t }: { trial: RunningTrial; t: TFunction }) {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-2.5">
-            <StatusDot tone={trial.ended ? "warn" : "ok"} glow pulse={!trial.ended} />
-            <span className="font-pixel text-[10.5px] uppercase tracking-[0.16em] text-black/45">{t("Free trial")}</span>
+            <StatusDot
+              tone={trial.ended ? "warn" : "ok"}
+              glow
+              pulse={!trial.ended}
+            />
+            <span className="font-pixel text-[10.5px] uppercase tracking-[0.16em] text-black/45">
+              {t("Free trial")}
+            </span>
           </div>
           <p className="mt-2.5 font-[family-name:var(--font-plex)] text-[23px] font-light leading-[1.25] tracking-[-0.01em] text-[#111] sm:text-[27px]">
             {trial.ended
               ? t("Your free month is over.")
               : trial.daysLeft === 1
                 ? t("One day left in your free month.")
-                : t("{days} days left in your free month.", { days: trial.daysLeft })}
+                : t("{days} days left in your free month.", {
+                    days: trial.daysLeft,
+                  })}
           </p>
           <p className="mt-2 max-w-xl text-[13.5px] leading-relaxed text-black/50">
             {trial.ended
-              ? t("Everything you built is still here and still readable. Choose a tier to start working on it again.")
-              : t("Nothing is capped while it runs — every CN code, site, seat and supplier. It ends on {date}.", { date: fmt.date(trial.endsOn) })}
+              ? t(
+                  "Everything you built is still here and still readable. Choose a tier to start working on it again.",
+                )
+              : t(
+                  "Nothing is capped while it runs — every CN code, site, seat and supplier. It ends on {date}.",
+                  { date: fmt.date(trial.endsOn) },
+                )}
           </p>
         </div>
 
-        <ButtonLink href={CONTACT_SALES_URL} external size="sm" className="flex-none">
+        <ButtonLink
+          href={CONTACT_SALES_URL}
+          external
+          size="sm"
+          className="flex-none"
+        >
           {t("Contact Sales")} <ArrowRight size={14} strokeWidth={1.5} />
         </ButtonLink>
       </div>
@@ -207,15 +278,29 @@ function TrialClock({ trial, t }: { trial: RunningTrial; t: TFunction }) {
         >
           <div
             className="h-full rounded-full transition-[width] duration-500"
-            style={{ width: `${Math.round((trial.daysLeft / trial.totalDays) * 100)}%`, background: tone }}
+            style={{
+              width: `${Math.round((trial.daysLeft / trial.totalDays) * 100)}%`,
+              background: tone,
+            }}
           />
         </div>
         <div className="mt-2.5 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           <span className="font-pixel text-[10.5px] uppercase tracking-[0.12em] tabular-nums text-black/40">
-            {t("Day {used} of {total}", { used: Math.min(trial.daysUsed + (trial.ended ? 0 : 1), trial.totalDays), total: trial.totalDays })}
+            {t("Day {used} of {total}", {
+              used: Math.min(
+                trial.daysUsed + (trial.ended ? 0 : 1),
+                trial.totalDays,
+              ),
+              total: trial.totalDays,
+            })}
           </span>
-          <span className="font-pixel text-[10.5px] uppercase tracking-[0.12em] tabular-nums" style={{ color: trial.ended || urgent ? tone : "rgba(0,0,0,0.4)" }}>
-            {trial.ended ? t("ended {date}", { date: fmt.date(trial.endsOn) }) : t("ends {date}", { date: fmt.date(trial.endsOn) })}
+          <span
+            className="font-pixel text-[10.5px] uppercase tracking-[0.12em] tabular-nums"
+            style={{ color: trial.ended || urgent ? tone : "rgba(0,0,0,0.4)" }}
+          >
+            {trial.ended
+              ? t("ended {date}", { date: fmt.date(trial.endsOn) })
+              : t("ends {date}", { date: fmt.date(trial.endsOn) })}
           </span>
         </div>
       </div>
@@ -228,48 +313,119 @@ function TrialClock({ trial, t }: { trial: RunningTrial; t: TFunction }) {
    rule that means nothing, and on Enterprise — or on a trial — all four of
    them are that. The row keeps its height so the strip does not change shape
    between plans. */
-function UsageMeter({ cap, planName, t }: { cap: CapState; planName: string; t: TFunction }) {
+function UsageMeter({
+  cap,
+  planName,
+  t,
+}: {
+  cap: CapState;
+  planName: string;
+  t: TFunction;
+}) {
   const unlimited = cap.cap == null;
+  /* THE NAME SITS ALONE AT THE HEAD; THE BAR, ITS CAPTION AND THE COUNT SIT AT THE FOOT. A long name ("Reporting years
+     open", or its Thai and Hindi forms) then takes the line to itself instead of fighting the count for it, and a name that
+     takes two lines cannot push its bar out of line with the cards beside it. */
   return (
     <Card className="flex min-h-[104px] flex-col p-4">
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="font-pixel text-[10px] uppercase tracking-[0.14em] text-black/40">{t(CAP_LABEL[cap.key])}</span>
-        <span className={cn("font-mono text-[12px] tabular-nums", cap.atCap ? "text-[#b45309]" : "text-black/45")}>{cap.label}</span>
-      </div>
-      {unlimited ? (
-        <div className="mt-auto">
-          <p className="font-pixel text-[10.5px] uppercase tracking-[0.1em] text-black/35">{t("No cap on your plan")}</p>
-        </div>
-      ) : (
-        <>
-          <div className="mt-3 h-[3px] overflow-hidden rounded-full bg-black/[0.07]">
+      <span className="font-pixel text-[10px] uppercase leading-snug tracking-[0.1em] text-black/40 sm:tracking-[0.14em]">
+        {t(CAP_LABEL[cap.key])}
+      </span>
+      <div className="mt-auto pt-3">
+        {!unlimited && (
+          <div className="mb-2.5 h-[3px] overflow-hidden rounded-full bg-black/[0.07]">
             <div
-              className={cn("h-full rounded-full transition-[width]", cap.atCap ? "bg-[#b45309]" : "bg-[#111]")}
+              className={cn(
+                "h-full rounded-full transition-[width]",
+                cap.atCap ? "bg-[#b45309]" : "bg-[#111]",
+              )}
               style={{ width: `${Math.round(cap.fraction * 100)}%` }}
             />
           </div>
-          <p className="mt-2.5 text-[11px] leading-relaxed text-black/40">
-            {cap.atCap ? t("At your plan's limit.") : t("In use on {plan}.", { plan: t(planName) })}
-          </p>
-        </>
-      )}
+        )}
+        <div className="flex items-baseline justify-between gap-2">
+          {unlimited ? (
+            <p className="font-pixel text-[10.5px] uppercase tracking-[0.1em] text-black/35">
+              {t("No cap on your plan")}
+            </p>
+          ) : (
+            <p className="text-[11px] leading-relaxed text-black/40">
+              {cap.atCap
+                ? t("At your plan's limit.")
+                : t("In use on {plan}.", { plan: t(planName) })}
+            </p>
+          )}
+          <span
+            className={cn(
+              "flex-none font-mono text-[12px] tabular-nums",
+              cap.atCap ? "text-[#b45309]" : "text-black/45",
+            )}
+          >
+            {cap.label}
+          </span>
+        </div>
+      </div>
     </Card>
   );
 }
 
 /* ── One tier ───────────────────────────────────────────────
-   ONE RULE PER BOUNDARY — see the header. Every block below the promise line
-   opens with `border-t` and closes with nothing. */
-function TierCard({ plan, current, onTrial, t }: { plan: Plan; current: PlanId; onTrial: boolean; t: TFunction }) {
+   THE FOUR NUMBERS THAT SIZE A FILING ARE THE CARD. A reader choosing between three plans is comparing CN codes,
+   installations, precursors and seats, so those are set large, in a grid, where the eye can run across three cards and
+   read three columns. The AI, the smart-upload pages and the smart links sit under them as plain rows; everything else is
+   in the table below.
+
+   ONE RULE PER BOUNDARY — see the header. Every block below the promise line opens with `border-t` and closes with
+   nothing. */
+function TierCard({
+  plan,
+  current,
+  onTrial,
+  t,
+}: {
+  plan: Plan;
+  current: PlanId;
+  onTrial: boolean;
+  t: TFunction;
+}) {
+  const fmt = useFormat();
   const isCurrent = plan.id === current;
   /* ON A TRIAL EVERY TIER IS AN UPGRADE, so `isUpgrade` would paint three
      primary buttons in a row and the reader would have no idea which one the
      page thinks they want. The highlighted tier carries the weight instead —
      the same one the comparison table shades. */
-  const emphasised = onTrial ? Boolean(plan.highlight) : isUpgrade(current, plan.id);
+  const emphasised = onTrial
+    ? Boolean(plan.highlight)
+    : isUpgrade(current, plan.id);
+
+  const tiles: { label: string; value: number | null }[] = [
+    { label: "CN codes", value: plan.caps.cnCodes },
+    { label: "Installations", value: plan.caps.sites },
+    { label: "Precursors", value: plan.allowance.precursors },
+    { label: "Team seats", value: plan.caps.seats },
+  ];
+  const rows: { label: string; value: string }[] = [
+    {
+      label: "AI",
+      value: t("{n} questions", {
+        n: fmt.number(plan.allowance.aiQuestions ?? 0),
+      }),
+    },
+    {
+      label: "Smart upload",
+      value: t("{n} pages", { n: fmt.number(plan.allowance.uploadPages ?? 0) }),
+    },
+    { label: "Smart link", value: t("Unlimited") },
+  ];
 
   return (
-    <Card highlight={plan.highlight} className={cn("flex h-full flex-col p-6 sm:p-7", isCurrent && "ring-1 ring-black/15")}>
+    <Card
+      highlight={plan.highlight}
+      className={cn(
+        "flex h-full flex-col p-6 sm:p-7",
+        isCurrent && "ring-1 ring-black/15",
+      )}
+    >
       <div className="flex items-start justify-between gap-3">
         <h2 className="font-[family-name:var(--font-plex)] text-[27px] font-light leading-[1.1] tracking-[-0.01em] text-[#111]">
           {t(plan.name)}
@@ -285,7 +441,7 @@ function TierCard({ plan, current, onTrial, t }: { plan: Plan; current: PlanId; 
         )}
       </div>
 
-      <p className="mt-5 min-h-[2.9em] font-[family-name:var(--font-plex)] text-[17px] font-light leading-[1.45] text-[#111] text-balance">
+      <p className="mt-5 font-[family-name:var(--font-plex)] xl:min-h-[4.35em] text-[17px] font-light leading-[1.45] text-[#111] text-balance">
         {t(plan.line)}
       </p>
 
@@ -293,26 +449,36 @@ function TierCard({ plan, current, onTrial, t }: { plan: Plan; current: PlanId; 
         <span className="font-[family-name:var(--font-plex)] text-[27px] font-light leading-none tracking-[-0.01em] text-[#111]">
           {t(plan.amount)}
         </span>
-        <span className="font-pixel text-[11px] uppercase tracking-[0.08em] text-black/55">{t(plan.unit)}</span>
+        <span className="font-pixel text-[11px] uppercase tracking-[0.08em] text-black/55">
+          {t(plan.unit)}
+        </span>
       </div>
 
-      <dl className="mt-4 flex flex-col gap-[7px] border-t border-black/[0.08] pt-4">
-        <dt className="font-pixel text-[10px] uppercase tracking-[0.1em] text-black/40">{t("Built for")}</dt>
-        <dd className="m-0 text-[13.5px] leading-[1.6] text-black/60">{t(plan.builtFor)}</dd>
+      <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-5 border-t border-black/[0.08] pt-5 sm:grid-cols-4 xl:grid-cols-2">
+        {tiles.map((x) => (
+          <div key={x.label} className="min-w-0">
+            <dd className="m-0 font-[family-name:var(--font-plex)] text-[34px] font-light leading-none tracking-[-0.02em] tabular-nums text-[#111]">
+              {x.value == null ? t("Unlimited") : fmt.number(x.value)}
+            </dd>
+            <dt className="mt-2 font-pixel text-[10px] uppercase leading-snug tracking-[0.1em] text-black/45">
+              {t(x.label)}
+            </dt>
+          </div>
+        ))}
       </dl>
 
-      <div className="mt-auto flex flex-col border-t border-black/[0.08] pt-1">
-        {plan.capRows.map((row, i) => (
+      <div className="mt-auto flex flex-col border-t border-black/[0.08] pt-1 [&]:mt-6">
+        {rows.map((row, i) => (
           <div
             key={row.label}
             className={cn(
               "flex items-baseline justify-between gap-3.5 py-2 text-[13px]",
-              i < plan.capRows.length - 1 && "border-b border-black/[0.06]",
+              i < rows.length - 1 && "border-b border-black/[0.06]",
             )}
           >
             <span className="text-black/50">{t(row.label)}</span>
             <span className="text-right font-pixel text-[12px] uppercase tracking-[0.04em] tabular-nums text-[#111]">
-              {t(row.value)}
+              {row.value}
             </span>
           </div>
         ))}
@@ -324,7 +490,12 @@ function TierCard({ plan, current, onTrial, t }: { plan: Plan; current: PlanId; 
             <Check size={14} strokeWidth={2} /> {t("Current plan")}
           </Button>
         ) : (
-          <ButtonLink href={CONTACT_SALES_URL} external variant={emphasised ? "primary" : "secondary"} className="w-full">
+          <ButtonLink
+            href={CONTACT_SALES_URL}
+            external
+            variant={emphasised ? "primary" : "secondary"}
+            className="w-full"
+          >
             {t("Contact Sales")} <ArrowRight size={14} strokeWidth={1.5} />
           </ButtonLink>
         )}
@@ -334,165 +505,32 @@ function TierCard({ plan, current, onTrial, t }: { plan: Plan; current: PlanId; 
 }
 
 /* ── The comparison ─────────────────────────────────────────
-   THE HEADER PINS UNDER THE TOPBAR, AND IT IS NOT `position: sticky` ON THE
-   `<th>`s. It used to be, and it did not work — it displaced them.
-
-   The table lives inside a horizontally scrollable div, and a box with
-   `overflow-x: auto` computes `overflow-y` to `auto` as well: it becomes the
-   nearest scrollport, so a sticky cell inside it measures `top` against THAT
-   box rather than against the page. The div never scrolls vertically, so the
-   header could never stick — but `top: 64px` still applied, and pushed all
-   four header cells 64px DOWN into the first rows of the table. That is the
-   overlap: "20+ · priced on scope" cut in half by a header sitting on top of
-   it, at every scroll position, on every screen size.
-
-   So the pinned copy is a SIBLING of the scroller, not a child of it — a
-   `sticky top-16` bar in normal page flow, where `top` means what the reader
-   thinks it means. It is measured from the real header (`widths`), offset by
-   the scroller's own `scrollLeft` so it tracks a sideways swipe, and it
-   carries its own frozen first column exactly like the table does.
-
-   IT ONLY EXISTS WHILE THE TABLE IS BEING READ. Above the table there is
-   nothing pinned at all — the tier cards are what somebody scrolling down
-   the page is looking at, and a comparison header hovering over them is
-   furniture in front of the thing it describes. It appears when the real
-   header goes under the topbar and disappears the moment the table's last
-   row does. `h-0` so it occupies no space and pushes nothing around.
-
-   `aria-hidden` — it is a second copy of a header the table already carries,
-   and the real one is still in the accessibility tree. */
-
-/** The portal's topbar is `sticky top-0 h-16`. Anything pinned under it lines
-    up here or slides beneath it. */
-const TOPBAR_H = 64;
-
-type PinState = { show: boolean; height: number; widths: number[]; scrollLeft: number; tableWidth: number };
-
-const EMPTY_PIN: PinState = { show: false, height: 0, widths: [], scrollLeft: 0, tableWidth: 0 };
-
+   ELEVEN ROWS, SO NO PINNED HEADER. The long comparison needed a copy of its header riding under the topbar to stay
+   readable over forty rows; this one fits a screen, and the machinery that kept a duplicate header aligned with the real
+   one is gone with the rows that needed it. What stays is what a phone needs: the table scrolls sideways inside its own
+   box, and the label column is frozen so a value is never read without the row it belongs to. */
 function ComparisonTable({ t }: { t: TFunction }) {
   const cols = PLANS;
-  const scrollerRef = React.useRef<HTMLDivElement>(null);
-  const tableRef = React.useRef<HTMLTableElement>(null);
-  const [pin, setPin] = React.useState<PinState>(EMPTY_PIN);
-
-  React.useEffect(() => {
-    const scroller = scrollerRef.current;
-    const table = tableRef.current;
-    if (!scroller || !table) return;
-
-    let frame = 0;
-    const measure = () => {
-      frame = 0;
-      const head = table.tHead;
-      if (!head || head.rows.length === 0) return;
-      const headRect = head.getBoundingClientRect();
-      const tableRect = table.getBoundingClientRect();
-      const height = headRect.height;
-      /* Shown only in the band where a pinned header earns its place: the
-         real one has started going under the topbar, and there are still rows
-         left below the line to read against it.
-
-         `top`, not `bottom`. Waiting for the whole header to disappear leaves
-         a stretch where it is half-swallowed by the translucent topbar and
-         the copy has not arrived yet — the reader watches "Starter" dissolve.
-         Taking over at the first pixel means the copy appears exactly where
-         the real header already is, so the handover is invisible. */
-      const show = headRect.top < TOPBAR_H && tableRect.bottom > TOPBAR_H + height;
-      const widths = Array.from(head.rows[0].cells, (c) => c.getBoundingClientRect().width);
-      const next: PinState = { show, height, widths, scrollLeft: scroller.scrollLeft, tableWidth: table.getBoundingClientRect().width };
-      setPin((prev) =>
-        prev.show === next.show &&
-        prev.height === next.height &&
-        prev.scrollLeft === next.scrollLeft &&
-        prev.tableWidth === next.tableWidth &&
-        prev.widths.length === next.widths.length &&
-        prev.widths.every((w, i) => w === next.widths[i])
-          ? prev
-          : next,
-      );
-    };
-
-    const schedule = () => {
-      if (!frame) frame = window.requestAnimationFrame(measure);
-    };
-
-    measure();
-    window.addEventListener("scroll", schedule, { passive: true });
-    window.addEventListener("resize", schedule);
-    scroller.addEventListener("scroll", schedule, { passive: true });
-    /* Column widths move when the language does — Thai sets wider — and when
-       a font finishes loading. Neither fires a scroll event. */
-    const observer = new ResizeObserver(schedule);
-    observer.observe(table);
-    return () => {
-      if (frame) window.cancelAnimationFrame(frame);
-      window.removeEventListener("scroll", schedule);
-      window.removeEventListener("resize", schedule);
-      scroller.removeEventListener("scroll", schedule);
-      observer.disconnect();
-    };
-  }, [t]);
-
   return (
-    <section aria-label={t("Plan comparison")} className="relative space-y-5">
-      {/* The pinned copy — see the header above. */}
-      <div aria-hidden className="pointer-events-none sticky top-16 z-30 h-0">
-        <div
-          className="relative overflow-hidden border-x border-b border-black/[0.07] border-b-black/15 bg-white"
-          style={{ height: pin.height, opacity: pin.show ? 1 : 0, visibility: pin.show ? "visible" : "hidden" }}
-        >
-          <div className="flex" style={{ width: pin.tableWidth || undefined, transform: `translateX(${-pin.scrollLeft}px)` }}>
-            <div className="flex-none" style={{ width: pin.widths[0] }} />
-            {cols.map((p, i) => (
-              <div
-                key={p.id}
-                className={cn("flex-none px-3 pb-4 pt-[18px] sm:px-5", p.highlight ? "bg-[#f0eee8]" : "bg-white")}
-                style={{ width: pin.widths[i + 1] }}
-              >
-                <HeaderCell plan={p} t={t} />
-              </div>
-            ))}
-          </div>
-          {/* The frozen label column, over the top of the translated row —
-              `sticky` cannot survive a transform, so it is drawn separately
-              at the same width the real one measured. */}
-          <div className="absolute left-0 top-0 bg-white px-3 pb-4 pt-[18px] sm:px-5" style={{ width: pin.widths[0], height: pin.height }}>
-            <span className="block font-pixel text-[11px] uppercase tracking-[0.14em] text-black/40">{t("Feature")}</span>
-          </div>
-        </div>
-      </div>
-
+    <section aria-label={t("Plan comparison")} className="space-y-4">
       <div
-        ref={scrollerRef}
         tabIndex={0}
         role="region"
         aria-label={t("Feature comparison table, scrollable")}
         className="overflow-x-auto rounded-2xl border border-black/[0.07] bg-white"
       >
-        {/* NARROWER ON A PHONE, and this is load-bearing rather than cosmetic.
-            At the desktop 820px the frozen label column worked out at 312px of
-            a 343px viewport, so swiping the table moved the tier values
-            straight behind the label and the reader saw a column of empty
-            cells. 500px keeps every column reachable with roughly one and a
-            half tiers on screen at a time. */}
-        <table ref={tableRef} className="w-full min-w-[500px] border-collapse bg-white sm:min-w-[820px]">
+        {/* 560px keeps a figure like "300 questions" on one line on a phone: the
+            label column takes about a third and one and a half tiers show at a time. */}
+        <table className="w-full min-w-[560px] border-collapse bg-white sm:min-w-[720px]">
           <thead>
             <tr>
               <th
                 scope="col"
-                /* `sticky left-0` only — see the note above ComparisonTable
-                   for why there is no `top` here any more. The horizontal
-                   freeze is real: the scroller IS the scrollport on that
-                   axis, which is the axis it actually scrolls. */
-                /* NARROWER ON A PHONE. At 290px the frozen label column eats
-                   a 375px screen and leaves 85px of the next tier — not
-                   enough to read a value, so the reader scrolls sideways
-                   without ever seeing a whole column. 220px shows one tier in
-                   full beside the label it belongs to. */
-                className="sticky left-0 z-[4] w-[34%] min-w-[150px] border-b border-black/15 bg-white px-3 pb-4 pt-[18px] text-left align-middle sm:w-[38%] sm:min-w-[290px] sm:px-5"
+                className="sticky left-0 z-[4] w-[34%] min-w-[130px] border-b border-black/15 bg-white px-3 pb-4 pt-[18px] text-left align-middle sm:w-[34%] sm:min-w-[240px] sm:px-5"
               >
-                <span className="block font-pixel text-[11px] uppercase tracking-[0.14em] text-black/40">{t("Feature")}</span>
+                <span className="block font-pixel text-[11px] uppercase tracking-[0.14em] text-black/40">
+                  {t("Plan")}
+                </span>
               </th>
               {cols.map((p) => (
                 <th
@@ -513,22 +551,14 @@ function ComparisonTable({ t }: { t: TFunction }) {
             {PLAN_COMPARISON.map((group) => (
               <React.Fragment key={group.title}>
                 <tr>
-                  {/* THE BAND SPANS THE ROW; THE TITLE STICKS INSIDE IT. A
-                      sticky cell that also spans four columns pins its box and
-                      lets its text scroll out of the viewport — the group name
-                      clipped to "…UR SUPPLIERS" halfway through a swipe. The
-                      cell stays put and an inner block does the sticking, so
-                      the warm rule runs the full width and the name stays at
-                      the left edge wherever the reader has scrolled to. */}
+                  {/* THE BAND SPANS THE ROW; THE TITLE STICKS INSIDE IT, so the name stays at the left edge wherever the
+                      reader has scrolled to, and the warm rule still runs the full width. inline-block, not block: a sticky
+                      element can only slide within the slack its containing block leaves. */}
                   <th
                     scope="colgroup"
                     colSpan={cols.length + 1}
                     className="border-y border-black/[0.08] border-t-black/15 bg-[#faf9f7] p-0 text-left"
                   >
-                    {/* inline-block, NOT block: a sticky element can only
-                        slide within the slack left inside its containing
-                        block, and a full-width child of the cell has none — it
-                        computes as sticky and never moves. */}
                     <span className="sticky left-0 inline-block px-3 py-[11px] font-pixel text-[10.5px] font-bold uppercase tracking-[0.14em] text-black/55 sm:px-5">
                       {t(group.title)}
                     </span>
@@ -547,7 +577,9 @@ function ComparisonTable({ t }: { t: TFunction }) {
                         key={cols[i].id}
                         className={cn(
                           "border-b border-black/[0.06] px-3 py-3.5 align-middle text-[13px] leading-[1.45] text-black/60 sm:px-5 sm:text-[14px] sm:leading-[1.5]",
-                          cols[i].highlight ? "bg-[#f0eee8] group-hover:bg-[#eae7e0]" : "group-hover:bg-[#faf9f7]",
+                          cols[i].highlight
+                            ? "bg-[#f0eee8] group-hover:bg-[#eae7e0]"
+                            : "group-hover:bg-[#faf9f7]",
                         )}
                       >
                         <Cell value={cell} prose={group.prose} t={t} />
@@ -560,17 +592,30 @@ function ComparisonTable({ t }: { t: TFunction }) {
           </tbody>
         </table>
       </div>
+
+      <ul className="space-y-1.5 text-[12.5px] leading-relaxed text-black/45">
+        <li>
+          {t(
+            "Smart upload counts pages: an Excel file is 1 page, and every image inside it counts as one more page.",
+          )}
+        </li>
+        <li>
+          {t(
+            "Suppliers and precursor suppliers enter and fill in through their smart link on every plan — no cap, no account, no seat.",
+          )}
+        </li>
+      </ul>
     </section>
   );
 }
 
-/* One tier's name and price line. Shared by the real header and the pinned
-   copy so the two can never drift — a pinned header that says something
-   different from the header it is standing in for is worse than none. */
+/* One plan's name and price line. */
 function HeaderCell({ plan, t }: { plan: Plan; t: TFunction }) {
   return (
     <>
-      <span className="block font-[family-name:var(--font-plex)] text-[17px] font-light leading-[1.1] text-[#111] sm:text-[21px]">{t(plan.name)}</span>
+      <span className="block font-[family-name:var(--font-plex)] text-[17px] font-light leading-[1.1] text-[#111] sm:text-[21px]">
+        {t(plan.name)}
+      </span>
       <span className="mt-[5px] block font-pixel text-[10px] leading-snug tracking-[0.06em] tabular-nums text-black/55 sm:text-[11px]">
         {t(plan.columnPrice)}
       </span>
@@ -578,16 +623,60 @@ function HeaderCell({ plan, t }: { plan: Plan; t: TFunction }) {
   );
 }
 
-/* A cell is a mark or a value; `prose` comes from the group (see the note on
-   CompareGroup in lib/config.ts) and decides which of the two faces it is set
-   in. */
-function Cell({ value, prose, t }: { value: CompareCell; prose?: boolean; t: TFunction }) {
-  if (value === true) return <Check size={14} strokeWidth={1.75} className="block text-[#047857]" aria-label={t("Included")} />;
-  if (value === false) return <Minus size={14} strokeWidth={1.5} className="block text-black/25" aria-label={t("Not included")} />;
+/* A cell is a mark, a plain value, or a number with its unit. `prose` comes from the group (see the note on CompareGroup in
+   lib/config.ts) and decides which face a plain value is set in. A number with its unit is a template, so each language
+   puts the number where its own noun wants it. */
+function Cell({
+  value,
+  prose,
+  t,
+}: {
+  value: CompareCell;
+  prose?: boolean;
+  t: TFunction;
+}) {
+  const fmt = useFormat();
+  if (value === true)
+    return (
+      <Check
+        size={14}
+        strokeWidth={1.75}
+        className="block text-[#047857]"
+        aria-label={t("Included")}
+      />
+    );
+  if (value === false)
+    return (
+      <Minus
+        size={14}
+        strokeWidth={1.5}
+        className="block text-black/25"
+        aria-label={t("Not included")}
+      />
+    );
 
+  if (typeof value === "object") {
+    const v: CompareValue = value;
+    return (
+      <>
+        <span className="block font-pixel text-[12.5px] uppercase tracking-[0.03em] tabular-nums text-[#111]">
+          {t(v.text, { n: fmt.number(v.n ?? 0) })}
+        </span>
+        {v.sub && (
+          <span className="mt-0.5 block text-[12px] leading-snug text-black/45">
+            {t(v.sub.text, { n: fmt.number(v.sub.n ?? 0) })}
+          </span>
+        )}
+      </>
+    );
+  }
   return prose ? (
-    <span className="text-[13.5px] leading-relaxed text-black/55">{t(value)}</span>
+    <span className="text-[13.5px] leading-relaxed text-black/55">
+      {t(value)}
+    </span>
   ) : (
-    <span className="font-pixel text-[12.5px] uppercase tracking-[0.03em] tabular-nums text-[#111]">{t(value)}</span>
+    <span className="font-pixel text-[12.5px] uppercase tracking-[0.03em] tabular-nums text-[#111]">
+      {t(value)}
+    </span>
   );
 }

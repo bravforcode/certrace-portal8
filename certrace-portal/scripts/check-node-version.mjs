@@ -21,11 +21,17 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
-const packagePath = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "package.json");
+const packagePath = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "package.json",
+);
 const declared = JSON.parse(readFileSync(packagePath, "utf8")).engines?.node;
 
 if (!declared) {
-  console.error("package.json declares no engines.node — nothing to check against, which is itself the problem.");
+  console.error(
+    "package.json declares no engines.node — nothing to check against, which is itself the problem.",
+  );
   process.exit(1);
 }
 
@@ -39,7 +45,8 @@ const [floorMajor, floorMinor, floorPatch] = parse(floor);
 
 const meetsFloor =
   major > floorMajor ||
-  (major === floorMajor && (minor > floorMinor || (minor === floorMinor && patch >= floorPatch)));
+  (major === floorMajor &&
+    (minor > floorMinor || (minor === floorMinor && patch >= floorPatch)));
 
 if (!meetsFloor) {
   console.error(

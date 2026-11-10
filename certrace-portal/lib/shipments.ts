@@ -1,3 +1,4 @@
+import { accountStorage } from "./account-storage";
 /* ════════════════════════════════════════════════════════════
    SHIPMENT LOG — what actually left the gate, and for whom
 
@@ -22,7 +23,7 @@
    excluded from every total, and never silently absorbed into whichever
    declaration happens to overlap its date.
 
-   Frontend-only MVP: one localStorage key, the same seam as the other stores.
+   One account document key, the same seam as the other stores.
    ════════════════════════════════════════════════════════════ */
 
 import { getCatalogProduct } from "./config";
@@ -59,32 +60,15 @@ export type Shipment = {
 const KEY = "certrace:shipments";
 
 export const uid = () =>
-  typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `shp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
-/* Demo log for the Thai steel exporter persona — real CN-coded goods, real
-   EU importer shapes, deterministic dates inside the 2026 periods the
-   fixtures use. Seeded once so the screen is never empty on first open;
-   anything the exporter adds or links persists over the top. */
-const SEED: Omit<Shipment, "createdAt">[] = [
-  { id: "shp-001", date: "2026-01-18", buyer: "Rotterdam Steel Import BV", buyerEori: "NL812345678", productId: "hrc", quantityTonnes: 45.2, invoiceRef: "INV-2026-0112", declarationId: null },
-  { id: "shp-002", date: "2026-02-09", buyer: "Rotterdam Steel Import BV", buyerEori: "NL812345678", productId: "hrc", quantityTonnes: 38.7, invoiceRef: "INV-2026-0204", declarationId: null },
-  { id: "shp-003", date: "2026-03-22", buyer: "Rotterdam Steel Import BV", buyerEori: "NL812345678", productId: "rebar", quantityTonnes: 52.1, invoiceRef: "INV-2026-0318", declarationId: null },
-  { id: "shp-004", date: "2026-02-14", buyer: "Hamburg Metallhandel GmbH", buyerEori: "DE447221900", productId: "rebar", quantityTonnes: 61.4, invoiceRef: "INV-2026-0210", declarationId: null },
-  { id: "shp-005", date: "2026-03-05", buyer: "Hamburg Metallhandel GmbH", buyerEori: "DE447221900", productId: "galv", quantityTonnes: 24.9, invoiceRef: "INV-2026-0301", declarationId: null },
-  { id: "shp-006", date: "2026-05-11", buyer: "Antwerp Long Products NV", buyerEori: "BE0761233440", productId: "wirerod", quantityTonnes: 33.6, invoiceRef: "INV-2026-0508", declarationId: null },
-  { id: "shp-007", date: "2026-06-02", buyer: "Antwerp Long Products NV", buyerEori: "BE0761233440", productId: "billet", quantityTonnes: 88.3, invoiceRef: "INV-2026-0529", declarationId: null },
-  { id: "shp-008", date: "2026-06-27", buyer: "Rotterdam Steel Import BV", buyerEori: "NL812345678", productId: "hrc", quantityTonnes: 41.0, invoiceRef: "INV-2026-0622", declarationId: null },
-];
+  typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `shp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 export function listShipments(): Shipment[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(KEY);
-    if (!raw) {
-      const seeded = SEED.map((s) => ({ ...s, createdAt: Date.now() }));
-      window.localStorage.setItem(KEY, JSON.stringify(seeded));
-      return seeded;
-    }
+    const raw = accountStorage.getItem(KEY);
+    if (!raw) return [];
     const parsed = JSON.parse(raw) as Shipment[];
     return Array.isArray(parsed) ? parsed : [];
   } catch {
@@ -95,20 +79,29 @@ export function listShipments(): Shipment[] {
 function persist(all: Shipment[]): Shipment[] {
   if (typeof window === "undefined") return all;
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(all));
+    accountStorage.setItem(KEY, JSON.stringify(all));
   } catch {
     /* ignore quota */
   }
   return all;
 }
 
-export function addShipment(input: Omit<Shipment, "id" | "createdAt">): Shipment[] {
+export function addShipment(
+  input: Omit<Shipment, "id" | "createdAt">,
+): Shipment[] {
   const s: Shipment = { ...input, id: uid(), createdAt: Date.now() };
   return persist([...listShipments(), s]);
 }
 
-export function updateShipment(id: string, patch: Partial<Shipment>): Shipment[] {
-  return persist(listShipments().map((s) => (s.id === id ? { ...s, ...patch, id: s.id } : s)));
+export function updateShipment(
+  id: string,
+  patch: Partial<Shipment>,
+): Shipment[] {
+  return persist(
+    listShipments().map((s) =>
+      s.id === id ? { ...s, ...patch, id: s.id } : s,
+    ),
+  );
 }
 
 export function removeShipment(id: string): Shipment[] {
@@ -132,7 +125,9 @@ export const shippedTonnesFor = (declarationId: string): number =>
     request and an annual CBAM filing cover the same weeks), so linking on
     date alone would absorb rows into whichever declaration was opened first.
     The exporter confirms; this function only proposes. */
-export function unlinkedShipmentsFor(decl: Pick<Declaration, "id" | "periodStart" | "periodEnd">): Shipment[] {
+export function unlinkedShipmentsFor(
+  decl: Pick<Declaration, "id" | "periodStart" | "periodEnd">,
+): Shipment[] {
   const start = decl.periodStart;
   const end = decl.periodEnd;
   return listShipments()
@@ -149,15 +144,26 @@ export const pendingShipments = (): Shipment[] =>
     .filter((s) => s.declarationId === null)
     .sort((a, b) => a.date.localeCompare(b.date));
 
-export function linkShipments(ids: string[], declarationId: string): Shipment[] {
+export function linkShipments(
+  ids: string[],
+  declarationId: string,
+): Shipment[] {
   const set = new Set(ids);
   const now = Date.now();
-  return persist(listShipments().map((s) => (set.has(s.id) ? { ...s, declarationId, linkedAt: now } : s)));
+  return persist(
+    listShipments().map((s) =>
+      set.has(s.id) ? { ...s, declarationId, linkedAt: now } : s,
+    ),
+  );
 }
 
 export function unlinkShipments(ids: string[]): Shipment[] {
   const set = new Set(ids);
-  return persist(listShipments().map((s) => (set.has(s.id) ? { ...s, declarationId: null, linkedAt: undefined } : s)));
+  return persist(
+    listShipments().map((s) =>
+      set.has(s.id) ? { ...s, declarationId: null, linkedAt: undefined } : s,
+    ),
+  );
 }
 
 /* ── Formula 5 — per-buyer embedded emissions ───────────────────
@@ -202,7 +208,9 @@ export function emissionsByBuyer(
     else row.embeddedTCO2e += s.quantityTonnes * see;
     byBuyer.set(s.buyer, row);
   }
-  return [...byBuyer.values()].sort((a, b) => b.embeddedTCO2e - a.embeddedTCO2e);
+  return [...byBuyer.values()].sort(
+    (a, b) => b.embeddedTCO2e - a.embeddedTCO2e,
+  );
 }
 
 /* The same formula, keyed on the WORKSPACE a shipment belongs to.
@@ -235,12 +243,16 @@ export function emissionsByBuyerForWorkspaces(
     else row.embeddedTCO2e += s.quantityTonnes * see;
     byBuyer.set(s.buyer, row);
   }
-  return [...byBuyer.values()].sort((a, b) => b.embeddedTCO2e - a.embeddedTCO2e);
+  return [...byBuyer.values()].sort(
+    (a, b) => b.embeddedTCO2e - a.embeddedTCO2e,
+  );
 }
 
 /** Display helper — the good behind a shipment row. */
-export const shipmentProductName = (s: Shipment): string => getCatalogProduct(s.productId)?.name ?? s.productId;
-export const shipmentCnCode = (s: Shipment): string => getCatalogProduct(s.productId)?.cnCode ?? "—";
+export const shipmentProductName = (s: Shipment): string =>
+  getCatalogProduct(s.productId)?.name ?? s.productId;
+export const shipmentCnCode = (s: Shipment): string =>
+  getCatalogProduct(s.productId)?.cnCode ?? "—";
 
 /* ── Workspace view (§A7) ───────────────────────────────────────
    The same shipment log, sliced by workspace. `/shipments` stays as the
@@ -275,14 +287,23 @@ export function unassignedCandidatesFor(ws: {
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
-export function assignToWorkspace(ids: string[], workspaceId: string): Shipment[] {
+export function assignToWorkspace(
+  ids: string[],
+  workspaceId: string,
+): Shipment[] {
   const set = new Set(ids);
-  return persist(listShipments().map((s) => (set.has(s.id) ? { ...s, workspaceId } : s)));
+  return persist(
+    listShipments().map((s) => (set.has(s.id) ? { ...s, workspaceId } : s)),
+  );
 }
 
 export function unassignFromWorkspace(ids: string[]): Shipment[] {
   const set = new Set(ids);
-  return persist(listShipments().map((s) => (set.has(s.id) ? { ...s, workspaceId: null } : s)));
+  return persist(
+    listShipments().map((s) =>
+      set.has(s.id) ? { ...s, workspaceId: null } : s,
+    ),
+  );
 }
 
 /* ── Mass reconciliation (§A7.4) ────────────────────────────────
@@ -305,14 +326,18 @@ export type MassReconciliation = {
   message: string;
 };
 
-export function reconcileMass(shippedTonnes: number, producedTonnes: number | null): MassReconciliation {
+export function reconcileMass(
+  shippedTonnes: number,
+  producedTonnes: number | null,
+): MassReconciliation {
   if (producedTonnes == null || !(producedTonnes > 0)) {
     return {
       shippedTonnes,
       producedTonnes,
       ratio: null,
       level: "unknown",
-      message: "Annual production is not yet complete, so shipped mass cannot be reconciled against it.",
+      message:
+        "Annual production is not yet complete, so shipped mass cannot be reconciled against it.",
     };
   }
   const ratio = shippedTonnes / producedTonnes;
@@ -352,4 +377,5 @@ export const EORI_HELP =
 
 /** Shape check only — there is no EORI registry to validate against here, and
     a false rejection of a valid number is worse than a permissive field. */
-export const eoriLooksValid = (v: string): boolean => /^[A-Z]{2}[A-Z0-9]{1,15}$/.test(v.trim().toUpperCase());
+export const eoriLooksValid = (v: string): boolean =>
+  /^[A-Z]{2}[A-Z0-9]{1,15}$/.test(v.trim().toUpperCase());

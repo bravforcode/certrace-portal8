@@ -14,7 +14,12 @@ import * as React from "react";
 import { Select } from "./controls";
 import { inputClass, cn } from "./ui";
 import { COUNTRIES } from "@/lib/config";
-import { DIAL_CODES, dialCodeFor, joinPhone, splitPhone } from "@/lib/dial-codes";
+import {
+  DIAL_CODES,
+  dialCodeFor,
+  joinPhone,
+  splitPhone,
+} from "@/lib/dial-codes";
 import { useT } from "@/lib/i18n";
 
 /* Labelled by country so it is searchable by name — nobody remembers that
@@ -30,7 +35,9 @@ export const dialOptions = (() => {
     .map(([dial, names]) => ({
       value: dial,
       label: dial,
-      hint: names.slice(0, 3).join(", ") + (names.length > 3 ? ` +${names.length - 3} more` : ""),
+      hint:
+        names.slice(0, 3).join(", ") +
+        (names.length > 3 ? ` +${names.length - 3} more` : ""),
     }))
     .sort((a, b) => Number(a.value.slice(1)) - Number(b.value.slice(1)));
 })();
@@ -101,7 +108,11 @@ export function PhoneField({
         />
       </div>
       <input
-        className={cn(inputClass, "min-w-0 flex-1", invalid && "border-[#f87171]/60 focus:border-[#f87171]")}
+        className={cn(
+          inputClass,
+          "min-w-0 flex-1",
+          invalid && "border-[#f87171]/60 focus:border-[#f87171]",
+        )}
         value={number}
         inputMode="tel"
         onChange={(e) => push(dial, e.target.value)}

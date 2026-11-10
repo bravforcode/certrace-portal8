@@ -25,10 +25,27 @@
    ════════════════════════════════════════════════════════════ */
 
 import { workspaceReadiness } from "./readiness";
-import { effectiveSee, getSupplier, isVerificationExpired, linkStatus, listSuppliers, totalTonnes, treeFor, MAX_SUPPLIER_DEPTH, PrecursorSupplierError, type PrecursorSupplier, type SupplierNode } from "./precursor-suppliers";
+import {
+  effectiveSee,
+  getSupplier,
+  isVerificationExpired,
+  linkStatus,
+  listSuppliers,
+  totalTonnes,
+  treeFor,
+  MAX_SUPPLIER_DEPTH,
+  PrecursorSupplierError,
+  type PrecursorSupplier,
+  type SupplierNode,
+} from "./precursor-suppliers";
 import { annualProductionFor } from "./monthly-data";
 import { getWorkspace, type VerificationWorkspace } from "./workspace";
-import type { NodeStatus, PrecursorRatio, TrackingStatus, TreeNode } from "@/types/supplier-tree";
+import type {
+  NodeStatus,
+  PrecursorRatio,
+  TrackingStatus,
+  TreeNode,
+} from "@/types/supplier-tree";
 
 /** Entity identity for cycle detection (lib/cbam/tree-validation.ts) and for
     `TreeNode.entityId` — the real-world supplier/installation a precursor
@@ -38,7 +55,12 @@ import type { NodeStatus, PrecursorRatio, TrackingStatus, TreeNode } from "@/typ
     this falls back to a normalised name/installation/country composite when
     `installationUniqueId` isn't set. Exported so the tree builder and the
     cycle check can never compute this two different ways. */
-export function precursorEntityId(s: Pick<PrecursorSupplier, "installationUniqueId" | "name" | "installationName" | "country">): string {
+export function precursorEntityId(
+  s: Pick<
+    PrecursorSupplier,
+    "installationUniqueId" | "name" | "installationName" | "country"
+  >,
+): string {
   const id = s.installationUniqueId?.trim();
   if (id) return `id:${id.toLowerCase()}`;
   return `composite:${[s.name, s.installationName, s.country].map((v) => (v || "").trim().toLowerCase()).join("|")}`;
@@ -50,7 +72,8 @@ export function precursorEntityId(s: Pick<PrecursorSupplier, "installationUnique
     reading `trackingStatus` directly, which stays on the type only because
     `computeNodeStatus` itself is built from it for the installation root. */
 export function computeNodeStatus(node: TreeNode): NodeStatus {
-  if (node.cyclicReference || node.trackingStatus === "blocked") return "BLOCKED";
+  if (node.cyclicReference || node.trackingStatus === "blocked")
+    return "BLOCKED";
 
   if (node.kind === "precursor") {
     if (node.verificationFailed) return "BLOCKED";
@@ -68,10 +91,14 @@ export function computeNodeStatus(node: TreeNode): NodeStatus {
       // this comparison is made — LinkStatusChip on the Precursors tab calls
       // the same function, so the two screens can't drift on what "expired"
       // means the way they briefly did before this was extracted.
-      return isVerificationExpired(node.expiresAt) ? "VERIFICATION_EXPIRED" : "VERIFIED";
+      return isVerificationExpired(node.expiresAt)
+        ? "VERIFICATION_EXPIRED"
+        : "VERIFIED";
     }
     if (node.submittedAt) return "SUBMITTED_PENDING_VERIFICATION";
-    return node.trackingStatus === "in_progress" ? "IN_PROGRESS" : "SENT_PENDING";
+    return node.trackingStatus === "in_progress"
+      ? "IN_PROGRESS"
+      : "SENT_PENDING";
   }
 
   // The tier-1 installation root: no per-node Smart Link timeline to derive
@@ -84,7 +111,9 @@ export function computeNodeStatus(node: TreeNode): NodeStatus {
     case "in_progress":
       return "IN_PROGRESS";
     case "ready":
-      return node.hasVerificationReport ? "VERIFIED" : "SUBMITTED_PENDING_VERIFICATION";
+      return node.hasVerificationReport
+        ? "VERIFIED"
+        : "SUBMITTED_PENDING_VERIFICATION";
     case "not_sent":
     default:
       return "NOT_SENT";
@@ -114,13 +143,20 @@ function trackingStatusForPrecursor(node: SupplierNode): TrackingStatus {
   }
 }
 
-function mapPrecursorNode(node: SupplierNode, workspaceId: string, parentNodeId: string | null, parentTonnes: number | null): TreeNode {
+function mapPrecursorNode(
+  node: SupplierNode,
+  workspaceId: string,
+  parentNodeId: string | null,
+  parentTonnes: number | null,
+): TreeNode {
   const own = totalTonnes(node);
   // Never assumed 1:1 — null unless both this row's own consumed tonnage and
   // its parent's produced tonnage are actually on file. See PrecursorRatio's
   // own note (types/supplier-tree.ts) for why.
   const quantityRatio: PrecursorRatio | null =
-    own > 0 && parentTonnes != null && parentTonnes > 0 ? { precursorMassConsumed: own, outputMassProduced: parentTonnes } : null;
+    own > 0 && parentTonnes != null && parentTonnes > 0
+      ? { precursorMassConsumed: own, outputMassProduced: parentTonnes }
+      : null;
 
   return {
     id: node.id,
@@ -142,7 +178,12 @@ function mapPrecursorNode(node: SupplierNode, workspaceId: string, parentNodeId:
     verificationFailed: Boolean(
       node.smartLinkSubmittedAt &&
         node.verificationChecks &&
-        !(node.verificationChecks.accreditationValid && node.verificationChecks.sectoralScopeMatch && node.verificationChecks.periodCovered && node.verificationChecks.fileIntact),
+        !(
+          node.verificationChecks.accreditationValid &&
+          node.verificationChecks.sectoralScopeMatch &&
+          node.verificationChecks.periodCovered &&
+          node.verificationChecks.fileIntact
+        ),
     ),
     trackingStatus: trackingStatusForPrecursor(node),
     workspaceId,
@@ -165,7 +206,9 @@ function mapPrecursorNode(node: SupplierNode, workspaceId: string, parentNodeId:
     functionalUnit: "tonne",
     indirectEmissionsSee: null,
     quantityRatio,
-    children: node.children.map((c) => mapPrecursorNode(c, workspaceId, node.id, own > 0 ? own : null)),
+    children: node.children.map((c) =>
+      mapPrecursorNode(c, workspaceId, node.id, own > 0 ? own : null),
+    ),
   };
 }
 
@@ -188,7 +231,9 @@ export function buildSupplierPrecursorTree(workspaceId: string): TreeNode[] {
   let cyclicReference = false;
   const annual = annualProductionFor(ws).tonnes;
   try {
-    children = treeFor(ws.id).map((n) => mapPrecursorNode(n, ws.id, rootId, annual > 0 ? annual : null));
+    children = treeFor(ws.id).map((n) =>
+      mapPrecursorNode(n, ws.id, rootId, annual > 0 ? annual : null),
+    );
   } catch (e) {
     // A cycle stops the WHOLE chain from being walked (see treeFor's own
     // comment on why an unreached row still has to raise) — so the node it is
@@ -244,7 +289,10 @@ export function buildSupplierPrecursorTree(workspaceId: string): TreeNode[] {
     do about a chain that isn't theirs anyway.
 
     Returns null if rootNodeId doesn't exist. */
-export function buildPrecursorSubtree(workspaceId: string, rootNodeId: string): TreeNode | null {
+export function buildPrecursorSubtree(
+  workspaceId: string,
+  rootNodeId: string,
+): TreeNode | null {
   const root = getSupplier(workspaceId, rootNodeId);
   if (!root) return null;
 
@@ -254,10 +302,21 @@ export function buildPrecursorSubtree(workspaceId: string, rootNodeId: string): 
     byParent.set(r.parentId, [...(byParent.get(r.parentId) ?? []), r]);
   }
 
-  const build = (row: PrecursorSupplier, depth: number, ancestry: Set<string>): SupplierNode => {
+  const build = (
+    row: PrecursorSupplier,
+    depth: number,
+    ancestry: Set<string>,
+  ): SupplierNode => {
     const next = new Set(ancestry).add(row.id);
-    const kids = depth >= MAX_SUPPLIER_DEPTH ? [] : (byParent.get(row.id) ?? []).filter((c) => !ancestry.has(c.id));
-    return { ...row, depth, children: kids.map((c) => build(c, depth + 1, next)) };
+    const kids =
+      depth >= MAX_SUPPLIER_DEPTH
+        ? []
+        : (byParent.get(row.id) ?? []).filter((c) => !ancestry.has(c.id));
+    return {
+      ...row,
+      depth,
+      children: kids.map((c) => build(c, depth + 1, next)),
+    };
   };
 
   const rootNode = build(root, 1, new Set());

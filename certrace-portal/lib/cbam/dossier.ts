@@ -30,7 +30,14 @@
 
 import type { RuleId, Readiness, Finding } from "./validate";
 
-export type AssertionId = "completeness" | "accuracy" | "consistency" | "traceability" | "conservativeness" | "segregation" | "precursor_integrity";
+export type AssertionId =
+  | "completeness"
+  | "accuracy"
+  | "consistency"
+  | "traceability"
+  | "conservativeness"
+  | "segregation"
+  | "precursor_integrity";
 
 export const ASSERTIONS: AssertionId[] = [
   "completeness",
@@ -65,13 +72,20 @@ export const ASSERTION_QUESTION: Record<AssertionId, string> = {
 
 /** What the exporter is expected to have put in front of them. */
 export const ASSERTION_EVIDENCE: Record<AssertionId, string> = {
-  completeness: "Boundary description with every production step explicitly included or excluded, plus the process flow diagram.",
-  accuracy: "The activity dataset — fuel, electricity and process materials — and the frozen calculation that turns it into tCO₂e/t.",
-  consistency: "The MMD, versioned, with a change list against the prior version.",
-  traceability: "The evidence pack: one document per input, and the reverse lookup from any document to the figures resting on it.",
-  conservativeness: "The data-gap register: what was missing, how it was estimated, and why the estimate cannot flatter the operator.",
-  segregation: "The sign-off record, with the preparer and the approver named and distinct.",
-  precursor_integrity: "The precursor tree with each tier's source and supplier attestation, and scrap zero-rated.",
+  completeness:
+    "Boundary description with every production step explicitly included or excluded, plus the process flow diagram.",
+  accuracy:
+    "The activity dataset — fuel, electricity and process materials — and the frozen calculation that turns it into tCO₂e/t.",
+  consistency:
+    "The MMD, versioned, with a change list against the prior version.",
+  traceability:
+    "The evidence pack: one document per input, and the reverse lookup from any document to the figures resting on it.",
+  conservativeness:
+    "The data-gap register: what was missing, how it was estimated, and why the estimate cannot flatter the operator.",
+  segregation:
+    "The sign-off record, with the preparer and the approver named and distinct.",
+  precursor_integrity:
+    "The precursor tree with each tier's source and supplier attestation, and scrap zero-rated.",
 };
 
 /** Which validation rules speak to which assertion. One rule can serve more
@@ -119,11 +133,17 @@ export type DossierContext = {
   frozen: boolean;
 };
 
-export function buildDossier(declarationId: string, readinessResult: Readiness, context?: DossierContext): Dossier {
+export function buildDossier(
+  declarationId: string,
+  readinessResult: Readiness,
+  context?: DossierContext,
+): Dossier {
   const byId = new Map(readinessResult.rules.map((r) => [r.id, r]));
 
   const sections: AssertionSection[] = ASSERTIONS.map((id) => {
-    const rules = ASSERTION_RULES[id].map((rid) => byId.get(rid)).filter(Boolean) as NonNullable<ReturnType<typeof byId.get>>[];
+    const rules = ASSERTION_RULES[id]
+      .map((rid) => byId.get(rid))
+      .filter(Boolean) as NonNullable<ReturnType<typeof byId.get>>[];
     const findings = [...rules.flatMap((r) => r.findings)];
 
     /* Two assertions rest on an artefact existing, not only on rules passing.
@@ -135,7 +155,8 @@ export function buildDossier(declarationId: string, readinessResult: Readiness, 
       findings.push({
         id: "V15",
         severity: "error",
-        message: "No Monitoring Methodology Documentation has been finalised. A verifier asks for it before testing any figure, and without a prior version there is nothing to demonstrate consistency against.",
+        message:
+          "No Monitoring Methodology Documentation has been finalised. A verifier asks for it before testing any figure, and without a prior version there is nothing to demonstrate consistency against.",
         field: "mmd",
       });
     }
@@ -144,17 +165,22 @@ export function buildDossier(declarationId: string, readinessResult: Readiness, 
       findings.push({
         id: "V13",
         severity: "warn",
-        message: "The calculation has not been frozen. The figures recompute, but nothing yet proves that what a verifier is shown is what was approved.",
+        message:
+          "The calculation has not been frozen. The figures recompute, but nothing yet proves that what a verifier is shown is what was approved.",
         field: "freeze",
       });
     }
 
-    const status: AssertionSection["status"] = rules.some((r) => r.status === "fail") || (missingArtefact && findings.some((x) => x.severity === "error"))
-      ? "unanswered"
-      : rules.some((r) => r.status === "warn") || missingArtefact
-        ? "qualified"
-        : "answered";
-    const links = Array.from(new Map(rules.map((r) => [r.screen.path, r.screen])).values());
+    const status: AssertionSection["status"] =
+      rules.some((r) => r.status === "fail") ||
+      (missingArtefact && findings.some((x) => x.severity === "error"))
+        ? "unanswered"
+        : rules.some((r) => r.status === "warn") || missingArtefact
+          ? "qualified"
+          : "answered";
+    const links = Array.from(
+      new Map(rules.map((r) => [r.screen.path, r.screen])).values(),
+    );
     return {
       id,
       title: ASSERTION_TITLE[id],
@@ -184,18 +210,30 @@ export function buildDossier(declarationId: string, readinessResult: Readiness, 
    ⚠️ MVP: this token is an encoding, not authentication. Production verifier
    links must be server-issued, signed, expiring and revocable — the same
    caveat that applies to Smart Links (see docs/SECURITY.md). */
-export const VERIFIER_HIDDEN_SECTIONS = ["cost", "carbon-price-spend", "certificate-exposure"] as const;
+export const VERIFIER_HIDDEN_SECTIONS = [
+  "cost",
+  "carbon-price-spend",
+  "certificate-exposure",
+] as const;
 
 export function verifierShareToken(declarationId: string): string {
   const raw = `verify|${declarationId}`;
-  if (typeof btoa !== "undefined") return btoa(raw).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  return Buffer.from(raw, "utf8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  if (typeof btoa !== "undefined")
+    return btoa(raw).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return Buffer.from(raw, "utf8")
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
 }
 
 export function decodeVerifierToken(token: string): string | null {
   try {
     const padded = token.replace(/-/g, "+").replace(/_/g, "/");
-    const raw = typeof atob !== "undefined" ? atob(padded) : Buffer.from(padded, "base64").toString("utf8");
+    const raw =
+      typeof atob !== "undefined"
+        ? atob(padded)
+        : Buffer.from(padded, "base64").toString("utf8");
     return raw.startsWith("verify|") ? raw.slice(7) : null;
   } catch {
     return null;

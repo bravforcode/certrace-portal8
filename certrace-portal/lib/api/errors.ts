@@ -7,7 +7,7 @@
    thrown value would mean three different `catch` blocks at every call site,
    so everything the client layer throws is an ApiError carrying a `code`.
 
-   The codes are the ones docs/API-CONTRACT.md commits the backend to, plus
+   The codes include backend errors plus
    three the transport itself produces (NETWORK, TIMEOUT, BAD_RESPONSE) —
    the server cannot report a failure that stopped the response from arriving.
    ════════════════════════════════════════════════════════════ */
@@ -29,7 +29,9 @@ export class ApiError extends Error {
 
   /** True when retrying the identical request could plausibly succeed. */
   get retryable(): boolean {
-    return this.code === "NETWORK" || this.code === "TIMEOUT" || this.status >= 500;
+    return (
+      this.code === "NETWORK" || this.code === "TIMEOUT" || this.status >= 500
+    );
   }
 }
 
@@ -54,6 +56,11 @@ export const isAccountSuspended = (value: unknown): boolean =>
 /* A Smart Link that no longer opens — all three mean the same thing to the
    supplier looking at the screen ("this link is no good, ask for another"),
    so the UI branches on the group rather than on each code. */
-export const DEAD_LINK_CODES = ["TOKEN_NOT_FOUND", "TOKEN_EXPIRED", "TOKEN_REVOKED"];
+export const DEAD_LINK_CODES = [
+  "TOKEN_NOT_FOUND",
+  "TOKEN_EXPIRED",
+  "TOKEN_REVOKED",
+];
 
-export const isDeadLink = (value: unknown): boolean => hasCode(value, ...DEAD_LINK_CODES);
+export const isDeadLink = (value: unknown): boolean =>
+  hasCode(value, ...DEAD_LINK_CODES);

@@ -4,8 +4,13 @@
    front of lib/api. Created inside useState so a re-render never mints a
    second client (and with it a second, disagreeing cache). */
 
+import { flushAccount } from "@/lib/account-storage";
 import * as React from "react";
-import { QueryClient, QueryClientProvider, MutationCache } from "@tanstack/react-query";
+import {
+  QueryClient,
+  QueryClientProvider,
+  MutationCache,
+} from "@tanstack/react-query";
 import { isApiError } from "@/lib/api";
 import { toast } from "@/components/toast";
 import { storedLang, translate } from "@/lib/i18n";
@@ -17,21 +22,34 @@ import { storedLang, translate } from "@/lib/i18n";
    catches them all. A mutation that wants a SPECIFIC message can still pass
    its own onError; add `meta: { silent: true }` here to suppress this default
    for the rare one that handles the failure itself. */
-function mutationErrorToast(_error: unknown, _vars: unknown, _ctx: unknown, mutation: { meta?: Record<string, unknown> }) {
+function mutationErrorToast(
+  _error: unknown,
+  _vars: unknown,
+  _ctx: unknown,
+  mutation: { meta?: Record<string, unknown> },
+) {
   if (mutation.meta?.silent) return;
   // Runs outside React, so the hook-based `t` is unavailable — translate with
   // the same stored language the LanguageProvider hydrates from.
   const lang = storedLang();
   toast({
     message: translate(lang, "That didn't save."),
-    detail: translate(lang, "Check your connection and try again — nothing was lost on your side."),
+    detail: translate(
+      lang,
+      "Check your connection and try again — nothing was lost on your side.",
+    ),
     tone: "err",
   });
 }
 
 function makeClient(): QueryClient {
   return new QueryClient({
-    mutationCache: new MutationCache({ onError: mutationErrorToast }),
+    mutationCache: new MutationCache({
+      onError: mutationErrorToast,
+      onSuccess: async () => {
+        await flushAccount();
+      },
+    }),
     defaultOptions: {
       queries: {
         // Server data ages in seconds, not milliseconds: a tab flip should

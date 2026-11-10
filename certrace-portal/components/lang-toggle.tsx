@@ -24,7 +24,7 @@
    language the flow was finished in. */
 
 import * as React from "react";
-import { LANGUAGES, useLanguage, useT } from "@/lib/i18n";
+import { LanguageSelect } from "./language-select";
 import { cn } from "./ui";
 
 /* `sm` exists for the supplier portal's top bar, which already carries the
@@ -34,35 +34,16 @@ import { cn } from "./ui";
    bar reads as the loudest thing in it, and on a phone it is what pushes the
    deadline off the edge. Same control, same hit area rules — only the padding
    and type scale come down to sit level with its neighbours. */
-export function LanguageToggle({ className, size = "md" }: { className?: string; size?: "md" | "sm" }) {
-  const t = useT();
-  const { lang, setLang } = useLanguage();
-  const sm = size === "sm";
+export function LanguageToggle({
+  className,
+  size = "md",
+}: {
+  className?: string;
+  size?: "md" | "sm";
+}) {
+  /* Twelve languages no longer fit a row of pills in a packed top bar, so the toggle is now the same dropdown the links use —
+     still in place (no navigation), still sized down for the bar. */
   return (
-    <div
-      className={cn("inline-flex flex-none items-center gap-0.5 rounded-full border border-black/[0.08] bg-white", sm ? "p-[3px]" : "p-0.5", className)}
-      role="group"
-      aria-label={t("Language")}
-    >
-      {LANGUAGES.map((l) => (
-        <button
-          key={l.code}
-          type="button"
-          onClick={() => setLang(l.code)}
-          aria-pressed={l.code === lang}
-          className={cn(
-            "inline-flex items-center justify-center rounded-full uppercase tracking-[0.1em] transition-colors",
-            /* min-h/min-w hold the target at 24px even though the type came
-               down to 10px to sit level with the chips beside it. Below that
-               it fails WCAG 2.5.8, and this portal is opened on a phone more
-               often than not — a supplier gets the link in a message. */
-            sm ? "min-h-6 min-w-6 px-2 text-[10px]" : "px-3 py-1.5 text-[11px]",
-            l.code === lang ? "bg-[#111] text-white" : "text-black/45 hover:text-black",
-          )}
-        >
-          {l.code === "th" ? l.nativeLabel : l.glyph}
-        </button>
-      ))}
-    </div>
+    <LanguageSelect className={cn("flex-none", className)} size={size} />
   );
 }

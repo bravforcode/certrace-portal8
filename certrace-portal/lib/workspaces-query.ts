@@ -1,14 +1,14 @@
 /* ════════════════════════════════════════════════════════════
    WORKSPACES AS QUERIES — same shape as lib/declarations-query.ts
 
-   Today the data under these hooks is localStorage (lib/workspace.ts,
+   The data under these hooks is the hydrated account working copy (lib/workspace.ts,
    lib/workspace-drafts.ts); the day a backend endpoint exists, the swap
    happens inside the store modules and no screen moves. What the hooks buy
    NOW is one cache with real identity: archive a workspace in the menu and
    every list, count and dashboard stat refetches itself — no hand-wired
    refresh callbacks threading through props.
 
-   staleTime 0 (overriding the provider's 30s): a localStorage read costs
+   staleTime 0 (overriding the provider's 30s): an in-memory read costs
    nothing, and flows that still write outside these mutations (workspace
    settings, monthly tabs) must be picked up the moment a list remounts.
    ════════════════════════════════════════════════════════════ */
@@ -16,6 +16,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { persistReportChange } from "./persist-report-change";
 import type { TreeNode } from "@/types/supplier-tree";
 import { getOrgIdentity } from "./org";
 import { cnCodeCap, seatCap, siteCap, yearCap } from "./plan";
@@ -33,9 +34,7 @@ import {
   type NewWorkspaceInput,
   type VerificationWorkspace,
 } from "./workspace";
-import { resolveWorkspaceRequest } from "./workspace-link";
-import { apiConfigured } from "./api/config";
-import { isServerToken, openWorkspaceLink } from "./workspace-link-sync";
+import { activeLinkSession, openWorkspaceLink } from "./workspace-link-sync";
 import {
   deleteWorkspaceDraft,
   loadWorkspaceDrafts,
@@ -47,11 +46,19 @@ const KEY = ["workspaces"] as const;
 const DRAFTS_KEY = ["workspace-drafts"] as const;
 
 export function useWorkspaces() {
-  return useQuery({ queryKey: [...KEY, "active"], queryFn: listWorkspaces, staleTime: 0 });
+  return useQuery({
+    queryKey: [...KEY, "active"],
+    queryFn: listWorkspaces,
+    staleTime: 0,
+  });
 }
 
 export function useArchivedWorkspaces() {
-  return useQuery({ queryKey: [...KEY, "archived"], queryFn: listArchivedWorkspaces, staleTime: 0 });
+  return useQuery({
+    queryKey: [...KEY, "archived"],
+    queryFn: listArchivedWorkspaces,
+    staleTime: 0,
+  });
 }
 
 export function useWorkspace(id: string | undefined) {
@@ -77,7 +84,12 @@ export function useTrackedParent(id: string | undefined) {
   });
 }
 
-export type ChainCounts = { suppliers: number; tiers: number; blocked: number; verified: number };
+export type ChainCounts = {
+  suppliers: number;
+  tiers: number;
+  blocked: number;
+  verified: number;
+};
 
 /* Derived with computeNodeStatus() — the same function the node pills use —
    so a "1 blocked" here is always the one red pill below. The root
@@ -116,7 +128,10 @@ export function useChainCounts(id: string | undefined) {
 
 /** `segment` is the URL entity segment findChainNode resolves — the
     INSTALLATION_SEGMENT constant or a precursor node id. */
-export function useChainNode(id: string | undefined, segment: string | undefined) {
+export function useChainNode(
+  id: string | undefined,
+  segment: string | undefined,
+) {
   return useQuery({
     queryKey: [...KEY, "chain", id, "node", segment],
     queryFn: () => findChainNode(id ?? "", segment ?? ""),
@@ -125,12 +140,16 @@ export function useChainNode(id: string | undefined, segment: string | undefined
   });
 }
 
-/** Seats use the fixture default — the team screen keeps its live list in
-    React state and passes seatCap(used) itself (see lib/plan.ts). */
+/** Cap usage comes from the account's saved workspaces, installations and roster. */
 export function useCaps() {
   return useQuery({
     queryKey: [...KEY, "caps"],
-    queryFn: () => ({ cnCodes: cnCodeCap(), sites: siteCap(), years: yearCap(), seats: seatCap() }),
+    queryFn: () => ({
+      cnCodes: cnCodeCap(),
+      sites: siteCap(),
+      years: yearCap(),
+      seats: seatCap(),
+    }),
     staleTime: 0,
   });
 }
@@ -144,15 +163,22 @@ export function useInvalidateCaps(): () => void {
 }
 
 export function useWorkspaceRequest(token: string | undefined) {
+  const client = useQueryClient();
   return useQuery({
     queryKey: [...KEY, "request", token],
-    /* A server-issued token loads the workspace slice into this browser
-       first (lib/workspace-link-sync.ts); a legacy base64 one resolves from
-       what is already here, as it always has. */
-    queryFn: () =>
-      apiConfigured() && isServerToken(token ?? "") ? openWorkspaceLink(token ?? "") : resolveWorkspaceRequest(token ?? ""),
+    queryFn: async () => {
+      const before = activeLinkSession();
+      const request = await openWorkspaceLink(token ?? "");
+      if (request && before !== activeLinkSession())
+        await client.invalidateQueries({
+          queryKey: ["workspace-data", request.workspace.id],
+        });
+      return request;
+    },
     enabled: Boolean(token),
     staleTime: 0,
+    refetchInterval: () =>
+      activeLinkSession()?.state.status === "submitted" ? 15000 : false,
   });
 }
 
@@ -163,7 +189,11 @@ export function useWorkspaceRequest(token: string | undefined) {
 const ORG_KEY = ["org"] as const;
 
 export function useOrgIdentity() {
-  return useQuery({ queryKey: [...ORG_KEY, "identity"], queryFn: getOrgIdentity, staleTime: 0 });
+  return useQuery({
+    queryKey: [...ORG_KEY, "identity"],
+    queryFn: getOrgIdentity,
+    staleTime: 0,
+  });
 }
 
 export function useInvalidateOrgIdentity(): () => void {
@@ -186,10 +216,11 @@ export function useInvalidateWorkspaces(): () => void {
   return () => void client.invalidateQueries({ queryKey: KEY });
 }
 
-export function useCreateWorkspace() {
+export function useCreateWorkspace(creationId?: string) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (input: NewWorkspaceInput) => Promise.resolve(createWorkspace(input)),
+    mutationFn: (input: NewWorkspaceInput) =>
+      persistReportChange(() => createWorkspace(input, creationId)),
     onSuccess: () => void client.invalidateQueries({ queryKey: KEY }),
   });
 }
@@ -197,8 +228,13 @@ export function useCreateWorkspace() {
 export function useUpdateWorkspace() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: Partial<VerificationWorkspace> }) =>
-      Promise.resolve(updateWorkspace(id, patch)),
+    mutationFn: ({
+      id,
+      patch,
+    }: {
+      id: string;
+      patch: Partial<VerificationWorkspace>;
+    }) => persistReportChange(() => updateWorkspace(id, patch)),
     onSuccess: () => void client.invalidateQueries({ queryKey: KEY }),
   });
 }
@@ -206,7 +242,7 @@ export function useUpdateWorkspace() {
 export function useArchiveWorkspace() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => Promise.resolve(archiveWorkspace(id)),
+    mutationFn: (id: string) => persistReportChange(() => archiveWorkspace(id)),
     onSuccess: () => void client.invalidateQueries({ queryKey: KEY }),
   });
 }
@@ -214,7 +250,7 @@ export function useArchiveWorkspace() {
 export function useRestoreWorkspace() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => Promise.resolve(restoreWorkspace(id)),
+    mutationFn: (id: string) => persistReportChange(() => restoreWorkspace(id)),
     onSuccess: () => void client.invalidateQueries({ queryKey: KEY }),
   });
 }
@@ -222,13 +258,18 @@ export function useRestoreWorkspace() {
 /* ── New-workspace wizard drafts ───────────────────────────── */
 
 export function useWorkspaceDrafts() {
-  return useQuery({ queryKey: DRAFTS_KEY, queryFn: loadWorkspaceDrafts, staleTime: 0 });
+  return useQuery({
+    queryKey: DRAFTS_KEY,
+    queryFn: loadWorkspaceDrafts,
+    staleTime: 0,
+  });
 }
 
 export function useSaveWorkspaceDraft() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (draft: WorkspaceDraft) => Promise.resolve(saveWorkspaceDraft(draft)),
+    mutationFn: (draft: WorkspaceDraft) =>
+      persistReportChange(() => saveWorkspaceDraft(draft)),
     onSuccess: () => void client.invalidateQueries({ queryKey: DRAFTS_KEY }),
   });
 }
@@ -236,7 +277,8 @@ export function useSaveWorkspaceDraft() {
 export function useDeleteWorkspaceDraft() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => Promise.resolve(deleteWorkspaceDraft(id)),
+    mutationFn: (id: string) =>
+      persistReportChange(() => deleteWorkspaceDraft(id)),
     onSuccess: () => void client.invalidateQueries({ queryKey: DRAFTS_KEY }),
   });
 }

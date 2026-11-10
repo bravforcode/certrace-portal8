@@ -20,7 +20,16 @@
    ════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
-import { Check, ChevronDown, Info, Loader2, MinusCircle, Pencil, Sparkles, TriangleAlert } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  Info,
+  Loader2,
+  MinusCircle,
+  Pencil,
+  Sparkles,
+  TriangleAlert,
+} from "lucide-react";
 import { Button, Modal, Progress, cn } from "@/components/ui";
 import { useT } from "@/lib/i18n";
 import { CONFIDENCE_FLOOR } from "@/lib/workspace-evidence";
@@ -59,8 +68,20 @@ export type SummaryItem = {
 
 function LowPct({ value }: { value: number }) {
   if (value >= CONFIDENCE_FLOOR) return null;
-  const tone = value >= 0.5 ? "text-[#b45309] bg-[#fffbeb]" : "text-[#dc2626] bg-[#fef2f2]";
-  return <span className={cn("flex-none rounded-full px-1.5 py-0.5 font-mono text-[10px]", tone)}>{Math.round(value * 100)}%</span>;
+  const tone =
+    value >= 0.5
+      ? "text-[#b45309] bg-[#fffbeb]"
+      : "text-[#dc2626] bg-[#fef2f2]";
+  return (
+    <span
+      className={cn(
+        "flex-none rounded-full px-1.5 py-0.5 font-mono text-[10px]",
+        tone,
+      )}
+    >
+      {Math.round(value * 100)}%
+    </span>
+  );
 }
 
 function Writes({ writes }: { writes: SummaryWrite[] }) {
@@ -73,7 +94,9 @@ function Writes({ writes }: { writes: SummaryWrite[] }) {
           key={w.label}
           className={cn(
             "flex flex-wrap items-center gap-x-2 gap-y-0.5 rounded-lg border px-2.5 py-1.5 text-[12px]",
-            w.kept ? "border-[#3C7ACB]/25 bg-[#eff6ff] text-[#1d4ed8]" : "border-[rgba(180,83,9,0.2)] bg-[#fffbeb] text-[#92400e]",
+            w.kept
+              ? "border-[#3C7ACB]/25 bg-[#eff6ff] text-[#1d4ed8]"
+              : "border-[rgba(180,83,9,0.2)] bg-[#fffbeb] text-[#92400e]",
           )}
         >
           <Sparkles size={11} className="flex-none" />
@@ -82,8 +105,18 @@ function Writes({ writes }: { writes: SummaryWrite[] }) {
           <span className="min-w-0 flex-1 basis-48">{w.label}</span>
           <span className="ml-auto font-mono">{w.value}</span>
           <LowPct value={w.confidence} />
-          {!w.kept && <span className="w-full pl-5 text-[11px]">{t("Not filled unless you tick it below — check it against the document.")}</span>}
-          {w.kept && w.replaces && <span className="w-full pl-5 text-[11px] text-[#1d4ed8]/70">{t("Replaces {old}", { old: w.replaces })}</span>}
+          {!w.kept && (
+            <span className="w-full pl-5 text-[11px]">
+              {t(
+                "Not filled unless you tick it below — check it against the document.",
+              )}
+            </span>
+          )}
+          {w.kept && w.replaces && (
+            <span className="w-full pl-5 text-[11px] text-[#1d4ed8]/70">
+              {t("Replaces {old}", { old: w.replaces })}
+            </span>
+          )}
         </li>
       ))}
     </ul>
@@ -100,14 +133,17 @@ function Head({ item, icon }: { item: SummaryItem; icon: React.ReactNode }) {
         <div className="min-w-0 flex-1">
           {/* Wraps rather than truncating: on a phone a cut-off name leaves the
               reader unable to tell which of their files a row is about. */}
-          <div className="break-all text-[13px] text-black/85">{item.fileName}</div>
+          <div className="break-all text-[13px] text-black/85">
+            {item.fileName}
+          </div>
           {item.typeLabel && (
             <div className="mt-0.5 text-[12px] text-black/55">
               {item.typeLabel}
               {item.destination && (
                 <>
                   {" "}
-                  <span className="text-black/30">→</span> <span className="text-black/75">{item.destination}</span>
+                  <span className="text-black/30">→</span>{" "}
+                  <span className="text-black/75">{item.destination}</span>
                 </>
               )}
             </div>
@@ -140,7 +176,10 @@ export function DetectionSummary({
   const [editing, setEditing] = React.useState<Set<string>>(new Set());
   const [showNotNeeded, setShowNotNeeded] = React.useState(false);
 
-  const toggle = (set: React.Dispatch<React.SetStateAction<Set<string>>>, id: string) =>
+  const toggle = (
+    set: React.Dispatch<React.SetStateAction<Set<string>>>,
+    id: string,
+  ) =>
     set((cur) => {
       const next = new Set(cur);
       if (next.has(id)) next.delete(id);
@@ -154,9 +193,16 @@ export function DetectionSummary({
   const notNeeded = items.filter((i) => i.status === "notNeeded");
   const read = items.length - reading.length;
 
-  const confirming = [...ready, ...needs.filter((i) => checked.has(i.id) && !i.blocked)];
-  const values = confirming.reduce((a, i) => a + i.writes.filter((w) => w.kept).length, 0);
-  const waiting = needs.length - needs.filter((i) => checked.has(i.id) && !i.blocked).length;
+  const confirming = [
+    ...ready,
+    ...needs.filter((i) => checked.has(i.id) && !i.blocked),
+  ];
+  const values = confirming.reduce(
+    (a, i) => a + i.writes.filter((w) => w.kept).length,
+    0,
+  );
+  const waiting =
+    needs.length - needs.filter((i) => checked.has(i.id) && !i.blocked).length;
 
   const confirm = async () => {
     setBusy(true);
@@ -174,20 +220,45 @@ export function DetectionSummary({
       open={open}
       onClose={onClose}
       eyebrow={t("AI auto-detect")}
-      title={reading.length > 0 ? t("Reading {n} documents…", { n: items.length }) : items.length > 0 ? t("Check and confirm") : t("Nothing waiting for review")}
-      lead={items.length > 0 ? t("Here is what AI found and where each value will go. Nothing is saved until you confirm.") : undefined}
+      title={
+        reading.length > 0
+          ? t("Reading {n} documents…", { n: items.length })
+          : items.length > 0
+            ? t("Check and confirm")
+            : t("Nothing waiting for review")
+      }
+      lead={
+        items.length > 0
+          ? t(
+              "Here is what AI found and where each value will go. Nothing is saved until you confirm.",
+            )
+          : undefined
+      }
       width="max-w-3xl"
       footer={
         <div className="flex w-full flex-wrap items-center justify-end gap-2">
           {waiting > 0 && reading.length === 0 && (
-            <span className="mr-auto text-[12px] text-[#b45309]">{t("{n} still need your tick — they stay here for later.", { n: waiting })}</span>
+            <span className="mr-auto text-[12px] text-[#b45309]">
+              {t("{n} still need your tick — they stay here for later.", {
+                n: waiting,
+              })}
+            </span>
           )}
           <Button size="sm" variant="secondary" onClick={onClose}>
             {confirming.length > 0 ? t("Later") : t("Close")}
           </Button>
           {confirming.length > 0 && (
-            <Button size="sm" onClick={() => void confirm()} disabled={busy || reading.length > 0}>
-              {busy ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} {confirmLabel(confirming.length, values)}
+            <Button
+              size="sm"
+              onClick={() => void confirm()}
+              disabled={busy || reading.length > 0}
+            >
+              {busy ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : (
+                <Check size={13} />
+              )}{" "}
+              {confirmLabel(confirming.length, values)}
             </Button>
           )}
         </div>
@@ -195,8 +266,13 @@ export function DetectionSummary({
     >
       {reading.length > 0 && (
         <div className="mb-4">
-          <div className="mb-1.5 text-[12px] text-black/55">{t("{done} of {total} read", { done: read, total: items.length })}</div>
-          <Progress value={items.length ? (read / items.length) * 100 : 0} tone="info" />
+          <div className="mb-1.5 text-[12px] text-black/55">
+            {t("{done} of {total} read", { done: read, total: items.length })}
+          </div>
+          <Progress
+            value={items.length ? (read / items.length) * 100 : 0}
+            tone="info"
+          />
         </div>
       )}
 
@@ -205,7 +281,9 @@ export function DetectionSummary({
       {items.length > 0 && (
         <p className="mb-4 flex items-start gap-2 rounded-lg border border-black/[0.08] bg-[#faf9f7] px-3 py-2 text-[12px] leading-relaxed text-black/60">
           <Info size={13} className="mt-0.5 flex-none text-black/40" />
-          {t("AI can make mistakes, even on rows marked ready. Check each value against its document before you confirm.")}
+          {t(
+            "AI can make mistakes, even on rows marked ready. Check each value against its document before you confirm.",
+          )}
         </p>
       )}
 
@@ -213,17 +291,37 @@ export function DetectionSummary({
         {needs.length > 0 && (
           <section>
             <h3 className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-[0.12em] text-[#b45309]">
-              <TriangleAlert size={12} /> {t("Needs your check ({n})", { n: needs.length })}
+              <TriangleAlert size={12} />{" "}
+              {t("Needs your check ({n})", { n: needs.length })}
             </h3>
             <ul className="space-y-2.5">
               {needs.map((item) => {
                 const ok = checked.has(item.id) && !item.blocked;
                 return (
-                  <li key={item.id} className={cn("rounded-xl border bg-white px-4 py-3", ok ? "border-[rgba(5,150,105,0.35)]" : "border-[rgba(180,83,9,0.28)]")}>
-                    <Head item={item} icon={<TriangleAlert size={16} className="text-[#b45309]" />} />
-                    {item.reason && <p className="mt-1.5 text-[12px] text-[#b45309]">{item.reason}</p>}
+                  <li
+                    key={item.id}
+                    className={cn(
+                      "rounded-xl border bg-white px-4 py-3",
+                      ok
+                        ? "border-[rgba(5,150,105,0.35)]"
+                        : "border-[rgba(180,83,9,0.28)]",
+                    )}
+                  >
+                    <Head
+                      item={item}
+                      icon={
+                        <TriangleAlert size={16} className="text-[#b45309]" />
+                      }
+                    />
+                    {item.reason && (
+                      <p className="mt-1.5 text-[12px] text-[#b45309]">
+                        {item.reason}
+                      </p>
+                    )}
                     <Writes writes={item.writes} />
-                    <div className="mt-3 rounded-lg border border-black/[0.06] bg-[#faf9f7]">{item.editor}</div>
+                    <div className="mt-3 rounded-lg border border-black/[0.06] bg-[#faf9f7]">
+                      {item.editor}
+                    </div>
                     {/* THE ONE DECISION ON THIS ROW, so it is the loudest thing
                         on it: a full-width control, amber while it waits,
                         green once ticked. A small checkbox at the foot of a
@@ -247,17 +345,41 @@ export function DetectionSummary({
                       <span
                         className={cn(
                           "grid h-[18px] w-[18px] flex-none place-items-center rounded-full border-2",
-                          item.blocked ? "border-black/15 bg-white" : ok ? "border-[#059669] bg-[#059669] text-white" : "border-[#f59e0b] bg-white",
+                          item.blocked
+                            ? "border-black/15 bg-white"
+                            : ok
+                              ? "border-[#059669] bg-[#059669] text-white"
+                              : "border-[#f59e0b] bg-white",
                         )}
                       >
                         {ok && <Check size={11} strokeWidth={3} />}
                       </span>
-                      <span className={cn("text-[13px] font-medium", item.blocked ? "text-black/40" : ok ? "text-[#047857]" : "text-[#92400e]")}>
-                        {item.blocked ? t("Answer the question above first") : ok ? t("Checked — this file will be filed") : t("I've checked this — file it")}
+                      <span
+                        className={cn(
+                          "text-[13px] font-medium",
+                          item.blocked
+                            ? "text-black/40"
+                            : ok
+                              ? "text-[#047857]"
+                              : "text-[#92400e]",
+                        )}
+                      >
+                        {item.blocked
+                          ? t("Answer the question above first")
+                          : ok
+                            ? t("Checked — this file will be filed")
+                            : t("I've checked this — file it")}
                       </span>
                       {!item.blocked && (
-                        <span className={cn("ml-auto text-[11.5px]", ok ? "text-[#047857]/80" : "text-[#b45309]")}>
-                          {ok ? t("Tap again to leave it out.") : t("Unticked files are not filed.")}
+                        <span
+                          className={cn(
+                            "ml-auto text-[11.5px]",
+                            ok ? "text-[#047857]/80" : "text-[#b45309]",
+                          )}
+                        >
+                          {ok
+                            ? t("Tap again to leave it out.")
+                            : t("Unticked files are not filed.")}
                         </span>
                       )}
                     </button>
@@ -275,13 +397,25 @@ export function DetectionSummary({
             </h3>
             <ul className="space-y-2">
               {ready.map((item) => (
-                <li key={item.id} className="rounded-xl border border-black/[0.07] bg-white px-4 py-3">
-                  <Head item={item} icon={<Sparkles size={16} className="text-[#3C7ACB]" />} />
+                <li
+                  key={item.id}
+                  className="rounded-xl border border-black/[0.07] bg-white px-4 py-3"
+                >
+                  <Head
+                    item={item}
+                    icon={<Sparkles size={16} className="text-[#3C7ACB]" />}
+                  />
                   <Writes writes={item.writes} />
                   {editing.has(item.id) ? (
-                    <div className="mt-3 rounded-lg border border-black/[0.06] bg-[#faf9f7]">{item.editor}</div>
+                    <div className="mt-3 rounded-lg border border-black/[0.06] bg-[#faf9f7]">
+                      {item.editor}
+                    </div>
                   ) : (
-                    <button type="button" onClick={() => toggle(setEditing, item.id)} className="mt-2 inline-flex items-center gap-1 text-[12px] text-black/45 hover:text-black">
+                    <button
+                      type="button"
+                      onClick={() => toggle(setEditing, item.id)}
+                      className="mt-2 inline-flex items-center gap-1 text-[12px] text-black/45 hover:text-black"
+                    >
                       <Pencil size={11} /> {t("Change")}
                     </button>
                   )}
@@ -299,19 +433,43 @@ export function DetectionSummary({
               className="flex w-full items-center gap-2 rounded-xl border border-black/[0.07] bg-[#faf9f7] px-4 py-2.5 text-left text-[12.5px] text-black/55 hover:text-black/80"
             >
               <MinusCircle size={14} className="flex-none text-black/30" />
-              <span className="min-w-0 flex-1">{t("{n} not needed — won't be filed", { n: notNeeded.length })}</span>
-              <ChevronDown size={14} className={cn("flex-none transition-transform", showNotNeeded && "rotate-180")} />
+              <span className="min-w-0 flex-1">
+                {t("{n} not needed — won't be filed", { n: notNeeded.length })}
+              </span>
+              <ChevronDown
+                size={14}
+                className={cn(
+                  "flex-none transition-transform",
+                  showNotNeeded && "rotate-180",
+                )}
+              />
             </button>
             {showNotNeeded && (
               <ul className="mt-2 space-y-2">
                 {notNeeded.map((item) => (
-                  <li key={item.id} className="rounded-xl border border-black/[0.07] bg-white px-4 py-3">
-                    <Head item={item} icon={<MinusCircle size={16} className="text-black/30" />} />
-                    {item.reason && <p className="mt-1 text-[12px] text-black/50">{item.reason}</p>}
+                  <li
+                    key={item.id}
+                    className="rounded-xl border border-black/[0.07] bg-white px-4 py-3"
+                  >
+                    <Head
+                      item={item}
+                      icon={<MinusCircle size={16} className="text-black/30" />}
+                    />
+                    {item.reason && (
+                      <p className="mt-1 text-[12px] text-black/50">
+                        {item.reason}
+                      </p>
+                    )}
                     {editing.has(item.id) ? (
-                      <div className="mt-3 rounded-lg border border-black/[0.06] bg-[#faf9f7]">{item.editor}</div>
+                      <div className="mt-3 rounded-lg border border-black/[0.06] bg-[#faf9f7]">
+                        {item.editor}
+                      </div>
                     ) : (
-                      <button type="button" onClick={() => toggle(setEditing, item.id)} className="mt-2 inline-flex items-center gap-1 text-[12px] text-black/45 hover:text-black">
+                      <button
+                        type="button"
+                        onClick={() => toggle(setEditing, item.id)}
+                        className="mt-2 inline-flex items-center gap-1 text-[12px] text-black/45 hover:text-black"
+                      >
                         <Pencil size={11} /> {t("It is needed")}
                       </button>
                     )}
@@ -325,16 +483,30 @@ export function DetectionSummary({
         {reading.length > 0 && (
           <ul className="space-y-2">
             {reading.map((item) => (
-              <li key={item.id} className="flex items-center gap-3 rounded-xl border border-black/[0.07] bg-white px-4 py-3">
-                <Loader2 size={16} className="flex-none animate-spin text-[#3C7ACB]" />
-                <span className="min-w-0 flex-1 break-all text-[13px] text-black/75">{item.fileName}</span>
-                <span className="text-[11.5px] text-[#3C7ACB]">{t("AI is reading the document…")}</span>
+              <li
+                key={item.id}
+                className="flex items-center gap-3 rounded-xl border border-black/[0.07] bg-white px-4 py-3"
+              >
+                <Loader2
+                  size={16}
+                  className="flex-none animate-spin text-[#3C7ACB]"
+                />
+                <span className="min-w-0 flex-1 break-all text-[13px] text-black/75">
+                  {item.fileName}
+                </span>
+                <span className="text-[11.5px] text-[#3C7ACB]">
+                  {t("AI is reading the document…")}
+                </span>
               </li>
             ))}
           </ul>
         )}
 
-        {items.length === 0 && <p className="text-[13px] text-black/45">{t("Everything you dropped has been filed or set aside.")}</p>}
+        {items.length === 0 && (
+          <p className="text-[13px] text-black/45">
+            {t("Everything you dropped has been filed or set aside.")}
+          </p>
+        )}
       </div>
     </Modal>
   );

@@ -42,7 +42,10 @@ export function DocumentPreview({
   heading,
 }: {
   /* Structural, so the Supplier Portal's intake cards can use it too. */
-  doc: Pick<IntakeDoc, "fileName" | "mimeType" | "fileDataUrl" | "detection" | "fields">;
+  doc: Pick<
+    IntakeDoc,
+    "fileName" | "mimeType" | "fileDataUrl" | "detection" | "fields"
+  >;
   open: boolean;
   onClose: () => void;
   /** translated label for an extracted field key */
@@ -63,7 +66,9 @@ export function DocumentPreview({
     };
   }, [open, doc.fileDataUrl]);
 
-  const isPdf = doc.mimeType === "application/pdf" || doc.fileName.toLowerCase().endsWith(".pdf");
+  const isPdf =
+    doc.mimeType === "application/pdf" ||
+    doc.fileName.toLowerCase().endsWith(".pdf");
   const isImage = doc.mimeType.startsWith("image/");
   const d = doc.detection;
 
@@ -77,7 +82,11 @@ export function DocumentPreview({
       footer={
         <>
           {url && (
-            <Button size="sm" variant="secondary" onClick={() => window.open(url, "_blank", "noopener")}>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => window.open(url, "_blank", "noopener")}
+            >
               <ExternalLink size={13} /> {t("Open in a new tab")}
             </Button>
           )}
@@ -90,37 +99,79 @@ export function DocumentPreview({
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="min-h-[50vh] overflow-hidden rounded-xl border border-black/[0.08] bg-[#f5f4f0]">
           {!doc.fileDataUrl ? (
-            <p className="p-6 text-[13px] text-black/50">{t("This file is too large to keep in the browser, so there is nothing to show.")}</p>
+            <p className="p-6 text-[13px] text-black/50">
+              {t(
+                "This file is too large to keep in the browser, so there is nothing to show.",
+              )}
+            </p>
           ) : !url ? null : isPdf ? (
-            <iframe src={url} title={doc.fileName} className="h-[65vh] w-full bg-white" />
+            <iframe
+              src={url}
+              title={doc.fileName}
+              className="h-[65vh] w-full bg-white"
+            />
           ) : isImage ? (
             // eslint-disable-next-line @next/next/no-img-element -- a blob: URL, not an optimisable asset
-            <img src={url} alt={doc.fileName} className="mx-auto max-h-[65vh] object-contain" />
+            <img
+              src={url}
+              alt={doc.fileName}
+              className="mx-auto max-h-[65vh] object-contain"
+            />
           ) : (
-            <p className="p-6 text-[13px] text-black/50">{t("No preview for this file type. Open it in a new tab instead.")}</p>
+            <p className="p-6 text-[13px] text-black/50">
+              {t(
+                "No preview for this file type. Open it in a new tab instead.",
+              )}
+            </p>
           )}
         </div>
 
         <aside className="min-w-0">
-          <div className="text-[11px] uppercase tracking-[0.1em] text-black/45">{t("What Certrace read")}</div>
-          {d?.summary && <p className="mt-2 text-[12.5px] leading-relaxed text-black/60">{t(d.summary)}</p>}
+          <div className="text-[11px] uppercase tracking-[0.1em] text-black/45">
+            {t("What Certrace read")}
+          </div>
+          {d?.summary && (
+            <p className="mt-2 text-[12.5px] leading-relaxed text-black/60">
+              {t(d.summary)}
+            </p>
+          )}
           {doc.fields.length === 0 ? (
-            <p className="mt-3 text-[12.5px] text-black/45">{t("No values were read from this document.")}</p>
+            <p className="mt-3 text-[12.5px] text-black/45">
+              {t("No values were read from this document.")}
+            </p>
           ) : (
             <ul className="mt-3 divide-y divide-black/[0.06]">
               {doc.fields.map((f) => {
                 const low = f.confidence < CONFIDENCE_FLOOR;
                 return (
-                  <li key={f.key} className={cn("py-2", low && "rounded-lg bg-[#fffbeb] px-2")}>
+                  <li
+                    key={f.key}
+                    className={cn(
+                      "py-2",
+                      low && "rounded-lg bg-[#fffbeb] px-2",
+                    )}
+                  >
                     <div className="flex items-center justify-between gap-2 text-[11.5px] text-black/50">
                       <span>{labelFor(f.key)}</span>
-                      <span className={cn("font-mono", low ? "text-[#b45309]" : "text-[#047857]")}>{Math.round(f.confidence * 100)}%</span>
+                      <span
+                        className={cn(
+                          "font-mono",
+                          low ? "text-[#b45309]" : "text-[#047857]",
+                        )}
+                      >
+                        {Math.round(f.confidence * 100)}%
+                      </span>
                     </div>
                     <div className="mt-0.5 flex items-center justify-between gap-2">
                       <span className="font-mono text-[13px] text-black/85">
                         {f.value} {f.unit ?? ""}
                       </span>
-                      <span className={cn("inline-flex items-center gap-1 text-[10.5px]", f.accepted ? "text-[#047857]" : "text-black/35")}>
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-1 text-[10.5px]",
+                          f.accepted ? "text-[#047857]" : "text-black/35",
+                        )}
+                      >
                         {f.accepted ? <Check size={11} /> : <Minus size={11} />}
                         {f.accepted ? t("kept") : t("not kept")}
                       </span>

@@ -3,11 +3,26 @@
 import * as React from "react";
 import Link from "next/link";
 import { ArrowRight, ArrowLeft, ShieldCheck } from "lucide-react";
-import { Button, ButtonLink, Field, inputClass, Eyebrow } from "@/components/ui";
-import { AuthLayout, PasswordStrength, AuthUnavailable } from "@/components/auth-panel";
+import {
+  Button,
+  ButtonLink,
+  Field,
+  inputClass,
+  Eyebrow,
+} from "@/components/ui";
+import {
+  AuthLayout,
+  PasswordStrength,
+  AuthUnavailable,
+} from "@/components/auth-panel";
 import { EnglishOnly, storedLang, useT } from "@/lib/i18n";
-import { authUnavailable, demoModeEnabled, hasCode, isApiError, resetPassword } from "@/lib/api";
-import { CODE_RE, EMAIL_RE, forgetResetEmail, recallResetEmail } from "@/lib/password-reset";
+import { authUnavailable, hasCode, isApiError, resetPassword } from "@/lib/api";
+import {
+  CODE_RE,
+  EMAIL_RE,
+  forgetResetEmail,
+  recallResetEmail,
+} from "@/lib/password-reset";
 
 // English-only, like the rest of the auth screens — see lib/i18n.tsx.
 export default function ResetPasswordPage() {
@@ -51,7 +66,10 @@ function ResetPasswordScreen() {
   const address = email.trim();
   const mismatch = confirm.length > 0 && confirm !== password;
   const canSubmit =
-    EMAIL_RE.test(address) && CODE_RE.test(code) && password.length >= 8 && confirm === password;
+    EMAIL_RE.test(address) &&
+    CODE_RE.test(code) &&
+    password.length >= 8 &&
+    confirm === password;
 
   /* Build-time truth, so it cannot cause a hydration mismatch. No backend
      issued the code being typed here, and nothing could accept it. */
@@ -62,16 +80,6 @@ function ResetPasswordScreen() {
     if (!canSubmit || loading) return;
     setLoading(true);
     setError("");
-
-    /* `next dev`, or a build that asked for the demo by name — same simulated
-       path /forgot-password takes, so the demo walks end to end. A production
-       build with no backend never renders this form. See demoModeEnabled(). */
-    if (demoModeEnabled()) {
-      await new Promise((resolve) => window.setTimeout(resolve, 700));
-      setLoading(false);
-      finish();
-      return;
-    }
 
     try {
       await resetPassword({
@@ -86,11 +94,21 @@ function ResetPasswordScreen() {
          tell the difference apart without saying whether the code was ever
          real, and the answer is the same either way: ask for a new one. */
       if (hasCode(cause, "INVALID_RESET_TOKEN")) {
-        setError(t("That code is wrong or has expired. Codes last 15 minutes and work once."));
+        setError(
+          t(
+            "That code is wrong or has expired. Codes last 15 minutes and work once.",
+          ),
+        );
       } else if (isApiError(cause) && cause.retryable) {
-        setError(t("We couldn't reach the server. Check your connection and try again."));
+        setError(
+          t(
+            "We couldn't reach the server. Check your connection and try again.",
+          ),
+        );
       } else {
-        setError(t("That didn't work. Please request a new code and try again."));
+        setError(
+          t("That didn't work. Please request a new code and try again."),
+        );
       }
     } finally {
       setLoading(false);
@@ -108,95 +126,119 @@ function ResetPasswordScreen() {
 
   return (
     <AuthLayout>
-      <Link href="/forgot-password" className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.1em] text-black/40 hover:text-black">
+      <Link
+        href="/forgot-password"
+        className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.1em] text-black/40 hover:text-black"
+      >
         <ArrowLeft size={13} strokeWidth={1.5} /> {t("Back")}
       </Link>
 
-      <p className="mt-5 text-[11px] uppercase tracking-[0.1em] text-black/40">{t("Exporter portal")}</p>
+      <p className="mt-5 text-[11px] uppercase tracking-[0.1em] text-black/40">
+        {t("Exporter portal")}
+      </p>
       <h2 className="mt-3 font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111]">
         {t("Enter your code.")}
       </h2>
       <p className="mt-2 text-sm text-black/45">
-        {t("Type the six-digit code from the email, then choose a new password.")}
+        {t(
+          "Type the six-digit code from the email, then choose a new password.",
+        )}
       </p>
 
       {unavailable && (
-        <AuthUnavailable lead={t("Accounts aren't open on this deployment yet — there's no code to verify.")} />
+        <AuthUnavailable
+          lead={t(
+            "Accounts aren't open on this deployment yet — there's no code to verify.",
+          )}
+        />
       )}
 
       {!unavailable && (
-      <form onSubmit={submit} className="mt-7 space-y-4">
-        <Field label={t("Work email")}>
-          <input
-            className={inputClass}
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder={t("you@company.com")}
-            autoComplete="username"
-            required
-          />
-        </Field>
+        <form onSubmit={submit} className="mt-7 space-y-4">
+          <Field label={t("Work email")}>
+            <input
+              className={inputClass}
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder={t("you@company.com")}
+              autoComplete="username"
+              required
+            />
+          </Field>
 
-        <Field label={t("Verification code")}>
-          {/* Non-digits are dropped as they are typed rather than rejected on
+          <Field label={t("Verification code")}>
+            {/* Non-digits are dropped as they are typed rather than rejected on
               submit: the code is copied out of an email, and a stray space at
               either end is the most likely thing to come with it.
               `one-time-code` is what lets iOS and Android offer it from the
               notification without opening the mail app. */}
-          <input
-            className={`${inputClass} text-center font-[family-name:var(--font-mono)] text-lg tracking-[0.4em]`}
-            type="text"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={6}
-            value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-            placeholder="000000"
-            required
-          />
-        </Field>
+            <input
+              className={`${inputClass} text-center font-[family-name:var(--font-mono)] text-lg tracking-[0.4em]`}
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              value={code}
+              onChange={(e) =>
+                setCode(e.target.value.replace(/\D/g, "").slice(0, 6))
+              }
+              placeholder="000000"
+              required
+            />
+          </Field>
 
-        <Field label={t("New password")}>
-          <input
-            className={inputClass}
-            type="password"
-            placeholder={t("At least 8 characters")}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="new-password"
-            required
-            minLength={8}
-          />
-          <PasswordStrength value={password} />
-        </Field>
+          <Field label={t("New password")}>
+            <input
+              className={inputClass}
+              type="password"
+              placeholder={t("At least 8 characters")}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="new-password"
+              required
+              minLength={8}
+            />
+            <PasswordStrength value={password} />
+          </Field>
 
-        <Field label={t("Confirm password")}>
-          <input
-            className={inputClass}
-            type="password"
-            placeholder={t("Re-enter password")}
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-            autoComplete="new-password"
-            required
-          />
-          {mismatch && <span className="mt-1.5 block text-xs text-[#dc2626]">{t("Passwords don't match.")}</span>}
-        </Field>
+          <Field label={t("Confirm password")}>
+            <input
+              className={inputClass}
+              type="password"
+              placeholder={t("Re-enter password")}
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              autoComplete="new-password"
+              required
+            />
+            {mismatch && (
+              <span className="mt-1.5 block text-xs text-[#dc2626]">
+                {t("Passwords don't match.")}
+              </span>
+            )}
+          </Field>
 
-        {error && <p className="text-xs text-[#dc2626]">{error}</p>}
+          {error && <p className="text-xs text-[#dc2626]">{error}</p>}
 
-        <Button type="submit" className="w-full" disabled={loading || !canSubmit}>
-          {loading ? t("Setting password…") : t("Set new password")}
-          {!loading && <ArrowRight size={15} strokeWidth={1.5} />}
-        </Button>
-      </form>
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={loading || !canSubmit}
+          >
+            {loading ? t("Setting password…") : t("Set new password")}
+            {!loading && <ArrowRight size={15} strokeWidth={1.5} />}
+          </Button>
+        </form>
       )}
 
       {!unavailable && (
         <p className="mt-6 text-center text-[13px] text-black/45">
           {t("Code expired or never arrived?")}{" "}
-          <Link href="/forgot-password" className="text-black/70 underline-offset-2 hover:text-black hover:underline">
+          <Link
+            href="/forgot-password"
+            className="text-black/70 underline-offset-2 hover:text-black hover:underline"
+          >
             {t("Send a new one")}
           </Link>
         </p>
@@ -220,7 +262,9 @@ function DoneScreen() {
         {t("Password updated.")}
       </h2>
       <p className="mt-3 text-sm leading-relaxed text-black/45">
-        {t("You can sign in with your new password now. We've emailed a confirmation — if that change wasn't you, reply to it straight away.")}
+        {t(
+          "You can sign in with your new password now. We've emailed a confirmation — if that change wasn't you, reply to it straight away.",
+        )}
       </p>
       <ButtonLink href="/login" className="mt-7 w-full">
         {t("Sign in")}

@@ -60,16 +60,24 @@ import { downloadPrecursorNodeExport } from "@/lib/cbam/precursor-node-export";
 import type { TreeNode } from "@/types/supplier-tree";
 import { useT } from "@/lib/i18n";
 
-export function ActionButton({ tone = "default", ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { tone?: "default" | "primary" | "warn" }) {
+export function ActionButton({
+  tone = "default",
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  tone?: "default" | "primary" | "warn";
+}) {
   return (
     <button
       type="button"
       {...props}
       className={cn(
         "rounded-lg border px-2.5 py-1 text-[10.5px] uppercase tracking-[0.06em] transition-colors disabled:cursor-not-allowed disabled:opacity-40",
-        tone === "primary" && "border-[rgba(180,83,9,0.3)] bg-[#fffbeb] text-[#b45309] hover:bg-[#fef3c7]",
-        tone === "warn" && "border-[rgba(220,38,38,0.2)] bg-[#fef2f2] text-[#dc2626] hover:bg-[#fee2e2]",
-        tone === "default" && "border-black/12 text-black/55 hover:border-black/25 hover:bg-black/[0.03] hover:text-black",
+        tone === "primary" &&
+          "border-[rgba(180,83,9,0.3)] bg-[#fffbeb] text-[#b45309] hover:bg-[#fef3c7]",
+        tone === "warn" &&
+          "border-[rgba(220,38,38,0.2)] bg-[#fef2f2] text-[#dc2626] hover:bg-[#fee2e2]",
+        tone === "default" &&
+          "border-black/12 text-black/55 hover:border-black/25 hover:bg-black/[0.03] hover:text-black",
         props.className,
       )}
     />
@@ -103,7 +111,8 @@ export function ActionLink({
       className={cn(
         "rounded-lg border px-2.5 py-1 text-[10.5px] uppercase tracking-[0.06em] transition-colors",
         tone === "solid" && "border-black bg-[#111] text-white hover:bg-[#333]",
-        tone === "default" && "border-black/12 text-black/55 hover:border-black/25 hover:bg-black/[0.03] hover:text-black",
+        tone === "default" &&
+          "border-black/12 text-black/55 hover:border-black/25 hover:bg-black/[0.03] hover:text-black",
         className,
       )}
     >
@@ -138,13 +147,21 @@ export function ActionLink({
    route's LABEL (see supplier-editor.tsx's picker), not its id, so it has to
    be resolved back to an id before it means anything to lib/workspace.ts's
    route picker. */
-function TrackReportAction({ workspaceId, node }: { workspaceId: string; node: TreeNode }) {
+function TrackReportAction({
+  workspaceId,
+  node,
+}: {
+  workspaceId: string;
+  node: TreeNode;
+}) {
   const t = useT();
   if (node.kind === "installation") {
     return (
       <ActionLink
         href={`/workspaces/${workspaceId}`}
-        title={t("Open this installation's own workspace — its months, its MMD and its readiness are this product's report.")}
+        title={t(
+          "Open this installation's own product report — its months, its MMD and its readiness are this product's report.",
+        )}
       >
         {t("Track report")}
       </ActionLink>
@@ -156,21 +173,31 @@ function TrackReportAction({ workspaceId, node }: { workspaceId: string; node: T
 
   if (supplier.linkedWorkspaceId) {
     return (
-      <ActionLink href={`/workspaces/${supplier.linkedWorkspaceId}`} title={t("Open the report workspace already open for this precursor.")}>
+      <ActionLink
+        href={`/workspaces/${supplier.linkedWorkspaceId}`}
+        title={t("Open the product report already open for this precursor.")}
+      >
         {t("Track report")}
       </ActionLink>
     );
   }
 
-  const routeId = PRODUCTION_ROUTES.find((r) => r.label === supplier.productionRoute)?.id;
-  const qs = new URLSearchParams({ precursorId: supplier.id, parentWorkspaceId: workspaceId });
+  const routeId = PRODUCTION_ROUTES.find(
+    (r) => r.label === supplier.productionRoute,
+  )?.id;
+  const qs = new URLSearchParams({
+    precursorId: supplier.id,
+    parentWorkspaceId: workspaceId,
+  });
   if (supplier.catalogProductId) qs.set("productId", supplier.catalogProductId);
   if (routeId) qs.set("route", routeId);
 
   return (
     <ActionLink
       href={`/workspaces/new?${qs.toString()}`}
-      title={t("Open a report workspace for this precursor — same months, MMD and readiness as your own, pre-filled with what this row already knows.")}
+      title={t(
+        "Open a product report for this precursor — same months, MMD and readiness as your own, pre-filled with what this row already knows.",
+      )}
     >
       {t("Track report")}
     </ActionLink>
@@ -193,7 +220,13 @@ function TrackReportAction({ workspaceId, node }: { workspaceId: string; node: T
    every tier behaved differently at tier 1, and the reader lost their place
    in the chain to find out. The destination is not gone: it is the first
    entry in the dialog's own "where these figures are entered" list. */
-function EnterVerifiedDataAction({ node, onEnterVerifiedData }: { node: TreeNode; onEnterVerifiedData?: (node: TreeNode) => void }) {
+function EnterVerifiedDataAction({
+  node,
+  onEnterVerifiedData,
+}: {
+  node: TreeNode;
+  onEnterVerifiedData?: (node: TreeNode) => void;
+}) {
   const t = useT();
   if (!onEnterVerifiedData) return null;
   return (
@@ -201,7 +234,7 @@ function EnterVerifiedDataAction({ node, onEnterVerifiedData }: { node: TreeNode
       onClick={() => onEnterVerifiedData(node)}
       title={
         node.kind === "installation"
-          ? "This installation's verified figures are the year held in its own workspace — ask for a month, or open the screen it is entered on."
+          ? "This installation's verified figures are the year held in its own product report — ask for a month, or open the screen it is entered on."
           : "Record the verified figure, its documents and its verification checks for this entity."
       }
     >
@@ -264,7 +297,10 @@ export function ChainJourneyActions({
   return (
     <div className={cn("flex flex-wrap items-center gap-1.5", className)}>
       <TrackReportAction workspaceId={workspaceId} node={node} />
-      <EnterVerifiedDataAction node={node} onEnterVerifiedData={onEnterVerifiedData} />
+      <EnterVerifiedDataAction
+        node={node}
+        onEnterVerifiedData={onEnterVerifiedData}
+      />
       {showStage && <StageMeter node={node} />}
     </div>
   );
@@ -275,7 +311,11 @@ export function ChainJourneyActions({
 export function hasSubmissionRecord(node: TreeNode): boolean {
   if (node.kind !== "precursor") return false;
   const s = computeNodeStatus(node);
-  return s === "SUBMITTED_PENDING_VERIFICATION" || s === "VERIFIED" || s === "VERIFICATION_EXPIRED";
+  return (
+    s === "SUBMITTED_PENDING_VERIFICATION" ||
+    s === "VERIFIED" ||
+    s === "VERIFICATION_EXPIRED"
+  );
 }
 
 /* ── What this row can hand over ────────────────────────────────
@@ -316,7 +356,9 @@ export function ChainDocumentActions({
   return (
     <div className={cn("flex flex-wrap items-center gap-1.5", className)}>
       <ActionButton
-        title={t("Download this entity's submission record — the figure, its provenance and its verification checks, as handed to a verifier.")}
+        title={t(
+          "Download this entity's submission record — the figure, its provenance and its verification checks, as handed to a verifier.",
+        )}
         onClick={() => {
           const supplier = getSupplier(workspaceId, node.id);
           if (supplier) downloadPrecursorNodeExport(supplier);

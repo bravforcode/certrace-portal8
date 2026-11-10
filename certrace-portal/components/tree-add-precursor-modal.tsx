@@ -36,7 +36,12 @@
 import * as React from "react";
 import { Button, Modal } from "@/components/ui";
 import { SupplierFields } from "@/components/workspace/supplier-form";
-import { canSaveSupplier, emptySupplier as emptySupplierCompany, saveSupplierCompany, type SupplierCompany } from "@/lib/supplier-companies";
+import {
+  canSaveSupplier,
+  emptySupplier as emptySupplierCompany,
+  saveSupplierCompany,
+  type SupplierCompany,
+} from "@/lib/supplier-companies";
 import { emptySupplier, saveSupplier } from "@/lib/precursor-suppliers";
 import { precursorEntityId } from "@/lib/supplier-tree";
 import { wouldCreateCycle } from "@/lib/cbam/tree-validation";
@@ -58,7 +63,9 @@ export function TreeAddPrecursorModal({
   onAdded: (newSupplierId: string) => void;
 }) {
   const t = useT();
-  const [draft, setDraft] = React.useState<SupplierCompany>(emptySupplierCompany());
+  const [draft, setDraft] = React.useState<SupplierCompany>(
+    emptySupplierCompany(),
+  );
   const [conflict, setConflict] = React.useState<string | null>(null);
 
   React.useEffect(() => {
@@ -120,8 +127,12 @@ export function TreeAddPrecursorModal({
       open={parent != null}
       onClose={onClose}
       eyebrow={t("Precursor")}
-      title={parent ? `Add a precursor under ${parent.name}` : "Add a precursor"}
-      lead={t("Who supplies this, and where each month's request goes. What they actually ship — the material, its CN code and its emissions figure — is answered afterwards, either by them on their own link or by you in Enter verified data.")}
+      title={
+        parent ? `Add a precursor under ${parent.name}` : "Add a precursor"
+      }
+      lead={t(
+        "Who supplies this, and where each month's request goes. What they actually ship — the material, its CN code and its emissions figure — is answered afterwards, either by them on their own link or by you in Enter verified data.",
+      )}
       width="max-w-2xl"
       footer={
         <>
@@ -137,7 +148,9 @@ export function TreeAddPrecursorModal({
       <div className="space-y-5">
         <SupplierFields value={draft} onChange={change} />
         {conflict && (
-          <p className="rounded-lg border border-[#fecaca] bg-[#fef2f2] px-3 py-2 text-[12.5px] leading-relaxed text-[#991b1b]">{conflict}</p>
+          <p className="rounded-lg border border-[#fecaca] bg-[#fef2f2] px-3 py-2 text-[12.5px] leading-relaxed text-[#991b1b]">
+            {conflict}
+          </p>
         )}
       </div>
     </Modal>

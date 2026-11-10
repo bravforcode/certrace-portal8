@@ -3,6 +3,8 @@
 
 "use client";
 
+import { useSyncExternalStore } from "react";
+import { companyDirectory, subscribeAccount } from "./account-storage";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { loadTeam } from "./team-store";
 
@@ -18,3 +20,6 @@ export function useInvalidateTeam(): () => void {
   const client = useQueryClient();
   return () => void client.invalidateQueries({ queryKey: KEY });
 }
+
+export const useCompanyDirectory = () =>
+  useSyncExternalStore(subscribeAccount, companyDirectory, () => null);

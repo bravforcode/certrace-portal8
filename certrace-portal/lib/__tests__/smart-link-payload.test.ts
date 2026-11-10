@@ -47,7 +47,18 @@ function resolution(over: Partial<LinkResolution> = {}): LinkResolution {
     },
     request: {
       products: [
-        { productId: "hrc", lots: [{ qty: 200, unit: "tonnes (t)", from: "2026-04-01", to: "2026-05-31", notes: "" }] },
+        {
+          productId: "hrc",
+          lots: [
+            {
+              qty: 200,
+              unit: "tonnes (t)",
+              from: "2026-04-01",
+              to: "2026-05-31",
+              notes: "",
+            },
+          ],
+        },
       ],
     },
     state: emptyState(TOKEN),
@@ -82,8 +93,14 @@ test("builds this supplier's request straight from the resolve payload", () => {
   assert.equal(req.products.length, 1);
   assert.equal(req.products[0].product.id, "hrc");
   assert.equal(req.products[0].totalTonnes, 200);
-  assert.ok(req.fields.length > 0, "the CBAM checklist must resolve from config");
-  assert.ok(req.documents.length > 0, "the requested documents must resolve from config");
+  assert.ok(
+    req.fields.length > 0,
+    "the CBAM checklist must resolve from config",
+  );
+  assert.ok(
+    req.documents.length > 0,
+    "the requested documents must resolve from config",
+  );
 
   // A month in the token is the monthly cadence signal.
   assert.equal(req.cadence, "monthly");
@@ -91,14 +108,24 @@ test("builds this supplier's request straight from the resolve payload", () => {
 });
 
 test("a payload with no declaration slice is treated as an unopenable link", () => {
-  assert.equal(buildFromPayload(TOKEN, resolution({ declaration: undefined as never })), null);
+  assert.equal(
+    buildFromPayload(TOKEN, resolution({ declaration: undefined as never })),
+    null,
+  );
 });
 
 test("an empty product spec falls back to material-based synthesis", () => {
   // A supplier the exporter mapped but never gave a product spec still gets a
   // form, built from their material — never a blank page.
-  const req = buildFromPayload(TOKEN, resolution({ request: { products: [] } }));
+  const req = buildFromPayload(
+    TOKEN,
+    resolution({ request: { products: [] } }),
+  );
   assert.ok(req);
-  assert.equal(req.products.length, 1, "synthesised one product from the material");
+  assert.equal(
+    req.products.length,
+    1,
+    "synthesised one product from the material",
+  );
   assert.ok(req.fields.length > 0);
 });

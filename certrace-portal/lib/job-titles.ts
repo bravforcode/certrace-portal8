@@ -11,7 +11,10 @@ export const JOB_TITLES = [
   "Legal Counsel",
 ];
 
-export const JOB_TITLE_OPTIONS = [...JOB_TITLES.map((t) => ({ value: t, label: t })), { value: "other", label: "Other — say which" }];
+export const JOB_TITLE_OPTIONS = [
+  ...JOB_TITLES.map((t) => ({ value: t, label: t })),
+  { value: "other", label: "Other — say which" },
+];
 
 /* ── "Other" obliges a description ──────────────────────────────
    Both call sites used to write `jobTitleOther || "Other"`, so choosing Other
@@ -22,8 +25,10 @@ export const JOB_TITLE_OPTIONS = [...JOB_TITLES.map((t) => ({ value: t, label: t
 
    One rule, two screens — the settings form and onboarding gate on the same
    pair of helpers rather than each writing their own fallback. */
-export const jobTitleIncomplete = (option: string, other: string): boolean => option === "other" && !other.trim();
+export const jobTitleIncomplete = (option: string, other: string): boolean =>
+  option === "other" && !other.trim();
 
 /** What actually gets stored. Never a bare "Other" — callers gate on
     `jobTitleIncomplete` first, and this trims what they typed. */
-export const jobTitleValue = (option: string, other: string): string => (option === "other" ? other.trim() : option);
+export const jobTitleValue = (option: string, other: string): string =>
+  option === "other" ? other.trim() : option;

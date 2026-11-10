@@ -1,10 +1,10 @@
+import { accountStorage } from "./account-storage";
 /* ════════════════════════════════════════════════════════════
    EXPORTER REVIEW — the other half of the smartlink seam (flow steps 4–10)
 
    The supplier fills /s/<token>, the AI checks it, they e-sign and submit
-   (steps 1–3). Everything they produce lands in localStorage under
-   `certrace:supplier:<token>` (see lib/supplier-store.ts). This module is what
-   the EXPORTER reads back and acts on:
+   (steps 1–3). Link state is stored by the backend and account review data
+   is held in PostgreSQL records. This module is what the exporter reads:
 
      4  Submission status (Submitted / In Review) per supplier
      5  AI Executive Summary  — derived from the same data + ai-check
@@ -15,17 +15,13 @@
      9  Review the resubmission, approve
      10 Verification-ready package from the approved submissions
 
-   "Same input, same output": a submission is read straight from the supplier's
-   own state when it exists in this browser; otherwise a deterministic stand-in
-   is synthesised from the SAME fixtures + config the supplier form resolves, so
-   the AI check, score and figures match what the smartlink would produce.
+   A submission needs actual link state or a saved supplier record. A status
+   label alone never manufactures answers, evidence, or a signature.
 
-   The exporter's own decisions (reviewers, approvals, revision requests, package
-   + filing) persist under `certrace:exporter:<declId>`. Both stores are the seam
-   where a real API slots in.
+   The exporter's own decisions persist under `certrace:exporter:<declId>`.
    ════════════════════════════════════════════════════════════ */
 
-import { type Declaration, type SupplierRow, getDeclaration } from "./data";
+import { type Declaration, type SupplierRow } from "./data";
 import { getOrgIdentity } from "./org";
 import {
   makeToken,
@@ -160,7 +156,7 @@ export function loadExporterState(declId: string): ExporterDeclState {
   };
   if (typeof window === "undefined") return empty;
   try {
-    const raw = window.localStorage.getItem(keyFor(declId));
+    const raw = accountStorage.getItem(keyFor(declId));
     if (!raw) return empty;
     // Deep-default the nested objects: a shallow spread lets a partial/legacy
     // persisted blob drop `dispatch.acknowledgedAt` or a `recipients` key, and
@@ -182,7 +178,7 @@ export function loadExporterState(declId: string): ExporterDeclState {
 export function saveExporterState(state: ExporterDeclState): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(keyFor(state.declId), JSON.stringify(state));
+    accountStorage.setItem(keyFor(state.declId), JSON.stringify(state));
   } catch {
     /* ignore quota */
   }
@@ -191,17 +187,45 @@ export function saveExporterState(state: ExporterDeclState): void {
 /* ── Internal reviewers the exporter can assign (step 6) ───── */
 export type Reviewer = { id: string; name: string; role: string; dept: string };
 export const REVIEWERS: Reviewer[] = [
-  { id: "esg", name: "Ananya P.", role: "ESG / Sustainability", dept: "Sustainability" },
-  { id: "compliance", name: "Wasawat K.", role: "Compliance lead", dept: "Compliance" },
-  { id: "legal", name: "Krit Legal Partners", role: "Legal counsel", dept: "Legal" },
-  { id: "verifier", name: "TÜV SÜD", role: "Accredited verifier", dept: "Assurance" },
+  {
+    id: "esg",
+    name: "Ananya P.",
+    role: "ESG / Sustainability",
+    dept: "Sustainability",
+  },
+  {
+    id: "compliance",
+    name: "Wasawat K.",
+    role: "Compliance lead",
+    dept: "Compliance",
+  },
+  {
+    id: "legal",
+    name: "Krit Legal Partners",
+    role: "Legal counsel",
+    dept: "Legal",
+  },
+  {
+    id: "verifier",
+    name: "TÜV SÜD",
+    role: "Accredited verifier",
+    dept: "Assurance",
+  },
 ];
 export const getReviewer = (id: string) => REVIEWERS.find((r) => r.id === id);
 
 /* ── Lifecycle of a single submission ──────────────────────── */
-export type Lifecycle = "awaiting" | "submitted" | "in_review" | "changes_requested" | "approved";
+export type Lifecycle =
+  | "awaiting"
+  | "submitted"
+  | "in_review"
+  | "changes_requested"
+  | "approved";
 
-export const LIFECYCLE_META: Record<Lifecycle, { label: string; tone: "ok" | "info" | "warn" | "err" | "muted" }> = {
+export const LIFECYCLE_META: Record<
+  Lifecycle,
+  { label: string; tone: "ok" | "info" | "warn" | "err" | "muted" }
+> = {
   awaiting: { label: "awaiting", tone: "muted" },
   submitted: { label: "submitted", tone: "info" },
   in_review: { label: "in review", tone: "info" },
@@ -209,7 +233,14 @@ export const LIFECYCLE_META: Record<Lifecycle, { label: string; tone: "ok" | "in
   approved: { label: "approved", tone: "ok" },
 };
 
-export type EmissionLine = { productId: string; productName: string; cnCode: string; perTonne: number; tonnes: number; total: number };
+export type EmissionLine = {
+  productId: string;
+  productName: string;
+  cnCode: string;
+  perTonne: number;
+  tonnes: number;
+  total: number;
+};
 
 export type ReviewSubmission = {
   supplier: SupplierRow;
@@ -219,7 +250,7 @@ export type ReviewSubmission = {
   /** live = filled through this Smart Link · record = pulled from the supplier's
       own saved record (they answered it on another declaration) · demo = the
       deterministic stand-in for a fixture supplier nobody has filled here */
-  source: "live" | "record" | "demo";
+  source: "live" | "record" | "none";
   /** the supplier's persistent record behind this submission, when there is one */
   record: SupplierRecord | null;
   /** age + reporting-period verdict on the data in this submission */
@@ -245,104 +276,36 @@ export type ReviewSubmission = {
   lifecycle: Lifecycle;
 };
 
-/* "2d ago" / "5h ago" / "—" → a timestamp, so demo submissions carry a real
-   (relative) submit time without inventing one at module load. */
-function agoToTs(updated: string): number {
-  const now = Date.now();
-  const m = /(\d+)\s*([dh])/.exec(updated);
-  if (!m) return now - 3 * 86_400_000;
-  const n = parseInt(m[1], 10);
-  return now - n * (m[2] === "d" ? 86_400_000 : 3_600_000);
-}
-
-const SIGNERS = [
-  { name: "Niran T.", role: "Sustainability Manager" },
-  { name: "Ploy S.", role: "Carbon & Compliance Lead" },
-  { name: "Anan W.", role: "ESG Manager" },
-  { name: "Suda P.", role: "QA Manager" },
-  { name: "Korn M.", role: "Operations Manager" },
-  { name: "Wichai R.", role: "Plant Manager" },
-];
-
-/* Deterministic stand-in for a supplier who has "submitted" in the fixtures but
-   never opened the smartlink in this browser. Built from the resolved request so
-   the AI check and figures are consistent with the supplier side. */
-function synthesise(request: SupplierRequest, row: SupplierRow): { values: Record<string, string>; docs: Record<string, DocState> } {
-  const seed = parseInt(row.ref.replace(/\D/g, "") || "100", 10);
-  const total = row.emissions ?? Number((1.2 + (seed % 9) * 0.13).toFixed(2));
-  const useDefaultMethod = seed % 3 === 0; // some report on default factors → AI warning
-  const values: Record<string, string> = {};
-
-  values[valueKey("inst-name")] = row.name;
-  values[valueKey("inst-country")] = request.originName;
-  values[valueKey("inst-address")] = `${seed} Eastern Seaboard Industrial Estate, Rayong 21150`;
-  values[valueKey("inst-unlocode")] = "THRYG";
-  values[valueKey("inst-coords")] = "12.6802, 101.2810";
-  values[valueKey("carbon-price")] = "0";
-  values[valueKey("carbon-price-currency")] = "THB";
-  values[valueKey("carbon-price-form")] = "";
-  values[valueKey("verification")] = "SGS (Thailand) Ltd · accredited — full verification, unqualified opinion";
-
-  for (const rp of request.products) {
-    const pid = rp.product.id;
-    // Own-process split + a structured precursor row; the derived total keeps
-    // the same headline figure the fixtures always showed.
-    /* A real EAF charge: mostly scrap (zero-rated under CBAM) plus a pig-iron
-       top-up that carries embedded emissions. The contribution is the pig iron
-       alone — which is the whole point of the scrap rule. */
-    const precQty = 0.4;
-    const precSee = 0.55;
-    const scrapQty = 0.75;
-    const precContribution = precQty * precSee;
-    const own = Math.max(0.2, total - precContribution);
-    const direct = Number((own * 0.82).toFixed(2));
-    const indirect = Number((own * 0.18).toFixed(2));
-    /* The installation's own output — always larger than the slice THIS
-       exporter bought, because a mill sells to more than one customer. It is
-       the denominator behind every per-tonne figure below, so the stand-in
-       carries it rather than leaving the demo data underivable. */
-    const outputTonnes = Math.max(1000, Math.round((rp.totalTonnes || 500) * (3 + (seed % 4))));
-    /* Electricity is ABSOLUTE MWh for the period, derived back from the
-       indirect figure at the Thai grid factor so the two reconcile — the same
-       cross-check the AI quality check runs. */
-    const gridFactor = 0.4999; // tCO₂/MWh — EGAT/TGO 2023 national grid factor
-    const elecAbsolute = Math.round((indirect / gridFactor) * outputTonnes);
-    values[valueKey("process-route", pid)] = "EAF (electric arc furnace)";
-    values[valueKey("production-output", pid)] = String(outputTonnes);
-    values[valueKey("elec-consumed", pid)] = String(elecAbsolute);
-    values[valueKey("elec-consumed-unit", pid)] = "MWh_absolute";
-    values[valueKey("elec-factor", pid)] = `${gridFactor} tCO₂/MWh — Thailand national grid (EGAT/TGO 2023)`;
-    values[valueKey("direct-emissions", pid)] = String(direct);
-    values[valueKey("indirect-emissions", pid)] = String(indirect);
-    values[valueKey("total-emissions", pid)] = (direct + indirect + precContribution).toFixed(2);
-    values[valueKey("method", pid)] = useDefaultMethod ? "default" : "actual";
-    values[valueKey("precursors", pid)] = JSON.stringify([
-      { id: `${pid}-scrap`, parentId: null, name: "Steel scrap", cnCode: "7204 49 90", qtyPerTonneOutput: scrapQty, isScrap: true, seeDeclared: 0, route: "Recycled", children: [] },
-      { id: `${pid}-pig`, parentId: null, name: "Pig iron", cnCode: "7201 10 90", qtyPerTonneOutput: precQty, isScrap: false, seeDeclared: precSee, route: "BF route", children: [] },
-    ]);
-    values[valueKey("precursor-route", pid)] = "BF route (pig iron) · recycled (scrap)";
-  }
-
-  const docs: Record<string, DocState> = {};
-  for (const d of request.documents) {
-    const include = d.required || seed % 2 === 0; // optional docs only sometimes → "missing optional" in the summary
-    if (include) {
-      docs[d.id] = { id: d.id, status: "uploaded", files: [{ name: `${d.id}-${row.ref.replace("#", "")}.pdf`, size: 160_000 + (seed % 60) * 1000, addedAt: agoToTs(row.updated) }] };
-    }
-  }
-  return { values, docs };
-}
-
-function emissionsFor(request: SupplierRequest, values: Record<string, string>): { lines: EmissionLine[]; total: number } {
+function emissionsFor(
+  request: SupplierRequest,
+  values: Record<string, string>,
+): { lines: EmissionLine[]; total: number } {
   const lines: EmissionLine[] = request.products.map((rp) => {
-    const per = Number(values[valueKey("total-emissions", rp.product.id)] || values[valueKey("direct-emissions", rp.product.id)] || "0") || 0;
-    return { productId: rp.product.id, productName: rp.product.name, cnCode: rp.product.cnCode, perTonne: per, tonnes: rp.totalTonnes, total: Math.round(per * rp.totalTonnes) };
+    const per =
+      Number(
+        values[valueKey("total-emissions", rp.product.id)] ||
+          values[valueKey("direct-emissions", rp.product.id)] ||
+          "0",
+      ) || 0;
+    return {
+      productId: rp.product.id,
+      productName: rp.product.name,
+      cnCode: rp.product.cnCode,
+      perTonne: per,
+      tonnes: rp.totalTonnes,
+      total: Math.round(per * rp.totalTonnes),
+    };
   });
   return { lines, total: lines.reduce((a, l) => a + l.total, 0) };
 }
 
-function deriveLifecycle(submitted: boolean, review: SupplierReview, version: number): Lifecycle {
-  if (review.decision === "approved" && review.decidedVersion === version) return "approved";
+function deriveLifecycle(
+  submitted: boolean,
+  review: SupplierReview,
+  version: number,
+): Lifecycle {
+  if (review.decision === "approved" && review.decidedVersion === version)
+    return "approved";
   if (review.decision === "changes_requested") {
     // a resubmission carries a higher version than the one we sent back → it's
     // come back for re-approval ("in review"); otherwise we're still waiting on them.
@@ -358,7 +321,11 @@ function deriveLifecycle(submitted: boolean, review: SupplierReview, version: nu
 /** The live status glance from GET /declarations/{id}/submissions, keyed by
  *  supplierId. The exporter's browser may not hold a supplier's answers, but
  *  the API knows the status transition — enough to keep the dashboard current. */
-export type LiveSubmission = { status: SubmissionStatus; version: number; updatedAt: number };
+export type LiveSubmission = {
+  status: SubmissionStatus;
+  version: number;
+  updatedAt: number;
+};
 export type LiveStatusMap = Map<string, LiveSubmission>;
 
 // Where a status sits in the fill-in journey, so the API's status only ever
@@ -372,7 +339,7 @@ const STATUS_RANK: Record<SubmissionStatus, number> = {
   submitted: 4,
 };
 
-/** Resolve one supplier row into a reviewable submission (live or demo).
+/** Resolve one supplier row into a reviewable submission.
  *  `live` is the API's status glance (always cheap); `fullState` carries a
  *  supplier's real answers, injected only for the one submission the exporter
  *  has opened, so a link filled on the supplier's own machine is reviewable. */
@@ -399,7 +366,7 @@ export function resolveSubmission(
   let versions: Version[];
   let events: TrailEvent[];
   let supplierStatus: SubmissionStatus;
-  let source: "live" | "record" | "demo";
+  let source: "live" | "record" | "none";
 
   /* The supplier's own record (lib/supplier-records.ts) — the durable data this
      declaration is a filtered request against. Read once, used three ways:
@@ -421,24 +388,6 @@ export function resolveSubmission(
     source = "live";
     dataAt = ss.versions[ss.versions.length - 1].submittedAt;
     dataPeriods = [request.period];
-  } else if (row.status === "submitted") {
-    // fixtures say submitted but nobody filled it here — deterministic stand-in
-    const s = synthesise(request, row);
-    values = s.values;
-    docs = s.docs;
-    check = runQualityCheck(request, values, docs);
-    const signer = SIGNERS[(parseInt(row.ref.replace(/\D/g, "") || "0", 10)) % SIGNERS.length];
-    const submittedAt = agoToTs(row.updated);
-    versions = [{ n: 1, submittedAt, score: check.score, warnings: check.warnings, signedBy: signer.name, signedRole: signer.role }];
-    events = [
-      ...Object.values(s.docs).map((d, i) => ({ id: `${row.id}-doc${i}`, at: submittedAt - (Object.keys(s.docs).length - i) * 60_000, kind: "doc_upload" as const, text: `${d.files[0]?.name ?? "file"} attached` })),
-      { id: `${row.id}-check`, at: submittedAt - 5 * 60_000, kind: "check_run" as const, text: `AI quality check run — score ${check.score}, ${check.critical} critical, ${check.warnings} warning${check.warnings === 1 ? "" : "s"}` },
-      { id: `${row.id}-submit`, at: submittedAt, kind: "submit" as const, text: `Version 1 signed by ${signer.name} (${signer.role}) and submitted — score ${check.score}, ${check.warnings} warning${check.warnings === 1 ? "" : "s"}` },
-    ];
-    supplierStatus = "submitted";
-    source = "demo";
-    dataAt = submittedAt;
-    dataPeriods = [request.period];
   } else if (recordRead && recordRead.carriedKeys.length > 0 && record) {
     /* Never filled through THIS link — but this company has answered these
        goods before, on another declaration. That data belongs to them, not to
@@ -446,9 +395,7 @@ export function resolveSubmission(
        exporter still reviews and approves it; it just arrives already filled,
        carrying the age and provenance that let them judge it.
 
-       Deliberately AFTER the fixture branch: a row the fixtures already show as
-       submitted keeps its own historical figures, so a 2026 submission can
-       never rewrite what a closed 2024 declaration reported. */
+       A declaration status alone cannot supply missing answers or evidence. */
     const contribution = record.contributions[0];
     values = recordRead.values;
     docs = recordRead.docs;
@@ -485,8 +432,9 @@ export function resolveSubmission(
     check = null;
     versions = [];
     events = [];
-    supplierStatus = ss.status === "revision_requested" ? "revision_requested" : "new";
-    source = "demo";
+    supplierStatus =
+      ss.status === "revision_requested" ? "revision_requested" : "new";
+    source = "none";
   }
 
   const latest = versions[versions.length - 1];
@@ -501,7 +449,11 @@ export function resolveSubmission(
      current, but only forward (STATUS_RANK) and only when there are no local
      versions to contradict it, so a demo fixture is never regressed. */
   const liveHere = live?.get(row.id);
-  if (liveHere && versions.length === 0 && STATUS_RANK[liveHere.status] > STATUS_RANK[supplierStatus]) {
+  if (
+    liveHere &&
+    versions.length === 0 &&
+    STATUS_RANK[liveHere.status] > STATUS_RANK[supplierStatus]
+  ) {
     supplierStatus = liveHere.status;
     if (liveHere.status === "submitted") {
       submitted = true;
@@ -511,7 +463,10 @@ export function resolveSubmission(
   }
 
   const { lines, total } = emissionsFor(request, values);
-  const freshness = assessFreshness({ sourceAt: dataAt, sourcePeriods: dataPeriods }, request.period);
+  const freshness = assessFreshness(
+    { sourceAt: dataAt, sourcePeriods: dataPeriods },
+    request.period,
+  );
   const access: AccessPolicy | undefined = record?.access;
 
   return {
@@ -543,8 +498,14 @@ export function resolveSubmission(
   };
 }
 
-export function resolveSubmissions(decl: Declaration, exporter: ExporterDeclState, live?: LiveStatusMap): ReviewSubmission[] {
-  return decl.suppliers.map((row) => resolveSubmission(decl, row, exporter, live));
+export function resolveSubmissions(
+  decl: Declaration,
+  exporter: ExporterDeclState,
+  live?: LiveStatusMap,
+): ReviewSubmission[] {
+  return decl.suppliers.map((row) =>
+    resolveSubmission(decl, row, exporter, live),
+  );
 }
 
 /* ── Declaration-level roll-up ─────────────────────────────── */
@@ -566,9 +527,19 @@ export type ReviewRollup = {
   stage: DeclStage;
 };
 
-export function rollup(decl: Declaration, exporter: ExporterDeclState, live?: LiveStatusMap): ReviewRollup {
+export function rollup(
+  decl: Declaration,
+  exporter: ExporterDeclState,
+  live?: LiveStatusMap,
+): ReviewRollup {
   const submissions = resolveSubmissions(decl, exporter, live);
-  const counts: Record<Lifecycle, number> = { awaiting: 0, submitted: 0, in_review: 0, changes_requested: 0, approved: 0 };
+  const counts: Record<Lifecycle, number> = {
+    awaiting: 0,
+    submitted: 0,
+    in_review: 0,
+    changes_requested: 0,
+    approved: 0,
+  };
   let reviewedEmissions = 0;
   let submittedEmissions = 0;
   let warnings = 0;
@@ -582,7 +553,9 @@ export function rollup(decl: Declaration, exporter: ExporterDeclState, live?: Li
       submittedEmissions += s.totalTCO2e;
       if (s.check) {
         warnings += s.check.warnings;
-        anomalies += s.check.findings.filter((f) => f.category === "Anomaly" && f.severity !== "pass").length;
+        anomalies += s.check.findings.filter(
+          (f) => f.category === "Anomaly" && f.severity !== "pass",
+        ).length;
         scoreSum += s.check.score;
         scoreN++;
       }
@@ -620,22 +593,39 @@ export function rollup(decl: Declaration, exporter: ExporterDeclState, live?: Li
 }
 
 /* ── Actions (mutate + persist) ────────────────────────────── */
-function mutateReview(declId: string, supplierId: string, fn: (r: SupplierReview) => SupplierReview): ExporterDeclState {
+function mutateReview(
+  declId: string,
+  supplierId: string,
+  fn: (r: SupplierReview) => SupplierReview,
+): ExporterDeclState {
   const state = loadExporterState(declId);
   const prev = state.reviews[supplierId] ?? defaultReview();
-  const next: ExporterDeclState = { ...state, reviews: { ...state.reviews, [supplierId]: fn(prev) } };
+  const next: ExporterDeclState = {
+    ...state,
+    reviews: { ...state.reviews, [supplierId]: fn(prev) },
+  };
   saveExporterState(next);
   return next;
 }
 
-export function toggleReviewer(declId: string, supplierId: string, reviewerId: string): ExporterDeclState {
+export function toggleReviewer(
+  declId: string,
+  supplierId: string,
+  reviewerId: string,
+): ExporterDeclState {
   return mutateReview(declId, supplierId, (r) => ({
     ...r,
-    reviewers: r.reviewers.includes(reviewerId) ? r.reviewers.filter((x) => x !== reviewerId) : [...r.reviewers, reviewerId],
+    reviewers: r.reviewers.includes(reviewerId)
+      ? r.reviewers.filter((x) => x !== reviewerId)
+      : [...r.reviewers, reviewerId],
   }));
 }
 
-export function approveSubmission(declId: string, supplierId: string, version: number): ExporterDeclState {
+export function approveSubmission(
+  declId: string,
+  supplierId: string,
+  version: number,
+): ExporterDeclState {
   return mutateReview(declId, supplierId, (r) => ({
     ...r,
     decision: "approved",
@@ -647,15 +637,15 @@ export function approveSubmission(declId: string, supplierId: string, version: n
   }));
 }
 
-export function approveAllSubmissions(declId: string): ExporterDeclState {
-  const declaration = getDeclaration(declId);
-  if (!declaration) throw new Error("Declaration could not be resolved.");
-  let state = loadExporterState(declId);
+export function approveAllSubmissions(
+  declaration: Declaration,
+): ExporterDeclState {
+  let state = loadExporterState(declaration.id);
   for (const supplier of declaration.suppliers) {
     const current = resolveSubmission(declaration, supplier, state);
     if (current.submitted && current.lifecycle !== "approved") {
       try {
-        state = approveSubmission(declId, supplier.id, current.version);
+        state = approveSubmission(declaration.id, supplier.id, current.version);
       } catch (err) {
         console.warn(`Could not auto-approve ${supplier.id}:`, err);
       }
@@ -669,7 +659,7 @@ export function approveAllSubmissions(declId: string): ExporterDeclState {
     requested fields/documents (everything else stays locked). */
 /** The EXPORTER's half of a revision request: their own record of the decision
     — lifecycle, comment, which items they reopened — under
-    `certrace:exporter:<declId>`. Nothing in docs/API-CONTRACT.md carries the
+    `certrace:exporter:<declId>`. The backend API does not carry the
     exporter's review state, so this half stays local in both modes.
 
     Split out from requestRevision below because the SUPPLIER's half does not:
@@ -705,7 +695,13 @@ export function requestRevision(
   const token = makeToken(declId, supplierId);
   const ss = loadState(token);
   const next = pushEvent(
-    { ...ss, status: "revision_requested" as const, unlocked: payload.fields, unlockedDocs: payload.docs, revisionNote: payload.comment },
+    {
+      ...ss,
+      status: "revision_requested" as const,
+      unlocked: payload.fields,
+      unlockedDocs: payload.docs,
+      revisionNote: payload.comment,
+    },
     "revision_requested",
     `${exporterIdentity().contact} requested a revision on ${payload.fields.length} field${payload.fields.length === 1 ? "" : "s"}${payload.docs.length ? ` and ${payload.docs.length} document${payload.docs.length === 1 ? "" : "s"}` : ""} — "${payload.comment}"`,
   );
@@ -715,7 +711,10 @@ export function requestRevision(
 
 export function markSummaryGenerated(declId: string): ExporterDeclState {
   const state = loadExporterState(declId);
-  const next = { ...state, summaryGeneratedAt: state.summaryGeneratedAt ?? Date.now() };
+  const next = {
+    ...state,
+    summaryGeneratedAt: state.summaryGeneratedAt ?? Date.now(),
+  };
   saveExporterState(next);
   return next;
 }
@@ -733,15 +732,22 @@ export function datasetHash(submissions: ReviewSubmission[]): string {
       values: s.values,
       docs: Object.keys(s.docs)
         .sort()
-        .map((k) => ({ k, files: (s.docs[k]?.files ?? []).map((f) => f.name) })),
+        .map((k) => ({
+          k,
+          files: (s.docs[k]?.files ?? []).map((f) => f.name),
+        })),
     }));
   const str = JSON.stringify(canonical);
   let h = 5381;
-  for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
+  for (let i = 0; i < str.length; i++)
+    h = ((h << 5) + h + str.charCodeAt(i)) | 0;
   return (h >>> 0).toString(16);
 }
 
-export function markPackageGenerated(declId: string, hash: string): ExporterDeclState {
+export function markPackageGenerated(
+  declId: string,
+  hash: string,
+): ExporterDeclState {
   const state = loadExporterState(declId);
   // Regeneration is allowed (and required) after the dataset changes — the
   // timestamp and hash always move together.
@@ -750,14 +756,20 @@ export function markPackageGenerated(declId: string, hash: string): ExporterDecl
   return next;
 }
 
-export function fileDeclaration(declId: string, recipients: { buyer: boolean; authority: boolean; verifier: boolean }): ExporterDeclState {
+export function fileDeclaration(
+  declId: string,
+  recipients: { buyer: boolean; authority: boolean; verifier: boolean },
+): ExporterDeclState {
   const state = loadExporterState(declId);
   const next = { ...state, recipients, filedAt: state.filedAt ?? Date.now() };
   saveExporterState(next);
   return next;
 }
 
-export function setRecipients(declId: string, recipients: { buyer: boolean; authority: boolean; verifier: boolean }): ExporterDeclState {
+export function setRecipients(
+  declId: string,
+  recipients: { buyer: boolean; authority: boolean; verifier: boolean },
+): ExporterDeclState {
   const state = loadExporterState(declId);
   const next = { ...state, recipients };
   saveExporterState(next);
@@ -769,7 +781,13 @@ export function setRecipients(declId: string, recipients: { buyer: boolean; auth
     this operator's EORI reference can then pull it in directly. */
 export function pushToO3CI(declId: string): ExporterDeclState {
   const state = loadExporterState(declId);
-  const next = { ...state, dispatch: { ...state.dispatch, o3ciPushedAt: state.dispatch.o3ciPushedAt ?? Date.now() } };
+  const next = {
+    ...state,
+    dispatch: {
+      ...state.dispatch,
+      o3ciPushedAt: state.dispatch.o3ciPushedAt ?? Date.now(),
+    },
+  };
   saveExporterState(next);
   return next;
 }
@@ -780,7 +798,13 @@ export function pushToO3CI(declId: string): ExporterDeclState {
     as the declaration-level clock those per-buyer sends still sync into. */
 export function sendCommunicationTemplate(declId: string): ExporterDeclState {
   const state = loadExporterState(declId);
-  const next = { ...state, dispatch: { ...state.dispatch, templateSentAt: state.dispatch.templateSentAt ?? Date.now() } };
+  const next = {
+    ...state,
+    dispatch: {
+      ...state.dispatch,
+      templateSentAt: state.dispatch.templateSentAt ?? Date.now(),
+    },
+  };
   saveExporterState(next);
   return next;
 }
@@ -790,7 +814,10 @@ export function sendCommunicationTemplate(declId: string): ExporterDeclState {
    the declaration so a wizard-set buyer never has to be re-typed. Extra buyers
    live in exporter state alongside it. Both are the same shape from here on,
    so the send + acknowledge paths don't care which is which. */
-export function resolveBuyers(decl: Declaration, state: ExporterDeclState): DeclarationBuyerState[] {
+export function resolveBuyers(
+  decl: Declaration,
+  state: ExporterDeclState,
+): DeclarationBuyerState[] {
   const extra = (state.buyers ?? []).filter((b) => !b.primary);
   const storedPrimary = (state.buyers ?? []).find((b) => b.primary);
   if (!decl.buyer) return storedPrimary ? [storedPrimary, ...extra] : extra;
@@ -804,21 +831,31 @@ export function resolveBuyers(decl: Declaration, state: ExporterDeclState): Decl
     addedAt: storedPrimary?.addedAt ?? 0,
     // the legacy single-buyer clock IS the primary buyer's, so an old
     // declaration that already dispatched keeps showing as sent
-    templateSentAt: storedPrimary?.templateSentAt ?? state.dispatch.templateSentAt,
-    acknowledgedAt: storedPrimary?.acknowledgedAt ?? state.dispatch.acknowledgedAt.buyer ?? null,
+    templateSentAt:
+      storedPrimary?.templateSentAt ?? state.dispatch.templateSentAt,
+    acknowledgedAt:
+      storedPrimary?.acknowledgedAt ??
+      state.dispatch.acknowledgedAt.buyer ??
+      null,
   };
   return [primary, ...extra];
 }
 
 const newBuyerId = () =>
-  typeof crypto !== "undefined" && crypto.randomUUID ? `buyer-${crypto.randomUUID()}` : `buyer-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  typeof crypto !== "undefined" && crypto.randomUUID
+    ? `buyer-${crypto.randomUUID()}`
+    : `buyer-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 /** Attach another buyer to an already-confirmed dataset. Deduped on EORI —
     the same importer added twice is one importer. */
-export function addBuyer(declId: string, buyer: { name: string; eori: string; email: string; contact?: string }): ExporterDeclState {
+export function addBuyer(
+  declId: string,
+  buyer: { name: string; eori: string; email: string; contact?: string },
+): ExporterDeclState {
   const state = loadExporterState(declId);
   const eori = buyer.eori.replace(/\s/g, "").toUpperCase();
-  if ((state.buyers ?? []).some((b) => b.eori.toUpperCase() === eori)) return state;
+  if ((state.buyers ?? []).some((b) => b.eori.toUpperCase() === eori))
+    return state;
   const next: ExporterDeclState = {
     ...state,
     buyers: [
@@ -842,24 +879,40 @@ export function addBuyer(declId: string, buyer: { name: string; eori: string; em
 
 /** Remove an added buyer. The declaration's own buyer can't be removed here —
     that's a change to the declaration, made in the wizard. */
-export function removeBuyer(declId: string, buyerId: string): ExporterDeclState {
+export function removeBuyer(
+  declId: string,
+  buyerId: string,
+): ExporterDeclState {
   const state = loadExporterState(declId);
-  const next = { ...state, buyers: (state.buyers ?? []).filter((b) => b.id !== buyerId || b.primary) };
+  const next = {
+    ...state,
+    buyers: (state.buyers ?? []).filter((b) => b.id !== buyerId || b.primary),
+  };
   saveExporterState(next);
   return next;
 }
 
 /** Mutate one buyer in place, materialising the primary into storage the first
     time it's touched (it lives on the declaration until then). */
-function mutateBuyer(decl: Declaration, buyerId: string, fn: (b: DeclarationBuyerState) => DeclarationBuyerState): ExporterDeclState {
+function mutateBuyer(
+  decl: Declaration,
+  buyerId: string,
+  fn: (b: DeclarationBuyerState) => DeclarationBuyerState,
+): ExporterDeclState {
   const state = loadExporterState(decl.id);
   const resolved = resolveBuyers(decl, state);
   const target = resolved.find((b) => b.id === buyerId);
   if (!target) return state;
   const updated = fn(target);
   const stored = state.buyers ?? [];
-  const exists = stored.some((b) => b.id === buyerId || (b.primary && updated.primary));
-  const buyers = exists ? stored.map((b) => (b.id === buyerId || (b.primary && updated.primary) ? updated : b)) : [...stored, updated];
+  const exists = stored.some(
+    (b) => b.id === buyerId || (b.primary && updated.primary),
+  );
+  const buyers = exists
+    ? stored.map((b) =>
+        b.id === buyerId || (b.primary && updated.primary) ? updated : b,
+      )
+    : [...stored, updated];
   const next: ExporterDeclState = {
     ...state,
     buyers,
@@ -868,9 +921,13 @@ function mutateBuyer(decl: Declaration, buyerId: string, fn: (b: DeclarationBuye
     dispatch: updated.primary
       ? {
           ...state.dispatch,
-          templateSentAt: updated.templateSentAt ?? state.dispatch.templateSentAt,
+          templateSentAt:
+            updated.templateSentAt ?? state.dispatch.templateSentAt,
           acknowledgedAt: updated.acknowledgedAt
-            ? { ...state.dispatch.acknowledgedAt, buyer: updated.acknowledgedAt }
+            ? {
+                ...state.dispatch.acknowledgedAt,
+                buyer: updated.acknowledgedAt,
+              }
             : state.dispatch.acknowledgedAt,
         }
       : state.dispatch,
@@ -880,28 +937,49 @@ function mutateBuyer(decl: Declaration, buyerId: string, fn: (b: DeclarationBuye
 }
 
 /** Send the Annex IV Communication Template to ONE buyer. */
-export function sendToBuyer(decl: Declaration, buyerId: string): ExporterDeclState {
-  return mutateBuyer(decl, buyerId, (b) => ({ ...b, templateSentAt: b.templateSentAt ?? Date.now() }));
+export function sendToBuyer(
+  decl: Declaration,
+  buyerId: string,
+): ExporterDeclState {
+  return mutateBuyer(decl, buyerId, (b) => ({
+    ...b,
+    templateSentAt: b.templateSentAt ?? Date.now(),
+  }));
 }
 
 /** That buyer's declarant confirming they received the dataset. */
-export function acknowledgeBuyer(decl: Declaration, buyerId: string): ExporterDeclState {
-  return mutateBuyer(decl, buyerId, (b) => ({ ...b, acknowledgedAt: b.acknowledgedAt ?? Date.now() }));
+export function acknowledgeBuyer(
+  decl: Declaration,
+  buyerId: string,
+): ExporterDeclState {
+  return mutateBuyer(decl, buyerId, (b) => ({
+    ...b,
+    acknowledgedAt: b.acknowledgedAt ?? Date.now(),
+  }));
 }
 
 /** Record a reminder to a supplier who hasn't submitted — persists so the
     workspace can answer "when did we last chase them" across sessions. */
-export function remindSupplier(declId: string, supplierId: string): ExporterDeclState {
+export function remindSupplier(
+  declId: string,
+  supplierId: string,
+): ExporterDeclState {
   const state = loadExporterState(declId);
   const next = {
     ...state,
-    remindersSent: { ...state.remindersSent, [supplierId]: [...(state.remindersSent[supplierId] ?? []), Date.now()] },
+    remindersSent: {
+      ...state.remindersSent,
+      [supplierId]: [...(state.remindersSent[supplierId] ?? []), Date.now()],
+    },
   };
   saveExporterState(next);
   return next;
 }
 
-export const lastReminderAt = (state: ExporterDeclState, supplierId: string): number | null => {
+export const lastReminderAt = (
+  state: ExporterDeclState,
+  supplierId: string,
+): number | null => {
   const list = state.remindersSent[supplierId] ?? [];
   return list.length > 0 ? list[list.length - 1] : null;
 };
@@ -910,10 +988,19 @@ export const lastReminderAt = (state: ExporterDeclState, supplierId: string): nu
 
 /** Send the generated report to people for preview + confirmation. Deduped —
     re-requesting someone who's already on the list is a no-op. */
-export function requestReportSignoffs(declId: string, memberIds: string[]): ExporterDeclState {
+export function requestReportSignoffs(
+  declId: string,
+  memberIds: string[],
+): ExporterDeclState {
   const state = loadExporterState(declId);
   const existing = new Set(state.signoffs.map((s) => s.memberId));
-  const added = memberIds.filter((id) => !existing.has(id)).map((memberId) => ({ memberId, requestedAt: Date.now(), confirmedAt: null }));
+  const added = memberIds
+    .filter((id) => !existing.has(id))
+    .map((memberId) => ({
+      memberId,
+      requestedAt: Date.now(),
+      confirmedAt: null,
+    }));
   const next = { ...state, signoffs: [...state.signoffs, ...added] };
   saveExporterState(next);
   return next;
@@ -921,29 +1008,56 @@ export function requestReportSignoffs(declId: string, memberIds: string[]): Expo
 
 /** A reviewer confirming the report reads exactly as sent — demo affordance
     for what would arrive via their emailed preview link. */
-export function confirmReportSignoff(declId: string, memberId: string): ExporterDeclState {
+export function confirmReportSignoff(
+  declId: string,
+  memberId: string,
+): ExporterDeclState {
   const state = loadExporterState(declId);
   const next = {
     ...state,
-    signoffs: state.signoffs.map((s) => (s.memberId === memberId ? { ...s, confirmedAt: s.confirmedAt ?? Date.now() } : s)),
+    signoffs: state.signoffs.map((s) =>
+      s.memberId === memberId
+        ? { ...s, confirmedAt: s.confirmedAt ?? Date.now() }
+        : s,
+    ),
   };
   saveExporterState(next);
   return next;
 }
 
 /** Withdraw a pending request (a confirmed sign-off stays on the record). */
-export function withdrawReportSignoff(declId: string, memberId: string): ExporterDeclState {
+export function withdrawReportSignoff(
+  declId: string,
+  memberId: string,
+): ExporterDeclState {
   const state = loadExporterState(declId);
-  const next = { ...state, signoffs: state.signoffs.filter((s) => s.memberId !== memberId || s.confirmedAt !== null) };
+  const next = {
+    ...state,
+    signoffs: state.signoffs.filter(
+      (s) => s.memberId !== memberId || s.confirmedAt !== null,
+    ),
+  };
   saveExporterState(next);
   return next;
 }
 
 /** Records a recipient confirming receipt — the real end state, since the
     exporter can never claim "filed with the authority" on someone else's behalf. */
-export function acknowledgeRecipient(declId: string, recipient: DispatchRecipient): ExporterDeclState {
+export function acknowledgeRecipient(
+  declId: string,
+  recipient: DispatchRecipient,
+): ExporterDeclState {
   const state = loadExporterState(declId);
-  const next = { ...state, dispatch: { ...state.dispatch, acknowledgedAt: { ...state.dispatch.acknowledgedAt, [recipient]: Date.now() } } };
+  const next = {
+    ...state,
+    dispatch: {
+      ...state.dispatch,
+      acknowledgedAt: {
+        ...state.dispatch.acknowledgedAt,
+        [recipient]: Date.now(),
+      },
+    },
+  };
   saveExporterState(next);
   return next;
 }
@@ -951,9 +1065,19 @@ export function acknowledgeRecipient(declId: string, recipient: DispatchRecipien
 /* The exporter org / signer identity, surfaced so the package header is real.
    Resolved at CALL time from the live org profile — a Settings rename must
    reach every output, which the old module-load fixture constant never did. */
-export function exporterIdentity(): { org: string; installationId: string; contact: string; role: string } {
+export function exporterIdentity(): {
+  org: string;
+  installationId: string;
+  contact: string;
+  role: string;
+} {
   const o = getOrgIdentity();
-  return { org: o.name, installationId: o.installationId, contact: o.contact, role: o.role };
+  return {
+    org: o.name,
+    installationId: o.installationId,
+    contact: o.contact,
+    role: o.role,
+  };
 }
 
 /* Re-export so the workflow UI groups the read-only submitted data the same way

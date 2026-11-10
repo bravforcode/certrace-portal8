@@ -1,3 +1,4 @@
+import { accountStorage } from "./account-storage";
 /* ════════════════════════════════════════════════════════════
    MONTHLY SUPPLIER REQUEST SERIES (§A3)
 
@@ -23,12 +24,17 @@
 
 import { getSubmissionStatus } from "./supplier-store";
 import { makeToken } from "./supplier";
-import { monthName } from "./workspace";
+import { monthNameShown } from "./workspace";
 import { writeBlocked } from "./plan";
 
 /** Mirrors the supplier-side lifecycle, plus the two states that only exist
     from the exporter's side of the link. */
-export type MonthRequestStatus = "not_sent" | "sent" | "opened" | "submitted" | "reviewed";
+export type MonthRequestStatus =
+  | "not_sent"
+  | "sent"
+  | "opened"
+  | "submitted"
+  | "reviewed";
 
 export const MONTH_REQUEST_STATUS_LABEL: Record<MonthRequestStatus, string> = {
   not_sent: "Not sent",
@@ -61,7 +67,7 @@ type Store = Record<string, MonthlyRequest[]>;
 function read(): Store {
   if (typeof window === "undefined") return {};
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = accountStorage.getItem(KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw) as Store;
     return parsed && typeof parsed === "object" ? parsed : {};
@@ -73,24 +79,43 @@ function read(): Store {
 function write(store: Store): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(store));
+    accountStorage.setItem(KEY, JSON.stringify(store));
   } catch {
     /* ignore quota */
   }
 }
 
-export const listRequests = (workspaceId: string): MonthlyRequest[] => read()[workspaceId] ?? [];
+export const listRequests = (workspaceId: string): MonthlyRequest[] =>
+  read()[workspaceId] ?? [];
 
-export const requestFor = (workspaceId: string, supplierId: string, month: string): MonthlyRequest | null =>
-  listRequests(workspaceId).find((r) => r.supplierId === supplierId && r.month === month) ?? null;
+export const requestFor = (
+  workspaceId: string,
+  supplierId: string,
+  month: string,
+): MonthlyRequest | null =>
+  listRequests(workspaceId).find(
+    (r) => r.supplierId === supplierId && r.month === month,
+  ) ?? null;
 
 /** Every supplier that has a series in this workspace. */
-export function suppliersWithSeries(workspaceId: string): { supplierId: string; supplierName: string; declId: string }[] {
-  const seen = new Map<string, { supplierId: string; supplierName: string; declId: string }>();
+export function suppliersWithSeries(
+  workspaceId: string,
+): { supplierId: string; supplierName: string; declId: string }[] {
+  const seen = new Map<
+    string,
+    { supplierId: string; supplierName: string; declId: string }
+  >();
   for (const r of listRequests(workspaceId)) {
-    if (!seen.has(r.supplierId)) seen.set(r.supplierId, { supplierId: r.supplierId, supplierName: r.supplierName, declId: r.declId });
+    if (!seen.has(r.supplierId))
+      seen.set(r.supplierId, {
+        supplierId: r.supplierId,
+        supplierName: r.supplierName,
+        declId: r.declId,
+      });
   }
-  return [...seen.values()].sort((a, b) => a.supplierName.localeCompare(b.supplierName));
+  return [...seen.values()].sort((a, b) =>
+    a.supplierName.localeCompare(b.supplierName),
+  );
 }
 
 /* ── createMonthlySeries ────────────────────────────────────────
@@ -111,7 +136,9 @@ export function createMonthlySeries(
 
   const added: MonthlyRequest[] = [];
   for (const month of months) {
-    const already = existing.find((r) => r.supplierId === input.supplierId && r.month === month);
+    const already = existing.find(
+      (r) => r.supplierId === input.supplierId && r.month === month,
+    );
     if (already) continue;
     added.push({
       workspaceId,
@@ -126,21 +153,33 @@ export function createMonthlySeries(
 
   store[workspaceId] = [...existing, ...added];
   write(store);
-  return store[workspaceId].filter((r) => r.supplierId === input.supplierId).sort((a, b) => a.month.localeCompare(b.month));
+  return store[workspaceId]
+    .filter((r) => r.supplierId === input.supplierId)
+    .sort((a, b) => a.month.localeCompare(b.month));
 }
 
 /** Mark a month's link as sent (or re-sent). The count is kept because
     "chased three times and still nothing" is a different conversation from
     "sent once last week". */
-export function markSent(workspaceId: string, supplierId: string, month: string): MonthlyRequest | null {
+export function markSent(
+  workspaceId: string,
+  supplierId: string,
+  month: string,
+): MonthlyRequest | null {
   // See markMonthSent in lib/month-dispatch.ts — chasing stops with the account.
   if (writeBlocked()) return requestFor(workspaceId, supplierId, month);
   const store = read();
   const rows = store[workspaceId] ?? [];
-  const idx = rows.findIndex((r) => r.supplierId === supplierId && r.month === month);
+  const idx = rows.findIndex(
+    (r) => r.supplierId === supplierId && r.month === month,
+  );
   if (idx < 0) return null;
   const prev = rows[idx];
-  rows[idx] = { ...prev, sentAt: new Date().toISOString(), resendCount: prev.sentAt ? (prev.resendCount ?? 0) + 1 : 0 };
+  rows[idx] = {
+    ...prev,
+    sentAt: new Date().toISOString(),
+    resendCount: prev.sentAt ? (prev.resendCount ?? 0) + 1 : 0,
+  };
   store[workspaceId] = rows;
   write(store);
   return rows[idx];
@@ -148,7 +187,9 @@ export function markSent(workspaceId: string, supplierId: string, month: string)
 
 export function removeSeries(workspaceId: string, supplierId: string): void {
   const store = read();
-  store[workspaceId] = (store[workspaceId] ?? []).filter((r) => r.supplierId !== supplierId);
+  store[workspaceId] = (store[workspaceId] ?? []).filter(
+    (r) => r.supplierId !== supplierId,
+  );
   write(store);
 }
 
@@ -174,12 +215,26 @@ export type MonthStatusCell = {
   version: number;
 };
 
-export function seriesStatus(workspaceId: string, supplierId: string, months: string[]): MonthStatusCell[] {
-  const rows = listRequests(workspaceId).filter((r) => r.supplierId === supplierId);
+export function seriesStatus(
+  workspaceId: string,
+  supplierId: string,
+  months: string[],
+): MonthStatusCell[] {
+  const rows = listRequests(workspaceId).filter(
+    (r) => r.supplierId === supplierId,
+  );
   return months.map((month) => {
     const req = rows.find((r) => r.month === month);
     if (!req) {
-      return { month, label: monthName(month), status: "not_sent" as const, token: null, resendCount: 0, score: null, version: 0 };
+      return {
+        month,
+        label: monthNameShown(month),
+        status: "not_sent" as const,
+        token: null,
+        resendCount: 0,
+        score: null,
+        version: 0,
+      };
     }
 
     const submission = getSubmissionStatus(req.token);
@@ -196,10 +251,13 @@ export function seriesStatus(workspaceId: string, supplierId: string, months: st
 
     return {
       month,
-      label: monthName(month),
+      label: monthNameShown(month),
       // A reviewed month is one the exporter has accepted — the supplier
       // store records that as a version beyond the first submission.
-      status: submission.status === "submitted" && submission.version > 1 ? "reviewed" : status,
+      status:
+        submission.status === "submitted" && submission.version > 1
+          ? "reviewed"
+          : status,
       token: req.token,
       sentAt: req.sentAt,
       resendCount: req.resendCount ?? 0,
@@ -224,11 +282,15 @@ export function gridFor(workspaceId: string, months: string[]): SeriesGrid[] {
     return {
       ...s,
       cells,
-      submitted: cells.filter((c) => c.status === "submitted" || c.status === "reviewed").length,
+      submitted: cells.filter(
+        (c) => c.status === "submitted" || c.status === "reviewed",
+      ).length,
     };
   });
 }
 
 /** The Smart Link for one month — the URL the supplier actually receives. */
 export const linkFor = (token: string): string =>
-  typeof window === "undefined" ? `/s/${token}` : `${window.location.origin}/s/${token}`;
+  typeof window === "undefined"
+    ? `/s/${token}`
+    : `${window.location.origin}/s/${token}`;

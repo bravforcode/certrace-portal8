@@ -34,7 +34,17 @@ export const runtime = "edge";
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Building2, Download, FileText, Mail, Pencil, Phone, Plus } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Building2,
+  Download,
+  FileText,
+  Mail,
+  Pencil,
+  Phone,
+  Plus,
+} from "lucide-react";
 import { Card, Button, Eyebrow, Stat, StatusDot, cn } from "@/components/ui";
 import { ErrorState, LoadingState } from "@/components/query-state";
 import { toast } from "@/components/toast";
@@ -44,12 +54,32 @@ import { StateChip } from "@/components/workspace/chrome";
 import { getCountry } from "@/lib/config";
 import { useT } from "@/lib/i18n";
 import { type Installation } from "@/lib/installations";
-import { useInstallationsForSupplier, useInvalidateInstallations } from "@/lib/installations-query";
-import { countdownFor, dispatchesFor, effectiveDueDay, formatDate } from "@/lib/month-dispatch";
-import { MONTH_STATUS_LABEL, monthsForWorkspace, type MonthStatus } from "@/lib/monthly-data";
+import {
+  useInstallationsForSupplier,
+  useInvalidateInstallations,
+} from "@/lib/installations-query";
+import {
+  countdownFor,
+  dispatchesFor,
+  effectiveDueDay,
+  formatDate,
+} from "@/lib/month-dispatch";
+import {
+  MONTH_STATUS_LABEL,
+  monthsForWorkspace,
+  type MonthStatus,
+} from "@/lib/monthly-data";
 import { workspaceReadiness } from "@/lib/readiness";
-import { useInvalidateSupplierCompanies, useSupplierCompany } from "@/lib/suppliers-query";
-import { monthNameLong, scheduleFor, workspaceTitle, type VerificationWorkspace } from "@/lib/workspace";
+import {
+  useInvalidateSupplierCompanies,
+  useSupplierCompany,
+} from "@/lib/suppliers-query";
+import {
+  monthNameLong,
+  scheduleFor,
+  workspaceTitle,
+  type VerificationWorkspace,
+} from "@/lib/workspace";
 import { useWorkspaces } from "@/lib/workspaces-query";
 
 /** One month that has actually been sent, with where it stands. */
@@ -83,35 +113,82 @@ function goodsFor(workspaceList: VerificationWorkspace[]): GoodRow[] {
       const dispatch = dispatches[entry.month];
       if (!dispatch) continue;
       const done = entry.status === "submitted" || entry.status === "reviewed";
-      const c = countdownFor(entry.month, effectiveDueDay(dispatch, schedule.dueDay));
-      months.push({ month: entry.month, status: entry.status, due: c.due, countdown: c.label, overdue: c.overdue && !done, done, sentAt: dispatch.sentAt });
+      const c = countdownFor(
+        entry.month,
+        effectiveDueDay(dispatch, schedule.dueDay),
+      );
+      months.push({
+        month: entry.month,
+        status: entry.status,
+        due: c.due,
+        countdown: c.text,
+        overdue: c.overdue && !done,
+        done,
+        sentAt: dispatch.sentAt,
+      });
     }
 
-    return { workspace: w, months: months.reverse(), percent: readiness.percentComplete, overall: readiness.overall };
+    return {
+      workspace: w,
+      months: months.reverse(),
+      percent: readiness.percentComplete,
+      overall: readiness.overall,
+    };
   });
 }
 
-export default function SupplierDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default function SupplierDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const t = useT();
   const { id } = React.use(params);
 
-  const { data: supplier, isError: supplierError, refetch: refetchSupplier } = useSupplierCompany(id);
-  const { data: plantsData, isError: plantsError, refetch: refetchPlants } = useInstallationsForSupplier(supplier?.id);
-  const { data: workspaces, isError: workspacesError, refetch: refetchWorkspaces } = useWorkspaces();
+  const {
+    data: supplier,
+    isError: supplierError,
+    refetch: refetchSupplier,
+  } = useSupplierCompany(id);
+  const {
+    data: plantsData,
+    isError: plantsError,
+    refetch: refetchPlants,
+  } = useInstallationsForSupplier(supplier?.id);
+  const {
+    data: workspaces,
+    isError: workspacesError,
+    refetch: refetchWorkspaces,
+  } = useWorkspaces();
   const invalidateSupplierCompanies = useInvalidateSupplierCompanies();
   const invalidateInstallations = useInvalidateInstallations();
 
   const [editingSupplier, setEditingSupplier] = React.useState(false);
   /** null = closed · "new" = adding a plant · an Installation = editing one */
-  const [editingPlant, setEditingPlant] = React.useState<Installation | "new" | null>(null);
+  const [editingPlant, setEditingPlant] = React.useState<
+    Installation | "new" | null
+  >(null);
 
   const goods: GoodRow[] = React.useMemo(
-    () => (supplier && workspaces ? goodsFor(workspaces.filter((w) => w.supplierId === supplier.id)) : []),
-    [supplier, workspaces],
+    () =>
+      supplier && workspaces
+        ? goodsFor(workspaces.filter((w) => w.supplierId === supplier.id))
+        : [],
+    // `t` is here only so a change of language recomputes the countdown wording, which is built inside goodsFor
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [supplier, workspaces, t],
   );
 
   if (supplierError || plantsError || workspacesError)
-    return <ErrorState onRetry={() => { void refetchSupplier(); void refetchPlants(); void refetchWorkspaces(); }} />;
+    return (
+      <ErrorState
+        onRetry={() => {
+          void refetchSupplier();
+          void refetchPlants();
+          void refetchWorkspaces();
+        }}
+      />
+    );
 
   // undefined = still resolving (the old `resolved` flag); null = not found.
   if (supplier === undefined) return <LoadingState />;
@@ -120,9 +197,14 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
     return (
       <Card className="mx-auto max-w-lg p-8 text-center">
         <Eyebrow>{t("Supplier")}</Eyebrow>
-        <h1 className="mt-3 font-[family-name:var(--font-plex)] text-2xl font-light text-[#111]">{t("Not in your directory.")}</h1>
+        <h1 className="mt-3 font-[family-name:var(--font-plex)] text-2xl font-light text-[#111]">
+          {t("Not in your directory.")}
+        </h1>
         <p className="mt-2 text-sm text-black/45">
-          {t("Nothing is filed under “{slug}”. It may have been removed, or the link may be from another account.", { slug: id })}
+          {t(
+            "Nothing is filed under “{slug}”. It may have been removed, or the link may be from another account.",
+            { slug: id },
+          )}
         </p>
         <Link href="/suppliers" className="mt-6 inline-block">
           <Button variant="secondary" size="sm">
@@ -134,15 +216,22 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
   }
 
   // Same atomic first paint as the old reload(): nothing until every store answered.
-  if (plantsData === undefined || workspaces === undefined) return <LoadingState />;
+  if (plantsData === undefined || workspaces === undefined)
+    return <LoadingState />;
   const plants = plantsData;
 
   const monthsSent = goods.reduce((a, g) => a + g.months.length, 0);
-  const monthsIn = goods.reduce((a, g) => a + g.months.filter((m) => m.done).length, 0);
+  const monthsIn = goods.reduce(
+    (a, g) => a + g.months.filter((m) => m.done).length,
+    0,
+  );
 
   return (
     <div className="space-y-7">
-      <Link href="/suppliers" className="inline-flex items-center gap-1.5 text-[12px] uppercase tracking-[0.08em] text-black/40 hover:text-black">
+      <Link
+        href="/suppliers"
+        className="inline-flex items-center gap-1.5 text-[12px] uppercase tracking-[0.08em] text-black/40 hover:text-black"
+      >
         <ArrowLeft size={14} strokeWidth={1.5} /> {t("Suppliers")}
       </Link>
 
@@ -153,9 +242,13 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
             {supplier.country || "—"}
           </span>
           <div className="min-w-0">
-            <h1 className="font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111]">{supplier.name}</h1>
+            <h1 className="font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111]">
+              {supplier.name}
+            </h1>
             <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-black/45">
-              <span>{getCountry(supplier.country)?.name ?? supplier.country}</span>
+              <span>
+                {getCountry(supplier.country)?.name ?? supplier.country}
+              </span>
               {supplier.contactName && (
                 <>
                   <span className="text-black/30">·</span>
@@ -165,7 +258,10 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
               {supplier.contactEmail && (
                 <>
                   <span className="text-black/30">·</span>
-                  <a href={`mailto:${supplier.contactEmail}`} className="inline-flex items-center gap-1 hover:text-black">
+                  <a
+                    href={`mailto:${supplier.contactEmail}`}
+                    className="inline-flex items-center gap-1 hover:text-black"
+                  >
                     <Mail size={12} strokeWidth={1.5} /> {supplier.contactEmail}
                   </a>
                 </>
@@ -174,7 +270,8 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
                 <>
                   <span className="text-black/30">·</span>
                   <span className="inline-flex items-center gap-1 font-mono">
-                    <Phone size={12} strokeWidth={1.5} /> {supplier.contactPhone}
+                    <Phone size={12} strokeWidth={1.5} />{" "}
+                    {supplier.contactPhone}
                   </span>
                 </>
               )}
@@ -182,7 +279,11 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="secondary" size="sm" onClick={() => setEditingSupplier(true)}>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setEditingSupplier(true)}
+          >
             <Pencil size={13} strokeWidth={1.5} /> {t("Edit supplier")}
           </Button>
           <Button size="sm" onClick={() => setEditingPlant("new")}>
@@ -203,7 +304,11 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
           <Stat value={monthsSent} label={t("Months asked for")} />
         </Card>
         <Card className="p-5">
-          <Stat value={`${monthsIn}/${monthsSent}`} label={t("Months in")} sub={t("of what was asked")} />
+          <Stat
+            value={`${monthsIn}/${monthsSent}`}
+            label={t("Months in")}
+            sub={t("of what was asked")}
+          />
         </Card>
       </div>
 
@@ -223,10 +328,17 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
         {plants.length === 0 ? (
           <Card className="p-6">
             <p className="text-[13px] leading-relaxed text-black/45">
-              {t("No installations recorded for this supplier yet. A workspace is scoped to a plant, so until one exists there is nothing to ask them for.")}
+              {t(
+                "No installations recorded for this supplier yet. A product report is scoped to a plant, so until one exists there is nothing to ask them for.",
+              )}
             </p>
-            <Button className="mt-4" size="sm" onClick={() => setEditingPlant("new")}>
-              <Plus size={14} strokeWidth={1.5} /> {t("Add their first installation")}
+            <Button
+              className="mt-4"
+              size="sm"
+              onClick={() => setEditingPlant("new")}
+            >
+              <Plus size={14} strokeWidth={1.5} />{" "}
+              {t("Add their first installation")}
             </Button>
           </Card>
         ) : (
@@ -236,13 +348,22 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <Building2 size={14} strokeWidth={1.5} className="flex-none text-black/40" />
-                      <span className="truncate text-[14px] text-black/85">{i.name}</span>
-                      <span className="font-mono text-[11px] text-black/40">{i.id}</span>
+                      <Building2
+                        size={14}
+                        strokeWidth={1.5}
+                        className="flex-none text-black/40"
+                      />
+                      <span className="truncate text-[14px] text-black/85">
+                        {i.name}
+                      </span>
+                      <span className="font-mono text-[11px] text-black/40">
+                        {i.id}
+                      </span>
                     </div>
                     <p className="mt-2 text-[12.5px] leading-relaxed text-black/50">
-                      {[i.street, i.city, i.postcode, i.country].filter(Boolean).join(", ") || t("No address yet.")}
-                      {i.economicActivity ? ` · ${i.economicActivity}` : ""}
+                      {[i.street, i.city, i.postcode, i.country]
+                        .filter(Boolean)
+                        .join(", ") || t("No address yet.")}
                     </p>
                   </div>
                   <button
@@ -263,17 +384,21 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
       <section className="space-y-3">
         <Eyebrow>{t("Goods")}</Eyebrow>
         <p className="max-w-2xl text-[12.5px] leading-relaxed text-black/45">
-          {t("What is being verified at this supplier's plants, and every month you have actually sent them. A month appears once it has gone out and leaves the late band once it is in.")}
+          {t(
+            "What is being verified at this supplier's plants, and every month you have actually sent them. A month appears once it has gone out and leaves the late band once it is in.",
+          )}
         </p>
 
         {goods.length === 0 ? (
           <Card className="p-6">
             <p className="text-[13px] leading-relaxed text-black/45">
-              {t("No goods are being verified at this supplier yet. Create a workspace for one of their plants and its twelve months start here.")}
+              {t(
+                "No goods are being verified at this supplier yet. Create a product report for one of their plants and its twelve months start here.",
+              )}
             </p>
             <Link href="/workspaces/new" className="mt-4 inline-block">
               <Button size="sm" variant="secondary">
-                <Plus size={14} strokeWidth={1.5} /> {t("New workspace")}
+                <Plus size={14} strokeWidth={1.5} /> {t("New product report")}
               </Button>
             </Link>
           </Card>
@@ -282,22 +407,29 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
             <Card key={w.id} className="overflow-hidden p-0">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/[0.06] px-5 py-4">
                 <div className="min-w-0">
-                  <Link href={`/workspaces/${w.id}/tree`} className="text-[14px] text-black/85 hover:underline">
-                    {w.productName}
+                  <Link
+                    href={`/workspaces/${w.id}`}
+                    className="text-[14px] text-black/85 hover:underline"
+                  >
+                    {t(w.productName)}
                   </Link>
                   <p className="mt-0.5 font-mono text-[11px] text-black/40">
                     CN {w.cnCode || "—"} · {w.installationName} · {w.year}
                   </p>
                 </div>
                 <div className="flex flex-none items-center gap-3">
-                  <span className="font-mono text-[11px] text-black/35">{percent}%</span>
+                  <span className="font-mono text-[11px] text-black/35">
+                    {percent}%
+                  </span>
                   <StateChip state={overall} />
                 </div>
               </div>
 
               {months.length === 0 ? (
                 <p className="px-5 py-5 text-[12.5px] text-black/40">
-                  {t("Nothing sent yet. Open the workspace's Monthly data tab and send a month to start the trail.")}
+                  {t(
+                    "Nothing sent yet. Open the product report's Monthly data tab and send a month to start the trail.",
+                  )}
                 </p>
               ) : (
                 /* The Inbox's row shape, deliberately — same question, other
@@ -309,22 +441,49 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
                       href={`/workspaces/${w.id}/monthly/${m.month}`}
                       className="flex items-center gap-4 border-b border-black/[0.05] px-5 py-3.5 transition-colors last:border-0 hover:bg-[#fafaf8]"
                     >
-                      <StatusDot tone={m.done ? "ok" : m.overdue ? "err" : "warn"} />
+                      <StatusDot
+                        tone={m.done ? "ok" : m.overdue ? "err" : "warn"}
+                      />
                       <span className="min-w-0 flex-1">
-                        <span className="block text-[13.5px] text-black/80">{monthNameLong(m.month)}</span>
-                        <span className="mt-0.5 block truncate text-[11.5px] text-black/40">{workspaceTitle(w)}</span>
+                        <span className="block text-[13.5px] text-black/80">
+                          {monthNameLong(m.month)}
+                        </span>
+                        <span className="mt-0.5 block truncate text-[11.5px] text-black/40">
+                          {workspaceTitle(w, t)}
+                        </span>
                       </span>
                       <span className="hidden flex-none text-right sm:block">
-                        <span className="block font-mono text-[11px] text-black/40">{t(MONTH_STATUS_LABEL[m.status])}</span>
-                        <span className="mt-0.5 block font-mono text-[10.5px] text-black/30">sent {formatDate(new Date(m.sentAt))}</span>
+                        <span className="block font-mono text-[11px] text-black/40">
+                          {t(MONTH_STATUS_LABEL[m.status])}
+                        </span>
+                        <span className="mt-0.5 block font-mono text-[10.5px] text-black/30">
+                          {t("sent {date}", {
+                            date: formatDate(new Date(m.sentAt)),
+                          })}
+                        </span>
                       </span>
                       <span className="flex-none text-right">
-                        <span className={cn("block font-mono text-[11.5px]", m.done ? "text-[#047857]" : m.overdue ? "text-[#dc2626]" : "text-black/45")}>
+                        <span
+                          className={cn(
+                            "block font-mono text-[11.5px]",
+                            m.done
+                              ? "text-[#047857]"
+                              : m.overdue
+                                ? "text-[#dc2626]"
+                                : "text-black/45",
+                          )}
+                        >
                           {m.done ? t("in") : m.countdown}
                         </span>
-                        <span className="mt-0.5 block font-mono text-[10.5px] text-black/30">due {formatDate(m.due)}</span>
+                        <span className="mt-0.5 block font-mono text-[10.5px] text-black/30">
+                          {t("due {date}", { date: formatDate(m.due) })}
+                        </span>
                       </span>
-                      <ArrowRight size={15} strokeWidth={1.5} className="flex-none text-black/25" />
+                      <ArrowRight
+                        size={15}
+                        strokeWidth={1.5}
+                        className="flex-none text-black/25"
+                      />
                     </Link>
                   ))}
                 </div>
@@ -338,23 +497,34 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
       <section className="space-y-3">
         <Eyebrow>{t("Generated report")}</Eyebrow>
         <p className="max-w-2xl text-[12.5px] leading-relaxed text-black/45">
-          {t("One document per good, built from what this supplier has actually sent you. Generated on download rather than stored, so it always says what the workspace says today.")}
+          {t(
+            "One document per good, built from what this supplier has actually sent you. Generated on download rather than stored, so it always says what the product report says today.",
+          )}
         </p>
 
         {goods.length === 0 ? (
           <Card className="p-6">
-            <p className="text-[13px] text-black/45">{t("Nothing to generate yet.")}</p>
+            <p className="text-[13px] text-black/45">
+              {t("Nothing to generate yet.")}
+            </p>
           </Card>
         ) : (
           <Card className="divide-y divide-black/[0.06] p-0">
             {goods.map(({ workspace: w, months }) => {
               const inCount = months.filter((m) => m.done).length;
               return (
-                <div key={w.id} className="flex flex-wrap items-center gap-3 px-5 py-4">
-                  <FileText size={15} strokeWidth={1.5} className="flex-none text-black/35" />
+                <div
+                  key={w.id}
+                  className="flex flex-wrap items-center gap-3 px-5 py-4"
+                >
+                  <FileText
+                    size={15}
+                    strokeWidth={1.5}
+                    className="flex-none text-black/35"
+                  />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[13px] text-black/75">
-                      {w.productName} · {w.year}
+                      {t(w.productName)} · {w.year}
                     </span>
                     <span className="block font-mono text-[11px] text-black/40">
                       {w.installationName} · {inCount} {t("months in")}
@@ -370,12 +540,16 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
                     onClick={() =>
                       toast({
                         message: t("Not connected yet"),
-                        detail: t("Export the verifier pack for {product} from Reports — it is built from the same months.", { product: w.productName }),
+                        detail: t(
+                          "Export the verifier pack for {product} from Reports — it is built from the same months.",
+                          { product: w.productName },
+                        ),
                         tone: "info",
                       })
                     }
                   >
-                    <Download size={13} strokeWidth={1.5} /> {t("Download document")}
+                    <Download size={13} strokeWidth={1.5} />{" "}
+                    {t("Download document")}
                   </Button>
                 </div>
               );
@@ -384,15 +558,26 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
         )}
       </section>
 
-      <SupplierModal open={editingSupplier} onClose={() => setEditingSupplier(false)} initial={supplier} onSaved={() => invalidateSupplierCompanies()} />
+      <SupplierModal
+        open={editingSupplier}
+        onClose={() => setEditingSupplier(false)}
+        initial={supplier}
+        onSaved={() => invalidateSupplierCompanies()}
+      />
 
       <InstallationModal
         open={editingPlant !== null}
         onClose={() => setEditingPlant(null)}
         allowSelfToggle={false}
         supplierId={supplier.id}
-        initial={editingPlant && editingPlant !== "new" ? editingPlant : undefined}
-        title={editingPlant === "new" ? t("Add an installation for {name}", { name: supplier.name }) : t("Edit installation")}
+        initial={
+          editingPlant && editingPlant !== "new" ? editingPlant : undefined
+        }
+        title={
+          editingPlant === "new"
+            ? t("Add an installation for {name}", { name: supplier.name })
+            : t("Edit installation")
+        }
         onSaved={() => invalidateInstallations()}
       />
     </div>

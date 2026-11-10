@@ -30,23 +30,14 @@
   "main": ".vercel/output/static/_worker.js/index.js",
   "base_dir": ".vercel/output/static/_worker.js",
   "no_bundle": true,
-  "rules": [
-    { "type": "ESModule", "globs": ["**/*.js"] }
-  ],
+  "rules": [{ "type": "ESModule", "globs": ["**/*.js"] }],
 
   "compatibility_date": "2024-09-23",
-  "compatibility_flags": [
-    "nodejs_compat"
-  ],
+  "compatibility_flags": ["nodejs_compat"],
   "assets": {
     "directory": ".vercel/output/static",
     "binding": "ASSETS"
   }
 
-  /* No `vars` block on purpose. Everything this app reads is NEXT_PUBLIC_*,
-     which Next inlines into the bundle during the build — a Worker var arrives
-     at request time, long after that bundle was frozen, so it can never change
-     the value the code sees. NEXT_PUBLIC_DEMO_MODE sat here reading as the
-     demo switch while having no effect at all. The switch is the default in
-     next.config.ts; the build env is in .github/workflows/deploy.yml. */
+  /* No `vars` block on purpose. NEXT_PUBLIC_* values are bundled at build time. */
 }

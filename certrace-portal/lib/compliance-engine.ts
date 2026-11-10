@@ -11,15 +11,24 @@
    ════════════════════════════════════════════════════════════ */
 
 import { valueKey } from "./supplier";
-import { isComplexGood, SCOPE2_IN_LIABILITY, type CatalogProduct } from "./config";
+import {
+  isComplexGood,
+  SCOPE2_IN_LIABILITY,
+  type CatalogProduct,
+} from "./config";
 import { precursorContribution } from "./precursors";
 import { isSelfSupplier } from "./data";
 import type { ReviewSubmission, ReviewRollup } from "./exporter-review";
 
 /* Default-value markup schedule (Implementing Regulation) — pushes declarants
    toward actual, verified data year over year. */
-export const DEFAULT_VALUE_MARKUP: Record<number, number> = { 2026: 0.1, 2027: 0.2, 2028: 0.3 };
-const markupForYear = (year: number) => DEFAULT_VALUE_MARKUP[Math.min(year, 2028)] ?? DEFAULT_VALUE_MARKUP[2028];
+export const DEFAULT_VALUE_MARKUP: Record<number, number> = {
+  2026: 0.1,
+  2027: 0.2,
+  2028: 0.3,
+};
+const markupForYear = (year: number) =>
+  DEFAULT_VALUE_MARKUP[Math.min(year, 2028)] ?? DEFAULT_VALUE_MARKUP[2028];
 
 /* Complex goods may only rely on default values for up to 20% of embedded
    emissions — the remaining 80%+ must be actual, verified data. This mock's
@@ -44,7 +53,10 @@ export const THB_PER_EUR = 39;
 /** Reporting-period year for the default-value markup schedule. The markup
     follows the PERIOD being reported, never the wall clock — a 2026 dataset
     reviewed in 2027 still carries the 2026 markup. */
-export function yearFromPeriod(periodStart?: string, periodLabel?: string): number {
+export function yearFromPeriod(
+  periodStart?: string,
+  periodLabel?: string,
+): number {
   if (periodStart) {
     const y = Number(periodStart.slice(0, 4));
     if (y > 2000) return y;
@@ -110,7 +122,11 @@ export type ComplianceFacts = {
   anyUnverifiedActual: boolean;
 };
 
-function productFacts(sub: ReviewSubmission, product: CatalogProduct, year: number): {
+function productFacts(
+  sub: ReviewSubmission,
+  product: CatalogProduct,
+  year: number,
+): {
   gross: number;
   chargeable: number;
   defaultUsed: boolean;
@@ -119,18 +135,23 @@ function productFacts(sub: ReviewSubmission, product: CatalogProduct, year: numb
   facts: ProductFacts;
 } {
   const method = sub.values[valueKey("method", product.id)] || "";
-  const direct = Number(sub.values[valueKey("direct-emissions", product.id)]) || 0;
-  const indirect = Number(sub.values[valueKey("indirect-emissions", product.id)]) || 0;
+  const direct =
+    Number(sub.values[valueKey("direct-emissions", product.id)]) || 0;
+  const indirect =
+    Number(sub.values[valueKey("indirect-emissions", product.id)]) || 0;
   // Precursor embedded emissions carried into a complex good count toward the
   // chargeable base alongside the good's own direct emissions (Annex IV: the
   // precursors' embedded emissions are part of the good's embedded emissions).
-  const precursor = isComplexGood(product) ? precursorContribution(sub.values[valueKey("precursors", product.id)]) : 0;
+  const precursor = isComplexGood(product)
+    ? precursorContribution(sub.values[valueKey("precursors", product.id)])
+    : 0;
   const rp = sub.request.products.find((p) => p.product.id === product.id);
   const tonnes = rp?.totalTonnes ?? 0;
 
   const includeIndirect = SCOPE2_IN_LIABILITY[product.category];
   const grossPerTonne = direct + indirect + precursor;
-  const chargeablePerTonne = direct + precursor + (includeIndirect ? indirect : 0);
+  const chargeablePerTonne =
+    direct + precursor + (includeIndirect ? indirect : 0);
 
   const defaultUsed = method === "default";
   const markup = defaultUsed ? markupForYear(year) : 0;
@@ -178,8 +199,16 @@ function supplierFacts(sub: ReviewSubmission, year: number): SupplierFacts {
     chargeable += f.chargeable;
     products.push(f.facts);
     if (f.defaultUsed) defaultMethodProducts.push(rp.product.name);
-    if (f.capViolation) capViolations.push({ productId: rp.product.id, productName: rp.product.name });
-    if (f.unverifiedActual) unverifiedActual.push({ productId: rp.product.id, productName: rp.product.name });
+    if (f.capViolation)
+      capViolations.push({
+        productId: rp.product.id,
+        productName: rp.product.name,
+      });
+    if (f.unverifiedActual)
+      unverifiedActual.push({
+        productId: rp.product.id,
+        productName: rp.product.name,
+      });
   }
 
   const evidenceGaps: EvidenceGap[] = sub.request.documents
@@ -192,9 +221,13 @@ function supplierFacts(sub: ReviewSubmission, year: number): SupplierFacts {
      exposure negative. Pre-fix this subtracted the raw number as absolute EUR. */
   const cpPerTonne = Number(sub.values[valueKey("carbon-price")]) || 0;
   const cpCurrency = sub.values[valueKey("carbon-price-currency")] || "THB";
-  const cpPerTonneEUR = cpCurrency === "EUR" ? cpPerTonne : cpPerTonne / THB_PER_EUR;
+  const cpPerTonneEUR =
+    cpCurrency === "EUR" ? cpPerTonne : cpPerTonne / THB_PER_EUR;
   const carbonPricePaidEUR = Math.max(0, cpPerTonneEUR) * chargeable;
-  const netExposureEUR = Math.max(0, chargeable * EU_ETS_PROXY_EUR_PER_TCO2E - carbonPricePaidEUR);
+  const netExposureEUR = Math.max(
+    0,
+    chargeable * EU_ETS_PROXY_EUR_PER_TCO2E - carbonPricePaidEUR,
+  );
 
   return {
     supplierId: sub.supplier.id,
@@ -230,9 +263,17 @@ export type FrozenOverride = {
   contentHash: string;
 };
 
-function applyFrozen(facts: ProductFacts, frozen: FrozenOverride, includeIndirect: boolean): ProductFacts {
-  const seePerTonne = frozen.directPerTonne + frozen.indirectPerTonne + frozen.precursorPerTonne;
-  const chargeableBase = frozen.directPerTonne + frozen.precursorPerTonne + (includeIndirect ? frozen.indirectPerTonne : 0);
+function applyFrozen(
+  facts: ProductFacts,
+  frozen: FrozenOverride,
+  includeIndirect: boolean,
+): ProductFacts {
+  const seePerTonne =
+    frozen.directPerTonne + frozen.indirectPerTonne + frozen.precursorPerTonne;
+  const chargeableBase =
+    frozen.directPerTonne +
+    frozen.precursorPerTonne +
+    (includeIndirect ? frozen.indirectPerTonne : 0);
   const chargeablePerTonne = chargeableBase * (1 + facts.markup);
   return {
     ...facts,
@@ -248,7 +289,11 @@ function applyFrozen(facts: ProductFacts, frozen: FrozenOverride, includeIndirec
 
     `frozen` binds the exporter's own installation to its approved snapshot;
     omit it and the function behaves exactly as it always did. */
-export function computeComplianceFacts(roll: ReviewRollup, year = new Date().getFullYear(), frozen?: FrozenOverride | null): ComplianceFacts {
+export function computeComplianceFacts(
+  roll: ReviewRollup,
+  year = new Date().getFullYear(),
+  frozen?: FrozenOverride | null,
+): ComplianceFacts {
   const submitted = roll.submissions.filter((s) => s.submitted);
   const perSupplier: Record<string, SupplierFacts> = {};
   let totalTonnes = 0;
@@ -263,16 +308,23 @@ export function computeComplianceFacts(roll: ReviewRollup, year = new Date().get
     /* The exporter's own installation is bound to the frozen snapshot, so an
        approved figure cannot drift when someone edits an input afterwards. */
     if (frozen && isSelfSupplier(sub.supplier.id)) {
-      const products = facts.products.map((p) => applyFrozen(p, frozen, SCOPE2_IN_LIABILITY[p.category]));
+      const products = facts.products.map((p) =>
+        applyFrozen(p, frozen, SCOPE2_IN_LIABILITY[p.category]),
+      );
       facts = {
         ...facts,
         products,
         grossTCO2e: Math.round(products.reduce((a, p) => a + p.grossTCO2e, 0)),
-        chargeableTCO2e: Math.round(products.reduce((a, p) => a + p.chargeableTCO2e, 0)),
+        chargeableTCO2e: Math.round(
+          products.reduce((a, p) => a + p.chargeableTCO2e, 0),
+        ),
       };
     }
     perSupplier[sub.supplier.id] = facts;
-    totalTonnes += sub.request.products.reduce((a, rp) => a + rp.totalTonnes, 0);
+    totalTonnes += sub.request.products.reduce(
+      (a, rp) => a + rp.totalTonnes,
+      0,
+    );
     totalGross += facts.grossTCO2e;
     totalChargeable += facts.chargeableTCO2e;
     totalExposure += facts.netExposureEUR;

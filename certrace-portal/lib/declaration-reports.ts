@@ -31,8 +31,14 @@
    report, which is the first moment it has anything to hold.
    ════════════════════════════════════════════════════════════ */
 
-import { aggregatedGoodsCategory, PRODUCT_CATALOG, getCatalogProduct } from "./config";
-import { SELF_SUPPLIER_ID, isSelfSupplier, type Declaration, type SupplierRow } from "./data";
+import { PRODUCT_CATALOG, getCatalogProduct } from "./config";
+import { routeOptionsFor } from "./cbam/routes";
+import {
+  SELF_SUPPLIER_ID,
+  isSelfSupplier,
+  type Declaration,
+  type SupplierRow,
+} from "./data";
 import { dotStates, workspaceReadiness, type TabState } from "./readiness";
 import { shipmentsForWorkspace } from "./shipments";
 import { annualProductionFor } from "./monthly-data";
@@ -41,7 +47,6 @@ import {
   createWorkspace,
   linkDeclaration,
   listWorkspaces,
-  routesForCategory,
   type VerificationWorkspace,
 } from "./workspace";
 
@@ -92,8 +97,10 @@ const yearOf = (d: Declaration): number => {
   return Number.isFinite(fromLabel) ? fromLabel : new Date().getFullYear();
 };
 
-const supplierName = (d: Declaration, supplierId: string): SupplierRow | undefined =>
-  d.suppliers.find((s) => s.id === supplierId);
+const supplierName = (
+  d: Declaration,
+  supplierId: string,
+): SupplierRow | undefined => d.suppliers.find((s) => s.id === supplierId);
 
 /** Find the workspace already standing behind a (supplier, product, year) row.
 
@@ -101,8 +108,19 @@ const supplierName = (d: Declaration, supplierId: string): SupplierRow | undefin
     because the same physical installation legitimately feeds several
     declarations and we want the second declaration to REUSE the first one's
     year of readings rather than open an empty duplicate beside it. */
-function findWorkspace(supplierId: string, productId: string, year: number): VerificationWorkspace | null {
-  return listWorkspaces().find((w) => w.installationId === installationIdFor(supplierId) && w.productId === productId && w.year === year) ?? null;
+function findWorkspace(
+  supplierId: string,
+  productId: string,
+  year: number,
+): VerificationWorkspace | null {
+  return (
+    listWorkspaces().find(
+      (w) =>
+        w.installationId === installationIdFor(supplierId) &&
+        w.productId === productId &&
+        w.year === year,
+    ) ?? null
+  );
 }
 
 /** A supplier's installation reference. Self-supply resolves to the exporter's
@@ -122,7 +140,11 @@ export function annualReportsFor(declaration: Declaration): AnnualReport[] {
   const year = yearOf(declaration);
   const rows: AnnualReport[] = [];
 
-  const push = (supplierId: string, productId: string, inputKind: InputKind | null = null) => {
+  const push = (
+    supplierId: string,
+    productId: string,
+    inputKind: InputKind | null = null,
+  ) => {
     const supplier = supplierName(declaration, supplierId);
     const product = getCatalogProduct(productId);
     const key = `${supplierId}::${productId}`;
@@ -132,17 +154,26 @@ export function annualReportsFor(declaration: Declaration): AnnualReport[] {
     rows.push({
       key,
       supplierId,
-      supplierName: supplier?.name ?? (isSelfSupplier(supplierId) ? "Your own installation" : supplierId),
+      supplierName:
+        supplier?.name ??
+        (isSelfSupplier(supplierId) ? "Your own installation" : supplierId),
       supplierCountry: supplier?.country ?? "TH",
-      selfSupplied: Boolean(supplier?.selfSupplied) || isSelfSupplier(supplierId),
+      selfSupplied:
+        Boolean(supplier?.selfSupplied) || isSelfSupplier(supplierId),
       productId,
       // Never render a sentinel. The row says what it is instead.
-      productName: unresolved || isInput ? supplier?.material?.trim() || "Product not identified" : product?.name ?? productId,
+      productName:
+        unresolved || isInput
+          ? supplier?.material?.trim() || "Product not identified"
+          : (product?.name ?? productId),
       cnCode: product?.cnCode ?? "",
       unresolved,
       inputKind,
       year,
-      workspace: unresolved || isInput ? null : findWorkspace(supplierId, productId, year),
+      workspace:
+        unresolved || isInput
+          ? null
+          : findWorkspace(supplierId, productId, year),
     });
   };
 
@@ -200,7 +231,8 @@ export const INPUT_SUPPLIER = "__input__";
    that counts it as outstanding shows a year as 6-of-8 complete forever. So
    these resolve to an INPUT row that says where the data actually lives. */
 const SCRAP_PATTERN = /\b(scrap|waste|swarf|turnings|offcut|เศษ)\b/i;
-const UTILITY_PATTERN = /\b(electricity|power|grid|energy|utility|steam|กระแสไฟฟ้า)\b/i;
+const UTILITY_PATTERN =
+  /\b(electricity|power|grid|energy|utility|steam|กระแสไฟฟ้า)\b/i;
 
 export type InputKind = "scrap" | "utility";
 
@@ -231,17 +263,26 @@ export function resolveMaterial(material: string | undefined): string | null {
   const exact = all.find((p) => p.name.toLowerCase() === q);
   if (exact) return exact.id;
 
-  const byKeyword = all.find((p) => p.keywords.some((k) => q.includes(k) && k.length > 3));
+  const byKeyword = all.find((p) =>
+    p.keywords.some((k) => q.includes(k) && k.length > 3),
+  );
   if (byKeyword) return byKeyword.id;
 
-  const loose = all.find((p) => p.name.toLowerCase().includes(q) || q.includes(p.name.toLowerCase()));
+  const loose = all.find(
+    (p) => p.name.toLowerCase().includes(q) || q.includes(p.name.toLowerCase()),
+  );
   return loose?.id ?? null;
 }
 
 /** Find or create the workspace behind a report row, and link the declaration
     to it so the trail runs both ways. Idempotent. */
-export function openReport(declaration: Declaration, report: AnnualReport): VerificationWorkspace {
-  const existing = report.workspace ?? findWorkspace(report.supplierId, report.productId, report.year);
+export function openReport(
+  declaration: Declaration,
+  report: AnnualReport,
+): VerificationWorkspace {
+  const existing =
+    report.workspace ??
+    findWorkspace(report.supplierId, report.productId, report.year);
   if (existing) {
     linkDeclaration(existing.id, declaration.id);
     return existing;
@@ -253,7 +294,7 @@ export function openReport(declaration: Declaration, report: AnnualReport): Veri
   // which tiers should exist. The first route valid for the product's sector
   // is a starting point the Overview tab can correct in place, which is a
   // better failure than a workspace that cannot be created at all.
-  const fallbackRoute = product ? routesForCategory(aggregatedGoodsCategory(product))[0]?.id ?? "" : "";
+  const fallbackRoute = product ? (routeOptionsFor(product)[0]?.id ?? "") : "";
 
   const ws = createWorkspace({
     installationId: installationIdFor(report.supplierId),
@@ -278,7 +319,13 @@ export function reportStatus(report: AnnualReport): AnnualReportStatus {
     return {
       report,
       overall: "not_applicable",
-      dots: ["not_applicable", "not_applicable", "not_applicable", "not_applicable", "not_applicable"],
+      dots: [
+        "not_applicable",
+        "not_applicable",
+        "not_applicable",
+        "not_applicable",
+        "not_applicable",
+      ],
       monthsSubmitted: 12,
       precursorCount: 0,
       shipmentCount: 0,
@@ -294,7 +341,8 @@ export function reportStatus(report: AnnualReport): AnnualReportStatus {
       monthsSubmitted: 0,
       precursorCount: 0,
       shipmentCount: 0,
-      subtitle: "No CN code — pick the good this supplier makes before anything can be collected.",
+      subtitle:
+        "No CN code — pick the good this supplier makes before anything can be collected.",
     };
   }
 
@@ -302,11 +350,18 @@ export function reportStatus(report: AnnualReport): AnnualReportStatus {
     return {
       report,
       overall: "incomplete",
-      dots: ["incomplete", "incomplete", "incomplete", "incomplete", "incomplete"],
+      dots: [
+        "incomplete",
+        "incomplete",
+        "incomplete",
+        "incomplete",
+        "incomplete",
+      ],
       monthsSubmitted: 0,
       precursorCount: 0,
       shipmentCount: 0,
-      subtitle: "Not started — open it to create the year and send the first request.",
+      subtitle:
+        "Not started — open it to create the year and send the first request.",
     };
   }
 
@@ -352,8 +407,13 @@ export function rollup(statuses: AnnualReportStatus[]): DeclarationRollup {
   const total = reports.length;
   const complete = reports.filter((s) => s.overall === "complete").length;
   const blocked = reports.filter((s) => s.overall === "blocked").length;
-  const notStarted = reports.filter((s) => !s.report.workspace && !s.report.unresolved).length;
-  const monthsOutstanding = reports.reduce((a, s) => a + Math.max(0, 12 - s.monthsSubmitted), 0);
+  const notStarted = reports.filter(
+    (s) => !s.report.workspace && !s.report.unresolved,
+  ).length;
+  const monthsOutstanding = reports.reduce(
+    (a, s) => a + Math.max(0, 12 - s.monthsSubmitted),
+    0,
+  );
   return {
     total,
     complete,
@@ -374,7 +434,9 @@ export type SupplierGroup = {
   statuses: AnnualReportStatus[];
 };
 
-export function groupBySupplier(statuses: AnnualReportStatus[]): SupplierGroup[] {
+export function groupBySupplier(
+  statuses: AnnualReportStatus[],
+): SupplierGroup[] {
   const map = new Map<string, SupplierGroup>();
   for (const s of statuses) {
     const g = map.get(s.report.supplierId) ?? {

@@ -5,9 +5,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { Button, Field, inputClass, cn } from "@/components/ui";
-import { AuthLayout, GoogleButton, Divider, GOOGLE_AUTH_ENABLED, AuthUnavailable } from "@/components/auth-panel";
+import {
+  AuthLayout,
+  GoogleButton,
+  Divider,
+  GOOGLE_AUTH_ENABLED,
+  AuthUnavailable,
+} from "@/components/auth-panel";
 import { EnglishOnly, useT } from "@/lib/i18n";
-import { authUnavailable, beginGoogleSignIn, demoModeEnabled, login } from "@/lib/api";
+import { authUnavailable, beginGoogleSignIn, login } from "@/lib/api";
 import { EMAIL_RE, signInDestination, signInError } from "@/lib/auth-flow";
 
 /* Sign-in is English-only, like the rest of the auth screens — see
@@ -43,28 +49,12 @@ function LoginScreen() {
      would. */
   const unavailable = authUnavailable();
 
-  /* ── Both buttons land in the same place ───────────────────────
-     Signing in — with the email form or with Google — opens the SIGN-IN
-     onboarding at /onboarding/setup, never the dashboard directly. The two
-     paths must not diverge: which flow a "Continue with Google" click starts
-     is decided by the page it was clicked on, and on this page that is the
-     sign-in flow, exactly as the identical button on /register starts the
-     create-account one. The one account that goes elsewhere is one that never
-     finished signing up — see signInDestination in lib/auth-flow. */
+  /* Returning users go to the workspace when ready. */
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit || loading) return;
     setLoading(true);
     setError("");
-
-    /* `next dev`, or a build that asked for the demo by name. Walk the path
-       this screen has always walked rather than failing on a URL nobody has
-       set. A production build with no backend does NOT land here — it never
-       renders this form at all. See demoModeEnabled() in lib/api. */
-    if (demoModeEnabled()) {
-      window.setTimeout(() => router.push("/onboarding/setup"), 600);
-      return;
-    }
 
     /* Belt and braces for the case the form is somehow reachable without a
        backend: never walk the simulated path from a build that did not ask
@@ -77,8 +67,7 @@ function LoginScreen() {
     }
 
     try {
-      /* `login` stores the session itself — the token is in localStorage
-         before this line returns, so the next screen's requests carry it. */
+      /* Login establishes the HttpOnly cookie and hydrates account data. */
       const session = await login({ email: email.trim(), password });
       router.push(signInDestination(session.user));
       /* Loading stays ON through the push. Clearing it here would flash an
@@ -103,7 +92,9 @@ function LoginScreen() {
        uses. /register and /forgot-password keep the default line — see
        DEFAULT_DESCRIPTION in components/auth-panel.tsx. */
     <AuthLayout description="Certrace is an AI workflow platform connecting buyers, exporters, and suppliers to automate CBAM carbon data collection — report-ready before buyers even ask.">
-      <p className="mt-2 text-[11px] uppercase tracking-[0.1em] text-black/40">{t("Exporter portal")}</p>
+      <p className="mt-2 text-[11px] uppercase tracking-[0.1em] text-black/40">
+        {t("Exporter portal")}
+      </p>
       <h2 className="mt-3 font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111]">
         {t("Sign in to continue.")}
       </h2>
@@ -123,55 +114,69 @@ function LoginScreen() {
       {/* With the Google block hidden the form is the first thing under the
           heading, so it takes over the spacing that block was providing. */}
       {!unavailable && (
-      <form onSubmit={submit} className={cn("space-y-4", GOOGLE_AUTH_ENABLED ? "mt-5" : "mt-7")}>
-        <Field label={t("Work email")}>
-          <input
-            className={inputClass}
-            type="email"
-            placeholder={t("you@company.com")}
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="username"
-            required
-          />
-        </Field>
-        <div>
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-[11px] uppercase tracking-[0.1em] text-black/55">{t("Password")}</span>
-            <Link href="/forgot-password" className="text-[11px] text-black/40 hover:text-black">
-              {t("Forgot password?")}
-            </Link>
+        <form
+          onSubmit={submit}
+          className={cn("space-y-4", GOOGLE_AUTH_ENABLED ? "mt-5" : "mt-7")}
+        >
+          <Field label={t("Work email")}>
+            <input
+              className={inputClass}
+              type="email"
+              placeholder={t("you@company.com")}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="username"
+              required
+            />
+          </Field>
+          <div>
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-[11px] uppercase tracking-[0.1em] text-black/55">
+                {t("Password")}
+              </span>
+              <Link
+                href="/forgot-password"
+                className="text-[11px] text-black/40 hover:text-black"
+              >
+                {t("Forgot password?")}
+              </Link>
+            </div>
+            <input
+              className={inputClass}
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              required
+            />
           </div>
-          <input
-            className={inputClass}
-            type="password"
-            placeholder="••••••••"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            required
-          />
-        </div>
-        {/* Over the button, not under a field: "email or password is
+          {/* Over the button, not under a field: "email or password is
             incorrect" is deliberately unable to say which one, and hanging it
             on the email box would answer a question the server refused to. */}
-        {error && <p className="text-xs text-[#dc2626]">{error}</p>}
-        <Button type="submit" className="w-full" disabled={loading || !canSubmit}>
-          {loading ? t("Signing in…") : t("Sign in")}
-          {!loading && <ArrowRight size={15} strokeWidth={1.5} />}
-        </Button>
-      </form>
+          {error && <p className="text-xs text-[#dc2626]">{error}</p>}
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={loading || !canSubmit}
+          >
+            {loading ? t("Signing in…") : t("Sign in")}
+            {!loading && <ArrowRight size={15} strokeWidth={1.5} />}
+          </Button>
+        </form>
       )}
 
       {!unavailable && (
         <p className="mt-6 text-center text-[13px] text-black/45">
           {t("New to Certrace?")}{" "}
-          <Link href="/register" className="text-black/70 underline-offset-2 hover:text-black hover:underline">
+          <Link
+            href="/register"
+            className="text-black/70 underline-offset-2 hover:text-black hover:underline"
+          >
             {t("Create an account")}
           </Link>
         </p>
       )}
-
     </AuthLayout>
   );
 }

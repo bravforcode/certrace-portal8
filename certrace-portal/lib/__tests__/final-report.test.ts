@@ -49,15 +49,29 @@ g.window = {
 };
 g.localStorage = storage;
 
-const { buildFinalReport, buildFinalReportPdf, finalReportDocForDownload } = await import("../cbam/final-report");
-const { EVIDENCE_REPORT_CATEGORY_ORDER, NOT_PROVIDED, anchorForFieldKey, PART_ANCHORS } = await import("../cbam/final-report-doc");
-const { renderReportPdf, pdfSafe, UNRENDERABLE } = await import("../cbam/final-report-pdf");
-const { getFinalReportSnapshot, saveFinalReportSnapshot } = await import("../cbam/final-report-snapshot");
+const { buildFinalReport, buildFinalReportPdf, finalReportDocForDownload } =
+  await import("../cbam/final-report");
+const {
+  EVIDENCE_REPORT_CATEGORY_ORDER,
+  NOT_PROVIDED,
+  anchorForFieldKey,
+  PART_ANCHORS,
+} = await import("../cbam/final-report-doc");
+const { renderReportPdf, pdfSafe, UNRENDERABLE } = await import(
+  "../cbam/final-report-pdf"
+);
+const { getFinalReportSnapshot, saveFinalReportSnapshot } = await import(
+  "../cbam/final-report-snapshot"
+);
 const { createWorkspace } = await import("../workspace");
 const { saveEvidence, listEvidence } = await import("../workspace-evidence");
 const { EVIDENCE_CATEGORY_ORDER } = await import("../workspace-evidence");
-const { saveInstallation, emptyInstallation } = await import("../installations");
-const { packFingerprint, signOffPack, clearSignOff } = await import("../pack-signoff");
+const { saveInstallation, emptyInstallation } = await import(
+  "../installations"
+);
+const { packFingerprint, signOffPack, clearSignOff } = await import(
+  "../pack-signoff"
+);
 const { workspaceSEE } = await import("../workspace-see");
 const { workspaceReadiness } = await import("../readiness");
 
@@ -86,7 +100,11 @@ const PNG_1PX =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 
 let evidenceSeq = 0;
-function addEvidence(workspaceId: string, fieldKey: string, over: Partial<Parameters<typeof saveEvidence>[0]> = {}) {
+function addEvidence(
+  workspaceId: string,
+  fieldKey: string,
+  over: Partial<Parameters<typeof saveEvidence>[0]> = {},
+) {
   evidenceSeq++;
   saveEvidence({
     id: `ev-${evidenceSeq}`,
@@ -107,14 +125,28 @@ test("the export produces exactly one file, and that file is a PDF", async () =>
   const workspace = ws();
   const result = await buildFinalReportPdf(workspace);
 
-  assert.ok(result.fileName.endsWith(".pdf"), "one PDF, not an .html to print and not a .zip");
+  assert.ok(
+    result.fileName.endsWith(".pdf"),
+    "one PDF, not an .html to print and not a .zip",
+  );
   assert.ok(result.bytes.length > 0, "the file has content");
-  assert.equal(String.fromCharCode(...result.bytes.slice(0, 5)), "%PDF-", "it really is a PDF");
+  assert.equal(
+    String.fromCharCode(...result.bytes.slice(0, 5)),
+    "%PDF-",
+    "it really is a PDF",
+  );
 
   const { PDFDocument } = await import("pdf-lib");
   const loaded = await PDFDocument.load(result.bytes);
-  assert.equal(loaded.getPageCount(), result.pageCount, "the reported page count is the document's own");
-  assert.ok(result.pageCount >= 7, "cover + TOC + four parts + the evidence divider, at least");
+  assert.equal(
+    loaded.getPageCount(),
+    result.pageCount,
+    "the reported page count is the document's own",
+  );
+  assert.ok(
+    result.pageCount >= 7,
+    "cover + TOC + four parts + the evidence divider, at least",
+  );
 });
 
 test("page 1 is the cover and the last generated page before evidence is the divider", async () => {
@@ -129,7 +161,11 @@ test("page 1 is the cover and the last generated page before evidence is the div
   /* No evidence at all, so the whole document is: the report, the reserved
      Table of Contents page inserted right after the cover, then exactly one
      divider page. Anything else means something slipped in between. */
-  assert.equal(result.pageCount, reportPages + 2, "the TOC and the divider both land, with nothing else between");
+  assert.equal(
+    result.pageCount,
+    reportPages + 2,
+    "the TOC and the divider both land, with nothing else between",
+  );
 });
 
 /* ── §3 · the report's own order ────────────────────────────── */
@@ -154,7 +190,21 @@ test("Parts 1-4 render in the template's order, with their subsections in order"
   );
   assert.deepEqual(
     doc.parts.flatMap((p) => p.subsections.map((s) => s.number)),
-    ["1.1", "1.2", "1.3", "1.4", "2.1", "2.2", "3.1", "3.1a", "3.2", "3.3", "3.4", "4.1", "4.2"],
+    [
+      "1.1",
+      "1.2",
+      "1.3",
+      "1.4",
+      "2.1",
+      "2.2",
+      "3.1",
+      "3.1a",
+      "3.2",
+      "3.3",
+      "3.4",
+      "4.1",
+      "4.2",
+    ],
     "every numbered subsection, in the contract's order",
   );
 });
@@ -190,7 +240,10 @@ test("field labels are the template's own, and a field Certrace does not collect
   ]);
 
   const values = block.kind === "fields" ? block.rows.map((r) => r.value) : [];
-  assert.ok(values.includes(NOT_PROVIDED), "a missing field renders as Not provided rather than being dropped");
+  assert.ok(
+    values.includes(NOT_PROVIDED),
+    "a missing field renders as Not provided rather than being dropped",
+  );
 });
 
 test("Part 4.1 carries the summary-of-products columns in the contract's order", () => {
@@ -222,7 +275,10 @@ test("the verifier block states the transitional-period position rather than lea
   assert.equal(verifier.number, "1.3");
   const block = verifier.blocks[0];
   assert.equal(block.kind, "text");
-  assert.match(block.kind === "text" ? block.text : "", /Not applicable — transitional period/);
+  assert.match(
+    block.kind === "text" ? block.text : "",
+    /Not applicable — transitional period/,
+  );
 });
 
 /* ── §4 · the evidence appendix ─────────────────────────────── */
@@ -233,7 +289,13 @@ test("the appendix order is not the Documents screen's A-E order", () => {
     EVIDENCE_CATEGORY_ORDER,
     "two different orders on purpose — merging them would silently re-letter the Documents screen",
   );
-  assert.deepEqual(EVIDENCE_REPORT_CATEGORY_ORDER, ["operations", "lab", "suppliers", "organisation", "finance"]);
+  assert.deepEqual(EVIDENCE_REPORT_CATEGORY_ORDER, [
+    "operations",
+    "lab",
+    "suppliers",
+    "organisation",
+    "finance",
+  ]);
 });
 
 test("evidence groups into the five categories in the fixed order", () => {
@@ -270,15 +332,27 @@ test("an empty category is dropped entirely, and does not renumber the ones afte
     ["operations", "organisation"],
     "skipped categories render no header and no placeholder",
   );
-  assert.deepEqual(doc.evidence.map((s) => s.ordinal), [1, 4], "organisation stays category 4 even though 2 and 3 are absent");
+  assert.deepEqual(
+    doc.evidence.map((s) => s.ordinal),
+    [1, 4],
+    "organisation stays category 4 even though 2 and 3 are absent",
+  );
 });
 
 test("inside a category, files sort by the field they support, not by upload date", () => {
   storage.clear();
   const workspace = ws();
   // Both are Operations. The 4.1 field is uploaded FIRST, the 2.2 field second.
-  addEvidence(workspace.id, "production", { id: "ev-early", fileName: "production.pdf", capturedAt: "2026-01-01T00:00:00.000Z" }); // 4.1
-  addEvidence(workspace.id, "installation-diagram", { id: "ev-late", fileName: "diagram.pdf", capturedAt: "2026-06-01T00:00:00.000Z" }); // 2.2
+  addEvidence(workspace.id, "production", {
+    id: "ev-early",
+    fileName: "production.pdf",
+    capturedAt: "2026-01-01T00:00:00.000Z",
+  }); // 4.1
+  addEvidence(workspace.id, "installation-diagram", {
+    id: "ev-late",
+    fileName: "diagram.pdf",
+    capturedAt: "2026-06-01T00:00:00.000Z",
+  }); // 2.2
 
   const doc = buildFinalReport(workspace);
   const operations = doc.evidence.find((s) => s.department === "operations")!;
@@ -292,19 +366,48 @@ test("inside a category, files sort by the field they support, not by upload dat
 test("an item whose field maps nowhere goes to the end of its category, by upload date", () => {
   storage.clear();
   const workspace = ws();
-  addEvidence(workspace.id, "no-such-field", { id: "ev-unmapped", fileName: "mystery.pdf", capturedAt: "2026-01-01T00:00:00.000Z" });
-  addEvidence(workspace.id, "internal-qa-record", { id: "ev-mapped", fileName: "org.pdf", capturedAt: "2026-09-01T00:00:00.000Z" });
+  addEvidence(workspace.id, "no-such-field", {
+    id: "ev-unmapped",
+    fileName: "mystery.pdf",
+    capturedAt: "2026-01-01T00:00:00.000Z",
+  });
+  addEvidence(workspace.id, "internal-qa-record", {
+    id: "ev-mapped",
+    fileName: "org.pdf",
+    capturedAt: "2026-09-01T00:00:00.000Z",
+  });
 
-  assert.equal(anchorForFieldKey("no-such-field"), null, "an unknown key has no anchor — that is an answer, not a crash");
+  assert.equal(
+    anchorForFieldKey("no-such-field"),
+    null,
+    "an unknown key has no anchor — that is an answer, not a crash",
+  );
   const doc = buildFinalReport(workspace);
-  const organisation = doc.evidence.find((s) => s.department === "organisation")!;
-  assert.deepEqual(organisation.items.map((i) => i.fileName), ["org.pdf", "mystery.pdf"], "unmapped sorts last, and the export still runs");
+  const organisation = doc.evidence.find(
+    (s) => s.department === "organisation",
+  )!;
+  assert.deepEqual(
+    organisation.items.map((i) => i.fileName),
+    ["org.pdf", "mystery.pdf"],
+    "unmapped sorts last, and the export still runs",
+  );
 });
 
 test("every anchor a field key can produce is one of the printed subsections", () => {
-  for (const key of ["production", "lab-analysis", "carbon-price", "fuel:abc", "fuel-invoice:abc", "precursor:xyz", "installation-identity"]) {
+  for (const key of [
+    "production",
+    "lab-analysis",
+    "carbon-price",
+    "fuel:abc",
+    "fuel-invoice:abc",
+    "precursor:xyz",
+    "installation-identity",
+  ]) {
     const anchor = anchorForFieldKey(key);
-    assert.ok(anchor && PART_ANCHORS.includes(anchor), `${key} anchors to a real subsection`);
+    assert.ok(
+      anchor && PART_ANCHORS.includes(anchor),
+      `${key} anchors to a real subsection`,
+    );
   }
 });
 
@@ -315,7 +418,10 @@ test("a native PDF evidence file passes through, page for page", async () => {
   const workspace = ws();
   const baseline = await buildFinalReportPdf(workspace);
 
-  addEvidence(workspace.id, "production", { fileDataUrl: await onePagePdfDataUrl(), mimeType: "application/pdf" });
+  addEvidence(workspace.id, "production", {
+    fileDataUrl: await onePagePdfDataUrl(),
+    mimeType: "application/pdf",
+  });
   const withPdf = await buildFinalReportPdf(workspace);
 
   // + 1 category header page, + the file's own 1 page.
@@ -329,21 +435,41 @@ test("an image evidence file becomes exactly one page", async () => {
   const workspace = ws();
   const baseline = await buildFinalReportPdf(workspace);
 
-  addEvidence(workspace.id, "production", { fileName: "meter.png", fileDataUrl: PNG_1PX, mimeType: "image/png" });
+  addEvidence(workspace.id, "production", {
+    fileName: "meter.png",
+    fileDataUrl: PNG_1PX,
+    mimeType: "image/png",
+  });
   const withImage = await buildFinalReportPdf(workspace);
 
-  assert.equal(withImage.pageCount, baseline.pageCount + 2, "one category header, one image page");
+  assert.equal(
+    withImage.pageCount,
+    baseline.pageCount + 2,
+    "one category header, one image page",
+  );
   assert.equal(withImage.embedded, 1);
 });
 
 test("a file that cannot be rendered keeps its position as a named placeholder, and does not fail the export", async () => {
   storage.clear();
   const workspace = ws();
-  addEvidence(workspace.id, "production", { fileName: "sheet.xlsx", fileDataUrl: "data:application/vnd.ms-excel;base64,AAAA", mimeType: "application/vnd.ms-excel" });
-  addEvidence(workspace.id, "installation-diagram", { fileName: "diagram.pdf", fileDataUrl: await onePagePdfDataUrl(), mimeType: "application/pdf" });
+  addEvidence(workspace.id, "production", {
+    fileName: "sheet.xlsx",
+    fileDataUrl: "data:application/vnd.ms-excel;base64,AAAA",
+    mimeType: "application/vnd.ms-excel",
+  });
+  addEvidence(workspace.id, "installation-diagram", {
+    fileName: "diagram.pdf",
+    fileDataUrl: await onePagePdfDataUrl(),
+    mimeType: "application/pdf",
+  });
 
   const result = await buildFinalReportPdf(workspace);
-  assert.equal(result.placeholders.length, 1, "the export completes rather than throwing");
+  assert.equal(
+    result.placeholders.length,
+    1,
+    "the export completes rather than throwing",
+  );
   assert.equal(result.placeholders[0].fileName, "sheet.xlsx");
   assert.match(result.placeholders[0].reason, /cannot be converted/);
   assert.equal(result.embedded, 1, "the file that could be rendered still is");
@@ -352,11 +478,14 @@ test("a file that cannot be rendered keeps its position as a named placeholder, 
 test("an evidence record with no stored file is named on a placeholder page rather than dropped", async () => {
   storage.clear();
   const workspace = ws();
-  addEvidence(workspace.id, "production", { fileName: "huge-scan.pdf", fileDataUrl: undefined });
+  addEvidence(workspace.id, "production", {
+    fileName: "huge-scan.pdf",
+    fileDataUrl: undefined,
+  });
 
   const result = await buildFinalReportPdf(workspace);
   assert.equal(result.placeholders.length, 1);
-  assert.match(result.placeholders[0].reason, /exceeds the inline storage limit/);
+  assert.match(result.placeholders[0].reason, /original file is unavailable/);
 });
 
 /* ── Glyphs ─────────────────────────────────────────────────── */
@@ -378,7 +507,11 @@ test("nothing the report actually prints degrades to a question mark", () => {
       ...part.subsections.flatMap((sub) => [
         sub.title,
         ...sub.blocks.flatMap((b) =>
-          b.kind === "fields" ? b.rows.flatMap((r) => [r.label, r.value]) : b.kind === "table" ? [...b.columns, ...b.rows.flat()] : [b.text],
+          b.kind === "fields"
+            ? b.rows.flatMap((r) => [r.label, r.value])
+            : b.kind === "table"
+              ? [...b.columns, ...b.rows.flat()]
+              : [b.text],
         ),
       ]),
     ]),
@@ -386,20 +519,33 @@ test("nothing the report actually prints degrades to a question mark", () => {
 
   for (const raw of strings) {
     const rendered = pdfSafe(raw);
-    if (!raw.includes("?")) assert.ok(!rendered.includes("?"), `"${raw}" renders as "${rendered}"`);
+    if (!raw.includes("?"))
+      assert.ok(!rendered.includes("?"), `"${raw}" renders as "${rendered}"`);
   }
 
   // And the specific substitution that used to print "?_m production_m".
-  assert.equal(pdfSafe("production_annual = \u03a3_m production_m"), "production_annual = SUM_m production_m");
+  assert.equal(
+    pdfSafe("production_annual = \u03a3_m production_m"),
+    "production_annual = SUM_m production_m",
+  );
   assert.equal(pdfSafe("tCO\u2082e/t"), "tCO2e/t");
 });
 
 test("a script the core fonts cannot draw is marked once, not once per character", () => {
   // A Thai installation name — the local-language field every Thai exporter fills in.
-  const thai = "\u0e42\u0e23\u0e07\u0e07\u0e32\u0e19\u0e40\u0e2b\u0e25\u0e47\u0e01\u0e23\u0e30\u0e22\u0e2d\u0e07";
-  assert.equal(pdfSafe(thai), UNRENDERABLE, "the whole run collapses to one marker");
+  const thai =
+    "\u0e42\u0e23\u0e07\u0e07\u0e32\u0e19\u0e40\u0e2b\u0e25\u0e47\u0e01\u0e23\u0e30\u0e22\u0e2d\u0e07";
+  assert.equal(
+    pdfSafe(thai),
+    UNRENDERABLE,
+    "the whole run collapses to one marker",
+  );
   assert.ok(!pdfSafe(thai).includes("??"), "never a string of question marks");
-  assert.equal(pdfSafe(`Rayong (${thai}) Works`), `Rayong (${UNRENDERABLE}) Works`, "the Latin text around it survives");
+  assert.equal(
+    pdfSafe(`Rayong (${thai}) Works`),
+    `Rayong (${UNRENDERABLE}) Works`,
+    "the Latin text around it survives",
+  );
 });
 
 /* ── Draft stamping ─────────────────────────────────────────── */
@@ -427,7 +573,15 @@ function fingerprintFor(workspace: ReturnType<typeof ws>) {
 test("a signed workspace serves the frozen doc even after an edit the fingerprint doesn't catch", () => {
   storage.clear();
   const workspace = ws();
-  saveInstallation({ ...emptyInstallation(true), id: workspace.installationId, name: "Plant A", city: "Rayong", street: "1 Moo 1", country: "TH", economicActivity: "Rolling" });
+  saveInstallation({
+    ...emptyInstallation(true),
+    id: workspace.installationId,
+    name: "Plant A",
+    city: "Rayong",
+    street: "1 Moo 1",
+    country: "TH",
+    economicActivity: "Rolling",
+  });
 
   const fp = fingerprintFor(workspace);
   signOffPack(workspace.id, "Somchai Prasert", "Compliance Manager", fp);
@@ -436,35 +590,80 @@ test("a signed workspace serves the frozen doc even after an edit the fingerprin
   // City is rendered verbatim in Part 1.2 but is NOT one of the fingerprint's
   // inputs (SEE, production, readiness, evidence count) — exactly the class
   // of edit that would slip through unnoticed if the report weren't frozen.
-  saveInstallation({ ...emptyInstallation(true), id: workspace.installationId, name: "Plant A", city: "Chonburi", street: "1 Moo 1", country: "TH", economicActivity: "Rolling" });
+  saveInstallation({
+    ...emptyInstallation(true),
+    id: workspace.installationId,
+    name: "Plant A",
+    city: "Chonburi",
+    street: "1 Moo 1",
+    country: "TH",
+    economicActivity: "Rolling",
+  });
 
   const served = finalReportDocForDownload(workspace);
   const about = served.parts[0].subsections[1].blocks[0];
   assert.equal(about.kind, "fields");
-  const city = about.kind === "fields" ? about.rows.find((r) => r.label === "City")?.value : undefined;
-  assert.equal(city, "Rayong", "the frozen snapshot's city, not the edited live value");
+  const city =
+    about.kind === "fields"
+      ? about.rows.find((r) => r.label === "City")?.value
+      : undefined;
+  assert.equal(
+    city,
+    "Rayong",
+    "the frozen snapshot's city, not the edited live value",
+  );
 });
 
 test("an unsigned workspace always serves the live doc", () => {
   storage.clear();
   const workspace = ws();
-  saveInstallation({ ...emptyInstallation(true), id: workspace.installationId, name: "Plant A", city: "Rayong", street: "1 Moo 1", country: "TH", economicActivity: "Rolling" });
+  saveInstallation({
+    ...emptyInstallation(true),
+    id: workspace.installationId,
+    name: "Plant A",
+    city: "Rayong",
+    street: "1 Moo 1",
+    country: "TH",
+    economicActivity: "Rolling",
+  });
 
   const served1 = finalReportDocForDownload(workspace);
   const cityOf = (doc: typeof served1) => {
     const about = doc.parts[0].subsections[1].blocks[0];
-    return about.kind === "fields" ? about.rows.find((r) => r.label === "City")?.value : undefined;
+    return about.kind === "fields"
+      ? about.rows.find((r) => r.label === "City")?.value
+      : undefined;
   };
   assert.equal(cityOf(served1), "Rayong");
 
-  saveInstallation({ ...emptyInstallation(true), id: workspace.installationId, name: "Plant A", city: "Chonburi", street: "1 Moo 1", country: "TH", economicActivity: "Rolling" });
-  assert.equal(cityOf(finalReportDocForDownload(workspace)), "Chonburi", "no sign-off on file — the report always shows what's true right now");
+  saveInstallation({
+    ...emptyInstallation(true),
+    id: workspace.installationId,
+    name: "Plant A",
+    city: "Chonburi",
+    street: "1 Moo 1",
+    country: "TH",
+    economicActivity: "Rolling",
+  });
+  assert.equal(
+    cityOf(finalReportDocForDownload(workspace)),
+    "Chonburi",
+    "no sign-off on file — the report always shows what's true right now",
+  );
 });
 
 test("clearing a signature falls back to live data even if an old snapshot still matches by fingerprint", () => {
   storage.clear();
   const workspace = ws();
-  saveInstallation({ ...emptyInstallation(true), id: workspace.installationId, name: "Plant A", city: "Rayong", street: "1 Moo 1", country: "TH", economicActivity: "Rolling" });
+  saveInstallation({
+    ...emptyInstallation(true),
+    id: workspace.installationId,
+    name: "Plant A",
+    city: "Rayong",
+    street: "1 Moo 1",
+    country: "TH",
+    economicActivity: "Rolling",
+  });
 
   const fp = fingerprintFor(workspace);
   signOffPack(workspace.id, "Somchai Prasert", "Compliance Manager", fp);
@@ -473,16 +672,24 @@ test("clearing a signature falls back to live data even if an old snapshot still
   clearSignOff(workspace.id);
   // Fingerprint hasn't moved (nothing about SEE/readiness/evidence changed),
   // but the signature itself is gone — the snapshot must not go on serving.
-  const about = finalReportDocForDownload(workspace).parts[0].subsections[1].blocks[0];
+  const about =
+    finalReportDocForDownload(workspace).parts[0].subsections[1].blocks[0];
   const snap = getFinalReportSnapshot(workspace.id);
-  assert.ok(snap, "the snapshot record itself is untouched by clearing the signature");
+  assert.ok(
+    snap,
+    "the snapshot record itself is untouched by clearing the signature",
+  );
   assert.equal(about.kind, "fields");
 });
 
 test("a draft (incomplete) workspace stamps the file name and the result as draft", async () => {
   storage.clear();
   const doc = buildFinalReport(ws());
-  assert.equal(doc.draft, true, "a freshly created workspace has outstanding items");
+  assert.equal(
+    doc.draft,
+    true,
+    "a freshly created workspace has outstanding items",
+  );
   assert.ok(doc.cover.draftBanner, "the cover carries the draft banner");
 
   const result = await buildFinalReportPdf(ws());
@@ -491,32 +698,69 @@ test("a draft (incomplete) workspace stamps the file name and the result as draf
 
 /* ── The download filename ──────────────────────────────────── */
 
-const { finalReportFileName, fileSegment, nextVersion } = await import("../cbam/final-report-filename");
+const { finalReportFileName, fileSegment, nextVersion } = await import(
+  "../cbam/final-report-filename"
+);
 
 test("the filename follows MMD_Company_Product_Year_vX.Y", () => {
   assert.equal(
-    finalReportFileName({ companyName: "ABC Steel Co Ltd", productName: "Rebar", year: 2026, draft: false, version: "1.0" }),
+    finalReportFileName({
+      companyName: "ABC Steel Co Ltd",
+      productName: "Rebar",
+      year: 2026,
+      draft: false,
+      version: "1.0",
+    }),
     "MMD_ABC-Steel-Co-Ltd_Rebar_2026_v1.0.pdf",
   );
   assert.equal(
-    finalReportFileName({ companyName: "ABC Steel Co Ltd", productName: "Rebar", year: 2026, draft: true, version: "1.1" }),
+    finalReportFileName({
+      companyName: "ABC Steel Co Ltd",
+      productName: "Rebar",
+      year: 2026,
+      draft: true,
+      version: "1.1",
+    }),
     "MMD_ABC-Steel-Co-Ltd_Rebar_2026_v1.1_Draft.pdf",
   );
 });
 
 test("a product name with slashes and commas survives as a filename", () => {
   // The workspace header really does show this one.
-  assert.equal(fileSegment("Pig iron, alloy / spiegeleisen", "x"), "Pig-iron-alloy-spiegeleisen");
-  assert.equal(fileSegment("  ", "Unnamed-Product"), "Unnamed-Product", "an empty name never produces MMD__Rebar_…");
-  assert.equal(fileSegment("A//B  C", "x"), "A-B-C", "runs of separators collapse to one hyphen");
+  assert.equal(
+    fileSegment("Pig iron, alloy / spiegeleisen", "x"),
+    "Pig-iron-alloy-spiegeleisen",
+  );
+  assert.equal(
+    fileSegment("  ", "Unnamed-Product"),
+    "Unnamed-Product",
+    "an empty name never produces MMD__Rebar_…",
+  );
+  assert.equal(
+    fileSegment("A//B  C", "x"),
+    "A-B-C",
+    "runs of separators collapse to one hyphen",
+  );
 });
 
 test("the version increments only when the figures have moved", () => {
   storage.clear();
   assert.equal(nextVersion("ws-1", "fp-a"), "1.0", "first download");
-  assert.equal(nextVersion("ws-1", "fp-a"), "1.0", "same figures, same document, same version");
-  assert.equal(nextVersion("ws-1", "fp-b"), "1.1", "figures edited, minor increments");
+  assert.equal(
+    nextVersion("ws-1", "fp-a"),
+    "1.0",
+    "same figures, same document, same version",
+  );
+  assert.equal(
+    nextVersion("ws-1", "fp-b"),
+    "1.1",
+    "figures edited, minor increments",
+  );
   assert.equal(nextVersion("ws-1", "fp-b"), "1.1");
   assert.equal(nextVersion("ws-1", "fp-c"), "1.2");
-  assert.equal(nextVersion("ws-2", "fp-a"), "1.0", "a different workspace has its own version line");
+  assert.equal(
+    nextVersion("ws-2", "fp-a"),
+    "1.0",
+    "a different workspace has its own version line",
+  );
 });

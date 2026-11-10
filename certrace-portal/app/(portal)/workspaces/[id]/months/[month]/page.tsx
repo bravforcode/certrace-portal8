@@ -11,7 +11,11 @@ export const runtime = "edge";
 import * as React from "react";
 import { useRouter } from "next/navigation";
 
-export default function MonthRedirect({ params }: { params: Promise<{ id: string; month: string }> }) {
+export default function MonthRedirect({
+  params,
+}: {
+  params: Promise<{ id: string; month: string }>;
+}) {
   const { id, month } = React.use(params);
   const router = useRouter();
 

@@ -41,18 +41,35 @@
    ════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
-import { Check, Lock, Pencil, Send, ThumbsDown, ThumbsUp, UserRound } from "lucide-react";
-import { Button, Card, Chip, Field, Modal, SaveButton, cn, useSaveState } from "@/components/ui";
+import {
+  Check,
+  Lock,
+  Pencil,
+  Send,
+  ThumbsDown,
+  ThumbsUp,
+  UserRound,
+} from "lucide-react";
+import {
+  Button,
+  Card,
+  Chip,
+  Field,
+  Modal,
+  SaveButton,
+  cn,
+  useSaveState,
+} from "@/components/ui";
 import { Select } from "@/components/controls";
 import { toast } from "@/components/toast";
-import { USER } from "@/lib/data";
+import { loadSession } from "@/lib/api/session";
 import { loadTeam, type TeamMember } from "@/lib/team-store";
 import { REVISION_CHIP } from "@/lib/month-revision";
-import { reopenMonth } from "@/lib/monthly-data";
+import { requestWorkspaceRevision } from "@/lib/workspace-link-sync";
+import { flushAccount } from "@/lib/account-storage";
 import {
   REVIEW_STATE_LABEL,
   REVIEW_STATE_TONE,
-  approveEditRequest,
   assignReviewer,
   confirmMonth,
   formatSubmissionDate,
@@ -70,6 +87,7 @@ export function MonthReviewBar({
   onUnlock,
   onChanged,
   onReopened,
+  beforeChange,
   canEdit = true,
 }: {
   submission: MonthSubmission;
@@ -81,14 +99,21 @@ export function MonthReviewBar({
   onChanged: (next: MonthSubmission) => void;
   /** the month's readings have just gone back to draft — the page reloads them */
   onReopened?: () => void;
+  beforeChange?: () => Promise<boolean>;
   canEdit?: boolean;
 }) {
   const t = useT();
+  const user = loadSession()?.user;
+  const actorName =
+    [user?.firstName, user?.lastName].filter(Boolean).join(" ") ||
+    user?.email ||
+    "";
   const [assigning, setAssigning] = React.useState(false);
   const [team, setTeam] = React.useState<TeamMember[]>([]);
   const [reviewerId, setReviewerId] = React.useState("");
   const approve = useSaveState(1600);
   const reject = useSaveState(1600);
+  const review = useSaveState(1600);
 
   React.useEffect(() => setTeam(loadTeam()), []);
 
@@ -97,17 +122,32 @@ export function MonthReviewBar({
   const version = submissionVersion(submission);
   const pendingEdit = submission.editRequest?.state === "pending";
 
-  const confirm = () => {
-    onChanged(confirmMonth(submission.workspaceId, month, USER.name));
-    toast({ message: `${monthNameLong(month)} confirmed`, detail: "It counts toward the year and stops appearing as outstanding.", tone: "ok" });
-  };
+  const confirm = () =>
+    review.run(async () => {
+      if (beforeChange && !(await beforeChange()))
+        throw new Error("Save your latest changes before confirming.");
+      const next = confirmMonth(submission.workspaceId, month, actorName);
+      await flushAccount();
+      onChanged(next);
+      toast({
+        message: `${monthNameLong(month)} confirmed`,
+        detail: "It counts toward the year and stops appearing as outstanding.",
+        tone: "ok",
+      });
+    });
 
   const hand = () => {
     const member = team.find((m) => m.id === reviewerId);
     if (!member) return;
-    onChanged(assignReviewer(submission.workspaceId, month, member.id, member.name));
+    onChanged(
+      assignReviewer(submission.workspaceId, month, member.id, member.name),
+    );
     setAssigning(false);
-    toast({ message: `${member.name} is reviewing ${monthNameLong(month)}`, detail: "Certrace does not notify them yet — tell them.", tone: "info" });
+    toast({
+      message: `${member.name} is reviewing ${monthNameLong(month)}`,
+      detail: "Certrace does not notify them yet — tell them.",
+      tone: "info",
+    });
   };
 
   /* APPROVING IS WHAT REOPENS IT. The decision and the unlock are one press,
@@ -115,24 +155,54 @@ export function MonthReviewBar({
      draft would leave the supplier looking at a request marked granted over a
      form that is still fixed. */
   const doApprove = () =>
-    approve.run(() => {
-      onChanged(approveEditRequest(submission.workspaceId, month, USER.name));
-      reopenMonth(submission.workspaceId, month);
+    approve.run(async () => {
+      try {
+        if (beforeChange && !(await beforeChange()))
+          throw new Error(
+            "Save your latest changes before reopening the month.",
+          );
+        onChanged(
+          await requestWorkspaceRevision(
+            submission.workspaceId,
+            month,
+            "",
+            [],
+            actorName,
+          ),
+        );
+      } catch (cause) {
+        toast({
+          message: t("Not sent yet"),
+          detail: cause instanceof Error ? cause.message : t("Please retry."),
+          tone: "warn",
+        });
+        throw cause;
+      }
       onReopened?.();
     });
 
   const doReject = () =>
-    reject.run(() => {
-      onChanged(rejectEditRequest(submission.workspaceId, month, USER.name));
+    reject.run(async () => {
+      const next = rejectEditRequest(submission.workspaceId, month, actorName);
+      await flushAccount();
+      onChanged(next);
     });
 
   return (
     <>
-      <Card className={cn("p-4 sm:p-5", submission.state === "changes_requested" && "border-[#fde68a] bg-[#fffbeb]")}>
+      <Card
+        className={cn(
+          "p-4 sm:p-5",
+          submission.state === "changes_requested" &&
+            "border-[#fde68a] bg-[#fffbeb]",
+        )}
+      >
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-pixel text-[10px] uppercase tracking-[0.16em] text-black/40">{t("Review")}</span>
+              <span className="font-pixel text-[10px] uppercase tracking-[0.16em] text-black/40">
+                {t("Review")}
+              </span>
               <Chip tone={tone}>{t(REVIEW_STATE_LABEL[submission.state])}</Chip>
               {locked && submitted && (
                 <span className="inline-flex items-center gap-1 text-[11px] text-black/40">
@@ -145,33 +215,48 @@ export function MonthReviewBar({
                 provenance sat here and answered neither. */}
             {version ? (
               <p className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                <span className="font-mono text-[14px] tabular-nums text-black/80">{version.label}</span>
-                <span className="text-[13px] text-black/50">· {formatSubmissionDate(version.at)}</span>
+                <span className="font-mono text-[14px] tabular-nums text-black/80">
+                  {version.label}
+                </span>
+                <span className="text-[13px] text-black/50">
+                  · {formatSubmissionDate(version.at)}
+                </span>
                 {submission.attestation && (
                   <span className="text-[12.5px] text-black/40">
                     · {submission.attestation.fullName}
-                    {submission.attestation.role ? ` · ${submission.attestation.role}` : ""}
+                    {submission.attestation.role
+                      ? ` · ${submission.attestation.role}`
+                      : ""}
                   </span>
                 )}
               </p>
             ) : (
               <p className="mt-2 text-[12.5px] leading-relaxed text-black/45">
-                {t("No version on file. Nothing has been submitted for this month yet.")}
+                {t(
+                  "No version on file. Nothing has been submitted for this month yet.",
+                )}
               </p>
             )}
 
             {submission.state === "in_review" && submission.reviewerName && (
               <p className="mt-1 flex items-center gap-1.5 text-[12px] text-black/45">
-                <UserRound size={12} strokeWidth={1.5} /> With {submission.reviewerName}.
+                <UserRound size={12} strokeWidth={1.5} />{" "}
+                {t("With {name}.", { name: submission.reviewerName })}
               </p>
             )}
-            {submission.state === "changes_requested" && submission.revisionNote && (
-              <p className="mt-2 rounded-lg border border-black/[0.07] bg-white px-3 py-2 text-[12.5px] leading-relaxed text-black/60">
-                <strong className="font-medium text-black/80">{t("You asked for:")}</strong> {submission.revisionNote}
-              </p>
-            )}
+            {submission.state === "changes_requested" &&
+              submission.revisionNote && (
+                <p className="mt-2 rounded-lg border border-black/[0.07] bg-white px-3 py-2 text-[12.5px] leading-relaxed text-black/60">
+                  <strong className="font-medium text-black/80">
+                    {t("You asked for:")}
+                  </strong>{" "}
+                  {submission.revisionNote}
+                </p>
+              )}
             {submission.state === "confirmed" && submission.confirmedBy && (
-              <p className="mt-1 text-[12px] text-[#047857]">Confirmed by {submission.confirmedBy}.</p>
+              <p className="mt-1 text-[12px] text-[#047857]">
+                {t("Confirmed by {name}.", { name: submission.confirmedBy })}
+              </p>
             )}
           </div>
 
@@ -192,10 +277,19 @@ export function MonthReviewBar({
 
             {submitted && submission.state !== "confirmed" && (
               <>
-                <Button size="sm" variant="secondary" onClick={() => setAssigning(true)}>
-                  <Send size={13} strokeWidth={1.5} /> {t("Hand to a colleague")}
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setAssigning(true)}
+                >
+                  <Send size={13} strokeWidth={1.5} />{" "}
+                  {t("Hand to a colleague")}
                 </Button>
-                <Button size="sm" onClick={confirm}>
+                <Button
+                  size="sm"
+                  onClick={confirm}
+                  disabled={review.state === "saving"}
+                >
                   <Check size={13} strokeWidth={2} /> {t("Confirm")}
                 </Button>
               </>
@@ -211,7 +305,9 @@ export function MonthReviewBar({
           <div
             className={cn(
               "mt-4 rounded-xl border px-4 py-3.5",
-              pendingEdit ? REVISION_CHIP : "border-black/[0.08] bg-[#faf9f7] text-black/55",
+              pendingEdit
+                ? REVISION_CHIP
+                : "border-black/[0.08] bg-[#faf9f7] text-black/55",
             )}
           >
             <div className="flex flex-wrap items-center gap-2">
@@ -223,12 +319,17 @@ export function MonthReviewBar({
                     : "You declined to reopen this month"}
               </span>
               <span className="text-[11px] opacity-60">
-                {formatSubmissionDate(submission.editRequest.decidedAt ?? submission.editRequest.at)}
+                {formatSubmissionDate(
+                  submission.editRequest.decidedAt ?? submission.editRequest.at,
+                )}
               </span>
             </div>
 
             <p className="mt-2 text-[13px] leading-relaxed text-black/70">
-              <strong className="font-medium text-black/85">{t("They wrote:")}</strong> {submission.editRequest.reason}
+              <strong className="font-medium text-black/85">
+                {t("They wrote:")}
+              </strong>{" "}
+              {submission.editRequest.reason}
             </p>
 
             {pendingEdit ? (
@@ -253,7 +354,9 @@ export function MonthReviewBar({
                   savedLabel={t("Rejected")}
                 />
                 <span className="text-[12px] leading-relaxed text-black/50">
-                  {t("Approving puts their form back into draft. Rejecting leaves the month exactly as it is and tells them so.")}
+                  {t(
+                    "Approving puts their form back into draft. Rejecting leaves the month exactly as it is and tells them so.",
+                  )}
                 </span>
               </div>
             ) : (
@@ -273,11 +376,17 @@ export function MonthReviewBar({
         onClose={() => setAssigning(false)}
         eyebrow={t("Review")}
         title={`Who should look at ${monthNameLong(month)}?`}
-        lead={t("An assignment, not an approval — it records who is looking, so the month stops being everybody's job and nobody's.")}
+        lead={t(
+          "An assignment, not an approval — it records who is looking, so the month stops being everybody's job and nobody's.",
+        )}
         width="max-w-lg"
         footer={
           <>
-            <Button size="sm" variant="secondary" onClick={() => setAssigning(false)}>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setAssigning(false)}
+            >
               {t("Cancel")}
             </Button>
             <Button size="sm" disabled={!reviewerId} onClick={hand}>
@@ -286,18 +395,31 @@ export function MonthReviewBar({
           </>
         }
       >
-        <Field label={t("Reviewer")} hint={t("Anyone on your team. Suppliers are never reviewers of their own month.")}>
+        <Field
+          label={t("Reviewer")}
+          hint={t(
+            "Anyone on your team. Suppliers are never reviewers of their own month.",
+          )}
+        >
           <Select
             value={reviewerId}
             onChange={setReviewerId}
-            options={team.map((m) => ({ value: m.id, label: m.name, hint: m.role }))}
-            placeholder={team.length ? "Choose someone" : "Nobody on the team yet"}
+            options={team.map((m) => ({
+              value: m.id,
+              label: m.name,
+              hint: m.role,
+            }))}
+            placeholder={
+              team.length ? "Choose someone" : "Nobody on the team yet"
+            }
             searchable={team.length > 8}
             ariaLabel={t("Reviewer")}
           />
         </Field>
         <p className="mt-4 text-[12px] leading-relaxed text-black/45">
-          {t("Certrace does not notify them yet — this build has no mail service. Tell them, and the month will be waiting under their name.")}
+          {t(
+            "Certrace does not notify them yet — this build has no mail service. Tell them, and the month will be waiting under their name.",
+          )}
         </p>
       </Modal>
     </>

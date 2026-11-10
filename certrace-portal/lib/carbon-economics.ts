@@ -1,3 +1,4 @@
+import { accountStorage } from "./account-storage";
 /* ════════════════════════════════════════════════════════════
    CARBON ECONOMICS — what the emissions actually cost, and where they sit
 
@@ -21,7 +22,12 @@
    persisted separately and passed in, never baked into a calculation.
    ════════════════════════════════════════════════════════════ */
 
-import { EU_ETS_PROXY_EUR_PER_TCO2E, THB_PER_EUR, type ComplianceFacts, type ProductFacts } from "./compliance-engine";
+import {
+  EU_ETS_PROXY_EUR_PER_TCO2E,
+  THB_PER_EUR,
+  type ComplianceFacts,
+  type ProductFacts,
+} from "./compliance-engine";
 import { getCatalogProduct } from "./config";
 import { benchmark, defaultValueForId, type Benchmark } from "./default-values";
 import { P_CERT_SOURCE } from "./cbam/reference";
@@ -48,12 +54,18 @@ const PRICING_KEY = "certrace:certificate-pricing";
 export function loadPricing(): CertificatePricing {
   if (typeof window === "undefined") return DEFAULT_PRICING;
   try {
-    const raw = window.localStorage.getItem(PRICING_KEY);
+    const raw = accountStorage.getItem(PRICING_KEY);
     if (!raw) return DEFAULT_PRICING;
     const p = JSON.parse(raw) as Partial<CertificatePricing>;
     return {
-      pricePerTonneEUR: Number(p.pricePerTonneEUR) > 0 ? Number(p.pricePerTonneEUR) : DEFAULT_PRICING.pricePerTonneEUR,
-      thbPerEur: Number(p.thbPerEur) > 0 ? Number(p.thbPerEur) : DEFAULT_PRICING.thbPerEur,
+      pricePerTonneEUR:
+        Number(p.pricePerTonneEUR) > 0
+          ? Number(p.pricePerTonneEUR)
+          : DEFAULT_PRICING.pricePerTonneEUR,
+      thbPerEur:
+        Number(p.thbPerEur) > 0
+          ? Number(p.thbPerEur)
+          : DEFAULT_PRICING.thbPerEur,
     };
   } catch {
     return DEFAULT_PRICING;
@@ -75,7 +87,9 @@ export type PricingSource = {
   actionRequired: string;
 };
 
-export function certificatePriceSource(pricing: CertificatePricing = loadPricing()): PricingSource {
+export function certificatePriceSource(
+  pricing: CertificatePricing = loadPricing(),
+): PricingSource {
   return {
     pricePerTonneEUR: pricing.pricePerTonneEUR,
     resolved: P_CERT_SOURCE.resolved,
@@ -87,7 +101,7 @@ export function certificatePriceSource(pricing: CertificatePricing = loadPricing
 export function savePricing(pricing: CertificatePricing): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(PRICING_KEY, JSON.stringify(pricing));
+    accountStorage.setItem(PRICING_KEY, JSON.stringify(pricing));
   } catch {
     /* ignore quota */
   }
@@ -148,7 +162,10 @@ export type CostBreakdown = {
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 /** Cost the whole declaration from Stage 1's facts. */
-export function computeCost(facts: ComplianceFacts, pricing: CertificatePricing = DEFAULT_PRICING): CostBreakdown {
+export function computeCost(
+  facts: ComplianceFacts,
+  pricing: CertificatePricing = DEFAULT_PRICING,
+): CostBreakdown {
   const price = pricing.pricePerTonneEUR;
   const suppliers: SupplierCost[] = [];
 
@@ -166,15 +183,21 @@ export function computeCost(facts: ComplianceFacts, pricing: CertificatePricing 
       /* Priced on defaults, a good carries the fallback's DIRECT figure (the
          Annex II chargeable base for steel & aluminium) plus the year's markup
          — the same treatment the engine applies to a default-method product. */
-      const defaultChargeablePerTonne = dv ? dv.seeDirect * (1 + (p.defaultUsed ? p.markup : markupLike(p))) : null;
-      const defaultCostEUR = defaultChargeablePerTonne != null ? defaultChargeablePerTonne * p.tonnes * price : null;
+      const defaultChargeablePerTonne = dv
+        ? dv.seeDirect * (1 + (p.defaultUsed ? p.markup : markupLike(p)))
+        : null;
+      const defaultCostEUR =
+        defaultChargeablePerTonne != null
+          ? defaultChargeablePerTonne * p.tonnes * price
+          : null;
       const grossCostEUR = p.chargeableTCO2e * price;
       return {
         ...p,
         certificates: p.chargeableTCO2e,
         grossCostEUR,
         defaultCostEUR,
-        dataGapRiskEUR: defaultCostEUR != null ? defaultCostEUR - grossCostEUR : null,
+        dataGapRiskEUR:
+          defaultCostEUR != null ? defaultCostEUR - grossCostEUR : null,
         benchmark: catalog ? benchmark(catalog, p.seePerTonne, "total") : null,
       };
     });
@@ -190,8 +213,14 @@ export function computeCost(facts: ComplianceFacts, pricing: CertificatePricing 
     /* The engine already values the carbon price the supplier paid, but at its
        own proxy rate. Re-scale it to the price actually being modelled so the
        deduction doesn't drift when the exporter changes the certificate price. */
-    const supplierCredit = Math.min(supplierGrossCost, sf.carbonPricePaidEUR * (price / EU_ETS_PROXY_EUR_PER_TCO2E));
-    const supplierDefaultCost = products.reduce((a, p) => a + (p.defaultCostEUR ?? p.grossCostEUR), 0);
+    const supplierCredit = Math.min(
+      supplierGrossCost,
+      sf.carbonPricePaidEUR * (price / EU_ETS_PROXY_EUR_PER_TCO2E),
+    );
+    const supplierDefaultCost = products.reduce(
+      (a, p) => a + (p.defaultCostEUR ?? p.grossCostEUR),
+      0,
+    );
     const supplierTonnes = products.reduce((a, p) => a + p.tonnes, 0);
 
     suppliers.push({
@@ -216,7 +245,8 @@ export function computeCost(facts: ComplianceFacts, pricing: CertificatePricing 
     defaultCost += supplierDefaultCost;
   }
 
-  for (const s of suppliers) s.share = totalChargeable > 0 ? s.chargeableTCO2e / totalChargeable : 0;
+  for (const s of suppliers)
+    s.share = totalChargeable > 0 ? s.chargeableTCO2e / totalChargeable : 0;
   suppliers.sort((a, b) => b.chargeableTCO2e - a.chargeableTCO2e);
 
   const netCost = Math.max(0, grossCost - credit);
@@ -267,7 +297,9 @@ export type Hotspot = {
 
 function rank(rows: Omit<Hotspot, "share" | "cumulativeShare">[]): Hotspot[] {
   const total = rows.reduce((a, r) => a + r.chargeableTCO2e, 0);
-  const sorted = [...rows].sort((a, b) => b.chargeableTCO2e - a.chargeableTCO2e);
+  const sorted = [...rows].sort(
+    (a, b) => b.chargeableTCO2e - a.chargeableTCO2e,
+  );
   let running = 0;
   return sorted.map((r) => {
     const share = total > 0 ? r.chargeableTCO2e / total : 0;
@@ -295,10 +327,29 @@ export function supplierHotspots(cost: CostBreakdown): Hotspot[] {
 /** Goods ranked the same way, merged across suppliers — "which product line
     is the carbon", which is the question a commercial team can act on. */
 export function productHotspots(cost: CostBreakdown): Hotspot[] {
-  const byProduct = new Map<string, { label: string; cn: string; tonnes: number; charge: number; cost: number; seeSum: number; seeWeight: number }>();
+  const byProduct = new Map<
+    string,
+    {
+      label: string;
+      cn: string;
+      tonnes: number;
+      charge: number;
+      cost: number;
+      seeSum: number;
+      seeWeight: number;
+    }
+  >();
   for (const s of cost.suppliers) {
     for (const p of s.products) {
-      const cur = byProduct.get(p.productId) ?? { label: p.productName, cn: p.cnCode, tonnes: 0, charge: 0, cost: 0, seeSum: 0, seeWeight: 0 };
+      const cur = byProduct.get(p.productId) ?? {
+        label: p.productName,
+        cn: p.cnCode,
+        tonnes: 0,
+        charge: 0,
+        cost: 0,
+        seeSum: 0,
+        seeWeight: 0,
+      };
       cur.tonnes += p.tonnes;
       cur.charge += p.chargeableTCO2e;
       cur.cost += p.grossCostEUR;
@@ -336,5 +387,7 @@ export function concentration(hotspots: Hotspot[], threshold = 0.8): Hotspot[] {
   return out;
 }
 
-export const fmtEUR = (n: number) => `€${Math.round(n).toLocaleString("en-US")}`;
-export const fmtTHB = (n: number) => `฿${Math.round(n).toLocaleString("en-US")}`;
+export const fmtEUR = (n: number) =>
+  `€${Math.round(n).toLocaleString("en-US")}`;
+export const fmtTHB = (n: number) =>
+  `฿${Math.round(n).toLocaleString("en-US")}`;

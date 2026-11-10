@@ -4,6 +4,9 @@
   "private": true,
   "description": "CertTrace — Exporter compliance portal (MVP, frontend + UX/UI). Built on the CertTrace design system.",
   "scripts": {
+    "predev": "node scripts/copy-pdf-worker.mjs",
+    "prebuild": "node scripts/copy-pdf-worker.mjs",
+    "prebuild-pages": "node scripts/copy-pdf-worker.mjs",
     "dev": "next dev",
     "build": "next build",
     "build-pages": "next-on-pages && echo _worker.js > .vercel/output/static/.assetsignore && node scripts/build-csp-headers.mjs .vercel/output/static",
@@ -13,38 +16,52 @@
     "test": "npm run test:unit",
     "stress-test:pdf": "tsx scripts/stress-test-pdf.ts",
     "typecheck": "tsc --noEmit",
-    "test:unit": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/test-resolver.mjs --test \"lib/**/__tests__/**/*.test.ts\"",
+    "test:unit": "NODE_ENV=test node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/test-resolver.mjs --test \"lib/**/__tests__/**/*.test.ts\"",
     "test:e2e": "playwright test",
     "test:e2e:prod": "playwright test --project=production",
-    "test:e2e:prod:journey": "playwright test --project=production e2e/production-journey.spec.ts"
+    "test:e2e:prod:journey": "playwright test --project=production e2e/production-journey.spec.ts",
+    "api:generate": "node scripts/generate-api-validators.mjs",
+    "api:check": "node scripts/generate-api-validators.mjs --check"
   },
   "engines": {
     "node": ">=22.18.0"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.116.0",
+    "@elysiajs/eden": "1.4.9",
+    "@tailwindcss/postcss": "^4.0.0",
     "@tanstack/react-query": "^5.102.8",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "ajv": "^8.20.0",
+    "elysia": "1.4.30",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "lucide-react": "^0.456.0",
     "next": "^15.5.20",
     "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.2.108",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.0.0"
   },
   "devDependencies": {
+    "@certrace/backend": "workspace:*",
     "@cloudflare/next-on-pages": "^1.13.16",
     "@eslint/eslintrc": "^3.3.6",
+    "@next/eslint-plugin-next": "15.5.28",
     "@playwright/test": "^1.63.0",
-    "@tailwindcss/postcss": "^4.0.0",
-    "@types/node": "^22.0.0",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.71.2",
+    "@typescript-eslint/parser": "^8.71.2",
     "eslint": "^9.39.5",
     "eslint-config-next": "^15.5.22",
-    "tailwindcss": "^4.0.0",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "5.2.0",
+    "ts-json-schema-generator": "^2.9.0",
     "tsx": "^4.22.4",
-    "typescript": "^5.0.0",
     "wrangler": "4.127.1"
   }
 }

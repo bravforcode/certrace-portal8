@@ -1,16 +1,12 @@
 "use client";
 
-/* The session lives in localStorage, so only the browser knows whether
-   somebody is signed in — the old server-side redirect() could never see it
-   and sent everyone to /login. Signed in → /dashboard, after /me confirms
-   the stored token still works: a stale entry must not bounce someone into a
-   dashboard whose every real call would answer 401. A 401 here clears the
-   session centrally (lib/api/http.ts), so the fallback check below reads the
-   post-cleanup truth. */
+/* The client session is restored from the HttpOnly cookie. Once restored,
+   /me confirms workspace readiness before routing home. */
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { apiConfigured, demoModeEnabled, isSignedIn, me } from "@/lib/api";
+import { apiConfigured, isSignedIn, me } from "@/lib/api";
+import { signInDestination } from "@/lib/auth-flow";
 
 export default function Home() {
   const router = useRouter();
@@ -25,11 +21,6 @@ export default function Home() {
       go("/login");
       return;
     }
-    if (demoModeEnabled()) {
-      // Demo laptop: a stored demo session is as signed-in as it gets.
-      go("/dashboard");
-      return;
-    }
     if (!apiConfigured()) {
       /* Signed-in-looking, but this build has no backend and no sanctioned
          demo — the stored session was minted by something that is no longer
@@ -38,9 +29,9 @@ export default function Home() {
       return;
     }
     me()
-      // /me is the fresh truth on `onboarded` — the stored session only
+      // /me is the fresh truth on readiness — the stored session only
       // knows what it looked like at sign-in.
-      .then((user) => go(user.onboarded ? "/dashboard" : "/onboarding/setup"))
+      .then((user) => go(signInDestination(user)))
       // Network down ≠ signed out: only a 401 (which clears the session)
       // sends someone back to the sign-in form.
       .catch(() => go(isSignedIn() ? "/dashboard" : "/login"));

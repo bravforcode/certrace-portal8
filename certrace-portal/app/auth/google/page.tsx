@@ -1,4 +1,5 @@
 "use client";
+import { pendingInvitation } from "@/lib/company-session";
 
 import * as React from "react";
 import Link from "next/link";
@@ -16,6 +17,7 @@ import {
   type GoogleIntent,
 } from "@/lib/api";
 import { BLANK_SIGNUP, signInDestination } from "@/lib/auth-flow";
+import { accountStorage } from "@/lib/account-storage";
 
 /* ── Back from Google ───────────────────────────────────────────
    Where Google's sign-in page returns the browser (GOOGLE_CALLBACK_PATH), for
@@ -23,8 +25,8 @@ import { BLANK_SIGNUP, signInDestination } from "@/lib/auth-flow";
 
    • Sign-in (/login, /register). No form, nothing to click on the way
      through: finish the sign-in, then go where the email form would have
-     gone — signInDestination for an account that exists, /onboarding with a
-     wiped profile for one that is new, exactly as /register does.
+     gone — returning accounts use signInDestination; registration opens the
+     questionnaire before workspace approval.
    • Connect Google (Settings → Privacy & security). Link it to the account
      already signed in, then straight back to that tab, which says so.
 
@@ -42,16 +44,25 @@ const SETTINGS_SECURITY = "/settings?tab=privacy";
 function failureMessage(cause: unknown): string {
   if (cause instanceof GoogleCallbackError) {
     if (cause.problem === "cancelled") return "Google sign-in was cancelled.";
-    if (cause.problem === "expired") return "This sign-in link has already been used or has expired.";
+    if (cause.problem === "expired")
+      return "This sign-in link has already been used or has expired.";
     return "Google sign-in could not be verified. Please try again.";
   }
   /* Same answer /login gives a suspended account (lib/auth-flow.ts): the
      server's message names who to contact, and the reason stays out of it. */
   if (isAccountSuspended(cause) && isApiError(cause)) return cause.message;
-  if (hasCode(cause, "GOOGLE_EMAIL_MISMATCH")) return "Choose the Google account with the same email as your Certrace account.";
-  if (hasCode(cause, "GOOGLE_ACCOUNT_CONFLICT")) return "This email is already linked to a different Google account.";
-  if (hasCode(cause, "GOOGLE_NOT_CONFIGURED")) return "Sign in with Google isn't available yet.";
-  if (hasCode(cause, "INVALID_CREDENTIALS")) return "Your session has expired. Please sign in again.";
+  if (hasCode(cause, "GOOGLE_EMAIL_MISMATCH"))
+    return "Choose the Google account with the same email as your Certrace account.";
+  if (hasCode(cause, "GOOGLE_ACCOUNT_CONFLICT"))
+    return "This email is already linked to a different Google account.";
+  if (hasCode(cause, "GOOGLE_LINK_REQUIRED"))
+    return "Sign in with your Certrace password, then connect Google in Settings.";
+  if (hasCode(cause, "GOOGLE_NOT_CONFIGURED"))
+    return "Sign in with Google isn't available yet.";
+  if (hasCode(cause, "LEGAL_CONSENT_REQUIRED"))
+    return "Create your account from the registration page to review the Terms of Service and Privacy Policy first.";
+  if (hasCode(cause, "INVALID_CREDENTIALS"))
+    return "Your session has expired. Please sign in again.";
   return "Google sign-in could not be verified. Please try again.";
 }
 
@@ -60,6 +71,7 @@ function GoogleCallback() {
   const router = useRouter();
   const { update } = useProfile();
   const [error, setError] = React.useState("");
+  const [needsConsent, setNeedsConsent] = React.useState(false);
   const [intent, setIntent] = React.useState<GoogleIntent>("signin");
   const started = React.useRef(false);
 
@@ -80,31 +92,71 @@ function GoogleCallback() {
           return;
         }
         const { user } = result.session;
-        if (!user.onboarded) update({ ...BLANK_SIGNUP, firstName: user.firstName ?? "", lastName: user.lastName ?? "" });
-        router.replace(signInDestination(user));
+        if (pendingInvitation()) {
+          router.replace("/join");
+          return;
+        }
+        const savedProfile = accountStorage.getItem("certrace:profile");
+        if (result.fromRegistration && !user.onboarded && !savedProfile)
+          update({
+            ...BLANK_SIGNUP,
+            firstName: user.firstName ?? "",
+            lastName: user.lastName ?? "",
+          });
+        router.replace(
+          result.fromRegistration && !user.onboarded && !savedProfile
+            ? "/onboarding"
+            : signInDestination(user),
+        );
       })
-      .catch((cause: unknown) => setError(failureMessage(cause)));
+      .catch((cause: unknown) => {
+        setNeedsConsent(hasCode(cause, "LEGAL_CONSENT_REQUIRED"));
+        setError(failureMessage(cause));
+      });
   }, [router, update]);
 
   const linking = intent === "link";
   return (
     <AuthLayout>
-      <p className="mt-2 text-[11px] uppercase tracking-[0.1em] text-black/40">{t("Exporter portal")}</p>
+      <p className="mt-2 text-[11px] uppercase tracking-[0.1em] text-black/40">
+        {t("Exporter portal")}
+      </p>
       <h2 className="mt-3 font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111]">
-        {error ? (linking ? t("Couldn't connect Google.") : t("Couldn't sign you in.")) : linking ? t("Connecting Google…") : t("Signing you in…")}
+        {error
+          ? linking
+            ? t("Couldn't connect Google.")
+            : t("Couldn't sign you in.")
+          : linking
+            ? t("Connecting Google…")
+            : t("Signing you in…")}
       </h2>
       {error ? (
         <>
-          <p className="mt-5 text-[13px] leading-relaxed text-[#dc2626]">{t(error)}</p>
+          <p className="mt-5 text-[13px] leading-relaxed text-[#dc2626]">
+            {t(error)}
+          </p>
           <Link
-            href={linking ? SETTINGS_SECURITY : "/login"}
+            href={
+              linking
+                ? SETTINGS_SECURITY
+                : needsConsent
+                  ? "/register"
+                  : "/login"
+            }
             className="mt-6 inline-block text-[13px] text-black/70 underline-offset-2 hover:text-black hover:underline"
           >
-            {linking ? t("Back to settings") : t("Back to sign in")}
+            {linking
+              ? t("Back to settings")
+              : needsConsent
+                ? "Go to registration"
+                : t("Back to sign in")}
           </Link>
         </>
       ) : (
-        <span className="mt-6 block h-5 w-5 animate-spin rounded-full border-2 border-black/15 border-t-black/50" aria-hidden />
+        <span
+          className="mt-6 block h-5 w-5 animate-spin rounded-full border-2 border-black/15 border-t-black/50"
+          aria-hidden
+        />
       )}
     </AuthLayout>
   );

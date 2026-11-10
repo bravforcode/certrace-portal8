@@ -42,7 +42,8 @@ export const FUEL_DENSITY_TABLE: FuelDensityRow[] = [
     phase: "gas",
     kgPerUnit: 0.7156,
     unit: "m3",
-    source: "ISO 13443 reference conditions, 15 °C and 101.325 kPa, typical pipeline composition",
+    source:
+      "ISO 13443 reference conditions, 15 °C and 101.325 kPa, typical pipeline composition",
     effectiveFrom: "2026-01-01",
   },
   /* Hydrogen-rich, so light. */
@@ -86,6 +87,10 @@ export const FUEL_DENSITY_TABLE: FuelDensityRow[] = [
 ];
 
 /** Keyed lookup — the shape most call sites want. */
-export const FUEL_DENSITY: Record<string, FuelDensityRow> = Object.fromEntries(FUEL_DENSITY_TABLE.map((r) => [r.fuel, r]));
+export const FUEL_DENSITY: Record<string, FuelDensityRow> = Object.fromEntries(
+  FUEL_DENSITY_TABLE.map((r) => [r.fuel, r]),
+);
 
-export const fuelDensityRow = (fuelTypeId: string): FuelDensityRow | undefined => FUEL_DENSITY[fuelTypeId];
+export const fuelDensityRow = (
+  fuelTypeId: string,
+): FuelDensityRow | undefined => FUEL_DENSITY[fuelTypeId];

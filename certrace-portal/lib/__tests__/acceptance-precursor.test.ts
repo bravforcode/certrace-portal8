@@ -55,14 +55,22 @@ const storage = new MemoryStorage();
 g.window = { localStorage: storage };
 g.localStorage = storage;
 
-const { applyEuStandard, emptyMonth, saveMonth } = await import("../monthly-data");
+const { applyEuStandard, emptyMonth, saveMonth } = await import(
+  "../monthly-data"
+);
 const { emptySupplier, saveSupplier } = await import("../precursor-suppliers");
 const { workspaceSEE } = await import("../workspace-see");
 const { createWorkspace } = await import("../workspace");
 
 function seedAcceptanceWorkspace() {
   storage.clear();
-  const ws = createWorkspace({ installationId: "TH-STEEL-1", installationName: "Rayong Steelworks", productId: "billet", productionRoute: "bf_bof", year: 2026 });
+  const ws = createWorkspace({
+    installationId: "TH-STEEL-1",
+    installationName: "Rayong Steelworks",
+    productId: "billet",
+    productionRoute: "bf_bof",
+    year: 2026,
+  });
 
   const naturalGas = applyEuStandard({
     id: "f-ng",
@@ -104,11 +112,21 @@ function addVerifiedPigIron(workspaceId: string) {
     country: "TH",
     origin: "purchased",
     precursorName: "Pig iron",
+    cnCode: "72011000",
+    productionRoute: "Blast furnace",
     dataOrigin: "supplier_verified",
     seeTco2ePerT: 1.85,
     verificationReportFileId: "ev-pig-iron-2026",
     reportingPeriodStart: "2026-01-01",
     reportingPeriodEnd: "2026-12-31",
+    verificationCoverageStart: "2026-01-01",
+    verificationCoverageEnd: "2026-12-31",
+    verifierName: "Example verifier",
+    verifierAccreditationNumber: "EX-123",
+    verifierAccreditationIssuingCountry: "TH",
+    verifierAccreditationExpiryDate: "2030-01-01",
+    verificationReportIssueDate: "2026-12-31",
+    verificationSectoralScope: "Iron and steel",
     monthlyQuantities: [{ month: "2026-01", tonnes: 800 }],
   });
 }
@@ -116,11 +134,17 @@ function addVerifiedPigIron(workspaceId: string) {
 test("Bug 1/2 — the acceptance fixture's fuel rows lock to Point G's own natural gas / coking coal figures", () => {
   const ws = seedAcceptanceWorkspace();
   const see = workspaceSEE(ws);
-  assert.ok(see.computable, "2,000 t of production makes every per-tonne figure computable");
+  assert.ok(
+    see.computable,
+    "2,000 t of production makes every per-tonne figure computable",
+  );
   // 965.37 + 3,201.26 tCO₂, full precision — the spec's own rounding is
   // display-only, so this checks the unrounded sum before the ceremony below
   // rounds it to whole tonnes.
-  assert.ok(Math.abs(see.fuelTCO2 - 4166.6328) < 0.01, `fuel tCO₂ should be ≈4166.63, got ${see.fuelTCO2}`);
+  assert.ok(
+    Math.abs(see.fuelTCO2 - 4166.6328) < 0.01,
+    `fuel tCO₂ should be ≈4166.63, got ${see.fuelTCO2}`,
+  );
 });
 
 test("Bug 9 — acceptance test: 4,167 tCO₂e total, SEE_g 2.82332 tCO₂e/t, with the purchased precursor counted", () => {
@@ -132,12 +156,20 @@ test("Bug 9 — acceptance test: 4,167 tCO₂e total, SEE_g 2.82332 tCO₂e/t, w
   // Total emissions per reporting period, rounded to whole tonnes — the
   // cross-cutting rounding rule, applied only at the display edge.
   const totalTCO2Whole = Math.round(see.directTCO2 + see.indirectTCO2);
-  assert.equal(totalTCO2Whole, 4167, "the attributed total, rounded to whole tonnes");
+  assert.equal(
+    totalTCO2Whole,
+    4167,
+    "the attributed total, rounded to whole tonnes",
+  );
 
   // SEE — never rounded past 5 decimal places.
   const seeG = Number(see.seeTotal.toFixed(5));
   assert.equal(seeG, 2.82332, "SEE_g = ae_g + Σ(m_i × SEE_i)");
-  assert.equal(Number(see.seeChargeable.toFixed(5)), 2.82332, "chargeable equals total here — indirect is zero, so nothing to exclude");
+  assert.equal(
+    Number(see.seeChargeable.toFixed(5)),
+    2.82332,
+    "chargeable equals total here — indirect is zero, so nothing to exclude",
+  );
 });
 
 test("Bug 9 — omitting the precursor understates SEE by ~26%, which is the cost of the bug", () => {
@@ -154,5 +186,8 @@ test("Bug 9 — omitting the precursor understates SEE by ~26%, which is the cos
   const seeG = withPrecursor.seeTotal;
 
   const relativeGap = (seeG - withoutPrecursor.seeTotal) / seeG;
-  assert.ok(Math.abs(relativeGap - 0.2621) < 0.001, `expected the omitted precursor to understate SEE by ~26.2%, got ${(relativeGap * 100).toFixed(1)}%`);
+  assert.ok(
+    Math.abs(relativeGap - 0.2621) < 0.001,
+    `expected the omitted precursor to understate SEE by ~26.2%, got ${(relativeGap * 100).toFixed(1)}%`,
+  );
 });

@@ -36,7 +36,9 @@
    ════════════════════════════════════════════════════════════ */
 
 import type { MonthlyFuelUnit } from "../monthly-data";
+import { currentLang, translate } from "../i18n";
 import { FUEL_DENSITY, type FuelDensityRow } from "./fuel-density";
+import { ADDITIONAL_FUELS } from "./fuel-catalogue";
 
 /** Re-exported so existing imports of `FUEL_DENSITY`/`DensityEntry` from this
     file keep working — the table itself now lives in its own file,
@@ -72,37 +74,223 @@ export type PointGRow = {
    back into another process, and their EF looks wrong until you notice their
    NCV is a tenth of everything else's. */
 export const POINT_G_TABLE: PointGRow[] = [
-  { fuel: "Crude oil", category: "fossil", efTco2PerTj: 73.3, ncvGjPerT: 42.3, table: 1 },
-  { fuel: "Orimulsion", category: "fossil", efTco2PerTj: 77.0, ncvGjPerT: 27.5, table: 1 },
-  { fuel: "Natural gas liquids", category: "fossil", efTco2PerTj: 64.2, ncvGjPerT: 44.2, table: 1 },
-  { fuel: "Motor gasoline", category: "fossil", efTco2PerTj: 69.3, ncvGjPerT: 44.3, table: 1 },
-  { fuel: "Kerosene (other than jet kerosene)", category: "fossil", efTco2PerTj: 71.9, ncvGjPerT: 43.8, table: 1 },
-  { fuel: "Shale oil", category: "fossil", efTco2PerTj: 73.3, ncvGjPerT: 38.1, table: 1 },
-  { fuel: "Gas/Diesel oil", category: "fossil", efTco2PerTj: 74.1, ncvGjPerT: 43.0, table: 1 },
-  { fuel: "Residual fuel oil", category: "fossil", efTco2PerTj: 77.4, ncvGjPerT: 40.4, table: 1 },
-  { fuel: "Liquefied petroleum gases", category: "fossil", efTco2PerTj: 63.1, ncvGjPerT: 47.3, table: 1 },
-  { fuel: "Ethane", category: "fossil", efTco2PerTj: 61.6, ncvGjPerT: 46.4, table: 1 },
-  { fuel: "Naphtha", category: "fossil", efTco2PerTj: 73.3, ncvGjPerT: 44.5, table: 1 },
-  { fuel: "Bitumen", category: "fossil", efTco2PerTj: 80.7, ncvGjPerT: 40.2, table: 1 },
-  { fuel: "Lubricants", category: "fossil", efTco2PerTj: 73.3, ncvGjPerT: 40.2, table: 1 },
-  { fuel: "Petroleum coke", category: "fossil", efTco2PerTj: 97.5, ncvGjPerT: 32.5, table: 1 },
-  { fuel: "Refinery feedstocks", category: "fossil", efTco2PerTj: 73.3, ncvGjPerT: 43.0, table: 1 },
-  { fuel: "Refinery gas", category: "fossil", efTco2PerTj: 57.6, ncvGjPerT: 49.5, table: 1 },
-  { fuel: "Paraffin waxes", category: "fossil", efTco2PerTj: 73.3, ncvGjPerT: 40.2, table: 1 },
-  { fuel: "White spirit and SBP", category: "fossil", efTco2PerTj: 73.3, ncvGjPerT: 40.2, table: 1 },
-  { fuel: "Other petroleum products", category: "fossil", efTco2PerTj: 73.3, ncvGjPerT: 40.2, table: 1 },
-  { fuel: "Anthracite", category: "fossil", efTco2PerTj: 98.3, ncvGjPerT: 26.7, table: 1 },
-  { fuel: "Coking coal", category: "fossil", efTco2PerTj: 94.6, ncvGjPerT: 28.2, table: 1 },
-  { fuel: "Other bituminous coal", category: "fossil", efTco2PerTj: 94.6, ncvGjPerT: 25.8, table: 1 },
-  { fuel: "Sub-bituminous coal", category: "fossil", efTco2PerTj: 96.1, ncvGjPerT: 18.9, table: 1 },
-  { fuel: "Lignite", category: "fossil", efTco2PerTj: 101.0, ncvGjPerT: 11.9, table: 1 },
-  { fuel: "Oil shale and tar sands", category: "fossil", efTco2PerTj: 107.0, ncvGjPerT: 8.9, table: 1 },
-  { fuel: "Patent fuel", category: "fossil", efTco2PerTj: 97.5, ncvGjPerT: 20.7, table: 1 },
-  { fuel: "Coke oven coke and lignite coke", category: "fossil", efTco2PerTj: 107.0, ncvGjPerT: 28.2, table: 1 },
-  { fuel: "Gas coke", category: "fossil", efTco2PerTj: 107.0, ncvGjPerT: 28.2, table: 1 },
-  { fuel: "Coal tar", category: "fossil", efTco2PerTj: 80.7, ncvGjPerT: 28.0, table: 1 },
-  { fuel: "Gas works gas", category: "fossil", efTco2PerTj: 44.4, ncvGjPerT: 38.7, table: 1 },
-  { fuel: "Coke oven gas", category: "fossil", efTco2PerTj: 44.4, ncvGjPerT: 38.7, table: 1 },
+  {
+    fuel: "Crude oil",
+    category: "fossil",
+    efTco2PerTj: 73.3,
+    ncvGjPerT: 42.3,
+    table: 1,
+  },
+  {
+    fuel: "Orimulsion",
+    category: "fossil",
+    efTco2PerTj: 77.0,
+    ncvGjPerT: 27.5,
+    table: 1,
+  },
+  {
+    fuel: "Natural gas liquids",
+    category: "fossil",
+    efTco2PerTj: 64.2,
+    ncvGjPerT: 44.2,
+    table: 1,
+  },
+  {
+    fuel: "Motor gasoline",
+    category: "fossil",
+    efTco2PerTj: 69.3,
+    ncvGjPerT: 44.3,
+    table: 1,
+  },
+  {
+    fuel: "Kerosene (other than jet kerosene)",
+    category: "fossil",
+    efTco2PerTj: 71.9,
+    ncvGjPerT: 43.8,
+    table: 1,
+  },
+  {
+    fuel: "Shale oil",
+    category: "fossil",
+    efTco2PerTj: 73.3,
+    ncvGjPerT: 38.1,
+    table: 1,
+  },
+  {
+    fuel: "Gas/Diesel oil",
+    category: "fossil",
+    efTco2PerTj: 74.1,
+    ncvGjPerT: 43.0,
+    table: 1,
+  },
+  {
+    fuel: "Residual fuel oil",
+    category: "fossil",
+    efTco2PerTj: 77.4,
+    ncvGjPerT: 40.4,
+    table: 1,
+  },
+  {
+    fuel: "Liquefied petroleum gases",
+    category: "fossil",
+    efTco2PerTj: 63.1,
+    ncvGjPerT: 47.3,
+    table: 1,
+  },
+  {
+    fuel: "Ethane",
+    category: "fossil",
+    efTco2PerTj: 61.6,
+    ncvGjPerT: 46.4,
+    table: 1,
+  },
+  {
+    fuel: "Naphtha",
+    category: "fossil",
+    efTco2PerTj: 73.3,
+    ncvGjPerT: 44.5,
+    table: 1,
+  },
+  {
+    fuel: "Bitumen",
+    category: "fossil",
+    efTco2PerTj: 80.7,
+    ncvGjPerT: 40.2,
+    table: 1,
+  },
+  {
+    fuel: "Lubricants",
+    category: "fossil",
+    efTco2PerTj: 73.3,
+    ncvGjPerT: 40.2,
+    table: 1,
+  },
+  {
+    fuel: "Petroleum coke",
+    category: "fossil",
+    efTco2PerTj: 97.5,
+    ncvGjPerT: 32.5,
+    table: 1,
+  },
+  {
+    fuel: "Refinery feedstocks",
+    category: "fossil",
+    efTco2PerTj: 73.3,
+    ncvGjPerT: 43.0,
+    table: 1,
+  },
+  {
+    fuel: "Refinery gas",
+    category: "fossil",
+    efTco2PerTj: 57.6,
+    ncvGjPerT: 49.5,
+    table: 1,
+  },
+  {
+    fuel: "Paraffin waxes",
+    category: "fossil",
+    efTco2PerTj: 73.3,
+    ncvGjPerT: 40.2,
+    table: 1,
+  },
+  {
+    fuel: "White spirit and SBP",
+    category: "fossil",
+    efTco2PerTj: 73.3,
+    ncvGjPerT: 40.2,
+    table: 1,
+  },
+  {
+    fuel: "Other petroleum products",
+    category: "fossil",
+    efTco2PerTj: 73.3,
+    ncvGjPerT: 40.2,
+    table: 1,
+  },
+  {
+    fuel: "Anthracite",
+    category: "fossil",
+    efTco2PerTj: 98.3,
+    ncvGjPerT: 26.7,
+    table: 1,
+  },
+  {
+    fuel: "Coking coal",
+    category: "fossil",
+    efTco2PerTj: 94.6,
+    ncvGjPerT: 28.2,
+    table: 1,
+  },
+  {
+    fuel: "Other bituminous coal",
+    category: "fossil",
+    efTco2PerTj: 94.6,
+    ncvGjPerT: 25.8,
+    table: 1,
+  },
+  {
+    fuel: "Sub-bituminous coal",
+    category: "fossil",
+    efTco2PerTj: 96.1,
+    ncvGjPerT: 18.9,
+    table: 1,
+  },
+  {
+    fuel: "Lignite",
+    category: "fossil",
+    efTco2PerTj: 101.0,
+    ncvGjPerT: 11.9,
+    table: 1,
+  },
+  {
+    fuel: "Oil shale and tar sands",
+    category: "fossil",
+    efTco2PerTj: 107.0,
+    ncvGjPerT: 8.9,
+    table: 1,
+  },
+  {
+    fuel: "Patent fuel",
+    category: "fossil",
+    efTco2PerTj: 97.5,
+    ncvGjPerT: 20.7,
+    table: 1,
+  },
+  {
+    fuel: "Coke oven coke and lignite coke",
+    category: "fossil",
+    efTco2PerTj: 107.0,
+    ncvGjPerT: 28.2,
+    table: 1,
+  },
+  {
+    fuel: "Gas coke",
+    category: "fossil",
+    efTco2PerTj: 107.0,
+    ncvGjPerT: 28.2,
+    table: 1,
+  },
+  {
+    fuel: "Coal tar",
+    category: "fossil",
+    efTco2PerTj: 80.7,
+    ncvGjPerT: 28.0,
+    table: 1,
+  },
+  {
+    fuel: "Gas works gas",
+    category: "fossil",
+    efTco2PerTj: 44.4,
+    ncvGjPerT: 38.7,
+    table: 1,
+  },
+  {
+    fuel: "Coke oven gas",
+    category: "fossil",
+    efTco2PerTj: 44.4,
+    ncvGjPerT: 38.7,
+    table: 1,
+  },
   {
     fuel: "Blast furnace gas",
     category: "fossil",
@@ -119,10 +307,35 @@ export const POINT_G_TABLE: PointGRow[] = [
     table: 1,
     note: "A waste gas. Same Annex III Equations 53–54 treatment as blast furnace gas when it crosses a production-process boundary.",
   },
-  { fuel: "Natural gas", category: "fossil", efTco2PerTj: 56.1, ncvGjPerT: 48.0, table: 1 },
-  { fuel: "Industrial wastes", category: "fossil", efTco2PerTj: 143.0, ncvGjPerT: null, table: 1, note: "Point G prints no NCV for this row." },
-  { fuel: "Waste oils", category: "fossil", efTco2PerTj: 73.3, ncvGjPerT: 40.2, table: 1 },
-  { fuel: "Peat", category: "fossil", efTco2PerTj: 106.0, ncvGjPerT: 9.76, table: 1 },
+  {
+    fuel: "Natural gas",
+    category: "fossil",
+    efTco2PerTj: 56.1,
+    ncvGjPerT: 48.0,
+    table: 1,
+  },
+  {
+    fuel: "Industrial wastes",
+    category: "fossil",
+    efTco2PerTj: 143.0,
+    ncvGjPerT: null,
+    table: 1,
+    note: "Point G prints no NCV for this row.",
+  },
+  {
+    fuel: "Waste oils",
+    category: "fossil",
+    efTco2PerTj: 73.3,
+    ncvGjPerT: 40.2,
+    table: 1,
+  },
+  {
+    fuel: "Peat",
+    category: "fossil",
+    efTco2PerTj: 106.0,
+    ncvGjPerT: 9.76,
+    table: 1,
+  },
   {
     fuel: "Waste tyres",
     category: "fossil",
@@ -131,23 +344,100 @@ export const POINT_G_TABLE: PointGRow[] = [
     table: 1,
     note: "WBCSD CSI value. A preliminary factor — the biomass fraction is applied to it under Equation 10. Point G prints no NCV.",
   },
-  { fuel: "Carbon monoxide", category: "fossil", efTco2PerTj: 155.2, ncvGjPerT: 10.1, table: 1 },
-  { fuel: "Methane", category: "fossil", efTco2PerTj: 54.9, ncvGjPerT: 50.0, table: 1 },
+  {
+    fuel: "Carbon monoxide",
+    category: "fossil",
+    efTco2PerTj: 155.2,
+    ncvGjPerT: 10.1,
+    table: 1,
+  },
+  {
+    fuel: "Methane",
+    category: "fossil",
+    efTco2PerTj: 54.9,
+    ncvGjPerT: 50.0,
+    table: 1,
+  },
 
   /* ── Table 2 · Biomass materials ──────────────────────────────
      Every EF here is PRELIMINARY. Equation 10 multiplies it by (1 − BF), and
      BF is zero unless the sustainability criteria of Directive (EU) 2018/2001
      Article 29(2)–(7) and (10) are evidenced — Annex II Point B.3.3. */
-  { fuel: "Wood / Wood waste (air dry)", category: "biomass", efTco2PerTj: 112.0, ncvGjPerT: 15.6, table: 2, note: "~15% moisture assumed." },
-  { fuel: "Sulphite lyes (black liquor)", category: "biomass", efTco2PerTj: 95.3, ncvGjPerT: 11.8, table: 2 },
-  { fuel: "Other primary solid biomass", category: "biomass", efTco2PerTj: 100.0, ncvGjPerT: 11.6, table: 2 },
-  { fuel: "Charcoal", category: "biomass", efTco2PerTj: 112.0, ncvGjPerT: 29.5, table: 2 },
-  { fuel: "Biogasoline", category: "biomass", efTco2PerTj: 70.8, ncvGjPerT: 27.0, table: 2 },
-  { fuel: "Biodiesels", category: "biomass", efTco2PerTj: 70.8, ncvGjPerT: 37.0, table: 2, note: "NCV from Annex III of Directive (EU) 2018/2001." },
-  { fuel: "Other liquid biofuels", category: "biomass", efTco2PerTj: 79.6, ncvGjPerT: 27.4, table: 2 },
-  { fuel: "Landfill gas", category: "biomass", efTco2PerTj: 54.6, ncvGjPerT: 50.4, table: 2, note: "Pure biomethane — correct for the methane content of the actual gas." },
-  { fuel: "Sludge gas", category: "biomass", efTco2PerTj: 54.6, ncvGjPerT: 50.4, table: 2, note: "Pure biomethane — correct for the methane content of the actual gas." },
-  { fuel: "Other biogas", category: "biomass", efTco2PerTj: 54.6, ncvGjPerT: 50.4, table: 2, note: "Pure biomethane — correct for the methane content of the actual gas." },
+  {
+    fuel: "Wood / Wood waste (air dry)",
+    category: "biomass",
+    efTco2PerTj: 112.0,
+    ncvGjPerT: 15.6,
+    table: 2,
+    note: "~15% moisture assumed.",
+  },
+  {
+    fuel: "Sulphite lyes (black liquor)",
+    category: "biomass",
+    efTco2PerTj: 95.3,
+    ncvGjPerT: 11.8,
+    table: 2,
+  },
+  {
+    fuel: "Other primary solid biomass",
+    category: "biomass",
+    efTco2PerTj: 100.0,
+    ncvGjPerT: 11.6,
+    table: 2,
+  },
+  {
+    fuel: "Charcoal",
+    category: "biomass",
+    efTco2PerTj: 112.0,
+    ncvGjPerT: 29.5,
+    table: 2,
+  },
+  {
+    fuel: "Biogasoline",
+    category: "biomass",
+    efTco2PerTj: 70.8,
+    ncvGjPerT: 27.0,
+    table: 2,
+  },
+  {
+    fuel: "Biodiesels",
+    category: "biomass",
+    efTco2PerTj: 70.8,
+    ncvGjPerT: 37.0,
+    table: 2,
+    note: "NCV from Annex III of Directive (EU) 2018/2001.",
+  },
+  {
+    fuel: "Other liquid biofuels",
+    category: "biomass",
+    efTco2PerTj: 79.6,
+    ncvGjPerT: 27.4,
+    table: 2,
+  },
+  {
+    fuel: "Landfill gas",
+    category: "biomass",
+    efTco2PerTj: 54.6,
+    ncvGjPerT: 50.4,
+    table: 2,
+    note: "Pure biomethane — correct for the methane content of the actual gas.",
+  },
+  {
+    fuel: "Sludge gas",
+    category: "biomass",
+    efTco2PerTj: 54.6,
+    ncvGjPerT: 50.4,
+    table: 2,
+    note: "Pure biomethane — correct for the methane content of the actual gas.",
+  },
+  {
+    fuel: "Other biogas",
+    category: "biomass",
+    efTco2PerTj: 54.6,
+    ncvGjPerT: 50.4,
+    table: 2,
+    note: "Pure biomethane — correct for the methane content of the actual gas.",
+  },
   {
     fuel: "Municipal waste (biomass fraction)",
     category: "biomass",
@@ -158,7 +448,8 @@ export const POINT_G_TABLE: PointGRow[] = [
   },
 ];
 
-export const pointGRow = (fuel: string): PointGRow | undefined => POINT_G_TABLE.find((r) => r.fuel === fuel);
+export const pointGRow = (fuel: string): PointGRow | undefined =>
+  POINT_G_TABLE.find((r) => r.fuel === fuel);
 
 /* ── The portal's fuel list, mapped onto Point G ────────────────
    lib/monthly-data.ts carries ten fuels chosen for a Thai steel and aluminium
@@ -199,10 +490,27 @@ export const FUEL_TYPE_TO_POINT_G: Record<string, FuelDefaultMapping> = {
   },
 };
 
+/* The rest of Point G (lib/cbam/fuel-catalogue.ts) maps 1:1 — one portal row per
+   Point G row — so there is no "more conservative of two" to choose and the only
+   caveat worth printing is the one the table itself carries. A biomass row's
+   factor is preliminary whatever the note says. */
+const BIOMASS_CAVEAT =
+  "A PRELIMINARY factor. Annex II Equation 10 multiplies it by (1 − biomass fraction), and the fraction stays at zero until the sustainability criteria of Directive (EU) 2018/2001 are evidenced.";
+for (const a of ADDITIONAL_FUELS) {
+  const row = POINT_G_TABLE.find((r) => r.fuel === a.pointG);
+  FUEL_TYPE_TO_POINT_G[a.id] = {
+    pointG: a.pointG,
+    caveat: row?.category === "biomass" ? BIOMASS_CAVEAT : row?.note,
+  };
+}
+
 /** Kilograms in one of the UI's units, for this fuel. Null when the unit is
     GJ (energy already) or when the fuel has no density on file for a volume
     unit — the second case is what stops a silent 1 kg/litre assumption. */
-export function kgPerUnit(fuelTypeId: string, unit: MonthlyFuelUnit): number | null {
+export function kgPerUnit(
+  fuelTypeId: string,
+  unit: MonthlyFuelUnit,
+): number | null {
   if (unit === "GJ") return null;
   if (unit === "t") return 1000;
   if (unit === "kg") return 1;
@@ -233,7 +541,10 @@ export type FuelDefault = {
     (GJ/t = MJ/kg) by fuel-density.ts's kg-per-UI-unit figure. Collapsing
     these into one number would make it impossible to tell afterwards which
     of the two source tables a wrong figure came from. */
-export function euStandardFor(fuelTypeId: string, unit: MonthlyFuelUnit): FuelDefault | null {
+export function euStandardFor(
+  fuelTypeId: string,
+  unit: MonthlyFuelUnit,
+): FuelDefault | null {
   const mapping = FUEL_TYPE_TO_POINT_G[fuelTypeId];
   if (!mapping) return null;
   const row = pointGRow(mapping.pointG);
@@ -247,7 +558,8 @@ export function euStandardFor(fuelTypeId: string, unit: MonthlyFuelUnit): FuelDe
   // fuel-density.ts converts that to MJ per the UI's volume unit.
   const perKg = row.ncvGjPerT;
   const kg = kgPerUnit(fuelTypeId, unit);
-  const ncvMjPerUnit = perKg == null || kg == null ? null : round(perKg * kg, 4);
+  const ncvMjPerUnit =
+    perKg == null || kg == null ? null : round(perKg * kg, 4);
 
   const density = FUEL_DENSITY[fuelTypeId];
   const usedDensity = density && density.unit === unit;
@@ -269,23 +581,45 @@ export function euStandardFor(fuelTypeId: string, unit: MonthlyFuelUnit): FuelDe
     right sentence for a Type II field with nothing entered; it is the wrong
     sentence here, because substituting the standard value is exactly what
     Type I means. */
-export function euStandardLockedHint(fuelTypeId: string, unit: MonthlyFuelUnit): string | null {
+export function euStandardLockedHint(
+  fuelTypeId: string,
+  unit: MonthlyFuelUnit,
+): string | null {
   const d = euStandardFor(fuelTypeId, unit);
   if (!d) return null;
-  const ncv = d.ncvMjPerUnit != null ? ` · ${round(d.ncvMjPerUnit / 1000, 4)} GJ/${unit === "m3" ? "m³" : unit === "l" ? "litre" : unit}` : "";
-  return `${d.efTco2PerGj} tCO₂/GJ${ncv} — EU standard value, IPCC 2006 GL (${POINT_G_CITATION}). Locked.`;
+  const unitName =
+    unit === "m3"
+      ? "m³"
+      : unit === "l"
+        ? translate(currentLang(), "litre")
+        : unit;
+  const ncv =
+    d.ncvMjPerUnit != null
+      ? ` · ${round(d.ncvMjPerUnit / 1000, 4)} GJ/${unitName}`
+      : "";
+  return translate(
+    currentLang(),
+    "{ef} tCO₂/GJ{ncv} — EU standard value, IPCC 2006 GL ({cite}). Locked.",
+    { ef: d.efTco2PerGj, ncv, cite: POINT_G_CITATION },
+  );
 }
 
 /** Does this fuel have EU standard values at all? Fuels typed as "Other" never
     do — Point G names categories, and an unlisted fuel is by definition not
     one of them, so its factors must come from a laboratory or the supplier. */
-export const hasEuStandard = (fuelTypeId: string): boolean => Boolean(FUEL_TYPE_TO_POINT_G[fuelTypeId]);
+export const hasEuStandard = (fuelTypeId: string): boolean =>
+  Boolean(FUEL_TYPE_TO_POINT_G[fuelTypeId]);
 
 /** Whether an entered pair matches the standard values, within the tolerance
     a rounded display needs. Used by validation to refuse a row claiming to be
     an EU standard value while carrying something else — the API-side half of
     the lock, which a disabled input alone cannot provide. */
-export function matchesEuStandard(fuelTypeId: string, unit: MonthlyFuelUnit, ncvMjPerUnit: number | undefined, efTco2PerGj: number): boolean {
+export function matchesEuStandard(
+  fuelTypeId: string,
+  unit: MonthlyFuelUnit,
+  ncvMjPerUnit: number | undefined,
+  efTco2PerGj: number,
+): boolean {
   const d = euStandardFor(fuelTypeId, unit);
   if (!d) return false;
   const efOk = close(efTco2PerGj, d.efTco2PerGj, 1e-6);
@@ -301,9 +635,15 @@ export function matchesEuStandard(fuelTypeId: string, unit: MonthlyFuelUnit, ncv
    furnace gas — because the NCV underneath it is a tenth of everything else's.
    Anything that range-checks an emission factor has to know that, or it
    reports every integrated steel plant in Thailand as out of band. */
-export const WASTE_GAS_FUEL_IDS = ["blast_furnace_gas", "coke_oven_gas", "bof_gas"] as const;
+export const WASTE_GAS_FUEL_IDS = [
+  "blast_furnace_gas",
+  "coke_oven_gas",
+  "bof_gas",
+] as const;
 
-export const isWasteGas = (fuelTypeId: string): boolean => (WASTE_GAS_FUEL_IDS as readonly string[]).includes(fuelTypeId);
+export const isWasteGas = (fuelTypeId: string): boolean =>
+  (WASTE_GAS_FUEL_IDS as readonly string[]).includes(fuelTypeId);
 
 const round = (n: number, dp: number): number => Number(n.toFixed(dp));
-const close = (a: number, b: number, tol: number): boolean => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= tol;
+const close = (a: number, b: number, tol: number): boolean =>
+  Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= tol;

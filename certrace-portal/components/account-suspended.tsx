@@ -72,10 +72,12 @@ export function AccountSuspended({ notice }: { notice: SuspensionNotice }) {
         <h1 className="text-[22px] leading-tight tracking-[-0.01em] text-black">
           This account is suspended
         </h1>
-        <p className="mt-3 text-[14px] leading-relaxed text-black/60">{notice.message}</p>
+        <p className="mt-3 text-[14px] leading-relaxed text-black/60">
+          {notice.message}
+        </p>
         <p className="mt-3 text-[13px] leading-relaxed text-black/45">
-          Your declarations, supplier submissions and uploaded evidence are untouched.
-          Access comes back with the account.
+          Your declarations, supplier submissions and uploaded evidence are
+          untouched. Access comes back with the account.
         </p>
 
         {stillSuspended && (

@@ -17,7 +17,9 @@ import {
 } from "../precursor-tree";
 import { parsePrecursors, precursorContribution } from "../../precursors";
 
-const node = (p: Partial<PrecursorNode> & { id: string; name: string }): PrecursorNode => ({
+const node = (
+  p: Partial<PrecursorNode> & { id: string; name: string },
+): PrecursorNode => ({
   parentId: null,
   cnCode: "",
   qtyPerTonneOutput: 0,
@@ -29,8 +31,20 @@ const node = (p: Partial<PrecursorNode> & { id: string; name: string }): Precurs
 
 test("golden fixture — scrap forces 0, pig iron carries 0.0950000", () => {
   const roots: PrecursorNode[] = [
-    node({ id: "scrap", name: "Steel scrap", qtyPerTonneOutput: 1.08, isScrap: true, seeDeclared: 9.99 }),
-    node({ id: "pig", name: "Pig iron", cnCode: "7201 10 90", qtyPerTonneOutput: 0.05, seeDeclared: 1.9 }),
+    node({
+      id: "scrap",
+      name: "Steel scrap",
+      qtyPerTonneOutput: 1.08,
+      isScrap: true,
+      seeDeclared: 9.99,
+    }),
+    node({
+      id: "pig",
+      name: "Pig iron",
+      cnCode: "7201 10 90",
+      qtyPerTonneOutput: 0.05,
+      seeDeclared: 1.9,
+    }),
   ];
 
   const { perTonne, byNode } = precursorSEE(roots);
@@ -38,17 +52,35 @@ test("golden fixture — scrap forces 0, pig iron carries 0.0950000", () => {
   // isScrap short-circuits BEFORE seeDeclared is read — the 9.99 is ignored.
   assert.equal(seeForNode(roots[0]), 0);
   assert.equal(byNode.find((n) => n.id === "scrap")!.contribution, 0);
-  assert.ok(Math.abs(byNode.find((n) => n.id === "pig")!.contribution - 0.095) < 1e-9);
-  assert.ok(Math.abs(perTonne - 0.095) < 1e-6, `expected 0.0950000, got ${perTonne}`);
+  assert.ok(
+    Math.abs(byNode.find((n) => n.id === "pig")!.contribution - 0.095) < 1e-9,
+  );
+  assert.ok(
+    Math.abs(perTonne - 0.095) < 1e-6,
+    `expected 0.0950000, got ${perTonne}`,
+  );
 });
 
 test("mass-balance yield matches the fixture's 88.50%", () => {
   const roots: PrecursorNode[] = [
-    node({ id: "scrap", name: "Steel scrap", qtyPerTonneOutput: 1.08, isScrap: true }),
-    node({ id: "pig", name: "Pig iron", qtyPerTonneOutput: 0.05, seeDeclared: 1.9 }),
+    node({
+      id: "scrap",
+      name: "Steel scrap",
+      qtyPerTonneOutput: 1.08,
+      isScrap: true,
+    }),
+    node({
+      id: "pig",
+      name: "Pig iron",
+      qtyPerTonneOutput: 0.05,
+      seeDeclared: 1.9,
+    }),
   ];
   const yieldPct = massBalanceYield(roots)! * 100;
-  assert.ok(Math.abs(yieldPct - 88.4956) < 0.01, `expected ≈88.50%, got ${yieldPct}`);
+  assert.ok(
+    Math.abs(yieldPct - 88.4956) < 0.01,
+    `expected ≈88.50%, got ${yieldPct}`,
+  );
 });
 
 test("a 3-tier chain resolves depth-first: ore → pig iron → billet", () => {
@@ -62,38 +94,82 @@ test("a 3-tier chain resolves depth-first: ore → pig iron → billet", () => {
       name: "Pig iron",
       qtyPerTonneOutput: 1.05,
       seeDeclared: 1.9,
-      children: [node({ id: "ore", parentId: "pig", name: "Sintered iron ore", qtyPerTonneOutput: 1.6, seeDeclared: 0.2 })],
+      children: [
+        node({
+          id: "ore",
+          parentId: "pig",
+          name: "Sintered iron ore",
+          qtyPerTonneOutput: 1.6,
+          seeDeclared: 0.2,
+        }),
+      ],
     }),
   ];
 
   assert.ok(Math.abs(seeForNode(roots[0]) - 0.32) < 1e-9);
   const { perTonne, byNode } = precursorSEE(roots);
-  assert.ok(Math.abs(perTonne - 0.336) < 1e-9, `expected 0.336, got ${perTonne}`);
+  assert.ok(
+    Math.abs(perTonne - 0.336) < 1e-9,
+    `expected 0.336, got ${perTonne}`,
+  );
   assert.equal(byNode.length, 2);
   assert.equal(byNode[1].depth, 2);
   assert.equal(flattenTree(roots).length, 2);
 });
 
 test("a cycle throws instead of recursing", () => {
-  const parent: PrecursorNode = node({ id: "a", name: "Billet", qtyPerTonneOutput: 1 });
-  const child: PrecursorNode = node({ id: "b", parentId: "a", name: "Pig iron", qtyPerTonneOutput: 1 });
+  const parent: PrecursorNode = node({
+    id: "a",
+    name: "Billet",
+    qtyPerTonneOutput: 1,
+  });
+  const child: PrecursorNode = node({
+    id: "b",
+    parentId: "a",
+    name: "Pig iron",
+    qtyPerTonneOutput: 1,
+  });
   // b's child is a again — the loop a mistyped BOM produces.
   child.children = [parent];
   parent.children = [child];
 
-  assert.throws(() => seeForNode(parent), (err: unknown) => err instanceof PrecursorTreeError && err.code === "CYCLE");
+  assert.throws(
+    () => seeForNode(parent),
+    (err: unknown) => err instanceof PrecursorTreeError && err.code === "CYCLE",
+  );
 });
 
 test("a chain deeper than the cap throws rather than running forever", () => {
-  let deepest = node({ id: `n${MAX_DEPTH + 2}`, name: "leaf", qtyPerTonneOutput: 1, seeDeclared: 1 });
+  let deepest = node({
+    id: `n${MAX_DEPTH + 2}`,
+    name: "leaf",
+    qtyPerTonneOutput: 1,
+    seeDeclared: 1,
+  });
   for (let i = MAX_DEPTH + 1; i >= 1; i--) {
-    deepest = node({ id: `n${i}`, name: `tier ${i}`, qtyPerTonneOutput: 1, children: [deepest] });
+    deepest = node({
+      id: `n${i}`,
+      name: `tier ${i}`,
+      qtyPerTonneOutput: 1,
+      children: [deepest],
+    });
   }
-  assert.throws(() => seeForNode(deepest), (err: unknown) => err instanceof PrecursorTreeError && err.code === "DEPTH");
+  assert.throws(
+    () => seeForNode(deepest),
+    (err: unknown) => err instanceof PrecursorTreeError && err.code === "DEPTH",
+  );
 });
 
 test("legacy flat rows migrate to one tier; legacy prose still returns null", () => {
-  const flat = JSON.stringify([{ name: "Pig iron", cn: "7201 10 90", qty: "0.05", see: "1.90", route: "BF route" }]);
+  const flat = JSON.stringify([
+    {
+      name: "Pig iron",
+      cn: "7201 10 90",
+      qty: "0.05",
+      see: "1.90",
+      route: "BF route",
+    },
+  ]);
   const migrated = parsePrecursorTree(flat)!;
   assert.equal(migrated.length, 1);
   assert.equal(migrated[0].parentId, null);
@@ -108,7 +184,9 @@ test("legacy flat rows migrate to one tier; legacy prose still returns null", ()
 });
 
 test("precursorContribution reads flat rows and trees through one implementation", () => {
-  const flat = JSON.stringify([{ name: "Pig iron", cn: "", qty: "0.4", see: "0.55", route: "" }]);
+  const flat = JSON.stringify([
+    { name: "Pig iron", cn: "", qty: "0.4", see: "0.55", route: "" },
+  ]);
   assert.ok(Math.abs(precursorContribution(flat) - 0.22) < 1e-9);
 
   const tree = serializePrecursorTree([
@@ -116,7 +194,15 @@ test("precursorContribution reads flat rows and trees through one implementation
       id: "pig",
       name: "Pig iron",
       qtyPerTonneOutput: 1.05,
-      children: [node({ id: "ore", parentId: "pig", name: "Ore", qtyPerTonneOutput: 1.6, seeDeclared: 0.2 })],
+      children: [
+        node({
+          id: "ore",
+          parentId: "pig",
+          name: "Ore",
+          qtyPerTonneOutput: 1.6,
+          seeDeclared: 0.2,
+        }),
+      ],
     }),
   ]);
   assert.ok(Math.abs(precursorContribution(tree) - 0.336) < 1e-9);
@@ -131,16 +217,32 @@ test("a serialised tree round-trips", () => {
       name: "Pig iron",
       cnCode: "7201 10 90",
       qtyPerTonneOutput: 1.05,
-      children: [node({ id: "ore", parentId: "pig", name: "Sintered ore", qtyPerTonneOutput: 1.6, seeDeclared: 0.2 })],
+      children: [
+        node({
+          id: "ore",
+          parentId: "pig",
+          name: "Sintered ore",
+          qtyPerTonneOutput: 1.6,
+          seeDeclared: 0.2,
+        }),
+      ],
     }),
-    node({ id: "scrap", name: "Steel scrap", qtyPerTonneOutput: 0.3, isScrap: true }),
+    node({
+      id: "scrap",
+      name: "Steel scrap",
+      qtyPerTonneOutput: 0.3,
+      isScrap: true,
+    }),
   ];
   const back = parsePrecursorTree(serializePrecursorTree(roots))!;
   assert.equal(back.length, 2);
   assert.equal(back[0].children.length, 1);
   assert.equal(back[0].children[0].parentId, back[0].id);
   assert.equal(back[1].isScrap, true);
-  assert.ok(Math.abs(precursorSEE(back).perTonne - precursorSEE(roots).perTonne) < 1e-12);
+  assert.ok(
+    Math.abs(precursorSEE(back).perTonne - precursorSEE(roots).perTonne) <
+      1e-12,
+  );
 });
 
 /* ── An intermediate tier's own process ──────────────────────────
@@ -155,12 +257,25 @@ test("an intermediate tier's own process is added, not dropped", () => {
     name: "Billet",
     qtyPerTonneOutput: 1.05,
     ownProcessSee: 0.3, // the caster's own furnace
-    children: [{ ...emptyNode(), name: "Pig iron", qtyPerTonneOutput: 1.1, seeDeclared: 1.5 }],
+    children: [
+      {
+        ...emptyNode(),
+        name: "Pig iron",
+        qtyPerTonneOutput: 1.1,
+        seeDeclared: 1.5,
+      },
+    ],
   };
   // SEE(billet) = 0.30 + 1.1 × 1.50 = 1.95 ; contribution = 1.05 × 1.95
-  assert.ok(Math.abs(seeForNode(billet) - 1.95) < 1e-9, `expected 1.95, got ${seeForNode(billet)}`);
+  assert.ok(
+    Math.abs(seeForNode(billet) - 1.95) < 1e-9,
+    `expected 1.95, got ${seeForNode(billet)}`,
+  );
   const { perTonne } = precursorSEE([billet]);
-  assert.ok(Math.abs(perTonne - 1.05 * 1.95) < 1e-9, `expected ${1.05 * 1.95}, got ${perTonne}`);
+  assert.ok(
+    Math.abs(perTonne - 1.05 * 1.95) < 1e-9,
+    `expected ${1.05 * 1.95}, got ${perTonne}`,
+  );
 });
 
 test("omitting ownProcessSee changes nothing for chains entered before it existed", () => {
@@ -168,9 +283,19 @@ test("omitting ownProcessSee changes nothing for chains entered before it existe
     ...emptyNode(),
     name: "Billet",
     qtyPerTonneOutput: 1.05,
-    children: [{ ...emptyNode(), name: "Pig iron", qtyPerTonneOutput: 1.1, seeDeclared: 1.5 }],
+    children: [
+      {
+        ...emptyNode(),
+        name: "Pig iron",
+        qtyPerTonneOutput: 1.1,
+        seeDeclared: 1.5,
+      },
+    ],
   };
-  assert.ok(Math.abs(seeForNode(billet) - 1.65) < 1e-9, "children-only, exactly as before");
+  assert.ok(
+    Math.abs(seeForNode(billet) - 1.65) < 1e-9,
+    "children-only, exactly as before",
+  );
 });
 
 test("a negative own-process figure is read as zero rather than as a credit", () => {
@@ -179,12 +304,20 @@ test("a negative own-process figure is read as zero rather than as a credit", ()
     name: "Trader",
     qtyPerTonneOutput: 1,
     ownProcessSee: -5,
-    children: [{ ...emptyNode(), name: "Billet", qtyPerTonneOutput: 1, seeDeclared: 2 }],
+    children: [
+      { ...emptyNode(), name: "Billet", qtyPerTonneOutput: 1, seeDeclared: 2 },
+    ],
   };
   assert.equal(seeForNode(n), 2);
 });
 
 test("scrap still short-circuits to zero even with an own-process figure", () => {
-  const n: PrecursorNode = { ...emptyNode(), name: "Scrap", qtyPerTonneOutput: 1, isScrap: true, ownProcessSee: 9 };
+  const n: PrecursorNode = {
+    ...emptyNode(),
+    name: "Scrap",
+    qtyPerTonneOutput: 1,
+    isScrap: true,
+    ownProcessSee: 9,
+  };
   assert.equal(seeForNode(n), 0);
 });

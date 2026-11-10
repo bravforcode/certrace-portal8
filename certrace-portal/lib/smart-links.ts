@@ -77,13 +77,30 @@
    the dashboard can never disagree about when something is late.
    ════════════════════════════════════════════════════════════ */
 
-import { dispatchesFor, effectiveDueDay, type MonthDispatch } from "./month-dispatch";
+import { dateLocaleNow, type TFunction } from "./i18n";
+import { calendarDate } from "./calendar-date";
+import {
+  calendarDaysUntil,
+  dispatchesFor,
+  effectiveDueDay,
+  type MonthDispatch,
+} from "./month-dispatch";
 import { monthsForWorkspace, type MonthStatus } from "./monthly-data";
-import { precursorCompleteness, listSuppliers, trackedWorkspaceIndex, type PrecursorSupplier } from "./precursor-suppliers";
+import {
+  precursorCompleteness,
+  listSuppliers,
+  trackedWorkspaceIndex,
+  type PrecursorSupplier,
+} from "./precursor-suppliers";
 import { makePrecursorLinkToken } from "./precursor-link";
 import { makeWorkspaceToken } from "./workspace-link";
 import { cachedWorkspaceToken } from "./workspace-link-sync";
-import { listWorkspaces, monthNameLong, scheduleFor, type VerificationWorkspace } from "./workspace";
+import {
+  listWorkspaces,
+  monthNameLong,
+  scheduleFor,
+  type VerificationWorkspace,
+} from "./workspace";
 
 /* ── The two kinds ─────────────────────────────────────────── */
 
@@ -91,20 +108,26 @@ export type SmartLinkKind = "monthly" | "verified_data";
 
 export const SMART_LINK_KIND_LABEL: Record<SmartLinkKind, string> = {
   monthly: "Monthly data",
-  verified_data: "Verified data",
+  verified_data: "Precursor data",
 };
 
 /** What each kind is actually asking for, in one sentence, for the filter's
     own tooltip and the detail dialog's lead. Written for somebody who has not
     read the regulation. */
 export const SMART_LINK_KIND_BLURB: Record<SmartLinkKind, string> = {
-  monthly: "One month of production, fuel and electricity readings from the installation that made the goods.",
-  verified_data: "One precursor supplier's emissions figure for the whole year, and the verification report behind it.",
+  monthly: "One month of production, fuel and electricity.",
+  verified_data:
+    "A precursor supplier's verified emissions for the whole year.",
 };
 
 /* ── The five states ───────────────────────────────────────── */
 
-export type SmartLinkState = "send_now" | "in_process" | "late" | "done" | "not_due";
+export type SmartLinkState =
+  | "send_now"
+  | "in_process"
+  | "late"
+  | "done"
+  | "not_due";
 
 export const SMART_LINK_STATE_LABEL: Record<SmartLinkState, string> = {
   send_now: "Send now",
@@ -117,16 +140,19 @@ export const SMART_LINK_STATE_LABEL: Record<SmartLinkState, string> = {
 /** One line each, shown under the filter so the words are defined where they
     are used rather than in a help page nobody opens. */
 export const SMART_LINK_STATE_BLURB: Record<SmartLinkState, string> = {
-  send_now: "Nobody has been asked yet, and it can be answered now. You owe the send.",
-  in_process: "Sent and waiting, still inside the deadline. Nothing to do yet.",
-  late: "Sent, past its deadline, still unanswered. Chase whoever it went to.",
+  send_now: "Not asked yet. Send it now.",
+  in_process: "Sent and waiting. Nothing to do yet.",
+  late: "Past the deadline, still unanswered. Chase it.",
   done: "Answered. Nothing outstanding.",
-  not_due: "Not sent, and not answerable yet — the month it covers is still running.",
+  not_due: "The month is still running.",
 };
 
 /** Design-system tones, so the chips on this page read the same as every
     other status chip in the portal. */
-export const SMART_LINK_STATE_TONE: Record<SmartLinkState, "ok" | "info" | "warn" | "err" | "muted"> = {
+export const SMART_LINK_STATE_TONE: Record<
+  SmartLinkState,
+  "ok" | "info" | "warn" | "err" | "muted"
+> = {
   send_now: "warn",
   in_process: "info",
   late: "err",
@@ -141,9 +167,17 @@ export const SMART_LINK_STATE_TONE: Record<SmartLinkState, "ok" | "info" | "warn
     follows: it is more overdue, but it is somebody else's move and the
     exporter's part in it is a phone call. Done sorts last whatever its dates,
     because a finished row has nothing at risk. */
-export const SMART_LINK_STATES: SmartLinkState[] = ["send_now", "late", "in_process", "not_due", "done"];
+export const SMART_LINK_STATES: SmartLinkState[] = [
+  "send_now",
+  "late",
+  "in_process",
+  "not_due",
+  "done",
+];
 
-const STATE_RANK: Record<SmartLinkState, number> = Object.fromEntries(SMART_LINK_STATES.map((s, i) => [s, i])) as Record<SmartLinkState, number>;
+const STATE_RANK: Record<SmartLinkState, number> = Object.fromEntries(
+  SMART_LINK_STATES.map((s, i) => [s, i]),
+) as Record<SmartLinkState, number>;
 
 /* ── One row ───────────────────────────────────────────────── */
 
@@ -217,7 +251,12 @@ function askableNow(month: string | null, now: Date): boolean {
 
 /** The one place a state is decided. Order matters — see the header for why
     `send_now` is tested ahead of `late`. */
-function stateOf(args: { answered: boolean; sent: boolean; overdue: boolean; askable: boolean }): SmartLinkState {
+function stateOf(args: {
+  answered: boolean;
+  sent: boolean;
+  overdue: boolean;
+  askable: boolean;
+}): SmartLinkState {
   if (args.answered) return "done";
   if (!args.sent) return args.askable ? "send_now" : "not_due";
   return args.overdue ? "late" : "in_process";
@@ -225,7 +264,11 @@ function stateOf(args: { answered: boolean; sent: boolean; overdue: boolean; ask
 
 /** The deadline for a month: `dueDay` of the month AFTER the one reported,
     using the day the month actually went out under where one exists. */
-function monthDue(month: string, dispatch: MonthDispatch | null, scheduleDueDay: number): Date {
+function monthDue(
+  month: string,
+  dispatch: MonthDispatch | null,
+  scheduleDueDay: number,
+): Date {
   const [y, m] = month.split("-").map(Number);
   const day = effectiveDueDay(dispatch, scheduleDueDay);
   // `m` is already 1-based, so `new Date(y, m, day)` is the FOLLOWING month.
@@ -252,7 +295,8 @@ export function buildSmartLinks(now: Date = new Date()): SmartLink[] {
     /* ── Source 1 + 2 · one link per month of the year ──────── */
     for (const entry of monthsForWorkspace(w)) {
       const dispatch = dispatches[entry.month] ?? null;
-      const answered = entry.status === "submitted" || entry.status === "reviewed";
+      const answered =
+        entry.status === "submitted" || entry.status === "reviewed";
       const due = monthDue(entry.month, dispatch, dueDay);
       const msLeft = due.getTime() - now.getTime();
       const overdue = !answered && msLeft < 0;
@@ -260,13 +304,20 @@ export function buildSmartLinks(now: Date = new Date()): SmartLink[] {
       rows.push({
         id: `m:${w.id}:${entry.month}`,
         kind: "monthly",
-        state: stateOf({ answered, sent: Boolean(dispatch), overdue, askable: askableNow(entry.month, now) }),
+        state: stateOf({
+          answered,
+          sent: Boolean(dispatch),
+          overdue,
+          askable: askableNow(entry.month, now),
+        }),
         workspace: w,
         viaPrecursor,
         month: entry.month,
         precursor: null,
         subject: monthNameLong(entry.month),
-        recipient: w.selfSupplied ? "Your own site" : w.supplierName || w.installationName,
+        recipient: w.selfSupplied
+          ? "Your own site"
+          : w.supplierName || w.installationName,
         toSelf: Boolean(w.selfSupplied),
         // The server-issued link once one has been minted (lib/workspace-link-sync.ts).
         path: `/w/${cachedWorkspaceToken(w.id, entry.month) ?? makeWorkspaceToken(w.id, entry.month)}`,
@@ -276,7 +327,7 @@ export function buildSmartLinks(now: Date = new Date()): SmartLink[] {
         sentAt: dispatch?.sentAt ?? null,
         lastSentAt: dispatch?.lastActionAt ?? null,
         openedAt: null,
-        answeredAt: answered ? entry.submittedAt ?? null : null,
+        answeredAt: answered ? (entry.submittedAt ?? null) : null,
         resendCount: dispatch?.resendCount ?? 0,
         percentComplete: answered ? 100 : 0,
         monthStatus: entry.status,
@@ -288,20 +339,30 @@ export function buildSmartLinks(now: Date = new Date()): SmartLink[] {
       const answered = Boolean(s.smartLinkSubmittedAt);
       /* A precursor's ask has no month of its own, so it inherits the
          workspace's own deadline: the year is what is being asked for. */
-      const due = new Date(`${w.periodEnd}T23:59:59`);
+      const due = calendarDate(w.periodEnd) ?? new Date(w.periodEnd);
+      due.setHours(23, 59, 59, 0);
       const msLeft = due.getTime() - now.getTime();
       const overdue = !answered && msLeft < 0;
 
       rows.push({
         id: `p:${w.id}:${s.id}`,
         kind: "verified_data",
-        state: stateOf({ answered, sent: Boolean(s.smartLinkSentAt), overdue, askable: true }),
+        state: stateOf({
+          answered,
+          sent: Boolean(s.smartLinkSentAt),
+          overdue,
+          askable: true,
+        }),
         workspace: w,
         viaPrecursor,
         month: null,
         precursor: s,
         subject: s.precursorName || s.name || "Unnamed precursor",
-        recipient: s.contactEmail || s.name || s.installationName || "No contact on file",
+        recipient:
+          s.contactEmail ||
+          s.name ||
+          s.installationName ||
+          "No contact on file",
         toSelf: false,
         path: `/p/${s.smartLinkToken ?? makePrecursorLinkToken(w.id, s.id)}`,
         due,
@@ -320,13 +381,25 @@ export function buildSmartLinks(now: Date = new Date()): SmartLink[] {
 
   /* Most urgent first: by state, then by deadline inside a state. A "done"
      row has nothing at risk, so it sorts to the bottom whatever its date. */
-  return rows.sort((a, b) => STATE_RANK[a.state] - STATE_RANK[b.state] || a.due.getTime() - b.due.getTime());
+  return rows.sort(
+    (a, b) =>
+      STATE_RANK[a.state] - STATE_RANK[b.state] ||
+      a.due.getTime() - b.due.getTime(),
+  );
 }
 
 /** How many rows sit in each state — for the filter chips' own counts, which
     are what make the filter worth pressing rather than a guess. */
-export function countByState(links: SmartLink[]): Record<SmartLinkState, number> {
-  const out: Record<SmartLinkState, number> = { send_now: 0, in_process: 0, late: 0, done: 0, not_due: 0 };
+export function countByState(
+  links: SmartLink[],
+): Record<SmartLinkState, number> {
+  const out: Record<SmartLinkState, number> = {
+    send_now: 0,
+    in_process: 0,
+    late: 0,
+    done: 0,
+    not_due: 0,
+  };
   for (const l of links) out[l.state] += 1;
   return out;
 }
@@ -341,14 +414,29 @@ export function countByKind(links: SmartLink[]): Record<SmartLinkKind, number> {
     card uses, kept here so the table and the dialog cannot word it
     differently. Deliberately never "0 days": a deadline that lands today is
     the one an exporter most needs to read as today. */
-export function countdown(msLeft: number): string {
-  const days = Math.round(Math.abs(msLeft) / 864e5);
+export function countdown(
+  msLeft: number,
+  t: TFunction = (k, v) =>
+    k.replace(/\{(\w+)\}/g, (_, n) => String(v?.[n] ?? "")),
+  due?: Date,
+): string {
+  // With the deadline in hand the days are counted on the calendar, the same way the month card and the bell count them;
+  // without it, from the milliseconds as before.
+  const days = due
+    ? Math.abs(calendarDaysUntil(due, new Date(due.getTime() - msLeft)))
+    : Math.round(Math.abs(msLeft) / 864e5);
   // A deadline that rounds to today is "due today" on either side of it. "0
   // days late" is technically true and reads as a glitch, and it is the one
   // deadline an exporter most needs to read as today's problem.
-  if (days === 0) return "due today";
-  if (msLeft < 0) return `${days} day${days === 1 ? "" : "s"} late`;
-  return `in ${days} day${days === 1 ? "" : "s"}`;
+  if (days === 0) return t("Due today");
+  if (msLeft < 0)
+    return t(days === 1 ? "{n} day late" : "{n} days late", { n: days });
+  return t(days === 1 ? "In {n} day" : "In {n} days", { n: days });
 }
 
-export const formatDay = (d: Date): string => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+export const formatDay = (d: Date): string =>
+  d.toLocaleDateString(dateLocaleNow(), {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });

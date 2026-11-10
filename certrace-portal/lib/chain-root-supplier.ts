@@ -30,7 +30,12 @@
 
 import { getInstallation } from "./installations";
 import { getOrgIdentity } from "./org";
-import { chainRootSupplier, emptySupplier, saveSupplier, type PrecursorSupplier } from "./precursor-suppliers";
+import {
+  chainRootSupplier,
+  emptySupplier,
+  saveSupplier,
+  type PrecursorSupplier,
+} from "./precursor-suppliers";
 import { getSupplierCompany } from "./supplier-companies";
 import { getRoute, type VerificationWorkspace } from "./workspace";
 
@@ -38,7 +43,9 @@ import { getRoute, type VerificationWorkspace } from "./workspace";
     was created against, or the exporter themselves on their own site. */
 function producerName(workspace: VerificationWorkspace): string {
   if (workspace.selfSupplied) return getOrgIdentity().name;
-  const company = workspace.supplierId ? getSupplierCompany(workspace.supplierId) : null;
+  const company = workspace.supplierId
+    ? getSupplierCompany(workspace.supplierId)
+    : null;
   return company?.name ?? workspace.supplierName ?? "";
 }
 
@@ -47,7 +54,10 @@ function producerName(workspace: VerificationWorkspace): string {
     separately (EU template fields iii–vii); the form has one box, and joining
     them here is what lets both sides ask the same question. */
 function fullAddress(street: string, postcode: string, city: string): string {
-  return [street, city, postcode].map((p) => p.trim()).filter(Boolean).join(", ");
+  return [street, city, postcode]
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .join(", ");
 }
 
 /** A finite number from one of the Installation record's string coordinates —
@@ -61,7 +71,9 @@ function coord(raw: string): number | undefined {
 /** The chain-root row for this workspace, created from the Installation
     record the first time it is asked for. Idempotent: the second call returns
     the stored row untouched, apart from the empty-contact top-up above. */
-export function ensureChainRootSupplier(workspace: VerificationWorkspace): PrecursorSupplier {
+export function ensureChainRootSupplier(
+  workspace: VerificationWorkspace,
+): PrecursorSupplier {
   const installation = getInstallation(workspace.installationId);
   const existing = chainRootSupplier(workspace.id);
 
@@ -70,13 +82,18 @@ export function ensureChainRootSupplier(workspace: VerificationWorkspace): Precu
     // "Send link" points. Filled from the site record rather than asked for
     // twice — see the header.
     const missingContact =
-      !(existing.contactEmail ?? "").trim() && Boolean((installation?.contactEmail ?? "").trim());
+      !(existing.contactEmail ?? "").trim() &&
+      Boolean((installation?.contactEmail ?? "").trim());
     if (!missingContact) return existing;
     return saveSupplier({
       ...existing,
-      contactName: (existing.contactName ?? "").trim() || (installation?.contactName ?? ""),
+      contactName:
+        (existing.contactName ?? "").trim() ||
+        (installation?.contactName ?? ""),
       contactEmail: installation?.contactEmail ?? "",
-      contactPhone: (existing.contactPhone ?? "").trim() || (installation?.contactPhone ?? ""),
+      contactPhone:
+        (existing.contactPhone ?? "").trim() ||
+        (installation?.contactPhone ?? ""),
     });
   }
 
@@ -101,7 +118,13 @@ export function ensureChainRootSupplier(workspace: VerificationWorkspace): Precu
     country: installation?.country ?? "TH",
     installationUniqueId: workspace.installationId,
     unlocode: installation?.unlocode ?? "",
-    fullAddress: installation ? fullAddress(installation.street, installation.postcode, installation.city) : "",
+    fullAddress: installation
+      ? fullAddress(
+          installation.street,
+          installation.postcode,
+          installation.city,
+        )
+      : "",
     latitude: installation ? coord(installation.lat) : undefined,
     longitude: installation ? coord(installation.lng) : undefined,
     // The good this chain is about — locked to the catalogue exactly as a

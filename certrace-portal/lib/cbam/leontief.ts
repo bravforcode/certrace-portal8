@@ -185,7 +185,10 @@ function solveWith({ lu, perm, n }: Factorisation, b: number[]): number[] {
 }
 
 /* ── The solve ───────────────────────────────────────────────── */
-export function solveEmbedded(nodes: SolveNode[], consumption: Consumption[]): SolveResult {
+export function solveEmbedded(
+  nodes: SolveNode[],
+  consumption: Consumption[],
+): SolveResult {
   const n = nodes.length;
   const index = new Map(nodes.map((node, i) => [node.id, i]));
   const empty: SolveResult = { see: {}, coefficients: [], error: null };
@@ -211,7 +214,9 @@ export function solveEmbedded(nodes: SolveNode[], consumption: Consumption[]): S
      needed. Built exactly as InputOutput!E7: absolute quantity over the
      consumer's own total output, so two deliveries of the same precursor
      accumulate rather than overwrite. */
-  const A: number[][] = Array.from({ length: n }, () => new Array<number>(n).fill(0));
+  const A: number[][] = Array.from({ length: n }, () =>
+    new Array<number>(n).fill(0),
+  );
   const coefficients: SolveResult["coefficients"] = [];
   for (const c of consumption) {
     const i = index.get(c.consumerId);
@@ -224,12 +229,19 @@ export function solveEmbedded(nodes: SolveNode[], consumption: Consumption[]): S
   }
   for (let i = 0; i < n; i++) {
     for (let j = 0; j < n; j++) {
-      if (A[i][j] !== 0) coefficients.push({ consumerId: nodes[i].id, precursorId: nodes[j].id, perUnit: A[i][j] });
+      if (A[i][j] !== 0)
+        coefficients.push({
+          consumerId: nodes[i].id,
+          precursorId: nodes[j].id,
+          perUnit: A[i][j],
+        });
     }
   }
 
   // (I − A), InputOutput!E39.
-  const IminusA = Array.from({ length: n }, (_, i) => Array.from({ length: n }, (_, j) => (i === j ? 1 : 0) - A[i][j]));
+  const IminusA = Array.from({ length: n }, (_, i) =>
+    Array.from({ length: n }, (_, j) => (i === j ? 1 : 0) - A[i][j]),
+  );
 
   const lu = factorise(IminusA);
   if (!lu) {
@@ -245,11 +257,21 @@ export function solveEmbedded(nodes: SolveNode[], consumption: Consumption[]): S
   }
 
   // The five right-hand sides, each per unit of the node's own output.
-  const seDirect = nodes.map((node) => node.ownDirectTCO2e / node.totalProduction);
-  const seIndirect = nodes.map((node) => node.ownIndirectTCO2e / node.totalProduction);
-  const seElectricity = nodes.map((node) => node.ownElectricityMWh / node.totalProduction);
-  const cpPaid = nodes.map((node) => node.ownCarbonPricePaid / node.totalProduction);
-  const cpRebate = nodes.map((node) => node.ownCarbonPriceRebate / node.totalProduction);
+  const seDirect = nodes.map(
+    (node) => node.ownDirectTCO2e / node.totalProduction,
+  );
+  const seIndirect = nodes.map(
+    (node) => node.ownIndirectTCO2e / node.totalProduction,
+  );
+  const seElectricity = nodes.map(
+    (node) => node.ownElectricityMWh / node.totalProduction,
+  );
+  const cpPaid = nodes.map(
+    (node) => node.ownCarbonPricePaid / node.totalProduction,
+  );
+  const cpRebate = nodes.map(
+    (node) => node.ownCarbonPriceRebate / node.totalProduction,
+  );
 
   const seeDirect = solveWith(lu, seDirect);
   const seeIndirect = solveWith(lu, seIndirect);

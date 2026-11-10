@@ -4,7 +4,7 @@
    There are TWO onboarding journeys in this portal and they are deliberately
    not the same thing:
 
-     /onboarding        a brand-new account, straight off /register. Asks the
+     /onboarding        a newly registered account, before workspace access. Asks the
                         research questions only a first-time signup can answer
                         and ENDS on a confirmation page — no product access,
                         because the trial is still being provisioned and the
@@ -28,11 +28,16 @@ import { ArrowRight, ArrowLeft } from "lucide-react";
 import { Card, Button, Field, inputClass, Eyebrow, cn } from "@/components/ui";
 import { Select } from "@/components/controls";
 import { PhoneField } from "@/components/phone-field";
-import { LanguageToggle } from "@/components/lang-toggle";
+import { LanguageSelect } from "@/components/language-select";
 import { CertraceLogo } from "@/components/logo";
 import { useProfile, type Profile } from "@/lib/profile";
 import { PRODUCT_SECTORS } from "@/lib/config";
-import { JOB_TITLES, JOB_TITLE_OPTIONS, jobTitleIncomplete, jobTitleValue } from "@/lib/job-titles";
+import {
+  JOB_TITLES,
+  JOB_TITLE_OPTIONS,
+  jobTitleIncomplete,
+  jobTitleValue,
+} from "@/lib/job-titles";
 import { isValidPhone } from "@/lib/dial-codes";
 import { useT } from "@/lib/i18n";
 
@@ -67,13 +72,19 @@ export type SetupDraft = {
    though it had been chosen. Empty fields still show an example placeholder
    (see the field blocks below) — a blank box under a label reads as optional,
    and none of these are. */
-const jobTitleOptionFor = (stored: string) => (JOB_TITLES.includes(stored) ? stored : stored.trim() ? "other" : "");
-const jobTitleOtherFor = (stored: string) => (JOB_TITLES.includes(stored) ? "" : stored);
-const known = (value: string, allowed: string[]) => (allowed.includes(value) ? value : "");
+const jobTitleOptionFor = (stored: string) =>
+  JOB_TITLES.includes(stored) ? stored : stored.trim() ? "other" : "";
+const jobTitleOtherFor = (stored: string) =>
+  JOB_TITLES.includes(stored) ? "" : stored;
+const known = (value: string, allowed: string[]) =>
+  allowed.includes(value) ? value : "";
 
 const draftFrom = (p: Profile): SetupDraft => ({
   companyName: p.companyName ?? "",
-  sectorId: known(p.sector ?? "", PRODUCT_SECTORS.map((s) => s.id)),
+  sectorId: known(
+    p.sector ?? "",
+    PRODUCT_SECTORS.map((s) => s.id),
+  ),
   jurisdiction: known(p.jurisdiction ?? "", ["TH"]),
   currency: known(p.currency ?? "", ["THB", "EUR"]),
   firstName: p.firstName ?? "",
@@ -86,9 +97,11 @@ const draftFrom = (p: Profile): SetupDraft => ({
 
 export function useSetupDraft() {
   const { profile, loaded } = useProfile();
-  const [draft, setDraft] = React.useState<SetupDraft>(() => draftFrom(profile));
+  const [draft, setDraft] = React.useState<SetupDraft>(() =>
+    draftFrom(profile),
+  );
 
-  /* The profile loads from localStorage a tick after mount (SSR-hydration-safe),
+  /* The profile loads from account storage a tick after mount (SSR-hydration-safe),
      so re-sync once that lands — otherwise a component that mounted first keeps
      showing the hardcoded defaults forever, even on a hard refresh mid-flow.
      Same pattern as every Settings tab. */
@@ -97,11 +110,17 @@ export function useSetupDraft() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded]);
 
-  const set = React.useCallback((patch: Partial<SetupDraft>) => setDraft((d) => ({ ...d, ...patch })), []);
+  const set = React.useCallback(
+    (patch: Partial<SetupDraft>) => setDraft((d) => ({ ...d, ...patch })),
+    [],
+  );
 
   /* Every answer on this step shapes a filing, so every one of them is
      required — there is no optional box left here. */
-  const orgValid = draft.companyName.trim() !== "" && draft.sectorId !== "" && draft.jurisdiction !== "";
+  const orgValid =
+    draft.companyName.trim() !== "" &&
+    draft.sectorId !== "" &&
+    draft.jurisdiction !== "";
   const profileValid =
     draft.firstName.trim() !== "" &&
     draft.lastName.trim() !== "" &&
@@ -122,7 +141,7 @@ export function useSetupDraft() {
        is no longer asked (see OrganisationFields), and writing an empty string
        here would erase an existing account's value as a side effect of
        walking through setup again. */
-    currency: draft.currency,
+    currency: profile.currency,
     firstName: draft.firstName.trim(),
     lastName: draft.lastName.trim(),
     jobTitle: jobTitleValue(draft.jobTitleOption, draft.jobTitleOther),
@@ -143,22 +162,38 @@ export function useSetupDraft() {
   if (draft.jurisdiction === "") missing.push("Operating jurisdiction");
   if (draft.firstName.trim() === "") missing.push("First name");
   if (draft.lastName.trim() === "") missing.push("Last name");
-  if (draft.jobTitleOption === "" || jobTitleIncomplete(draft.jobTitleOption, draft.jobTitleOther)) missing.push("Job title");
+  if (
+    draft.jobTitleOption === "" ||
+    jobTitleIncomplete(draft.jobTitleOption, draft.jobTitleOther)
+  )
+    missing.push("Job title");
   if (!phoneValid) missing.push("Phone number");
   if (draft.lineId.trim() === "") missing.push("LINE ID");
 
-  return { draft, set, orgValid, profileValid, contactValid, phoneValid, missing, toPatch };
+  return {
+    draft,
+    set,
+    orgValid,
+    profileValid,
+    contactValid,
+    phoneValid,
+    missing,
+    toPatch,
+  };
 }
 
 /* ── Chrome ─────────────────────────────────────────────────────
-   Logo, language toggle, progress, card.
+   Logo, language menu, progress, card.
 
-   The EN/ไทย toggle is here because this flow renders BEFORE the portal shell
-   exists — there is no top bar and no account menu yet, so the switcher in
-   there is unreachable and a Thai exporter would otherwise fill in four steps
-   of English with no way out of it.
+   The language menu (English · ไทย · 中文 — the same one a supplier or a precursor
+   maker has on their link) is here because this flow renders BEFORE the portal
+   shell exists — there is no top bar and no account menu yet, so the switcher
+   in there is unreachable and a Thai exporter would otherwise fill in four
+   steps of English with no way out of it. Chinese is offered here and nowhere
+   in the portal: it is kept for this flow and never written over the portal's
+   own choice (lib/i18n.ts).
 
-   It is a TOGGLE, never a `?lang=` link: switching language must not navigate,
+   It is a MENU that changes the language in place, never a `?lang=` link: switching language must not navigate,
    or the step and every answer already typed — all of it React state on this
    page — would be thrown away by the remount. Setting the context re-renders
    the same tree in place. */
@@ -182,40 +217,69 @@ export function OnboardingShell({
             right — and only wider screens centre the mark. */}
         <div className="relative flex items-center justify-between sm:justify-center">
           <CertraceLogo className="h-5 w-auto" />
-          <LanguageToggle className="sm:absolute sm:right-0" />
+          <LanguageSelect className="sm:absolute sm:right-0" />
         </div>
 
         <div className="mt-8">
           <div className="mb-2 flex items-center justify-between text-[11px] uppercase tracking-[0.12em] text-black/40">
-            <span>{t("Step {step} of {total}", { step: step + 1, total: steps.length })}</span>
-            <span className="font-pixel text-[10px] uppercase tracking-[0.16em] text-black/45">{t(steps[step].label)}</span>
+            <span>
+              {t("Step {step} of {total}", {
+                step: step + 1,
+                total: steps.length,
+              })}
+            </span>
+            <span className="font-pixel text-[10px] uppercase tracking-[0.16em] text-black/45">
+              {t(steps[step].label)}
+            </span>
           </div>
           <div className="flex gap-1.5">
             {steps.map((s, i) => (
-              <span key={s.key} className={cn("h-[3px] flex-1 rounded-full transition-colors", i <= step ? "bg-[#111]" : "bg-black/[0.08]")} />
+              <span
+                key={s.key}
+                className={cn(
+                  "h-[3px] flex-1 rounded-full transition-colors",
+                  i <= step ? "bg-[#111]" : "bg-black/[0.08]",
+                )}
+              />
             ))}
           </div>
         </div>
 
         <Card key={step} className="ct-enter mt-6 p-6 sm:p-8">
           {children}
-          <div className="mt-8 flex items-center justify-between border-t border-black/[0.06] pt-6">{footer}</div>
+          <div className="mt-8 flex items-center justify-between border-t border-black/[0.06] pt-6">
+            {footer}
+          </div>
         </Card>
       </div>
     </div>
   );
 }
 
-export function BackButton({ onClick }: { onClick: () => void }) {
+export function BackButton({
+  onClick,
+  disabled,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+}) {
   const t = useT();
   return (
-    <Button variant="ghost" size="sm" onClick={onClick}>
+    <Button variant="ghost" size="sm" onClick={onClick} disabled={disabled}>
       <ArrowLeft size={13} strokeWidth={1.5} /> {t("Back")}
     </Button>
   );
 }
 
-export function NextButton({ onClick, label, disabled }: { onClick: () => void; label: string; disabled?: boolean }) {
+export function NextButton({
+  onClick,
+  label,
+  disabled,
+}: {
+  onClick: () => void;
+  label: string;
+  disabled?: boolean;
+}) {
   return (
     <Button size="sm" onClick={onClick} disabled={disabled}>
       {label} <ArrowRight size={13} strokeWidth={1.5} />
@@ -252,7 +316,13 @@ export function MissingHint({ items }: { items: string[] }) {
   );
 }
 
-export function StepHeader({ eyebrow, body }: { eyebrow: string; body: string }) {
+export function StepHeader({
+  eyebrow,
+  body,
+}: {
+  eyebrow: string;
+  body: string;
+}) {
   return (
     <div>
       <Eyebrow>{eyebrow}</Eyebrow>
@@ -263,10 +333,18 @@ export function StepHeader({ eyebrow, body }: { eyebrow: string; body: string })
 
 /* Section rule inside the one long setup step — three groups of questions in
    one card reads as a wall without them. */
-export function FieldGroup({ label, children }: { label: string; children: React.ReactNode }) {
+export function FieldGroup({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="space-y-4 border-t border-black/[0.06] pt-5">
-      <span className="font-pixel block text-[10px] uppercase tracking-[0.16em] text-black/45">{label}</span>
+      <span className="font-pixel block text-[10px] uppercase tracking-[0.16em] text-black/45">
+        {label}
+      </span>
       {children}
     </div>
   );
@@ -277,9 +355,19 @@ export function FieldGroup({ label, children }: { label: string; children: React
    one field cannot have two names, and an example is what tells somebody what
    shape of answer belongs in the box. Anything already known arrives as the
    value; anything not shows the example. */
-export function OrganisationFields({ draft, set }: { draft: SetupDraft; set: (p: Partial<SetupDraft>) => void }) {
+export function OrganisationFields({
+  draft,
+  set,
+}: {
+  draft: SetupDraft;
+  set: (p: Partial<SetupDraft>) => void;
+}) {
   const t = useT();
-  const sectorOptions = PRODUCT_SECTORS.map((s) => ({ value: s.id, label: t(s.name), hint: s.cnHint }));
+  const sectorOptions = PRODUCT_SECTORS.map((s) => ({
+    value: s.id,
+    label: t(s.name),
+    hint: s.cnHint,
+  }));
   const jurisdictionOptions = [{ value: "TH", label: t("Thailand") }];
   return (
     <>
@@ -292,7 +380,12 @@ export function OrganisationFields({ draft, set }: { draft: SetupDraft; set: (p:
         />
       </Field>
 
-      <Field label={t("Primary sector")} hint={t("Which CBAM-affected industry your organisation reports under.")}>
+      <Field
+        label={t("Primary sector")}
+        hint={t(
+          "Which CBAM-affected industry your organisation reports under.",
+        )}
+      >
         <Select
           value={draft.sectorId}
           onChange={(v) => set({ sectorId: v })}
@@ -307,7 +400,12 @@ export function OrganisationFields({ draft, set }: { draft: SetupDraft; set: (p:
           in tonnes of CO₂e, and the one money field in the workspace — the
           carbon price paid in the country of origin — carries the currency of
           the receipt it is read off, which is not an account preference. */}
-      <Field label={t("Operating jurisdiction")} hint={t("Sets the localised emission-factor library and number formats.")}>
+      <Field
+        label={t("Operating jurisdiction")}
+        hint={t(
+          "Sets the localised emission-factor library and number formats.",
+        )}
+      >
         <Select
           value={draft.jurisdiction}
           onChange={(v) => set({ jurisdiction: v })}
@@ -320,7 +418,13 @@ export function OrganisationFields({ draft, set }: { draft: SetupDraft; set: (p:
   );
 }
 
-export function ProfileFields({ draft, set }: { draft: SetupDraft; set: (p: Partial<SetupDraft>) => void }) {
+export function ProfileFields({
+  draft,
+  set,
+}: {
+  draft: SetupDraft;
+  set: (p: Partial<SetupDraft>) => void;
+}) {
   const t = useT();
   return (
     <>
@@ -347,7 +451,12 @@ export function ProfileFields({ draft, set }: { draft: SetupDraft; set: (p: Part
         </Field>
       </div>
 
-      <Field label={t("Job title")} hint={t("Shown on every supplier request you send, and on the “requested by” line a verifier reads.")}>
+      <Field
+        label={t("Job title")}
+        hint={t(
+          "Shown on every supplier request you send, and on the “requested by” line a verifier reads.",
+        )}
+      >
         <Select
           value={draft.jobTitleOption}
           onChange={(v) => set({ jobTitleOption: v })}
@@ -371,7 +480,15 @@ export function ProfileFields({ draft, set }: { draft: SetupDraft; set: (p: Part
   );
 }
 
-export function ContactFields({ draft, set, phoneValid }: { draft: SetupDraft; set: (p: Partial<SetupDraft>) => void; phoneValid: boolean }) {
+export function ContactFields({
+  draft,
+  set,
+  phoneValid,
+}: {
+  draft: SetupDraft;
+  set: (p: Partial<SetupDraft>) => void;
+  phoneValid: boolean;
+}) {
   const t = useT();
   const phoneTyped = draft.phone.trim() !== "";
   return (
@@ -379,7 +496,9 @@ export function ContactFields({ draft, set, phoneValid }: { draft: SetupDraft; s
       {/* A <label> wrapping two controls forwards every click to the first one,
           so the phone row builds its own label instead of using <Field>. */}
       <div className="block">
-        <span className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-[0.1em] text-black/55">{t("Phone number")}</span>
+        <span className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-[0.1em] text-black/55">
+          {t("Phone number")}
+        </span>
         <PhoneField
           value={draft.phone}
           onChange={(v) => set({ phone: v })}
@@ -389,13 +508,20 @@ export function ContactFields({ draft, set, phoneValid }: { draft: SetupDraft; s
           dialLabel={t("Country calling code")}
           numberLabel={t("Telephone number")}
         />
-        <span className="mt-1.5 block text-xs text-black/35">{t("Pick your country code, then type the rest of the number.")}</span>
+        <span className="mt-1.5 block text-xs text-black/35">
+          {t("Pick your country code, then type the rest of the number.")}
+        </span>
         {phoneTyped && !phoneValid && (
-          <span className="mt-1.5 block text-xs text-[#dc2626]">{t("Enter a real telephone number — digits only, 6 to 14 of them.")}</span>
+          <span className="mt-1.5 block text-xs text-[#dc2626]">
+            {t("Enter a real telephone number — digits only, 6 to 14 of them.")}
+          </span>
         )}
       </div>
 
-      <Field label={t("LINE ID")} hint={t("So our CBAM specialists can reach you on LINE.")}>
+      <Field
+        label={t("LINE ID")}
+        hint={t("So our CBAM specialists can reach you on LINE.")}
+      >
         <input
           className={inputClass}
           value={draft.lineId}
@@ -426,16 +552,27 @@ export function WelcomeStep({
     <div className="space-y-6">
       <div>
         <Eyebrow>{eyebrow}</Eyebrow>
-        <h1 className="mt-3 font-[family-name:var(--font-plex)] text-2xl font-light leading-tight tracking-tight text-[#111]">{title}</h1>
+        <h1 className="mt-3 font-[family-name:var(--font-plex)] text-2xl font-light leading-tight tracking-tight text-[#111]">
+          {title}
+        </h1>
         <p className="mt-2 text-sm leading-relaxed text-black/50">{body}</p>
       </div>
       <div className="space-y-3">
         {points.map(({ icon: Icon, title: pt, body: pb }) => (
-          <div key={pt} className="flex gap-3 rounded-xl border border-black/[0.06] bg-[#faf9f7] px-4 py-3.5">
-            <Icon size={16} strokeWidth={1.5} className="mt-0.5 flex-none text-black/40" />
+          <div
+            key={pt}
+            className="flex gap-3 rounded-xl border border-black/[0.06] bg-[#faf9f7] px-4 py-3.5"
+          >
+            <Icon
+              size={16}
+              strokeWidth={1.5}
+              className="mt-0.5 flex-none text-black/40"
+            />
             <div>
               <div className="text-[13px] text-black/80">{t(pt)}</div>
-              <div className="mt-0.5 text-[12px] leading-relaxed text-black/45">{t(pb)}</div>
+              <div className="mt-0.5 text-[12px] leading-relaxed text-black/45">
+                {t(pb)}
+              </div>
             </div>
           </div>
         ))}

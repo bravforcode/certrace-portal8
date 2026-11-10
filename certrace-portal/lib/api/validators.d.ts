@@ -1,0 +1,9 @@
+export declare function isStoredFile(value: unknown): value is import('./files').StoredFile;
+export declare function isDeclaration(value: unknown): value is import('../data').Declaration;
+export declare function isSupplierState(value: unknown): value is import('../supplier-store').SupplierState;
+export declare function isLinkResolution(value: unknown): value is import('./links').LinkResolution;
+export declare function isSubmissionSummary(value: unknown): value is import('./links').SubmissionSummary;
+export declare function isWorkspaceResolution(value: unknown): value is import('../workspace-link-sync').WorkspaceResolution;
+export declare function isWorkspaceLinkState(value: unknown): value is import('../workspace-link-sync').WorkspaceLinkState;
+export declare function isLinkState(value: unknown): value is import('../precursor-link-sync').LinkState;
+export declare function isResolution(value: unknown): value is import('../precursor-link-sync').Resolution;

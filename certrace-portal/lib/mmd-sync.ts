@@ -31,20 +31,35 @@
    supplies — a wrong fact that reads as a confirmed one.
    ════════════════════════════════════════════════════════════ */
 
-import { applyEuStandard, emptyFuel, fuelTypeDef, type FuelEntry, type MonthlyEntry, type ElectricityFactorSource } from "./monthly-data";
-import { ELECTRICITY_SUPPLY_OPTIONS, type WorkspaceMmdContent } from "./workspace-mmd";
+import {
+  applyEuStandard,
+  emptyFuel,
+  fuelTypeDef,
+  type FuelEntry,
+  type MonthlyEntry,
+  type ElectricityFactorSource,
+} from "./monthly-data";
+import {
+  ELECTRICITY_SUPPLY_OPTIONS,
+  type WorkspaceMmdContent,
+} from "./workspace-mmd";
 
 /* ── Fuels ─────────────────────────────────────────────────── */
 
 /** The fuels a month's rows actually name. */
-export const fuelIdsInMonth = (fuels: FuelEntry[]): string[] => [...new Set(fuels.map((f) => f.fuelType).filter(Boolean))];
+export const fuelIdsInMonth = (fuels: FuelEntry[]): string[] => [
+  ...new Set(fuels.map((f) => f.fuelType).filter(Boolean)),
+];
 
 /** Has this row been filled in at all? A row with a quantity or a factor is
     the supplier's work; an untouched one is scaffolding we put there. The
     distinction decides whether removing a fuel from the methodology can
     delete the row silently. */
 export const fuelRowHasData = (f: FuelEntry): boolean =>
-  f.quantity > 0 || f.efTco2PerGj > 0 || Boolean(f.ncvMjPerUnit) || Boolean(f.fuelTypeOther?.trim());
+  f.quantity > 0 ||
+  f.efTco2PerGj > 0 ||
+  Boolean(f.ncvMjPerUnit) ||
+  Boolean(f.fuelTypeOther?.trim());
 
 export type FuelReconcile = {
   fuels: FuelEntry[];
@@ -62,7 +77,10 @@ export type FuelReconcile = {
     Order follows the methodology, so the month reads in the same sequence the
     methodology lists — twelve months of rows in a stable order is what makes
     a year comparable at a glance. */
-export function reconcileFuelRows(declared: string[], fuels: FuelEntry[]): FuelReconcile {
+export function reconcileFuelRows(
+  declared: string[],
+  fuels: FuelEntry[],
+): FuelReconcile {
   const wanted = new Set(declared);
   const added: string[] = [];
   const removed: string[] = [];
@@ -94,17 +112,30 @@ export function reconcileFuelRows(declared: string[], fuels: FuelEntry[]): FuelR
   const fresh: FuelEntry[] = [];
   for (const id of declared) {
     if (present.has(id)) continue;
-    fresh.push(applyEuStandard({ ...emptyFuel(), fuelType: id, unit: fuelTypeDef(id)?.typicalUnit ?? emptyFuel().unit }));
+    fresh.push(
+      applyEuStandard({
+        ...emptyFuel(),
+        fuelType: id,
+        unit: fuelTypeDef(id)?.typicalUnit ?? emptyFuel().unit,
+      }),
+    );
     added.push(id);
   }
 
   const byDeclaredOrder = (a: FuelEntry, b: FuelEntry) => {
     const ia = declared.indexOf(a.fuelType);
     const ib = declared.indexOf(b.fuelType);
-    return (ia === -1 ? declared.length : ia) - (ib === -1 ? declared.length : ib);
+    return (
+      (ia === -1 ? declared.length : ia) - (ib === -1 ? declared.length : ib)
+    );
   };
 
-  return { fuels: [...kept, ...fresh].sort(byDeclaredOrder), added, removed, keptWithData };
+  return {
+    fuels: [...kept, ...fresh].sort(byDeclaredOrder),
+    added,
+    removed,
+    keptWithData,
+  };
 }
 
 /* ── Electricity ───────────────────────────────────────────── */
@@ -126,7 +157,9 @@ export const supplyCategory = (supplyId: string): string | null =>
 /** methodology → month. Exact: the category determines the factor class.
     Returns null when the methodology has no answer yet, so the month keeps
     whatever it had rather than being reset to a default. */
-export function factorSourceForSupply(supplyId: string): ElectricityFactorSource | null {
+export function factorSourceForSupply(
+  supplyId: string,
+): ElectricityFactorSource | null {
   const category = supplyCategory(supplyId);
   return category ? (CATEGORY_TO_FACTOR_SOURCE[category] ?? null) : null;
 }
@@ -141,9 +174,12 @@ export function supplyForFactorSource(
   factorSource: ElectricityFactorSource,
   currentSupply: string,
 ): { changed: boolean; supply: string; category: string | null } {
-  const target = Object.keys(CATEGORY_TO_FACTOR_SOURCE).filter((c) => CATEGORY_TO_FACTOR_SOURCE[c] === factorSource);
+  const target = Object.keys(CATEGORY_TO_FACTOR_SOURCE).filter(
+    (c) => CATEGORY_TO_FACTOR_SOURCE[c] === factorSource,
+  );
   const current = supplyCategory(currentSupply);
-  if (current && target.includes(current)) return { changed: false, supply: currentSupply, category: current };
+  if (current && target.includes(current))
+    return { changed: false, supply: currentSupply, category: current };
   return { changed: true, supply: "", category: target[0] ?? null };
 }
 
@@ -158,11 +194,19 @@ export type SyncResult = {
 };
 
 /** Applied when the METHODOLOGY changed. */
-export function syncFromMmd(mmd: WorkspaceMmdContent, entry: MonthlyEntry, fuelLabel: (id: string) => string): SyncResult {
+export function syncFromMmd(
+  mmd: WorkspaceMmdContent,
+  entry: MonthlyEntry,
+  fuelLabel: (id: string) => string,
+): SyncResult {
   const notes: string[] = [];
   const r = reconcileFuelRows(mmd.fuelTypeIds, entry.fuels);
-  if (r.added.length) notes.push(`Added a row for ${r.added.map(fuelLabel).join(", ")}.`);
-  if (r.removed.length) notes.push(`Removed the empty row for ${r.removed.map(fuelLabel).join(", ")}.`);
+  if (r.added.length)
+    notes.push(`Added a row for ${r.added.map(fuelLabel).join(", ")}.`);
+  if (r.removed.length)
+    notes.push(
+      `Removed the empty row for ${r.removed.map(fuelLabel).join(", ")}.`,
+    );
   if (r.keptWithData.length)
     notes.push(
       `${r.keptWithData.map(fuelLabel).join(", ")} is no longer in the methodology but this month has readings for it — the row was kept. Delete it here if it is genuinely wrong.`,
@@ -174,23 +218,38 @@ export function syncFromMmd(mmd: WorkspaceMmdContent, entry: MonthlyEntry, fuelL
     fuels: r.fuels,
     electricityFactorSource: factorSource ?? entry.electricityFactorSource,
   };
-  if (factorSource && factorSource !== entry.electricityFactorSource) notes.push("Updated where the electricity factor comes from to match the methodology.");
+  if (factorSource && factorSource !== entry.electricityFactorSource)
+    notes.push(
+      "Updated where the electricity factor comes from to match the methodology.",
+    );
 
   return { mmd, entry: nextEntry, notes };
 }
 
 /** Applied when the MONTH changed — a fuel row deleted, or the factor source
     re-picked. */
-export function syncFromMonth(mmd: WorkspaceMmdContent, entry: MonthlyEntry, fuelLabel: (id: string) => string): SyncResult {
+export function syncFromMonth(
+  mmd: WorkspaceMmdContent,
+  entry: MonthlyEntry,
+  fuelLabel: (id: string) => string,
+): SyncResult {
   const notes: string[] = [];
   const inMonth = new Set(fuelIdsInMonth(entry.fuels));
   const dropped = mmd.fuelTypeIds.filter((id) => !inMonth.has(id));
   const nextFuelIds = mmd.fuelTypeIds.filter((id) => inMonth.has(id));
-  if (dropped.length) notes.push(`${dropped.map(fuelLabel).join(", ")} removed from the methodology too — it is one list.`);
+  if (dropped.length)
+    notes.push(
+      `${dropped.map(fuelLabel).join(", ")} removed from the methodology too — it is one list.`,
+    );
 
-  const supply = supplyForFactorSource(entry.electricityFactorSource, mmd.electricitySupply);
+  const supply = supplyForFactorSource(
+    entry.electricityFactorSource,
+    mmd.electricitySupply,
+  );
   if (supply.changed && mmd.electricitySupply)
-    notes.push(`The electricity source no longer matches the methodology. Re-pick it there — ${supply.category ?? "the new category"} has several options and they use different factors.`);
+    notes.push(
+      `The electricity source no longer matches the methodology. Re-pick it there — ${supply.category ?? "the new category"} has several options and they use different factors.`,
+    );
 
   /* DELETING THE "OTHER FUEL" ROW TAKES ITS NAME WITH IT.
      The methodology's `fuelTypesOther` is the description of the row the month

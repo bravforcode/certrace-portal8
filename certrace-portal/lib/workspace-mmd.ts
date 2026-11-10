@@ -1,3 +1,4 @@
+import { accountStorage } from "./account-storage";
 /* ════════════════════════════════════════════════════════════
    THE MMD, ON ONE PAGE (§A5)
 
@@ -26,7 +27,13 @@
    and rounding that up to green would make the whole dashboard a lie.
    ════════════════════════════════════════════════════════════ */
 
-import { QUALITY_ASSURANCE_LABEL, QUALITY_ASSURANCE_OPTIONS, type QualityAssurance } from "./cbam/mmd";
+import {
+  QUALITY_ASSURANCE_LABEL,
+  QUALITY_ASSURANCE_OPTIONS,
+  type QualityAssurance,
+} from "./cbam/mmd";
+import { packFor, pfcTechnology, type PfcMethod } from "./cbam/sector-pack";
+import { getWorkspace } from "./workspace";
 
 export { QUALITY_ASSURANCE_LABEL, QUALITY_ASSURANCE_OPTIONS };
 export type { QualityAssurance };
@@ -105,7 +112,9 @@ export const EXCLUSION_GROUND_LABEL: Record<ExclusionGround, string> = {
     prints an exclusion goes through this, so a verifier never receives the
     literal words "Other ground — describe it". */
 export const exclusionGroundLabel = (x: ProcessExclusion): string =>
-  x.ground === "other" && x.groundOther.trim() ? x.groundOther.trim() : EXCLUSION_GROUND_LABEL[x.ground];
+  x.ground === "other" && x.groundOther.trim()
+    ? x.groundOther.trim()
+    : EXCLUSION_GROUND_LABEL[x.ground];
 
 export const EXCLUSION_GROUND_HINT: Record<ExclusionGround, string> = {
   not_production_process:
@@ -114,9 +123,12 @@ export const EXCLUSION_GROUND_HINT: Record<ExclusionGround, string> = {
     "The process happens here but its energy is metered on its own circuit and reported against another good or another installation.",
   outsourced:
     "A subcontractor performs it elsewhere. If the output re-enters as material, it belongs in Precursors rather than here.",
-  non_cbam_good: "A shared line that also makes something outside CBAM scope, where the split is attributed rather than excluded wholesale.",
-  de_minimis: "Below the threshold at which the methodology allows a source stream to be left out. Say which threshold and give the figure.",
-  other: "Anything else. Describe the ground in full — an exclusion without a stated ground is the most common first-engagement finding.",
+  non_cbam_good:
+    "A shared line that also makes something outside CBAM scope, where the split is attributed rather than excluded wholesale.",
+  de_minimis:
+    "Below the threshold at which the methodology allows a source stream to be left out. Say which threshold and give the figure.",
+  other:
+    "Anything else. Describe the ground in full — an exclusion without a stated ground is the most common first-engagement finding.",
 };
 
 export type ProcessExclusion = {
@@ -171,11 +183,17 @@ export const DIRECT_METHOD_LABEL: Record<DirectMethod, string> = {
 };
 
 export const DIRECT_METHOD_HINT: Record<DirectMethod, string> = {
-  calculation: "Emissions derived from activity data × emission factor. The route almost every CBAM installation uses.",
-  measurement: "Emissions read directly from a continuous emissions monitoring system. Requires the CEMS' own calibration record.",
+  calculation:
+    "Emissions derived from activity data × emission factor. The route almost every CBAM installation uses.",
+  measurement:
+    "Emissions read directly from a continuous emissions monitoring system. Requires the CEMS' own calibration record.",
 };
 
-export type FactorSourceOption = "eu_standard" | "lab_analysis" | "national_inventory" | "supplier_declared";
+export type FactorSourceOption =
+  | "eu_standard"
+  | "lab_analysis"
+  | "national_inventory"
+  | "supplier_declared";
 
 export const FACTOR_SOURCE_LABEL: Record<FactorSourceOption, string> = {
   eu_standard: "EU standard value",
@@ -185,10 +203,14 @@ export const FACTOR_SOURCE_LABEL: Record<FactorSourceOption, string> = {
 };
 
 export const FACTOR_SOURCE_HINT: Record<FactorSourceOption, string> = {
-  eu_standard: "The default factor published by the Commission for this fuel or material. Always acceptable, never the most favourable.",
-  lab_analysis: "A factor measured from your own samples. The strongest evidence, and it needs the certificate and the sampling frequency behind it.",
-  national_inventory: "Thailand's national GHG inventory value (TGO). Acceptable where it is the more representative figure — say why it is.",
-  supplier_declared: "A figure your supplier gave you. It is only as good as their own monitoring, so a verifier will ask what sits behind it.",
+  eu_standard:
+    "The default factor published by the Commission for this fuel or material. Always acceptable, never the most favourable.",
+  lab_analysis:
+    "A factor measured from your own samples. The strongest evidence, and it needs the certificate and the sampling frequency behind it.",
+  national_inventory:
+    "Thailand's national GHG inventory value (TGO). Acceptable where it is the more representative figure — say why it is.",
+  supplier_declared:
+    "A figure your supplier gave you. It is only as good as their own monitoring, so a verifier will ask what sits behind it.",
 };
 
 /* ── Reading frequency (§A5, measurement methods) ───────────────
@@ -198,20 +220,56 @@ export const FACTOR_SOURCE_HINT: Record<FactorSourceOption, string> = {
    they can even ask the real question, which is whether the frequency matches
    the frequency the methodology claims. */
 export const READING_FREQUENCY_OPTIONS = [
-  { id: "continuous", label: "Continuous", hint: "Logged automatically without an operator present — a CEMS or a SCADA-connected meter." },
-  { id: "hourly", label: "Hourly", hint: "Recorded every hour, usually by a data logger." },
-  { id: "per_shift", label: "Every shift", hint: "Read at each shift handover. Say how many shifts a day in the note if it is not three." },
+  {
+    id: "continuous",
+    label: "Continuous",
+    hint: "Logged automatically without an operator present — a CEMS or a SCADA-connected meter.",
+  },
+  {
+    id: "hourly",
+    label: "Hourly",
+    hint: "Recorded every hour, usually by a data logger.",
+  },
+  {
+    id: "per_shift",
+    label: "Every shift",
+    hint: "Read at each shift handover. Say how many shifts a day in the note if it is not three.",
+  },
   { id: "daily", label: "Daily", hint: "One reading per production day." },
   { id: "weekly", label: "Weekly", hint: "One reading per week." },
-  { id: "monthly", label: "Monthly", hint: "One reading per month — most commonly the utility meter read against the invoice." },
-  { id: "per_batch", label: "Per batch / per heat", hint: "Tied to production events rather than the clock. The right answer for furnace charges." },
-  { id: "per_delivery", label: "Per delivery", hint: "Read when fuel is delivered — the usual answer for tanked diesel and fuel oil." },
-  { id: "quarterly", label: "Quarterly", hint: "One reading per quarter. Expect a question about how the monthly figures are derived from it." },
-  { id: "annually", label: "Annually", hint: "One reading a year. Rarely sufficient on its own for monthly reporting." },
+  {
+    id: "monthly",
+    label: "Monthly",
+    hint: "One reading per month — most commonly the utility meter read against the invoice.",
+  },
+  {
+    id: "per_batch",
+    label: "Per batch / per heat",
+    hint: "Tied to production events rather than the clock. The right answer for furnace charges.",
+  },
+  {
+    id: "per_delivery",
+    label: "Per delivery",
+    hint: "Read when fuel is delivered — the usual answer for tanked diesel and fuel oil.",
+  },
+  {
+    id: "quarterly",
+    label: "Quarterly",
+    hint: "One reading per quarter. Expect a question about how the monthly figures are derived from it.",
+  },
+  {
+    id: "annually",
+    label: "Annually",
+    hint: "One reading a year. Rarely sufficient on its own for monthly reporting.",
+  },
 ];
 
-export const readingFrequencyLabel = (id: string, otherText?: string): string => {
-  if (id === "other") return otherText?.trim() ? otherText.trim() : "Other frequency";
+export const readingFrequencyLabel = (
+  id: string,
+  otherText?: string,
+): string => {
+  if (id === "other")
+    return otherText?.trim() ? otherText.trim() : "Other frequency";
   return READING_FREQUENCY_OPTIONS.find((o) => o.id === id)?.label ?? id;
 };
 
@@ -231,7 +289,11 @@ export type ElectricitySupplyOption = {
   id: string;
   label: string;
   /** the EU template's category this maps onto */
-  category: "Grid" | "Direct technical link" | "Power purchase agreement" | "Own generation";
+  category:
+    | "Grid"
+    | "Direct technical link"
+    | "Power purchase agreement"
+    | "Own generation";
   hint: string;
 };
 
@@ -310,12 +372,21 @@ export const ELECTRICITY_SUPPLY_OPTIONS: ElectricitySupplyOption[] = [
   },
 ];
 
-export const electricitySupplyLabel = (id: string, otherText?: string): string => {
-  if (id === "other") return otherText?.trim() ? otherText.trim() : "Other source";
+export const electricitySupplyLabel = (
+  id: string,
+  otherText?: string,
+): string => {
+  if (id === "other")
+    return otherText?.trim() ? otherText.trim() : "Other source";
   return ELECTRICITY_SUPPLY_OPTIONS.find((o) => o.id === id)?.label ?? id;
 };
 
-export const ELECTRICITY_SUPPLY_CATEGORIES = ["Grid", "Direct technical link", "Power purchase agreement", "Own generation"] as const;
+export const ELECTRICITY_SUPPLY_CATEGORIES = [
+  "Grid",
+  "Direct technical link",
+  "Power purchase agreement",
+  "Own generation",
+] as const;
 
 /* ── Installation diagram (§A5.7) ───────────────────────────────
    IT IS NOT AN AID. IT IS A REQUIRED ELEMENT OF THE MONITORING PLAN.
@@ -378,7 +449,45 @@ export type MeasurementMethodRow = {
   cemsCalibrationRef?: string;
   /** where in the duct or stack the sample is taken */
   measurementPointLocation?: string;
+  /* ── Annex II A.5(7)(b): "the exact location of the measuring instruments" ──
+     Where the instrument sits on the plant — the line, the feeder, the tank —
+     asked of every instrument, not only a CEMS. Optional on the row, but the
+     monitoring plan reports an instrument without one as partly there. */
+  location?: string;
+  /** The instrument's measurement uncertainty, ± %, as its maker or its last calibration certificate states it. Annex II B.3.1
+      asks for the uncertainty of each activity-data measurement; the monitoring plan prints it beside the instrument. */
+  uncertaintyPct?: number;
 };
+
+/* ── The monitoring plan's own elements ─────────────────────────
+   Annex II point A.5 lists 22 elements a monitoring plan has to contain. Most
+   are read off what the portal already holds (the boundary, the instruments,
+   the products); these are the ones nothing else asks, so the methodology
+   asks them once. Free text, because each is a description a verifier reads,
+   not a figure the engine uses. */
+export type ControlSystem = {
+  /** A.5(22)(b) — where errors can enter the data flow from primary data to final data */
+  riskAssessment: string;
+  /** A.5(22)(c) — how the systems that process the data are designed, tested and maintained */
+  itSystems: string;
+  /** A.5(22)(d) — who does the work, who checks it, and how competence is kept up */
+  segregationOfDuties: string;
+  /** A.5(22)(f) — what is done when a check finds an error */
+  corrections: string;
+  /** A.5(22)(g) — any process that is outsourced, and how it is controlled; "None" is an answer */
+  outsourced: string;
+  /** A.5(22)(h) — where records are kept, for how long, and how versions are managed */
+  records: string;
+};
+
+export const emptyControlSystem = (): ControlSystem => ({
+  riskAssessment: "",
+  itSystems: "",
+  segregationOfDuties: "",
+  corrections: "",
+  outsourced: "",
+  records: "",
+});
 
 /* A data gap is a period, a reason and an estimation method. The estimate's
    tCO₂e is carried because §4's materiality self-check divides it by the
@@ -427,7 +536,14 @@ export type DataGapRow = {
    `specialParameters`); this type is the union of every field any of those
    categories asks for, and the UI/report only show the ones that category's
    `specialParameters` list names. */
-export const REDUCING_AGENTS = ["coke", "natural_gas", "hydrogen", "coal", "none", "other"] as const;
+export const REDUCING_AGENTS = [
+  "coke",
+  "natural_gas",
+  "hydrogen",
+  "coal",
+  "none",
+  "other",
+] as const;
 export type ReducingAgent = (typeof REDUCING_AGENTS)[number];
 
 export const REDUCING_AGENT_LABEL: Record<ReducingAgent, string> = {
@@ -456,7 +572,35 @@ export type SectorParameters = {
   scrapTonnesPerTonneSteel?: number;
   /** crude_steel only */
   preConsumerScrapPct?: number;
+  /** aluminium only — tonnes of scrap per tonne of aluminium */
+  scrapTonnesPerTonneAluminium?: number;
+  /** aluminium only — the share of the metal that is not aluminium, % */
+  nonAluminiumPct?: number;
 };
+
+/* ── How the PFC of a primary smelter is monitored ──────────────
+   Annex II A.5 asks the monitoring plan for "a description of the monitoring
+   methodology as far as perfluorocarbons from primary aluminium production are
+   concerned" — which of the two counting methods, for which cell type, on whose
+   factors, and how the duct's collection efficiency was found. It is declared
+   once for the year; the monthly rows then carry the figures it applies to. */
+export type PfcFactorSource = "" | "eu_table" | "own_measurement";
+export type PfcMethodology = {
+  method: "" | PfcMethod;
+  technology: string;
+  factorSource: PfcFactorSource;
+  /** when the plant's own factors were last measured — they are renewed at least every three years */
+  measuredOn: string;
+  /** how the collection efficiency of the duct was determined */
+  collectionBasis: string;
+};
+export const emptyPfcMethodology = (): PfcMethodology => ({
+  method: "",
+  technology: "",
+  factorSource: "",
+  measuredOn: "",
+  collectionBasis: "",
+});
 
 export const emptySectorParameters = (): SectorParameters => ({
   reducingAgent: "",
@@ -465,6 +609,11 @@ export const emptySectorParameters = (): SectorParameters => ({
 });
 
 export type WorkspaceMmdContent = {
+  // Retained backend fields for existing report and supplier integrations.
+  inputPlan?: import("./verification-inputs").InputPlan;
+  noCombustion?: boolean;
+  diagramFileId?: string;
+
   /** 1 · Boundary */
   boundaryDescription: string;
   /** ORDERED — the sequence material moves through the boundary, not a set */
@@ -528,6 +677,12 @@ export type WorkspaceMmdContent = {
   diagramCovers: number[];
   /** 8 · Sector-specific parameters — iron/steel goods only, see above */
   sectorParameters: SectorParameters;
+  /** 9 · PFC monitoring — present only for a primary smelter (set by `loadDraft` from the product), absent for every other good */
+  pfcMethodology?: PfcMethodology;
+  /** 10 · Annex II A.5(8) — how the calculation factors are determined, and the sampling plan for each source stream */
+  samplingPlan: string;
+  /** 11 · Annex II A.5(22) — the control system that keeps the data right */
+  controlSystem: ControlSystem;
 };
 
 export type WorkspaceMmdVersion = {
@@ -543,7 +698,10 @@ export type WorkspaceMmdVersion = {
   periodEnd: string;
 };
 
-export const emptyMmd = (periodStart: string, periodEnd: string): WorkspaceMmdContent => ({
+export const emptyMmd = (
+  periodStart: string,
+  periodEnd: string,
+): WorkspaceMmdContent => ({
   boundaryDescription: "",
   processesIncluded: [],
   exclusions: [],
@@ -565,12 +723,19 @@ export const emptyMmd = (periodStart: string, periodEnd: string): WorkspaceMmdCo
   diagramFileName: null,
   diagramCovers: [],
   sectorParameters: emptySectorParameters(),
+  samplingPlan: "",
+  controlSystem: emptyControlSystem(),
 });
 
 export const uid = () =>
-  typeof crypto !== "undefined" && crypto.randomUUID ? `mmd-${crypto.randomUUID().slice(0, 8)}` : `mmd-${Date.now().toString(36)}`;
+  typeof crypto !== "undefined" && crypto.randomUUID
+    ? `mmd-${crypto.randomUUID().slice(0, 8)}`
+    : `mmd-${Date.now().toString(36)}`;
 
-export const emptyMeasurement = (parameter = "", directMethod: DirectMethod = "calculation"): MeasurementMethodRow => ({
+export const emptyMeasurement = (
+  parameter = "",
+  directMethod: DirectMethod = "calculation",
+): MeasurementMethodRow => ({
   id: uid(),
   parameter,
   instrument: "",
@@ -580,12 +745,31 @@ export const emptyMeasurement = (parameter = "", directMethod: DirectMethod = "c
   directMethod,
 });
 
+/** What an instrument can measure — the parameter a row names. A list rather than free text, so two plants say the same thing the same way and a
+    verifier reads the same words; anything the list does not cover is typed under "Other". The English is what the report prints. */
+export const FUEL_PARAMETERS = [
+  "Fuel consumption",
+  "Fuel delivered",
+  "Net calorific value",
+  "Carbon content",
+  "CO₂ concentration in the flue gas",
+  "Flue gas flow",
+];
+export const ELECTRICITY_PARAMETERS = [
+  "Electricity consumption",
+  "Electricity generated on site",
+  "Electricity exported",
+];
+
 /** The method a NEW fuel row should open with: whatever the last row uses,
     falling back to the document's seed. A plant that is calculation-based
     throughout answers the question once; a plant with a CEMS on the furnace
     and an invoiced genset changes it on the one row that differs. */
-export const nextRowMethod = (rows: MeasurementMethodRow[], seed: DirectMethod = "calculation"): DirectMethod =>
-  rows.length > 0 ? rows[rows.length - 1].directMethod ?? seed : seed;
+export const nextRowMethod = (
+  rows: MeasurementMethodRow[],
+  seed: DirectMethod = "calculation",
+): DirectMethod =>
+  rows.length > 0 ? (rows[rows.length - 1].directMethod ?? seed) : seed;
 
 /** The row the electricity card seeds itself with. Named, because the whole
     point is that the exporter does not have to know that "Electricity
@@ -593,7 +777,8 @@ export const nextRowMethod = (rows: MeasurementMethodRow[], seed: DirectMethod =
 
     Always calculation-based: metered MWh × emission factor is the only route
     there is for electricity, and a CEMS is not fitted to an incoming feeder. */
-export const electricityInstrument = (): MeasurementMethodRow => emptyMeasurement("Electricity consumption", "calculation");
+export const electricityInstrument = (): MeasurementMethodRow =>
+  emptyMeasurement("Electricity consumption", "calculation");
 
 /** How the boundary's monitoring method reads to somebody outside the form.
 
@@ -605,7 +790,9 @@ export const electricityInstrument = (): MeasurementMethodRow => emptyMeasuremen
 export function directMethodSummary(c: WorkspaceMmdContent): string {
   const rows = c.fuelInstruments;
   if (rows.length === 0) return DIRECT_METHOD_LABEL[c.directMethod];
-  const measurement = rows.filter((r) => r.directMethod === "measurement").length;
+  const measurement = rows.filter(
+    (r) => r.directMethod === "measurement",
+  ).length;
   if (measurement === 0) return DIRECT_METHOD_LABEL.calculation;
   if (measurement === rows.length) return DIRECT_METHOD_LABEL.measurement;
   const calc = rows.length - measurement;
@@ -616,7 +803,8 @@ export function directMethodSummary(c: WorkspaceMmdContent): string {
 
 /** Is this supply one of the own-generation options? Card 3's condition. */
 export const isOwnGeneration = (supplyId: string): boolean =>
-  ELECTRICITY_SUPPLY_OPTIONS.find((o) => o.id === supplyId)?.category === "Own generation";
+  ELECTRICITY_SUPPLY_OPTIONS.find((o) => o.id === supplyId)?.category ===
+  "Own generation";
 
 export const emptyExclusion = (): ProcessExclusion => ({
   id: uid(),
@@ -643,8 +831,15 @@ type LegacyMmd = Partial<WorkspaceMmdContent> & {
   periodType?: string;
 };
 
-export function migrateMmd(raw: LegacyMmd, periodStart: string, periodEnd: string): WorkspaceMmdContent {
-  const base = emptyMmd(raw.periodStart ?? periodStart, raw.periodEnd ?? periodEnd);
+export function migrateMmd(
+  raw: LegacyMmd,
+  periodStart: string,
+  periodEnd: string,
+): WorkspaceMmdContent {
+  const base = emptyMmd(
+    raw.periodStart ?? periodStart,
+    raw.periodEnd ?? periodEnd,
+  );
   /* THE METHOD CAME DOWN FROM THE CARD ONTO THE ROWS.
 
      A record written while `directMethod` was a single card-level value has
@@ -654,7 +849,10 @@ export function migrateMmd(raw: LegacyMmd, periodStart: string, periodEnd: strin
      populated, no longer required, and no longer shown. Rows that already
      carry a method keep it, so re-migrating is a no-op. */
   const cardMethod: DirectMethod = raw.directMethod ?? base.directMethod;
-  const withMethod = (rows: MeasurementMethodRow[], fallback: DirectMethod): MeasurementMethodRow[] =>
+  const withMethod = (
+    rows: MeasurementMethodRow[],
+    fallback: DirectMethod,
+  ): MeasurementMethodRow[] =>
     rows.map((r) => ({ ...r, directMethod: r.directMethod ?? fallback }));
   const exclusions = (
     raw.exclusions ??
@@ -666,10 +864,14 @@ export function migrateMmd(raw: LegacyMmd, periodStart: string, periodEnd: strin
       // justification is exactly the thing this field exists to prevent.
       note: "",
     }))
+  )
     // `groundOther` post-dates the first drafts, and a row loaded without it
     // would render an uncontrolled input the moment its ground was set to
     // "other". Defaulted here rather than at every call site.
-  ).map((x) => ({ ...x, groundOther: (x as ProcessExclusion).groundOther ?? "" }));
+    .map((x) => ({
+      ...x,
+      groundOther: (x as ProcessExclusion).groundOther ?? "",
+    }));
 
   return {
     ...base,
@@ -678,8 +880,10 @@ export function migrateMmd(raw: LegacyMmd, periodStart: string, periodEnd: strin
     processesIncluded: raw.processesIncluded ?? [],
     fuelTypeIds: raw.fuelTypeIds ?? [],
     fuelTypesOther: raw.fuelTypesOther ?? raw.fuelTypes ?? "",
-    electricitySupply: raw.electricitySupply ?? (raw.electricitySource?.trim() ? "other" : ""),
-    electricitySupplyOther: raw.electricitySupplyOther ?? raw.electricitySource ?? "",
+    electricitySupply:
+      raw.electricitySupply ?? (raw.electricitySource?.trim() ? "other" : ""),
+    electricitySupplyOther:
+      raw.electricitySupplyOther ?? raw.electricitySource ?? "",
     electricityMeteringPoint: raw.electricityMeteringPoint ?? "",
     /* Instruments used to be one list. A draft written before the split has
        them under `measurements`, and every one of them was in practice a fuel
@@ -689,19 +893,32 @@ export function migrateMmd(raw: LegacyMmd, periodStart: string, periodEnd: strin
 
        `measurements` is kept on the object so an old draft round-trips
        unchanged if it is read by anything that has not been updated yet. */
-    fuelInstruments: withMethod(raw.fuelInstruments ?? raw.measurements ?? [], cardMethod),
+    fuelInstruments: withMethod(
+      raw.fuelInstruments ?? raw.measurements ?? [],
+      cardMethod,
+    ),
     // Electricity is calculation-based by construction — see
     // `electricityInstrument`. An old row is normalised to that rather than to
     // the card's value, so a measurement-based boundary does not migrate into
     // demanding a QAL2 certificate for a revenue meter.
-    electricityInstruments: withMethod(raw.electricityInstruments ?? [], "calculation"),
+    electricityInstruments: withMethod(
+      raw.electricityInstruments ?? [],
+      "calculation",
+    ),
     ownGenerationFuelDeclared: raw.ownGenerationFuelDeclared ?? false,
     /* A gap written before the reviewer moved onto the row has no name of its
        own. It inherits the document-level one rather than arriving blank —
        that IS who checked it, as far as the record ever said — and a gap added
        afterwards asks for its own. */
-    dataGaps: (raw.dataGaps ?? []).map((g) => ({ ...g, reviewerName: g.reviewerName ?? raw.reviewerName ?? "", gapDate: g.gapDate ?? "" })),
+    dataGaps: (raw.dataGaps ?? []).map((g) => ({
+      ...g,
+      reviewerName: g.reviewerName ?? raw.reviewerName ?? "",
+      gapDate: g.gapDate ?? "",
+    })),
     diagramCovers: raw.diagramCovers ?? [],
+    // Written after the monitoring plan began to follow Annex II A.5: an older record has neither, and reads as "not answered yet".
+    samplingPlan: raw.samplingPlan ?? "",
+    controlSystem: { ...emptyControlSystem(), ...(raw.controlSystem ?? {}) },
   };
 }
 
@@ -736,7 +953,7 @@ export const MMD_EXAMPLE = {
     "Production process boundary for CN 7207 11 90 (steel billet) at Rayong Works Line 2. Scrap is received, weighed on WB-01 and charged to a 60-tonne electric arc furnace (EAF-1); liquid steel is refined in ladle furnace LF-1 and continuously cast into 130 mm billets on CCM-1. The boundary starts at the scrap weighbridge and ends at the billet cooling bed. It excludes the site offices and canteen, the internal vehicle fleet, and the rolling mill on Line 3, which draws from a separate substation and is reported under its own CN code.",
   processesIncluded: ["Raw material handling", "Melting (EAF)", "Casting"],
   exclusionExample:
-    'Rolling mill Line 3 — ground: "Separately metered and attributed elsewhere" — note: "Fed from substation SS-02, meter E-221. Reported in the workspace for CN 7213 91 10." An exclusion with a meter number beside it is answered; the same exclusion with an empty note is a finding.',
+    'Rolling mill Line 3 — ground: "Separately metered and attributed elsewhere" — note: "Fed from substation SS-02, meter E-221. Reported in the product report for CN 7213 91 10." An exclusion with a meter number beside it is answered; the same exclusion with an empty note is a finding.',
   /* Just the answer. The rule that used to be tacked on the end of it — what
      to do when a process changes mid-year — is a rule, not an example, and it
      now lives behind the section's help tip where a reader can choose to open
@@ -754,15 +971,17 @@ export const MMD_EXAMPLE = {
   electricitySupply: "Grid — Provincial Electricity Authority (PEA)",
   electricityMeteringPoint:
     "Single 115 kV incoming feeder into substation SS-01, revenue meter PEA-88214, read monthly against the PEA invoice. Furnace load is sub-metered at E-101 but the reported figure is the incoming feeder, because that is the figure the invoice evidences.",
-  instrument: "Endress+Hauser Promag 400 electromagnetic flow meter, tag FT-2201, DN80, ±0.5% of reading",
+  instrument:
+    "Endress+Hauser Promag 400 electromagnetic flow meter, tag FT-2201, DN80, ±0.5% of reading",
   readingFrequency: "Monthly",
   lastCalibration: "2026-03-15",
   factorSource: "EU standard value",
   dataGap:
-    "1–15 March 2026. Gas meter FT-2201 failed on 1 March and was replaced on 15 March. Consumption for the gap was estimated as the mean of February and April consumption per tonne of billet, multiplied by March's actual billet output — 41,300 m³, giving 2.32 tCO₂. \"Estimated\" on its own is a finding; the sentence above is an answer, because a verifier can recompute it.",
+    '1–15 March 2026. Gas meter FT-2201 failed on 1 March and was replaced on 15 March. Consumption for the gap was estimated as the mean of February and April consumption per tonne of billet, multiplied by March\'s actual billet output — 41,300 m³, giving 2.32 tCO₂. "Estimated" on its own is a finding; the sentence above is an answer, because a verifier can recompute it.',
   qualityAssurance: "Four eyes principle",
   reviewerName: "N. Sae-Ngow, Energy Manager",
-  reviewFrequency: "Monthly, against the PEA invoice and the gas supplier's delivery note, before the month is submitted",
+  reviewFrequency:
+    "Monthly, against the PEA invoice and the gas supplier's delivery note, before the month is submitted",
 } as const;
 
 /* ── Section explanations ───────────────────────────────────────
@@ -775,12 +994,14 @@ export const MMD_SECTION_HELP = {
   boundary:
     "Draw the line around what you are reporting. A verifier's first question is always what happens on this site that is NOT in these numbers, and why that is correct.",
   period:
-    "The window every figure in this workspace belongs to. It is the calendar year, and it does not stretch to cover a change in how you produce.",
-  parameters: "What you measure and how you turn it into a CO₂ figure. Naming the fuels here makes an unexpected fuel next March visible as an exception.",
+    "The window every figure in this product report belongs to. It is the calendar year, and it does not stretch to cover a change in how you produce.",
+  parameters:
+    "What you measure and how you turn it into a CO₂ figure. Naming the fuels here makes an unexpected fuel next March visible as an exception.",
   measurement:
     "For each thing you measure: the instrument, how often it is read, when it was last calibrated, and where its factor comes from. An uncalibrated instrument is the fastest route to a qualified opinion.",
   gaps: "Where primary data was missing and how you filled it. A gap you declared and quantified is manageable; one a verifier finds is not.",
-  quality: "What stops an error reaching the filing. Somebody's name, and how often they look.",
+  quality:
+    "What stops an error reaching the filing. Somebody's name, and how often they look.",
   diagram:
     "One drawing that lets a verifier check the boundary you described against the plant that exists. A required element of the monitoring plan — Annex II A.5(13) of IR (EU) 2025/2547 — not an optional extra.",
 } as const;
@@ -794,7 +1015,7 @@ const VERSIONS_KEY = "certrace:workspace-mmd-versions";
 function readJson<T>(key: string): Record<string, T> {
   if (typeof window === "undefined") return {};
   try {
-    const raw = window.localStorage.getItem(key);
+    const raw = accountStorage.getItem(key);
     if (!raw) return {};
     const parsed = JSON.parse(raw) as Record<string, T>;
     return parsed && typeof parsed === "object" ? parsed : {};
@@ -806,22 +1027,47 @@ function readJson<T>(key: string): Record<string, T> {
 function writeJson<T>(key: string, value: Record<string, T>): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(key, JSON.stringify(value));
+    accountStorage.setItem(key, JSON.stringify(value));
   } catch {
     /* ignore quota */
   }
 }
 
-export function loadDraft(workspaceId: string, periodStart: string, periodEnd: string): WorkspaceMmdContent {
+/** A primary smelter's methodology has a PFC card; every other good's has none. Read off the product, not asked. */
+function withPfcCard(
+  workspaceId: string,
+  c: WorkspaceMmdContent,
+): WorkspaceMmdContent {
+  if (c.pfcMethodology) return c;
+  const ws = getWorkspace(workspaceId);
+  return ws && packFor(ws)?.pfc
+    ? { ...c, pfcMethodology: emptyPfcMethodology() }
+    : c;
+}
+
+export function loadDraft(
+  workspaceId: string,
+  periodStart: string,
+  periodEnd: string,
+): WorkspaceMmdContent {
   const stored = readJson<LegacyMmd>(DRAFT_KEY)[workspaceId];
-  if (stored) return migrateMmd(stored, periodStart, periodEnd);
+  if (stored)
+    return withPfcCard(workspaceId, migrateMmd(stored, periodStart, periodEnd));
   // A new draft starts from the latest final version, so editing an MMD is
   // amending it rather than retyping a year of methodology from scratch.
   const latest = latestVersion(workspaceId);
-  return latest ? migrateMmd(latest.content, periodStart, periodEnd) : emptyMmd(periodStart, periodEnd);
+  return withPfcCard(
+    workspaceId,
+    latest
+      ? migrateMmd(latest.content, periodStart, periodEnd)
+      : emptyMmd(periodStart, periodEnd),
+  );
 }
 
-export function saveDraft(workspaceId: string, content: WorkspaceMmdContent): WorkspaceMmdContent {
+export function saveDraft(
+  workspaceId: string,
+  content: WorkspaceMmdContent,
+): WorkspaceMmdContent {
   const store = readJson<WorkspaceMmdContent>(DRAFT_KEY);
   store[workspaceId] = content;
   writeJson(DRAFT_KEY, store);
@@ -839,7 +1085,10 @@ export function saveDraft(workspaceId: string, content: WorkspaceMmdContent): Wo
    the way it was signed. */
 export const listVersions = (workspaceId: string): WorkspaceMmdVersion[] =>
   (readJson<WorkspaceMmdVersion[]>(VERSIONS_KEY)[workspaceId] ?? [])
-    .map((v) => ({ ...v, content: migrateMmd(v.content, v.periodStart, v.periodEnd) }))
+    .map((v) => ({
+      ...v,
+      content: migrateMmd(v.content, v.periodStart, v.periodEnd),
+    }))
     .sort((a, b) => a.n - b.n);
 
 export function latestVersion(workspaceId: string): WorkspaceMmdVersion | null {
@@ -852,11 +1101,23 @@ export function latestVersion(workspaceId: string): WorkspaceMmdVersion | null {
     "Covering" means its own period CONTAINS the workspace's year. A methodology
     finalised for H1 does not describe how December was monitored, and treating
     it as though it did is exactly the gap a verifier finds by reading dates. */
-export function finalVersionCovering(workspaceId: string, periodStart: string, periodEnd: string): WorkspaceMmdVersion | null {
-  return listVersions(workspaceId).find((v) => v.periodStart <= periodStart && v.periodEnd >= periodEnd) ?? null;
+export function finalVersionCovering(
+  workspaceId: string,
+  periodStart: string,
+  periodEnd: string,
+): WorkspaceMmdVersion | null {
+  return (
+    listVersions(workspaceId).find(
+      (v) => v.periodStart <= periodStart && v.periodEnd >= periodEnd,
+    ) ?? null
+  );
 }
 
-export function finaliseVersion(workspaceId: string, content: WorkspaceMmdContent, author: string): WorkspaceMmdVersion {
+export function finaliseVersion(
+  workspaceId: string,
+  content: WorkspaceMmdContent,
+  author: string,
+): WorkspaceMmdVersion {
   const store = readJson<WorkspaceMmdVersion[]>(VERSIONS_KEY);
   const existing = store[workspaceId] ?? [];
   const version: WorkspaceMmdVersion = {
@@ -888,7 +1149,12 @@ export function removeMmdForWorkspace(workspaceId: string): void {
    the button — an exporter with a genuinely empty data-gap register should be
    able to finalise — but every gap is named so nothing is finalised by
    accident. */
-export type MmdIssue = { field: string; message: string };
+export type MmdIssue = {
+  field: string;
+  message: string;
+  /** a value that is there but cannot stand — not an empty answer. The plant link's completeness check leaves these to the exporter. */
+  invalid?: true;
+};
 
 export function mmdIssues(c: WorkspaceMmdContent): MmdIssue[] {
   const issues: MmdIssue[] = [];
@@ -896,16 +1162,27 @@ export function mmdIssues(c: WorkspaceMmdContent): MmdIssue[] {
   if (!c.boundaryDescription.trim()) {
     issues.push({
       field: "boundaryDescription",
-      message: "Boundary description is empty. Describe the PRODUCTION PROCESS boundary — not the site fence — and say what is excluded.",
+      message:
+        "Boundary description is empty. Describe the PRODUCTION PROCESS boundary — not the site fence — and say what is excluded.",
     });
   }
   if (c.processesIncluded.length === 0) {
-    issues.push({ field: "processesIncluded", message: "No processes are marked as included. A boundary with nothing inside it cannot be verified." });
+    issues.push({
+      field: "processesIncluded",
+      message:
+        "No processes are marked as included. A boundary with nothing inside it cannot be verified.",
+    });
   }
   if (!c.periodStart || !c.periodEnd) {
-    issues.push({ field: "period", message: "Reporting period is incomplete." });
+    issues.push({
+      field: "period",
+      message: "Reporting period is incomplete.",
+    });
   } else if (c.periodStart >= c.periodEnd) {
-    issues.push({ field: "period", message: "Reporting period ends before it starts." });
+    issues.push({
+      field: "period",
+      message: "Reporting period ends before it starts.",
+    });
   }
   /* AT LEAST ONE FUEL HAS TO BE PICKED FROM THE LIST. A description typed into
      the "Other" box used to satisfy this on its own, which let a plant burning
@@ -913,26 +1190,48 @@ export function mmdIssues(c: WorkspaceMmdContent): MmdIssue[] {
      across twelve months, and unmatched against the monthly rows, which hold
      ids rather than prose. */
   if (c.fuelTypeIds.length === 0) {
-    issues.push({ field: "fuelTypes", message: "No fuel is listed. Choose every fuel burned inside the boundary across the year — at least one, and anything unlisted goes in under Other fuel." });
+    issues.push({
+      field: "fuelTypes",
+      message:
+        "No fuel is listed. Choose every fuel burned inside the boundary across the year — at least one, and anything unlisted goes in under Other fuel.",
+    });
   }
   if (c.fuelTypeIds.includes("other") && !c.fuelTypesOther.trim()) {
-    issues.push({ field: "fuelTypesOther", message: '"Other fuel" is selected but not described. Name it in the terms your invoices use.' });
+    issues.push({
+      field: "fuelTypesOther",
+      message:
+        '"Other fuel" is selected but not described. Name it in the terms your invoices use.',
+    });
   }
   if (!c.electricitySupply) {
-    issues.push({ field: "electricitySupply", message: "Electricity source is not set. The category decides which emission factor is admissible, so it cannot be left open." });
+    issues.push({
+      field: "electricitySupply",
+      message:
+        "Electricity source is not set. The category decides which emission factor is admissible, so it cannot be left open.",
+    });
   }
   if (c.electricitySupply === "other" && !c.electricitySupplyOther.trim()) {
-    issues.push({ field: "electricitySupplyOther", message: "Electricity source is set to Other with no description." });
+    issues.push({
+      field: "electricitySupplyOther",
+      message: "Electricity source is set to Other with no description.",
+    });
   }
   if (!c.electricityMeteringPoint.trim()) {
-    issues.push({ field: "electricityMeteringPoint", message: "No electricity metering point named. A verifier reconciles the reported MWh against one specific meter." });
+    issues.push({
+      field: "electricityMeteringPoint",
+      message:
+        "No electricity metering point named. A verifier reconciles the reported MWh against one specific meter.",
+    });
   }
   // Every declared exclusion needs its ground substantiated. This is the check
   // that makes the exclusions list mean something — without it the section is
   // a bin with extra steps.
   c.exclusions.forEach((x, i) => {
     if (!x.process.trim()) {
-      issues.push({ field: `exclusion:${x.id}`, message: `Exclusion ${i + 1} does not name a process.` });
+      issues.push({
+        field: `exclusion:${x.id}`,
+        message: `Exclusion ${i + 1} does not name a process.`,
+      });
     }
     // "Other" without the ground written out is the ground left unstated. The
     // detail line below it answers a different question, so it cannot stand in.
@@ -955,13 +1254,15 @@ export function mmdIssues(c: WorkspaceMmdContent): MmdIssue[] {
   if (c.fuelTypeIds.length > 0 && c.fuelInstruments.length === 0) {
     issues.push({
       field: "fuelInstruments",
-      message: "Fuels are declared but no instrument measures them. Add one row per fuel — what is measured, on what, how often, and when it was last calibrated.",
+      message:
+        "Fuels are declared but no instrument measures them. Add one row per fuel — what is measured, on what, how often, and when it was last calibrated.",
     });
   }
   if (c.electricitySupply && c.electricityInstruments.length === 0) {
     issues.push({
       field: "electricityInstruments",
-      message: "An electricity supply is set but no meter is recorded. Add the meter the reported MWh is read from.",
+      message:
+        "An electricity supply is set but no meter is recorded. Add the meter the reported MWh is read from.",
     });
   }
   /* Card 3. The checkbox is the only thing standing between an on-site
@@ -969,8 +1270,57 @@ export function mmdIssues(c: WorkspaceMmdContent): MmdIssue[] {
   if (isOwnGeneration(c.electricitySupply) && !c.ownGenerationFuelDeclared) {
     issues.push({
       field: "ownGenerationFuelDeclared",
-      message: "You generate electricity on site. Confirm the fuel that generation burns is already in the fuel list above — otherwise it is either missing or counted twice.",
+      message:
+        "You generate electricity on site. Confirm the fuel that generation burns is already in the fuel list above — otherwise it is either missing or counted twice.",
     });
+  }
+  /* A primary smelter says how its PFC is monitored — which count, which cells, whose factors. */
+  if (c.pfcMethodology) {
+    const p = c.pfcMethodology;
+    if (!p.method)
+      issues.push({
+        field: "pfc:method",
+        message:
+          "PFC monitoring is not described. Say how the anode effects are counted — minutes per cell-day (slope) or overvoltage.",
+      });
+    if (!p.technology)
+      issues.push({
+        field: "pfc:technology",
+        message:
+          "The cell technology is not set. It decides the EU factors the PFC calculation starts from.",
+      });
+    if (!p.factorSource)
+      issues.push({
+        field: "pfc:factorSource",
+        message:
+          "Say whose PFC factors are used — the EU table for the cell type, or the plant's own field measurement.",
+      });
+    if (p.factorSource === "own_measurement" && !p.measuredOn) {
+      issues.push({
+        field: "pfc:measuredOn",
+        message:
+          "The plant's own PFC factors need the date they were last measured — they are renewed at least every three years.",
+      });
+    }
+    if (
+      p.method === "overvoltage" &&
+      p.technology &&
+      p.factorSource === "eu_table" &&
+      pfcTechnology(p.technology)?.overvoltageCf4 == null
+    ) {
+      issues.push({
+        field: "pfc:technology",
+        message:
+          "The EU table has overvoltage factors only for centre-worked and side-worked prebake cells. For this cell type use the slope method, or the plant's own measured factors.",
+        invalid: true,
+      });
+    }
+    if (!p.collectionBasis.trim())
+      issues.push({
+        field: "pfc:collectionBasis",
+        message:
+          "Describe how the duct's collection efficiency was determined — it is measured when the installation's own factors are set.",
+      });
   }
   [...c.fuelInstruments, ...c.electricityInstruments].forEach((m, i) => {
     /* PARAMETER AND INSTRUMENT ARE TWO QUESTIONS, so they are two findings.
@@ -978,7 +1328,10 @@ export function mmdIssues(c: WorkspaceMmdContent): MmdIssue[] {
        of the two boxes to fill, and on a row where both were empty they filled
        one and hit the same message again. */
     if (!m.parameter.trim()) {
-      issues.push({ field: `measurement:${m.id}:parameter`, message: `Instrument row ${i + 1} does not say what it measures.` });
+      issues.push({
+        field: `measurement:${m.id}:parameter`,
+        message: `Instrument row ${i + 1} does not say what it measures.`,
+      });
     }
     if (!m.instrument.trim()) {
       issues.push({
@@ -987,10 +1340,16 @@ export function mmdIssues(c: WorkspaceMmdContent): MmdIssue[] {
       });
     }
     if (!m.readingFrequency) {
-      issues.push({ field: `measurement:${m.id}:frequency`, message: `${m.parameter || `Measurement row ${i + 1}`} has no reading frequency.` });
+      issues.push({
+        field: `measurement:${m.id}:frequency`,
+        message: `${m.parameter || `Measurement row ${i + 1}`} has no reading frequency.`,
+      });
     }
     if (m.readingFrequency === "other" && !m.readingFrequencyOther?.trim()) {
-      issues.push({ field: `measurement:${m.id}:frequency`, message: `${m.parameter || `Measurement row ${i + 1}`} has an "Other" reading frequency that is not described.` });
+      issues.push({
+        field: `measurement:${m.id}:frequency`,
+        message: `${m.parameter || `Measurement row ${i + 1}`} has an "Other" reading frequency that is not described.`,
+      });
     }
     if (!m.lastCalibration) {
       issues.push({
@@ -1005,7 +1364,10 @@ export function mmdIssues(c: WorkspaceMmdContent): MmdIssue[] {
        B.2 of IR (EU) 2025/2547 lets the two be combined per source stream — so
        the row that says "measurement" is the row that owes the QAL2 record,
        and the invoiced diesel genset beside it owes nothing. */
-    if (m.directMethod === "measurement" && c.fuelInstruments.some((f) => f.id === m.id)) {
+    if (
+      m.directMethod === "measurement" &&
+      c.fuelInstruments.some((f) => f.id === m.id)
+    ) {
       if (!m.cemsCalibrationRef?.trim()) {
         issues.push({
           field: `measurement:${m.id}:cems`,
@@ -1029,15 +1391,28 @@ export function mmdIssues(c: WorkspaceMmdContent): MmdIssue[] {
   c.dataGaps.forEach((g, i) => {
     const named = `Data gap ${i + 1}`;
     if (!g.periodStart || !g.periodEnd) {
-      issues.push({ field: `gap:${g.id}:period`, message: `${named} does not say which dates it covers. A gap without a period cannot be checked against the month it falls in.` });
+      issues.push({
+        field: `gap:${g.id}:period`,
+        message: `${named} does not say which dates it covers. A gap without a period cannot be checked against the month it falls in.`,
+      });
     } else if (g.periodStart > g.periodEnd) {
-      issues.push({ field: `gap:${g.id}:period`, message: `${named} ends before it starts.` });
+      issues.push({
+        field: `gap:${g.id}:period`,
+        message: `${named} ends before it starts.`,
+        invalid: true,
+      });
     }
     if (!g.reason.trim()) {
-      issues.push({ field: `gap:${g.id}:reason`, message: `${named} does not say what happened. Name the instrument and what went wrong with it.` });
+      issues.push({
+        field: `gap:${g.id}:reason`,
+        message: `${named} does not say what happened. Name the instrument and what went wrong with it.`,
+      });
     }
     if (!g.estimationMethod.trim()) {
-      issues.push({ field: `gap:${g.id}:estimationMethod`, message: `${named} has no estimation method. "Estimated" on its own is a finding; how it was estimated is an answer.` });
+      issues.push({
+        field: `gap:${g.id}:estimationMethod`,
+        message: `${named} has no estimation method. "Estimated" on its own is a finding; how it was estimated is an answer.`,
+      });
     }
     if (!g.reviewerName.trim()) {
       issues.push({
@@ -1053,7 +1428,11 @@ export function mmdIssues(c: WorkspaceMmdContent): MmdIssue[] {
     }
   });
   if (c.qualityAssurance !== "none" && !c.reviewerName.trim()) {
-    issues.push({ field: "reviewerName", message: "A quality-assurance method is claimed with no reviewer named. A verifier will ask who." });
+    issues.push({
+      field: "reviewerName",
+      message:
+        "A quality-assurance method is claimed with no reviewer named. A verifier will ask who.",
+    });
   }
   /* The diagram is a REQUIRED ELEMENT of the monitoring plan — Annex II
      A.5(13) — not an optional attachment, so a methodology finalised without
@@ -1070,7 +1449,8 @@ export function mmdIssues(c: WorkspaceMmdContent): MmdIssue[] {
   return issues;
 }
 
-export const mmdComplete = (c: WorkspaceMmdContent): boolean => mmdIssues(c).length === 0;
+export const mmdComplete = (c: WorkspaceMmdContent): boolean =>
+  mmdIssues(c).length === 0;
 
 /* ── What the SUPPLIER's methodology step is answerable for ─────
    `mmdIssues` covers the whole document, and three of its rules belong to

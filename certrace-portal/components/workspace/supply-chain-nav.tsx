@@ -94,7 +94,13 @@ const NODE_ICON = {
   precursor: CornerDownRight,
 } as const;
 
-export function SupplyChainNav({ workspaceId, onNavigate }: { workspaceId: string; onNavigate?: () => void }) {
+export function SupplyChainNav({
+  workspaceId,
+  onNavigate,
+}: {
+  workspaceId: string;
+  onNavigate?: () => void;
+}) {
   const t = useT();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -102,7 +108,10 @@ export function SupplyChainNav({ workspaceId, onNavigate }: { workspaceId: strin
 
   // localStorage-backed, so nothing exists on the server render — read after
   // mount, and again whenever the chain is edited on the page beside this.
-  const reload = React.useCallback(() => setRows(flattenTree(buildSupplierPrecursorTree(workspaceId))), [workspaceId]);
+  const reload = React.useCallback(
+    () => setRows(flattenTree(buildSupplierPrecursorTree(workspaceId))),
+    [workspaceId],
+  );
 
   React.useEffect(() => {
     reload();
@@ -114,7 +123,8 @@ export function SupplyChainNav({ workspaceId, onNavigate }: { workspaceId: strin
   /* Where the `+` on a row points. Always the CHAIN page, never the entity
      page the row itself opens: the dialog lives on the chain page, and the
      new tier is only visible in a list that draws the whole chain. */
-  const addHref = (nodeId: string) => `${treeHref}?add=${encodeURIComponent(nodeId)}`;
+  const addHref = (nodeId: string) =>
+    `${treeHref}?add=${encodeURIComponent(nodeId)}`;
   // The chain page and an entity page under it are two different rows in this
   // list, so they are two different tests: `startsWith` for both would light
   // "Supply Chain" and the node at the same time, which reads as being in two
@@ -125,7 +135,8 @@ export function SupplyChainNav({ workspaceId, onNavigate }: { workspaceId: strin
 
   // The chain's root installation — where a precursor added from the sidebar
   // hangs, the same parent the Tree page's own Add precursor uses.
-  const rootNode = rows.find((r) => r.node.kind === "installation")?.node ?? null;
+  const rootNode =
+    rows.find((r) => r.node.kind === "installation")?.node ?? null;
 
   return (
     <nav className="flex flex-col gap-0.5" aria-label={t("Supply chain")}>
@@ -135,7 +146,9 @@ export function SupplyChainNav({ workspaceId, onNavigate }: { workspaceId: strin
         onClick={onNavigate}
         className={cn(
           "flex min-h-10 items-center gap-2.5 rounded-lg px-3 py-2 text-[12.5px] leading-snug transition-colors",
-          onChain ? "bg-black/[0.06] font-medium text-black" : "text-black/60 hover:bg-black/[0.03] hover:text-black",
+          onChain
+            ? "bg-black/[0.06] font-medium text-black"
+            : "text-black/60 hover:bg-black/[0.03] hover:text-black",
         )}
       >
         <ListTree size={16} strokeWidth={1.5} className="flex-none" />
@@ -150,7 +163,9 @@ export function SupplyChainNav({ workspaceId, onNavigate }: { workspaceId: strin
           // deeper inside it, so a product node stays lit across its own
           // Monthly data and Readiness tabs rather than only on its Overview.
           const active =
-            onChain || onEntityPage ? pathname === href || selected === node.id : pathname === href || pathname.startsWith(`${href}/`);
+            onChain || onEntityPage
+              ? pathname === href || selected === node.id
+              : pathname === href || pathname.startsWith(`${href}/`);
           return (
             /* `group` so the `+` can stay quiet until the row is pointed at,
                and `focus-within` so it is never quiet for a keyboard — a
@@ -171,14 +186,20 @@ export function SupplyChainNav({ workspaceId, onNavigate }: { workspaceId: strin
                 title={node.name}
                 className={cn(
                   "flex min-h-10 min-w-0 flex-1 items-center gap-2 rounded-lg py-1.5 text-[12.5px] transition-colors",
-                  active ? "font-medium text-black" : "text-black/60 group-hover:text-black",
+                  active
+                    ? "font-medium text-black"
+                    : "text-black/60 group-hover:text-black",
                 )}
                 // Indent by tier rather than by a nested list: the chain can run
                 // several tiers deep and a nested <ul> per tier would push the
                 // deepest names off the sidebar entirely.
                 style={{ paddingLeft: 12 + depth * 12 }}
               >
-                <Icon size={13} strokeWidth={1.5} className="flex-none opacity-70" />
+                <Icon
+                  size={13}
+                  strokeWidth={1.5}
+                  className="flex-none opacity-70"
+                />
                 <span className="truncate">{node.name || t("Unnamed")}</span>
               </Link>
               {/* A cyclic row cannot take a child — the same guard the row
@@ -188,8 +209,12 @@ export function SupplyChainNav({ workspaceId, onNavigate }: { workspaceId: strin
                 <Link
                   href={addHref(node.id)}
                   onClick={onNavigate}
-                  aria-label={t("Add a precursor under {name}", { name: node.name || t("Unnamed") })}
-                  title={t("Add a precursor under {name}", { name: node.name || t("Unnamed") })}
+                  aria-label={t("Add a precursor under {name}", {
+                    name: node.name || t("Unnamed"),
+                  })}
+                  title={t("Add a precursor under {name}", {
+                    name: node.name || t("Unnamed"),
+                  })}
                   className="grid h-8 w-8 flex-none place-items-center rounded-md text-black/40 opacity-60 transition-all hover:bg-black/[0.06] hover:text-black focus-visible:opacity-100 group-hover:opacity-100"
                 >
                   <Plus size={15} strokeWidth={1.75} />

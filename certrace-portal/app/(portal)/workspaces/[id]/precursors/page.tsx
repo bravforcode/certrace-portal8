@@ -1,18 +1,20 @@
+"use client";
+
 export const runtime = "edge";
 
 /* ════════════════════════════════════════════════════════════
-   PRECURSORS — retired
+   PRECURSORS — the direct precursors of this product
 
-   This page's own editor (SupplierEditor, moved to
-   components/precursor/supplier-editor.tsx) and its chain view now live at
-   /workspaces/[id]/tree, which reads and writes the exact same
-   PrecursorSupplier rows (lib/precursor-suppliers.ts) — nothing here was a
-   separate store to migrate. This route stays only as a redirect, in case
-   an old bookmark, email, or external link still points at it. */
+   One tab on the product report, replacing the supply-chain tree. The tree
+   asked for every tier of every chain; CBAM does not. The operator of a
+   complex good reports the specific embedded emissions of each DIRECT
+   precursor (Annex IV items 22–23 of Implementing Regulation (EU) 2025/2547),
+   and the operator of that precursor reports its own inputs in its own
+   verified report. See components/workspace/direct-precursors.tsx.
+   ════════════════════════════════════════════════════════════ */
 
-import { redirect } from "next/navigation";
+import { DirectPrecursors } from "@/components/workspace/direct-precursors";
 
-export default async function PrecursorsPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  redirect(`/workspaces/${id}/tree`);
+export default function PrecursorsPage() {
+  return <DirectPrecursors />;
 }

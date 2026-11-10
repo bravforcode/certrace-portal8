@@ -1,3 +1,4 @@
+import { accountStorage } from "./account-storage";
 /* ════════════════════════════════════════════════════════════
    DRAFTS FOR THE NEW-WORKSPACE FLOW
 
@@ -26,6 +27,8 @@ export type WorkspaceWizardSnapshot = {
   supplierId?: string;
   productId: string;
   route: string;
+  /** country of production — ISO alpha-2. Absent on drafts saved before it was asked. */
+  country?: string;
   year: number;
   /** last date the month's data may be sent, as a day of the FOLLOWING month */
   dueDay?: number;
@@ -61,8 +64,12 @@ export const draftId = () =>
 export function loadWorkspaceDrafts(): WorkspaceDraft[] {
   if (typeof window === "undefined") return [];
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(KEY) ?? "[]") as WorkspaceDraft[];
-    return Array.isArray(parsed) ? parsed.sort((a, b) => b.updatedAt - a.updatedAt) : [];
+    const parsed = JSON.parse(
+      accountStorage.getItem(KEY) ?? "[]",
+    ) as WorkspaceDraft[];
+    return Array.isArray(parsed)
+      ? parsed.sort((a, b) => b.updatedAt - a.updatedAt)
+      : [];
   } catch {
     return [];
   }
@@ -71,17 +78,21 @@ export function loadWorkspaceDrafts(): WorkspaceDraft[] {
 function writeAll(all: WorkspaceDraft[]): WorkspaceDraft[] {
   if (typeof window === "undefined") return all;
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(all));
+    accountStorage.setItem(KEY, JSON.stringify(all));
   } catch {
     /* ignore quota */
   }
   return all;
 }
 
-export const getWorkspaceDraft = (id: string): WorkspaceDraft | null => loadWorkspaceDrafts().find((d) => d.id === id) ?? null;
+export const getWorkspaceDraft = (id: string): WorkspaceDraft | null =>
+  loadWorkspaceDrafts().find((d) => d.id === id) ?? null;
 
 export function saveWorkspaceDraft(draft: WorkspaceDraft): WorkspaceDraft {
-  const next = [{ ...draft, updatedAt: Date.now() }, ...loadWorkspaceDrafts().filter((d) => d.id !== draft.id)];
+  const next = [
+    { ...draft, updatedAt: Date.now() },
+    ...loadWorkspaceDrafts().filter((d) => d.id !== draft.id),
+  ];
   writeAll(next);
   return next[0];
 }
@@ -94,4 +105,9 @@ export function deleteWorkspaceDraft(id: string): WorkspaceDraft[] {
     screen and pressing Escape leaves a card behind on the dashboard, which
     reads as a bug rather than as a saved answer. */
 export const isWorthSaving = (s: WorkspaceWizardSnapshot): boolean =>
-  Boolean(s.installationId.trim() || s.installationName.trim() || s.productId || s.route);
+  Boolean(
+    s.installationId.trim() ||
+      s.installationName.trim() ||
+      s.productId ||
+      s.route,
+  );

@@ -62,7 +62,8 @@ export const FUEL_UNIT_LABEL: Record<FuelUnit, string> = {
 export const needsNcv = (unit: FuelUnit): boolean => unit !== "GJ";
 
 /** The NCV a given unit must be expressed in, for labels and error copy. */
-export const ncvUnitLabel = (unit: FuelUnit): string => `GJ per ${FUEL_UNIT_LABEL[unit]}`;
+export const ncvUnitLabel = (unit: FuelUnit): string =>
+  `GJ per ${FUEL_UNIT_LABEL[unit]}`;
 
 /* ── Sourced constants ──────────────────────────────────────────
    Build rule (spec §0): every numeric constant names its origin. "ASSUMPTION"
@@ -74,7 +75,8 @@ export type SourcedNumber = {
   source: string;
 };
 
-export const isAssumedSource = (source: string): boolean => source.trim().toUpperCase() === "ASSUMPTION";
+export const isAssumedSource = (source: string): boolean =>
+  source.trim().toUpperCase() === "ASSUMPTION";
 
 /* Conversion of elemental carbon to CO₂.
 
@@ -91,7 +93,8 @@ export const isAssumedSource = (source: string): boolean => source.trim().toUppe
    what the regulation says and what the fixture reproduces. */
 export const CO2_PER_C: SourcedNumber = {
   value: 3.664,
-  source: "EU MRR (EU) 2018/2066 — standard conversion factor t CO₂ / t C, from molar masses 44.010 / 12.011",
+  source:
+    "EU MRR (EU) 2018/2066 — standard conversion factor t CO₂ / t C, from molar masses 44.010 / 12.011",
 };
 
 /* ── Errors ─────────────────────────────────────────────────────
@@ -147,8 +150,13 @@ export const ELECTRICITY_UNIT_LABEL: Record<ElectricityUnit, string> = {
 /** Absolute MWh for the period, whichever way the value was stored.
     Converts a legacy per-tonne value ONCE, by multiplying by production —
     after this the engine only ever divides. */
-export function toAbsoluteMWh(value: number, unit: ElectricityUnit, annualProductionTonnes: number): number {
-  if (!Number.isFinite(value)) throw new UnitError("Electricity quantity is not a number.", "mwh");
+export function toAbsoluteMWh(
+  value: number,
+  unit: ElectricityUnit,
+  annualProductionTonnes: number,
+): number {
+  if (!Number.isFinite(value))
+    throw new UnitError("Electricity quantity is not a number.", "mwh");
   if (unit === "MWh_absolute") return value;
   if (!(annualProductionTonnes > 0)) {
     throw new UnitError(

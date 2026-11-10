@@ -17,12 +17,19 @@ test("a listed title never asks for a description", () => {
 
 test('"other" with an empty box is incomplete', () => {
   assert.equal(jobTitleIncomplete("other", ""), true);
-  assert.equal(jobTitleIncomplete("other", "   "), true, "whitespace is not an answer");
+  assert.equal(
+    jobTitleIncomplete("other", "   "),
+    true,
+    "whitespace is not an answer",
+  );
 });
 
 test("filling the box clears it, and what is stored is what they typed", () => {
   assert.equal(jobTitleIncomplete("other", "Regional Trade Manager"), false);
-  assert.equal(jobTitleValue("other", "  Regional Trade Manager  "), "Regional Trade Manager");
+  assert.equal(
+    jobTitleValue("other", "  Regional Trade Manager  "),
+    "Regional Trade Manager",
+  );
 });
 
 test("the literal word Other is never what gets stored", () => {

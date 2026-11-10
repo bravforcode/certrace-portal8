@@ -33,16 +33,27 @@
    ════════════════════════════════════════════════════════════ */
 
 import { toGJ, UnitError, CO2_PER_C } from "./units";
-import type { ActivityDataset, FuelEntry, ElectricityEntry, ProcessEmissionEntry } from "./activity";
+import type {
+  ActivityDataset,
+  FuelEntry,
+  ElectricityEntry,
+  ProcessEmissionEntry,
+} from "./activity";
 import { precursorSEE, type PrecursorNode } from "./precursor-tree";
 
 /* ── The sector rule, stated once ───────────────────────────────
-   Annex II to Regulation (EU) 2023/956: for iron & steel, aluminium and
-   hydrogen only DIRECT emissions enter the financial obligation, because
+   Annex II to Regulation (EU) 2023/956: for iron & steel, aluminium,
+   hydrogen and (since 2025/2083) electricity only DIRECT emissions enter the financial obligation, because
    those sectors receive indirect-cost compensation under the EU ETS
    State-aid framework. Indirect emissions are still REPORTED for every good
    — they just don't reach the certificate bill. */
-export type GoodsCategory = "Iron & Steel" | "Aluminium" | "Cement" | "Fertilisers" | "Hydrogen" | "Electricity";
+export type GoodsCategory =
+  | "Iron & Steel"
+  | "Aluminium"
+  | "Cement"
+  | "Fertilisers"
+  | "Hydrogen"
+  | "Electricity";
 
 export const INDIRECT_CHARGEABLE: Record<GoodsCategory, boolean> = {
   "Iron & Steel": false, // Annex II — direct only
@@ -50,10 +61,13 @@ export const INDIRECT_CHARGEABLE: Record<GoodsCategory, boolean> = {
   Hydrogen: false, // Annex II — direct only
   Cement: true,
   Fertilisers: true,
-  Electricity: true,
+  // Added to Annex II by Regulation (EU) 2025/2083 — indirect emissions are not
+  // relevant to electricity generation.
+  Electricity: false,
 };
 
-export const indirectIsChargeable = (category: GoodsCategory): boolean => INDIRECT_CHARGEABLE[category] ?? true;
+export const indirectIsChargeable = (category: GoodsCategory): boolean =>
+  INDIRECT_CHARGEABLE[category] ?? true;
 
 /* ── Errors ─────────────────────────────────────────────────────
    A missing denominator is not a zero. Dividing by an absent production
@@ -69,7 +83,9 @@ export class EngineError extends Error {
   }
 }
 
-function denominator(dataset: Pick<ActivityDataset, "annualProductionTonnes">): number {
+function denominator(
+  dataset: Pick<ActivityDataset, "annualProductionTonnes">,
+): number {
   const q = dataset.annualProductionTonnes;
   if (!(q > 0) || !Number.isFinite(q)) {
     throw new EngineError(
@@ -102,9 +118,11 @@ export function fuelTCO2(f: FuelEntry): number {
   return gj * f.emissionFactor * (f.oxidationFactor ?? 1);
 }
 
-export const processTCO2 = (p: ProcessEmissionEntry): number => p.massTonnes * p.carbonContent * CO2_PER_C.value;
+export const processTCO2 = (p: ProcessEmissionEntry): number =>
+  p.massTonnes * p.carbonContent * CO2_PER_C.value;
 
-export const electricityTCO2 = (e: ElectricityEntry): number => e.mwhAbsolute * e.emissionFactor;
+export const electricityTCO2 = (e: ElectricityEntry): number =>
+  e.mwhAbsolute * e.emissionFactor;
 
 export function directSEE(dataset: ActivityDataset): DirectResult {
   const q = denominator(dataset);
@@ -115,16 +133,30 @@ export function directSEE(dataset: ActivityDataset): DirectResult {
   for (const f of dataset.fuels) {
     const tCO2 = fuelTCO2(f);
     fuelTotal += tCO2;
-    byEntry.push({ id: f.id, label: `${f.fuel} (${f.quantity} ${f.unit})`, tCO2 });
+    byEntry.push({
+      id: f.id,
+      label: `${f.fuel} (${f.quantity} ${f.unit})`,
+      tCO2,
+    });
   }
   for (const p of dataset.processEmissions) {
     const tCO2 = processTCO2(p);
     processTotal += tCO2;
-    byEntry.push({ id: p.id, label: `${p.material || "process material"} (${p.massTonnes} t)`, tCO2 });
+    byEntry.push({
+      id: p.id,
+      label: `${p.material || "process material"} (${p.massTonnes} t)`,
+      tCO2,
+    });
   }
 
   const total = fuelTotal + processTotal;
-  return { total, perTonne: total / q, byEntry, fuelTCO2: fuelTotal, processTCO2: processTotal };
+  return {
+    total,
+    perTonne: total / q,
+    byEntry,
+    fuelTCO2: fuelTotal,
+    processTCO2: processTotal,
+  };
 }
 
 /* ── F2 · Indirect ──────────────────────────────────────────────
@@ -149,7 +181,11 @@ export function indirectSEE(dataset: ActivityDataset): IndirectResult {
     const tCO2 = electricityTCO2(e);
     total += tCO2;
     mwh += e.mwhAbsolute;
-    byEntry.push({ id: e.id, label: `${e.mwhAbsolute} MWh @ ${e.emissionFactor} tCO₂/MWh`, tCO2 });
+    byEntry.push({
+      id: e.id,
+      label: `${e.mwhAbsolute} MWh @ ${e.emissionFactor} tCO₂/MWh`,
+      tCO2,
+    });
   }
 
   return { total, perTonne: total / q, byEntry, mwhPerTonne: mwh / q };
@@ -158,7 +194,8 @@ export function indirectSEE(dataset: ActivityDataset): IndirectResult {
 /* ── F3 · Precursors ───────────────────────────────────────────
    Delegates to the tree, which owns the depth-first recursion, the scrap
    short-circuit and the cycle guard. */
-export const precursorContribution = (tree: PrecursorNode[]) => precursorSEE(tree);
+export const precursorContribution = (tree: PrecursorNode[]) =>
+  precursorSEE(tree);
 
 /* ── F4 · Totals ────────────────────────────────────────────────
    Reported is what the filing discloses. Chargeable is what it costs. They
@@ -175,7 +212,11 @@ export type TotalResult = {
   category: GoodsCategory;
 };
 
-export function totalSEE(dataset: ActivityDataset, tree: PrecursorNode[], category: GoodsCategory): TotalResult {
+export function totalSEE(
+  dataset: ActivityDataset,
+  tree: PrecursorNode[],
+  category: GoodsCategory,
+): TotalResult {
   const dir = directSEE(dataset).perTonne;
   const ind = indirectSEE(dataset).perTonne;
   const prec = precursorSEE(tree).perTonne;
@@ -200,7 +241,13 @@ export function totalSEE(dataset: ActivityDataset, tree: PrecursorNode[], catego
    versions after a mid-year re-baseline is the failure this signature exists
    to make impossible; a null return leaves the tonnes visible and unpriced
    rather than silently counted as zero. */
-export type ShipmentLike = { buyer: string; buyerEori?: string; date: string; declarationId: string | null; quantityTonnes: number };
+export type ShipmentLike = {
+  buyer: string;
+  buyerEori?: string;
+  date: string;
+  declarationId: string | null;
+  quantityTonnes: number;
+};
 
 export type BuyerRow = {
   buyer: string;
@@ -213,12 +260,22 @@ export type BuyerRow = {
 
 export function perBuyerTotals(
   shipments: ShipmentLike[],
-  seeForShipment: (declarationId: string, shipmentDate: string) => number | null,
+  seeForShipment: (
+    declarationId: string,
+    shipmentDate: string,
+  ) => number | null,
 ): BuyerRow[] {
   const rows = new Map<string, BuyerRow>();
   for (const s of shipments) {
     if (!s.declarationId) continue; // pending shipments are never attributed
-    const row = rows.get(s.buyer) ?? { buyer: s.buyer, buyerEori: s.buyerEori, shipments: 0, tonnes: 0, embeddedTCO2e: 0, unpricedTonnes: 0 };
+    const row = rows.get(s.buyer) ?? {
+      buyer: s.buyer,
+      buyerEori: s.buyerEori,
+      shipments: 0,
+      tonnes: 0,
+      embeddedTCO2e: 0,
+      unpricedTonnes: 0,
+    };
     const see = seeForShipment(s.declarationId, s.date);
     row.shipments += 1;
     row.tonnes += s.quantityTonnes;
@@ -286,7 +343,11 @@ export type EngineResult = {
     a formula, never on a comment or a rename. */
 export const ENGINE_VERSION = "cbam-engine/1.0.0";
 
-export function runEngine(dataset: ActivityDataset, tree: PrecursorNode[], category: GoodsCategory): EngineResult {
+export function runEngine(
+  dataset: ActivityDataset,
+  tree: PrecursorNode[],
+  category: GoodsCategory,
+): EngineResult {
   return {
     direct: directSEE(dataset),
     indirect: indirectSEE(dataset),

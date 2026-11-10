@@ -30,75 +30,43 @@
    made, and it can always be unblocked by talking to sales.
    ════════════════════════════════════════════════════════════ */
 
-import { CONTACT_SALES_URL, PLANS, TRIAL_DAYS, TRIAL_PLAN, getPlan, type Plan, type PlanFeatures, type PlanId } from "./config";
-import { ORG, TRIAL_STARTED_ON } from "./data";
+import {
+  CONTACT_SALES_URL,
+  PLANS,
+  TRIAL_DAYS,
+  getPlan,
+  type Plan,
+  type PlanFeatures,
+  type PlanId,
+} from "./config";
+import { loadSession } from "./api/session";
+import { companyDirectory } from "./account-storage";
+import { loadTeam } from "./team-store";
 import { ownInstallations } from "./installations";
 import { listWorkspaces } from "./workspace";
 
 export { CONTACT_SALES_URL, TRIAL_DAYS };
 export type { Plan, PlanId };
 
-/* ── Showing the four states on a running build ─────────────
-   `?plan=trial`, `?plan=standard`, `?trialDay=31` — read once from the URL,
-   remembered in localStorage, and applied to every read below.
-
-   IT IS OFF UNTIL THE APP SAYS SO. The override is deliberately invisible to
-   the server render and to the first client paint: `override` stays null
-   until `activateDemoOverride()` runs from an effect, so the markup React
-   hydrates against is the markup the server produced. Without that, opening
-   the app with `?plan=starter` saved would render Starter on the client
-   against a Trial server tree and every screen would report a hydration
-   mismatch.
-
-   Clear it with `?plan=default`. */
-
-type DemoOverride = { plan?: PlanId; trialDay?: number };
-
-const OVERRIDE_KEY = "certrace:demo-plan";
-const PLAN_IDS: PlanId[] = ["starter", "standard", "enterprise", "trial"];
-
-let override: DemoOverride | null = null;
-
-export function activateDemoOverride(): void {
-  if (typeof window === "undefined") return;
-  let stored: DemoOverride = {};
-  try {
-    stored = JSON.parse(window.localStorage.getItem(OVERRIDE_KEY) ?? "{}") as DemoOverride;
-  } catch {
-    stored = {};
-  }
-
-  const params = new URLSearchParams(window.location.search);
-  const askedPlan = params.get("plan");
-  const askedDay = params.get("trialDay");
-
-  if (askedPlan === "default") {
-    stored = {};
-  } else if (askedPlan && (PLAN_IDS as string[]).includes(askedPlan)) {
-    stored.plan = askedPlan as PlanId;
-  }
-  if (askedDay != null && Number.isFinite(Number(askedDay))) stored.trialDay = Number(askedDay);
-
-  if (askedPlan || askedDay != null) {
-    try {
-      window.localStorage.setItem(OVERRIDE_KEY, JSON.stringify(stored));
-    } catch {
-      /* ignore quota */
-    }
-  }
-  override = stored;
-}
-
 /** The tier this account is on. */
-export const currentPlanId = (): PlanId => override?.plan ?? ORG.plan;
+export const currentPlanId = (): PlanId => {
+  const id = companyDirectory()?.planId ?? loadSession()?.user.planId;
+  return id && getPlan(id as PlanId) ? (id as PlanId) : "standard";
+};
 
 export const currentPlan = (): Plan => getPlan(currentPlanId()) ?? PLANS[0];
 
 /** Tier order, for "is this an upgrade or a downgrade" questions. The trial
     sits below every paid tier: moving off it is always an upgrade. */
-export const PLAN_ORDER: PlanId[] = ["trial", "starter", "standard", "enterprise"];
+export const PLAN_ORDER: PlanId[] = [
+  "trial",
+  "starter",
+  "standard",
+  "enterprise",
+];
 
-export const isUpgrade = (from: PlanId, to: PlanId): boolean => PLAN_ORDER.indexOf(to) > PLAN_ORDER.indexOf(from);
+export const isUpgrade = (from: PlanId, to: PlanId): boolean =>
+  PLAN_ORDER.indexOf(to) > PLAN_ORDER.indexOf(from);
 
 /* ── The trial clock ────────────────────────────────────────
    ONE FACT, DERIVED EVERYWHERE. The days-left figure on /billing, the width
@@ -128,13 +96,14 @@ const DAY_MS = 86_400_000;
 export function trialState(now: Date = new Date()): TrialState {
   if (currentPlanId() !== "trial") return { onTrial: false };
 
-  const startedOn = new Date(`${TRIAL_STARTED_ON}T00:00:00`);
+  const start =
+    companyDirectory()?.trialStartedAt ?? loadSession()?.user.trialStartedAt;
+  if (!start) return { onTrial: false };
+  const startedOn = new Date(start);
+  if (Number.isNaN(startedOn.getTime())) return { onTrial: false };
   const endsOn = new Date(startedOn.getTime() + TRIAL_DAYS * DAY_MS);
 
-  /* `?trialDay=N` pretends the account is N days into the month, so the live
-     state and the ended state can both be shown without waiting a month or
-     editing lib/data.ts. */
-  const elapsed = override?.trialDay != null ? override.trialDay : Math.floor((now.getTime() - startedOn.getTime()) / DAY_MS);
+  const elapsed = Math.floor((now.getTime() - startedOn.getTime()) / DAY_MS);
 
   const daysUsed = Math.max(0, Math.min(TRIAL_DAYS, elapsed));
   const daysLeft = Math.max(0, TRIAL_DAYS - elapsed);
@@ -186,7 +155,8 @@ export const writeBlocked = (): boolean => accountLocked();
 /* ── Feature gates ─────────────────────────────────────────── */
 
 /** Whether the current tier switches a feature on. Enterprise gets everything. */
-export const planAllows = (feature: keyof PlanFeatures): boolean => currentPlan().features[feature];
+export const planAllows = (feature: keyof PlanFeatures): boolean =>
+  currentPlan().features[feature];
 
 /** The cheapest tier that carries a feature — so a locked panel can name the
     plan to move to rather than saying "upgrade" and leaving the reader to
@@ -251,17 +221,31 @@ export function yearsOpen(): number {
   return new Set(listWorkspaces().map((w) => w.year)).size;
 }
 
-export const cnCodeCap = (): CapState => state("cnCodes", cnCodesUsed(), currentPlan().caps.cnCodes);
-export const siteCap = (): CapState => state("sites", sitesUsed(), currentPlan().caps.sites);
-export const yearCap = (): CapState => state("years", yearsOpen(), currentPlan().caps.years);
+export const cnCodeCap = (): CapState =>
+  state("cnCodes", cnCodesUsed(), currentPlan().caps.cnCodes);
+export const siteCap = (): CapState =>
+  state("sites", sitesUsed(), currentPlan().caps.sites);
+export const yearCap = (): CapState =>
+  state("years", yearsOpen(), currentPlan().caps.years);
 
-/** Seats are passed in rather than read: the team screen holds the live list
-    in React state (a seat removed there must move the counter immediately),
-    and the sidebar has only the fixture count. */
-export const seatCap = (used: number = ORG.seatsUsed): CapState => state("seats", used, currentPlan().caps.seats);
+/** Pending email invitations reserve seats. Reviewer contacts alone do not. */
+export function seatCap(used?: number): CapState {
+  const team = companyDirectory();
+  const count =
+    used ??
+    (team
+      ? team.members.length + team.invitations.length
+      : loadTeam().filter((m) => m.role !== "Verifier").length);
+  return state("seats", count, currentPlan().caps.seats);
+}
 
 /** Every counted cap, for a summary strip. */
-export const allCaps = (seatsUsed?: number): CapState[] => [cnCodeCap(), siteCap(), yearCap(), seatCap(seatsUsed)];
+export const allCaps = (seatsUsed?: number): CapState[] => [
+  cnCodeCap(),
+  siteCap(),
+  yearCap(),
+  seatCap(seatsUsed),
+];
 
 /* ── What a cap is called on screen ─────────────────────────
    English source strings, wrapped by the caller's own `t()` so they translate
@@ -270,7 +254,7 @@ export const allCaps = (seatsUsed?: number): CapState[] => [cnCodeCap(), siteCap
 
 export const CAP_LABEL: Record<CapKey, string> = {
   cnCodes: "CN codes",
-  sites: "Production sites",
+  sites: "Installations",
   years: "Reporting years open",
   seats: "Team seats",
 };
@@ -290,8 +274,8 @@ export const CAP_BLOCKED: Record<CapKey, { one: string; many: string }> = {
     many: "Your {plan} plan covers {cap} CN codes, and all of them are in use.",
   },
   sites: {
-    one: "Your {plan} plan covers a single production site, and it is registered.",
-    many: "Your {plan} plan covers {cap} production sites, and all of them are registered.",
+    one: "Your {plan} plan covers a single installation, and it is registered.",
+    many: "Your {plan} plan covers {cap} installations, and all of them are registered.",
   },
   years: {
     one: "Your {plan} plan keeps one reporting year open at a time.",
@@ -304,8 +288,10 @@ export const CAP_BLOCKED: Record<CapKey, { one: string; many: string }> = {
 };
 
 /** The right form for a measured cap. */
-export const capBlockedText = (cap: CapState): string => (cap.cap === 1 ? CAP_BLOCKED[cap.key].one : CAP_BLOCKED[cap.key].many);
+export const capBlockedText = (cap: CapState): string =>
+  cap.cap === 1 ? CAP_BLOCKED[cap.key].one : CAP_BLOCKED[cap.key].many;
 
 /** Always the same next move: the price is quoted, so raising a cap is a
     conversation, not a checkout. */
-export const CAP_REMEDY = "Talk to sales to raise it — suppliers stay free and unlimited either way.";
+export const CAP_REMEDY =
+  "Talk to sales to raise it — suppliers and precursor suppliers can still fill in through their link, without limit.";

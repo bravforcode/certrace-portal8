@@ -15,13 +15,6 @@
    So every route under app/(portal) mounts behind this, and "signed in" means
    exactly what lib/api/session.ts says it means.
 
-   ── Why the demo does not go through it ─────────────────────────
-   `demoModeEnabled()` is inlined at build time, so on `next dev` and on a
-   build that asked for the demo by name this component compiles down to its
-   children and behaves precisely as the portal did before — no session, no
-   redirect, no blank frame. The gate only exists in builds that have a real
-   backend to answer to, or no business letting anyone in.
-
    ── The other way in is closed too ──────────────────────────────
    A session can be perfectly valid and still be refused: a suspended account
    (Terms §20.4) answers 403 on every authenticated route. That is not a
@@ -31,46 +24,52 @@
    the app's front door already is.
 
    ── Why the check is in an effect ───────────────────────────────
-   The session is in localStorage, which the server cannot see. Reading it
+   The session is restored from the HttpOnly cookie after mount. Reading it
    during render would make the first client render disagree with the
    prerendered HTML — React's hydration mismatch — so the check runs after
    mount and the frame before it paints nothing rather than the app.
    ════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   accountSuspension,
-  demoModeEnabled,
   isSignedIn,
+  loadSession,
   onAccountSuspensionChange,
   onSessionChange,
   type SuspensionNotice,
 } from "@/lib/api";
 import { AccountSuspended } from "@/components/account-suspended";
 
-/* Read once, at module scope: this is a build-time constant, and re-reading it
-   per render would only invite someone to make it a runtime value later. */
-const DEMO = demoModeEnabled();
-
-export function RequireSession({ children }: { children: React.ReactNode }) {
+export function RequireSession({
+  children,
+  requireReady = true,
+}: {
+  children: React.ReactNode;
+  requireReady?: boolean;
+}) {
   const router = useRouter();
+  const pathname = usePathname();
   const [allowed, setAllowed] = React.useState(false);
-  /* Read in an effect, not during render, for the same hydration reason as
-     the session itself: localStorage does not exist on the server. */
-  const [suspended, setSuspended] = React.useState<SuspensionNotice | null>(null);
+  /* Read in an effect so the first client render matches the server render. */
+  const [suspended, setSuspended] = React.useState<SuspensionNotice | null>(
+    null,
+  );
 
   React.useEffect(() => {
-    if (DEMO) return;
     setSuspended(accountSuspension());
     return onAccountSuspensionChange(setSuspended);
   }, []);
 
   React.useEffect(() => {
-    if (DEMO) return;
-
     const check = () => {
       if (isSignedIn()) {
+        if (requireReady && !loadSession()?.user.ready) {
+          setAllowed(false);
+          router.replace("/pending");
+          return;
+        }
         setAllowed(true);
         return;
       }
@@ -87,9 +86,8 @@ export function RequireSession({ children }: { children: React.ReactNode }) {
        every request is failing, which reads as the product being broken rather
        than as being signed out. */
     return onSessionChange(check);
-  }, [router]);
+  }, [pathname, requireReady, router]);
 
-  if (DEMO) return <>{children}</>;
   if (!allowed) return <GuardBlank />;
   /* After the session check, not before: somebody who is not signed in at all
      belongs on /login, whatever a stale notice in this browser says. */

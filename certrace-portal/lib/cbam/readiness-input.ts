@@ -23,26 +23,46 @@ import { parsePrecursorTree, type PrecursorNode } from "./precursor-tree";
 import { shippedTonnesFor } from "../shipments";
 import { activeSnapshot } from "./freeze";
 import { latestVersion } from "./mmd";
-import { validate, readiness, type Readiness, type ValidationInput } from "./validate";
+import {
+  validate,
+  readiness,
+  type Readiness,
+  type ValidationInput,
+} from "./validate";
 
 export function periodFor(decl: Declaration): ReportingPeriod {
-  if (decl.periodStart && decl.periodEnd) return { start: decl.periodStart, end: decl.periodEnd, type: "calendar_year" };
-  return calendarYear(Number(/(20\d\d)/.exec(decl.period)?.[1] ?? new Date().getFullYear()));
+  if (decl.periodStart && decl.periodEnd)
+    return {
+      start: decl.periodStart,
+      end: decl.periodEnd,
+      type: "calendar_year",
+    };
+  return calendarYear(
+    Number(/(20\d\d)/.exec(decl.period)?.[1] ?? new Date().getFullYear()),
+  );
 }
 
 /** The exporter's own precursor chain, taken from the self-supplied
     submission so there is one tree rather than a second copy of it. */
 export function precursorTreeFor(roll: ReviewRollup): PrecursorNode[] {
-  const self = roll.submissions.find((s) => s.supplier.selfSupplied) ?? roll.submissions[0];
+  const self =
+    roll.submissions.find((s) => s.supplier.selfSupplied) ??
+    roll.submissions[0];
   if (!self) return [];
   for (const rp of self.request.products) {
-    const parsed = parsePrecursorTree(self.values[valueKey("precursors", rp.product.id)]);
+    const parsed = parsePrecursorTree(
+      self.values[valueKey("precursors", rp.product.id)],
+    );
     if (parsed && parsed.length) return parsed;
   }
   return [];
 }
 
-export function buildValidationInput(decl: Declaration, roll: ReviewRollup, enteredBy: string): ValidationInput {
+export function buildValidationInput(
+  decl: Declaration,
+  roll: ReviewRollup,
+  enteredBy: string,
+): ValidationInput {
   const period = periodFor(decl);
   const dataset = loadDataset(decl.id, period, enteredBy);
   const evidence = listEvidence(decl.id);
@@ -51,8 +71,15 @@ export function buildValidationInput(decl: Declaration, roll: ReviewRollup, ente
 
   /* Aluminium smelting draws 13–16 MWh/t, scrap EAF steel 0.35–0.70. One
      shared band would wave through both a typo and the truth. */
-  const categories = new Set(roll.submissions.flatMap((s) => s.request.products.map((p) => p.product.category)));
-  const electricityBand = categories.has("Aluminium") && categories.size === 1 ? ("aluminium_smelting" as const) : ("eaf_steel" as const);
+  const categories = new Set(
+    roll.submissions.flatMap((s) =>
+      s.request.products.map((p) => p.product.category),
+    ),
+  );
+  const electricityBand =
+    categories.has("Aluminium") && categories.size === 1
+      ? ("aluminium_smelting" as const)
+      : ("eaf_steel" as const);
 
   const defaultOnlyComplexGoods: string[] = [];
   const unverifiedActualGoods: string[] = [];
@@ -62,11 +89,16 @@ export function buildValidationInput(decl: Declaration, roll: ReviewRollup, ente
     const verification = (sub.values[valueKey("verification")] || "").trim();
     for (const rp of sub.request.products) {
       const method = sub.values[valueKey("method", rp.product.id)] || "";
-      if (method === "default" && isComplexGood(rp.product)) defaultOnlyComplexGoods.push(`${sub.supplier.name} — ${rp.product.name}`);
-      if (method === "actual" && !verification) unverifiedActualGoods.push(`${sub.supplier.name} — ${rp.product.name}`);
+      if (method === "default" && isComplexGood(rp.product))
+        defaultOnlyComplexGoods.push(
+          `${sub.supplier.name} — ${rp.product.name}`,
+        );
+      if (method === "actual" && !verification)
+        unverifiedActualGoods.push(`${sub.supplier.name} — ${rp.product.name}`);
     }
     const record = getRecord(sub.supplier.name);
-    if (recordFreshnessAtPeriodEnd(record, decl.periodEnd).level === "stale") staleSupplierRecords.push(sub.supplier.name);
+    if (recordFreshnessAtPeriodEnd(record, decl.periodEnd).level === "stale")
+      staleSupplierRecords.push(sub.supplier.name);
   }
 
   /* V15 asks whether each assumption is DISCLOSED, which means present in a
@@ -84,9 +116,19 @@ export function buildValidationInput(decl: Declaration, roll: ReviewRollup, ente
           { key: `fuel:${f.id}:ef`, label: `${f.fuel} — emission factor` },
           { key: `fuel:${f.id}:ncv`, label: `${f.fuel} — net calorific value` },
         ]),
-        ...dataForKeys.electricity.map((e) => ({ key: `electricity:${e.id}:mwh`, label: "Electricity — consumption & factor" })),
-        ...dataForKeys.processEmissions.map((p) => ({ key: `process:${p.id}:mass`, label: `${p.material || "Process material"} — mass & carbon content` })),
-      ].find((m) => entry.input.toLowerCase().includes(m.label.toLowerCase().split(" — ")[0]));
+        ...dataForKeys.electricity.map((e) => ({
+          key: `electricity:${e.id}:mwh`,
+          label: "Electricity — consumption & factor",
+        })),
+        ...dataForKeys.processEmissions.map((p) => ({
+          key: `process:${p.id}:mass`,
+          label: `${p.material || "Process material"} — mass & carbon content`,
+        })),
+      ].find((m) =>
+        entry.input
+          .toLowerCase()
+          .includes(m.label.toLowerCase().split(" — ")[0]),
+      );
       if (match) disclosedAssumptions.add(match.key);
     }
   }
@@ -105,11 +147,20 @@ export function buildValidationInput(decl: Declaration, roll: ReviewRollup, ente
     preparerId: snapshot?.preparerId,
     approverId: snapshot?.approverId,
     disclosedAssumptions,
-    totalTCO2e: snapshot ? snapshot.outputs.directTotalTCO2 + snapshot.outputs.indirectTotalTCO2 : roll.submissions.reduce((a, s) => a + s.totalTCO2e, 0),
+    totalTCO2e: snapshot
+      ? snapshot.outputs.directTotalTCO2 + snapshot.outputs.indirectTotalTCO2
+      : roll.submissions.reduce((a, s) => a + s.totalTCO2e, 0),
   };
 }
 
 /** One call for the screens: gather, validate, score. */
-export function computeReadiness(decl: Declaration, roll: ReviewRollup, enteredBy: string): Readiness {
-  return readiness(validate(buildValidationInput(decl, roll, enteredBy)), decl.id);
+export function computeReadiness(
+  decl: Declaration,
+  roll: ReviewRollup,
+  enteredBy: string,
+): Readiness {
+  return readiness(
+    validate(buildValidationInput(decl, roll, enteredBy)),
+    decl.id,
+  );
 }

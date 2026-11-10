@@ -18,7 +18,12 @@
    Instagram as outlines — so the two surfaces show one house style rather
    than five competing brand colours on a page whose subject is neither. */
 
-export type SocialGlyph = "line" | "linkedin" | "facebook" | "instagram" | "youtube";
+export type SocialGlyph =
+  | "line"
+  | "linkedin"
+  | "facebook"
+  | "instagram"
+  | "youtube";
 
 /* The LINE mark: speech bubble with the LINE letterforms knocked out. */
 const LINE_PATH =
@@ -26,8 +31,25 @@ const LINE_PATH =
 
 export const SOCIAL_COLORS: Record<"line", string> = { line: "#06C755" };
 
-export function SocialIcon({ glyph, size = 20, color, className }: { glyph: SocialGlyph; size?: number; color?: string; className?: string }) {
-  const box = { width: size, height: size, viewBox: "0 0 24 24", className, "aria-hidden": true, focusable: "false" as const };
+export function SocialIcon({
+  glyph,
+  size = 20,
+  color,
+  className,
+}: {
+  glyph: SocialGlyph;
+  size?: number;
+  color?: string;
+  className?: string;
+}) {
+  const box = {
+    width: size,
+    height: size,
+    viewBox: "0 0 24 24",
+    className,
+    "aria-hidden": true,
+    focusable: "false" as const,
+  };
 
   if (glyph === "line") {
     return (
@@ -48,7 +70,14 @@ export function SocialIcon({ glyph, size = 20, color, className }: { glyph: Soci
 
   if (glyph === "facebook") {
     return (
-      <svg {...box} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <svg
+        {...box}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
         <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3.6l.4-4H14V7a1 1 0 0 1 1-1h3z" />
       </svg>
     );

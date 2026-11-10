@@ -28,7 +28,9 @@ export default defineConfig({
       name: "local",
       use: {
         ...devices["Desktop Chrome"],
-        baseURL: "http://localhost:3000",
+        baseURL: defaultBaseUrl,
+        // Use an installed browser when bundled Chromium is unavailable locally.
+        channel: process.env.PLAYWRIGHT_CHANNEL || undefined,
         viewport: { width: 1440, height: 900 },
       },
     },

@@ -1,3 +1,11 @@
+import { commitPrecursor } from "./cbam/precursor-basis";
+import { loadEvidenceFile } from "./document-files";
+import {
+  accountStorage,
+  flushAccount,
+  publicScope,
+  refreshAccountRecords,
+} from "./account-storage";
 /* ════════════════════════════════════════════════════════════
    THE PRECURSOR LINK, CARRIED BY THE SERVER
 
@@ -8,7 +16,7 @@
    machine found nothing at all — "This link looks invalid" — because the
    workspace and the row only ever existed in the exporter's browser.
 
-   Now the link is an ordinary smart link (docs/API-CONTRACT.md §3), riding
+   Now the link is an ordinary smart link, riding
    the same document kind the monthly link does ("workspace": an opaque slice
    the server hands to the link holder whole), so the backend needed nothing:
 
@@ -35,15 +43,22 @@
    As on the monthly link: an attachment is uploaded to the link's file store
    and its evidence item keeps `serverFileId`; bytes never ride in the slice.
 
-   Legacy base64 tokens keep resolving locally: demo builds and links already
-   handed out must not break.
+   Only server-issued tokens resolve in the public form.
    ════════════════════════════════════════════════════════════ */
 
 import { apiConfigured } from "./api/config";
-import { request } from "./api/http";
+import { api, result } from "./api/client";
+import { ApiError } from "./api/errors";
+import { decode, jsonDocument } from "./api/decode";
+import { isResolution, isLinkState } from "./api/validators.js";
 import { uploadLinkFile } from "./api/files";
 import { getOrgIdentity } from "./org";
-import { getSupplier, listSuppliers, saveSupplier, type PrecursorSupplier } from "./precursor-suppliers";
+import {
+  getSupplier,
+  listSuppliers,
+  saveSupplier,
+  type PrecursorSupplier,
+} from "./precursor-suppliers";
 import { getWorkspace, listWorkspaces } from "./workspace";
 
 const PRECURSORS_KEY = "certrace:precursor-suppliers";
@@ -68,12 +83,18 @@ export const SUPPLIER_FIELDS = [
   "specificEmbeddedIndirectTco2PerT",
   "reportingPeriodStart",
   "reportingPeriodEnd",
-  "qtyPerTonneOverride",
   "verifierName",
   "verifierAccreditationNumber",
   "verifierAccreditationIssuingCountry",
   "verifierAccreditationExpiryDate",
   "verificationReportIssueDate",
+  "verificationCoverageStart",
+  "verificationCoverageEnd",
+  "sectorParams",
+  "verifierAddress",
+  "verifierLeadAuditor",
+  "verifierAccreditationBody",
+  "verifierReasonableAssurance",
   "verificationSectoralScope",
   "verificationReportExpiresAt",
   "verificationReportFileId",
@@ -83,7 +104,14 @@ export const SUPPLIER_FIELDS = [
    to answer — a purchased good from an EU or exempt country needs no
    verification, scrap needs no figure. Sent so the supplier's form asks the
    same questions the exporter's does; never taken back. */
-const CONTEXT_FIELDS = ["origin", "isScrap"] as const satisfies readonly (keyof PrecursorSupplier)[];
+const CONTEXT_FIELDS = [
+  "origin",
+  "valueBasis",
+  "reportingPeriodBasis",
+  "quantityUsedT",
+  "originUnknown",
+  "isScrap",
+] as const satisfies readonly (keyof PrecursorSupplier)[];
 
 type Row = Record<string, unknown> & { id?: unknown };
 
@@ -96,16 +124,16 @@ export type PrecursorSlice = {
   evidence: Row[];
 };
 
-type LinkState = {
+export type LinkState = {
   token?: string;
   status?: string;
-  slice?: { node?: Row; evidence?: Row[] };
+  slice?: { node?: Row; evidence?: Row[]; reportUnavailable?: boolean };
   versions?: { submittedAt?: number }[];
   updatedAt?: number;
   [key: string]: unknown;
 };
 
-type Resolution = {
+export type Resolution = {
   token: string;
   kind?: string;
   supplierId: string;
@@ -113,19 +141,19 @@ type Resolution = {
   state: LinkState | null;
 };
 
-/** What /p/<token> renders from, whichever way the token resolved. */
+/** The server-issued request rendered by /p/<token>. */
 export type PrecursorLinkView = {
   workspaceId: string;
   node: PrecursorSupplier;
   asker: string;
   /** true when answers are saved to and submitted through the server */
-  server: boolean;
+  server: true;
 };
 
 function readJson<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
   try {
-    const raw = window.localStorage.getItem(key);
+    const raw = accountStorage.getItem(key);
     if (!raw) return fallback;
     const parsed = JSON.parse(raw) as T;
     return parsed ?? fallback;
@@ -137,13 +165,14 @@ function readJson<T>(key: string, fallback: T): T {
 function writeJson(key: string, value: unknown): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(key, JSON.stringify(value));
+    accountStorage.setItem(key, JSON.stringify(value));
   } catch {
     /* Quota: the same failure every store here already tolerates. */
   }
 }
 
-export const precursorDocId = (workspaceId: string, nodeId: string): string => `pr-${workspaceId}-${nodeId}`;
+export const precursorDocId = (workspaceId: string, nodeId: string): string =>
+  `pr-${workspaceId}-${nodeId}`;
 
 const evidenceKeyFor = (nodeId: string): string => `precursor:${nodeId}`;
 
@@ -158,7 +187,9 @@ export function isServerPrecursorToken(token: string | undefined): boolean {
 }
 
 const linkUrl = (token: string): string =>
-  typeof window === "undefined" ? `/p/${token}` : `${window.location.origin}/p/${token}`;
+  typeof window === "undefined"
+    ? `/p/${token}`
+    : `${window.location.origin}/p/${token}`;
 
 const pick = (row: Row, keys: readonly string[] = SUPPLIER_FIELDS): Row => {
   const out: Row = { id: row.id };
@@ -169,9 +200,17 @@ const pick = (row: Row, keys: readonly string[] = SUPPLIER_FIELDS): Row => {
 /** Evidence filed against this one row, without file bytes. */
 function evidenceOf(workspaceId: string, nodeId: string): Row[] {
   const key = evidenceKeyFor(nodeId);
-  const items = readJson<Record<string, Row[]>>(EVIDENCE_KEY, {})[workspaceId] ?? [];
+  const items =
+    readJson<Record<string, Row[]>>(EVIDENCE_KEY, {})[workspaceId] ?? [];
   return items
-    .filter((item) => Array.isArray(item.fieldKeys) && (item.fieldKeys as unknown[]).includes(key))
+    .filter(
+      (item) =>
+        Array.isArray(item.fieldKeys) &&
+        (item.fieldKeys as unknown[]).some(
+          (k) =>
+            typeof k === "string" && (k === key || k.startsWith(`${key}:`)),
+        ),
+    )
     .map((item) => {
       const rest = { ...item };
       delete rest.fileDataUrl;
@@ -179,20 +218,41 @@ function evidenceOf(workspaceId: string, nodeId: string): Row[] {
     });
 }
 
-/** Upsert evidence items by id, keeping any bytes this browser already holds
-    and never letting an incoming item land outside this row's key. */
-function mergeEvidence(workspaceId: string, nodeId: string, incoming: Row[] | undefined): boolean {
-  if (!Array.isArray(incoming) || incoming.length === 0) return false;
+/** Restore this row's current attachments, retaining local bytes for kept files. */
+function mergeEvidence(
+  workspaceId: string,
+  nodeId: string,
+  incoming: Row[] | undefined,
+): boolean {
+  if (!Array.isArray(incoming)) return false;
   const key = evidenceKeyFor(nodeId);
   const store = readJson<Record<string, Row[]>>(EVIDENCE_KEY, {});
-  const items = [...(store[workspaceId] ?? [])];
+  const previous = store[workspaceId] ?? [];
+  const items = previous.filter(
+    (item) =>
+      !Array.isArray(item.fieldKeys) ||
+      !item.fieldKeys.some(
+        (k) => typeof k === "string" && (k === key || k.startsWith(`${key}:`)),
+      ),
+  );
   for (const raw of incoming) {
     if (!raw || typeof raw.id !== "string") continue;
-    const item: Row = { ...raw, workspaceId, fieldKeys: [key] };
+    const kept = Array.isArray(raw.fieldKeys)
+      ? raw.fieldKeys.filter(
+          (k): k is string =>
+            typeof k === "string" && (k === key || k.startsWith(`${key}:`)),
+        )
+      : [];
+    const item: Row = {
+      ...raw,
+      workspaceId,
+      fieldKeys: kept.length > 0 ? kept : [key],
+    };
     delete item.fileDataUrl;
-    const at = items.findIndex((e) => e.id === item.id);
-    if (at >= 0) items[at] = { ...items[at], ...item, fileDataUrl: items[at].fileDataUrl };
-    else items.push(item);
+    items.push({
+      ...item,
+      fileDataUrl: previous.find((e) => e.id === item.id)?.fileDataUrl,
+    });
   }
   store[workspaceId] = items;
   writeJson(EVIDENCE_KEY, store);
@@ -206,7 +266,10 @@ function askerFor(workspaceId: string, node: PrecursorSupplier): string {
   return getWorkspace(workspaceId)?.installationName ?? getOrgIdentity().name;
 }
 
-export function collectPrecursorSlice(workspaceId: string, nodeId: string): PrecursorSlice | null {
+export function collectPrecursorSlice(
+  workspaceId: string,
+  nodeId: string,
+): PrecursorSlice | null {
   const node = getSupplier(workspaceId, nodeId);
   if (!node) return null;
   return {
@@ -219,55 +282,64 @@ export function collectPrecursorSlice(workspaceId: string, nodeId: string): Prec
 
 /** Refresh the precursor's slice on the server. Called before every
     hand-over, so a link opened next week shows the row as it is then. */
-export async function publishPrecursor(workspaceId: string, nodeId: string): Promise<void> {
+export async function publishPrecursor(
+  workspaceId: string,
+  nodeId: string,
+): Promise<void> {
   const precursor = collectPrecursorSlice(workspaceId, nodeId);
   if (!precursor) return;
-  await request(`/api/v1/declarations/${encodeURIComponent(precursorDocId(workspaceId, nodeId))}`, {
-    method: "PUT",
-    body: { kind: "workspace", title: String(precursor.node.precursorName ?? ""), supplierView: { precursor } },
-  });
+  await result(
+    api()
+      .api.v1.declarations({
+        declaration_id: encodeURIComponent(precursorDocId(workspaceId, nodeId)),
+      })
+      .put(
+        jsonDocument({
+          kind: "workspace",
+          title: String(precursor.node.precursorName ?? ""),
+          supplierView: { precursor },
+        }),
+      ),
+  );
 }
 
 /** The URL to give this precursor's producer — minted once, then reused.
     The server token is kept on the row as its `smartLinkToken`, so every
     screen that builds `/p/<token>` from the row hands out the working one.
     Null when there is no backend: the caller falls back to the local link. */
-export async function ensurePrecursorLink(workspaceId: string, nodeId: string): Promise<string | null> {
+export async function ensurePrecursorLink(
+  workspaceId: string,
+  nodeId: string,
+): Promise<string | null> {
   if (!apiConfigured()) return null;
+  await flushAccount();
   await publishPrecursor(workspaceId, nodeId);
   const row = getSupplier(workspaceId, nodeId);
   if (!row) return null;
-  if (isServerPrecursorToken(row.smartLinkToken)) return linkUrl(row.smartLinkToken as string);
-  const minted = await request<{ token: string }>(
-    `/api/v1/declarations/${encodeURIComponent(precursorDocId(workspaceId, nodeId))}/links`,
-    { method: "POST", body: { supplierId: nodeId } },
+  if (isServerPrecursorToken(row.smartLinkToken))
+    return linkUrl(row.smartLinkToken as string);
+  const minted = await result(
+    api()
+      .api.v1.declarations({
+        declaration_id: encodeURIComponent(precursorDocId(workspaceId, nodeId)),
+      })
+      .links.post({ supplierId: nodeId }),
   );
   // Re-read: the caller may have stamped sent-at while the request was out.
   const fresh = getSupplier(workspaceId, nodeId) ?? row;
   saveSupplier({ ...fresh, smartLinkToken: minted.token });
+  await flushAccount();
   return linkUrl(minted.token);
 }
 
-/** Merge one submitted answer into the exporter's row. */
-function mergeAnswer(workspaceId: string, nodeId: string, state: LinkState): boolean {
+/** Apply the verification rules to the backend's canonical accepted row.
+ * Never replay the supplier draft over an exporter correction. */
+function mergeAnswer(workspaceId: string, nodeId: string): boolean {
   const row = getSupplier(workspaceId, nodeId);
-  const answer = state.slice?.node;
-  const versions = Array.isArray(state.versions) ? state.versions : [];
-  if (!row || !answer || versions.length === 0) return false;
-
-  const patch: Record<string, unknown> = {};
-  for (const key of SUPPLIER_FIELDS) if (key in answer) patch[key] = answer[key];
-  const submittedAt = versions[versions.length - 1]?.submittedAt;
-  const at = typeof submittedAt === "number" ? new Date(submittedAt).toISOString() : new Date().toISOString();
-  saveSupplier({
-    ...row,
-    ...(patch as Partial<PrecursorSupplier>),
-    // Same stamps the local form's submit wrote (app/p/[token]/page.tsx).
-    dataOrigin: row.dataOrigin === "default_value" ? row.dataOrigin : "supplier_verified",
-    smartLinkOpenedAt: row.smartLinkOpenedAt ?? at,
-    smartLinkSubmittedAt: at,
-  });
-  mergeEvidence(workspaceId, nodeId, state.slice?.evidence);
+  if (!row?.supplierResponseReceived) return false;
+  const workspace = getWorkspace(workspaceId);
+  if (row.valueBasis && workspace) commitPrecursor(row, workspace);
+  else saveSupplier(row);
   return true;
 }
 
@@ -278,25 +350,56 @@ function mergeAnswer(workspaceId: string, nodeId: string, state: LinkState): boo
     until Submit either, and a half-typed draft is not something the exporter
     should be building a declaration on. An open with nothing submitted yet
     still stamps "opened". */
-export async function pullPrecursorAnswers(workspaceId: string): Promise<string[]> {
+export async function pullPrecursorAnswers(
+  workspaceId: string,
+): Promise<string[]> {
   if (!apiConfigured()) return [];
-  const pulled = readJson<Record<string, number>>(PULLED_KEY, {});
+  await refreshAccountRecords();
+  const pulled = readJson<
+    Record<string, number | { stamp: number; versions: number }>
+  >(PULLED_KEY, {});
   const changed: string[] = [];
   for (const row of listSuppliers(workspaceId)) {
     const token = row.smartLinkToken;
     if (!isServerPrecursorToken(token)) continue;
     try {
-      const { state } = await request<{ state: LinkState }>(
-        `/api/v1/declarations/${encodeURIComponent(precursorDocId(workspaceId, row.id))}/submissions/${encodeURIComponent(token as string)}`,
+      const payload = await result(
+        api()
+          .api.v1.declarations({
+            declaration_id: encodeURIComponent(
+              precursorDocId(workspaceId, row.id),
+            ),
+          })
+          .submissions({ token: encodeURIComponent(token!) })
+          .get(),
       );
+      const state = decode(payload.state, isLinkState);
       const stamp = typeof state?.updatedAt === "number" ? state.updatedAt : 0;
-      if (!state || stamp <= (pulled[token as string] ?? 0)) continue;
-      if (mergeAnswer(workspaceId, row.id, state)) changed.push(row.id);
+      const previous = pulled[token as string];
+      const previousStamp =
+        typeof previous === "number" ? previous : (previous?.stamp ?? 0);
+      const previousVersions =
+        typeof previous === "number" ? 0 : (previous?.versions ?? 0);
+      const versionCount = Array.isArray(state?.versions)
+        ? state.versions.length
+        : 0;
+      // A draft and a submission can share a millisecond. The new version
+      // still needs to reach the exporter even if updatedAt did not move.
+      if (
+        !state ||
+        (stamp <= previousStamp && versionCount <= previousVersions)
+      )
+        continue;
+      if (versionCount > previousVersions && mergeAnswer(workspaceId, row.id))
+        changed.push(row.id);
       else if (state.slice && !row.smartLinkOpenedAt) {
-        saveSupplier({ ...row, smartLinkOpenedAt: new Date(stamp).toISOString() });
+        saveSupplier({
+          ...row,
+          smartLinkOpenedAt: new Date(stamp).toISOString(),
+        });
         changed.push(row.id);
       }
-      pulled[token as string] = stamp;
+      pulled[token as string] = { stamp, versions: versionCount };
     } catch (cause) {
       // One dead link (revoked, expired) must not stop the others.
       console.warn(`[precursor-links] could not pull ${row.id}:`, cause);
@@ -310,13 +413,23 @@ export async function pullPrecursorAnswers(workspaceId: string): Promise<string[
 export async function pullAllPrecursorAnswers(): Promise<number> {
   if (!apiConfigured()) return 0;
   let changed = 0;
-  for (const workspace of listWorkspaces()) changed += (await pullPrecursorAnswers(workspace.id)).length;
+  for (const workspace of listWorkspaces())
+    changed += (await pullPrecursorAnswers(workspace.id)).length;
   return changed;
 }
 
 /* ── Supplier: open, autosave, submit ──────────────────────────── */
 
-type Session = { token: string; workspaceId: string; nodeId: string; asker: string; state: LinkState; last: string };
+type Session = {
+  token: string;
+  workspaceId: string;
+  nodeId: string;
+  asker: string;
+  state: LinkState;
+  last: string;
+  writes: Promise<unknown>;
+  scope: string | null;
+};
 
 let session: Session | null = null;
 
@@ -328,31 +441,77 @@ function writeRow(workspaceId: string, node: Row): void {
   const rows = [...(store[workspaceId] ?? [])];
   const at = rows.findIndex((r) => r.id === node.id);
   if (at >= 0) rows[at] = { ...rows[at], ...node };
-  else rows.push({ parentId: null, isScrap: false, dataOrigin: "supplier_verified", monthlyQuantities: [], origin: "purchased", seeTco2ePerT: null, ...node, workspaceId });
+  else
+    rows.push({
+      parentId: null,
+      isScrap: false,
+      dataOrigin: "supplier_verified",
+      monthlyQuantities: [],
+      origin: "purchased",
+      seeTco2ePerT: null,
+      ...node,
+      workspaceId,
+    });
   store[workspaceId] = rows;
   writeJson(PRECURSORS_KEY, store);
 }
 
 /** Resolve a server-issued precursor link and load its row into this browser. */
-export async function openPrecursorLink(token: string): Promise<PrecursorLinkView | null> {
+export async function openPrecursorLink(
+  token: string,
+): Promise<PrecursorLinkView | null> {
+  const scope = publicScope();
+  const prior = session;
+  if (prior?.token === token && prior.scope === scope)
+    await prior.writes.catch(() => {});
   // Already open in this tab: this browser's copy is the newer one, and a
   // focus refetch re-applying the server's would undo typing since the last save.
-  if (session?.token === token) {
+  if (session?.token === token && session.scope === scope) {
     const open = getSupplier(session.workspaceId, session.nodeId);
-    if (open) return { workspaceId: session.workspaceId, node: open, asker: session.asker, server: true };
+    if (open)
+      return {
+        workspaceId: session.workspaceId,
+        node: open,
+        asker: session.asker,
+        server: true,
+      };
   }
-  const resolved = await request<Resolution>(`/api/v1/links/${encodeURIComponent(token)}`, { auth: false });
+  const response = await result(
+    api(false)
+      .api.v1.links({ token: encodeURIComponent(token) })
+      .get(),
+  ).catch((error: unknown) => {
+    if (
+      error instanceof ApiError &&
+      ["TOKEN_NOT_FOUND", "TOKEN_REVOKED", "TOKEN_EXPIRED"].includes(error.code)
+    )
+      return null;
+    throw error;
+  });
+  if (response === null) return null;
+  const resolved = decode(response, isResolution);
+  if (publicScope() !== scope || session !== prior) return null;
   const precursor = resolved.workspace?.precursor;
-  if (resolved.kind !== "workspace" || !precursor || typeof precursor.node?.id !== "string") return null;
+  if (
+    resolved.kind !== "workspace" ||
+    !precursor ||
+    typeof precursor.node?.id !== "string"
+  )
+    return null;
   const { workspaceId } = precursor;
   const nodeId = precursor.node.id;
 
   writeRow(workspaceId, precursor.node);
-  mergeEvidence(workspaceId, nodeId, precursor.evidence);
   // What they already typed wins over the exporter's snapshot.
   const saved = resolved.state?.slice;
   if (saved?.node) writeRow(workspaceId, { ...pick(saved.node), id: nodeId });
-  mergeEvidence(workspaceId, nodeId, saved?.evidence);
+  if (saved?.reportUnavailable)
+    writeRow(workspaceId, {
+      id: nodeId,
+      dataOrigin: "supplier_unverified",
+      supplierReportUnavailable: true,
+    });
+  mergeEvidence(workspaceId, nodeId, saved?.evidence ?? precursor.evidence);
 
   const node = getSupplier(workspaceId, nodeId);
   if (!node) return null;
@@ -363,6 +522,8 @@ export async function openPrecursorLink(token: string): Promise<PrecursorLinkVie
     asker: String(precursor.asker ?? ""),
     state: resolved.state ?? {},
     last: JSON.stringify(saved ?? null),
+    writes: Promise.resolve(),
+    scope,
   };
   return { workspaceId, node, asker: session.asker, server: true };
 }
@@ -372,64 +533,129 @@ async function uploadPendingFiles(s: Session): Promise<void> {
   const store = readJson<Record<string, Row[]>>(EVIDENCE_KEY, {});
   const items = store[s.workspaceId] ?? [];
   const key = evidenceKeyFor(s.nodeId);
-  let changed = false;
   for (const item of items) {
-    if (!Array.isArray(item.fieldKeys) || !(item.fieldKeys as unknown[]).includes(key)) continue;
-    if (item.serverFileId || typeof item.fileDataUrl !== "string" || typeof item.id !== "string") continue;
+    if (
+      !Array.isArray(item.fieldKeys) ||
+      !(item.fieldKeys as unknown[]).some(
+        (k) => typeof k === "string" && (k === key || k.startsWith(`${key}:`)),
+      )
+    )
+      continue;
+    if (item.serverFileId || typeof item.id !== "string") continue;
+    if (!item.fileDataUrl && !item.localFileId) continue;
     try {
-      const blob = await (await fetch(item.fileDataUrl)).blob();
-      const file = new File([blob], String(item.fileName ?? "evidence"), { type: blob.type });
+      const blob = await loadEvidenceFile({
+        fileDataUrl:
+          typeof item.fileDataUrl === "string" ? item.fileDataUrl : undefined,
+        localFileId:
+          typeof item.localFileId === "string" ? item.localFileId : undefined,
+      });
+      if (!blob)
+        throw new Error(
+          "The original attachment is unavailable. Attach it again.",
+        );
+      const file = new File([blob], String(item.fileName ?? "evidence"), {
+        type: blob.type,
+      });
       const stored = await uploadLinkFile(s.token, file, item.id);
-      item.serverFileId = stored.id;
-      changed = true;
+      assertCurrent(s);
+      const current = readJson<Record<string, Row[]>>(EVIDENCE_KEY, {});
+      current[s.workspaceId] = (current[s.workspaceId] ?? []).map((row) =>
+        row.id === item.id ? { ...row, serverFileId: stored.id } : row,
+      );
+      writeJson(EVIDENCE_KEY, current);
     } catch (cause) {
-      console.warn(`[precursor-links] ${String(item.fileName)} was not uploaded:`, cause);
+      throw new Error(
+        `Could not upload ${String(item.fileName)}: ${cause instanceof Error ? cause.message : "Please try again."}`,
+        { cause },
+      );
     }
   }
-  if (changed) writeJson(EVIDENCE_KEY, { ...store, [s.workspaceId]: items });
+  assertCurrent(s);
 }
 
 const sliceOf = (s: Session, draft: PrecursorSupplier) => ({
   node: pick(draft as unknown as Row),
   evidence: evidenceOf(s.workspaceId, s.nodeId),
+  reportUnavailable: draft.supplierReportUnavailable === true,
 });
 
-/** Save the supplier's draft if anything changed since the last save. The
-    form keeps its draft in React state, so it hands the draft in. */
-export async function savePrecursorDraft(draft: PrecursorSupplier): Promise<boolean> {
-  const s = session;
-  if (!s || draft.id !== s.nodeId) return false;
-  await uploadPendingFiles(s);
-  const slice = sliceOf(s, draft);
-  const serialised = JSON.stringify(slice);
-  if (serialised === s.last) return false;
-  const status = s.state.status === "submitted" ? "submitted" : "draft";
-  s.state = await request<LinkState>(`/api/v1/links/${encodeURIComponent(s.token)}/state`, {
-    method: "PUT",
-    body: { state: { ...s.state, status, slice } },
-    auth: false,
-  });
-  s.last = serialised;
-  return true;
+function assertCurrent(s: Session): void {
+  if (session !== s || publicScope() !== s.scope)
+    throw new Error("This precursor link changed. Reopen it before saving.");
 }
 
-/** Submit through the server, which stamps the version. The form has no
-    signatory fields, so the version is signed in the company's name. */
-export async function submitPrecursorLink(draft: PrecursorSupplier): Promise<void> {
+/** Autosave and submission run in order, including their attachment uploads. */
+function writeLink<T>(s: Session, action: () => Promise<T>): Promise<T> {
+  const job = s.writes
+    .catch(() => {})
+    .then(async () => {
+      assertCurrent(s);
+      return action();
+    });
+  s.writes = job;
+  return job;
+}
+
+/** Save the supplier's draft if anything changed since the last save. */
+export function savePrecursorDraft(draft: PrecursorSupplier): Promise<boolean> {
   const s = session;
-  if (!s || draft.id !== s.nodeId) return;
-  await uploadPendingFiles(s);
-  const slice = sliceOf(s, draft);
-  s.state = await request<LinkState>(`/api/v1/links/${encodeURIComponent(s.token)}/submit`, {
-    method: "POST",
-    body: {
-      state: { ...s.state, slice },
-      attestation: { signatoryName: draft.name || draft.installationName || "", signatoryRole: "Precursor supplier" },
-      check: null,
-    },
-    auth: false,
+  if (!s || draft.id !== s.nodeId || draft.workspaceId !== s.workspaceId)
+    return Promise.reject(
+      new Error("Reopen the precursor link before saving."),
+    );
+  const snapshot = structuredClone(draft);
+  return writeLink(s, async () => {
+    await uploadPendingFiles(s);
+    const slice = sliceOf(s, snapshot);
+    const serialised = JSON.stringify(slice);
+    if (serialised === s.last) return false;
+    const status = s.state.status === "submitted" ? "submitted" : "draft";
+    const state = decode(
+      await result(
+        api(false)
+          .api.v1.links({ token: encodeURIComponent(s.token) })
+          .state.put({ state: jsonDocument({ ...s.state, status, slice }) }),
+      ),
+      isLinkState,
+    );
+    assertCurrent(s);
+    s.state = state;
+    s.last = serialised;
+    return true;
   });
-  s.last = JSON.stringify(slice);
+}
+
+/** Submit through the server, which stamps the version in the company's name. */
+export async function submitPrecursorLink(
+  draft: PrecursorSupplier,
+): Promise<void> {
+  const s = session;
+  if (!s || draft.id !== s.nodeId || draft.workspaceId !== s.workspaceId)
+    throw new Error("Reopen the precursor link before submitting.");
+  const snapshot = structuredClone(draft);
+  await writeLink(s, async () => {
+    await uploadPendingFiles(s);
+    const slice = sliceOf(s, snapshot);
+    const state = decode(
+      await result(
+        api(false)
+          .api.v1.links({ token: encodeURIComponent(s.token) })
+          .submit.post({
+            state: jsonDocument({ ...s.state, slice }),
+            attestation: {
+              signatoryName: snapshot.name || snapshot.installationName || "",
+              signatoryRole: "Precursor supplier",
+            },
+            check: null,
+          }),
+      ),
+      isLinkState,
+    );
+    assertCurrent(s);
+    s.state = state;
+    s.last = JSON.stringify(slice);
+  });
 }
 
 /** Tests only. */

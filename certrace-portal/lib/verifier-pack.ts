@@ -1,3 +1,4 @@
+import { accountStorage } from "./account-storage";
 /* ════════════════════════════════════════════════════════════
    THE VERIFIER PACK (§A8)
 
@@ -26,13 +27,41 @@
    ════════════════════════════════════════════════════════════ */
 
 import { downloadFile } from "./download";
-import { getCarbonPrice, CARBON_PRICE_CLAIMED_NOTE, CARBON_PRICE_INSTRUMENT_LABEL } from "./carbon-price";
+import {
+  getCarbonPrice,
+  shareFraction,
+  CARBON_PRICE_CLAIMED_NOTE,
+  CARBON_PRICE_INSTRUMENT_LABEL,
+} from "./carbon-price";
 import { getOrgIdentity } from "./org";
-import { fuelTypeLabel, monthResult, monthsForWorkspace, MONTH_STATUS_LABEL, monthCounts } from "./monthly-data";
+import {
+  fuelTypeLabel,
+  monthResult,
+  monthsForWorkspace,
+  MONTH_STATUS_LABEL,
+  monthCounts,
+} from "./monthly-data";
 import { DATA_ORIGIN_LABEL } from "./precursor-suppliers";
-import { materiality, workspaceReadiness, TAB_LABEL, TAB_STATE_LABEL, type WorkspaceReadiness } from "./readiness";
-import { reconcileMass, shipmentsForWorkspace, shippedTonnesForWorkspace } from "./shipments";
-import { annualEvidence, EVIDENCE_SOURCE_LABEL, evidenceForMonth, isReviewed } from "./workspace-evidence";
+import {
+  materiality,
+  workspaceReadiness,
+  TAB_LABEL,
+  TAB_STATE_LABEL,
+  type WorkspaceReadiness,
+} from "./readiness";
+import {
+  reconcileMass,
+  shipmentsForWorkspace,
+  shippedTonnesForWorkspace,
+} from "./shipments";
+import {
+  annualEvidence,
+  CARBON_PRICE_KEY,
+  EVIDENCE_SOURCE_LABEL,
+  evidenceForMonth,
+  isReviewed,
+  listEvidence,
+} from "./workspace-evidence";
 import {
   finalVersionCovering,
   loadDraft,
@@ -50,7 +79,12 @@ import {
   readingFrequencyLabel,
 } from "./workspace-mmd";
 import { workspaceSEE } from "./workspace-see";
-import { monthName, routeLabel, workspaceTitle, type VerificationWorkspace } from "./workspace";
+import {
+  monthName,
+  routeLabel,
+  workspaceTitle,
+  type VerificationWorkspace,
+} from "./workspace";
 
 const esc = (v: unknown): string =>
   String(v ?? "")
@@ -60,9 +94,15 @@ const esc = (v: unknown): string =>
     .replace(/"/g, "&quot;");
 
 const num = (v: number, dp = 2): string =>
-  Number.isFinite(v) ? v.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: dp }) : "—";
+  Number.isFinite(v)
+    ? v.toLocaleString("en-GB", {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: dp,
+      })
+    : "—";
 
-const dash = (v: string | null | undefined): string => (v && String(v).trim() ? esc(v) : "—");
+const dash = (v: string | null | undefined): string =>
+  v && String(v).trim() ? esc(v) : "—";
 
 /** Print-optimised, self-contained. No external stylesheet, no webfont — the
     pack is opened from a downloads folder, often offline, sometimes printed
@@ -120,11 +160,18 @@ export class PackBlockedError extends Error {
   }
 }
 
-export function buildVerifierPack(ws: VerificationWorkspace, readiness?: WorkspaceReadiness): PackResult {
+export function buildVerifierPack(
+  ws: VerificationWorkspace,
+  readiness?: WorkspaceReadiness,
+): PackResult {
   const r = readiness ?? workspaceReadiness(ws);
 
   if (r.overall === "blocked") {
-    throw new PackBlockedError(r.tabs.filter((t) => t.state === "blocked").map((t) => `${TAB_LABEL[t.tab]}: ${t.blockingReason ?? "blocked"}`));
+    throw new PackBlockedError(
+      r.tabs
+        .filter((t) => t.state === "blocked")
+        .map((t) => `${TAB_LABEL[t.tab]}: ${t.blockingReason ?? "blocked"}`),
+    );
   }
 
   const draft = r.overall !== "complete";
@@ -137,12 +184,22 @@ export function buildVerifierPack(ws: VerificationWorkspace, readiness?: Workspa
      justified is an immutable snapshot in the old shape — that is the whole
      point of stamping it. So the pack migrates it on READ rather than editing
      the stored version, and a v1 from last year still renders. */
-  const mmdContent = mmd ? migrateMmd(mmd.content, ws.periodStart, ws.periodEnd) : loadDraft(ws.id, ws.periodStart, ws.periodEnd);
+  const mmdContent = mmd
+    ? migrateMmd(mmd.content, ws.periodStart, ws.periodEnd)
+    : loadDraft(ws.id, ws.periodStart, ws.periodEnd);
   const price = getCarbonPrice(ws.id);
+  /* The receipt is attached on the Evidence tab against the `carbon-price` key and the record's own pointer is only set for one linked directly —
+     the pack reads both, as readiness does, or it reports "not attached" beside a receipt that is. */
+  const carbonReceipt =
+    Boolean(price.evidenceItemId) ||
+    listEvidence(ws.id).some((i) => i.fieldKeys.includes(CARBON_PRICE_KEY.key));
   const mat = materiality(ws);
   const shipments = shipmentsForWorkspace(ws.id);
   const shipped = shippedTonnesForWorkspace(ws.id);
-  const recon = reconcileMass(shipped, see.production.tonnes > 0 ? see.production.tonnes : null);
+  const recon = reconcileMass(
+    shipped,
+    see.production.tonnes > 0 ? see.production.tonnes : null,
+  );
 
   const parts: string[] = [];
 
@@ -183,13 +240,20 @@ export function buildVerifierPack(ws: VerificationWorkspace, readiness?: Workspa
         mmdContent.processesIncluded.length
           ? // Numbered, because the order IS the claim: this is the sequence
             // material moves through the boundary, not an unordered set.
-            esc(mmdContent.processesIncluded.map((p, i) => `${i + 1}. ${p}`).join("  →  "))
+            esc(
+              mmdContent.processesIncluded
+                .map((p, i) => `${i + 1}. ${p}`)
+                .join("  →  "),
+            )
           : "—"
       }</dd>
       <dt>Processes excluded</dt><dd>${
         mmdContent.exclusions.length
           ? mmdContent.exclusions
-              .map((x) => `${esc(x.process)} — ${esc(exclusionGroundLabel(x))}${x.note.trim() ? `: ${esc(x.note)}` : ' <span class="warn-inline">(no ground given)</span>'}`)
+              .map(
+                (x) =>
+                  `${esc(x.process)} — ${esc(exclusionGroundLabel(x))}${x.note.trim() ? `: ${esc(x.note)}` : ' <span class="warn-inline">(no ground given)</span>'}`,
+              )
               .join("<br>")
           : "None declared"
       }</dd>
@@ -198,14 +262,21 @@ export function buildVerifierPack(ws: VerificationWorkspace, readiness?: Workspa
       <dt>Fuel types</dt><dd>${
         mmdContent.fuelTypeIds.length || mmdContent.fuelTypesOther.trim()
           ? esc(
-              [...mmdContent.fuelTypeIds.filter((f) => f !== "other").map((f) => fuelTypeLabel(f)), mmdContent.fuelTypesOther.trim()]
+              [
+                ...mmdContent.fuelTypeIds
+                  .filter((f) => f !== "other")
+                  .map((f) => fuelTypeLabel(f)),
+                mmdContent.fuelTypesOther.trim(),
+              ]
                 .filter(Boolean)
                 .join(", "),
             )
           : "—"
       }</dd>
       <dt>Electricity source</dt><dd>${esc(electricitySupplyLabel(mmdContent.electricitySupply, mmdContent.electricitySupplyOther))}${
-        mmdContent.electricityMeteringPoint.trim() ? ` · ${esc(mmdContent.electricityMeteringPoint)}` : ""
+        mmdContent.electricityMeteringPoint.trim()
+          ? ` · ${esc(mmdContent.electricityMeteringPoint)}`
+          : ""
       }</dd>
       <dt>Quality assurance</dt><dd>${esc(QUALITY_ASSURANCE_LABEL[mmdContent.qualityAssurance])}${mmdContent.reviewerName ? ` · reviewer ${esc(mmdContent.reviewerName)}` : ""}${mmdContent.reviewFrequency ? ` · ${esc(mmdContent.reviewFrequency)}` : ""}</dd>
       <dt>Installation diagram</dt><dd>${dash(mmdContent.diagramFileName)}</dd>
@@ -214,9 +285,8 @@ export function buildVerifierPack(ws: VerificationWorkspace, readiness?: Workspa
     <h3>Measurement methods</h3>
     <table>
       <thead><tr><th>Measures</th><th>Method</th><th>Parameter</th><th>Instrument</th><th>Reading frequency</th><th>Last calibration</th><th>Factor source</th><th>CEMS reference &amp; measurement point</th></tr></thead>
-      <tbody>${
-        (() => {
-          /* Fuels and electricity are separate lists now, and the pack says
+      <tbody>${(() => {
+        /* Fuels and electricity are separate lists now, and the pack says
              WHICH a row belongs to — a verifier sampling "the fuel meters"
              should not have to infer it from the parameter name. The CEMS
              column stays empty unless the row actually carries one.
@@ -225,23 +295,32 @@ export function buildVerifierPack(ws: VerificationWorkspace, readiness?: Workspa
              Annex II B.2 of IR (EU) 2025/2547 lets the two be combined per
              source stream, so "which of these is the CEMS" is a question the
              table has to answer rather than one summarised away above it. */
-          const rows: { kind: string; m: (typeof mmdContent.fuelInstruments)[number] }[] = [
-            ...mmdContent.fuelInstruments.map((m) => ({ kind: "Fuel", m })),
-            ...mmdContent.electricityInstruments.map((m) => ({ kind: "Electricity", m })),
-          ];
-          if (rows.length === 0) return `<tr><td colspan="8" class="muted">No measurement methods recorded.</td></tr>`;
-          return rows
-            .map(({ kind, m }) => {
-              const cems = [m.cemsCalibrationRef, m.measurementPointLocation].filter((v) => v && String(v).trim()).join(" · ");
-              const method = DIRECT_METHOD_LABEL[m.directMethod ?? "calculation"];
-              return `<tr><td>${esc(kind)}</td><td>${esc(method)}</td><td>${dash(m.parameter)}</td><td>${dash(m.instrument)}</td><td>${dash(readingFrequencyLabel(m.readingFrequency, m.readingFrequencyOther))}</td><td>${dash(m.lastCalibration)}</td><td>${esc(FACTOR_SOURCE_LABEL[m.factorSource])}</td><td>${dash(cems)}</td></tr>`;
-            })
-            .join("");
-        })()
-      }</tbody>
+        const rows: {
+          kind: string;
+          m: (typeof mmdContent.fuelInstruments)[number];
+        }[] = [
+          ...mmdContent.fuelInstruments.map((m) => ({ kind: "Fuel", m })),
+          ...mmdContent.electricityInstruments.map((m) => ({
+            kind: "Electricity",
+            m,
+          })),
+        ];
+        if (rows.length === 0)
+          return `<tr><td colspan="8" class="muted">No measurement methods recorded.</td></tr>`;
+        return rows
+          .map(({ kind, m }) => {
+            const cems = [m.cemsCalibrationRef, m.measurementPointLocation]
+              .filter((v) => v && String(v).trim())
+              .join(" · ");
+            const method = DIRECT_METHOD_LABEL[m.directMethod ?? "calculation"];
+            return `<tr><td>${esc(kind)}</td><td>${esc(method)}</td><td>${dash(m.parameter)}</td><td>${dash(m.instrument)}</td><td>${dash(readingFrequencyLabel(m.readingFrequency, m.readingFrequencyOther))}</td><td>${dash(m.lastCalibration)}</td><td>${esc(FACTOR_SOURCE_LABEL[m.factorSource])}</td><td>${dash(cems)}</td></tr>`;
+          })
+          .join("");
+      })()}</tbody>
     </table>
     ${
-      mmdContent.electricitySupply && isOwnGeneration(mmdContent.electricitySupply)
+      mmdContent.electricitySupply &&
+      isOwnGeneration(mmdContent.electricitySupply)
         ? `<p class="note${mmdContent.ownGenerationFuelDeclared ? "" : " warn"}">
              <strong>On-site generation.</strong> ${
                mmdContent.ownGenerationFuelDeclared
@@ -310,7 +389,10 @@ export function buildVerifierPack(ws: VerificationWorkspace, readiness?: Workspa
           <th class="n">${num(see.production.tonnes, 3)} t</th><th></th>
           <th class="n">${num(see.fuelTCO2, 2)} tCO₂</th>
           <th class="n">${num(see.processTCO2, 2)} tCO₂</th>
-          <th class="n">${num(counted.reduce((a, m) => a + m.electricityMwh, 0), 3)} MWh</th>
+          <th class="n">${num(
+            counted.reduce((a, m) => a + m.electricityMwh, 0),
+            3,
+          )} MWh</th>
           <th></th>
           <th class="n">${num(see.indirectTCO2, 2)} tCO₂</th>
         </tr>
@@ -398,7 +480,9 @@ export function buildVerifierPack(ws: VerificationWorkspace, readiness?: Workspa
             `<tr><td>Annual</td><td>${esc(item.fileName)}</td><td>${esc(EVIDENCE_SOURCE_LABEL[item.sourceType])}</td><td>${esc(item.fieldKeys.join(", "))}</td><td>${isReviewed(item) ? "Yes" : "<strong>No</strong>"}</td><td>${esc(item.capturedAt.slice(0, 10))}</td></tr>`,
           );
         }
-        return rows.length ? rows.join("") : `<tr><td colspan="6" class="muted">No evidence attached.</td></tr>`;
+        return rows.length
+          ? rows.join("")
+          : `<tr><td colspan="6" class="muted">No evidence attached.</td></tr>`;
       })()}</tbody>
     </table>
     <div class="note">"Reviewed = No" means an AI extraction proposed values that nobody has accepted yet. Those documents do not count toward evidence coverage — a figure is evidence only once a human tied it to the document.</div>`);
@@ -416,7 +500,7 @@ export function buildVerifierPack(ws: VerificationWorkspace, readiness?: Workspa
                   `<tr><td>${esc(s.date)}</td><td>${dash(s.invoiceRef)}</td><td>${esc(s.buyer)}</td><td>${dash(s.buyerEori)}</td><td class="n">${num(s.quantityTonnes, 3)} t</td><td class="n">${num(s.quantityTonnes * see.seeChargeable, 3)} tCO₂e</td></tr>`,
               )
               .join("")
-          : `<tr><td colspan="6" class="muted">No shipments assigned to this workspace.</td></tr>`
+          : `<tr><td colspan="6" class="muted">No shipments assigned to this product report.</td></tr>`
       }</tbody>
       <tfoot><tr><th colspan="4">Total</th><th class="n">${num(shipped, 3)} t</th><th class="n">${num(shipped * see.seeChargeable, 3)} tCO₂e</th></tr></tfoot>
     </table>
@@ -433,8 +517,11 @@ export function buildVerifierPack(ws: VerificationWorkspace, readiness?: Workspa
     <dl class="kv">
       <dt>Amount</dt><dd>${num(price.amountPerTonne, 2)} ${esc(price.currency)} per tCO₂e</dd>
       <dt>Instrument</dt><dd>${esc(CARBON_PRICE_INSTRUMENT_LABEL[price.instrument])}</dd>
-      <dt>Rebates / free allocation</dt><dd>${dash(price.rebates)}</dd>
-      <dt>Payment evidence</dt><dd>${price.evidenceItemId ? "Attached — see the evidence index" : price.amountPerTonne > 0 ? "<strong>Not attached</strong>" : "Not required (nothing claimed)"}</dd>
+      <dt>Share of emissions covered</dt><dd>${price.amountPerTonne > 0 ? (shareFraction(price) == null ? "<strong>Not recorded</strong>" : `${num((shareFraction(price) ?? 0) * 100, 1)}%`) : "Not required (nothing claimed)"}</dd>
+      <dt>Rebates / free allocation</dt><dd>${dash(price.rebates)}${price.rebateAmountPerTonne ? ` — ${num(price.rebateAmountPerTonne, 2)} ${esc(price.currency)} per tCO₂e` : ""}</dd>
+      <dt>Charged under</dt><dd>${price.amountPerTonne > 0 ? dash(price.legalBasis) : "Not required (nothing claimed)"}</dd>
+      <dt>Payment certified by</dt><dd>${price.amountPerTonne > 0 ? dash(price.certifiedBy) : "Not required (nothing claimed)"}</dd>
+      <dt>Payment evidence</dt><dd>${carbonReceipt ? "Attached — see the evidence index" : price.amountPerTonne > 0 ? "<strong>Not attached</strong>" : "Not required (nothing claimed)"}</dd>
       <dt>Recorded</dt><dd>${price.recorded ? esc(price.updatedAt.slice(0, 10)) : "Not yet recorded"}</dd>
     </dl>
     <div class="note">${esc(CARBON_PRICE_CLAIMED_NOTE)}</div>`);
@@ -456,7 +543,9 @@ export function buildVerifierPack(ws: VerificationWorkspace, readiness?: Workspa
         .map(
           (t) =>
             `<tr><td>${esc(TAB_LABEL[t.tab])}</td><td>${esc(TAB_STATE_LABEL[t.state])}</td><td>${
-              t.missing.length ? t.missing.map((m) => esc(m.label)).join("<br>") : `<span class="muted">—</span>`
+              t.missing.length
+                ? t.missing.map((m) => esc(m.label)).join("<br>")
+                : `<span class="muted">—</span>`
             }</td></tr>`,
         )
         .join("")}</tbody>
@@ -477,8 +566,15 @@ ${parts.join("\n")}
 </footer>
 </div></body></html>`;
 
-  const slug = `${ws.productName}-${ws.installationName}-${ws.year}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-  return { html, fileName: `verifier-pack-${slug}${draft ? "-draft" : ""}.html`, draft };
+  const slug = `${ws.productName}-${ws.installationName}-${ws.year}`
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  return {
+    html,
+    fileName: `verifier-pack-${slug}${draft ? "-draft" : ""}.html`,
+    draft,
+  };
 }
 
 /* The installation behind a precursor node. Looked up rather than carried on
@@ -488,18 +584,26 @@ ${parts.join("\n")}
 function nodeInstallation(workspaceId: string, nodeId: string): string {
   if (typeof window === "undefined") return "—";
   try {
-    const raw = window.localStorage.getItem("certrace:precursor-suppliers");
+    const raw = accountStorage.getItem("certrace:precursor-suppliers");
     if (!raw) return "—";
-    const store = JSON.parse(raw) as Record<string, { id: string; installationName?: string; country?: string }[]>;
+    const store = JSON.parse(raw) as Record<
+      string,
+      { id: string; installationName?: string; country?: string }[]
+    >;
     const row = (store[workspaceId] ?? []).find((s) => s.id === nodeId);
     if (!row) return "—";
-    return [row.installationName, row.country].filter(Boolean).join(", ") || "—";
+    return (
+      [row.installationName, row.country].filter(Boolean).join(", ") || "—"
+    );
   } catch {
     return "—";
   }
 }
 
-export function downloadVerifierPack(ws: VerificationWorkspace, readiness?: WorkspaceReadiness): PackResult {
+export function downloadVerifierPack(
+  ws: VerificationWorkspace,
+  readiness?: WorkspaceReadiness,
+): PackResult {
   const pack = buildVerifierPack(ws, readiness);
   downloadFile(pack.fileName, pack.html, "text/html");
   return pack;

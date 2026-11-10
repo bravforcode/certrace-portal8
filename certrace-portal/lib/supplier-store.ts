@@ -1,3 +1,4 @@
+import { accountStorage } from "./account-storage";
 /* ════════════════════════════════════════════════════════════
    SUPPLIER PORTAL — answer + workspace state (the smartlink, persisted)
 
@@ -62,7 +63,12 @@ export type Seat = {
   invitedAt: number;
 };
 
-export type SubmissionStatus = "new" | "draft" | "in_check" | "submitted" | "revision_requested";
+export type SubmissionStatus =
+  | "new"
+  | "draft"
+  | "in_check"
+  | "submitted"
+  | "revision_requested";
 
 export type Version = {
   n: number;
@@ -79,8 +85,20 @@ export type Version = {
     signatures, timestamps, versions, and AI validation results"). Appended as
     it happens, never derived at render time, so it survives across sessions
     and can be embedded verbatim in the exporter's verification-ready package. */
-export type TrailEventKind = "doc_upload" | "doc_remove" | "check_run" | "submit" | "revision_requested" | "carried_forward" | "access_changed";
-export type TrailEvent = { id: string; at: number; kind: TrailEventKind; text: string };
+export type TrailEventKind =
+  | "doc_upload"
+  | "doc_remove"
+  | "check_run"
+  | "submit"
+  | "revision_requested"
+  | "carried_forward"
+  | "access_changed";
+export type TrailEvent = {
+  id: string;
+  at: number;
+  kind: TrailEventKind;
+  text: string;
+};
 
 /** Values this draft was seeded with from the supplier's own saved record
     (lib/supplier-records.ts) rather than typed for this request. Kept on the
@@ -146,7 +164,7 @@ export function emptyState(token: string): SupplierState {
 export function loadState(token: string): SupplierState {
   if (typeof window === "undefined") return emptyState(token);
   try {
-    const raw = window.localStorage.getItem(keyFor(token));
+    const raw = accountStorage.getItem(keyFor(token));
     if (!raw) return emptyState(token);
     const parsed = JSON.parse(raw) as SupplierState;
     return { ...emptyState(token), ...parsed, token };
@@ -158,7 +176,10 @@ export function loadState(token: string): SupplierState {
 export function saveState(state: SupplierState): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(keyFor(state.token), JSON.stringify({ ...state, updatedAt: Date.now() }));
+    accountStorage.setItem(
+      keyFor(state.token),
+      JSON.stringify({ ...state, updatedAt: Date.now() }),
+    );
   } catch {
     /* ignore quota / serialization — never break the supplier's flow */
   }
@@ -167,7 +188,7 @@ export function saveState(state: SupplierState): void {
 export function resetState(token: string): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.removeItem(keyFor(token));
+    accountStorage.removeItem(keyFor(token));
   } catch {
     /* ignore */
   }
@@ -175,37 +196,57 @@ export function resetState(token: string): void {
 
 /* What the exporter side reads — a tiny, dependency-free status probe so the
    Collect step can reflect "submitted" the moment the supplier signs. */
-export function getSubmissionStatus(token: string): { status: SubmissionStatus; version: number; score: number | null } {
+export function getSubmissionStatus(token: string): {
+  status: SubmissionStatus;
+  version: number;
+  score: number | null;
+} {
   const s = loadState(token);
   const latest = s.versions[s.versions.length - 1];
-  return { status: s.status, version: latest?.n ?? 0, score: latest?.score ?? null };
+  return {
+    status: s.status,
+    version: latest?.n ?? 0,
+    score: latest?.score ?? null,
+  };
 }
 
 /* Reusable company profiles — the "no re-typing identity next time" story. */
 export function loadProfiles(): Record<string, SupplierProfile> {
   if (typeof window === "undefined") return {};
   try {
-    return JSON.parse(window.localStorage.getItem(PROFILE_KEY) || "{}");
+    return JSON.parse(accountStorage.getItem(PROFILE_KEY) || "{}");
   } catch {
     return {};
   }
 }
-export function saveProfileFor(company: string, profile: SupplierProfile): void {
+export function saveProfileFor(
+  company: string,
+  profile: SupplierProfile,
+): void {
   if (typeof window === "undefined") return;
   try {
     const all = loadProfiles();
     all[company] = profile;
-    window.localStorage.setItem(PROFILE_KEY, JSON.stringify(all));
+    accountStorage.setItem(PROFILE_KEY, JSON.stringify(all));
   } catch {
     /* ignore */
   }
 }
 
 export const uid = () =>
-  typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
 /** Append one real verification event — the single write path so every entry point
     (supplier actions, exporter-initiated revisions) logs the same shape. */
-export function pushEvent(state: SupplierState, kind: TrailEventKind, text: string): SupplierState {
-  return { ...state, events: [...state.events, { id: uid(), at: Date.now(), kind, text }] };
+export function pushEvent(
+  state: SupplierState,
+  kind: TrailEventKind,
+  text: string,
+): SupplierState {
+  return {
+    ...state,
+    events: [...state.events, { id: uid(), at: Date.now(), kind, text }],
+  };
 }

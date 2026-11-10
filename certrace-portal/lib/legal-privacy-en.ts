@@ -1,0 +1,70 @@
+// English translation of the Thai privacy policy captured in legal-documents.json.
+// Sections and items must stay in the same order as the published Thai copy.
+export const PRIVACY_EN: string[][] = [
+  [
+    "Introduction",
+    "This Privacy Policy is prepared by the CERTRACE startup group (the ‘CERTRACE’ platform), operated by a group of Thai developers who began by supporting Thai businesses exporting goods to the European Union (EU) in compliance with the Carbon Border Adjustment Mechanism (CBAM).",
+    "CERTRACE respects individual rights and values the protection of users’ personal data. This Privacy Policy explains how CERTRACE collects, uses, discloses, and manages your personal data, for what purposes, and what legal rights you have in relation to that data under Thailand’s Personal Data Protection Act B.E. 2562 (2019).",
+    "This Privacy Policy covers CERTRACE services provided through its website and other channels to customers and people who contact CERTRACE. It does not apply to CERTRACE employees or job applicants. By using CERTRACE services through any channel or providing information to CERTRACE, you acknowledge CERTRACE’s practices described in this Privacy Policy.",
+    "CERTRACE aims to keep its services current, effective, and compliant with good governance and applicable law. CERTRACE may therefore revise this Privacy Policy from time to time. Please check it periodically for the latest version.",
+  ],
+  [
+    "1. Where CERTRACE collects your personal data",
+    "1.1 Directly from you, such as information entered when you register for services or membership, account information and updates you make to it, information from your contact with CERTRACE or its team or representatives, information from other user accounts, your use of CERTRACE products or services, and your contact, visits, and searches through CERTRACE’s website and other channels.",
+    "1.2 From third parties, such as government agencies, financial institutions, agents, brokers and other intermediaries, business partners, and data providers, to keep your personal data current and improve the quality and effectiveness of CERTRACE products and services.",
+  ],
+  [
+    "2. Cookies and other tracking technologies",
+    "CERTRACE uses cookies and other tracking technologies to collect information such as browser type, time spent using online services, pages visited, referring URLs, language settings, and other computer traffic data. This supports security, website usability, effective display of information, statistics, and an experience tailored to your needs while using its website and applications.",
+    "CERTRACE also uses cookies to track responses to online advertising and marketing emails.",
+  ],
+  [
+    "3. Personal data CERTRACE may collect",
+    "3.1 Personal information such as your full name, age, date of birth, sex, nationality, national ID number, passport number or other government-issued identity information, postal address, workplace, phone number, email address, LINE ID, IP address, Cookie ID, browser data, and other information about devices used to access CERTRACE’s website, applications, and other communication channels.",
+    "3.2 Information about internet, application, or other electronic network activity, such as your browsing, search, and interaction history with CERTRACE’s website or advertisements, and information collected through cookies, pixel tags, and other tracking technologies.",
+    "3.3 Financial information, such as bank account numbers, financial transactions, and tax documents related to transactions between you and CERTRACE.",
+    "Identity documents: If CERTRACE requests a copy of an identity document, such as a national ID card, passport, or other document, it may contain sensitive personal data such as religion or blood type. CERTRACE does not wish to collect that information and asks you to cross it out or obscure it. If you do not, CERTRACE will regard this as permission to obscure it; the document remains valid and effective. If CERTRACE cannot obscure it because of certain limitations, CERTRACE confirms it will collect and use the document only to verify identity and does not intend to collect or use the sensitive personal data shown in it.",
+  ],
+  [
+    "4. How long personal data is retained",
+    "CERTRACE retains your personal data for as long as necessary to complete the purposes stated in this Privacy Policy, unless the law requires or permits longer retention. This may be approximately 5–10 years or longer where necessary, for example during a statutory limitation period, for legal proceedings, or for inspection by a regulator.",
+  ],
+  [
+    "5. Purposes for collecting personal data",
+    "5.1 To provide the services you need. CERTRACE uses your personal data to provide services for your purposes under a contract or as you request, including the following:",
+    "5.1.1 Actions related to providing products or services, such as processing, contacting and notifying you, assigning work to external service providers, and transferring rights or obligations.",
+    "If you refuse to provide information, CERTRACE may be unable to provide you with products or services.",
+    "5.2 To comply with legal obligations, including tax, anti-money laundering, computer, and bankruptcy laws. CERTRACE collects, uses, or discloses personal data such as information about directors, authorized signatories, representatives of corporate customers, and persons under court receivership orders. CERTRACE must also comply with orders from legally authorized agencies or officials and may need to cooperate with relevant agencies abroad. If you refuse to provide information, CERTRACE may be unable to provide you with products or services.",
+    "5.3 For the legitimate interests of CERTRACE or another person or legal entity.",
+    "5.3.1 Maintaining customer relationships, such as handling complaints, assessing satisfaction, customer care by CERTRACE staff, and periodically communicating about or offering products or services similar to those you already have with CERTRACE that may benefit you.",
+    "5.3.2 Business purposes, such as collecting personal data for statistical analysis or CERTRACE publicity, including recording images or audio at meetings, training sessions, presentations, or booths.",
+    "If you refuse to provide information, CERTRACE may be unable to serve you as effectively or to provide some products.",
+    "5.4 To provide benefits from products or services for which you have given consent, such as improved services suited to your needs, offers, special benefits, advice, news, and opportunities to join special activities.",
+    "If you refuse to provide information, CERTRACE may be unable to serve you as effectively or to provide some products.",
+  ],
+  [
+    "6. Who CERTRACE shares data with",
+    "CERTRACE will not disclose personal data to anyone without your prior consent. However, you acknowledge and agree that, to provide services effectively or comply with the law, CERTRACE may disclose your personal data to:",
+    "1) Business partners",
+    "2) Data processing service providers in Thailand and abroad",
+    "3) Government agencies or officials exercising legal authority",
+    "When disclosing personal data to these parties, CERTRACE will make reasonable efforts to require them to keep it confidential and use it for specified purposes. CERTRACE is not responsible for breaches, losses, or damage caused by their actions or negligence.",
+    "Personal data CERTRACE receives from you is stored in data centers (cloud services) of third-party data processors with servers in Thailand and abroad. Transfers to these processors support secure storage, backups, data retrieval, and service delivery. CERTRACE carefully selects providers and has agreements with them on data security and the scope of processing. By providing CERTRACE with personal data, you consent to cross-border transfers and storage abroad for these purposes.",
+    "If you believe a party to whom CERTRACE has disclosed your personal data has used it beyond the purposes CERTRACE specified, you may notify CERTRACE using the contact details in this Privacy Policy so that it can take appropriate action.",
+    "CERTRACE may also disclose data to government agencies, service regulators, or regulators of users; in response to lawful requests, including requests for litigation or legal proceedings from private entities or other third parties involved in legal processes; where reasonably necessary to enforce CERTRACE’s service terms; or in a restructuring or sale of the business. CERTRACE may transfer some or all of the personal data it has collected to a related CERTRACE entity.",
+  ],
+  [
+    "7. Your rights over your personal data",
+    "7.1 Correcting or deleting personal data",
+    "You have the right to: (1) withdraw consent for the company to process your personal data; (2) access and obtain a copy of personal data the company has collected, used, or disclosed; (3) request transfer of your personal data; (4) object to its processing; (5) request its deletion, destruction, or anonymization; (6) request suspension of its use; (7) request correction so it is accurate, current, complete, and not misleading; and (8) complain if you believe the company, its staff, or its representatives have violated your rights under Thailand’s Personal Data Protection Act B.E. 2562 (2019).",
+    "Requests to exercise these rights must be made in writing. The company will make its best efforts to respond within a reasonable time and no later than the legal deadline, in accordance with laws governing your rights as a data subject. Your rights under section 7.1 may be limited by applicable law. In some cases, we may need to refuse or be unable to fulfill a request, for example to comply with law or a court order, protect the public interest, or avoid infringing another person’s rights or freedoms. If we refuse, we will explain why. The company reserves the right to charge necessary fees related to handling your requested personal data.",
+    "Even after CERTRACE fulfills a user’s request, the data may remain recorded or copied on CERTRACE servers or backup systems to recover from errors, defects, or system failures.",
+  ],
+  [
+    "Contact CERTRACE",
+    "If you have questions or suggestions about CERTRACE’s practices for handling personal data, contact CERTRACE through the following channels:",
+    "Email: contact@certrace.co",
+    "LINE ID: @104lkswh",
+    "This policy was last updated on 23 September 2026.",
+  ],
+];

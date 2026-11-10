@@ -30,10 +30,13 @@
    ════════════════════════════════════════════════════════════ */
 
 import { apiConfigured } from "./api/config";
-import { markReminderSent, registerReminderSubject, answerReminderSubject } from "./api/reminders";
+import {
+  markReminderSent,
+  registerReminderSubject,
+  answerReminderSubject,
+} from "./api/reminders";
 import { getWorkspace, monthNameLong, scheduleFor } from "./workspace";
 import { effectiveDueDay, dispatchFor } from "./month-dispatch";
-import { makeWorkspaceToken } from "./workspace-link";
 import { getSupplierCompany } from "./supplier-companies";
 import { writeBlocked } from "./plan";
 import { ensureWorkspaceLink } from "./workspace-link-sync";
@@ -42,22 +45,25 @@ import { ensureWorkspaceLink } from "./workspace-link-sync";
 
     Stable across re-sends by construction: a new id every night would make
     every rung of the ladder look unsent and re-send the whole thing. */
-export const reminderSubjectKey = (workspaceId: string, month: string): string => `w:${workspaceId}:${month}`;
+export const reminderSubjectKey = (
+  workspaceId: string,
+  month: string,
+): string => `w:${workspaceId}:${month}`;
 
 /** The deadline a month is actually due on: `dueDay` of the month AFTER the
     one being reported, using the day it was sent under where one exists.
     Mirrors `monthDue` in lib/smart-links.ts — same rule, same answer. */
-function dueDateFor(workspaceId: string, month: string, scheduleDueDay: number): string {
+function dueDateFor(
+  workspaceId: string,
+  month: string,
+  scheduleDueDay: number,
+): string {
   const [year, monthNumber] = month.split("-").map(Number);
   const day = effectiveDueDay(dispatchFor(workspaceId, month), scheduleDueDay);
   // `monthNumber` is 1-based, so this Date lands in the FOLLOWING month.
   const due = new Date(year, monthNumber, day);
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${due.getFullYear()}-${pad(due.getMonth() + 1)}-${pad(due.getDate())}`;
-}
-
-function absoluteLink(path: string): string {
-  return typeof window === "undefined" ? path : `${window.location.origin}${path}`;
 }
 
 /** Everything the server needs, or null when this ask cannot be chased.
@@ -71,13 +77,15 @@ export function reminderSubjectFor(
   month: string,
   locale?: string,
   linkUrl?: string,
-): { key: string; body: Record<string, unknown> } | null {
+): { key: string; body: Parameters<typeof registerReminderSubject>[1] } | null {
   const workspace = getWorkspace(workspaceId);
   if (!workspace || workspace.selfSupplied) return null;
 
-  const supplier = workspace.supplierId ? getSupplierCompany(workspace.supplierId) : null;
+  const supplier = workspace.supplierId
+    ? getSupplierCompany(workspace.supplierId)
+    : null;
   const recipient = supplier?.contactEmail?.trim();
-  if (!recipient) return null;
+  if (!recipient || !linkUrl) return null;
 
   return {
     key: reminderSubjectKey(workspaceId, month),
@@ -86,9 +94,7 @@ export function reminderSubjectFor(
       supplierName: workspace.supplierName || supplier?.name || "Supplier",
       periodLabel: monthNameLong(month),
       dueDate: dueDateFor(workspaceId, month, scheduleFor(workspace).dueDay),
-      // The server-issued link when there is one: a local token opens a form
-      // whose answers stay in whichever browser filled it in.
-      linkUrl: linkUrl ?? absoluteLink(`/w/${makeWorkspaceToken(workspaceId, month)}`),
+      linkUrl,
       locale,
       // The ladder still has something to say to a supplier whose customer is
       // frozen; what it must not do is walk them to a form that cannot accept
@@ -99,11 +105,20 @@ export function reminderSubjectFor(
 }
 
 /** Register the ask and record that it went out. Safe to call every send. */
-export async function registerMonthSent(workspaceId: string, month: string, locale?: string): Promise<void> {
+export async function registerMonthSent(
+  workspaceId: string,
+  month: string,
+  locale?: string,
+): Promise<void> {
   if (!apiConfigured()) return;
   try {
     const url = await ensureWorkspaceLink(workspaceId, month);
-    const subject = reminderSubjectFor(workspaceId, month, locale, url ?? undefined);
+    const subject = reminderSubjectFor(
+      workspaceId,
+      month,
+      locale,
+      url ?? undefined,
+    );
     if (!subject) return;
     await registerReminderSubject(subject.key, subject.body);
     await markReminderSent(subject.key);
@@ -111,12 +126,18 @@ export async function registerMonthSent(workspaceId: string, month: string, loca
     /* See the header: the month is sent whatever happens here. Logged rather
        than swallowed silently, because "why was this never chased" is a real
        question someone will ask a fortnight later. */
-    console.warn(`[reminders] ${reminderSubjectKey(workspaceId, month)} was not registered:`, cause);
+    console.warn(
+      `[reminders] ${reminderSubjectKey(workspaceId, month)} was not registered:`,
+      cause,
+    );
   }
 }
 
 /** Stop chasing a month that has been answered. */
-export async function registerMonthAnswered(workspaceId: string, month: string): Promise<void> {
+export async function registerMonthAnswered(
+  workspaceId: string,
+  month: string,
+): Promise<void> {
   if (!apiConfigured()) return;
   try {
     await answerReminderSubject(reminderSubjectKey(workspaceId, month));
@@ -125,6 +146,9 @@ export async function registerMonthAnswered(workspaceId: string, month: string):
        chased for a month they have already sent. The nightly run stops at the
        end of the ladder, so it is bounded, but it is still an email nobody
        should receive, and it is worth being able to find in a log. */
-    console.warn(`[reminders] ${reminderSubjectKey(workspaceId, month)} was not closed:`, cause);
+    console.warn(
+      `[reminders] ${reminderSubjectKey(workspaceId, month)} was not closed:`,
+      cause,
+    );
   }
 }

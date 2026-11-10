@@ -37,7 +37,11 @@ import { ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/components/ui";
 import { computeNodeStatus } from "@/lib/supplier-tree";
 import { getSupplier } from "@/lib/precursor-suppliers";
-import { ChainDocumentActions, ChainJourneyActions, type ChainRowActions } from "@/components/chain-actions";
+import {
+  ChainDocumentActions,
+  ChainJourneyActions,
+  type ChainRowActions,
+} from "@/components/chain-actions";
 import { ScoreChip } from "@/components/chain-status";
 import { ValueTypeBadge } from "@/components/precursor/status-chips";
 import type { NodeStatus, TreeNode } from "@/types/supplier-tree";
@@ -47,9 +51,11 @@ const STATUS_STYLE: Record<NodeStatus, string> = {
   NOT_SENT: "border-black/[0.08] bg-black/[0.02] text-black/40",
   SENT_PENDING: "border-[rgba(161,98,7,0.18)] bg-[#fefce8] text-[#a16207]",
   IN_PROGRESS: "border-[rgba(29,78,216,0.18)] bg-[#eff6ff] text-[#1d4ed8]",
-  SUBMITTED_PENDING_VERIFICATION: "border-[rgba(124,58,237,0.18)] bg-[#f5f3ff] text-[#7c3aed]",
+  SUBMITTED_PENDING_VERIFICATION:
+    "border-[rgba(124,58,237,0.18)] bg-[#f5f3ff] text-[#7c3aed]",
   VERIFIED: "border-[rgba(5,150,105,0.18)] bg-[#ecfdf5] text-[#047857]",
-  VERIFICATION_EXPIRED: "border-[rgba(180,83,9,0.18)] bg-[#fffbeb] text-[#b45309]",
+  VERIFICATION_EXPIRED:
+    "border-[rgba(180,83,9,0.18)] bg-[#fffbeb] text-[#b45309]",
   BLOCKED: "border-[rgba(220,38,38,0.18)] bg-[#fef2f2] text-[#dc2626]",
 };
 
@@ -99,7 +105,13 @@ export function NodeStatusBadge({ node }: { node: TreeNode }) {
    compliance-relevant and was not previously shown anywhere on the Tree
    page; this is the one piece Step A of the pre-removal check found
    missing. */
-function NodeValueTypeBadge({ workspaceId, nodeId }: { workspaceId: string; nodeId: string }) {
+function NodeValueTypeBadge({
+  workspaceId,
+  nodeId,
+}: {
+  workspaceId: string;
+  nodeId: string;
+}) {
   const supplier = getSupplier(workspaceId, nodeId);
   if (!supplier) return null;
   return <ValueTypeBadge node={supplier} />;
@@ -155,7 +167,10 @@ export function TreeNodeCard({
     // The id is what the sidebar's chain links scroll to (?node=<id> on the
     // Tree page) — getElementById rather than a CSS selector, because node
     // ids carry ":" and "~" and would need escaping in one.
-    <div id={`tree-node-${node.id}`} className="scroll-mt-32 rounded-xl border border-black/[0.07] bg-white">
+    <div
+      id={`tree-node-${node.id}`}
+      className="scroll-mt-32 rounded-xl border border-black/[0.07] bg-white"
+    >
       <div className="flex items-start gap-3 p-4">
         {hasChildren ? (
           <button
@@ -164,7 +179,11 @@ export function TreeNodeCard({
             className="mt-0.5 flex-none rounded-lg p-1 text-black/35 hover:bg-black/[0.04] hover:text-black"
             aria-label={open ? "Collapse" : "Expand"}
           >
-            {open ? <ChevronDown size={15} strokeWidth={1.5} /> : <ChevronRight size={15} strokeWidth={1.5} />}
+            {open ? (
+              <ChevronDown size={15} strokeWidth={1.5} />
+            ) : (
+              <ChevronRight size={15} strokeWidth={1.5} />
+            )}
           </button>
         ) : (
           <span className="mt-0.5 w-[27px] flex-none" />
@@ -172,7 +191,9 @@ export function TreeNodeCard({
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[10.5px] uppercase tracking-[0.08em] text-black/35">{TIER_LABEL(node.tier, node.kind)}</span>
+            <span className="text-[10.5px] uppercase tracking-[0.08em] text-black/35">
+              {TIER_LABEL(node.tier, node.kind)}
+            </span>
             {/* The root carries a status too. It used to be a grouping with
                 no reporting year, so it had nothing to be; now it IS the
                 product's workspace, and computeNodeStatus reads that
@@ -181,7 +202,12 @@ export function TreeNodeCard({
             <NodeStatusBadge node={node} />
             {/* The score, not the checklist — see the note above TreeNodeCard. */}
             <ScoreChip node={node} />
-            {isPrecursor && node.workspaceId && <NodeValueTypeBadge workspaceId={node.workspaceId} nodeId={node.id} />}
+            {isPrecursor && node.workspaceId && (
+              <NodeValueTypeBadge
+                workspaceId={node.workspaceId}
+                nodeId={node.id}
+              />
+            )}
             {node.cyclicReference && (
               <span className="rounded-full border border-[rgba(220,38,38,0.18)] bg-[#fef2f2] px-2.5 py-1 text-[10px] uppercase tracking-[0.08em] text-[#dc2626]">
                 {t("Cycle detected — chain not shown")}
@@ -193,16 +219,24 @@ export function TreeNodeCard({
               button: nothing about a name announces where it goes, and the
               destination changed by node kind. Every way out of this row is
               now in the action bar below, spelled out. */}
-          <div className="mt-1.5 truncate text-[15px] text-black/80" title={node.name}>
+          <div
+            className="mt-1.5 truncate text-[15px] text-black/80"
+            title={node.name}
+          >
             {node.name}
           </div>
           <div className="mt-0.5 font-mono text-[11.5px] text-black/40">
             {node.cnCode ? `CN ${node.cnCode}` : null}
             {node.cnCode && node.see != null ? " · " : null}
-            {node.see != null ? `${node.see.toFixed(4)} tCO₂e/${node.functionalUnit === "tonne" || !node.functionalUnit ? "t" : node.functionalUnit}` : null}
+            {node.see != null
+              ? `${node.see.toFixed(4)} tCO₂e/${node.functionalUnit === "tonne" || !node.functionalUnit ? "t" : node.functionalUnit}`
+              : null}
             {node.quantityRatio && (
               <span className="ml-2 text-black/35">
-                {node.quantityRatio.precursorMassConsumed.toLocaleString()}t consumed / {node.quantityRatio.outputMassProduced.toLocaleString()}t produced
+                {node.quantityRatio.precursorMassConsumed.toLocaleString()}t
+                consumed /{" "}
+                {node.quantityRatio.outputMassProduced.toLocaleString()}t
+                produced
               </span>
             )}
           </div>
@@ -225,7 +259,13 @@ export function TreeNodeCard({
             />
           )}
 
-          {wsId && <ChainDocumentActions node={node} workspaceId={wsId} className="mt-2" />}
+          {wsId && (
+            <ChainDocumentActions
+              node={node}
+              workspaceId={wsId}
+              className="mt-2"
+            />
+          )}
         </div>
       </div>
 

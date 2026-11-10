@@ -23,7 +23,10 @@ import { join } from "node:path";
    middleware skips (API routes, /_next/static), none of which are
    documents. */
 function securityHeadersFromFile(): { key: string; value: string }[] {
-  const raw = readFileSync(join(import.meta.dirname, "public", "_headers"), "utf8");
+  const raw = readFileSync(
+    join(import.meta.dirname, "public", "_headers"),
+    "utf8",
+  );
   const headers: { key: string; value: string }[] = [];
   let inGlobalBlock = false;
 
@@ -36,11 +39,16 @@ function securityHeadersFromFile(): { key: string; value: string }[] {
     if (!inGlobalBlock) continue;
     const separator = line.indexOf(":");
     if (separator === -1) continue;
-    headers.push({ key: line.slice(0, separator).trim(), value: line.slice(separator + 1).trim() });
+    headers.push({
+      key: line.slice(0, separator).trim(),
+      value: line.slice(separator + 1).trim(),
+    });
   }
 
   if (headers.length === 0) {
-    throw new Error("public/_headers produced no headers for the /* block — the build would ship unprotected.");
+    throw new Error(
+      "public/_headers produced no headers for the /* block — the build would ship unprotected.",
+    );
   }
   return headers;
 }
@@ -48,52 +56,27 @@ function securityHeadersFromFile(): { key: string; value: string }[] {
 const securityHeaders = securityHeadersFromFile();
 
 const nextConfig: NextConfig = {
+  // Release images are built only after the independent lint/type jobs pass.
+  // Ordinary local builds still perform both checks.
+  eslint: {
+    ignoreDuringBuilds: process.env.CERTRACE_CI_CHECKS_PASSED === "true",
+  },
+  typescript: {
+    ignoreBuildErrors: process.env.CERTRACE_CI_CHECKS_PASSED === "true",
+  },
   // Pin the workspace root (there's another lockfile in the home dir).
-  outputFileTracingRoot: import.meta.dirname,
-  /* Empty, not "1". This default is the real switch: it is inlined into the
-     bundle at build time, so defaulting it to "1" turned demoModeEnabled() on
-     for every build that did not explicitly say otherwise — including
-     portal.certrace.co, where it meant /login accepted any password. A demo
-     deployment opts in by setting NEXT_PUBLIC_DEMO_MODE=1 in its build env. */
-  env: {
-    NEXT_PUBLIC_DEMO_MODE: process.env.NEXT_PUBLIC_DEMO_MODE || "",
+  outputFileTracingRoot: join(import.meta.dirname, ".."),
+  output: "standalone",
+  async rewrites() {
+    return [
+      {
+        source: "/backend/:path*",
+        destination: `${process.env.BACKEND_INTERNAL_URL ?? "http://backend:8000"}/:path*`,
+      },
+    ];
   },
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
-  },
-  webpack(config, { isServer, nextRuntime, webpack }) {
-    /* The Anthropic SDK is used from the browser for evidence extraction
-       (lib/workspace-evidence.ts). Its credential chain lazily `import()`s
-       `node:fs` and `node:path` to resolve API keys from on-disk profiles —
-       a path that can never run in a browser, but which webpack still tries
-       to resolve and fails on with UnhandledSchemeError.
-
-       `resolve.fallback` alone does not fix it: a `node:` specifier is a URI
-       SCHEME, rejected before module resolution is reached. So the scheme is
-       first rewritten to the bare builtin name, which fallback then stubs out.
-
-       Stubbing is safe precisely because that code is unreachable in a
-       browser: the client is constructed with an explicit apiKey, so the
-       on-disk credential resolution is never entered. The NODE server build
-       keeps the real modules.
-
-       THE EDGE BUNDLE NEEDS THIS TOO, and that is not obvious: an edge route
-       is `isServer: true`, so the original `!isServer` guard skipped it — and
-       the edge runtime has no `node:fs` at all, so the build failed outright
-       the moment a route with `runtime = "edge"` pulled in anything that
-       reaches the SDK. Every dynamic route here is edge, because
-       `next-on-pages` requires it for Cloudflare, so the correct test is
-       "anything that is not the Node server". */
-    if (!isServer || nextRuntime === "edge") {
-      config.plugins.push(
-        new webpack.NormalModuleReplacementPlugin(/^node:(fs|path)$/, (resource: { request: string }) => {
-          resource.request = resource.request.replace(/^node:/, "");
-        }),
-      );
-      config.resolve = config.resolve ?? {};
-      config.resolve.fallback = { ...config.resolve.fallback, fs: false, path: false };
-    }
-    return config;
   },
 };
 

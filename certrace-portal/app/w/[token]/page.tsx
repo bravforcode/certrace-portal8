@@ -13,16 +13,19 @@ export const runtime = "edge";
    readings, precursors, documents, submit — and the person filling it in had
    no way to tell how much was left, no way to be sure they had finished a
    section, and every validation error arrived at the bottom after twenty
-   minutes of typing. Seven steps, in the order the work actually happens:
+   minutes of typing. Six steps, in the order the work actually happens:
 
      0 · Overview      who is asking, for what, and what it involves
-     1 · Installation  the exporter's record, correctable here
-     2 · Methodology   how these figures are produced
-     3 · Monthly data  the readings
-     4 · Precursors    what arrived from upstream
-     5 · Documents     what a verifier will ask to see
-     6 · Check         everything wrong with it, with jump links
-     7 · Sign          the internal authorisation
+     1 · Methodology   how these figures are produced
+     2 · Monthly data  the readings
+     3 · Documents     what a verifier will ask to see
+     4 · Check         everything wrong with it, with jump links
+     5 · Sign          the internal authorisation
+
+   WHAT IS NOT ASKED HERE: the installation's own record and the precursors
+   received. The plant is asked for what only the plant can read off its meters
+   each month; the site's identity is entered once by the exporter, and the
+   bought-in precursors are the exporter's (their Precursors tab).
 
    THE CHECK COMES BEFORE THE SIGNATURE AND AFTER THE UPLOAD. Both orderings
    are load-bearing: a check that runs before there is anywhere to attach a
@@ -38,13 +41,8 @@ export const runtime = "edge";
    month, and the fix has to be one click rather than a hunt for which fields
    were carried.
 
-   WHAT REACHES THE EXPORTER DEPENDS ON THE TOKEN. A server-issued link saves
-   every answer back to Certrace as the supplier types (the autosave effect
-   below, lib/workspace-link-sync.ts) and submits through the server. An old
-   base64 token (the demo, links sent before the server carried them) still
-   runs on this browser's stores alone and transmits nothing. The banner says
-   which one the reader is in; claiming delivery that is not happening would be
-   a lie the exporter acts on.
+   Only server-issued links resolve. The autosave effect below and
+   lib/workspace-link-sync.ts persist answers and submission through the server.
    ════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
@@ -60,7 +58,6 @@ import {
   Eraser,
   FileText,
   Flag,
-  FlaskConical,
   LockKeyhole,
   Gauge,
   Layers,
@@ -68,9 +65,9 @@ import {
   ShieldCheck,
   Sparkles,
   TriangleAlert,
-  Upload,
 } from "lucide-react";
 import { CertraceLogo } from "@/components/logo";
+import { LanguageSelect } from "@/components/language-select";
 import {
   AutoSaveBadge,
   Button,
@@ -89,38 +86,57 @@ import {
 import { Select } from "@/components/controls";
 import { toast, Toaster } from "@/components/toast";
 import { Note, fmt } from "@/components/workspace/chrome";
-import { DocumentsStep, InstallationStep, MmdStep, MonthlyStep, PrecursorStep, installationGaps } from "@/components/supplier/month-steps";
-import { SmartIntake, loadSampleFiles } from "@/components/intake/smart-intake";
-import { addFiles, intakeQueue, subscribeIntake } from "@/lib/smart-intake";
+import {
+  DocumentsStep,
+  MmdStep,
+  MonthlyStep,
+} from "@/components/supplier/month-steps";
+import { CeraProvider, useCera } from "@/components/cera/cera-provider";
+import { CeraButton } from "@/components/cera/cera-button";
+import { CeraPanel } from "@/components/cera/cera-panel";
+import { CeraMark } from "@/components/cera/cera-mark";
 import { AiFillRunBanner } from "@/components/intake/ai-badge";
-import { getMonth as getStoredMonth, saveMonth as saveStoredMonth } from "@/lib/monthly-data";
-import { emptyInstallation, missingFields, type Installation } from "@/lib/installations";
-import { coverageForMonth, reconcileFuelEvidence } from "@/lib/workspace-evidence";
+import { deriveMonth } from "@/lib/monthly-inputs";
+import {
+  coverageForMonth,
+  reconcileFuelEvidence,
+} from "@/lib/workspace-evidence";
 import { workspaceRequiresIndirectEmissions } from "@/lib/cbam/product-category-rules";
 import {
   emptyFuel,
   emptyMonth,
+  FUEL_TYPE_OTHER,
   fuelEvidenceKey,
   fuelTypeLabel,
   getMonth,
   monthResult,
   monthsForWorkspace,
   saveMonth,
-  submitMonth,
   type FuelEntry,
   type MonthlyEntry,
 } from "@/lib/monthly-data";
-import { KIND_BLURB, KIND_LABEL, STEP_LABEL, runMonthQualityCheck, type FindingKind, type QualityFinding } from "@/lib/month-quality";
-import { submitWithAttestation, type MonthSubmission } from "@/lib/month-submission";
-import { REVISION_CHIP, REVISION_RING, resolveAreas, type RevisionArea } from "@/lib/month-revision";
-import { type PrecursorSupplier } from "@/lib/precursor-suppliers";
+import {
+  ContentsBox,
+  AuthorisationHistory,
+} from "@/components/workspace/month-contents";
+import { runMonthQualityCheck, type ContentRow } from "@/lib/month-quality";
+import {
+  authorisationHistory,
+  type Attestation,
+  type MonthSubmission,
+} from "@/lib/month-submission";
+import {
+  REVISION_CHIP,
+  REVISION_RING,
+  resolveAreas,
+  type RevisionArea,
+} from "@/lib/month-revision";
 import { monthNameLong, routeLabel } from "@/lib/workspace";
 import { type WorkspaceRequest } from "@/lib/workspace-link";
 import { saveDraft, type WorkspaceMmdContent } from "@/lib/workspace-mmd";
 import { syncFromMmd, syncFromMonth } from "@/lib/mmd-sync";
-import { useInstallation, useSaveInstallation } from "@/lib/installations-query";
-import { usePrecursorSuppliers, useSavePrecursorSupplier } from "@/lib/suppliers-query";
 import {
+  useDispatches,
   useInvalidateWorkspaceData,
   useMmdDraft,
   useMonth,
@@ -131,15 +147,19 @@ import {
   useSubmission,
 } from "@/lib/workspace-data-query";
 import { useWorkspaceRequest } from "@/lib/workspaces-query";
-import { activeLinkSession, saveLinkIfChanged, submitWorkspaceLink } from "@/lib/workspace-link-sync";
+import {
+  activeLinkSession,
+  saveLinkIfChanged,
+  submitWorkspaceLink,
+} from "@/lib/workspace-link-sync";
 import { useT } from "@/lib/i18n";
+import { requestFocus } from "@/lib/cera/focus";
+import { isDeadLink } from "@/lib/api/errors";
 
 const STEPS = [
   { key: "overview", label: "Overview", icon: ClipboardList },
-  { key: "installation", label: "Installation", icon: Building2 },
   { key: "mmd", label: "Methodology", icon: Layers },
   { key: "monthly", label: "Monthly data", icon: Gauge },
-  { key: "precursors", label: "Precursors", icon: Layers },
   { key: "documents", label: "Documents", icon: FileText },
   { key: "check", label: "Check", icon: Sparkles },
   { key: "sign", label: "Sign", icon: PenLine },
@@ -148,25 +168,58 @@ const STEPS = [
 type StepKey = (typeof STEPS)[number]["key"];
 
 export default function WorkspaceSupplierPage() {
+  const t = useT();
   const params = useParams<{ token: string }>();
   const token = decodeURIComponent(params.token);
-  const { data: req } = useWorkspaceRequest(token);
+  const { data: req, error, refetch, isFetching } = useWorkspaceRequest(token);
 
-  if (req === undefined) return null;
+  if (isDeadLink(error)) return <Invalid />;
+  if (req === undefined)
+    return (
+      <Shell>
+        <p role={error ? "alert" : "status"} className="text-sm text-black/60">
+          {error
+            ? t(
+                "We could not load this request. Check your connection and try again.",
+              )
+            : t("Loading your request…")}
+        </p>
+        {error && (
+          <Button
+            className="mt-4"
+            disabled={isFetching}
+            onClick={() => void refetch()}
+          >
+            {t("Try again")}
+          </Button>
+        )}
+      </Shell>
+    );
   if (req === null) return <Invalid />;
   return <Flow req={req} />;
 }
 
-function Shell({ children }: { children: React.ReactNode }) {
+function Shell({
+  children,
+  cera,
+}: {
+  children: React.ReactNode /** the Cera button in the bar, and the panel it opens — only where there is a Cera provider above */;
+  cera?: boolean;
+}) {
   return (
     <div className="min-h-screen bg-[#f5f4f0]">
       <header className="sticky top-0 z-40 border-b border-black/[0.06] bg-[rgba(245,244,240,0.85)] backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-3xl items-center px-6">
+        <div className="mx-auto flex h-16 max-w-3xl items-center justify-between px-6">
           <CertraceLogo className="h-[18px] w-auto" />
+          <div className="flex items-center gap-2">
+            <LanguageSelect />
+            {cera && <CeraButton />}
+          </div>
         </div>
       </header>
       <main className="mx-auto max-w-3xl px-6 py-8">{children}</main>
       <Toaster />
+      {cera && <CeraPanel />}
     </div>
   );
 }
@@ -175,12 +228,16 @@ function Invalid() {
   const t = useT();
   return (
     <Shell>
-      <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white text-black/40 shadow-sm">
+      <span className="grid h-12 w-12 place-items-center rounded-2xl border border-black/[0.07] bg-white text-black/40">
         <ShieldCheck size={22} strokeWidth={1.5} />
       </span>
-      <h1 className="mt-5 font-[family-name:var(--font-plex)] text-2xl font-light tracking-tight text-[#111]">{t("This link looks invalid or expired.")}</h1>
+      <h1 className="mt-5 font-[family-name:var(--font-plex)] text-2xl font-light tracking-tight text-[#111]">
+        {t("This link looks invalid or expired.")}
+      </h1>
       <p className="mt-2 max-w-lg text-sm leading-relaxed text-black/50">
-        {t("Workspace links are personal to one installation and one reporting year. Ask the exporter who contacted you to resend it.")}
+        {t(
+          "Product report links are personal to one installation and one reporting year. Ask the exporter who contacted you to resend it.",
+        )}
       </p>
     </Shell>
   );
@@ -192,6 +249,9 @@ function Flow({ req }: { req: WorkspaceRequest }) {
 
   const [step, setStep] = React.useState<StepKey>("overview");
   const [month, setMonth] = React.useState(req.month);
+  const [linkSaveError, setLinkSaveError] = React.useState<string | null>(null);
+  const [documentsPending, setDocumentsPending] = React.useState(false);
+  const documentRevision = React.useRef(0);
 
   /* ── A server link saves itself ───────────────────────────────
      When this page was opened from a server-issued link, every store it
@@ -202,7 +262,21 @@ function Flow({ req }: { req: WorkspaceRequest }) {
      a supplier closes it. See lib/workspace-link-sync.ts. */
   React.useEffect(() => {
     if (!activeLinkSession()) return;
-    const save = () => void saveLinkIfChanged().catch((cause) => console.warn("[workspace-links] autosave failed:", cause));
+    const save = () => {
+      const revision = documentRevision.current;
+      void saveLinkIfChanged()
+        .then(() => {
+          setLinkSaveError(null);
+          if (documentRevision.current === revision) setDocumentsPending(false);
+        })
+        .catch((cause) =>
+          setLinkSaveError(
+            cause instanceof Error
+              ? cause.message
+              : "Your changes have not been saved. Please retry.",
+          ),
+        );
+    };
     const timer = window.setInterval(save, 3000);
     const onHide = () => {
       if (document.visibilityState === "hidden") save();
@@ -221,77 +295,43 @@ function Flow({ req }: { req: WorkspaceRequest }) {
      the key, which is what makes the month picker a real switch rather than
      a label. */
   const monthQ = useMonth(workspace.id, month);
-  const mmdQ = useMmdDraft(workspace.id, workspace.periodStart, workspace.periodEnd);
-  const installationQ = useInstallation(workspace.installationId);
-  const { data: supplierRows } = usePrecursorSuppliers(workspace.id);
+  const mmdQ = useMmdDraft(
+    workspace.id,
+    workspace.periodStart,
+    workspace.periodEnd,
+  );
   const { data: monthEvidence } = useMonthEvidence(workspace.id, month);
   const saveMonthMut = useSaveMonth();
   const saveMmdMut = useSaveMmdDraft();
-  const saveInstallationMut = useSaveInstallation();
-  const savePrecursorMut = useSavePrecursorSupplier();
   const requestEditMut = useRequestEdit();
   const invalidateWorkspaceData = useInvalidateWorkspaceData(workspace.id);
 
-  /* The edit buffers. entry, mmd and installation stay component state on
+  /* The edit buffers. entry and mmd stay component state on
      purpose: the entry–mmd reconciliation below can only happen here, and the
      autosave writes from here. Each is seeded from its query; invalidation
      after a write brings buffer and store back into line. */
   const [entry, setEntry] = React.useState<MonthlyEntry | null>(null);
   const [mmd, setMmd] = React.useState<WorkspaceMmdContent | null>(null);
-  const [installation, setInstallation] = React.useState<Installation | null>(null);
-  const precursors = React.useMemo(() => supplierRows?.filter((s) => s.parentId === null) ?? [], [supplierRows]);
   const documentCount = monthEvidence?.length ?? 0;
   const [carried, setCarried] = React.useState(false);
-  /* Bumped when smart intake files something, so the card grid below it
-     re-reads coverage — the grid keeps its own tick and cannot see the write. */
-  const [docsKey, setDocsKey] = React.useState(0);
-
-  /* PROTOTYPE: files picked on the overview are queued here and read in the
-     Documents step, whose review popup opens as soon as they are in. */
-  const [intakeAutoOpen, setIntakeAutoOpen] = React.useState(false);
-  /* Where the reader was when the overview card sent them to the review.
-     Closing the popup without confirming goes back there — the Documents
-     step is only where the popup lives, not somewhere they chose to go. */
-  const [intakeReturnTo, setIntakeReturnTo] = React.useState<StepKey | null>(null);
-  React.useEffect(() => {
-    if (step !== "documents") {
-      setIntakeAutoOpen(false);
-      setIntakeReturnTo(null);
-    }
-  }, [step]);
-  const intakePending = React.useSyncExternalStore(
-    subscribeIntake,
-    () => intakeQueue(workspace.id).filter((d) => d.status === "reading" || d.status === "review").length,
-    () => 0,
-  );
-  const openIntakeReview = () => {
-    setIntakeAutoOpen(true);
-    setIntakeReturnTo(step);
-    setStep("documents");
-  };
-  const startSmartUpload = (files: File[] | "samples") => {
-    const queue = (list: File[]) => {
-      if (list.length === 0) return;
-      void addFiles(workspace.id, list);
-      openIntakeReview();
-    };
-    if (files !== "samples") return queue(files);
-    loadSampleFiles("workspace").then(queue, () => toast({ message: t("Sample documents could not be loaded"), tone: "warn" }));
-  };
 
   const [fullName, setFullName] = React.useState("");
   const [role, setRole] = React.useState("");
   const [confirmed, setConfirmed] = React.useState(false);
-  const [warningsRead, setWarningsRead] = React.useState(false);
-  /* Set when Continue has refused a step — see the gate below `next`. Declared
-     with the other state because the gate itself sits after an early return. */
-  const [showStepErrors, setShowStepErrors] = React.useState(false);
   const submit = useSaveState(900);
 
   /* The exporter's side of this month, read for two things the supplier
      genuinely needs: what was sent back for revision, and whether a request to
      reopen a submitted month has been answered. */
   const { data: submissionData } = useSubmission(workspace.id, month);
+  /* A month opens to the plant only once the exporter has sent it. The link's own month always does — it was sent to get here. */
+  const { data: dispatches } = useDispatches(workspace.id);
+  const sentMonths = React.useMemo(() => {
+    const sent = new Set<string>([req.month]);
+    for (const [m, d] of Object.entries(dispatches ?? {}))
+      if (d?.sentAt) sent.add(m);
+    return sent;
+  }, [dispatches, req.month]);
   const submission: MonthSubmission | null = submissionData ?? null;
   const askEdit = useSaveState(1400);
   const [editReason, setEditReason] = React.useState("");
@@ -313,7 +353,8 @@ function Flow({ req }: { req: WorkspaceRequest }) {
      autosave) so the resync fires on data arriving, not on the autosave's own
      transitions — the same guard the exporter's month editor documents. */
   const autosaveStatus = React.useRef("idle");
-  const seeding = () => autosaveStatus.current === "pending" || autosaveStatus.current === "saving";
+  const seeding = () =>
+    autosaveStatus.current === "pending" || autosaveStatus.current === "saving";
   /* The month buffer is guarded WITHIN a month, but a month SWITCH must always
      reseed: the previous month's pending save writes it on its own, so nothing
      is lost by abandoning that buffer, and gating the switch on its pending
@@ -333,51 +374,40 @@ function Flow({ req }: { req: WorkspaceRequest }) {
     if (mmdQ.data) setMmd(mmdQ.data);
   }, [mmdQ.data]);
 
-  React.useEffect(() => {
-    if (seeding()) return;
-    // An empty installationId disables the query, so its data stays undefined
-    // forever; fabricate the blank record the form edits (as the old code did
-    // unconditionally) rather than leave the page gated on `installation` for good.
-    if (!workspace.installationId) {
-      setInstallation({ ...emptyInstallation(), id: workspace.installationId, name: workspace.installationName });
-    } else if (installationQ.data !== undefined) {
-      setInstallation(installationQ.data ?? { ...emptyInstallation(), id: workspace.installationId, name: workspace.installationName });
-    }
-  }, [installationQ.data, workspace.installationId, workspace.installationName]);
-
   /* A month switch resets the flow's own state; the data above re-keys and
      refetches on its own. */
   React.useEffect(() => {
     setCarried(false);
     setConfirmed(false);
-    setWarningsRead(false);
-    setShowStepErrors(false);
     setEditOpen(false);
     setEditReason("");
   }, [workspace.id, month]);
 
-  const readOnly = entry?.status === "submitted" || entry?.status === "reviewed";
+  const readOnly =
+    entry?.status === "submitted" || entry?.status === "reviewed";
 
   const autosave = useAutoSave(
-    { entry, mmd, installation },
-    (v) => {
-      if (v.entry) saveMonthMut.mutate(v.entry);
-      if (v.mmd) saveMmdMut.mutate({ workspaceId: workspace.id, content: v.mmd });
-      // The installation is SHARED. Writing it here is what makes the
-      // supplier's correction reach the exporter's screen — see the note on
-      // InstallationStep for why that beats two diverging copies.
-      if (v.installation && v.installation.name.trim() && v.installation.id.trim()) {
-        saveInstallationMut.mutate(v.installation);
-      }
+    { entry, mmd },
+    async (v) => {
+      if (v.entry) await saveMonthMut.mutateAsync(v.entry);
+      if (v.mmd)
+        await saveMmdMut.mutateAsync({
+          workspaceId: workspace.id,
+          content: v.mmd,
+        });
+      await saveLinkIfChanged();
     },
-    { enabled: Boolean(entry) && !readOnly },
+    { enabled: Boolean(entry) && !readOnly && submit.state !== "saving" },
   );
   // Current autosave status, read by the reseed effects above at effect-run
   // time (after this render's assignment lands).
   autosaveStatus.current = autosave.status;
 
   const peers = React.useMemo(
-    () => (entry ? monthsForWorkspace(workspace).filter((m) => m.month !== month) : []),
+    () =>
+      entry
+        ? monthsForWorkspace(workspace).filter((m) => m.month !== month)
+        : [],
     [workspace, month, entry],
   );
 
@@ -386,16 +416,14 @@ function Flow({ req }: { req: WorkspaceRequest }) {
     return runMonthQualityCheck({
       entry,
       mmd,
-      precursors,
       month,
       peers,
       documentCount,
-      installationGaps: installation ? missingFields(installation) : [],
       /* This form IS the supplier's. The three methodology rules they are never
          shown must not be able to block their signature. */
       audience: "supplier",
     });
-  }, [entry, mmd, precursors, month, peers, documentCount, installation]);
+  }, [entry, mmd, month, peers, documentCount]);
 
   /* ── What the exporter asked to have looked at again ───────────
      The areas are stored on the submission (lib/month-revision.ts). They are
@@ -408,13 +436,18 @@ function Flow({ req }: { req: WorkspaceRequest }) {
       `reconcileFuelEvidence`. "Was covered" cannot be recovered from the store
       once the file is gone, so it is remembered here. */
   const fuelEvidenceRef = React.useRef<Record<string, boolean>>({});
-  const requiresIndirect = workspaceRequiresIndirectEmissions(workspace.productId);
+  const requiresIndirect = workspaceRequiresIndirectEmissions(
+    workspace.productId,
+  );
 
   React.useEffect(() => {
     if (!entry) return;
     const cov = coverageForMonth(workspace.id, entry, requiresIndirect);
     fuelEvidenceRef.current = Object.fromEntries(
-      entry.fuels.map((f) => [f.id, cov.rows.find((r) => r.key === fuelEvidenceKey(f.id))?.covered ?? false]),
+      entry.fuels.map((f) => [
+        f.id,
+        cov.rows.find((r) => r.key === fuelEvidenceKey(f.id))?.covered ?? false,
+      ]),
     );
     // Only on arrival at a month — the snapshot is advanced by the reconcile
     // itself thereafter, and re-seeding on every keystroke would erase the
@@ -423,7 +456,10 @@ function Flow({ req }: { req: WorkspaceRequest }) {
   }, [workspace.id, month]);
 
   const revisionAreas: RevisionArea[] = React.useMemo(
-    () => (submission?.state === "changes_requested" ? resolveAreas(submission.revisionAreas) : []),
+    () =>
+      submission?.state === "changes_requested"
+        ? resolveAreas(submission.revisionAreas)
+        : [],
     [submission],
   );
 
@@ -447,22 +483,33 @@ function Flow({ req }: { req: WorkspaceRequest }) {
     };
   }, [revisionAreas, step]);
 
-
-  if (!entry || !mmd || !installation) return null;
+  if (!entry || !mmd) return null;
 
   const patch = (p: Partial<MonthlyEntry>) =>
     setEntry((prev) => {
       if (!prev) return prev;
-      const next = { ...prev, ...p, status: prev.status === "empty" ? "draft" : prev.status } as MonthlyEntry;
+      // A stock change, a shared meter, a gas row or a delivery WRITES the quantity it stands for — here, so the form shows the same figure the month will hold.
+      const next = deriveMonth({
+        ...prev,
+        ...p,
+        status: prev.status === "empty" ? "draft" : prev.status,
+      } as MonthlyEntry);
       // Only these two fields feed back into the methodology; syncing on every
       // keystroke of a quantity would fire a toast per digit.
-      if (p.fuels !== undefined || p.electricityFactorSource !== undefined) queueMicrotask(() => syncMmdFromEntry(next));
+      if (p.fuels !== undefined || p.electricityFactorSource !== undefined)
+        queueMicrotask(() => syncMmdFromEntry(next));
       return next;
     });
 
   const patchFuel = (id: string, p: Partial<FuelEntry>) =>
     setEntry((prev) =>
-      prev ? { ...prev, fuels: prev.fuels.map((f) => (f.id === id ? { ...f, ...p } : f)), status: prev.status === "empty" ? "draft" : prev.status } : prev,
+      prev
+        ? deriveMonth({
+            ...prev,
+            fuels: prev.fuels.map((f) => (f.id === id ? { ...f, ...p } : f)),
+            status: prev.status === "empty" ? "draft" : prev.status,
+          })
+        : prev,
     );
 
   /* ── The methodology and the month, kept in step ──────────────
@@ -483,18 +530,34 @@ function Flow({ req }: { req: WorkspaceRequest }) {
      bug because it is one. The microtask puts it after the commit. */
   const announce = (notes: string[]) => {
     if (notes.length === 0) return;
-    queueMicrotask(() => toast({ message: "Methodology and month updated together", detail: notes.join(" "), tone: "info" }));
+    queueMicrotask(() =>
+      toast({
+        message: t("Methodology and month updated together"),
+        detail: notes.join(" "),
+        tone: "info",
+      }),
+    );
   };
 
-  const setMmdSynced = (next: WorkspaceMmdContent) => {
+  const setMmdSynced = (incoming: WorkspaceMmdContent) => {
+    /* "Other fuel" CHANGED MIND: unticking it takes the name that was typed for it away too. Left behind, the name comes back the next
+       time Other is ticked, and goes into the methodology as the description of a fuel the plant said it does not burn. */
+    const next =
+      incoming.fuelTypeIds.includes(FUEL_TYPE_OTHER) || !incoming.fuelTypesOther
+        ? incoming
+        : { ...incoming, fuelTypesOther: "" };
     setMmd(next);
     setEntry((prev) => {
       if (!prev) return prev;
       const r = syncFromMmd(next, prev, fuelLabel);
       announce(r.notes);
-      return r.entry.fuels === prev.fuels && r.entry.electricityFactorSource === prev.electricityFactorSource
+      return r.entry.fuels === prev.fuels &&
+        r.entry.electricityFactorSource === prev.electricityFactorSource
         ? prev
-        : { ...r.entry, status: prev.status === "empty" ? "draft" : prev.status };
+        : {
+            ...r.entry,
+            status: prev.status === "empty" ? "draft" : prev.status,
+          };
     });
   };
 
@@ -509,17 +572,6 @@ function Flow({ req }: { req: WorkspaceRequest }) {
       announce(r.notes);
       return r.mmd;
     });
-  };
-
-  const setTonnes = (row: PrecursorSupplier, tonnes: number | undefined) => {
-    const others = (row.monthlyQuantities ?? []).filter((q) => q.month !== month);
-    const next: PrecursorSupplier = {
-      ...row,
-      monthlyQuantities: tonnes == null ? others : [...others, { month, tonnes }].sort((a, b) => a.month.localeCompare(b.month)),
-    };
-    // The mutation invalidates the precursor list, which is what refreshes
-    // the rows — no hand-patching a second copy of the store here.
-    savePrecursorMut.mutate(next);
   };
 
   /* Copying brings the SHAPE of last month across — which fuels, on which
@@ -569,18 +621,31 @@ function Flow({ req }: { req: WorkspaceRequest }) {
      from the same function, because a rule that fired on one of the two
      screens is a rule an installation could walk around by using the other. */
   const onDocumentsChanged = () => {
+    if (activeLinkSession()) {
+      documentRevision.current++;
+      setDocumentsPending(true);
+    }
     // DocumentsStep writes around the mutations — settle the evidence query
     // (documentCount above) and everything else the upload moved.
     invalidateWorkspaceData();
     setEntry((cur) => {
       if (!cur) return cur;
-      const r = reconcileFuelEvidence(workspace.id, cur, fuelEvidenceRef.current, requiresIndirect);
+      const r = reconcileFuelEvidence(
+        workspace.id,
+        cur,
+        fuelEvidenceRef.current,
+        requiresIndirect,
+      );
       fuelEvidenceRef.current = r.covered;
       if (r.reverted.length > 0) {
         queueMicrotask(() =>
           toast({
-            message: `${r.reverted.join(", ")} reverted to the EU standard value`,
-            detail: "The document behind the Type II factor was removed, so the figure can no longer stand as entered.",
+            message: t("{fuels} reverted to the EU standard value", {
+              fuels: r.reverted.join(", "),
+            }),
+            detail: t(
+              "The document behind the Type II factor was removed, so the figure can no longer stand as entered.",
+            ),
             tone: "warn",
           }),
         );
@@ -589,17 +654,30 @@ function Flow({ req }: { req: WorkspaceRequest }) {
     });
   };
 
-  const goto = (finding: QualityFinding) => {
-    setStep(finding.step);
+  /* From the Check list back to the field: the step opens, the control scrolls into the middle and rings for a few seconds, and a
+     line says what it is there for — the ring alone shows where, not why. */
+  const goto = (
+    row: Pick<ContentRow, "step" | "field" | "label" | "note" | "state">,
+  ) => {
+    setStep(row.step);
     window.setTimeout(() => {
-      const el = document.getElementById(finding.field);
+      const el = document.getElementById(row.field);
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "center" });
         el.classList.add("ring-2", "ring-[#f59e0b]", "rounded-xl");
-        window.setTimeout(() => el.classList.remove("ring-2", "ring-[#f59e0b]", "rounded-xl"), 2400);
+        window.setTimeout(
+          () => el.classList.remove("ring-2", "ring-[#f59e0b]", "rounded-xl"),
+          4200,
+        );
       } else {
         window.scrollTo({ top: 0, behavior: "smooth" });
       }
+      if (row.state !== "ready")
+        toast({
+          message: t(row.label),
+          detail: row.note ? t(row.note) : t("Fill this in."),
+          tone: "info",
+        });
     }, 120);
   };
 
@@ -619,77 +697,73 @@ function Flow({ req }: { req: WorkspaceRequest }) {
      submissions would make "submitted" mean nothing. */
   const sendEditRequest = () => {
     if (!editReason.trim()) return;
-    askEdit.run(() => {
-      requestEditMut.mutate({ workspaceId: workspace.id, month, reason: editReason.trim() });
+    askEdit.run(async () => {
+      try {
+        await requestEditMut.mutateAsync({
+          workspaceId: workspace.id,
+          month,
+          reason: editReason.trim(),
+        });
+        await saveLinkIfChanged();
+      } catch (cause) {
+        toast({
+          message: t("Not sent yet"),
+          detail: cause instanceof Error ? cause.message : t("Please retry."),
+          tone: "warn",
+        });
+        throw cause;
+      }
       setEditOpen(false);
       setEditReason("");
     });
   };
 
-  const canSign = Boolean(report?.canSubmit) && fullName.trim().length > 1 && role.trim().length > 1 && confirmed && (report!.warnings.length === 0 || warningsRead);
+  const canSign =
+    Boolean(report?.canSubmit) &&
+    fullName.trim().length > 1 &&
+    role.trim().length > 1 &&
+    confirmed;
 
   const doSubmit = () => {
     if (!canSign) return;
-    submit.run(() => {
-      // Direct store calls, in order: submitMonth reads the entry saveMonth
-      // just wrote, and no mutation wraps submitMonth — so the whole sequence
-      // stays synchronous and the caches are settled once, at the end.
-      saveMonth(entry);
-      saveDraft(workspace.id, mmd);
-      submitWithAttestation(workspace.id, month, {
-        fullName: fullName.trim(),
-        role: role.trim(),
-        at: new Date().toISOString(),
-        warningsAcknowledged: report?.warnings.length ?? 0,
-      });
-      const done = submitMonth(workspace.id, month, fullName.trim() || "Supplier");
-      if (done) setEntry(done);
-      invalidateWorkspaceData();
-      // On a server link the submission is only real once the server has
-      // stamped it: that is the version and the signer the exporter reads.
-      if (activeLinkSession()) {
-        void submitWorkspaceLink(
+    submit.run(async () => {
+      try {
+        if (!(await autosave.flush()))
+          throw new Error(
+            "Your latest changes have not been saved. Please retry.",
+          );
+        saveMonth(entry);
+        saveDraft(workspace.id, mmd);
+        await submitWorkspaceLink(
           { signatoryName: fullName.trim(), signatoryRole: role.trim() },
           { score: report?.score ?? 0, warnings: report?.warnings.length ?? 0 },
-        ).catch((cause) => {
-          console.warn("[workspace-links] submit failed:", cause);
-          toast({ message: "Not sent yet", detail: "Your answers are saved here. Check your connection and submit again.", tone: "warn" });
+        );
+        setEntry(getMonth(workspace.id, month) ?? entry);
+        invalidateWorkspaceData();
+        toast({
+          message: t("{month} submitted", { month: monthNameLong(month) }),
+          detail: t("The exporter can see it now."),
+          tone: "ok",
         });
+      } catch (cause) {
+        toast({
+          message: t("Not sent yet"),
+          detail:
+            cause instanceof Error
+              ? cause.message
+              : t(
+                  "Your answers are saved here. Check your connection and submit again.",
+                ),
+          tone: "warn",
+        });
+        throw cause;
       }
-      toast({ message: `${monthNameLong(month)} submitted`, detail: "The exporter can see it now.", tone: "ok" });
     });
   };
 
   const index = STEPS.findIndex((s) => s.key === step);
 
-  /* ── The gate on Continue ─────────────────────────────────────
-     A step that cannot be filed against is a step the reader must not walk
-     past. The installation is the one that bites: it is the FIRST form in the
-     flow, it arrives pre-filled from the exporter's side, and every field on
-     it is one a verifier asks about — so a supplier who scrolls past a site
-     with no city and no coordinates reaches the signature page before anyone
-     tells them, and the gap comes back as a question three months later.
-
-     `installationGaps` is the same function the card itself reads, so the
-     button and the warning panel can never disagree about what is missing.
-
-     Nothing is BLOCKED silently: refusing sets `showStepErrors`, which opens
-     the form, marks every missing field, and says what to fix. */
-  const blocked = step === "installation" && !readOnly && installationGaps(installation, workspace.installationId).length > 0;
-
   const next = () => {
-    if (blocked) {
-      setShowStepErrors(true);
-      toast({
-        message: "The installation is not complete yet",
-        detail: "Everything marked below is something a verifier asks for. Fill it in and you can carry on.",
-        tone: "warn",
-      });
-      const el = document.getElementById("qf-installation");
-      el?.scrollIntoView({ behavior: "smooth", block: "start" });
-      return;
-    }
-    setShowStepErrors(false);
     const n = STEPS[Math.min(STEPS.length - 1, index + 1)];
     setStep(n.key);
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -703,211 +777,272 @@ function Flow({ req }: { req: WorkspaceRequest }) {
   const result = monthResult(entry);
 
   return (
-    <Shell>
-      {/* ── Who is asking, and for what ─────────────────────── */}
-      <div className="mb-5">
-        <span className="font-pixel text-[11px] uppercase tracking-[0.18em] text-black/40">{t("Monthly data request")}</span>
-        <h1 className="mt-2 font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111]">{monthNameLong(month)}</h1>
-        <p className="mt-2 text-sm leading-relaxed text-black/50">
-          For {workspace.productName} produced at {workspace.installationName} — everything below is about this one month.
-        </p>
-      </div>
-
-      <Stepper step={index} onGoto={(i) => setStep(STEPS[i].key)} />
-
-      {readOnly && (
-        <div className="mt-5">
-          <Note>
-            <span className="inline-flex items-center gap-2">
-              <Check size={14} strokeWidth={2} /> {monthNameLong(month)} is submitted and read-only. Ask the exporter to reopen it if something was
-              wrong.
-            </span>
-          </Note>
+    <CeraProvider
+      scope={{
+        audience: "supplier",
+        workspaceId: workspace.id,
+        month,
+        // A file was filled into a month: bring the supplier to the readings, where the figures sit in green.
+        onApplied: (m, focus) => {
+          invalidateWorkspaceData();
+          if (m !== month) setMonth(m);
+          setStep("monthly");
+          // …and to the part of the form that took most of it, which lights for a moment.
+          if (focus) requestFocus(focus);
+        },
+      }}
+    >
+      <Shell cera>
+        {/* ── Who is asking, and for what ─────────────────────── */}
+        <div className="mb-5">
+          <span className="font-pixel text-[11px] uppercase tracking-[0.18em] text-black/40">
+            {t("Monthly data request")}
+          </span>
+          <h1 className="mt-2 font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111]">
+            {monthNameLong(month)}
+          </h1>
+          <p className="mt-2 text-sm leading-relaxed text-black/50">
+            {t(
+              "For {product} produced at {installation} — everything below is about this one month.",
+              {
+                product: t(workspace.productName),
+                installation: workspace.installationName,
+              },
+            )}
+          </p>
         </div>
-      )}
 
-      {step !== "overview" && step !== "check" && step !== "sign" && (
-        <div className="mt-4">
-          <EnglishOnlyNotice />
-        </div>
-      )}
-
-      <div key={step} className="ct-enter mt-6">
-        {step === "overview" && (
-          <Overview
-            req={req}
-            month={month}
-            months={months}
-            onMonth={setMonth}
-            previousMonth={previousMonth}
-            carried={carried}
-            onCarry={carryOver}
-            onClear={clearForm}
-            readOnly={readOnly}
-            submission={submission}
-            revisionAreas={revisionAreas}
-            onGotoRevision={gotoRevision}
-            onSmartUpload={startSmartUpload}
-            pendingReview={intakePending}
-            onResumeReview={openIntakeReview}
-          />
+        {linkSaveError && (
+          <p
+            role="alert"
+            className="mb-4 rounded-xl border border-[#b45309]/20 bg-[#fffbeb] p-4 text-sm text-[#b45309]"
+          >
+            {linkSaveError} {t("Please keep this page open while we retry.")}
+          </p>
         )}
 
-        {step === "installation" && (
-          <InstallationStep
-            value={installation}
-            onChange={setInstallation}
-            readOnly={readOnly}
-            /* THE RECORD'S OWN REFERENCE. Without it the uniqueness check
-               compares this site's id against the stored copy of ITSELF and
-               reports the supplier's own plant as belonging to another
-               installation — see the note on InstallationStep. */
-            existingId={workspace.installationId}
-            showErrors={showStepErrors}
-            autoSave={autosave.status}
-            savedAt={autosave.savedAt}
-          />
-        )}
-        {step === "mmd" && <MmdStep value={mmd} onChange={setMmdSynced} readOnly={readOnly} cnCode={workspace.cnCode} />}
-        {step === "monthly" && (
-          <div className="space-y-5">
-            <AiFillRunBanner scope={`ws:${workspace.id}`} month={month} onPickMonth={setMonth} />
-            <MonthlyStep workspaceId={workspace.id} entry={entry} patch={patch} patchFuel={patchFuel} readOnly={readOnly} />
-          </div>
-        )}
-        {step === "precursors" && <PrecursorStep rows={precursors} month={month} onTonnes={setTonnes} readOnly={readOnly} />}
-        {step === "documents" && (
-          <div className="space-y-6">
-            {/* PROTOTYPE: drop documents first, file them after. The open month
-                lives in `entry`, so writes to it go through setEntry and the
-                autosave rather than behind the buffer's back. */}
-            <SmartIntake
-              workspaceId={workspace.id}
-              audience="supplier"
-              uploadedBy={t("Supplier (via Smart Link)")}
-              writeMonth={(m, update) => {
-                if (m === month) setEntry((cur) => (cur ? update(cur) : cur));
-                else saveStoredMonth(update(getStoredMonth(workspace.id, m) ?? emptyMonth(workspace.id, m)));
-              }}
-              onFiled={() => {
-                onDocumentsChanged();
-                setDocsKey((k) => k + 1);
-              }}
-              /* Confirm lands on the monthly readings, where the values sit in
-                 blue — the open month if it was filled, else the first one. */
-              startOpen={intakeAutoOpen}
-              onDismiss={() => {
-                if (!intakeReturnTo) return;
-                setStep(intakeReturnTo);
-                setIntakeReturnTo(null);
-              }}
-              onComplete={({ months: filled }) => {
-                setIntakeReturnTo(null);
-                if (filled.length === 0) return;
-                if (!filled.includes(month)) setMonth(filled[0]);
-                setStep("monthly");
-              }}
-            />
-            <DocumentsStep key={docsKey} workspaceId={workspace.id} workspace={workspace} entry={entry} onChange={onDocumentsChanged} allowUpload={false} />
-          </div>
-        )}
-        {step === "check" && report && <CheckStep report={report} onGoto={goto} result={result} production={entry.productionTonnes} />}
-        {step === "sign" && report && (
-          <SignStep
-            report={report}
-            workspaceName={workspace.installationName}
-            fullName={fullName}
-            role={role}
-            confirmed={confirmed}
-            warningsRead={warningsRead}
-            onFullName={setFullName}
-            onRole={setRole}
-            onConfirmed={setConfirmed}
-            onWarningsRead={setWarningsRead}
-            onGoto={goto}
-            readOnly={readOnly}
-          />
-        )}
-      </div>
+        <fieldset
+          disabled={submit.state === "saving"}
+          aria-busy={submit.state === "saving"}
+          className="min-w-0"
+        >
+          <Stepper step={index} onGoto={(i) => setStep(STEPS[i].key)} />
 
-      {/* ── Nav ────────────────────────────────────────────── */}
-      <div className="sticky bottom-0 z-30 -mx-6 mt-7 flex items-center justify-between gap-3 border-t border-black/[0.06] bg-[#f5f4f0]/95 px-6 py-4 backdrop-blur">
-        <div className="flex items-center gap-3">
-          {index > 0 ? (
-            <Button variant="ghost" size="sm" onClick={back}>
-              <ArrowLeft size={14} strokeWidth={1.5} /> {t("Back")}
-            </Button>
-          ) : (
-            <span />
+          {readOnly && (
+            <div className="mt-5">
+              <Note>
+                <span className="inline-flex items-center gap-2">
+                  <Check size={14} strokeWidth={2} />{" "}
+                  {t(
+                    "{month} is submitted and read-only. Ask the exporter to reopen it if something was wrong.",
+                    { month: monthNameLong(month) },
+                  )}
+                </span>
+              </Note>
+            </div>
           )}
-          {!readOnly && index > 0 && index < 6 && <AutoSaveBadge status={autosave.status} savedAt={autosave.savedAt} />}
-        </div>
 
-        {step === "sign" ? (
-          <SaveButton
-            state={submit.state}
-            onClick={doSubmit}
-            disabled={!canSign || readOnly}
-            idleLabel={`Submit ${monthNameLong(month)}`}
-            savingLabel={t("Submitting…")}
-            savedLabel={t("Submitted")}
-          />
-        ) : step === "overview" && readOnly ? (
-          /* THE MONTH IS SENT, SO "START" WOULD BE A LIE. There is nothing to
+          {step !== "overview" && step !== "check" && step !== "sign" && (
+            <div className="mt-4">
+              <EnglishOnlyNotice />
+            </div>
+          )}
+
+          <div key={step} className="ct-enter mt-6">
+            {step === "overview" && (
+              <Overview
+                req={req}
+                month={month}
+                months={months}
+                sentMonths={sentMonths}
+                onMonth={setMonth}
+                previousMonth={previousMonth}
+                carried={carried}
+                onCarry={carryOver}
+                onClear={clearForm}
+                readOnly={readOnly}
+                notManufactured={Boolean(entry.notManufactured)}
+                submission={submission}
+                revisionAreas={revisionAreas}
+                onGotoRevision={gotoRevision}
+              />
+            )}
+
+            {step === "mmd" && (
+              <MmdStep
+                value={mmd}
+                onChange={setMmdSynced}
+                readOnly={readOnly}
+                cnCode={workspace.cnCode}
+              />
+            )}
+            {step === "monthly" && (
+              <div className="space-y-5">
+                <AiFillRunBanner
+                  scope={`ws:${workspace.id}`}
+                  month={month}
+                  onPickMonth={setMonth}
+                  scroll={false}
+                />
+                <MonthlyStep
+                  workspaceId={workspace.id}
+                  entry={entry}
+                  patch={patch}
+                  patchFuel={patchFuel}
+                  readOnly={readOnly}
+                />
+              </div>
+            )}
+            {step === "documents" && (
+              <div className="space-y-6">
+                <DocumentsStep
+                  workspaceId={workspace.id}
+                  workspace={workspace}
+                  entry={entry}
+                  onChange={onDocumentsChanged}
+                  onEntryChange={patch}
+                  audience="supplier"
+                  uploadedBy={t("Supplier (via Smart Link)")}
+                />
+              </div>
+            )}
+            {step === "check" && report && (
+              <CheckStep
+                report={report}
+                onGoto={goto}
+                result={result}
+                production={entry.productionTonnes}
+                indirectCounts={requiresIndirect}
+              />
+            )}
+            {step === "sign" && (
+              <SignStep
+                workspaceName={workspace.installationName}
+                fullName={fullName}
+                role={role}
+                confirmed={confirmed}
+                onFullName={setFullName}
+                onRole={setRole}
+                onConfirmed={setConfirmed}
+                history={authorisationHistory(submission)}
+                readOnly={readOnly}
+              />
+            )}
+          </div>
+
+          {/* ── Nav ────────────────────────────────────────────── */}
+          <div className="sticky bottom-0 z-30 -mx-6 mt-7 flex items-center justify-between gap-3 border-t border-black/[0.06] bg-[#f5f4f0]/95 px-6 py-4 backdrop-blur">
+            <div className="flex items-center gap-3">
+              {index > 0 ? (
+                <Button variant="ghost" size="sm" onClick={back}>
+                  <ArrowLeft size={14} strokeWidth={1.5} /> {t("Back")}
+                </Button>
+              ) : (
+                <span />
+              )}
+              {/* On a narrow phone the line of text would push Continue off the screen; the fields save either way. */}
+              {!readOnly && index > 0 && index < 6 && (
+                <AutoSaveBadge
+                  status={
+                    linkSaveError
+                      ? "error"
+                      : documentsPending
+                        ? "saving"
+                        : autosave.status
+                  }
+                  savedAt={autosave.savedAt}
+                  className="hidden min-[430px]:inline-flex"
+                />
+              )}
+            </div>
+
+            {step === "sign" ? (
+              <SaveButton
+                state={submit.state}
+                onClick={doSubmit}
+                disabled={!canSign || readOnly}
+                idleLabel={t("Submit {month}", { month: monthNameLong(month) })}
+                savingLabel={t("Submitting…")}
+                savedLabel={t("Submitted")}
+              />
+            ) : step === "overview" && readOnly ? (
+              /* THE MONTH IS SENT, SO "START" WOULD BE A LIE. There is nothing to
              start: every field behind this button is fixed. The one thing the
              plant can still do about a mistake it has just spotted is ask for
              the month back, so that is what the button offers — and it is a
              request, not a key. */
-          <SaveButton
-            state={askEdit.state}
-            onClick={() => setEditOpen(true)}
-            disabled={submission?.editRequest?.state === "pending"}
-            icon={<PenLine size={14} strokeWidth={1.5} />}
-            idleLabel={submission?.editRequest?.state === "pending" ? "Edit requested" : "Request an edit"}
-            savingLabel={t("Sending…")}
-            savedLabel={t("Edit requested")}
-          />
-        ) : (
-          /* Not `disabled`. A dead button explains nothing — pressing it is how
-             a reader asks what is wrong, and this one answers. */
-          <Button onClick={next} variant={blocked ? "secondary" : "primary"}>
-            {step === "overview" ? "Start" : "Continue"} <ArrowRight size={15} strokeWidth={1.5} />
-          </Button>
-        )}
-      </div>
+              <SaveButton
+                state={askEdit.state}
+                onClick={() => setEditOpen(true)}
+                disabled={submission?.editRequest?.state === "pending"}
+                icon={<PenLine size={14} strokeWidth={1.5} />}
+                idleLabel={
+                  submission?.editRequest?.state === "pending"
+                    ? t("Edit requested")
+                    : t("Request an edit")
+                }
+                savingLabel={t("Sending…")}
+                savedLabel={t("Edit requested")}
+              />
+            ) : (
+              <Button onClick={next}>
+                {step === "overview" ? t("Start") : t("Continue")}{" "}
+                <ArrowRight size={15} strokeWidth={1.5} />
+              </Button>
+            )}
+          </div>
+        </fieldset>
 
-      {/* ── Asking for the month back ─────────────────────────
+        {/* ── Asking for the month back ─────────────────────────
           A reason is required. "Please reopen March" tells the exporter
           nothing they can act on, and the request they are answering is the
           only thing they will see. */}
-      <Modal
-        open={editOpen}
-        onClose={() => setEditOpen(false)}
-        eyebrow={t("Submitted month")}
-        title={`Ask to reopen ${monthNameLong(month)}`}
-        lead={t("It goes to the exporter as a request. They decide — nothing is unlocked until they say yes.")}
-        width="max-w-lg"
-        footer={
-          <>
-            <Button size="sm" variant="secondary" onClick={() => setEditOpen(false)}>
-              {t("Cancel")}
-            </Button>
-            <Button size="sm" disabled={!editReason.trim()} onClick={sendEditRequest}>
-              {t("Send the request")}
-            </Button>
-          </>
-        }
-      >
-        <Field label={t("What needs changing")} hint={t("Name the figure and what is wrong with it — this is all they will see.")}>
-          <textarea
-            className={cn(inputClass, "min-h-[110px] resize-y py-2.5")}
-            value={editReason}
-            onChange={(e) => setEditReason(e.target.value)}
-            placeholder={t("The February gas invoice arrived after we submitted. The quantity should be 41,200 m³, not 38,000.")}
-          />
-        </Field>
-      </Modal>
-    </Shell>
+        <Modal
+          open={editOpen}
+          onClose={() => setEditOpen(false)}
+          eyebrow={t("Submitted month")}
+          title={t("Ask to reopen {month}", { month: monthNameLong(month) })}
+          lead={t(
+            "It goes to the exporter as a request. They decide — nothing is unlocked until they say yes.",
+          )}
+          width="max-w-lg"
+          footer={
+            <>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setEditOpen(false)}
+              >
+                {t("Cancel")}
+              </Button>
+              <Button
+                size="sm"
+                disabled={!editReason.trim()}
+                onClick={sendEditRequest}
+              >
+                {t("Send the request")}
+              </Button>
+            </>
+          }
+        >
+          <Field
+            label={t("What needs changing")}
+            hint={t(
+              "Name the figure and what is wrong with it — this is all they will see.",
+            )}
+          >
+            <textarea
+              className={cn(inputClass, "min-h-[110px] resize-y py-2.5")}
+              value={editReason}
+              onChange={(e) => setEditReason(e.target.value)}
+              placeholder={t(
+                "The February gas invoice arrived after we submitted. The quantity should be 41,200 m³, not 38,000.",
+              )}
+            />
+          </Field>
+        </Modal>
+      </Shell>
+    </CeraProvider>
   );
 }
 
@@ -916,14 +1051,23 @@ function Flow({ req }: { req: WorkspaceRequest }) {
    eight unreadable labels or eight anonymous dots. A bar per step with the
    current one named underneath says where you are and how much is left in the
    width that is actually available. */
-function Stepper({ step, onGoto }: { step: number; onGoto: (i: number) => void }) {
+function Stepper({
+  step,
+  onGoto,
+}: {
+  step: number;
+  onGoto: (i: number) => void;
+}) {
+  const t = useT();
   return (
     <div>
       <div className="mb-2 flex items-center justify-between">
         <span className="text-[11px] uppercase tracking-[0.12em] text-black/40">
-          Step {step + 1} of {STEPS.length}
+          {t("Step {n} of {total}", { n: step + 1, total: STEPS.length })}
         </span>
-        <span className="font-pixel text-[11px] uppercase tracking-[0.16em] text-black/65">{STEPS[step].label}</span>
+        <span className="font-pixel text-[11px] uppercase tracking-[0.16em] text-black/65">
+          {t(STEPS[step].label)}
+        </span>
       </div>
       <div className="flex gap-1.5">
         {STEPS.map((s, i) => (
@@ -931,12 +1075,17 @@ function Stepper({ step, onGoto }: { step: number; onGoto: (i: number) => void }
             key={s.key}
             type="button"
             onClick={() => onGoto(i)}
-            aria-label={s.label}
+            aria-label={t(s.label)}
             aria-current={i === step ? "step" : undefined}
             className="min-w-0 flex-1"
-            title={s.label}
+            title={t(s.label)}
           >
-            <span className={cn("block h-1 rounded-full transition-colors", i <= step ? "bg-[#111]" : "bg-black/[0.1]")} />
+            <span
+              className={cn(
+                "block h-1 rounded-full transition-colors",
+                i <= step ? "bg-[#111]" : "bg-black/[0.1]",
+              )}
+            />
           </button>
         ))}
       </div>
@@ -949,80 +1098,39 @@ function Stepper({ step, onGoto }: { step: number; onGoto: (i: number) => void }
    who has just clicked a link from an email: who is this, what do they want,
    which plant is it about, and how long will it take. The old flow answered
    none of them — it opened on a production tonnage field. */
-/* PROTOTYPE: "add documents and fill the form for me", on the overview. The
-   reading and the review happen in the Documents step — this card only
-   collects the files and sends the reader there. */
-function SmartUploadCard({
-  onFiles,
-  pending,
-  onResume,
-}: {
-  onFiles: (files: File[] | "samples") => void;
-  /** files dropped earlier and still waiting in the review */
-  pending: number;
-  onResume: () => void;
-}) {
+/* "Have the documents already?" — one button. It opens Cera with Smart upload switched on, so the file is read, checked and
+   filled in there (a popup on a computer, the full screen on a phone). Nothing is filed until the supplier confirms. */
+function SmartUploadCard() {
   const t = useT();
-  const inputRef = React.useRef<HTMLInputElement>(null);
-  const [dragging, setDragging] = React.useState(false);
+  const { openWithUpload } = useCera();
   return (
-    <div
-      onDragOver={(e) => {
-        e.preventDefault();
-        setDragging(true);
-      }}
-      onDragLeave={() => setDragging(false)}
-      onDrop={(e) => {
-        e.preventDefault();
-        setDragging(false);
-        const files = Array.from(e.dataTransfer.files);
-        if (files.length > 0) onFiles(files);
-      }}
+    <button
+      type="button"
+      onClick={openWithUpload}
+      className="group flex w-full items-center gap-4 rounded-2xl border border-black/[0.08] bg-white px-5 py-4 text-left transition-colors hover:border-black/25 hover:bg-[#fafaf8]"
     >
-      <Card className={cn("border-[#3C7ACB]/30 bg-[#f5f9ff] p-5 transition-colors", dragging && "border-[#3C7ACB] bg-[#eff6ff]")}>
-        <div className="flex flex-wrap items-start gap-3">
-          <span className="grid h-9 w-9 flex-none place-items-center rounded-xl bg-[#dbeafe] text-[#1d4ed8]">
-            <Sparkles size={16} strokeWidth={1.5} />
-          </span>
-          <div className="min-w-0 flex-1 basis-64">
-            <div className="text-[10px] uppercase tracking-[0.1em] text-[#1d4ed8]/70">{t("Have the documents already?")}</div>
-            <div className="mt-1 text-[15px] text-black/85">{t("Add documents and let Certrace fill the form")}</div>
-            <p className="mt-1.5 text-[12.5px] leading-relaxed text-black/55">
-              {t("AI reads your bills and invoices and fills the form. You check before saving — AI can make mistakes.")}
-            </p>
-            {pending > 0 && (
-              <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-[rgba(180,83,9,0.25)] bg-[#fffbeb] px-3.5 py-2.5">
-                <TriangleAlert size={14} strokeWidth={1.5} className="flex-none text-[#b45309]" />
-                <span className="min-w-0 flex-1 text-[13px] text-[#92400e]">{t("{n} documents waiting for your check", { n: pending })}</span>
-                <Button size="sm" onClick={onResume}>
-                  {t("Continue review")}
-                </Button>
-              </div>
-            )}
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button size="sm" onClick={() => inputRef.current?.click()}>
-                <Upload size={13} strokeWidth={1.5} /> {t("Add documents & auto-fill")}
-              </Button>
-              <Button size="sm" variant="secondary" onClick={() => onFiles("samples")}>
-                <FlaskConical size={13} strokeWidth={1.5} /> {t("Try sample documents")}
-              </Button>
-            </div>
-            <input
-              ref={inputRef}
-              type="file"
-              multiple
-              accept="application/pdf,image/*"
-              className="hidden"
-              onChange={(e) => {
-                const files = Array.from(e.target.files ?? []);
-                e.target.value = "";
-                if (files.length > 0) onFiles(files);
-              }}
-            />
-          </div>
-        </div>
-      </Card>
-    </div>
+      <span className="grid h-11 w-11 flex-none place-items-center rounded-xl bg-[#f0eee8]">
+        <CeraMark className="h-[22px] w-auto" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-[10px] uppercase tracking-[0.1em] text-black/40">
+          {t("Have the documents already?")}
+        </span>
+        <span className="mt-1 block text-[15px] text-black/85">
+          {t("Add documents & auto-fill")}
+        </span>
+        <span className="mt-0.5 block text-[12.5px] leading-relaxed text-black/50">
+          {t(
+            "Cera reads a file and fills the form. You check every figure before it is saved — Cera can make mistakes.",
+          )}
+        </span>
+      </span>
+      <ArrowRight
+        size={16}
+        strokeWidth={1.5}
+        className="flex-none text-black/30 transition-transform group-hover:translate-x-0.5 group-hover:text-black/60"
+      />
+    </button>
   );
 }
 
@@ -1030,35 +1138,35 @@ function Overview({
   req,
   month,
   months,
+  sentMonths,
   onMonth,
   previousMonth,
   carried,
   onCarry,
   onClear,
   readOnly,
+  notManufactured,
   submission,
   revisionAreas,
   onGotoRevision,
-  onSmartUpload,
-  pendingReview = 0,
-  onResumeReview,
 }: {
   req: WorkspaceRequest;
   month: string;
   months: string[];
+  /** months the exporter has sent — the only ones that can be opened */
+  sentMonths: Set<string>;
   onMonth: (m: string) => void;
   previousMonth: string | null;
   carried: boolean;
   onCarry: () => "copied" | "empty";
   onClear: () => void;
   readOnly: boolean;
+  /** the exporter recorded that nothing was made this month */
+  notManufactured: boolean;
   submission: MonthSubmission | null;
   revisionAreas: RevisionArea[];
   onGotoRevision: (a: RevisionArea) => void;
   /** PROTOTYPE: files picked on the overview — the host reads them in the Documents step */
-  onSmartUpload?: (files: File[] | "samples") => void;
-  pendingReview?: number;
-  onResumeReview?: () => void;
 }) {
   const t = useT();
   const { workspace } = req;
@@ -1076,7 +1184,9 @@ function Overview({
   }, [armed]);
   /* Copying answers on the button too — see `carryOver`. Two outcomes, two
      labels, one place to read them. */
-  const [copyResult, setCopyResult] = React.useState<"copied" | "empty" | null>(null);
+  const [copyResult, setCopyResult] = React.useState<"copied" | "empty" | null>(
+    null,
+  );
   const [copyFlash, fireCopyFlash] = useFlash(2600);
   React.useEffect(() => {
     if (!copyFlash) setCopyResult(null);
@@ -1090,44 +1200,76 @@ function Overview({
           separate "You are answering for" card is merged into this one. */}
       <Card className="p-5">
         <div className="flex items-start gap-3">
-          <Building2 size={16} strokeWidth={1.5} className="mt-0.5 flex-none text-black/35" />
+          <Building2
+            size={16}
+            strokeWidth={1.5}
+            className="mt-0.5 flex-none text-black/35"
+          />
           <div className="min-w-0">
-            <div className="text-[10px] uppercase tracking-[0.1em] text-black/40">{t("You are answering for")}</div>
-            <div className="mt-1 text-[15px] text-black/85">{workspace.installationName}</div>
+            <div className="text-[10px] uppercase tracking-[0.1em] text-black/40">
+              {t("You are answering for")}
+            </div>
+            <div className="mt-1 text-[15px] text-black/85">
+              {workspace.installationName}
+            </div>
             <div className="mt-1 font-mono text-[11.5px] text-black/45">
-              {workspace.productName} · CN {workspace.cnCode || "—"} · {workspace.year}
+              {t(workspace.productName)} · CN {workspace.cnCode || "—"} ·{" "}
+              {workspace.year}
             </div>
           </div>
         </div>
 
         <details className="group mt-3">
           <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[12.5px] text-black/50 hover:text-black/80 [&::-webkit-details-marker]:hidden">
-            <ChevronDown size={13} strokeWidth={1.5} className="transition-transform group-open:rotate-180" />
+            <ChevronDown
+              size={13}
+              strokeWidth={1.5}
+              className="transition-transform group-open:rotate-180"
+            />
             {t("Why this is asked")}
           </summary>
           <p className="mt-2 text-[13px] leading-relaxed text-black/60">
-            {t("Your customer exports this good to the EU. Under CBAM the importer must state the CO₂ embedded in every tonne they bring in, and that figure can only come from the plant that made it. These twelve monthly requests collect it.")}
+            {t(
+              "Your customer exports this good to the EU. Under CBAM the importer must state the CO₂ embedded in every tonne they bring in, and that figure can only come from the plant that made it. These twelve monthly requests collect it.",
+            )}
           </p>
           <p className="mt-2 text-[13px] leading-relaxed text-black/60">
-            {t("If it is not reported, the importer is not let off — they fall back to a default set high enough that real data is nearly always cheaper. So what you enter here has a price attached, in both directions.")}
+            {t(
+              "If it is not reported, the importer is not let off — they fall back to a default set high enough that real data is nearly always cheaper. So what you enter here has a price attached, in both directions.",
+            )}
           </p>
           <p className="mt-2 font-mono text-[11.5px] text-black/40">
-            {workspace.installationId} · {routeLabel(workspace.productionRoute)}
+            {workspace.installationId} ·{" "}
+            {t(routeLabel(workspace.productionRoute))}
           </p>
         </details>
 
         <div className="mt-3 space-y-2 border-t border-black/[0.06] pt-3">
           <EnglishOnlyLine />
           <p className="flex items-start gap-2 text-[12.5px] leading-relaxed text-black/45">
-            <ShieldCheck size={14} strokeWidth={1.5} className="mt-[2px] flex-none text-black/30" />
+            <ShieldCheck
+              size={14}
+              strokeWidth={1.5}
+              className="mt-[2px] flex-none text-black/30"
+            />
             <span className="min-w-0">
               {activeLinkSession() ? (
                 <>
-                  <strong className="font-medium text-black/70">{t("Saved as you go.")}</strong> {t("Every answer is saved to Certrace for the company that sent you this link — you can close this page and come back to it from any device.")}
+                  <strong className="font-medium text-black/70">
+                    {t("Saved as you go.")}
+                  </strong>{" "}
+                  {t(
+                    "Every answer is saved to Certrace for the company that sent you this link — you can close this page and come back to it from any device.",
+                  )}
                 </>
               ) : (
                 <>
-                  <strong className="font-medium text-black/70">{t("Nothing is sent yet.")}</strong> {t("Every answer stays in this browser until Certrace’s hosted service is connected.")}
+                  <strong className="font-medium text-black/70">
+                    {t("Nothing is sent yet.")}
+                  </strong>{" "}
+                  {t(
+                    "Every answer stays in this browser until Certrace’s hosted service is connected.",
+                  )}
                 </>
               )}
             </span>
@@ -1147,20 +1289,30 @@ function Overview({
           <div className="flex flex-wrap items-center gap-2">
             <Flag size={14} strokeWidth={1.5} className="text-[#1d4ed8]" />
             <span className="font-pixel text-[10px] uppercase tracking-[0.16em] text-[#1d4ed8]">
-              Sent back for revision{submission.revisionRound && submission.revisionRound > 1 ? ` · round ${submission.revisionRound}` : ""}
+              {t("Sent back for revision")}
+              {submission.revisionRound && submission.revisionRound > 1
+                ? ` · ${t("round {n}", { n: submission.revisionRound })}`
+                : ""}
             </span>
           </div>
 
           {submission.revisionNote && (
             <p className="mt-3 rounded-lg border border-[rgba(60,122,203,0.2)] bg-white px-3.5 py-2.5 text-[13px] leading-relaxed text-black/70">
-              <strong className="font-medium text-black/85">{t("They wrote:")}</strong> {submission.revisionNote}
+              <strong className="font-medium text-black/85">
+                {t("They wrote:")}
+              </strong>{" "}
+              {submission.revisionNote}
             </p>
           )}
 
           {revisionAreas.length > 0 ? (
             <>
               <p className="mt-4 text-[12px] uppercase tracking-[0.1em] text-[#1d4ed8]/70">
-                {revisionAreas.length} {revisionAreas.length === 1 ? "part needs" : "parts need"} another look
+                {revisionAreas.length === 1
+                  ? t("1 part needs another look")
+                  : t("{n} parts need another look", {
+                      n: revisionAreas.length,
+                    })}
               </p>
               <ul className="mt-2 space-y-1.5">
                 {revisionAreas.map((a) => (
@@ -1172,65 +1324,102 @@ function Overview({
                     >
                       <span className="mt-[7px] h-1.5 w-1.5 flex-none rounded-full bg-[#3C7ACB]" />
                       <span className="min-w-0">
-                        <span className="block text-[13px] text-black/80">{a.label}</span>
-                        <span className="mt-0.5 block text-[12px] leading-relaxed text-black/45">{a.hint}</span>
+                        <span className="block text-[13px] text-black/80">
+                          {a.label}
+                        </span>
+                        <span className="mt-0.5 block text-[12px] leading-relaxed text-black/45">
+                          {a.hint}
+                        </span>
                       </span>
                     </button>
                   </li>
                 ))}
               </ul>
               <div className="mt-4 flex flex-wrap items-center gap-3">
-                <Button size="sm" onClick={() => onGotoRevision(revisionAreas[0])}>
-                  {t("Go to the first thing to fix")} <ArrowRight size={13} strokeWidth={1.5} />
+                <Button
+                  size="sm"
+                  onClick={() => onGotoRevision(revisionAreas[0])}
+                >
+                  {t("Go to the first thing to fix")}{" "}
+                  <ArrowRight size={13} strokeWidth={1.5} />
                 </Button>
                 <span className="text-[12px] leading-relaxed text-black/50">
-                  {t("Each one is outlined in blue on its own screen, and stays outlined after you have answered it.")}
+                  {t(
+                    "Each one is outlined in blue on its own screen, and stays outlined after you have answered it.",
+                  )}
                 </span>
               </div>
             </>
           ) : (
             <p className="mt-3 text-[12.5px] leading-relaxed text-black/55">
-              {t("No particular section was named — read the note above and work through the whole month again.")}
+              {t(
+                "No particular section was named — read the note above and work through the whole month again.",
+              )}
             </p>
           )}
         </Card>
       )}
 
       <Card className="p-5">
-        <div className="text-[10px] uppercase tracking-[0.1em] text-black/40">{t("What you will be asked")}</div>
-        <p className="mt-2 text-[13px] leading-relaxed text-black/60">{t("6 steps — installation, methodology, monthly data, precursors, documents, then check and sign. Everything saves as you type.")}</p>
+        <div className="text-[10px] uppercase tracking-[0.1em] text-black/40">
+          {t("What you will be asked")}
+        </div>
+        <p className="mt-2 text-[13px] leading-relaxed text-black/60">
+          {t(
+            "5 steps — methodology, monthly data, documents, then check and sign. Everything saves as you type.",
+          )}
+        </p>
         <details className="group mt-2">
           <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[12.5px] text-black/50 hover:text-black/80 [&::-webkit-details-marker]:hidden">
-            <ChevronDown size={13} strokeWidth={1.5} className="transition-transform group-open:rotate-180" />
+            <ChevronDown
+              size={13}
+              strokeWidth={1.5}
+              className="transition-transform group-open:rotate-180"
+            />
             {t("See the steps")}
           </summary>
-        <ol className="mt-3 space-y-3">
-          {[
-            ["Installation", "Check the address, the coordinates of the main emission source and who signs for the data. The exporter filled this in — correct anything wrong."],
-            ["Methodology", "Which processes these figures cover, which meters they come off, and anything you could not measure."],
-            ["Monthly data", "This month's production, the fuel burned, the electricity drawn and any process emissions."],
-            ["Precursors", "How much of each bought-in CBAM input arrived this month."],
-            ["Documents", "The invoices and logs behind the figures."],
-            ["Check and sign", "A quality check runs over everything, then you confirm it is accurate."],
-          ].map(([title, body], i) => (
-            <li key={title} className="flex gap-3">
-              <span className="grid h-6 w-6 flex-none place-items-center rounded-lg bg-[#f0eee8] font-mono text-[10px] text-black/50">{i + 1}</span>
-              <span className="min-w-0">
-                <span className="block text-[13px] text-black/75">{title}</span>
-                <span className="mt-0.5 block text-[12px] leading-relaxed text-black/45">{body}</span>
-              </span>
-            </li>
-          ))}
-        </ol>
-        <p className="mt-4 border-t border-black/[0.06] pt-3 text-[12px] leading-relaxed text-black/45">
-          {t("Everything saves as you type, so you can leave and come back on this machine. Nothing is submitted until you sign on the last step.")}
-        </p>
+          <ol className="mt-3 space-y-3">
+            {[
+              [
+                "Methodology",
+                "Which processes these figures cover, which meters they come off, and anything you could not measure.",
+              ],
+              [
+                "Monthly data",
+                "This month's production, the fuel burned, the electricity drawn and any process emissions.",
+              ],
+              ["Documents", "The invoices and logs behind the figures."],
+              [
+                "Check and sign",
+                "A quality check runs over everything, then you confirm it is accurate.",
+              ],
+            ].map(([title, body], i) => (
+              <li key={title} className="flex gap-3">
+                <span className="grid h-6 w-6 flex-none place-items-center rounded-lg bg-[#f0eee8] font-mono text-[10px] text-black/50">
+                  {i + 1}
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-[13px] text-black/75">
+                    {t(title)}
+                  </span>
+                  <span className="mt-0.5 block text-[12px] leading-relaxed text-black/45">
+                    {t(body)}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ol>
+          <p className="mt-4 border-t border-black/[0.06] pt-3 text-[12px] leading-relaxed text-black/45">
+            {t(
+              "Everything saves as you type, so you can leave and come back on this machine. Nothing is submitted until you sign on the last step.",
+            )}
+          </p>
         </details>
       </Card>
 
       {/* PROTOTYPE: the shortcut for a supplier who already has the paperwork —
           drop it here, and the Documents step reads it and fills the form. */}
-      {!readOnly && onSmartUpload && <SmartUploadCard onFiles={onSmartUpload} pending={pendingReview} onResume={() => onResumeReview?.()} />}
+      {!readOnly && <SmartUploadCard />}
 
       {/* ── Which month ──────────────────────────────────────
           GONE ONCE THE MONTH IS SENT. A picker on a submitted month is an
@@ -1242,15 +1431,40 @@ function Overview({
       {readOnly ? (
         <Card className="p-5">
           <div className="flex items-start gap-3">
-            <LockKeyhole size={16} strokeWidth={1.5} className="mt-0.5 flex-none text-black/35" />
+            <LockKeyhole
+              size={16}
+              strokeWidth={1.5}
+              className="mt-0.5 flex-none text-black/35"
+            />
             <div className="min-w-0">
-              <div className="text-[10px] uppercase tracking-[0.1em] text-black/40">{t("This month is closed")}</div>
-              <div className="mt-1 text-[15px] text-black/85">{monthNameLong(month)} has been submitted.</div>
+              <div className="text-[10px] uppercase tracking-[0.1em] text-black/40">
+                {t("This month is closed")}
+              </div>
+              <div className="mt-1 text-[15px] text-black/85">
+                {notManufactured
+                  ? t("The exporter recorded no production in {month}.", {
+                      month: monthNameLong(month),
+                    })
+                  : t("{month} has been submitted.", {
+                      month: monthNameLong(month),
+                    })}
+              </div>
               <p className="mt-2 text-[12.5px] leading-relaxed text-black/50">
-                {t("Nothing here can be changed. If a figure was wrong, ask the exporter to reopen it — the button at the foot of this page sends the request, and they decide.")}
+                {notManufactured
+                  ? t(
+                      "Nothing is needed from you for this month. If the plant did produce, ask the exporter to reopen it — the button at the foot of this page sends the request, and they decide.",
+                    )
+                  : t(
+                      "Nothing here can be changed. If a figure was wrong, ask the exporter to reopen it — the button at the foot of this page sends the request, and they decide.",
+                    )}
               </p>
               {submission?.editRequest?.state === "pending" && (
-                <p className={cn("mt-3 inline-flex rounded-full border px-3 py-1 text-[11.5px]", REVISION_CHIP)}>
+                <p
+                  className={cn(
+                    "mt-3 inline-flex rounded-full border px-3 py-1 text-[11.5px]",
+                    REVISION_CHIP,
+                  )}
+                >
                   {t("Edit requested — waiting on the exporter.")}
                 </p>
               )}
@@ -1264,10 +1478,30 @@ function Overview({
         </Card>
       ) : (
         <Card className="p-5">
-          <div className="text-[10px] uppercase tracking-[0.1em] text-black/40">{t("Which month")}</div>
+          <div className="text-[10px] uppercase tracking-[0.1em] text-black/40">
+            {t("Which month")}
+          </div>
           <div className="mt-3 sm:w-72">
-            <Field label={t("Month")} hint={t("Switch if you are answering for a different one.")}>
-              <Select value={month} onChange={onMonth} options={months.map((m) => ({ value: m, label: monthNameLong(m) }))} ariaLabel={t("Month")} />
+            <Field
+              label={t("Month")}
+              hint={t(
+                "Only the months the exporter has sent you can be opened.",
+              )}
+            >
+              <Select
+                value={month}
+                onChange={onMonth}
+                options={months.map((m) => {
+                  const open = sentMonths.has(m) || m === month;
+                  return {
+                    value: m,
+                    label: monthNameLong(m),
+                    disabled: !open,
+                    hint: open ? undefined : "Not sent yet",
+                  };
+                })}
+                ariaLabel={t("Month")}
+              />
             </Field>
           </div>
 
@@ -1289,8 +1523,12 @@ function Overview({
                 }}
                 className={cn(
                   "min-w-[13rem]",
-                  copyFlash && copyResult === "copied" && "border-[rgba(5,150,105,0.35)] bg-[#ecfdf5] text-[#047857] hover:bg-[#ecfdf5] hover:text-[#047857]",
-                  copyFlash && copyResult === "empty" && "border-[#fde68a] bg-[#fffbeb] text-[#b45309] hover:bg-[#fffbeb] hover:text-[#b45309]",
+                  copyFlash &&
+                    copyResult === "copied" &&
+                    "border-[rgba(5,150,105,0.35)] bg-[#ecfdf5] text-[#047857] hover:bg-[#ecfdf5] hover:text-[#047857]",
+                  copyFlash &&
+                    copyResult === "empty" &&
+                    "border-[#fde68a] bg-[#fffbeb] text-[#b45309] hover:bg-[#fffbeb] hover:text-[#b45309]",
                 )}
               >
                 {copyFlash && copyResult === "copied" ? (
@@ -1301,12 +1539,20 @@ function Overview({
                   <Layers size={13} strokeWidth={1.5} />
                 )}
                 {copyFlash && copyResult === "copied"
-                  ? `Copied from ${monthNameLong(previousMonth)}`
+                  ? t("Copied from {month}", {
+                      month: monthNameLong(previousMonth),
+                    })
                   : copyFlash && copyResult === "empty"
-                    ? `${monthNameLong(previousMonth)} is empty`
+                    ? t("{month} is empty", {
+                        month: monthNameLong(previousMonth),
+                      })
                     : carried
-                      ? `Re-copy from ${monthNameLong(previousMonth)}`
-                      : `Start from ${monthNameLong(previousMonth)}`}
+                      ? t("Re-copy from {month}", {
+                          month: monthNameLong(previousMonth),
+                        })
+                      : t("Start from {month}", {
+                          month: monthNameLong(previousMonth),
+                        })}
               </Button>
             )}
             {/* TWO PRESSES. See `armed` above — the first states what the
@@ -1325,8 +1571,10 @@ function Overview({
               }}
               className={cn(
                 "min-w-[11rem]",
-                armed && "bg-[#fffbeb] text-[#b45309] hover:bg-[#fffbeb] hover:text-[#b45309]",
-                cleared && "bg-[#ecfdf5] text-[#047857] hover:bg-[#ecfdf5] hover:text-[#047857]",
+                armed &&
+                  "bg-[#fffbeb] text-[#b45309] hover:bg-[#fffbeb] hover:text-[#b45309]",
+                cleared &&
+                  "bg-[#ecfdf5] text-[#047857] hover:bg-[#ecfdf5] hover:text-[#047857]",
               )}
             >
               {cleared ? (
@@ -1336,11 +1584,17 @@ function Overview({
               ) : (
                 <Eraser size={13} strokeWidth={1.5} />
               )}
-              {cleared ? "Form cleared" : armed ? "Press again to clear" : "Clear the form"}
+              {cleared
+                ? t("Form cleared")
+                : armed
+                  ? t("Press again to clear")
+                  : t("Clear the form")}
             </Button>
             <p className="mt-1 w-full text-[11.5px] leading-relaxed text-black/40">
               {previousMonth
-                ? t("Copy starts from last month's figures. Clear empties this month only.")
+                ? t(
+                    "Copy starts from last month's figures. Clear empties this month only.",
+                  )
                 : t("First month of the year — nothing to copy from yet.")}
             </p>
           </div>
@@ -1350,12 +1604,15 @@ function Overview({
   );
 }
 
-/* ── Step 6 · The quality check ───────────────────────────────
-   Grouped by KIND rather than by section, because the reader's first question
-   is "what stops me submitting" and not "what is wrong with page three". Every
-   row is a button that goes to the field.
+/* ── Step 5 · Check ──────────────────────────────────────────
+   ONE QUESTION: IS EVERYTHING THERE YET? Not whether a figure is the right size
+   — the exporter has the year beside it and the plant has no way to judge
+   either — so there are no "out of range" or "unusual" groups. The step reads
+   as the same contents list the exporter meets on the readiness page: what the
+   month is made of, what is filled in, and a tag on what is not. Every row is
+   a way back to its field, which rings for a few seconds when it is reached.
 
-   The score is labelled COMPLETENESS, not quality. A percentage next to a set
+   The percentage is labelled COMPLETENESS, not quality. A number next to a set
    of emissions figures will be read as "87% accurate" by somebody eventually,
    and the product has never claimed to know that. */
 function CheckStep({
@@ -1363,37 +1620,82 @@ function CheckStep({
   onGoto,
   result,
   production,
+  indirectCounts,
 }: {
   report: NonNullable<ReturnType<typeof runMonthQualityCheck>>;
-  onGoto: (f: QualityFinding) => void;
+  onGoto: (row: ContentRow) => void;
   result: ReturnType<typeof monthResult>;
   production: number;
+  /** false for the goods of Annex II — steel, aluminium, hydrogen — whose electricity is not part of their figure */
+  indirectCounts: boolean;
 }) {
   const t = useT();
-  const groups: FindingKind[] = ["mandatory", "consistency", "validation", "anomaly"];
-  const intensity = production > 0 ? (result.directTCO2 + result.indirectTCO2) / production : null;
+  const all = report.contents.flatMap((s) => s.rows);
+  const todo = all.filter((r) => r.state !== "ready").length;
+  const missing = report.mandatory.length;
+  // Direct emissions only for the goods of Annex II (steel, aluminium, hydrogen): the electricity they draw is not part of their figure.
+  const intensity =
+    production > 0
+      ? (result.directTCO2 + (indirectCounts ? result.indirectTCO2 : 0)) /
+        production
+      : null;
+  const extra = todo - missing;
 
   return (
     <div className="space-y-5">
-      <Card className={cn("p-5", report.canSubmit ? "border-[rgba(5,150,105,0.25)] bg-[#ecfdf5]" : "border-[#fde68a] bg-[#fffbeb]")}>
+      <Card
+        className={cn(
+          "p-5",
+          report.canSubmit
+            ? "border-[rgba(5,150,105,0.25)] bg-[#ecfdf5]"
+            : "border-[#fde68a] bg-[#fffbeb]",
+        )}
+      >
         <div className="flex items-start gap-3">
           <span className="mt-0.5 flex-none">
             {report.canSubmit ? (
-              <CheckCircle2 size={20} strokeWidth={1.5} className="text-[#047857]" />
+              <CheckCircle2
+                size={20}
+                strokeWidth={1.5}
+                className="text-[#047857]"
+              />
             ) : (
-              <TriangleAlert size={20} strokeWidth={1.5} className="text-[#b45309]" />
+              <TriangleAlert
+                size={20}
+                strokeWidth={1.5}
+                className="text-[#b45309]"
+              />
             )}
           </span>
           <div className="min-w-0">
-            <p className={cn("text-[14px]", report.canSubmit ? "text-[#047857]" : "text-[#b45309]")}>
+            <p
+              className={cn(
+                "text-[14px]",
+                report.canSubmit ? "text-[#047857]" : "text-[#b45309]",
+              )}
+            >
               {report.canSubmit
-                ? report.warnings.length === 0
-                  ? "Everything checks out. Nothing is missing and nothing looks unusual."
-                  : `Ready to submit, with ${report.warnings.length} thing${report.warnings.length === 1 ? "" : "s"} worth a look.`
-                : `${report.mandatory.length} thing${report.mandatory.length === 1 ? "" : "s"} must be answered before this month can be submitted.`}
+                ? extra === 0
+                  ? t("Everything is filled in. Carry on to sign it off.")
+                  : extra === 1
+                    ? t("Ready to submit. 1 more thing is worth adding.")
+                    : t("Ready to submit. {n} more things are worth adding.", {
+                        n: extra,
+                      })
+                : missing === 1
+                  ? t(
+                      "1 thing must be answered before this month can be submitted.",
+                    )
+                  : t(
+                      "{n} things must be answered before this month can be submitted.",
+                      { n: missing },
+                    )}
             </p>
             <p className="mt-1 text-[12.5px] leading-relaxed text-black/50">
-              Completeness {report.score}%. This counts answered fields — it is not a judgement about whether the figures are right.
+              {t(
+                "Completeness {score}%. This counts answered fields — it is not a judgement about whether the figures are right.",
+                { score: report.score },
+              )}
             </p>
           </div>
         </div>
@@ -1401,58 +1703,38 @@ function CheckStep({
 
       {/* What the month adds up to, before they commit to it. */}
       <Card className="p-5">
-        <div className="grid gap-4 sm:grid-cols-4">
+        <div
+          className={cn(
+            "grid gap-4",
+            indirectCounts ? "sm:grid-cols-4" : "sm:grid-cols-3",
+          )}
+        >
           <Summary label={t("Produced")} value={`${fmt(production, 2)} t`} />
-          <Summary label={t("Direct CO₂")} value={`${fmt(result.directTCO2, 2)} tCO₂`} />
-          <Summary label={t("Electricity CO₂")} value={`${fmt(result.indirectTCO2, 2)} tCO₂`} />
-          <Summary label={t("Per tonne")} value={intensity == null ? "—" : `${fmt(intensity, 4)} tCO₂e/t`} />
+          <Summary
+            label={t("Direct CO₂")}
+            value={`${fmt(result.directTCO2, 2)} tCO₂`}
+          />
+          {indirectCounts && (
+            <Summary
+              label={t("Electricity CO₂")}
+              value={`${fmt(result.indirectTCO2, 2)} tCO₂`}
+            />
+          )}
+          <Summary
+            label={t("Per tonne")}
+            value={intensity == null ? "—" : `${fmt(intensity, 4)} tCO₂e/t`}
+          />
         </div>
       </Card>
 
-      {report.findings.length === 0 ? (
-        <Card className="p-6 text-center">
-          <p className="text-[13px] text-black/50">{t("Nothing to report. Carry on to sign it off.")}</p>
-        </Card>
-      ) : (
-        groups.map((kind) => {
-          const rows = report.findings.filter((f) => f.kind === kind);
-          if (rows.length === 0) return null;
-          return (
-            <section key={kind} className="space-y-2">
-              <div>
-                <h2
-                  className={cn(
-                    "font-pixel text-[11px] uppercase tracking-[0.16em]",
-                    kind === "mandatory" ? "text-[#dc2626]" : kind === "anomaly" ? "text-black/40" : "text-[#b45309]",
-                  )}
-                >
-                  {t(KIND_LABEL[kind])} · {rows.length}
-                </h2>
-                <p className="mt-1 text-[12px] leading-relaxed text-black/45">{t(KIND_BLURB[kind])}</p>
-              </div>
-              <Card className="divide-y divide-black/[0.05] p-0">
-                {rows.map((f, i) => (
-                  <button
-                    key={`${f.field}-${i}`}
-                    type="button"
-                    onClick={() => onGoto(f)}
-                    className="flex w-full items-start gap-3 px-5 py-4 text-left transition-colors hover:bg-[#fafaf8]"
-                  >
-                    <span className="min-w-0 flex-1">
-                      <span className="flex flex-wrap items-baseline gap-2">
-                        <span className="font-pixel text-[9.5px] uppercase tracking-[0.14em] text-black/35">{t(STEP_LABEL[f.step])}</span>
-                        <span className="text-[13px] text-black/80">{f.title}</span>
-                      </span>
-                      <span className="mt-1 block text-[12.5px] leading-relaxed text-black/50">{f.detail}</span>
-                    </span>
-                    <ArrowRight size={15} strokeWidth={1.5} className="mt-0.5 flex-none text-black/25" />
-                  </button>
-                ))}
-              </Card>
-            </section>
-          );
-        })
-      )}
+      <ContentsBox
+        report={report}
+        onGoto={onGoto}
+        title={t("This month’s data")}
+        purpose={t(
+          "Every part of the month, and whether it is filled in yet. Tap a row to go to it.",
+        )}
+      />
     </div>
   );
 }
@@ -1460,13 +1742,15 @@ function CheckStep({
 function Summary({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-[10px] uppercase tracking-[0.1em] text-black/40">{label}</div>
+      <div className="text-[10px] uppercase tracking-[0.1em] text-black/40">
+        {label}
+      </div>
       <div className="mt-1 font-mono text-[15px] text-black/80">{value}</div>
     </div>
   );
 }
 
-/* ── Step 7 · The internal authorisation ──────────────────────
+/* ── Step 6 · The internal authorisation ──────────────────────
    NOT a signature-shaped box, and not called one. What this collects is the
    record of who inside the plant stood behind the figures — which is what a
    verifier asks for and what the month carries forward. The section is named
@@ -1474,64 +1758,55 @@ function Summary({ label, value }: { label: string; value: string }) {
    the reader something about where the bytes live, which is the one thing
    about it they have no use for.
 
-   THE WARNINGS CHECKBOX IS SEPARATE from the accuracy one, and only appears
-   when there are warnings. Rolling them together would let somebody confirm
-   accuracy without ever registering that four things were flagged. */
+   Below it, the HISTORY: every time somebody pressed submit, with the minute it
+   happened. The time is taken from the press itself (see `doSubmit`), not typed. */
 function SignStep({
-  report,
   workspaceName,
   fullName,
   role,
   confirmed,
-  warningsRead,
   onFullName,
   onRole,
   onConfirmed,
-  onWarningsRead,
-  onGoto,
+  history,
   readOnly,
 }: {
-  report: NonNullable<ReturnType<typeof runMonthQualityCheck>>;
   workspaceName: string;
   fullName: string;
   role: string;
   confirmed: boolean;
-  warningsRead: boolean;
   onFullName: (v: string) => void;
   onRole: (v: string) => void;
   onConfirmed: (v: boolean) => void;
-  onWarningsRead: (v: boolean) => void;
-  onGoto: (f: QualityFinding) => void;
+  history: Attestation[];
   readOnly: boolean;
 }) {
   const t = useT();
   return (
     <div className="space-y-5">
-      {!report.canSubmit && (
-        <Note tone="err">
-          <strong>{t("This month cannot be submitted yet.")}</strong>
-          <ul className="mt-1.5 space-y-1">
-            {report.mandatory.slice(0, 5).map((f, i) => (
-              <li key={i}>
-                <button type="button" onClick={() => onGoto(f)} className="text-left underline decoration-black/20 underline-offset-2 hover:text-black">
-                  {f.title}
-                </button>
-              </li>
-            ))}
-            {report.mandatory.length > 5 && <li>+ {report.mandatory.length - 5} more on the previous step.</li>}
-          </ul>
-        </Note>
-      )}
-
       <Card className="p-5 sm:p-6">
-        <span className="font-pixel text-[11px] uppercase tracking-[0.16em] text-black/40">{t("Internal authorisation")}</span>
+        <span className="font-pixel text-[11px] uppercase tracking-[0.16em] text-black/40">
+          {t("Internal authorisation")}
+        </span>
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <Field label={t("Full name")}>
-            <input className={inputClass} value={fullName} disabled={readOnly} onChange={(e) => onFullName(e.target.value)} placeholder={t("Somchai Prasert")} />
+            <input
+              className={inputClass}
+              value={fullName}
+              disabled={readOnly}
+              onChange={(e) => onFullName(e.target.value)}
+              placeholder={t("Somchai Prasert")}
+            />
           </Field>
           <Field label={t("Role / title")}>
-            <input className={inputClass} value={role} disabled={readOnly} onChange={(e) => onRole(e.target.value)} placeholder={t("Production Manager")} />
+            <input
+              className={inputClass}
+              value={role}
+              disabled={readOnly}
+              onChange={(e) => onRole(e.target.value)}
+              placeholder={t("Production Manager")}
+            />
           </Field>
         </div>
 
@@ -1544,27 +1819,15 @@ function SignStep({
             className="mt-0.5 h-4 w-4 flex-none accent-[#111]"
           />
           <span className="text-[13px] leading-relaxed text-black/70">
-            I confirm the information is accurate and complete to the best of my knowledge, and I&rsquo;m authorised to submit it on behalf of{" "}
-            <strong className="font-medium text-black/85">{workspaceName}</strong>.
+            {t(
+              "I confirm the information is accurate and complete to the best of my knowledge, and I’m authorised to submit it on behalf of {company}.",
+              { company: workspaceName },
+            )}
           </span>
         </label>
-
-        {report.warnings.length > 0 && (
-          <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-xl border border-[#fde68a] bg-[#fffbeb] px-4 py-3">
-            <input
-              type="checkbox"
-              checked={warningsRead}
-              disabled={readOnly}
-              onChange={(e) => onWarningsRead(e.target.checked)}
-              className="mt-0.5 h-4 w-4 flex-none accent-[#111]"
-            />
-            <span className="text-[13px] leading-relaxed text-[#b45309]">
-              I&rsquo;ve reviewed the {report.warnings.length} warning{report.warnings.length === 1 ? "" : "s"} from the quality check and confirm the
-              data is correct as entered.
-            </span>
-          </label>
-        )}
       </Card>
+
+      <AuthorisationHistory history={history} />
     </div>
   );
 }

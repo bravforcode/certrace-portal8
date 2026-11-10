@@ -26,13 +26,19 @@
    ════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
-import { Check, ExternalLink, FileCheck2, Paperclip, Trash2, Upload, User as UserIcon } from "lucide-react";
+import { Check, FileCheck2, Paperclip, Trash2, Upload } from "lucide-react";
 import { cn } from "@/components/ui";
 import { toast } from "@/components/toast";
 import { USER } from "@/lib/data";
 import { type MonthlyEntry } from "@/lib/monthly-data";
-import { openEvidenceDocument, sourceTypeForKey, uploadEvidence } from "@/components/workspace/evidence-panel";
+import {
+  sourceTypeForKey,
+  uploadEvidence,
+  ExtractionPanel,
+} from "@/components/workspace/evidence-panel";
 import { useT } from "@/lib/i18n";
+import { UploadedFileActions } from "@/components/uploaded-file-actions";
+import { loadEvidenceFile } from "@/lib/document-files";
 import {
   ALL_CONDITIONAL_ANNUAL_KEYS,
   ALL_ELECTRICITY_KEYS,
@@ -54,7 +60,12 @@ import {
   type EvidenceItem,
 } from "@/lib/workspace-evidence";
 
-type CardStatus = "not_required" | "missing" | "awaiting_review" | "needs_binding" | "bound";
+type CardStatus =
+  | "not_required"
+  | "missing"
+  | "awaiting_review"
+  | "needs_binding"
+  | "bound";
 
 function statusFor(row: CoverageRow, notRequired: boolean): CardStatus {
   if (notRequired) return "not_required";
@@ -83,15 +94,15 @@ const STATUS_CLASS: Record<CardStatus, string> = {
 function StatusPill({ status }: { status: CardStatus }) {
   const t = useT();
   return (
-    <span className={cn("flex-none whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.1em]", STATUS_CLASS[status])}>
+    <span
+      className={cn(
+        "flex-none whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.1em]",
+        STATUS_CLASS[status],
+      )}
+    >
       {t(STATUS_LABEL[status])}
     </span>
   );
-}
-
-function fmtDate(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
 /** The bind control shown inline once a file lands on a key with no target
@@ -107,7 +118,16 @@ function fmtDate(iso: string): string {
     metadata and `isBound` counts it without anyone picking anything, so the
     dropdown only ever appeared on the annual grid, where the year is the
     answer anyway. */
-function BindControl({ year, item, onBound }: { year: number; item: EvidenceItem; onBound: () => void }) {
+function BindControl({
+  year,
+  item,
+  onBound,
+}: {
+  year: number;
+  item: EvidenceItem;
+  onBound: () => void;
+}) {
+  const t = useT();
   return (
     <button
       type="button"
@@ -117,7 +137,7 @@ function BindControl({ year, item, onBound }: { year: number; item: EvidenceItem
       }}
       className="rounded-lg border border-black/10 px-3 py-1.5 text-[11px] uppercase tracking-[0.08em] text-black/50 hover:border-black/25 hover:text-black"
     >
-      Bind to {year}
+      {t("Bind to {year}", { year })}
     </button>
   );
 }
@@ -131,6 +151,8 @@ function DocumentCard({
   busy,
   onFile,
   allowUpload = true,
+  entry,
+  onEntryChange,
 }: {
   workspaceId: string;
   year: number;
@@ -142,13 +164,22 @@ function DocumentCard({
   /** false where smart upload is the way documents come in, so the card only
       reports what is missing instead of offering a second upload. */
   allowUpload?: boolean;
+  entry: MonthlyEntry;
+  onEntryChange?: (entry: MonthlyEntry) => void;
 }) {
   const t = useT();
   const status = statusFor(row, notRequired);
   const disabled = status === "not_required";
 
   return (
-    <div className={cn("rounded-xl border p-3.5", disabled ? "border-black/[0.06] bg-black/[0.015]" : "border-black/[0.08] bg-white")}>
+    <div
+      className={cn(
+        "rounded-xl border p-3.5",
+        disabled
+          ? "border-black/[0.06] bg-black/[0.015]"
+          : "border-black/[0.08] bg-white",
+      )}
+    >
       {/* THE TITLE KEEPS THE WIDTH; THE PILL WRAPS.
 
           `min-w-0` without `flex-1` let the title shrink to its longest word
@@ -159,102 +190,108 @@ function DocumentCard({
           pill drops onto its own line above rather than strangling the title. */}
       <div className="flex flex-wrap-reverse items-start justify-between gap-x-2 gap-y-1.5">
         <div className="min-w-0 flex-1 basis-[8rem]">
-          <p className={cn("text-[13px] leading-snug", disabled ? "text-black/35" : "text-black/80")}>{t(row.label)}</p>
+          <p
+            className={cn(
+              "text-[13px] leading-snug",
+              disabled ? "text-black/35" : "text-black/80",
+            )}
+          >
+            {t(row.label)}
+          </p>
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-black/40">
-            {row.frequency && <span>{t(EVIDENCE_FREQUENCY_LABEL[row.frequency])}</span>}
-            {row.whoToAsk && <span className="truncate">· {row.whoToAsk}</span>}
+            {row.frequency && (
+              <span>{t(EVIDENCE_FREQUENCY_LABEL[row.frequency])}</span>
+            )}
+            {row.whoToAsk && (
+              <span className="truncate">· {t(row.whoToAsk)}</span>
+            )}
           </div>
         </div>
         <StatusPill status={status} />
       </div>
 
       {disabled ? (
-        <p className="mt-2 text-[11px] italic text-black/30">{t("Not applicable to this workspace right now.")}</p>
+        <p className="mt-2 text-[11px] italic text-black/30">
+          {t("Not applicable to this product report right now.")}
+        </p>
       ) : (
         <>
           {row.items.length > 0 && (
             <ul className="mt-2.5 space-y-1.5">
               {row.items.map((item) => (
-                <li key={item.id} className="rounded-lg bg-[#faf9f7] px-2.5 py-1.5 text-[11px]">
-                  {/* THE FILE NAME OPENS THE FILE, AND GETS ITS OWN LINE.
-
-                      A row that prints a document's name, who attached it and
-                      when, and then does nothing when you press it, has
-                      answered every question about the document except the
-                      one the reader has — what is in it. `openEvidenceDocument`
-                      is the same opener the precursor Documents block uses,
-                      including its honest refusal when the file was too large
-                      to keep in the browser and only its record was stored.
-
-                      These cards sit three to a row on a wide screen and one
-                      to a narrow column on a phone, so the name shared a line
-                      with an uploader, a date and a bin: "efing.pdf"
-                      truncated to "e." — a link whose entire purpose is to be
-                      recognised, shortened past recognition. It takes the
-                      full width now and the provenance sits under it, which
-                      is also the order they are read in. */}
-                  <button
-                    type="button"
-                    onClick={() => openEvidenceDocument(item)}
-                    title={`Open ${item.fileName}`}
-                    className="group flex w-full min-w-0 items-center gap-1.5 text-left text-black/70 transition-colors hover:text-black"
-                  >
-                    <Paperclip size={11} strokeWidth={1.5} className="flex-none text-black/30" />
-                    <span className="min-w-0 truncate underline decoration-black/15 underline-offset-2 group-hover:decoration-black/40">
-                      {item.fileName}
-                    </span>
-                    <ExternalLink size={10} strokeWidth={1.5} className="flex-none text-black/25 group-hover:text-black/55" />
-                  </button>
-                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-                    <span className="inline-flex items-center gap-1 text-black/35">
-                      <UserIcon size={10} strokeWidth={1.5} />
-                      {item.uploadedBy ?? "—"}
-                    </span>
-                    <span className="text-black/30">{fmtDate(item.capturedAt)}</span>
-                    {item.boundTo && <span className="rounded-full bg-black/[0.05] px-2 py-0.5 text-black/45">&rarr; {item.boundTo}</span>}
+                <li
+                  key={item.id}
+                  className="rounded-lg bg-[#faf9f7] px-2.5 py-1.5 text-[11px]"
+                >
+                  <div className="flex w-full min-w-0 items-center gap-1.5 text-black/70">
+                    <Paperclip
+                      size={11}
+                      strokeWidth={1.5}
+                      className="flex-none text-black/30"
+                    />
+                    <UploadedFileActions
+                      fileName={item.fileName}
+                      mimeType={item.mimeType}
+                      loadFile={() => loadEvidenceFile(item)}
+                    />
                     <button
                       type="button"
                       onClick={() => {
                         removeEvidence(item.workspaceId, item.id);
                         onChange();
                       }}
-                      className="ml-auto flex-none rounded p-1 text-black/25 hover:bg-[#fef2f2] hover:text-[#dc2626]"
+                      className="flex-none rounded p-1 text-black/25 hover:bg-[#fef2f2] hover:text-[#dc2626]"
                       aria-label={t("Remove")}
                     >
                       <Trash2 size={11} strokeWidth={1.5} />
                     </button>
                   </div>
+                  {item.boundTo && (
+                    <div className="mt-1">
+                      <span className="rounded-full bg-black/[0.05] px-2 py-0.5 text-black/45">
+                        &rarr; {item.boundTo}
+                      </span>
+                    </div>
+                  )}
                   {isReviewed(item) && !item.boundTo && !item.month && (
                     <div className="mt-1.5">
                       <BindControl year={year} item={item} onBound={onChange} />
                     </div>
                   )}
+                  <ExtractionPanel
+                    item={item}
+                    entry={item.month === entry.month ? entry : null}
+                    onChange={onChange}
+                    onEntryChange={onEntryChange}
+                  />
                 </li>
               ))}
             </ul>
           )}
 
           {allowUpload && (
-          <label
-            className={cn(
-              "mt-2.5 flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed px-3 py-2.5 text-[11px] uppercase tracking-[0.08em] transition-colors",
-              busy ? "border-black/10 text-black/30" : "border-black/15 text-black/45 hover:border-black/30 hover:text-black",
-            )}
-          >
-            <Upload size={12} strokeWidth={1.5} />
-            {busy ? "Uploading…" : "Drop a file, or click to attach"}
-            <input
-              type="file"
-              className="hidden"
-              accept="application/pdf,image/*"
-              disabled={Boolean(busy)}
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) onFile(row, f);
-                e.target.value = "";
-              }}
-            />
-          </label>
+            <label
+              className={cn(
+                "mt-2.5 flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed px-3 py-2.5 text-[11px] uppercase tracking-[0.08em] transition-colors",
+                busy
+                  ? "border-black/10 text-black/30"
+                  : "border-black/15 text-black/45 hover:border-black/30 hover:text-black",
+              )}
+            >
+              <Upload size={12} strokeWidth={1.5} />
+              {busy ? t("Uploading…") : t("Drop a file, or click to attach")}
+              <input
+                type="file"
+                className="hidden"
+                accept="application/pdf,image/*"
+                disabled={Boolean(busy)}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) onFile(row, f);
+                  e.target.value = "";
+                }}
+              />
+            </label>
           )}
         </>
       )}
@@ -271,16 +308,36 @@ function DocumentCard({
    THE DISMISS IS A BUTTON. It used to be bare text at the end of a paragraph,
    with no border and no hit area to speak of, which on a phone is a word you
    have to aim at. Three short lines, and one obvious way to put them away. */
-function OnboardingBanner({ workspaceId, onDismiss }: { workspaceId: string; onDismiss: () => void }) {
+function OnboardingBanner({
+  workspaceId,
+  onDismiss,
+}: {
+  workspaceId: string;
+  onDismiss: () => void;
+}) {
   const t = useT();
   return (
     <div className="mb-4 flex flex-col gap-3 rounded-xl border border-[#3C7ACB]/20 bg-[#3C7ACB]/[0.045] px-4 py-3.5 text-[12px] text-black/60 sm:flex-row sm:items-start">
-      <FileCheck2 size={15} strokeWidth={1.5} className="mt-0.5 flex-none text-[#3C7ACB]" />
+      <FileCheck2
+        size={15}
+        strokeWidth={1.5}
+        className="mt-0.5 flex-none text-[#3C7ACB]"
+      />
       <div className="min-w-0 flex-1">
-        <p className="font-medium text-black/80">{t("Work through these in order: Finance, then Operations, then Suppliers.")}</p>
+        <p className="font-medium text-black/80">
+          {t(
+            "Work through these in order: Finance, then Operations, then Suppliers.",
+          )}
+        </p>
         <p className="mt-1 leading-relaxed">
-          {t(EVIDENCE_DEPARTMENT_LABEL.finance)} is usually already on file. {t(EVIDENCE_DEPARTMENT_LABEL.operations)} may need a new logging habit.{" "}
-          {t(EVIDENCE_DEPARTMENT_LABEL.suppliers)} waits on someone outside your company — ask early, finish there.
+          {t(
+            "{finance} is usually already on file. {operations} may need a new logging habit. {suppliers} waits on someone outside your company — ask early, finish there.",
+            {
+              finance: t(EVIDENCE_DEPARTMENT_LABEL.finance),
+              operations: t(EVIDENCE_DEPARTMENT_LABEL.operations),
+              suppliers: t(EVIDENCE_DEPARTMENT_LABEL.suppliers),
+            },
+          )}
         </p>
       </div>
       <button
@@ -309,6 +366,9 @@ export function DocumentsCardGrid({
   scope,
   onChange,
   allowUpload = true,
+  audience = "exporter",
+  uploadedBy,
+  onEntryChange,
 }: {
   workspaceId: string;
   year: number;
@@ -317,6 +377,12 @@ export function DocumentsCardGrid({
   onChange: () => void;
   /** See DocumentCard. */
   allowUpload?: boolean;
+  /** On the plant's own link the precursors' paperwork (verification reports, mill certificates of bought-in goods) is not asked:
+      the precursors are the exporter's, on their Precursors tab. */
+  audience?: "exporter" | "supplier";
+  /** who is attached to the file — the signed-in user in the portal, the plant on its link */
+  uploadedBy?: string;
+  onEntryChange?: (entry: MonthlyEntry) => void;
 }) {
   const t = useT();
   const [busy, setBusy] = React.useState<string | null>(null);
@@ -332,12 +398,32 @@ export function DocumentsCardGrid({
     onChange();
   }, [onChange]);
 
-  const monthRows = React.useMemo(
-    () => coverageForMonth(workspaceId, entry, scope.requiresIndirectEmissions ?? false).rows,
-    [workspaceId, entry, scope.requiresIndirectEmissions, tick],
+  const asked = React.useCallback(
+    (rows: CoverageRow[]) =>
+      audience === "supplier"
+        ? rows.filter((r) => r.department !== "suppliers")
+        : rows,
+    [audience],
   );
-  const annualRows = React.useMemo(() => annualCoverage(workspaceId, scope), [workspaceId, scope, tick]); // eslint-disable-line react-hooks/exhaustive-deps
-  const activeKeys = React.useMemo(() => new Set([...monthRows, ...annualRows].map((r) => r.key)), [monthRows, annualRows]);
+  const monthRows = React.useMemo(
+    () =>
+      asked(
+        coverageForMonth(
+          workspaceId,
+          entry,
+          scope.requiresIndirectEmissions ?? false,
+        ).rows,
+      ),
+    [workspaceId, entry, scope.requiresIndirectEmissions, tick, asked],
+  );
+  const annualRows = React.useMemo(
+    () => asked(annualCoverage(workspaceId, scope)),
+    [workspaceId, scope, tick, asked],
+  ); // eslint-disable-line react-hooks/exhaustive-deps
+  const activeKeys = React.useMemo(
+    () => new Set([...monthRows, ...annualRows].map((r) => r.key)),
+    [monthRows, annualRows],
+  );
   // ALL_ELECTRICITY_KEYS alongside the annual conditionals: a workspace whose
   // category doesn't count indirect emissions still gets the three
   // electricity cards, greyed as "Not required" — same treatment as the PPA
@@ -345,19 +431,25 @@ export function DocumentsCardGrid({
   // indistinguishable from a requirement nobody ever asked about.
   const notRequiredRows: CoverageRow[] = React.useMemo(
     () =>
-      [...ALL_CONDITIONAL_ANNUAL_KEYS, ...ALL_ELECTRICITY_KEYS].filter((k) => !activeKeys.has(k.key)).map((k) => ({
-        key: k.key,
-        label: k.label,
-        cite: k.cite,
-        department: k.department,
-        frequency: k.frequency,
-        whoToAsk: k.whoToAsk,
-        covered: false,
-        awaitingReview: 0,
-        awaitingBinding: 0,
-        items: [],
-      })),
-    [activeKeys],
+      [...ALL_CONDITIONAL_ANNUAL_KEYS, ...ALL_ELECTRICITY_KEYS]
+        .filter(
+          (k) =>
+            !activeKeys.has(k.key) &&
+            !(audience === "supplier" && k.department === "suppliers"),
+        )
+        .map((k) => ({
+          key: k.key,
+          label: k.label,
+          cite: k.cite,
+          department: k.department,
+          frequency: k.frequency,
+          whoToAsk: k.whoToAsk,
+          covered: false,
+          awaitingReview: 0,
+          awaitingBinding: 0,
+          items: [],
+        })),
+    [activeKeys, audience],
   );
 
   const notRequiredKeys = new Set(notRequiredRows.map((r) => r.key));
@@ -370,7 +462,9 @@ export function DocumentsCardGrid({
   }
 
   const liveTotal = monthRows.length + annualRows.length;
-  const liveCovered = [...monthRows, ...annualRows].filter((r) => r.covered).length;
+  const liveCovered = [...monthRows, ...annualRows].filter(
+    (r) => r.covered,
+  ).length;
 
   // Anything requiredKeysForMonth() generated is a genuinely per-month
   // document — tag it with THIS month so it is bound automatically and
@@ -379,7 +473,10 @@ export function DocumentsCardGrid({
   // hand-maintained list of key prefixes, is what a key like utility-invoice
   // moving from the annual list into requiredKeysForMonth() needs to start
   // tagging correctly without a second edit here being remembered too.
-  const monthRowKeys = React.useMemo(() => new Set(monthRows.map((r) => r.key)), [monthRows]);
+  const monthRowKeys = React.useMemo(
+    () => new Set(monthRows.map((r) => r.key)),
+    [monthRows],
+  );
 
   const attach = (row: CoverageRow, file: File) =>
     void uploadEvidence({
@@ -388,25 +485,39 @@ export function DocumentsCardGrid({
       month: monthRowKeys.has(row.key) ? entry.month : undefined,
       fieldKeys: [row.key],
       sourceType: sourceTypeForKey(row.key),
-      uploadedBy: USER.name,
+      uploadedBy: uploadedBy ?? USER.name,
       onProgress: (id) => {
         setBusy(id);
         reload();
       },
     }).then(() => {
       reload();
-      toast({ message: "Attached", detail: `${file.name} — reviewing…`, tone: "info" });
+      toast({
+        message: "Attached",
+        detail: file.name,
+        tone: "info",
+      });
     });
 
   return (
     <div>
-      {showOnboarding && <OnboardingBanner workspaceId={workspaceId} onDismiss={() => setShowOnboarding(false)} />}
+      {showOnboarding && audience !== "supplier" && (
+        <OnboardingBanner
+          workspaceId={workspaceId}
+          onDismiss={() => setShowOnboarding(false)}
+        />
+      )}
 
       <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
         <span className="text-[12px] text-black/45">
-          {liveCovered} of {liveTotal} required documents are bound and counted.
+          {t("{covered} of {total} required documents are bound and counted.", {
+            covered: liveCovered,
+            total: liveTotal,
+          })}
         </span>
-        <span className="font-mono text-[12px] text-black/45">{liveTotal ? Math.round((liveCovered / liveTotal) * 100) : 0}%</span>
+        <span className="font-mono text-[12px] text-black/45">
+          {liveTotal ? Math.round((liveCovered / liveTotal) * 100) : 0}%
+        </span>
       </div>
 
       <div className="space-y-3">
@@ -414,9 +525,15 @@ export function DocumentsCardGrid({
           const rows = byDept.get(dept) ?? [];
           if (rows.length === 0) return null;
           const coveredHere = rows.filter((r) => r.covered).length;
-          const applicableHere = rows.filter((r) => !notRequiredKeys.has(r.key)).length;
+          const applicableHere = rows.filter(
+            (r) => !notRequiredKeys.has(r.key),
+          ).length;
           return (
-            <details key={dept} className="group rounded-2xl border border-black/[0.07] bg-[#faf9f7]" open>
+            <details
+              key={dept}
+              className="group rounded-2xl border border-black/[0.07] bg-[#faf9f7]"
+              open
+            >
               {/* THE STEP TAG IS NEVER LEFT ON A LINE OF ITS OWN.
 
                   One row of name + tag + count is right at 640px and up. At
@@ -442,23 +559,32 @@ export function DocumentsCardGrid({
                   </span>
                   {EVIDENCE_RECOMMENDED_ORDER.includes(dept) && (
                     <span className="hidden flex-none whitespace-nowrap rounded-full bg-black/[0.05] px-2 py-0.5 text-[10px] text-black/35 sm:inline">
-                      Step {EVIDENCE_RECOMMENDED_ORDER.indexOf(dept) + 1}
+                      {t("Step {n}", {
+                        n: EVIDENCE_RECOMMENDED_ORDER.indexOf(dept) + 1,
+                      })}
                     </span>
                   )}
                 </span>
                 <span className="flex flex-none items-center gap-2 whitespace-nowrap text-[11px] text-black/40 sm:gap-3">
                   {EVIDENCE_RECOMMENDED_ORDER.includes(dept) && (
                     <span className="rounded-full bg-black/[0.05] px-2 py-0.5 text-[10px] text-black/35 sm:hidden">
-                      Step {EVIDENCE_RECOMMENDED_ORDER.indexOf(dept) + 1}
+                      {t("Step {n}", {
+                        n: EVIDENCE_RECOMMENDED_ORDER.indexOf(dept) + 1,
+                      })}
                     </span>
                   )}
                   <span>
-                    {coveredHere} of {applicableHere || rows.length} bound
+                    {t("{covered} of {total} bound", {
+                      covered: coveredHere,
+                      total: applicableHere || rows.length,
+                    })}
                   </span>
                 </span>
               </summary>
               <div className="border-t border-black/[0.06] px-4 py-3">
-                <p className="mb-3 text-[11px] text-black/40">{EVIDENCE_DEPARTMENT_WHO_TO_ASK[dept]}</p>
+                <p className="mb-3 text-[11px] text-black/40">
+                  {t(EVIDENCE_DEPARTMENT_WHO_TO_ASK[dept])}
+                </p>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
                   {rows.map((row) => (
                     <DocumentCard
@@ -471,6 +597,8 @@ export function DocumentsCardGrid({
                       busy={busy}
                       onFile={attach}
                       allowUpload={allowUpload}
+                      entry={entry}
+                      onEntryChange={onEntryChange}
                     />
                   ))}
                 </div>

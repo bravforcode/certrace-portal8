@@ -26,7 +26,8 @@ const storage = new MemoryStorage();
 g.window = { localStorage: storage };
 g.localStorage = storage;
 
-const { emptySupplier, saveSupplier, validateVerificationReport } = await import("../precursor-suppliers");
+const { emptySupplier, saveSupplier, validateVerificationReport } =
+  await import("../precursor-suppliers");
 
 test("Bug 9 — a purchased precursor from an EU country locks SEE at 0, no report required", () => {
   storage.clear();
@@ -40,15 +41,28 @@ test("Bug 9 — a purchased precursor from an EU country locks SEE at 0, no repo
     specificEmbeddedDirectTco2PerT: 3.2,
     specificEmbeddedIndirectTco2PerT: 0.4,
   });
-  assert.equal(s.seeTco2ePerT, 0, "SEE is 0 by construction for an EU origin, regardless of what was typed");
+  assert.equal(
+    s.seeTco2ePerT,
+    0,
+    "SEE is 0 by construction for an EU origin, regardless of what was typed",
+  );
   assert.equal(s.specificEmbeddedDirectTco2PerT, 0);
   assert.equal(s.specificEmbeddedIndirectTco2PerT, 0);
-  assert.equal(s.verificationChecks, undefined, "no verification report is required for an exempt origin");
+  assert.equal(
+    s.verificationChecks,
+    undefined,
+    "no verification report is required for an exempt origin",
+  );
 });
 
 test("Bug 9 — exempt territories (Switzerland, Norway) also lock to 0", () => {
   storage.clear();
-  const ch = saveSupplier({ ...emptySupplier("ws-1"), country: "CH", origin: "purchased", seeTco2ePerT: 5 });
+  const ch = saveSupplier({
+    ...emptySupplier("ws-1"),
+    country: "CH",
+    origin: "purchased",
+    seeTco2ePerT: 5,
+  });
   assert.equal(ch.seeTco2ePerT, 0);
 });
 
@@ -64,7 +78,11 @@ test("Bug 9 — the direct/indirect split is kept in sync with the combined figu
     specificEmbeddedDirectTco2PerT: 1.5,
     specificEmbeddedIndirectTco2PerT: 0.35,
   });
-  assert.equal(s.seeTco2ePerT, 1.85, "seeTco2ePerT is the sum, so effectiveSee and every existing reader need no change");
+  assert.equal(
+    s.seeTco2ePerT,
+    1.85,
+    "seeTco2ePerT is the sum, so effectiveSee and every existing reader need no change",
+  );
 });
 
 test("Bug 9 — an unverified claim is never gated by the verification checks", () => {
@@ -78,7 +96,11 @@ test("Bug 9 — an unverified claim is never gated by the verification checks", 
     dataOrigin: "supplier_unverified",
     seeTco2ePerT: 1.85,
   });
-  assert.equal(s.dataOrigin, "supplier_unverified", "unverified makes no claim a report could fail");
+  assert.equal(
+    s.dataOrigin,
+    "supplier_unverified",
+    "unverified makes no claim a report could fail",
+  );
   assert.equal(s.verificationChecks, undefined);
 });
 
@@ -93,8 +115,15 @@ test("Bug 9 — a supplier_verified claim with no report attached fails all four
     dataOrigin: "supplier_verified",
     seeTco2ePerT: 1.85,
   });
-  assert.equal(s.dataOrigin, "default_value", "the mandatory fallback — not a warning beside a figure that stays put");
-  assert.ok(s.verificationChecks && s.verificationChecks.failedReasons.length > 0, "both parties are told which check failed");
+  assert.equal(
+    s.dataOrigin,
+    "default_value",
+    "the mandatory fallback — not a warning beside a figure that stays put",
+  );
+  assert.ok(
+    s.verificationChecks && s.verificationChecks.failedReasons.length > 0,
+    "both parties are told which check failed",
+  );
   assert.equal(s.verificationChecks!.fileIntact, false);
 });
 
@@ -118,7 +147,11 @@ test("Bug 9 — a supplier_verified claim with a report, a period, and the struc
   assert.equal(s.dataOrigin, "supplier_verified");
   assert.equal(s.verificationChecks?.accreditationValid, true);
   assert.equal(s.verificationChecks?.periodCovered, true);
-  assert.equal(s.verificationChecks?.sectoralScopeMatch, true, "no catalogue link on this row, so a non-empty self-declared scope is taken as the claim");
+  assert.equal(
+    s.verificationChecks?.sectoralScopeMatch,
+    true,
+    "no catalogue link on this row, so a non-empty self-declared scope is taken as the claim",
+  );
 });
 
 test("Bug 9 — the same report but an accreditation that had already expired before the report was issued fails the check", () => {
@@ -138,7 +171,11 @@ test("Bug 9 — the same report but an accreditation that had already expired be
     verificationReportIssueDate: "2026-06-01",
     verificationSectoralScope: "Iron and steel",
   });
-  assert.equal(s.dataOrigin, "default_value", "an expired accreditation is a failed check, and a failed check falls back to default");
+  assert.equal(
+    s.dataOrigin,
+    "default_value",
+    "an expired accreditation is a failed check, and a failed check falls back to default",
+  );
   assert.equal(s.verificationChecks?.accreditationValid, false);
 });
 
@@ -175,7 +212,11 @@ test("Bug 9 — same-installation origin is never gated by the purchased-only ve
     dataOrigin: "supplier_verified",
     seeTco2ePerT: 0.9,
   });
-  assert.equal(s.dataOrigin, "supplier_verified", "same-installation figures are not purchased, so nothing here needs a verification report");
+  assert.equal(
+    s.dataOrigin,
+    "supplier_verified",
+    "same-installation figures are not purchased, so nothing here needs a verification report",
+  );
   assert.equal(s.seeTco2ePerT, 0.9);
 });
 
@@ -193,7 +234,11 @@ test("validateVerificationReport names the specific failure, not a generic rejec
   assert.equal(result.periodCovered, false);
   assert.equal(result.accreditationValid, false);
   assert.equal(result.sectoralScopeMatch, false);
-  assert.equal(result.failedReasons.length, 4, "one reason per distinct missing fact — file, accreditation dates, sectoral scope, period");
+  assert.equal(
+    result.failedReasons.length,
+    4,
+    "one reason per distinct missing fact — file, accreditation dates, sectoral scope, period",
+  );
 });
 
 test("validateVerificationReport reads only the structured metadata — it never inspects the PDF itself", () => {

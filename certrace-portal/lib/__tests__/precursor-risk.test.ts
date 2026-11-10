@@ -22,13 +22,21 @@ const storage = new MemoryStorage();
 g.window = { localStorage: storage };
 g.localStorage = storage;
 
-const { precursorRiskFor, PRECURSOR_RISK_WEIGHTS } = await import("../cbam/precursor-risk");
+const { precursorRiskFor, PRECURSOR_RISK_WEIGHTS } = await import(
+  "../cbam/precursor-risk"
+);
 const { createWorkspace } = await import("../workspace");
 const { saveSupplier, emptySupplier } = await import("../precursor-suppliers");
 
 test("no precursors, no risk", () => {
   storage.clear();
-  const ws = createWorkspace({ installationId: "TH-A", installationName: "Plant A", productId: "billet", productionRoute: "scrap_eaf", year: 2026 });
+  const ws = createWorkspace({
+    installationId: "TH-A",
+    installationName: "Plant A",
+    productId: "billet",
+    productionRoute: "scrap_eaf",
+    year: 2026,
+  });
   const result = precursorRiskFor(ws);
   assert.equal(result.score, 0);
   assert.equal(result.topFactor, null);
@@ -36,8 +44,18 @@ test("no precursors, no risk", () => {
 
 test("a default-value node contributes exactly the default-value weight", () => {
   storage.clear();
-  const ws = createWorkspace({ installationId: "TH-A", installationName: "Plant A", productId: "billet", productionRoute: "scrap_eaf", year: 2026 });
-  saveSupplier({ ...emptySupplier(ws.id, null), name: "Foundry", dataOrigin: "default_value" });
+  const ws = createWorkspace({
+    installationId: "TH-A",
+    installationName: "Plant A",
+    productId: "billet",
+    productionRoute: "scrap_eaf",
+    year: 2026,
+  });
+  saveSupplier({
+    ...emptySupplier(ws.id, null),
+    name: "Foundry",
+    dataOrigin: "default_value",
+  });
   const result = precursorRiskFor(ws);
   assert.equal(result.score, PRECURSOR_RISK_WEIGHTS.defaultValue);
   assert.ok(result.topFactor);
@@ -45,14 +63,31 @@ test("a default-value node contributes exactly the default-value weight", () => 
 
 test("scrap never contributes risk, however incomplete", () => {
   storage.clear();
-  const ws = createWorkspace({ installationId: "TH-A", installationName: "Plant A", productId: "billet", productionRoute: "scrap_eaf", year: 2026 });
-  saveSupplier({ ...emptySupplier(ws.id, null), name: "Scrap Co", isScrap: true, dataOrigin: "default_value" });
+  const ws = createWorkspace({
+    installationId: "TH-A",
+    installationName: "Plant A",
+    productId: "billet",
+    productionRoute: "scrap_eaf",
+    year: 2026,
+  });
+  saveSupplier({
+    ...emptySupplier(ws.id, null),
+    name: "Scrap Co",
+    isScrap: true,
+    dataOrigin: "default_value",
+  });
   assert.equal(precursorRiskFor(ws).score, 0);
 });
 
 test("a failed-validation node scores the failed-validation weight, the largest single factor", () => {
   storage.clear();
-  const ws = createWorkspace({ installationId: "TH-A", installationName: "Plant A", productId: "billet", productionRoute: "scrap_eaf", year: 2026 });
+  const ws = createWorkspace({
+    installationId: "TH-A",
+    installationName: "Plant A",
+    productId: "billet",
+    productionRoute: "scrap_eaf",
+    year: 2026,
+  });
   const now = new Date().toISOString();
   saveSupplier({
     ...emptySupplier(ws.id, null),
@@ -72,19 +107,46 @@ test("a failed-validation node scores the failed-validation weight, the largest 
 
 test("the score is capped at 100 how ever many risky nodes pile up", () => {
   storage.clear();
-  const ws = createWorkspace({ installationId: "TH-A", installationName: "Plant A", productId: "billet", productionRoute: "scrap_eaf", year: 2026 });
+  const ws = createWorkspace({
+    installationId: "TH-A",
+    installationName: "Plant A",
+    productId: "billet",
+    productionRoute: "scrap_eaf",
+    year: 2026,
+  });
   for (let i = 0; i < 10; i++) {
-    saveSupplier({ ...emptySupplier(ws.id, null), name: `Foundry ${i}`, dataOrigin: "default_value" });
+    saveSupplier({
+      ...emptySupplier(ws.id, null),
+      name: `Foundry ${i}`,
+      dataOrigin: "default_value",
+    });
   }
   assert.equal(precursorRiskFor(ws).score, 100);
 });
 
 test("the top factor names the highest-point contributor, not just the first node", () => {
   storage.clear();
-  const ws = createWorkspace({ installationId: "TH-A", installationName: "Plant A", productId: "billet", productionRoute: "scrap_eaf", year: 2026 });
-  saveSupplier({ ...emptySupplier(ws.id, null), name: "Low risk", dataOrigin: "default_value" });
+  const ws = createWorkspace({
+    installationId: "TH-A",
+    installationName: "Plant A",
+    productId: "billet",
+    productionRoute: "scrap_eaf",
+    year: 2026,
+  });
+  saveSupplier({
+    ...emptySupplier(ws.id, null),
+    name: "Low risk",
+    dataOrigin: "default_value",
+  });
   const now = new Date().toISOString();
-  saveSupplier({ ...emptySupplier(ws.id, null), name: "High risk", dataOrigin: "supplier_verified", smartLinkSentAt: now, smartLinkOpenedAt: now, smartLinkSubmittedAt: now });
+  saveSupplier({
+    ...emptySupplier(ws.id, null),
+    name: "High risk",
+    dataOrigin: "supplier_verified",
+    smartLinkSentAt: now,
+    smartLinkOpenedAt: now,
+    smartLinkSubmittedAt: now,
+  });
   const result = precursorRiskFor(ws);
   assert.equal(result.topFactor?.node.name, "High risk");
 });

@@ -29,17 +29,49 @@ export const runtime = "edge";
 
 import * as React from "react";
 import { Lock, Plus, Trash2, Upload } from "lucide-react";
-import { AutoSaveBadge, Button, Field, NumberInput, inputClass, useAutoSave, cn } from "@/components/ui";
-import { DatePicker, MultiSelect, OrderedMultiSelect, Select, SelectWithOther } from "@/components/controls";
-import { ExclusionGroundSelect, ExclusionProcessSelect } from "@/components/workspace/exclusion-process-select";
+import {
+  AutoSaveBadge,
+  Button,
+  Field,
+  NumberInput,
+  inputClass,
+  useAutoSave,
+  cn,
+} from "@/components/ui";
+import {
+  DatePicker,
+  MultiSelect,
+  OrderedMultiSelect,
+  Select,
+  SelectWithOther,
+} from "@/components/controls";
+import {
+  ExclusionGroundSelect,
+  ExclusionProcessSelect,
+} from "@/components/workspace/exclusion-process-select";
 import { InstrumentRows } from "@/components/workspace/instrument-rows";
+import { MonitoringPlanCard } from "@/components/workspace/monitoring-plan-card";
 import { toast } from "@/components/toast";
-import { ExampleToggle, GroupHeading, Note, SectionCard } from "@/components/workspace/chrome";
+import { storeDocumentFile } from "@/lib/document-files";
+import {
+  ExampleToggle,
+  GroupHeading,
+  Note,
+  SectionCard,
+} from "@/components/workspace/chrome";
 import { SectionEvidence } from "@/components/workspace/evidence-panel";
 import { useWorkspace } from "@/components/workspace/provider";
 import { USER } from "@/lib/data";
-import { FUEL_FAMILIES, FUEL_TYPES, FUEL_TYPE_OTHER, fuelFamilyLabelIn, fuelTypeLabelIn, fuelTypeNoteIn } from "@/lib/monthly-data";
-import { useLanguage, useT } from "@/lib/i18n";
+import {
+  FUEL_FAMILIES,
+  FUEL_TYPES,
+  FUEL_TYPE_OTHER,
+  fuelFamilyLabelIn,
+  fuelNcvNoteIn,
+  fuelTypeLabelIn,
+  fuelTypeNoteIn,
+} from "@/lib/monthly-data";
+import { translate, useLanguage, useT } from "@/lib/i18n";
 import { ANNUAL_REQUIRED_KEYS } from "@/lib/workspace-evidence";
 import {
   DIAGRAM_NOTE,
@@ -59,6 +91,8 @@ import {
   emptyExclusion,
   emptyGap,
   emptyMeasurement,
+  ELECTRICITY_PARAMETERS,
+  FUEL_PARAMETERS,
   mmdIssues,
   type DirectMethod,
   type QualityAssurance,
@@ -84,13 +118,23 @@ import {
 function PeriodHelp() {
   const t = useT();
   return (
-  <>
-    <p>
-      {t("The period is the calendar year, and it is not stretched. If the way you produce this good changes part-way through — a new furnace, a fuel switch, a change to what is inside the boundary — the figures either side of that date describe two different installations.")}
-    </p>
-    <p className="mt-2">
-      {t("When that happens,")} <strong>{t("close this period at the change and report the rest of the year separately.")}</strong> {t("Averaging across the change hides exactly the difference a verifier is looking for.")}
-    </p>
+    <>
+      <p>
+        {t(
+          "The period is the calendar year, and it is not stretched. If the way you produce this good changes part-way through — a new furnace, a fuel switch, a change to what is inside the boundary — the figures either side of that date describe two different installations.",
+        )}
+      </p>
+      <p className="mt-2">
+        {t("When that happens,")}{" "}
+        <strong>
+          {t(
+            "close this period at the change and report the rest of the year separately.",
+          )}
+        </strong>{" "}
+        {t(
+          "Averaging across the change hides exactly the difference a verifier is looking for.",
+        )}
+      </p>
     </>
   );
 }
@@ -108,13 +152,22 @@ function useFuelOptions() {
         FUEL_TYPES.filter((f) => f.family === family).map((f) => ({
           value: f.id,
           label: fuelTypeLabelIn(lang, f.id),
-          hint: [fuelFamilyLabelIn(lang, family), f.typicalNcv, fuelTypeNoteIn(lang, f.id)].filter(Boolean).join(" · "),
+          hint: [
+            fuelFamilyLabelIn(lang, family),
+            fuelNcvNoteIn(lang, f.id),
+            fuelTypeNoteIn(lang, f.id),
+          ]
+            .filter(Boolean)
+            .join(" · "),
         })),
       ),
       {
         value: FUEL_TYPE_OTHER,
-        label: lang === "th" ? "เชื้อเพลิงอื่น ๆ (Other fuel) — ระบุ" : "Other fuel — specify",
-        hint: "Anything the list does not name. Describe it in the field below.",
+        label: translate(lang, "Other fuel — specify"),
+        hint: translate(
+          lang,
+          "Anything the list does not name. Describe it in the field below.",
+        ),
       },
     ],
     [lang],
@@ -125,13 +178,23 @@ export default function WorkspaceMmdPage() {
   const t = useT();
   const { workspace, refresh } = useWorkspace();
   const fuelOptions = useFuelOptions();
-  const draft = useMmdDraft(workspace.id, workspace.periodStart, workspace.periodEnd);
-  const { data: final } = useFinalMmdVersion(workspace.id, workspace.periodStart, workspace.periodEnd);
+  const draft = useMmdDraft(
+    workspace.id,
+    workspace.periodStart,
+    workspace.periodEnd,
+  );
+  const { data: final } = useFinalMmdVersion(
+    workspace.id,
+    workspace.periodStart,
+    workspace.periodEnd,
+  );
   const { data: latest } = useLatestMmdVersion(workspace.id);
   const saveMmd = useSaveMmdDraft();
   const finaliseMmd = useFinaliseMmdVersion();
   const invalidateWorkspaceData = useInvalidateWorkspaceData(workspace.id);
-  const [content, setContent] = React.useState<WorkspaceMmdContent | null>(null);
+  const [content, setContent] = React.useState<WorkspaceMmdContent | null>(
+    null,
+  );
   const [forking, setForking] = React.useState(false);
 
   // The edit buffer, seeded from the draft query. Edits live here between
@@ -143,7 +206,11 @@ export default function WorkspaceMmdPage() {
   // autosave, so the resync fires on data arriving, not on autosave transitions.
   const autosaveStatus = React.useRef("idle");
   React.useEffect(() => {
-    if (autosaveStatus.current === "pending" || autosaveStatus.current === "saving") return;
+    if (
+      autosaveStatus.current === "pending" ||
+      autosaveStatus.current === "saving"
+    )
+      return;
     if (draft.data) setContent(draft.data);
   }, [draft.data]);
 
@@ -153,9 +220,9 @@ export default function WorkspaceMmdPage() {
 
   const autosave = useAutoSave(
     content,
-    (c) => {
+    async (c) => {
       if (!c) return;
-      saveMmd.mutate({ workspaceId: workspace.id, content: c });
+      await saveMmd.mutateAsync({ workspaceId: workspace.id, content: c });
       refresh();
     },
     { enabled: Boolean(content) && !locked },
@@ -177,13 +244,25 @@ export default function WorkspaceMmdPage() {
      portal — see the note there. */
   const setElectricitySupply = (next: string, otherText: string) => {
     const rows = content.electricityInstruments;
-    const untouched = rows.length === 1 && !rows[0].instrument.trim() && !rows[0].readingFrequency && !rows[0].lastCalibration;
+    const untouched =
+      rows.length === 1 &&
+      !rows[0].instrument.trim() &&
+      !rows[0].readingFrequency &&
+      !rows[0].lastCalibration;
     if (next && rows.length === 0) {
-      patch({ electricitySupply: next, electricitySupplyOther: otherText, electricityInstruments: [electricityInstrument()] });
+      patch({
+        electricitySupply: next,
+        electricitySupplyOther: otherText,
+        electricityInstruments: [electricityInstrument()],
+      });
       return;
     }
     if (!next && untouched) {
-      patch({ electricitySupply: next, electricitySupplyOther: otherText, electricityInstruments: [] });
+      patch({
+        electricitySupply: next,
+        electricitySupplyOther: otherText,
+        electricityInstruments: [],
+      });
       return;
     }
     patch({ electricitySupply: next, electricitySupplyOther: otherText });
@@ -197,7 +276,11 @@ export default function WorkspaceMmdPage() {
         onSuccess: (v) => {
           setForking(false);
           refresh();
-          toast({ message: `MMD finalised as v${v.n}`, detail: "It is now read-only. Editing forks a new version.", tone: "ok" });
+          toast({
+            message: `MMD finalised as v${v.n}`,
+            detail: "It is now read-only. Editing forks a new version.",
+            tone: "ok",
+          });
         },
       },
     );
@@ -210,10 +293,16 @@ export default function WorkspaceMmdPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span className="flex items-center gap-2">
               <Lock size={14} strokeWidth={1.5} />
-              <strong>v{final.n}</strong> · finalised {final.finalisedAt.slice(0, 10)} by {final.author} · covers {final.periodStart} to {final.periodEnd}.
-              Read-only.
+              <strong>v{final.n}</strong> · finalised{" "}
+              {final.finalisedAt.slice(0, 10)} by {final.author} · covers{" "}
+              {final.periodStart.slice(0, 10)} to {final.periodEnd.slice(0, 10)}
+              . Read-only.
             </span>
-            <Button size="sm" variant="secondary" onClick={() => setForking(true)}>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setForking(true)}
+            >
               Amend — forks v{(latest?.n ?? final.n) + 1}
             </Button>
           </div>
@@ -223,9 +312,14 @@ export default function WorkspaceMmdPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span className="max-w-3xl">{t(DRAFT_BANNER)}</span>
             <span className="flex flex-wrap items-center gap-3">
-              <AutoSaveBadge status={autosave.status} savedAt={autosave.savedAt} />
+              <AutoSaveBadge
+                status={autosave.status}
+                savedAt={autosave.savedAt}
+              />
               <Button size="sm" onClick={finalise}>
-                Finalise{latest ? ` as v${latest.n + 1}` : ""}
+                {latest
+                  ? t("Finalise as v{n}", { n: latest.n + 1 })
+                  : t("Finalise")}
               </Button>
             </span>
           </div>
@@ -233,8 +327,17 @@ export default function WorkspaceMmdPage() {
       )}
 
       {/* 1 · Boundary */}
-      <SectionCard title={t("1 · Boundary")} helpTitle={t("What the boundary is")} help={<p>{t(MMD_SECTION_HELP.boundary)}</p>}>
-        <Field label={t("Boundary description")} hint={t("Name the equipment, say where material enters and leaves, and say what is outside the line.")}>
+      <SectionCard
+        title={t("1 · Boundary")}
+        helpTitle={t("What the boundary is")}
+        help={<p>{t(MMD_SECTION_HELP.boundary)}</p>}
+      >
+        <Field
+          label={t("Boundary description")}
+          hint={t(
+            "Name the equipment, say where material enters and leaves, and say what is outside the line.",
+          )}
+        >
           <textarea
             className={cn(inputClass, "min-h-[110px] resize-y")}
             disabled={locked}
@@ -250,9 +353,15 @@ export default function WorkspaceMmdPage() {
             helpTitle={t("Processes included")}
             help={
               <>
-                <p>{t("List them in the order material moves through the boundary.")}</p>
+                <p>
+                  {t(
+                    "List them in the order material moves through the boundary.",
+                  )}
+                </p>
                 <p className="mt-2">
-                  {t("A verifier reads this as the sequence on the shop floor and checks it against your diagram. Four process names in the wrong order describe a plant that does not exist.")}
+                  {t(
+                    "A verifier reads this as the sequence on the shop floor and checks it against your diagram. Four process names in the wrong order describe a plant that does not exist.",
+                  )}
                 </p>
               </>
             }
@@ -271,7 +380,11 @@ export default function WorkspaceMmdPage() {
             otherLabel={t("Other — name the process yourself")}
             otherPlaceholder={t("e.g. Billet reheating (walking-beam furnace)")}
           />
-          <ExampleToggle example={MMD_EXAMPLE.processesIncluded.map((p, i) => `${i + 1}. ${p}`).join("  →  ")} />
+          <ExampleToggle
+            example={MMD_EXAMPLE.processesIncluded
+              .map((p, i) => `${i + 1}. ${p}`)
+              .join("  →  ")}
+          />
         </div>
 
         <div className="mt-6">
@@ -279,13 +392,24 @@ export default function WorkspaceMmdPage() {
             helpTitle={t("An exclusion is a declaration")}
             help={
               <p>
-                {t("These are processes that happen at your installation and that you are declaring to be outside the boundary. That is allowed — but every one of them needs a ground and the detail behind it. An exclusion with an empty note is the most common finding on a first engagement.")}
+                {t(
+                  "These are processes that happen at your installation and that you are declaring to be outside the boundary. That is allowed — but every one of them needs a ground and the detail behind it. An exclusion with an empty note is the most common finding on a first engagement.",
+                )}
               </p>
             }
             actions={
               !locked && (
-                <Button size="sm" variant="secondary" onClick={() => patch({ exclusions: [...shown.exclusions, emptyExclusion()] })}>
-                  <Plus size={13} strokeWidth={1.5} /> {t("Declare an exclusion")}
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() =>
+                    patch({
+                      exclusions: [...shown.exclusions, emptyExclusion()],
+                    })
+                  }
+                >
+                  <Plus size={13} strokeWidth={1.5} />{" "}
+                  {t("Declare an exclusion")}
                 </Button>
               )
             }
@@ -295,18 +419,31 @@ export default function WorkspaceMmdPage() {
 
           {shown.exclusions.length === 0 ? (
             <p className="rounded-xl border border-dashed border-black/10 px-4 py-4 text-[12.5px] leading-relaxed text-black/45">
-              {t("Nothing declared as excluded. That is a valid answer if everything on the site is inside the boundary — but offices, canteens, vehicle fleets and separately metered lines almost always are not, and a verifier will ask about them by name.")}
+              {t(
+                "Nothing declared as excluded. That is a valid answer if everything on the site is inside the boundary — but offices, canteens, vehicle fleets and separately metered lines almost always are not, and a verifier will ask about them by name.",
+              )}
             </p>
           ) : (
             <div className="space-y-3">
               {shown.exclusions.map((x, i) => (
-                <div key={x.id} className="rounded-xl border border-black/[0.07] bg-[#faf9f7] p-4">
+                <div
+                  key={x.id}
+                  className="rounded-xl border border-black/[0.07] bg-[#faf9f7] p-4"
+                >
                   <div className="mb-3 flex items-center justify-between">
-                    <span className="font-pixel text-[10px] uppercase tracking-[0.14em] text-black/40">Exclusion {i + 1}</span>
+                    <span className="font-pixel text-[10px] uppercase tracking-[0.14em] text-black/40">
+                      Exclusion {i + 1}
+                    </span>
                     {!locked && (
                       <button
                         type="button"
-                        onClick={() => patch({ exclusions: shown.exclusions.filter((e) => e.id !== x.id) })}
+                        onClick={() =>
+                          patch({
+                            exclusions: shown.exclusions.filter(
+                              (e) => e.id !== x.id,
+                            ),
+                          })
+                        }
                         className="text-black/30 hover:text-[#dc2626]"
                         aria-label={t("Remove exclusion")}
                       >
@@ -315,30 +452,68 @@ export default function WorkspaceMmdPage() {
                     )}
                   </div>
                   <div className="grid gap-4 lg:grid-cols-2">
-                    <Field label={t("Process")} hint={t("The same list the boundary is drawn in. A process already excluded drops off the list.")}>
+                    <Field
+                      label={t("Process")}
+                      hint={t(
+                        "The same list the boundary is drawn in. A process already excluded drops off the list.",
+                      )}
+                    >
                       <ExclusionProcessSelect
                         value={x}
                         all={shown.exclusions}
                         disabled={locked}
-                        onChange={(process) => patch({ exclusions: shown.exclusions.map((e) => (e.id === x.id ? { ...e, process } : e)) })}
+                        onChange={(process) =>
+                          patch({
+                            exclusions: shown.exclusions.map((e) =>
+                              e.id === x.id ? { ...e, process } : e,
+                            ),
+                          })
+                        }
                       />
                     </Field>
-                    <Field label={t("Ground for excluding it")} hint={t(EXCLUSION_GROUND_HINT[x.ground])}>
+                    <Field
+                      label={t("Ground for excluding it")}
+                      hint={t(EXCLUSION_GROUND_HINT[x.ground])}
+                    >
                       <ExclusionGroundSelect
                         value={x}
                         disabled={locked}
-                        onChange={(p) => patch({ exclusions: shown.exclusions.map((e) => (e.id === x.id ? { ...e, ...p } : e)) })}
+                        onChange={(p) =>
+                          patch({
+                            exclusions: shown.exclusions.map((e) =>
+                              e.id === x.id ? { ...e, ...p } : e,
+                            ),
+                          })
+                        }
                       />
                     </Field>
                   </div>
                   <div className="mt-4">
-                    <Field label={t("Detail")} hint={t("Which meter, which subcontractor, which threshold. This is the part a verifier reads.")}>
+                    <Field
+                      label={t("Detail")}
+                      hint={t(
+                        "Which meter, which subcontractor, which threshold. This is the part a verifier reads.",
+                      )}
+                    >
                       <input
-                        className={cn(inputClass, !x.note.trim() && "border-[#f59e0b]/50")}
+                        className={cn(
+                          inputClass,
+                          !x.note.trim() && "border-[#f59e0b]/50",
+                        )}
                         disabled={locked}
                         value={x.note}
-                        placeholder={t("Fed from substation SS-02, meter E-221. Reported under CN 7213 91 10.")}
-                        onChange={(e) => patch({ exclusions: shown.exclusions.map((r) => (r.id === x.id ? { ...r, note: e.target.value } : r)) })}
+                        placeholder={t(
+                          "Fed from substation SS-02, meter E-221. Reported under CN 7213 91 10.",
+                        )}
+                        onChange={(e) =>
+                          patch({
+                            exclusions: shown.exclusions.map((r) =>
+                              r.id === x.id
+                                ? { ...r, note: e.target.value }
+                                : r,
+                            ),
+                          })
+                        }
                       />
                     </Field>
                   </div>
@@ -406,39 +581,81 @@ export default function WorkspaceMmdPage() {
         helpTitle={t("Fuels, and how they are measured")}
         help={
           <>
-            <p><strong>{t("What.")}</strong> {t("Every fuel burned inside the boundary across the year, and the instrument measuring each one.")}</p>
-            <p className="mt-2"><strong>{t("Why.")}</strong> {t("Combustion is where most direct CO₂ comes from. Naming the fuels makes an unexpected fourth fuel next March visible as an exception.")}</p>
-            <p className="mt-2"><strong>{t("How.")}</strong> {t("Select every fuel, then add one instrument row per fuel — parameter, make and model, reading frequency, last calibration date.")}</p>
-            <p className="mt-2 text-black/45"><strong>{t("Example.")}</strong> {t("Natural gas · Elster RVG G250 rotary meter · monthly · calibrated 15 Mar 2026.")}</p>
+            <p>
+              <strong>{t("What.")}</strong>{" "}
+              {t(
+                "Every fuel burned inside the boundary across the year, and the instrument measuring each one.",
+              )}
+            </p>
+            <p className="mt-2">
+              <strong>{t("Why.")}</strong>{" "}
+              {t(
+                "Combustion is where most direct CO₂ comes from. Naming the fuels makes an unexpected fourth fuel next March visible as an exception.",
+              )}
+            </p>
+            <p className="mt-2">
+              <strong>{t("How.")}</strong>{" "}
+              {t(
+                "Select every fuel, then add one instrument row per fuel — parameter, make and model, reading frequency, last calibration date.",
+              )}
+            </p>
+            <p className="mt-2 text-black/45">
+              <strong>{t("Example.")}</strong>{" "}
+              {t(
+                "Natural gas · Elster RVG G250 rotary meter · monthly · calibrated 15 Mar 2026.",
+              )}
+            </p>
           </>
         }
       >
         <div className="grid gap-4 lg:grid-cols-2">
-          <Field label={t("Direct method")} hint={t(DIRECT_METHOD_HINT[shown.directMethod])}>
+          <Field
+            label={t("Direct method")}
+            hint={t(DIRECT_METHOD_HINT[shown.directMethod])}
+          >
             <Select
               value={shown.directMethod}
               onChange={(v) => patch({ directMethod: v as DirectMethod })}
-              options={(["calculation", "measurement"] as DirectMethod[]).map((m) => ({
-                value: m,
-                label: t(DIRECT_METHOD_LABEL[m]),
-                hint: t(DIRECT_METHOD_HINT[m]),
-              }))}
+              options={(["calculation", "measurement"] as DirectMethod[]).map(
+                (m) => ({
+                  value: m,
+                  label: t(DIRECT_METHOD_LABEL[m]),
+                  hint: t(DIRECT_METHOD_HINT[m]),
+                }),
+              )}
             />
           </Field>
-          <Field label={t("Fuel types burned")} hint={t("The same codes the monthly rows use, so the methodology and the readings cannot name different fuels.")}>
+          <Field
+            label={t("Fuel types burned")}
+            hint={t(
+              "The same codes the monthly rows use, so the methodology and the readings cannot name different fuels.",
+            )}
+          >
             <MultiSelect
               values={shown.fuelTypeIds}
-              onChange={(v) => patch({ fuelTypeIds: v })}
+              onChange={(v) =>
+                patch(
+                  v.includes(FUEL_TYPE_OTHER)
+                    ? { fuelTypeIds: v }
+                    : { fuelTypeIds: v, fuelTypesOther: "" },
+                )
+              }
               options={fuelOptions}
               placeholder={t("Select every fuel this installation burns")}
               ariaLabel={t("Fuel types")}
             />
             {shown.fuelTypeIds.includes(FUEL_TYPE_OTHER) && (
               <input
-                className={cn(inputClass, "mt-2", !shown.fuelTypesOther.trim() && "border-[#f59e0b]/50")}
+                className={cn(
+                  inputClass,
+                  "mt-2",
+                  !shown.fuelTypesOther.trim() && "border-[#f59e0b]/50",
+                )}
                 disabled={locked}
                 value={shown.fuelTypesOther}
-                placeholder={t("Describe the other fuel in the terms your invoices use")}
+                placeholder={t(
+                  "Describe the other fuel in the terms your invoices use",
+                )}
                 onChange={(e) => patch({ fuelTypesOther: e.target.value })}
               />
             )}
@@ -447,7 +664,16 @@ export default function WorkspaceMmdPage() {
         <ExampleToggle example={MMD_EXAMPLE.fuelTypes} />
 
         <div className="mt-5">
-          <GroupHeading helpTitle={t("Instruments — fuels")} help={<p>{t("One row per fuel. A fuel with no instrument behind it is a figure a verifier cannot test.")}</p>}>
+          <GroupHeading
+            helpTitle={t("Instruments — fuels")}
+            help={
+              <p>
+                {t(
+                  "One row per fuel. A fuel with no instrument behind it is a figure a verifier cannot test.",
+                )}
+              </p>
+            }
+          >
             {t("Instruments — fuels")}
           </GroupHeading>
           <InstrumentRows
@@ -458,11 +684,13 @@ export default function WorkspaceMmdPage() {
             addLabel={t("Add a fuel instrument")}
             showCems={shown.directMethod === "measurement"}
             disabled={locked}
-            parameterPlaceholder={t("Natural gas consumption")}
+            parameterOptions={FUEL_PARAMETERS}
             instrumentPlaceholder={MMD_EXAMPLE.instrument}
             emptyHint={
               shown.fuelTypeIds.length === 0
-                ? t("Select a fuel above first — then add the instrument that measures it.")
+                ? t(
+                    "Select a fuel above first — then add the instrument that measures it.",
+                  )
                 : t("Add one row per fuel selected above.")
             }
           />
@@ -475,20 +703,51 @@ export default function WorkspaceMmdPage() {
         helpTitle={t("Electricity, and the meter it is read from")}
         help={
           <>
-            <p><strong>{t("What.")}</strong> {t("Where the power comes from, and which meter the reported MWh is read off.")}</p>
-            <p className="mt-2"><strong>{t("Why.")}</strong> {t("The source category decides which emission factor is admissible — the grid factor, or a specific generator’s, which needs the contract behind it.")}</p>
-            <p className="mt-2"><strong>{t("How.")}</strong> {t("Pick the closest match, then name the meter: the feeder, the meter number, whatever the invoice shows.")}</p>
-            <p className="mt-2 text-black/45"><strong>{t("Example.")}</strong> {t("Grid — PEA · 115 kV incoming feeder, substation SS-01, meter PEA-88214.")}</p>
+            <p>
+              <strong>{t("What.")}</strong>{" "}
+              {t(
+                "Where the power comes from, and which meter the reported MWh is read off.",
+              )}
+            </p>
+            <p className="mt-2">
+              <strong>{t("Why.")}</strong>{" "}
+              {t(
+                "The source category decides which emission factor is admissible — the grid factor, or a specific generator’s, which needs the contract behind it.",
+              )}
+            </p>
+            <p className="mt-2">
+              <strong>{t("How.")}</strong>{" "}
+              {t(
+                "Pick the closest match, then name the meter: the feeder, the meter number, whatever the invoice shows.",
+              )}
+            </p>
+            <p className="mt-2 text-black/45">
+              <strong>{t("Example.")}</strong>{" "}
+              {t(
+                "Grid — PEA · 115 kV incoming feeder, substation SS-01, meter PEA-88214.",
+              )}
+            </p>
           </>
         }
       >
         <div className="grid gap-4 lg:grid-cols-2">
-          <Field label={t("Electricity source")} hint={t("The category decides which emission factor is admissible, which is why it is a list and not a sentence.")}>
+          <Field
+            label={t("Electricity source")}
+            hint={t(
+              "The category decides which emission factor is admissible, which is why it is a list and not a sentence.",
+            )}
+          >
             <SelectWithOther
               value={shown.electricitySupply}
               otherText={shown.electricitySupplyOther}
-              onChange={({ value, otherText }) => setElectricitySupply(value, otherText)}
-              options={ELECTRICITY_SUPPLY_OPTIONS.map((o) => ({ value: o.id, label: o.label, hint: `${o.category} · ${o.hint}` }))}
+              onChange={({ value, otherText }) =>
+                setElectricitySupply(value, otherText)
+              }
+              options={ELECTRICITY_SUPPLY_OPTIONS.map((o) => ({
+                value: o.id,
+                label: o.label,
+                hint: `${o.category} · ${o.hint}`,
+              }))}
               placeholder={t("How is this installation supplied?")}
               otherLabel={t("Other arrangement — specify")}
               otherPlaceholder={t("Describe the supply and who generates it")}
@@ -499,20 +758,43 @@ export default function WorkspaceMmdPage() {
           </Field>
           {/* NOT "measurement point" — Annex I item 25 of IR 2025/2547 reserves
               that term for CEMS sampling locations. */}
-          <Field label={t("Electricity metering point")} hint={t("Which meter, which feeder, and what the reading is reconciled against.")}>
+          <Field
+            label={t("Electricity metering point")}
+            hint={t(
+              "Which meter, which feeder, and what the reading is reconciled against.",
+            )}
+          >
             <input
-              className={cn(inputClass, !shown.electricityMeteringPoint.trim() && "border-[#f59e0b]/50")}
+              className={cn(
+                inputClass,
+                !shown.electricityMeteringPoint.trim() && "border-[#f59e0b]/50",
+              )}
               disabled={locked}
               value={shown.electricityMeteringPoint}
-              placeholder={t("115 kV incoming feeder, substation SS-01, meter PEA-88214")}
-              onChange={(e) => patch({ electricityMeteringPoint: e.target.value })}
+              placeholder={t(
+                "115 kV incoming feeder, substation SS-01, meter PEA-88214",
+              )}
+              onChange={(e) =>
+                patch({ electricityMeteringPoint: e.target.value })
+              }
             />
           </Field>
         </div>
-        <ExampleToggle example={`${MMD_EXAMPLE.electricitySupply} — ${MMD_EXAMPLE.electricityMeteringPoint}`} />
+        <ExampleToggle
+          example={`${MMD_EXAMPLE.electricitySupply} — ${MMD_EXAMPLE.electricityMeteringPoint}`}
+        />
 
         <div className="mt-5">
-          <GroupHeading helpTitle={t("Instruments — electricity")} help={<p>{t("A row appears here as soon as a supply is chosen. Fill in the meter that evidences the MWh you report.")}</p>}>
+          <GroupHeading
+            helpTitle={t("Instruments — electricity")}
+            help={
+              <p>
+                {t(
+                  "A row appears here as soon as a supply is chosen. Fill in the meter that evidences the MWh you report.",
+                )}
+              </p>
+            }
+          >
             {t("Instruments — electricity")}
           </GroupHeading>
           <InstrumentRows
@@ -522,9 +804,11 @@ export default function WorkspaceMmdPage() {
             makeRow={() => electricityInstrument()}
             addLabel={t("Add an electricity meter")}
             disabled={locked}
-            parameterPlaceholder={t("Electricity consumption")}
+            parameterOptions={ELECTRICITY_PARAMETERS}
             instrumentPlaceholder={t("PEA revenue meter, 115 kV incomer")}
-            emptyHint={t("Choose a source above and a row appears here, ready for the meter details.")}
+            emptyHint={t(
+              "Choose a source above and a row appears here, ready for the meter details.",
+            )}
           />
         </div>
       </SectionCard>
@@ -536,10 +820,30 @@ export default function WorkspaceMmdPage() {
           helpTitle={t("Why this one question matters")}
           help={
             <>
-              <p><strong>{t("What.")}</strong> {t("A check that the fuel your own generation burns has not been left out — or counted twice.")}</p>
-              <p className="mt-2"><strong>{t("Why.")}</strong> {t("On-site generation is the easiest place in a CBAM return to double-count: the gas the turbine burns is direct emissions, and the electricity it makes is the same carbon again. Only one may be reported.")}</p>
-              <p className="mt-2"><strong>{t("How.")}</strong> {t("Report the FUEL in section 3 and tick the box. Do not also enter the generated MWh as purchased electricity.")}</p>
-              <p className="mt-2 text-black/45"><strong>{t("Example.")}</strong> {t("A 2 MW gas cogeneration set: the natural gas is a fuel row; its output is not a separate electricity purchase.")}</p>
+              <p>
+                <strong>{t("What.")}</strong>{" "}
+                {t(
+                  "A check that the fuel your own generation burns has not been left out — or counted twice.",
+                )}
+              </p>
+              <p className="mt-2">
+                <strong>{t("Why.")}</strong>{" "}
+                {t(
+                  "On-site generation is the easiest place in a CBAM return to double-count: the gas the turbine burns is direct emissions, and the electricity it makes is the same carbon again. Only one may be reported.",
+                )}
+              </p>
+              <p className="mt-2">
+                <strong>{t("How.")}</strong>{" "}
+                {t(
+                  "Report the FUEL in section 3 and tick the box. Do not also enter the generated MWh as purchased electricity.",
+                )}
+              </p>
+              <p className="mt-2 text-black/45">
+                <strong>{t("Example.")}</strong>{" "}
+                {t(
+                  "A 2 MW gas cogeneration set: the natural gas is a fuel row; its output is not a separate electricity purchase.",
+                )}
+              </p>
             </>
           }
         >
@@ -547,7 +851,9 @@ export default function WorkspaceMmdPage() {
             id="mmd-ownGenerationFuelDeclared"
             className={cn(
               "flex cursor-pointer items-start gap-3 scroll-mt-32 rounded-xl border px-4 py-3 transition-colors",
-              shown.ownGenerationFuelDeclared ? "border-[rgba(5,150,105,0.25)] bg-[#ecfdf5]" : "border-[#f59e0b]/50 bg-[#fffbeb]",
+              shown.ownGenerationFuelDeclared
+                ? "border-[rgba(5,150,105,0.25)] bg-[#ecfdf5]"
+                : "border-[#f59e0b]/50 bg-[#fffbeb]",
               locked && "pointer-events-none opacity-70",
             )}
           >
@@ -555,13 +861,21 @@ export default function WorkspaceMmdPage() {
               type="checkbox"
               checked={shown.ownGenerationFuelDeclared}
               disabled={locked}
-              onChange={(e) => patch({ ownGenerationFuelDeclared: e.target.checked })}
+              onChange={(e) =>
+                patch({ ownGenerationFuelDeclared: e.target.checked })
+              }
               className="mt-0.5 h-4 w-4 flex-none accent-[#111]"
             />
             <span className="min-w-0">
-              <span className="block text-[13px] text-black/80">{t("The fuel this generation burns is already listed in section 3.")}</span>
+              <span className="block text-[13px] text-black/80">
+                {t(
+                  "The fuel this generation burns is already listed in section 3.",
+                )}
+              </span>
               <span className="mt-0.5 block text-[12px] leading-relaxed text-black/50">
-                {t("If it is not, add it — leaving it out understates direct emissions, and entering the generated electricity as well counts the same carbon twice.")}
+                {t(
+                  "If it is not, add it — leaving it out understates direct emissions, and entering the generated electricity as well counts the same carbon twice.",
+                )}
               </span>
             </span>
           </label>
@@ -575,7 +889,13 @@ export default function WorkspaceMmdPage() {
         help={<p>{t(MMD_SECTION_HELP.gaps)}</p>}
         actions={
           !locked && (
-            <Button size="sm" variant="secondary" onClick={() => patch({ dataGaps: [...shown.dataGaps, emptyGap()] })}>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() =>
+                patch({ dataGaps: [...shown.dataGaps, emptyGap()] })
+              }
+            >
               <Plus size={13} strokeWidth={1.5} /> {t("Add gap")}
             </Button>
           )
@@ -583,18 +903,29 @@ export default function WorkspaceMmdPage() {
       >
         {shown.dataGaps.length === 0 ? (
           <p className="rounded-xl border border-dashed border-black/10 px-4 py-6 text-center text-[13px] text-black/40">
-            {t("No data gaps — every month is primary data. That is the answer a verifier wants; leave it empty if it is true.")}
+            {t(
+              "No data gaps — every month is primary data. That is the answer a verifier wants; leave it empty if it is true.",
+            )}
           </p>
         ) : (
           <div className="space-y-4">
             {shown.dataGaps.map((g, i) => (
-              <div key={g.id} className="rounded-xl border border-black/[0.07] bg-[#faf9f7] p-4">
+              <div
+                key={g.id}
+                className="rounded-xl border border-black/[0.07] bg-[#faf9f7] p-4"
+              >
                 <div className="mb-3 flex items-center justify-between">
-                  <span className="font-pixel text-[10px] uppercase tracking-[0.14em] text-black/40">Gap {i + 1}</span>
+                  <span className="font-pixel text-[10px] uppercase tracking-[0.14em] text-black/40">
+                    Gap {i + 1}
+                  </span>
                   {!locked && (
                     <button
                       type="button"
-                      onClick={() => patch({ dataGaps: shown.dataGaps.filter((x) => x.id !== g.id) })}
+                      onClick={() =>
+                        patch({
+                          dataGaps: shown.dataGaps.filter((x) => x.id !== g.id),
+                        })
+                      }
                       className="text-black/30 hover:text-[#dc2626]"
                       aria-label={t("Remove gap")}
                     >
@@ -606,7 +937,13 @@ export default function WorkspaceMmdPage() {
                   <Field label={t("From")}>
                     <DatePicker
                       value={g.periodStart}
-                      onChange={(iso) => patch({ dataGaps: shown.dataGaps.map((x) => (x.id === g.id ? { ...x, periodStart: iso } : x)) })}
+                      onChange={(iso) =>
+                        patch({
+                          dataGaps: shown.dataGaps.map((x) =>
+                            x.id === g.id ? { ...x, periodStart: iso } : x,
+                          ),
+                        })
+                      }
                       min={workspace.periodStart}
                       max={workspace.periodEnd}
                       disabled={locked}
@@ -616,7 +953,13 @@ export default function WorkspaceMmdPage() {
                   <Field label={t("To")}>
                     <DatePicker
                       value={g.periodEnd}
-                      onChange={(iso) => patch({ dataGaps: shown.dataGaps.map((x) => (x.id === g.id ? { ...x, periodEnd: iso } : x)) })}
+                      onChange={(iso) =>
+                        patch({
+                          dataGaps: shown.dataGaps.map((x) =>
+                            x.id === g.id ? { ...x, periodEnd: iso } : x,
+                          ),
+                        })
+                      }
                       min={g.periodStart || workspace.periodStart}
                       max={workspace.periodEnd}
                       disabled={locked}
@@ -629,41 +972,105 @@ export default function WorkspaceMmdPage() {
                       disabled={locked}
                       value={g.reason}
                       placeholder={t("Gas meter FT-2201 failed")}
-                      onChange={(e) => patch({ dataGaps: shown.dataGaps.map((x) => (x.id === g.id ? { ...x, reason: e.target.value } : x)) })}
+                      onChange={(e) =>
+                        patch({
+                          dataGaps: shown.dataGaps.map((x) =>
+                            x.id === g.id
+                              ? { ...x, reason: e.target.value }
+                              : x,
+                          ),
+                        })
+                      }
                     />
                   </Field>
-                  <Field label={t("Estimation method")} hint={t("How, precisely. A verifier has to be able to recompute it.")}>
+                  <Field
+                    label={t("Estimation method")}
+                    hint={t(
+                      "How, precisely. A verifier has to be able to recompute it.",
+                    )}
+                  >
                     <input
-                      className={cn(inputClass, !g.estimationMethod.trim() && "border-[#f59e0b]/50")}
+                      className={cn(
+                        inputClass,
+                        !g.estimationMethod.trim() && "border-[#f59e0b]/50",
+                      )}
                       disabled={locked}
                       value={g.estimationMethod}
-                      placeholder={t("Mean of Feb and Apr consumption per tonne × March output")}
-                      onChange={(e) => patch({ dataGaps: shown.dataGaps.map((x) => (x.id === g.id ? { ...x, estimationMethod: e.target.value } : x)) })}
+                      placeholder={t(
+                        "Mean of Feb and Apr consumption per tonne × March output",
+                      )}
+                      onChange={(e) =>
+                        patch({
+                          dataGaps: shown.dataGaps.map((x) =>
+                            x.id === g.id
+                              ? { ...x, estimationMethod: e.target.value }
+                              : x,
+                          ),
+                        })
+                      }
                     />
                   </Field>
-                  <Field label={t("Estimated")} hint={t("Feeds the 5% materiality self-check.")}>
+                  <Field
+                    label={t("Estimated")}
+                    hint={t("Feeds the 5% materiality self-check.")}
+                  >
                     <NumberInput
                       value={g.estimatedTCO2e}
                       min={0}
                       unit="tCO₂e"
                       disabled={locked}
-                      onChange={(v) => patch({ dataGaps: shown.dataGaps.map((x) => (x.id === g.id ? { ...x, estimatedTCO2e: v ?? 0 } : x)) })}
+                      onChange={(v) =>
+                        patch({
+                          dataGaps: shown.dataGaps.map((x) =>
+                            x.id === g.id
+                              ? { ...x, estimatedTCO2e: v ?? 0 }
+                              : x,
+                          ),
+                        })
+                      }
                       ariaLabel={t("Estimated tCO2e")}
                     />
                   </Field>
-                  <Field label={t("Reviewer of record")} hint={t("A person, not a department — and this gap's reviewer, not necessarily the year's.")}>
+                  <Field
+                    label={t("Reviewer of record")}
+                    hint={t(
+                      "A person, not a department — and this gap's reviewer, not necessarily the year's.",
+                    )}
+                  >
                     <input
-                      className={cn(inputClass, !g.reviewerName.trim() && "border-[#f59e0b]/50")}
+                      className={cn(
+                        inputClass,
+                        !g.reviewerName.trim() && "border-[#f59e0b]/50",
+                      )}
                       disabled={locked}
                       value={g.reviewerName}
                       placeholder={t("Nattapong S., Production Manager")}
-                      onChange={(e) => patch({ dataGaps: shown.dataGaps.map((x) => (x.id === g.id ? { ...x, reviewerName: e.target.value } : x)) })}
+                      onChange={(e) =>
+                        patch({
+                          dataGaps: shown.dataGaps.map((x) =>
+                            x.id === g.id
+                              ? { ...x, reviewerName: e.target.value }
+                              : x,
+                          ),
+                        })
+                      }
                     />
                   </Field>
-                  <Field label={t("Date reviewed")} hint={t("When the reviewer above signed off this estimate.")}>
+                  <Field
+                    label={t("Date reviewed")}
+                    hint={t(
+                      "When the reviewer above signed off this estimate.",
+                    )}
+                  >
                     <DatePicker
                       value={g.gapDate}
-                      onChange={(iso) => patch({ dataGaps: shown.dataGaps.map((x) => (x.id === g.id ? { ...x, gapDate: iso } : x)) })}
+                      onChange={(iso) =>
+                        patch({
+                          dataGaps: shown.dataGaps.map((x) =>
+                            x.id === g.id ? { ...x, gapDate: iso } : x,
+                          ),
+                        })
+                      }
                       max={workspace.periodEnd}
                       disabled={locked}
                       ariaLabel={t("Date reviewed")}
@@ -678,16 +1085,28 @@ export default function WorkspaceMmdPage() {
       </SectionCard>
 
       {/* 6 · Quality assurance */}
-      <SectionCard title={t("6 · Quality assurance")} helpTitle={t("Quality assurance")} help={<p>{t(MMD_SECTION_HELP.quality)}</p>}>
+      <SectionCard
+        title={t("6 · Quality assurance")}
+        helpTitle={t("Quality assurance")}
+        help={<p>{t(MMD_SECTION_HELP.quality)}</p>}
+      >
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <Field label={t("Method")}>
             <Select
               value={shown.qualityAssurance}
-              onChange={(v) => patch({ qualityAssurance: v as QualityAssurance })}
-              options={QUALITY_ASSURANCE_OPTIONS.map((q) => ({ value: q, label: t(QUALITY_ASSURANCE_LABEL[q]) }))}
+              onChange={(v) =>
+                patch({ qualityAssurance: v as QualityAssurance })
+              }
+              options={QUALITY_ASSURANCE_OPTIONS.map((q) => ({
+                value: q,
+                label: t(QUALITY_ASSURANCE_LABEL[q]),
+              }))}
             />
           </Field>
-          <Field label={t("Reviewer of record")} hint={t("A person, not a department. A verifier will ask who.")}>
+          <Field
+            label={t("Reviewer of record")}
+            hint={t("A person, not a department. A verifier will ask who.")}
+          >
             <input
               className={inputClass}
               disabled={locked}
@@ -696,7 +1115,10 @@ export default function WorkspaceMmdPage() {
               onChange={(e) => patch({ reviewerName: e.target.value })}
             />
           </Field>
-          <Field label={t("Review frequency")} hint={t("When they look, and what they check it against.")}>
+          <Field
+            label={t("Review frequency")}
+            hint={t("When they look, and what they check it against.")}
+          >
             <input
               className={inputClass}
               disabled={locked}
@@ -706,11 +1128,17 @@ export default function WorkspaceMmdPage() {
             />
           </Field>
         </div>
-        <ExampleToggle example={`${MMD_EXAMPLE.qualityAssurance}; reviewer "${MMD_EXAMPLE.reviewerName}"; ${MMD_EXAMPLE.reviewFrequency.toLowerCase()}`} />
+        <ExampleToggle
+          example={`${MMD_EXAMPLE.qualityAssurance}; reviewer "${MMD_EXAMPLE.reviewerName}"; ${MMD_EXAMPLE.reviewFrequency.toLowerCase()}`}
+        />
       </SectionCard>
 
       {/* 7 · Installation diagram */}
-      <SectionCard title={t("7 · Installation diagram")} helpTitle={t("Installation diagram")} help={<p>{t(MMD_SECTION_HELP.diagram)}</p>}>
+      <SectionCard
+        title={t("7 · Installation diagram")}
+        helpTitle={t("Installation diagram")}
+        help={<p>{t(MMD_SECTION_HELP.diagram)}</p>}
+      >
         <Note tone="info">{t(DIAGRAM_NOTE)}</Note>
 
         <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -726,14 +1154,28 @@ export default function WorkspaceMmdPage() {
               type="file"
               className="hidden"
               accept="image/*,application/pdf"
-              onChange={(e) => {
+              onChange={async (e) => {
                 const f = e.target.files?.[0];
-                if (f) patch({ diagramFileName: f.name });
                 e.target.value = "";
+                if (!f) return;
+                try {
+                  const id = `diagram-${crypto.randomUUID()}`;
+                  await storeDocumentFile(id, f);
+                  patch({ diagramFileName: f.name, diagramFileId: id });
+                } catch (error) {
+                  toast({
+                    message: t("Upload failed"),
+                    detail:
+                      error instanceof Error ? error.message : String(error),
+                    tone: "err",
+                  });
+                }
               }}
             />
           </label>
-          <span className="text-[13px] text-black/50">{shown.diagramFileName ?? t("No diagram attached.")}</span>
+          <span className="text-[13px] text-black/50">
+            {shown.diagramFileName ?? t("No diagram attached.")}
+          </span>
         </div>
 
         {/* The checklist is the point. "Upload a diagram" on its own reliably
@@ -741,7 +1183,9 @@ export default function WorkspaceMmdPage() {
             drawings a plant already has. Naming what the drawing has to show
             turns the upload into a decision rather than a search. */}
         <div className="mt-5">
-          <div className="mb-2 text-[11px] uppercase tracking-[0.1em] text-black/55">{t("What the drawing has to show")}</div>
+          <div className="mb-2 text-[11px] uppercase tracking-[0.1em] text-black/55">
+            {t("What the drawing has to show")}
+          </div>
           <ul className="space-y-1.5">
             {DIAGRAM_REQUIREMENTS.map((req, i) => {
               const on = shown.diagramCovers.includes(i);
@@ -751,7 +1195,11 @@ export default function WorkspaceMmdPage() {
                     type="button"
                     disabled={locked}
                     onClick={() =>
-                      patch({ diagramCovers: on ? shown.diagramCovers.filter((n) => n !== i) : [...shown.diagramCovers, i] })
+                      patch({
+                        diagramCovers: on
+                          ? shown.diagramCovers.filter((n) => n !== i)
+                          : [...shown.diagramCovers, i],
+                      })
                     }
                     className="flex w-full items-start gap-2.5 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-[#faf9f7] disabled:pointer-events-none"
                   >
@@ -761,22 +1209,36 @@ export default function WorkspaceMmdPage() {
                         on ? "border-transparent bg-[#111]" : "border-black/20",
                       )}
                     >
-                      {on && <span className="text-[10px] leading-none">✓</span>}
+                      {on && (
+                        <span className="text-[10px] leading-none">✓</span>
+                      )}
                     </span>
-                    <span className={cn("text-[12.5px] leading-relaxed", on ? "text-black/70" : "text-black/45")}>{t(req)}</span>
+                    <span
+                      className={cn(
+                        "text-[12.5px] leading-relaxed",
+                        on ? "text-black/70" : "text-black/45",
+                      )}
+                    >
+                      {t(req)}
+                    </span>
                   </button>
                 </li>
               );
             })}
           </ul>
-          {shown.diagramFileName && shown.diagramCovers.length < DIAGRAM_REQUIREMENTS.length && (
-            <p className="mt-2 text-[12px] text-[#b45309]">
-              {t("{left} of {total} still unticked. Anything left unticked is a question a verifier will have to ask.", {
-                left: DIAGRAM_REQUIREMENTS.length - shown.diagramCovers.length,
-                total: DIAGRAM_REQUIREMENTS.length,
-              })}
-            </p>
-          )}
+          {shown.diagramFileName &&
+            shown.diagramCovers.length < DIAGRAM_REQUIREMENTS.length && (
+              <p className="mt-2 text-[12px] text-[#b45309]">
+                {t(
+                  "{left} of {total} still unticked. Anything left unticked is a question a verifier will have to ask.",
+                  {
+                    left:
+                      DIAGRAM_REQUIREMENTS.length - shown.diagramCovers.length,
+                    total: DIAGRAM_REQUIREMENTS.length,
+                  },
+                )}
+              </p>
+            )}
         </div>
       </SectionCard>
 
@@ -791,28 +1253,56 @@ export default function WorkspaceMmdPage() {
         helpTitle={t("What to attach here")}
         help={
           <>
-            <p>{t("The paperwork behind what this methodology claims about the installation itself.")}</p>
-            <p className="mt-2">
-              <strong>{t("Installation identity")}</strong> {t("— a registration certificate, licence or utility bill that ties the legal name and address above to a real site.")}
+            <p>
+              {t(
+                "The paperwork behind what this methodology claims about the installation itself.",
+              )}
             </p>
             <p className="mt-2">
-              <strong>{t("Calibration records")}</strong> {t("— the certificates for the instruments listed in section 4. An uncalibrated instrument is the fastest route to a qualified opinion, and the certificate is what closes it.")}
+              <strong>{t("Installation identity")}</strong>{" "}
+              {t(
+                "— a registration certificate, licence or utility bill that ties the legal name and address above to a real site.",
+              )}
             </p>
-            <p className="mt-2">{t("Monthly bills and meter logs do not go here — they attach inside the month they belong to.")}</p>
+            <p className="mt-2">
+              <strong>{t("Calibration records")}</strong>{" "}
+              {t(
+                "— the certificates for the instruments listed in section 4. An uncalibrated instrument is the fastest route to a qualified opinion, and the certificate is what closes it.",
+              )}
+            </p>
+            <p className="mt-2">
+              {t(
+                "Monthly bills and meter logs do not go here — they attach inside the month they belong to.",
+              )}
+            </p>
           </>
         }
       >
         <SectionEvidence
           workspaceId={workspace.id}
           keys={ANNUAL_REQUIRED_KEYS}
-          emptyLabel={t("Nothing attached yet. A verifier asks for both of these on day one.")}
+          emptyLabel={t(
+            "Nothing attached yet. A verifier asks for both of these on day one.",
+          )}
           onChange={() => {
             invalidateWorkspaceData();
             refresh();
           }}
         />
-        <ExampleToggle example={t("“Factory-licence-TH-RAYONG-01.pdf” for identity; “FT-2201-calibration-2026-03-12.pdf” for the gas meter named in section 4.")} />
+        <ExampleToggle
+          example={t(
+            "“Factory-licence-TH-RAYONG-01.pdf” for identity; “FT-2201-calibration-2026-03-12.pdf” for the gas meter named in section 4.",
+          )}
+        />
       </SectionCard>
+
+      {/* 9 · The seven monitoring-plan elements nothing above answers (Annex II A.5) */}
+      <MonitoringPlanCard
+        value={shown}
+        onChange={patch}
+        disabled={locked}
+        title={t("9 · Monitoring plan elements")}
+      />
 
       {issues.length > 0 && !locked && (
         <Note tone="warn">

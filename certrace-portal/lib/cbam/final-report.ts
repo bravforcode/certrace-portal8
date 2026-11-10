@@ -30,7 +30,11 @@ import { workspaceSEE } from "../workspace-see";
 import type { VerificationWorkspace } from "../workspace";
 import { finalReportFileName, nextVersion } from "./final-report-filename";
 import { buildFinalReportDoc, type FinalReportDoc } from "./final-report-doc";
-import { assembleFinalReportPdf, type FinalReportPdf, type MergeFailure } from "./final-report-pdf";
+import {
+  assembleFinalReportPdf,
+  type FinalReportPdf,
+  type MergeFailure,
+} from "./final-report-pdf";
 import { getFinalReportSnapshot } from "./final-report-snapshot";
 
 export type { FinalReportDoc, FinalReportPdf, MergeFailure };
@@ -39,7 +43,11 @@ export { buildFinalReportDoc };
 /** The same fingerprint lib/pack-signoff.ts records at sign-off and compares
     at every download — computed here too so this module can ask "is there a
     frozen snapshot for what's true RIGHT NOW" without importing UI state. */
-function currentFingerprint(ws: VerificationWorkspace, readiness: WorkspaceReadiness, see: ReturnType<typeof workspaceSEE>): string {
+function currentFingerprint(
+  ws: VerificationWorkspace,
+  readiness: WorkspaceReadiness,
+  see: ReturnType<typeof workspaceSEE>,
+): string {
   return packFingerprint({
     seeDirect: see.seeDirect,
     seeIndirect: see.seeIndirect,
@@ -59,7 +67,10 @@ function currentFingerprint(ws: VerificationWorkspace, readiness: WorkspaceReadi
     snapshot rule below; call this directly only where a live, current-state
     document is actually wanted (a preview, a test, the sign-off action
     itself capturing what's about to be frozen). */
-export function buildFinalReport(ws: VerificationWorkspace, readiness?: WorkspaceReadiness): FinalReportDoc {
+export function buildFinalReport(
+  ws: VerificationWorkspace,
+  readiness?: WorkspaceReadiness,
+): FinalReportDoc {
   return buildFinalReportDoc(ws, readiness ?? workspaceReadiness(ws));
 }
 
@@ -76,7 +87,10 @@ export function buildFinalReport(ws: VerificationWorkspace, readiness?: Workspac
     Draft, never-signed, or stale (signed-then-edited) workspaces still build
     live, same as always — a report that has not been attested to is
     supposed to show what's true right now, not an old frozen guess. */
-export function finalReportDocForDownload(ws: VerificationWorkspace, readiness?: WorkspaceReadiness): FinalReportDoc {
+export function finalReportDocForDownload(
+  ws: VerificationWorkspace,
+  readiness?: WorkspaceReadiness,
+): FinalReportDoc {
   const r = readiness ?? workspaceReadiness(ws);
   const see = workspaceSEE(ws);
   const fingerprint = currentFingerprint(ws, r, see);
@@ -96,7 +110,10 @@ export function finalReportDocForDownload(ws: VerificationWorkspace, readiness?:
 }
 
 /** The single artefact. One call, one PDF, report then evidence. */
-export async function buildFinalReportPdf(ws: VerificationWorkspace, readiness?: WorkspaceReadiness): Promise<FinalReportPdf> {
+export async function buildFinalReportPdf(
+  ws: VerificationWorkspace,
+  readiness?: WorkspaceReadiness,
+): Promise<FinalReportPdf> {
   return assembleFinalReportPdf(finalReportDocForDownload(ws, readiness));
 }
 
@@ -116,7 +133,8 @@ function downloadName(ws: VerificationWorkspace, draft: boolean): string {
     evidenceCount: listEvidence(ws.id).length,
   });
   return finalReportFileName({
-    companyName: getInstallation(ws.installationId)?.name || ws.installationName,
+    companyName:
+      getInstallation(ws.installationId)?.name || ws.installationName,
     productName: ws.productName,
     year: ws.year,
     draft,
@@ -130,11 +148,17 @@ function downloadName(ws: VerificationWorkspace, draft: boolean): string {
     the report-only and evidence-only buttons that used to sit beside it were
     removed rather than repointed, because a second link is the bug even when
     both links work. */
-export async function downloadFinalReport(ws: VerificationWorkspace, readiness?: WorkspaceReadiness): Promise<FinalReportPdf> {
+export async function downloadFinalReport(
+  ws: VerificationWorkspace,
+  readiness?: WorkspaceReadiness,
+): Promise<FinalReportPdf> {
   const built = await buildFinalReportPdf(ws, readiness);
   /* The version is consumed only when a file really leaves, so building a
      report in a test or a preview never burns a version number. */
-  const result: FinalReportPdf = typeof window === "undefined" ? built : { ...built, fileName: downloadName(ws, built.draft) };
+  const result: FinalReportPdf =
+    typeof window === "undefined"
+      ? built
+      : { ...built, fileName: downloadName(ws, built.draft) };
   if (typeof window !== "undefined") {
     /* Copied into a fresh ArrayBuffer: `bytes` is a view over pdf-lib's own
        buffer, and Blob over a view that outlives the call is how a truncated

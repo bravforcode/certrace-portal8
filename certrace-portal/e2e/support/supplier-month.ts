@@ -22,12 +22,16 @@ async function stepName(page: Page): Promise<string> {
   return body.match(/STEP \d OF \d\n([A-Z ]+)/)?.[1] ?? "(unknown)";
 }
 
-async function advance(page: Page, label: "Start" | "Continue"): Promise<string> {
+async function advance(
+  page: Page,
+  label: "Start" | "Continue",
+): Promise<string> {
   const before = await stepName(page);
   await page.getByRole("button", { name: label, exact: true }).click();
   await page.waitForTimeout(700);
   const after = await stepName(page);
-  if (after === before) console.log(`!! ${label} did not leave step "${before}"`);
+  if (after === before)
+    console.log(`!! ${label} did not leave step "${before}"`);
   return after;
 }
 
@@ -38,8 +42,13 @@ async function choose(page: Page, dropdown: string | RegExp, option: RegExp) {
 }
 
 /** From the overview to the check report, asserting the engine's figures on the way. */
-export async function fillAugust(page: Page, installationName: string): Promise<void> {
-  await expect(page.locator("body")).toContainText(/monthly data request/i, { timeout: 30_000 });
+export async function fillAugust(
+  page: Page,
+  installationName: string,
+): Promise<void> {
+  await expect(page.locator("body")).toContainText(/monthly data request/i, {
+    timeout: 30_000,
+  });
   await expect(page.locator("body")).toContainText("August 2026");
 
   await advance(page, "Start");
@@ -49,14 +58,18 @@ export async function fillAugust(page: Page, installationName: string): Promise<
   await advance(page, "Continue");
 
   // 3 · Methodology
-  await page.getByLabel(/Describe the boundary/).fill(
-    "Scrap is charged to the 90 t electric arc furnace, tapped to the ladle furnace and continuously cast into billet. The boundary ends at the cooling bed.",
-  );
+  await page
+    .getByLabel(/Describe the boundary/)
+    .fill(
+      "Scrap is charged to the 90 t electric arc furnace, tapped to the ladle furnace and continuously cast into billet. The boundary ends at the cooling bed.",
+    );
   await choose(page, "Processes included", /^Melting \(EAF\)/);
   await choose(page, "Processes included", /^Casting/);
   await choose(page, "Fuel types", /^Natural gas/);
   await choose(page, "Electricity supply", /Provincial Electricity Authority/);
-  await page.getByLabel(/Electricity metering point/).fill("Main incomer MDB-1, meter PEA 3392011");
+  await page
+    .getByLabel(/Electricity metering point/)
+    .fill("Main incomer MDB-1, meter PEA 3392011");
 
   // The instruments behind both figures — a verifier tests the meter, not the number.
   await page.getByRole("button", { name: "Add a fuel instrument" }).click();
@@ -66,10 +79,18 @@ export async function fillAugust(page: Page, installationName: string): Promise<
 
   const params = page.getByRole("textbox", { name: /^Parameter/ });
   const kit = page.getByRole("textbox", { name: /^Instrument/ });
-  const names = ["Natural gas volume", "Active energy, main incomer", "Active energy, main incomer"];
+  const names = [
+    "Natural gas volume",
+    "Active energy, main incomer",
+    "Active energy, main incomer",
+  ];
   for (let i = 0; i < (await params.count()); i++) {
     await params.nth(i).fill(names[i] ?? "Active energy, main incomer");
-    await kit.nth(i).fill(i === 0 ? "Elster RVG G250, tag FT-101" : "PEA meter 3392011, MDB-1");
+    await kit
+      .nth(i)
+      .fill(
+        i === 0 ? "Elster RVG G250, tag FT-101" : "PEA meter 3392011, MDB-1",
+      );
   }
 
   const freq = page.getByRole("button", { name: "Reading frequency" });
@@ -82,7 +103,10 @@ export async function fillAugust(page: Page, installationName: string): Promise<
   for (let i = 0; i < (await cal.count()); i++) {
     await cal.nth(i).click();
     await page.waitForTimeout(250);
-    await page.getByRole("button", { name: /^1[0-5]$/ }).first().click();
+    await page
+      .getByRole("button", { name: /^1[0-5]$/ })
+      .first()
+      .click();
     await page.waitForTimeout(250);
   }
 
@@ -103,7 +127,13 @@ export async function fillAugust(page: Page, installationName: string): Promise<
   console.log("documents ->", await advance(page, "Continue"));
   // 7 · Check — the quality report over everything above.
   const check = await page.locator("body").innerText();
-  console.log("CHECK REPORT:", check.slice(check.indexOf("Completeness"), check.indexOf("Completeness") + 1600));
+  console.log(
+    "CHECK REPORT:",
+    check.slice(
+      check.indexOf("Completeness"),
+      check.indexOf("Completeness") + 1600,
+    ),
+  );
 
   expect(check).toContain("351.48");
   expect(check).toContain("1,005.8");
@@ -121,7 +151,10 @@ export async function fillAugust(page: Page, installationName: string): Promise<
 }
 
 /** 8 · Sign — the internal authorisation, then the submit button is pressed. */
-export async function signAndSubmitAugust(page: Page, signer: { name: string; role: string }): Promise<void> {
+export async function signAndSubmitAugust(
+  page: Page,
+  signer: { name: string; role: string },
+): Promise<void> {
   await page.getByLabel(/Full name/).fill(signer.name);
   await page.getByLabel(/Role \/ title/).fill(signer.role);
   const boxes = page.getByRole("checkbox");

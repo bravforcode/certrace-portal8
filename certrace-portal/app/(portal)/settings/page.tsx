@@ -1,4 +1,5 @@
 "use client";
+import { useCompanyDirectory } from "@/lib/team-query";
 
 import * as React from "react";
 import Link from "next/link";
@@ -11,43 +12,88 @@ import {
   Check,
   Mail,
   KeyRound,
-  Monitor,
-  Smartphone,
   Cookie,
   FileText,
   Sparkles,
   Megaphone,
+  Scale,
+  CreditCard,
   ExternalLink,
   Plus,
   X,
+  Factory,
 } from "lucide-react";
+import { InstallationSwitcher } from "@/components/installation-switcher";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Card, PageHeader, Eyebrow, Field, inputClass, Chip, Button, Switch, SaveButton, useSaveState, cn } from "@/components/ui";
+import {
+  Card,
+  PageHeader,
+  Eyebrow,
+  Field,
+  inputClass,
+  Chip,
+  Button,
+  Switch,
+  SaveButton,
+  useSaveState,
+  cn,
+} from "@/components/ui";
 import { Select, Portal } from "@/components/controls";
 import { USER } from "@/lib/data";
 import { PRODUCT_SECTORS } from "@/lib/config";
 import { useAccountEmail, useProfile, generateUsername } from "@/lib/profile";
-import { type PrefKey, PREF_KEY, saveNotificationPrefs } from "@/lib/notification-prefs";
+import {
+  type PrefKey,
+  PREF_DEFAULTS,
+  readNotificationPrefs,
+  saveNotificationPrefs,
+} from "@/lib/notification-prefs";
+import { recordEvent } from "@/lib/notifications/events";
 import { JOB_TITLES, JOB_TITLE_OPTIONS } from "@/lib/job-titles";
 import { useT } from "@/lib/i18n";
 import { LEGAL_PRIVACY_URL, LEGAL_TERMS_URL } from "@/lib/links";
 import { InstallationModal } from "@/components/workspace/installation-form";
-import { emptyInstallation, missingFields, type Installation } from "@/lib/installations";
-import { useOwnInstallations, useRemoveInstallation, useSaveInstallation } from "@/lib/installations-query";
+import {
+  emptyInstallation,
+  missingFields,
+  type Installation,
+} from "@/lib/installations";
+import { listArchivedWorkspaces, listWorkspaces } from "@/lib/workspace";
+import { InstallationMenu } from "@/components/workspace/installation-menu";
+import { toast } from "@/components/toast";
+import {
+  useOwnInstallations,
+  useRemoveInstallation,
+  useSaveInstallation,
+} from "@/lib/installations-query";
 import { CAP_LABEL } from "@/lib/plan";
-import { useCaps, useInvalidateCaps, useInvalidateWorkspaces } from "@/lib/workspaces-query";
+import {
+  useCaps,
+  useInvalidateCaps,
+  useInvalidateWorkspaces,
+} from "@/lib/workspaces-query";
 import { useAccount } from "@/components/account-lock";
 import { PlanCapNotice } from "@/components/plan-cap-notice";
-import { beginGoogleLink, googleSignInEnabled, loadSession, onSessionChange } from "@/lib/api";
+import {
+  beginGoogleLink,
+  changePassword,
+  googleSignInEnabled,
+  hasCode,
+  loadSession,
+  onSessionChange,
+} from "@/lib/api";
 
-// Mock "the only password that verifies" — matches the pre-filled demo
-// password on /login, since there's no real auth backend in this MVP.
-const MOCK_PASSWORD = "demo-password";
 const errInput = "border-[#f87171]/60 focus:border-[#f87171]";
 
-type Tab = "organisation" | "profile" | "notifications" | "privacy";
+type Tab =
+  | "organisation"
+  | "installation"
+  | "profile"
+  | "notifications"
+  | "privacy";
 const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
   { key: "organisation", label: "Organisation", icon: Building2 },
+  { key: "installation", label: "Installation", icon: Factory },
   { key: "profile", label: "Profile", icon: UserRound },
   { key: "notifications", label: "Notifications", icon: Bell },
   { key: "privacy", label: "Privacy & security", icon: ShieldCheck },
@@ -73,7 +119,14 @@ function SettingsPageInner() {
   // page for a query-string-only navigation, so a mount-only effect would miss it.
   React.useEffect(() => {
     const q = searchParams.get("tab");
-    if (q === "profile" || q === "notifications" || q === "privacy" || q === "organisation") setTab(q);
+    if (
+      q === "profile" ||
+      q === "notifications" ||
+      q === "privacy" ||
+      q === "organisation" ||
+      q === "installation"
+    )
+      setTab(q);
   }, [searchParams]);
 
   const go = (t: Tab) => {
@@ -86,7 +139,9 @@ function SettingsPageInner() {
       <PageHeader
         eyebrow={t("Settings")}
         title={t("Account & organisation.")}
-        lead={t("Locale and identity for your organisation, your personal profile, and how Certrace keeps you posted.")}
+        lead={t(
+          "Locale and identity for your organisation, your personal profile, and how Certrace keeps you posted.",
+        )}
       />
 
       <div className="flex flex-wrap items-center gap-1.5">
@@ -96,7 +151,9 @@ function SettingsPageInner() {
             onClick={() => go(key)}
             className={cn(
               "inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-[11px] uppercase tracking-[0.08em] transition-colors",
-              tab === key ? "border-black/25 bg-[#111] text-white" : "border-black/10 text-black/50 hover:border-black/25 hover:text-black",
+              tab === key
+                ? "border-black/25 bg-[#111] text-white"
+                : "border-black/10 text-black/50 hover:border-black/25 hover:text-black",
             )}
           >
             <Icon size={13} strokeWidth={1.5} /> {t(label)}
@@ -106,6 +163,19 @@ function SettingsPageInner() {
 
       <div key={tab} className="ct-enter">
         {tab === "organisation" && <OrganisationTab />}
+        {tab === "installation" && (
+          <Card className="p-6">
+            <Eyebrow>{t("Current installation")}</Eyebrow>
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-black/45">
+              {t(
+                "Verification shows one installation at a time, and a new product report is filed there. Switch to another site here or from your profile menu.",
+              )}
+            </p>
+            <div className="mt-6 border-t border-black/[0.06] pt-6">
+              <InstallationSwitcher />
+            </div>
+          </Card>
+        )}
         {tab === "profile" && <ProfileTab />}
         {tab === "notifications" && <NotificationsTab />}
         {tab === "privacy" && <PrivacyTab />}
@@ -117,6 +187,7 @@ function SettingsPageInner() {
 /* ── Organisation ─────────────────────────────────────────── */
 function OrganisationTab() {
   const t = useT();
+  const company = useCompanyDirectory();
   const { profile, update, loaded } = useProfile();
   const [companyName, setCompanyName] = React.useState(profile.companyName);
   const [sectorId, setSectorId] = React.useState(profile.sector);
@@ -134,7 +205,10 @@ function OrganisationTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded]);
 
-  const sectorOptions = PRODUCT_SECTORS.map((s) => ({ value: s.id, label: t(s.name) }));
+  const sectorOptions = PRODUCT_SECTORS.map((s) => ({
+    value: s.id,
+    label: t(s.name),
+  }));
   const jurisdictionOptions = [{ value: "TH", label: t("Thailand") }];
 
   /* NO DISPLAY CURRENCY. It was a two-option dropdown that changed nothing:
@@ -144,11 +218,21 @@ function OrganisationTab() {
      receipt is in and not whatever the account was set to. A preference that
      no screen reads is a preference that will eventually be read by one screen
      and disagree with the receipt. */
-  const save = () => run(() => update({ companyName, sector: sectorId, jurisdiction }));
+  const save = () =>
+    run(() => update({ companyName, sector: sectorId, jurisdiction }));
 
   return (
     <div className="space-y-6">
-      <Card className="p-6">
+      {company && !company.isOwner && (
+        <Card className="p-6">
+          <Eyebrow>{t("Company")}</Eyebrow>
+          <p>{company.name}</p>
+          <p className="mt-2 text-sm">
+            Only the owner can edit the company profile.
+          </p>
+        </Card>
+      )}
+      <Card className={company && !company.isOwner ? "hidden" : "p-6"}>
         <div className="grid gap-6 sm:grid-cols-2">
           <div>
             <Eyebrow>{t("Company")}</Eyebrow>
@@ -156,10 +240,24 @@ function OrganisationTab() {
               {/* "Company name" — the same words /onboarding asks it with.
                   One field cannot have two names. */}
               <Field label={t("Company name")}>
-                <input className={inputClass} value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
+                <input
+                  className={inputClass}
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                />
               </Field>
-              <Field label={t("Primary sector")} hint={t("Which CBAM-affected industry your organisation reports under.")}>
-                <Select value={sectorId} onChange={setSectorId} options={sectorOptions} ariaLabel={t("Primary sector")} />
+              <Field
+                label={t("Primary sector")}
+                hint={t(
+                  "Which CBAM-affected industry your organisation reports under.",
+                )}
+              >
+                <Select
+                  value={sectorId}
+                  onChange={setSectorId}
+                  options={sectorOptions}
+                  ariaLabel={t("Primary sector")}
+                />
               </Field>
             </div>
           </div>
@@ -167,15 +265,31 @@ function OrganisationTab() {
           <div>
             <Eyebrow>{t("Locale")}</Eyebrow>
             <div className="mt-4 space-y-4">
-              <Field label={t("Operating jurisdiction")} hint={t("Sets the localised emission-factor library and number formats.")}>
-                <Select value={jurisdiction} onChange={setJurisdiction} options={jurisdictionOptions} ariaLabel={t("Operating jurisdiction")} />
+              <Field
+                label={t("Operating jurisdiction")}
+                hint={t(
+                  "Sets the localised emission-factor library and number formats.",
+                )}
+              >
+                <Select
+                  value={jurisdiction}
+                  onChange={setJurisdiction}
+                  options={jurisdictionOptions}
+                  ariaLabel={t("Operating jurisdiction")}
+                />
               </Field>
             </div>
           </div>
         </div>
 
         <div className="mt-6 flex justify-end border-t border-black/[0.06] pt-6">
-          <SaveButton state={state} onClick={save} idleLabel={t("Save changes")} savingLabel={t("Saving…")} savedLabel={t("Saved")} />
+          <SaveButton
+            state={state}
+            onClick={save}
+            idleLabel={t("Save changes")}
+            savingLabel={t("Saving…")}
+            savedLabel={t("Saved")}
+          />
         </div>
       </Card>
 
@@ -225,7 +339,8 @@ function PlanCard() {
         <div>
           <Eyebrow>{t("Plan")}</Eyebrow>
           <p className="mt-2 text-sm text-black/55">
-            {t("You're on")} <span className="text-[#111]">{t(plan.name)}</span> — {t(plan.line)}
+            {t("You're on")} <span className="text-[#111]">{t(plan.name)}</span>{" "}
+            — {t(plan.line)}
           </p>
         </div>
         <Link href="/billing" className="flex-none">
@@ -236,18 +351,29 @@ function PlanCard() {
       </div>
 
       <dl className="mt-5 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-black/[0.08] pt-4 sm:grid-cols-4">
-        {(caps ? [caps.cnCodes, caps.sites, caps.years, caps.seats] : []).map((c) => (
-          <div key={c.key}>
-            <dt className="font-pixel text-[10px] uppercase tracking-[0.12em] text-black/40">{t(CAP_LABEL[c.key])}</dt>
-            <dd className={cn("mt-1 font-mono text-[13px] tabular-nums", c.atCap ? "text-[#b45309]" : "text-black/60")}>
-              {c.cap == null ? t("Unlimited") : c.label}
-            </dd>
-          </div>
-        ))}
+        {(caps ? [caps.cnCodes, caps.sites, caps.years, caps.seats] : []).map(
+          (c) => (
+            <div key={c.key}>
+              <dt className="font-pixel text-[10px] uppercase tracking-[0.12em] text-black/40">
+                {t(CAP_LABEL[c.key])}
+              </dt>
+              <dd
+                className={cn(
+                  "mt-1 font-mono text-[13px] tabular-nums",
+                  c.atCap ? "text-[#b45309]" : "text-black/60",
+                )}
+              >
+                {c.cap == null ? t("Unlimited") : c.label}
+              </dd>
+            </div>
+          ),
+        )}
       </dl>
 
       <p className="mt-4 text-[12px] leading-relaxed text-black/40">
-        {t("Suppliers are free and unlimited on every tier, at any chain depth, and never take a seat.")}
+        {t(
+          "Suppliers and precursor suppliers fill in through their link without limit on every plan, at any chain depth, and never take a seat.",
+        )}
       </p>
     </Card>
   );
@@ -273,20 +399,28 @@ function OwnInstallationCard() {
   const t = useT();
   const own = useOwnInstallations().data;
   /** null = closed · "new" = adding · an Installation = editing that one */
-  const [editing, setEditing] = React.useState<Installation | "new" | null>(null);
-  const [removing, setRemoving] = React.useState<string | null>(null);
+  const [editing, setEditing] = React.useState<Installation | "new" | null>(
+    null,
+  );
   const saveOwn = useSaveInstallation();
   const removeOwn = useRemoveInstallation();
   /* The site cap counts these very installations, so every add/remove also
      re-measures the caps living under the workspaces key. */
   const invalidateCaps = useInvalidateWorkspaces();
 
-  /* PRODUCTION SITES ARE A TERM OF THE PLAN — Starter buys one, Standard five,
-     Enterprise as many as it runs. A SUPPLIER'S plant is not one of these and
-     is never counted: suppliers are free and unlimited on every tier. */
+  /* INSTALLATIONS ARE A TERM OF THE PLAN — Starter has one, Standard two,
+     Enterprise three. A SUPPLIER'S plant is not one of these and
+     is never counted: suppliers fill in without limit on every plan. */
   const cap = useCaps().data?.sites;
 
   if (!own || !cap) return null;
+
+  /* Every product report that still names a site, archived ones too — they read
+     the site's record exactly as the active ones do. */
+  const reportsOf = (id: string) =>
+    [...listWorkspaces(), ...listArchivedWorkspaces()].filter(
+      (w) => w.installationId === id,
+    ).length;
 
   return (
     <Card className="p-6">
@@ -301,9 +435,13 @@ function OwnInstallationCard() {
                 English word order cannot know that. Each form is written out
                 in each language instead. */}
             {cap.cap == null
-              ? t("Every site you operate yourself. Register them here once and their monthly data lands in your inbox instead of going out to a supplier. Add as many as you run.")
+              ? t(
+                  "Every site you operate yourself. Register them here once and their monthly data lands in your inbox instead of going out to a supplier. Add as many as you run.",
+                )
               : cap.cap === 1
-                ? t("Every site you operate yourself. Register them here once and their monthly data lands in your inbox instead of going out to a supplier. Your plan covers one site.")
+                ? t(
+                    "Every site you operate yourself. Register them here once and their monthly data lands in your inbox instead of going out to a supplier. Your plan covers one site.",
+                  )
                 : t(
                     "Every site you operate yourself. Register them here once and their monthly data lands in your inbox instead of going out to a supplier. Your plan covers {cap} sites.",
                     { cap: cap.cap },
@@ -312,10 +450,23 @@ function OwnInstallationCard() {
         </div>
         <div className="flex flex-none items-center gap-3">
           {cap.cap != null && (
-            <span className={cn("font-mono text-[12px] tabular-nums", cap.atCap ? "text-[#b45309]" : "text-black/40")}>{cap.label}</span>
+            <span
+              className={cn(
+                "font-mono text-[12px] tabular-nums",
+                cap.atCap ? "text-[#b45309]" : "text-black/40",
+              )}
+            >
+              {cap.label}
+            </span>
           )}
-          <Button variant="secondary" size="sm" onClick={() => setEditing("new")} disabled={cap.atCap}>
-            <Plus size={13} strokeWidth={1.5} /> {own.length ? t("Add a site") : t("Register your installation")}
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setEditing("new")}
+            disabled={cap.atCap}
+          >
+            <Plus size={13} strokeWidth={1.5} />{" "}
+            {own.length ? t("Add a site") : t("Register your installation")}
           </Button>
         </div>
       </div>
@@ -324,24 +475,38 @@ function OwnInstallationCard() {
 
       {own.length === 0 ? (
         <p className="mt-5 rounded-xl border border-dashed border-black/10 px-4 py-5 text-center text-[13px] text-black/40">
-          {t("No sites registered yet. If you produce the good yourself, add the plant that makes it.")}
+          {t(
+            "No sites registered yet. If you produce the good yourself, add the plant that makes it.",
+          )}
         </p>
       ) : (
         <div className="mt-5 space-y-2.5">
           {own.map((i) => {
             const gaps = missingFields(i);
             return (
-              <div key={i.id} className="rounded-xl border border-black/[0.07] bg-[#faf9f7] p-4">
+              <div
+                key={i.id}
+                className="rounded-xl border border-black/[0.07] bg-[#faf9f7] p-4"
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <Building2 size={14} strokeWidth={1.5} className="flex-none text-black/40" />
-                      <span className="truncate text-[14px] text-black/85">{i.name}</span>
-                      <span className="font-mono text-[11px] text-black/40">{i.id}</span>
+                      <Building2
+                        size={14}
+                        strokeWidth={1.5}
+                        className="flex-none text-black/40"
+                      />
+                      <span className="truncate text-[14px] text-black/85">
+                        {i.name}
+                      </span>
+                      <span className="font-mono text-[11px] text-black/40">
+                        {i.id}
+                      </span>
                     </div>
                     <p className="mt-2 text-[12.5px] leading-relaxed text-black/50">
-                      {[i.street, i.city, i.postcode, i.country].filter(Boolean).join(", ") || t("No address yet.")}
-                      {i.economicActivity ? ` · ${i.economicActivity}` : ""}
+                      {[i.street, i.city, i.postcode, i.country]
+                        .filter(Boolean)
+                        .join(", ") || t("No address yet.")}
                     </p>
                     {/* Named, not counted. "3 fields missing" sends the reader
                         back into the form to find out which. */}
@@ -359,31 +524,35 @@ function OwnInstallationCard() {
                     >
                       {t("Edit")}
                     </button>
-                    {/* Two-press. Removing a site does NOT delete the
-                        workspaces that name it — those keep their denormalised
-                        installation name and reference, exactly as a workspace
-                        handed to a verifier must. */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (removing !== i.id) {
-                          setRemoving(i.id);
-                          return;
-                        }
-                        removeOwn.mutate(i.id, { onSuccess: invalidateCaps });
-                        setRemoving(null);
+                    {/* THE ⋯ MENU, NOT A BARE ✕. A lone, unlabelled cross beside
+                        Edit reads as "close this row", and it was the control
+                        that deletes the site. Removal now sits in the same menu
+                        the Verification page uses for the same site, last and
+                        red, armed by the first click. It is disabled while a
+                        product report still names the site — removing the
+                        record would take the operator details and the monitoring
+                        plan out from under it. */}
+                    <InstallationMenu
+                      installationId={i.id}
+                      name={i.name}
+                      remove={{
+                        reports: reportsOf(i.id),
+                        onRemove: () =>
+                          removeOwn.mutate(i.id, {
+                            onSuccess: () => {
+                              invalidateCaps();
+                              toast({
+                                message: t("Site removed"),
+                                detail: t(
+                                  "{name} is off your list. Nothing else was deleted.",
+                                  { name: i.name || i.id },
+                                ),
+                                tone: "info",
+                              });
+                            },
+                          }),
                       }}
-                      onBlur={() => setRemoving((r) => (r === i.id ? null : r))}
-                      aria-label={t("Remove {name}", { name: i.name })}
-                      title={removing === i.id ? t("Click again to remove") : t("Remove this site")}
-                      className={
-                        removing === i.id
-                          ? "rounded-lg border border-[#dc2626]/40 px-2.5 py-1.5 text-[11px] uppercase tracking-[0.08em] text-[#dc2626]"
-                          : "grid h-8 w-8 place-items-center rounded-lg text-black/30 transition-colors hover:bg-black/[0.05] hover:text-[#dc2626]"
-                      }
-                    >
-                      {removing === i.id ? t("Confirm") : <X size={15} strokeWidth={1.5} />}
-                    </button>
+                    />
                   </div>
                 </div>
               </div>
@@ -398,13 +567,20 @@ function OwnInstallationCard() {
       <InstallationModal
         open={editing !== null && !(editing === "new" && cap.atCap)}
         onClose={() => setEditing(null)}
-        initial={editing && editing !== "new" ? editing : emptyInstallation(true)}
+        initial={
+          editing && editing !== "new" ? editing : emptyInstallation(true)
+        }
         allowSelfToggle={false}
         self
         title={editing === "new" ? t("Add a site") : t("Your installation")}
-        lead={t("These are the facts a verifier asks for about a producing site. Entered once here, reused by every workspace.")}
+        lead={t(
+          "These are the facts a verifier asks for about a producing site. Entered once here, reused by every product report.",
+        )}
         onSaved={(saved) => {
-          saveOwn.mutate({ ...saved, self: true }, { onSuccess: invalidateCaps });
+          saveOwn.mutate(
+            { ...saved, self: true },
+            { onSuccess: invalidateCaps },
+          );
         }}
       />
     </Card>
@@ -420,13 +596,18 @@ function OwnInstallationCard() {
 /* ── Profile ──────────────────────────────────────────────── */
 function ProfileTab() {
   const t = useT();
+  const company = useCompanyDirectory();
   const { profile, update, loaded } = useProfile();
   const accountEmail = useAccountEmail();
   const [firstName, setFirstName] = React.useState(profile.firstName);
   const [lastName, setLastName] = React.useState(profile.lastName);
   const isPreset = JOB_TITLES.includes(profile.jobTitle);
-  const [jobTitleOption, setJobTitleOption] = React.useState(isPreset ? profile.jobTitle : "other");
-  const [jobTitleOther, setJobTitleOther] = React.useState(isPreset ? "" : profile.jobTitle);
+  const [jobTitleOption, setJobTitleOption] = React.useState(
+    isPreset ? profile.jobTitle : "other",
+  );
+  const [jobTitleOther, setJobTitleOther] = React.useState(
+    isPreset ? "" : profile.jobTitle,
+  );
   const { state: profileState, run: runProfile } = useSaveState();
 
   // See OrganisationTab — re-sync once the async profile load lands.
@@ -440,17 +621,7 @@ function ProfileTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded]);
 
-  const [changingEmail, setChangingEmail] = React.useState(false);
-  const [emailSent, setEmailSent] = React.useState<string | null>(null);
-  const [newEmail, setNewEmail] = React.useState("");
-  const [pw, setPw] = React.useState("");
-  const [touched, setTouched] = React.useState({ email: false, pw: false });
-  const [sending, setSending] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
-
-  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail.trim());
-  const pwValid = pw === MOCK_PASSWORD;
-  const canSendVerification = emailValid && pwValid;
 
   const copyId = () => {
     navigator.clipboard?.writeText(USER.accountId);
@@ -463,55 +634,82 @@ function ProfileTab() {
       update({
         firstName,
         lastName,
-        jobTitle: jobTitleOption === "other" ? jobTitleOther || "Other" : jobTitleOption,
+        jobTitle:
+          jobTitleOption === "other"
+            ? jobTitleOther || "Other"
+            : jobTitleOption,
       });
     });
 
-  const sendVerification = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!canSendVerification) {
-      setTouched({ email: true, pw: true });
-      return;
-    }
-    setSending(true);
-    window.setTimeout(() => {
-      setSending(false);
-      setEmailSent(newEmail);
-      setChangingEmail(false);
-      setPw("");
-      setTouched({ email: false, pw: false });
-    }, 700);
-  };
-
   return (
     <div className="space-y-6">
-      <Card className="p-6">
+      {company && !company.isOwner && (
+        <Card className="p-6">
+          <Eyebrow>{t("Your profile")}</Eyebrow>
+          <p>{accountEmail}</p>
+          <Link className="underline" href="/team">
+            Switch to your own workspace to edit your profile.
+          </Link>
+        </Card>
+      )}
+      <Card className={company && !company.isOwner ? "hidden" : "p-6"}>
         <Eyebrow>{t("Your profile")}</Eyebrow>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <Field label={t("First name")}>
-            <input className={inputClass} value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+            <input
+              className={inputClass}
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+            />
           </Field>
           <Field label={t("Last name")}>
-            <input className={inputClass} value={lastName} onChange={(e) => setLastName(e.target.value)} />
+            <input
+              className={inputClass}
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+            />
           </Field>
         </div>
         <p className="mt-2 text-[11px] text-black/35">
-          {t("Username")} <span className="font-mono text-black/50">@{generateUsername(firstName, lastName) || "—"}</span> — {t("generated automatically from your name.")}
+          {t("Username")}{" "}
+          <span className="font-mono text-black/50">
+            @{generateUsername(firstName, lastName) || "—"}
+          </span>{" "}
+          — {t("generated automatically from your name.")}
         </p>
 
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           <Field label={t("Job title")}>
-            <Select value={jobTitleOption} onChange={setJobTitleOption} options={JOB_TITLE_OPTIONS.map((o) => ({ ...o, label: t(o.label) }))} ariaLabel={t("Job title")} />
+            <Select
+              value={jobTitleOption}
+              onChange={setJobTitleOption}
+              options={JOB_TITLE_OPTIONS.map((o) => ({
+                ...o,
+                label: t(o.label),
+              }))}
+              ariaLabel={t("Job title")}
+            />
           </Field>
           {jobTitleOption === "other" && (
             <Field label={t("Specify job title")}>
-              <input className={inputClass} value={jobTitleOther} onChange={(e) => setJobTitleOther(e.target.value)} placeholder={t("e.g. Regional Trade Manager")} />
+              <input
+                className={inputClass}
+                value={jobTitleOther}
+                onChange={(e) => setJobTitleOther(e.target.value)}
+                placeholder={t("e.g. Regional Trade Manager")}
+              />
             </Field>
           )}
         </div>
 
         <div className="mt-5 flex justify-end">
-          <SaveButton state={profileState} onClick={saveProfile} idleLabel={t("Save profile")} savingLabel={t("Saving…")} savedLabel={t("Saved")} />
+          <SaveButton
+            state={profileState}
+            onClick={saveProfile}
+            idleLabel={t("Save profile")}
+            savingLabel={t("Saving…")}
+            savedLabel={t("Saved")}
+          />
         </div>
       </Card>
 
@@ -519,19 +717,29 @@ function ProfileTab() {
         <Eyebrow>{t("Account identity")}</Eyebrow>
         <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-black/[0.08] bg-[#faf9f7] px-4 py-3">
           <div className="min-w-0">
-            <div className="text-[11px] uppercase tracking-[0.08em] text-black/40">{t("Account ID")}</div>
-            <div className="font-mono text-[13px] text-black/70">{USER.accountId}</div>
+            <div className="text-[11px] uppercase tracking-[0.08em] text-black/40">
+              {t("Account ID")}
+            </div>
+            <div className="font-mono text-[13px] text-black/70">
+              {USER.accountId}
+            </div>
           </div>
           <button
             onClick={copyId}
             className="inline-flex flex-none items-center gap-1.5 rounded-xl border border-black/10 px-3 py-1.5 text-[11px] uppercase tracking-[0.08em] text-black/55 hover:border-black/25 hover:text-black"
           >
-            {copied ? <Check size={13} strokeWidth={1.5} className="text-[#047857]" /> : <Copy size={13} strokeWidth={1.5} />}
+            {copied ? (
+              <Check size={13} strokeWidth={1.5} className="text-[#047857]" />
+            ) : (
+              <Copy size={13} strokeWidth={1.5} />
+            )}
             {copied ? t("Copied") : t("Copy")}
           </button>
         </div>
         <p className="mt-3 text-[12px] leading-relaxed text-black/40">
-          {t("This ID is permanent and never changes — your declarations, suppliers and seats stay attached to it even if the email below changes. If the person who set up this account leaves the company, ownership can move to a new email without losing any history.")}
+          {t(
+            "This ID is permanent and never changes — your declarations, suppliers and seats stay attached to it even if the email below changes. If the person who set up this account leaves the company, ownership can move to a new email without losing any history.",
+          )}
         </p>
         <div className="mt-3 flex items-center justify-between text-[12px] text-black/40">
           <span>{t("Member since")}</span>
@@ -546,85 +754,85 @@ function ProfileTab() {
             <Mail size={15} strokeWidth={1.5} />
           </span>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[13px] text-black/75">{accountEmail || "—"}</div>
-            <div className="text-[11px] text-black/35">{t("Primary — used to sign in and receive alerts.")}</div>
+            <div className="truncate text-[13px] text-black/75">
+              {accountEmail || "—"}
+            </div>
+            <div className="text-[11px] text-black/35">
+              {t("Primary — used to sign in and receive alerts.")}
+            </div>
           </div>
         </div>
-
-        {emailSent && (
-          <div className="mt-3 rounded-xl border border-[rgba(96,165,250,0.25)] bg-[#eff6ff] px-4 py-3 text-[12px] leading-relaxed text-[#2563eb]">
-            {t("Verification sent to")} <span className="font-medium">{emailSent}</span>. {t("Click the link there to finish the switch — nothing changes until you confirm, and your account, history and org access stay exactly the same.")}
-          </div>
-        )}
-
-        {!changingEmail ? (
-          <button
-            onClick={() => setChangingEmail(true)}
-            className="mt-4 inline-flex items-center gap-1.5 rounded-xl border border-black/10 px-3.5 py-2 text-[11px] uppercase tracking-[0.08em] text-black/55 hover:border-black/25 hover:text-black"
-          >
-            {t("Change email")}
-          </button>
-        ) : (
-          <form onSubmit={sendVerification} noValidate className="mt-4 space-y-3 border-t border-black/[0.06] pt-4">
-            <Field label={t("New email")}>
-              <input
-                className={cn(inputClass, touched.email && !emailValid && errInput)}
-                type="email"
-                value={newEmail}
-                onChange={(e) => setNewEmail(e.target.value)}
-                onBlur={() => setTouched((t) => ({ ...t, email: true }))}
-                placeholder={t("new@company.com")}
-              />
-            </Field>
-            <Field label={t("Confirm current password")} hint={t("For your security, we verify it's really you before changing anything.")}>
-              <input
-                className={cn(inputClass, touched.pw && !pwValid && errInput)}
-                type="password"
-                value={pw}
-                onChange={(e) => setPw(e.target.value)}
-                onBlur={() => setTouched((t) => ({ ...t, pw: true }))}
-                placeholder="••••••••"
-              />
-              {touched.pw && pw.length > 0 && !pwValid && <span className="mt-1.5 block text-xs text-[#dc2626]">{t("That password isn't correct.")}</span>}
-            </Field>
-            <div className="flex items-center gap-2">
-              <Button size="sm" type="submit" disabled={sending} className={cn(!canSendVerification && !sending && "opacity-40")}>
-                {sending ? t("Sending…") : t("Send verification")}
-              </Button>
-              <Button size="sm" type="button" variant="ghost" onClick={() => setChangingEmail(false)}>
-                {t("Cancel")}
-              </Button>
-            </div>
-          </form>
-        )}
       </Card>
     </div>
   );
 }
 
 /* ── Notifications ────────────────────────────────────────── */
-const PREF_DEFAULTS: Record<PrefKey, boolean> = { declarations: true, suppliers: true, ai_review: true, documents: true, security: true, product: false };
-
-const PREF_ROWS: { key: PrefKey; icon: React.ElementType; title: string; body: string; locked?: boolean }[] = [
-  { key: "security", icon: ShieldCheck, title: "Security", body: "Account activity that matters — sign-ins, password changes and security alerts.", locked: true },
-  { key: "declarations", icon: Building2, title: "Declarations", body: "Updates on declaration progress, approvals, revisions and reporting deadlines." },
-  { key: "suppliers", icon: UserRound, title: "Suppliers", body: "When a supplier is invited, submits their data, or needs a follow-up." },
-  { key: "ai_review", icon: Sparkles, title: "AI Review & Compliance", body: "When AI flags an issue, finishes validating a submission, or compliance action is needed." },
-  { key: "documents", icon: FileText, title: "Documents", body: "Missing, uploaded, approved, rejected or expiring documents." },
-  { key: "product", icon: Megaphone, title: "Product updates", body: "New features, improvements and platform announcements." },
+const PREF_ROWS: {
+  key: PrefKey;
+  icon: React.ElementType;
+  title: string;
+  body: string;
+  locked?: boolean;
+}[] = [
+  {
+    key: "security",
+    icon: ShieldCheck,
+    title: "Security",
+    body: "Account activity that matters — sign-ins, password changes and security alerts.",
+    locked: true,
+  },
+  {
+    key: "declarations",
+    icon: Building2,
+    title: "Declarations",
+    body: "Updates on declaration progress, approvals, revisions and reporting deadlines.",
+  },
+  {
+    key: "suppliers",
+    icon: UserRound,
+    title: "Suppliers",
+    body: "When a supplier is invited, submits their data, or needs a follow-up.",
+  },
+  {
+    key: "ai_review",
+    icon: Sparkles,
+    title: "AI Review & Compliance",
+    body: "When AI flags an issue, finishes validating a submission, or compliance action is needed.",
+  },
+  {
+    key: "documents",
+    icon: FileText,
+    title: "Documents",
+    body: "Missing, uploaded, approved, rejected or expiring documents.",
+  },
+  {
+    key: "regulation",
+    icon: Scale,
+    title: "CBAM news",
+    body: "Rule changes, new certificate prices and the dates that matter — as Certrace has them.",
+  },
+  {
+    key: "billing",
+    icon: CreditCard,
+    title: "Plan & billing",
+    body: "Your trial, the limits of your plan and anything that needs your attention on it.",
+  },
+  {
+    key: "product",
+    icon: Megaphone,
+    title: "Product updates",
+    body: "New features, improvements and platform announcements.",
+  },
 ];
 
 function NotificationsTab() {
   const t = useT();
-  const [prefs, setPrefs] = React.useState<Record<PrefKey, boolean>>(PREF_DEFAULTS);
+  const [prefs, setPrefs] =
+    React.useState<Record<PrefKey, boolean>>(PREF_DEFAULTS);
 
   React.useEffect(() => {
-    try {
-      const saved = JSON.parse(window.localStorage.getItem(PREF_KEY) ?? "null");
-      if (saved) setPrefs({ ...PREF_DEFAULTS, ...saved });
-    } catch {
-      /* ignore malformed local state */
-    }
+    setPrefs(readNotificationPrefs());
   }, []);
 
   const toggle = (key: PrefKey, value: boolean) => {
@@ -638,18 +846,32 @@ function NotificationsTab() {
   return (
     <Card className="divide-y divide-black/[0.06] p-0">
       {PREF_ROWS.map(({ key, icon: Icon, title, body, locked }) => (
-        <div key={key} className="flex items-start justify-between gap-4 px-6 py-5">
+        <div
+          key={key}
+          className="flex items-start justify-between gap-4 px-6 py-5"
+        >
           <div className="flex items-start gap-3.5">
             <span className="mt-0.5 grid h-9 w-9 flex-none place-items-center rounded-xl border border-black/10 text-black/45">
               <Icon size={16} strokeWidth={1.5} />
             </span>
             <div>
               <div className="text-[13px] text-black/80">{t(title)}</div>
-              <p className="mt-1 max-w-md text-[12px] leading-relaxed text-black/40">{t(body)}</p>
-              {locked && <p className="mt-1 text-[11px] uppercase tracking-[0.06em] text-black/30">{t("Always on — protects your account")}</p>}
+              <p className="mt-1 max-w-md text-[12px] leading-relaxed text-black/40">
+                {t(body)}
+              </p>
+              {locked && (
+                <p className="mt-1 text-[11px] uppercase tracking-[0.06em] text-black/30">
+                  {t("Always on — protects your account")}
+                </p>
+              )}
             </div>
           </div>
-          <Switch checked={prefs[key]} onChange={(v) => toggle(key, v)} disabled={locked} ariaLabel={t(title)} />
+          <Switch
+            checked={prefs[key]}
+            onChange={(v) => toggle(key, v)}
+            disabled={locked}
+            ariaLabel={t(title)}
+          />
         </div>
       ))}
     </Card>
@@ -657,48 +879,58 @@ function NotificationsTab() {
 }
 
 /* ── Privacy & security ───────────────────────────────────── */
-type Session = { id: string; device: string; icon: React.ElementType; location: string; lastActive: string; current?: boolean };
-const INITIAL_SESSIONS: Session[] = [
-  { id: "s1", device: "Chrome on macOS", icon: Monitor, location: "Bangkok, TH", lastActive: "Active now", current: true },
-  { id: "s2", device: "Safari on iPhone", icon: Smartphone, location: "Bangkok, TH", lastActive: "2 days ago" },
-  { id: "s3", device: "Edge on Windows", icon: Monitor, location: "Rayong, TH", lastActive: "9 days ago" },
-];
-
 function PrivacyTab() {
   const t = useT();
+  const accountEmail = useAccountEmail();
   const [current, setCurrent] = React.useState("");
   const [next, setNext] = React.useState("");
   const [confirm, setConfirm] = React.useState("");
-  const [touched, setTouched] = React.useState({ current: false, next: false, confirm: false });
-  const [sessions, setSessions] = React.useState(INITIAL_SESSIONS);
+  const [touched, setTouched] = React.useState({
+    current: false,
+    next: false,
+    confirm: false,
+  });
   const [cookiesOpen, setCookiesOpen] = React.useState(false);
-  const { state, run } = useSaveState();
+  const [saving, setSaving] = React.useState(false);
+  const [updated, setUpdated] = React.useState(false);
+  const [wrongPassword, setWrongPassword] = React.useState(false);
+  const [error, setError] = React.useState(false);
 
-  const currentValid = current === MOCK_PASSWORD;
+  const currentValid = current.trim().length > 0;
   const nextValid = next.length >= 8;
   const confirmValid = confirm.length > 0 && confirm === next;
   const canUpdate = currentValid && nextValid && confirmValid;
   const mismatch = touched.confirm && confirm.length > 0 && confirm !== next;
 
-  const attemptUpdate = (e: React.FormEvent) => {
+  const attemptUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canUpdate) {
       setTouched({ current: true, next: true, confirm: true });
       return;
     }
-    run(() => {
+    if (saving) return;
+    setSaving(true);
+    setError(false);
+    setWrongPassword(false);
+    setUpdated(false);
+    try {
+      await changePassword({
+        email: accountEmail,
+        currentPassword: current,
+        newPassword: next,
+      });
       setCurrent("");
       setNext("");
       setConfirm("");
       setTouched({ current: false, next: false, confirm: false });
-    });
-  };
-
-  const { state: signOutState, run: runSignOutOthers } = useSaveState();
-  const signOutOthers = () => {
-    runSignOutOthers(() => {
-      setSessions((s) => s.filter((x) => x.current));
-    });
+      recordEvent("password_changed");
+      setUpdated(true);
+    } catch (cause) {
+      setWrongPassword(hasCode(cause, "INVALID_CREDENTIALS"));
+      setError(true);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -707,18 +939,35 @@ function PrivacyTab() {
 
       <Card className="p-6">
         <Eyebrow>{t("Change password")}</Eyebrow>
-        <form onSubmit={attemptUpdate} noValidate className="mt-4 grid gap-4 sm:grid-cols-2">
+        <form
+          onSubmit={attemptUpdate}
+          noValidate
+          className="mt-4 grid gap-4 sm:grid-cols-2"
+        >
           <div className="sm:col-span-2">
             <Field label={t("Current password")}>
               <input
-                className={cn(inputClass, touched.current && !currentValid && errInput)}
+                className={cn(
+                  inputClass,
+                  ((touched.current && !currentValid) || wrongPassword) &&
+                    errInput,
+                )}
                 type="password"
                 value={current}
-                onChange={(e) => setCurrent(e.target.value)}
+                onChange={(e) => {
+                  setCurrent(e.target.value);
+                  setUpdated(false);
+                  setWrongPassword(false);
+                  setError(false);
+                }}
                 onBlur={() => setTouched((t) => ({ ...t, current: true }))}
                 placeholder="••••••••"
               />
-              {touched.current && current.length > 0 && !currentValid && <span className="mt-1.5 block text-xs text-[#dc2626]">{t("That password isn't correct.")}</span>}
+              {wrongPassword && (
+                <span className="mt-1.5 block text-xs text-[#dc2626]">
+                  {t("That password isn't correct.")}
+                </span>
+              )}
             </Field>
           </div>
           <Field label={t("New password")}>
@@ -726,7 +975,10 @@ function PrivacyTab() {
               className={cn(inputClass, touched.next && !nextValid && errInput)}
               type="password"
               value={next}
-              onChange={(e) => setNext(e.target.value)}
+              onChange={(e) => {
+                setNext(e.target.value);
+                setUpdated(false);
+              }}
               onBlur={() => setTouched((t) => ({ ...t, next: true }))}
               placeholder={t("At least 8 characters")}
             />
@@ -736,66 +988,50 @@ function PrivacyTab() {
               className={cn(inputClass, mismatch && errInput)}
               type="password"
               value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
+              onChange={(e) => {
+                setConfirm(e.target.value);
+                setUpdated(false);
+              }}
               onBlur={() => setTouched((t) => ({ ...t, confirm: true }))}
               placeholder={t("Re-enter new password")}
             />
           </Field>
-          {mismatch && <span className="sm:col-span-2 text-xs text-[#dc2626]">{t("Passwords don't match.")}</span>}
+          {mismatch && (
+            <span className="sm:col-span-2 text-xs text-[#dc2626]">
+              {t("Passwords don't match.")}
+            </span>
+          )}
+          {error && !wrongPassword && (
+            <span className="sm:col-span-2 text-xs text-[#dc2626]">
+              {t("Could not update password. Please try again.")}
+            </span>
+          )}
           <div className="sm:col-span-2">
-            <SaveButton
-              state={state}
-              onClick={attemptUpdate}
-              idleLabel={t("Update password")}
-              savingLabel={t("Updating…")}
-              savedLabel={t("Updated")}
-              icon={<KeyRound size={13} strokeWidth={1.5} />}
-              className={cn(!canUpdate && state === "idle" && "opacity-40")}
-            />
+            <Button type="submit" size="sm" disabled={!canUpdate || saving}>
+              <KeyRound size={13} strokeWidth={1.5} />
+              {saving
+                ? t("Updating…")
+                : updated
+                  ? t("Updated")
+                  : t("Update password")}
+            </Button>
           </div>
         </form>
       </Card>
 
       <Card className="p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Eyebrow>{t("Device login")}</Eyebrow>
-          {sessions.length > 1 && (
-            <SaveButton
-              state={signOutState}
-              onClick={signOutOthers}
-              variant="secondary"
-              idleLabel={t("Sign out of all other devices")}
-              savingLabel={t("Signing out of all other devices…")}
-              savedLabel={t("Saved")}
-            />
-          )}
-        </div>
-        <div className="mt-4 divide-y divide-black/[0.06]">
-          {sessions.map((s) => {
-            const Icon = s.icon;
-            return (
-              <div key={s.id} className="flex items-center gap-3.5 py-3">
-                <span className="grid h-9 w-9 flex-none place-items-center rounded-xl border border-black/10 text-black/45">
-                  <Icon size={16} strokeWidth={1.5} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[13px] text-black/75">{s.device}</span>
-                    {s.current && <Chip tone="ok">{t("this device")}</Chip>}
-                  </div>
-                  <div className="mt-0.5 text-[11px] text-black/40">{s.location} · {t(s.lastActive)}</div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </Card>
-
-      <Card className="p-6">
         <Eyebrow>{t("Cookies")}</Eyebrow>
         <div className="mt-3 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-          <p className="max-w-md text-[13px] leading-relaxed text-black/50">{t("Configure how cookies are used across the platform — essential cookies keep you signed in; the rest are optional.")}</p>
-          <Button variant="secondary" size="sm" onClick={() => setCookiesOpen(true)}>
+          <p className="max-w-md text-[13px] leading-relaxed text-black/50">
+            {t(
+              "Configure how cookies are used across the platform — essential cookies keep you signed in; the rest are optional.",
+            )}
+          </p>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setCookiesOpen(true)}
+          >
             <Cookie size={13} strokeWidth={1.5} /> {t("Manage cookies")}
           </Button>
         </div>
@@ -815,13 +1051,17 @@ function PrivacyTab() {
             href={LEGAL_TERMS_URL}
             icon={FileText}
             title={t("Terms & Conditions")}
-            body={t("Review the terms and conditions for using the platform and its services.")}
+            body={t(
+              "Review the terms and conditions for using the platform and its services.",
+            )}
           />
           <LegalRow
             href={LEGAL_PRIVACY_URL}
             icon={ShieldCheck}
             title={t("Privacy Policy")}
-            body={t("Learn how your personal data is collected, used and protected in accordance with applicable laws.")}
+            body={t(
+              "Learn how your personal data is collected, used and protected in accordance with applicable laws.",
+            )}
           />
         </div>
       </Card>
@@ -847,8 +1087,16 @@ function PrivacyTab() {
 function GoogleConnectCard() {
   const t = useT();
   const searchParams = useSearchParams();
-  const linked = React.useSyncExternalStore(onSessionChange, () => loadSession()?.user.googleLinked === true, () => false);
-  const email = React.useSyncExternalStore(onSessionChange, () => loadSession()?.user.email ?? "", () => "");
+  const linked = React.useSyncExternalStore(
+    onSessionChange,
+    () => loadSession()?.user.googleLinked === true,
+    () => false,
+  );
+  const email = React.useSyncExternalStore(
+    onSessionChange,
+    () => loadSession()?.user.email ?? "",
+    () => "",
+  );
   const [leaving, setLeaving] = React.useState(false);
   const justConnected = searchParams.get("google") === "connected";
 
@@ -859,14 +1107,24 @@ function GoogleConnectCard() {
         <div className="max-w-md">
           {linked ? (
             <p className="text-[13px] leading-relaxed text-black/60">
-              {t("Your Google account {email} is connected. You can sign in with Google or with your password.", { email })}
+              {t(
+                "Your Google account {email} is connected. You can sign in with Google or with your password.",
+                { email },
+              )}
             </p>
           ) : (
             <p className="text-[13px] leading-relaxed text-black/60">
-              {t("Connect the Google account for {email} to sign in with one click. Your password keeps working.", { email })}
+              {t(
+                "Connect the Google account for {email} to sign in with one click. Your password keeps working.",
+                { email },
+              )}
             </p>
           )}
-          {justConnected && linked && <p className="mt-2 text-[12px] text-[#047857]">{t("Google connected.")}</p>}
+          {justConnected && linked && (
+            <p className="mt-2 text-[12px] text-[#047857]">
+              {t("Google connected.")}
+            </p>
+          )}
         </div>
         {linked ? (
           <Chip tone="ok">{t("Connected")}</Chip>
@@ -888,20 +1146,41 @@ function GoogleConnectCard() {
   );
 }
 
-function LegalRow({ href, icon: Icon, title, body }: { href: string; icon: React.ElementType; title: string; body: string }) {
+function LegalRow({
+  href,
+  icon: Icon,
+  title,
+  body,
+}: {
+  href: string;
+  icon: React.ElementType;
+  title: string;
+  body: string;
+}) {
   /* An off-site destination, so a plain <a> with `noopener noreferrer`
      rather than next/link — there is no client-side route to prefetch, and
      the new tab must not be handed a window.opener onto the portal. */
   return (
-    <a href={href} target="_blank" rel="noopener noreferrer" className="-mx-3 flex items-center gap-3.5 rounded-xl px-3 py-3.5 transition-colors hover:bg-[#fafaf8]">
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="-mx-3 flex items-center gap-3.5 rounded-xl px-3 py-3.5 transition-colors hover:bg-[#fafaf8]"
+    >
       <span className="grid h-9 w-9 flex-none place-items-center rounded-xl border border-black/10 text-black/45">
         <Icon size={16} strokeWidth={1.5} />
       </span>
       <div className="min-w-0 flex-1">
         <div className="text-[13px] text-black/75">{title}</div>
-        <div className="mt-0.5 text-[12px] leading-relaxed text-black/40">{body}</div>
+        <div className="mt-0.5 text-[12px] leading-relaxed text-black/40">
+          {body}
+        </div>
       </div>
-      <ExternalLink size={14} strokeWidth={1.5} className="flex-none text-black/25" />
+      <ExternalLink
+        size={14}
+        strokeWidth={1.5}
+        className="flex-none text-black/25"
+      />
     </a>
   );
 }
@@ -917,7 +1196,9 @@ function CookieModal({ onClose }: { onClose: () => void }) {
 
   React.useEffect(() => {
     try {
-      const saved = JSON.parse(window.localStorage.getItem(COOKIE_KEY) ?? "null");
+      const saved = JSON.parse(
+        window.localStorage.getItem(COOKIE_KEY) ?? "null",
+      );
       if (saved) {
         setAnalytics(Boolean(saved.analytics));
         setMarketing(Boolean(saved.marketing));
@@ -951,7 +1232,10 @@ function CookieModal({ onClose }: { onClose: () => void }) {
   const save = () =>
     run(() => {
       try {
-        window.localStorage.setItem(COOKIE_KEY, JSON.stringify({ analytics, marketing }));
+        window.localStorage.setItem(
+          COOKIE_KEY,
+          JSON.stringify({ analytics, marketing }),
+        );
       } catch {
         /* private mode / storage blocked — close anyway, best-effort */
       }
@@ -965,38 +1249,76 @@ function CookieModal({ onClose }: { onClose: () => void }) {
   return (
     <Portal>
       <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
-        <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" onClick={onClose} aria-hidden />
+        <div
+          className="absolute inset-0 bg-black/20 backdrop-blur-sm"
+          onClick={onClose}
+          aria-hidden
+        />
         <Card className="ct-enter relative z-10 w-full max-w-sm p-6">
-          <button onClick={onClose} aria-label={t("Close")} className="absolute right-4 top-4 text-black/35 hover:text-black">
+          <button
+            onClick={onClose}
+            aria-label={t("Close")}
+            className="absolute right-4 top-4 text-black/35 hover:text-black"
+          >
             <X size={18} strokeWidth={1.5} />
           </button>
           <Eyebrow>{t("Cookies")}</Eyebrow>
-          <h2 className="mt-2 font-[family-name:var(--font-plex)] text-2xl font-light text-[#111]">{t("Manage cookies")}</h2>
+          <h2 className="mt-2 font-[family-name:var(--font-plex)] text-2xl font-light text-[#111]">
+            {t("Manage cookies")}
+          </h2>
           <div className="mt-5 space-y-4">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-[13px] text-black/75">{t("Essential")}</div>
-                <p className="mt-0.5 text-[12px] text-black/40">{t("Required to keep you signed in. Can't be disabled.")}</p>
+                <div className="text-[13px] text-black/75">
+                  {t("Essential")}
+                </div>
+                <p className="mt-0.5 text-[12px] text-black/40">
+                  {t("Required to keep you signed in. Can't be disabled.")}
+                </p>
               </div>
               <Switch checked disabled ariaLabel={t("Essential cookies")} />
             </div>
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-[13px] text-black/75">{t("Analytics")}</div>
-                <p className="mt-0.5 text-[12px] text-black/40">{t("Helps us see which parts of Certrace actually get used.")}</p>
+                <div className="text-[13px] text-black/75">
+                  {t("Analytics")}
+                </div>
+                <p className="mt-0.5 text-[12px] text-black/40">
+                  {t("Helps us see which parts of Certrace actually get used.")}
+                </p>
               </div>
-              <Switch checked={analytics} onChange={setAnalytics} ariaLabel={t("Analytics cookies")} />
+              <Switch
+                checked={analytics}
+                onChange={setAnalytics}
+                ariaLabel={t("Analytics cookies")}
+              />
             </div>
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-[13px] text-black/75">{t("Marketing")}</div>
-                <p className="mt-0.5 text-[12px] text-black/40">{t("Used to tailor announcements about new coverage and features.")}</p>
+                <div className="text-[13px] text-black/75">
+                  {t("Marketing")}
+                </div>
+                <p className="mt-0.5 text-[12px] text-black/40">
+                  {t(
+                    "Used to tailor announcements about new coverage and features.",
+                  )}
+                </p>
               </div>
-              <Switch checked={marketing} onChange={setMarketing} ariaLabel={t("Marketing cookies")} />
+              <Switch
+                checked={marketing}
+                onChange={setMarketing}
+                ariaLabel={t("Marketing cookies")}
+              />
             </div>
           </div>
           <div className="mt-6">
-            <SaveButton state={state} onClick={save} idleLabel={t("Save preferences")} savingLabel={t("Saving…")} savedLabel={t("Saved")} />
+            <SaveButton
+              state={state}
+              onClick={save}
+              idleLabel={t("Save preferences")}
+              savingLabel={t("Saving…")}
+              savedLabel={t("Saved")}
+            />
           </div>
         </Card>
       </div>

@@ -1,3 +1,4 @@
+import { accountStorage } from "./account-storage";
 /* ════════════════════════════════════════════════════════════
    SAVED VERSIONS OF ONE PRECURSOR ROW
 
@@ -45,6 +46,8 @@ export type PrecursorVersion<T extends VersionedRecord = PrecursorSupplier> = {
   snapshot: T;
 };
 
+export type StoredPrecursorVersion = PrecursorVersion<VersionedRecord>;
+
 export type InstallationVersion = PrecursorVersion<Installation>;
 
 const KEY = "certrace:precursor-versions";
@@ -57,18 +60,20 @@ const MAX_PER_NODE = 40;
 
 type Store = Record<string, PrecursorVersion<VersionedRecord>[]>;
 
-const storeKey = (workspaceId: string, nodeId: string) => `${workspaceId}~${nodeId}`;
+const storeKey = (workspaceId: string, nodeId: string) =>
+  `${workspaceId}~${nodeId}`;
 
 /* The installation root has no precursor row and therefore no node id of its
    own, so it borrows the same namespacing the tree already uses for it
    (lib/supplier-tree.ts builds its node id the same way). One store, two
    kinds of row, no key can collide with a precursor's. */
-const installationKey = (installationId: string) => `installation:${installationId}`;
+const installationKey = (installationId: string) =>
+  `installation:${installationId}`;
 
 function read(): Store {
   if (typeof window === "undefined") return {};
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(KEY) ?? "{}") as Store;
+    const parsed = JSON.parse(accountStorage.getItem(KEY) ?? "{}") as Store;
     return parsed && typeof parsed === "object" ? parsed : {};
   } catch {
     return {};
@@ -78,7 +83,7 @@ function read(): Store {
 function write(store: Store): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(store));
+    accountStorage.setItem(KEY, JSON.stringify(store));
   } catch {
     /* ignore quota — losing history must never lose the row itself */
   }
@@ -127,7 +132,7 @@ const FIELD_LABEL: Record<string, string> = {
   verificationSectoralScope: "Sectoral scope",
   verificationChecks: "Verification checks",
   reducingAgent: "Reducing agent",
-  linkedWorkspaceId: "Report workspace",
+  linkedWorkspaceId: "Product report",
 
   /* Installation records (the chain root). Named to the EU sheet's own
      wording, the same way lib/installations.ts holds them — a history that
@@ -145,7 +150,9 @@ const FIELD_LABEL: Record<string, string> = {
 };
 
 const prettify = (key: string) => {
-  const spaced = key.replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2");
+  const spaced = key
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2");
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 };
 
@@ -173,7 +180,10 @@ const IGNORED: ReadonlySet<string> = new Set([
 /** Which fields differ, as labels. Compared by serialised value so nested
     arrays (monthlyQuantities) and objects (verificationChecks) count as one
     change each rather than being walked. */
-export function changedFields(before: VersionedRecord, after: VersionedRecord): string[] {
+export function changedFields(
+  before: VersionedRecord,
+  after: VersionedRecord,
+): string[] {
   const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
   const out: string[] = [];
   for (const k of keys) {
@@ -182,23 +192,37 @@ export function changedFields(before: VersionedRecord, after: VersionedRecord): 
     const b = (after as Record<string, unknown>)[k];
     // "" and undefined are the same answer — an untouched optional field
     // that gains an empty string when a form mounts is not an edit.
-    const norm = (v: unknown) => (v === undefined || v === null || v === "" ? "" : JSON.stringify(v));
+    const norm = (v: unknown) =>
+      v === undefined || v === null || v === "" ? "" : JSON.stringify(v);
     if (norm(a) !== norm(b)) out.push(labelFor(k));
   }
   return out.sort((a, b) => a.localeCompare(b));
 }
 
 /** Newest first. */
-export function listVersions(workspaceId: string, nodeId: string): PrecursorVersion[] {
-  return [...(read()[storeKey(workspaceId, nodeId)] ?? [])].reverse() as PrecursorVersion[];
+export function listVersions(
+  workspaceId: string,
+  nodeId: string,
+): PrecursorVersion[] {
+  return [
+    ...(read()[storeKey(workspaceId, nodeId)] ?? []),
+  ].reverse() as PrecursorVersion[];
 }
 
-export const latestVersion = (workspaceId: string, nodeId: string): PrecursorVersion | null => listVersions(workspaceId, nodeId)[0] ?? null;
+export const latestVersion = (
+  workspaceId: string,
+  nodeId: string,
+): PrecursorVersion | null => listVersions(workspaceId, nodeId)[0] ?? null;
 
 /** The chain root's own history — same store, same shape, keyed by the
     installation rather than by a precursor row. Newest first. */
-export function listInstallationVersions(workspaceId: string, installationId: string): InstallationVersion[] {
-  return [...(read()[storeKey(workspaceId, installationKey(installationId))] ?? [])].reverse() as InstallationVersion[];
+export function listInstallationVersions(
+  workspaceId: string,
+  installationId: string,
+): InstallationVersion[] {
+  return [
+    ...(read()[storeKey(workspaceId, installationKey(installationId))] ?? []),
+  ].reverse() as InstallationVersion[];
 }
 
 /** Append a version if anything actually moved. Returns the new version, or
@@ -228,7 +252,10 @@ export function recordVersion(row: PrecursorSupplier): PrecursorVersion | null {
 /** `recordVersion` for the row at the top of the chain. Same rule: append
     only when something actually moved, so an autosave timer firing on an
     untouched form does not fill the list with identical entries. */
-export function recordInstallationVersion(workspaceId: string, record: Installation): InstallationVersion | null {
+export function recordInstallationVersion(
+  workspaceId: string,
+  record: Installation,
+): InstallationVersion | null {
   const key = storeKey(workspaceId, installationKey(record.id));
   const store = read();
   const history = store[key] ?? [];

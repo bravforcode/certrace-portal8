@@ -1,3 +1,4 @@
+import { accountStorage } from "../account-storage";
 /* ════════════════════════════════════════════════════════════
    DATA-GAP REGISTER — the conservativeness test (gap G6)
 
@@ -60,12 +61,18 @@ export const ESTIMATION_METHOD_LABEL: Record<EstimationMethod, string> = {
 };
 
 export const ESTIMATION_METHOD_HINT: Record<EstimationMethod, string> = {
-  substitute_meter: "Strongest option — another measurement of the same flow. Say which meter and how it was reconciled.",
-  prior_period_average: "Accepted where the process was unchanged. A verifier will ask what proves it was unchanged.",
-  production_scaled: "Defensible when consumption tracks output closely. Show the ratio you used and the period it came from.",
-  supplier_invoice_reconstruction: "Good evidence, but invoices cover delivery dates rather than consumption — explain the timing adjustment.",
-  conservative_default: "Deliberately unflattering by design, which is why it is safe. Expect no challenge, but it costs you.",
-  engineering_estimate: "Weakest option. Only defensible with the calculation written out and a stated conservative bias.",
+  substitute_meter:
+    "Strongest option — another measurement of the same flow. Say which meter and how it was reconciled.",
+  prior_period_average:
+    "Accepted where the process was unchanged. A verifier will ask what proves it was unchanged.",
+  production_scaled:
+    "Defensible when consumption tracks output closely. Show the ratio you used and the period it came from.",
+  supplier_invoice_reconstruction:
+    "Good evidence, but invoices cover delivery dates rather than consumption — explain the timing adjustment.",
+  conservative_default:
+    "Deliberately unflattering by design, which is why it is safe. Expect no challenge, but it costs you.",
+  engineering_estimate:
+    "Weakest option. Only defensible with the calculation written out and a stated conservative bias.",
 };
 
 export type GapEntry = {
@@ -94,7 +101,7 @@ type Store = Record<string, GapEntry[]>;
 function load(): Store {
   if (typeof window === "undefined") return {};
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = accountStorage.getItem(KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw) as Store;
     return parsed && typeof parsed === "object" ? parsed : {};
@@ -106,27 +113,34 @@ function load(): Store {
 function persist(store: Store): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(store));
+    accountStorage.setItem(KEY, JSON.stringify(store));
   } catch {
     /* ignore quota */
   }
 }
 
 export const listGaps = (declarationId: string): GapEntry[] =>
-  (load()[declarationId] ?? []).sort((a, b) => a.periodStart.localeCompare(b.periodStart));
+  (load()[declarationId] ?? []).sort((a, b) =>
+    a.periodStart.localeCompare(b.periodStart),
+  );
 
 export function saveGap(entry: GapEntry): GapEntry[] {
   const store = load();
   const list = store[entry.declarationId] ?? [];
   const i = list.findIndex((g) => g.id === entry.id);
-  store[entry.declarationId] = i >= 0 ? list.map((g) => (g.id === entry.id ? entry : g)) : [...list, entry];
+  store[entry.declarationId] =
+    i >= 0
+      ? list.map((g) => (g.id === entry.id ? entry : g))
+      : [...list, entry];
   persist(store);
   return store[entry.declarationId];
 }
 
 export function removeGap(declarationId: string, id: string): GapEntry[] {
   const store = load();
-  store[declarationId] = (store[declarationId] ?? []).filter((g) => g.id !== id);
+  store[declarationId] = (store[declarationId] ?? []).filter(
+    (g) => g.id !== id,
+  );
   persist(store);
   return store[declarationId];
 }
@@ -149,7 +163,11 @@ const gapCoversMonth = (g: GapEntry, month: string): boolean => {
   return month >= start && month <= end;
 };
 
-export function monthCoverage(period: ReportingPeriod, monthsWithData: string[], gaps: GapEntry[]): MonthCoverage[] {
+export function monthCoverage(
+  period: ReportingPeriod,
+  monthsWithData: string[],
+  gaps: GapEntry[],
+): MonthCoverage[] {
   const withData = new Set(monthsWithData);
   return monthsInPeriod(period).map((month) => {
     if (withData.has(month)) return { month, covered: true, gapId: null };
@@ -159,7 +177,11 @@ export function monthCoverage(period: ReportingPeriod, monthsWithData: string[],
 }
 
 /** Months with neither a reading nor an explanation. Empty = V11 passes. */
-export const unexplainedMonths = (period: ReportingPeriod, monthsWithData: string[], gaps: GapEntry[]): string[] =>
+export const unexplainedMonths = (
+  period: ReportingPeriod,
+  monthsWithData: string[],
+  gaps: GapEntry[],
+): string[] =>
   monthCoverage(period, monthsWithData, gaps)
     .filter((m) => !m.covered)
     .map((m) => m.month);
@@ -227,5 +249,6 @@ export function dataGapPenalty(p: PenaltyInput): PenaltyResult {
 
 /** Copy the UI uses, kept here so the reframing cannot drift back. */
 export const PENALTY_TITLE = "Data Gap Risk";
-export const PENALTY_SUBTITLE = "What missing data costs, at this year's default-value markup";
+export const PENALTY_SUBTITLE =
+  "What missing data costs, at this year's default-value markup";
 export const PENALTY_NEVER_SAY = "savings"; // documented so a future grep finds this note

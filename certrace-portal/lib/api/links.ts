@@ -1,8 +1,6 @@
 /* ════════════════════════════════════════════════════════════
    SMART LINKS — the reason this whole migration exists
 
-   Mirrors §3 of docs/API-CONTRACT.md.
-
    Today a supplier's answers live in the localStorage of whichever browser
    typed them, so a link opened on the supplier's own machine produces data the
    exporter never sees. These five calls are what make the round trip real.
@@ -23,7 +21,13 @@
 import type { CheckResult } from "../ai-check";
 import type { Attestation } from "../supplier-records";
 import type { SubmissionStatus, SupplierState } from "../supplier-store";
-import { request } from "./http";
+import { api, result } from "./client";
+import { decode, jsonDocument } from "./decode";
+import {
+  isSupplierState,
+  isLinkResolution,
+  isSubmissionSummary,
+} from "./validators.js";
 
 /** Declaration-level context the supplier's guided form is built from. Shared,
     not secret — which regulation, the period, the deadline, the exporter's
@@ -58,7 +62,7 @@ export type LinkResolution = {
   declId: string;
   supplierId: string;
   /** Present on monthly requests — one link per month, per the token format. */
-  month?: string;
+  month?: string | null;
   expiresAt: number;
   /** Only what the holder of the link may see: who is asking. */
   exporter: { companyName: string };
@@ -104,82 +108,108 @@ export type CreateLinkInput = {
    been a supplier. The token is the server's; only the host is ours. Kept as
    the fallback where there is no page origin (tests, server rendering). */
 function onThisPortal(link: SmartLink): SmartLink {
-  const origin = typeof window !== "undefined" ? window.location?.origin : undefined;
+  const origin =
+    typeof window !== "undefined" ? window.location?.origin : undefined;
   return origin ? { ...link, url: `${origin}/s/${link.token}` } : link;
 }
 
-export async function createSmartLink(declId: string, input: CreateLinkInput): Promise<SmartLink> {
-  const link = await request<SmartLink>(`/api/v1/declarations/${encodeURIComponent(declId)}/links`, {
-    method: "POST",
-    body: input,
-  });
-  return onThisPortal(link);
-}
-
-/** The exporter's at-a-glance "who has answered" — called often, kept small. */
-export async function listSubmissions(declId: string): Promise<SubmissionSummary[]> {
-  const result = await request<{ submissions: SubmissionSummary[] }>(
-    `/api/v1/declarations/${encodeURIComponent(declId)}/submissions`,
+export async function createSmartLink(
+  declId: string,
+  input: CreateLinkInput,
+): Promise<SmartLink> {
+  return onThisPortal(
+    await result(
+      api()
+        .api.v1.declarations({ declaration_id: encodeURIComponent(declId) })
+        .links.post(input),
+    ),
   );
-  return result.submissions ?? [];
 }
-
-/** The full answers behind one submission — the blob the review pane reads.
-    Fetched only when the exporter opens a submission, so a link filled on the
-    supplier's own machine is reviewable, not just visible as a status. */
-export async function getSubmissionState(declId: string, token: string): Promise<SupplierState> {
-  const result = await request<{ token: string; supplierId: string; state: SupplierState }>(
-    `/api/v1/declarations/${encodeURIComponent(declId)}/submissions/${encodeURIComponent(token)}`,
+export async function listSubmissions(
+  declId: string,
+): Promise<SubmissionSummary[]> {
+  return (
+    await result(
+      api()
+        .api.v1.declarations({ declaration_id: encodeURIComponent(declId) })
+        .submissions.get(),
+    )
+  ).submissions.map((value) => decode(value, isSubmissionSummary));
+}
+export async function getSubmissionState(
+  declId: string,
+  token: string,
+): Promise<SupplierState> {
+  const response = await result(
+    api()
+      .api.v1.declarations({ declaration_id: encodeURIComponent(declId) })
+      .submissions({ token: encodeURIComponent(token) })
+      .get(),
   );
-  return result.state;
+  return decode(response.state, isSupplierState);
 }
-
 export type RevisionInput = {
   note: string;
-  /** Value keys the supplier may edit again. */
   unlocked: string[];
-  /** Document ids they must re-upload. */
   unlockedDocs: string[];
 };
-
-export function requestRevision(
+export async function requestRevision(
   declId: string,
   token: string,
   input: RevisionInput,
 ): Promise<SupplierState> {
-  return request<SupplierState>(
-    `/api/v1/declarations/${encodeURIComponent(declId)}/links/${encodeURIComponent(token)}/revision`,
-    { method: "POST", body: input },
+  return decode(
+    await result(
+      api()
+        .api.v1.declarations({ declaration_id: encodeURIComponent(declId) })
+        .links({ token: encodeURIComponent(token) })
+        .revision.post(input),
+    ),
+    isSupplierState,
   );
 }
-
-/* ── Supplier side (no account, no session) ────────────────── */
-
-export function resolveLink(token: string): Promise<LinkResolution> {
-  return request<LinkResolution>(`/api/v1/links/${encodeURIComponent(token)}`, {
-    auth: false,
-  });
+export async function resolveLink(token: string): Promise<LinkResolution> {
+  return decode(
+    await result(
+      api(false)
+        .api.v1.links({ token: encodeURIComponent(token) })
+        .get(),
+    ),
+    isLinkResolution,
+  );
 }
-
-/** Autosave while filling in. Whole state, last write wins — same as today. */
-export function saveLinkState(token: string, state: SupplierState): Promise<SupplierState> {
-  return request<SupplierState>(`/api/v1/links/${encodeURIComponent(token)}/state`, {
-    method: "PUT",
-    body: { state },
-    auth: false,
-  });
+export async function saveLinkState(
+  token: string,
+  state: SupplierState,
+): Promise<SupplierState> {
+  return decode(
+    await result(
+      api(false)
+        .api.v1.links({ token: encodeURIComponent(token) })
+        .state.put({ state: jsonDocument(state) }),
+    ),
+    isSupplierState,
+  );
 }
-
 export type SubmitInput = {
   state: SupplierState;
   attestation: Attestation;
   check: CheckResult | null;
 };
-
-export function submitLink(token: string, input: SubmitInput): Promise<SupplierState> {
-  return request<SupplierState>(`/api/v1/links/${encodeURIComponent(token)}/submit`, {
-    method: "POST",
-    body: input,
-    auth: false,
-  });
+export async function submitLink(
+  token: string,
+  input: SubmitInput,
+): Promise<SupplierState> {
+  return decode(
+    await result(
+      api(false)
+        .api.v1.links({ token: encodeURIComponent(token) })
+        .submit.post({
+          state: jsonDocument(input.state),
+          attestation: jsonDocument(input.attestation),
+          check: input.check ? jsonDocument(input.check) : null,
+        }),
+    ),
+    isSupplierState,
+  );
 }

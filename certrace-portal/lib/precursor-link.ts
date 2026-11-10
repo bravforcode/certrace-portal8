@@ -13,18 +13,30 @@
    Nothing is transmitted here either — same seam, same honesty, see the
    file header on lib/workspace-link.ts. */
 
-import { getSupplier, linkStatus, listSuppliers, saveSupplier, type PrecursorSupplier } from "./precursor-suppliers";
+import {
+  getSupplier,
+  linkStatus,
+  listSuppliers,
+  saveSupplier,
+  type PrecursorSupplier,
+} from "./precursor-suppliers";
 import { getWorkspace, type VerificationWorkspace } from "./workspace";
 
 const b64urlEncode = (s: string): string => {
-  const b64 = typeof btoa === "function" ? btoa(unescape(encodeURIComponent(s))) : Buffer.from(s, "utf8").toString("base64");
+  const b64 =
+    typeof btoa === "function"
+      ? btoa(unescape(encodeURIComponent(s)))
+      : Buffer.from(s, "utf8").toString("base64");
   return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 };
 
 const b64urlDecode = (s: string): string => {
   const b64 = s.replace(/-/g, "+").replace(/_/g, "/");
   try {
-    const raw = typeof atob === "function" ? atob(b64) : Buffer.from(b64, "base64").toString("binary");
+    const raw =
+      typeof atob === "function"
+        ? atob(b64)
+        : Buffer.from(b64, "base64").toString("binary");
     return decodeURIComponent(escape(raw));
   } catch {
     return "";
@@ -33,11 +45,16 @@ const b64urlDecode = (s: string): string => {
 
 /** `pr|<workspaceId>|<precursorNodeId>`. The `pr` prefix keeps this scheme
     distinguishable from `ws|…` without decoding both to find out. */
-export function makePrecursorLinkToken(workspaceId: string, precursorNodeId: string): string {
+export function makePrecursorLinkToken(
+  workspaceId: string,
+  precursorNodeId: string,
+): string {
   return b64urlEncode(`pr|${workspaceId}|${precursorNodeId}`);
 }
 
-export function decodePrecursorLinkToken(token: string): { workspaceId: string; precursorNodeId: string } | null {
+export function decodePrecursorLinkToken(
+  token: string,
+): { workspaceId: string; precursorNodeId: string } | null {
   const parts = b64urlDecode(token).split("|");
   if (parts[0] !== "pr" || !parts[1] || !parts[2]) return null;
   return { workspaceId: parts[1], precursorNodeId: parts[2] };
@@ -48,7 +65,9 @@ export type PrecursorLinkRequest = {
   node: PrecursorSupplier;
 };
 
-export function resolvePrecursorLink(token: string): PrecursorLinkRequest | null {
+export function resolvePrecursorLink(
+  token: string,
+): PrecursorLinkRequest | null {
   const decoded = decodePrecursorLinkToken(token);
   if (!decoded) return null;
   const workspace = getWorkspace(decoded.workspaceId);
@@ -60,8 +79,13 @@ export function resolvePrecursorLink(token: string): PrecursorLinkRequest | null
 
 /** The full URL to hand a precursor supplier. Origin-relative, same reason
     as `workspaceLinkFor`. */
-export const precursorLinkFor = (workspaceId: string, precursorNodeId: string): string =>
-  typeof window === "undefined" ? "" : `${window.location.origin}/p/${makePrecursorLinkToken(workspaceId, precursorNodeId)}`;
+export const precursorLinkFor = (
+  workspaceId: string,
+  precursorNodeId: string,
+): string =>
+  typeof window === "undefined"
+    ? ""
+    : `${window.location.origin}/p/${makePrecursorLinkToken(workspaceId, precursorNodeId)}`;
 
 /* ── Bulk invite (§2.4) ──────────────────────────────────────────
    "Send links to all precursors in this chain" — one click, with the two
@@ -75,11 +99,23 @@ export const precursorLinkFor = (workspaceId: string, precursorNodeId: string): 
    build: this stamps the record and hands back counts for the summary
    toast. No email is dispatched — there is no email infrastructure to
    dispatch it from. */
-export type BulkInviteResult = { sent: number; skippedVerified: number; skippedAlreadyInvited: number; skippedScrap: number };
+export type BulkInviteResult = {
+  sent: number;
+  skippedVerified: number;
+  skippedAlreadyInvited: number;
+  skippedScrap: number;
+};
 
-export function sendAllPrecursorLinks(workspace: Pick<VerificationWorkspace, "id" | "periodStart" | "periodEnd">): BulkInviteResult {
+export function sendAllPrecursorLinks(
+  workspace: Pick<VerificationWorkspace, "id" | "periodStart" | "periodEnd">,
+): BulkInviteResult {
   const nodes = listSuppliers(workspace.id);
-  const result: BulkInviteResult = { sent: 0, skippedVerified: 0, skippedAlreadyInvited: 0, skippedScrap: 0 };
+  const result: BulkInviteResult = {
+    sent: 0,
+    skippedVerified: 0,
+    skippedAlreadyInvited: 0,
+    skippedScrap: 0,
+  };
 
   for (const node of nodes) {
     if (node.isScrap) {
@@ -90,13 +126,21 @@ export function sendAllPrecursorLinks(workspace: Pick<VerificationWorkspace, "id
       result.skippedVerified++;
       continue;
     }
-    const sentThisPeriod = node.smartLinkSentAt && node.smartLinkSentAt >= workspace.periodStart && node.smartLinkSentAt <= workspace.periodEnd;
+    const sentThisPeriod =
+      node.smartLinkSentAt &&
+      node.smartLinkSentAt >= workspace.periodStart &&
+      node.smartLinkSentAt <= workspace.periodEnd;
     if (sentThisPeriod) {
       result.skippedAlreadyInvited++;
       continue;
     }
-    const token = node.smartLinkToken ?? makePrecursorLinkToken(workspace.id, node.id);
-    saveSupplier({ ...node, smartLinkToken: token, smartLinkSentAt: new Date().toISOString() });
+    const token =
+      node.smartLinkToken ?? makePrecursorLinkToken(workspace.id, node.id);
+    saveSupplier({
+      ...node,
+      smartLinkToken: token,
+      smartLinkSentAt: new Date().toISOString(),
+    });
     result.sent++;
   }
 

@@ -12,10 +12,27 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowLeft, CalendarClock, ChevronRight, Lock, User, Users } from "lucide-react";
+import {
+  ArrowLeft,
+  CalendarClock,
+  ChevronRight,
+  Lock,
+  User,
+  Users,
+} from "lucide-react";
 import { cn, HelpTip, StatusDot, type Tone } from "@/components/ui";
-import { READINESS_TABS, TAB_LABEL, TAB_STATE_LABEL, type ReadinessTab, type TabState } from "@/lib/readiness";
-import { CADENCE_LABEL, OWNER_LABEL, RESPONSIBILITY } from "@/lib/responsibility";
+import {
+  READINESS_TABS,
+  TAB_LABEL,
+  TAB_STATE_LABEL,
+  type ReadinessTab,
+  type TabState,
+} from "@/lib/readiness";
+import {
+  CADENCE_LABEL,
+  OWNER_LABEL,
+  RESPONSIBILITY,
+} from "@/lib/responsibility";
 import type { EntityTabSpec } from "@/lib/tree-entity";
 import type { VerificationWorkspace } from "@/lib/workspace";
 import { useT } from "@/lib/i18n";
@@ -43,7 +60,13 @@ export const STATE_TEXT: Record<TabState, string> = {
   pending: "text-[#1d4ed8]",
 };
 
-export function StateChip({ state, className }: { state: TabState; className?: string }) {
+export function StateChip({
+  state,
+  className,
+}: {
+  state: TabState;
+  className?: string;
+}) {
   const t = useT();
   return (
     <span
@@ -72,12 +95,25 @@ export function StateChip({ state, className }: { state: TabState; className?: s
 /** The compact 7-dot strip, one dot per tab in tab order. Small enough for a
     dashboard card, and the only place readiness is shown without words —
     which is why every dot carries a title attribute. */
-export function DotStrip({ states, className }: { states: TabState[]; className?: string }) {
+export function DotStrip({
+  states,
+  className,
+}: {
+  states: TabState[];
+  className?: string;
+}) {
   const t = useT();
   return (
-    <span className={cn("inline-flex items-center gap-1", className)} aria-label={t("Readiness by tab")}>
+    <span
+      className={cn("inline-flex items-center gap-1", className)}
+      aria-label={t("Readiness by tab")}
+    >
       {states.map((s, i) => (
-        <span key={READINESS_TABS[i]} title={`${t(TAB_LABEL[READINESS_TABS[i]])}: ${t(TAB_STATE_LABEL[s])}`} className="inline-flex">
+        <span
+          key={READINESS_TABS[i]}
+          title={`${t(TAB_LABEL[READINESS_TABS[i]])}: ${t(TAB_STATE_LABEL[s])}`}
+          className="inline-flex"
+        >
           <StatusDot tone={STATE_TONE[s]} />
         </span>
       ))}
@@ -89,31 +125,56 @@ export function DotStrip({ states, className }: { states: TabState[]; className?
    Nested routes rather than a query parameter, because the readiness rules
    emit deep links to exact fields — /workspaces/x/monthly/2026-03 has to be a
    real address a verifier or a colleague can be sent. */
-export type WorkspaceTabKey = ReadinessTab | "overview" | "readiness" | "settings" | "intake";
-export type WorkspaceTab = { key: WorkspaceTabKey; label: string; href: string };
+export type WorkspaceTabKey =
+  | ReadinessTab
+  | "overview"
+  | "readiness"
+  | "settings";
+export type WorkspaceTab = {
+  key: WorkspaceTabKey;
+  label: string;
+  href: string;
+};
 
 export function tabsFor(id: string): WorkspaceTab[] {
   return [
     { key: "overview", label: "Overview", href: `/workspaces/${id}` },
-    // Drop documents first, file them
-    // after — see lib/smart-intake.ts.
-    { key: "intake", label: "Smart upload", href: `/workspaces/${id}/intake` },
-    // No MMD tab and no Precursors tab. Both live inside Monthly data now —
-    // see the header of app/(portal)/workspaces/[id]/monthly/page.tsx. Their
-    // ROUTES still exist and are still where the editing happens, so every
-    // readiness deep link, verifier link and bookmark keeps working; what
-    // changed is that you reach them from the month they belong to rather than
-    // from a tab that implied a separate, annual job.
-    { key: "monthly", label: "Monthly data", href: `/workspaces/${id}/monthly` },
+    // No Smart upload tab: reading a file and filling a month is Cera's job now (the Cera button in the top bar),
+    // and a month's documents are attached on that month's Documents step. /intake redirects to Monthly data.
+    // No MMD tab. The monitoring methodology lives inside Monthly data — see
+    // the header of app/(portal)/workspaces/[id]/monthly/page.tsx. Its ROUTE
+    // still exists, so every readiness deep link and bookmark keeps working.
+    {
+      key: "monthly",
+      label: "Monthly data",
+      href: `/workspaces/${id}/monthly`,
+    },
+    // The DIRECT precursors of this product, each on a default or an actual
+    // value. This replaced the supply-chain tree: CBAM asks for one figure per
+    // direct precursor, not for every tier behind it.
+    {
+      key: "precursors",
+      label: "Precursors",
+      href: `/workspaces/${id}/precursors`,
+    },
+    // The carbon price paid at home for THIS good. It used to be a card inside the
+    // installation's Readiness; it is a fact about one product report, so it sits here.
+    {
+      key: "carbon_price",
+      label: "Carbon price",
+      href: `/workspaces/${id}/carbon-price`,
+    },
     // No Evidence tab. Evidence is not a kind of work, it is the document
     // behind a figure — so it renders inside the MMD, inside each month and
-    // inside the precursor chain, next to the figure it substantiates. A tab
-    // for it only ever meant "upload it all in December", by which time the
-    // March gas bill is gone. Readiness still reports coverage across all of
-    // them, because THAT is an annual question.
-    { key: "readiness", label: "Readiness", href: `/workspaces/${id}/readiness` },
-    // Last, and deliberately after Readiness: it is the only tab that is about
-    // the workspace rather than about the year's data.
+    // on each precursor, next to the figure it substantiates.
+    //
+    // No Readiness tab either. Readiness is a property of the installation and
+    // the reporting year — the monitoring plan, the carbon price and the report
+    // set are filed per installation — so it lives one level up, on the
+    // installation page, where every product report of the year is read
+    // together.
+    //
+    // Last: the only tab that is about the report rather than about the year's data.
     { key: "settings", label: "Settings", href: `/workspaces/${id}/settings` },
   ];
 }
@@ -131,20 +192,31 @@ export function TabStrip({
 
   return (
     <div className="flex items-center justify-between gap-3 border-b border-black/[0.06]">
-      <nav className="-mx-1 flex flex-1 gap-1 overflow-x-auto pb-px" aria-label={t("Workspace sections")}>
+      <nav
+        className="-mx-1 flex flex-1 gap-1 overflow-x-auto pb-px"
+        aria-label={t("Product report sections")}
+      >
         {/* `tab`, not `t` — `t` is the translator in every component in this
             codebase, and shadowing it here left the whole tab strip in English
             while the page around it was Thai. */}
         {tabs.map((tab) => {
-          const active = tab.href === `/workspaces/${workspace.id}` ? pathname === tab.href : pathname.startsWith(tab.href);
-          const state = tab.key === "overview" ? undefined : states[tab.key as ReadinessTab];
+          const active =
+            tab.href === `/workspaces/${workspace.id}`
+              ? pathname === tab.href
+              : pathname.startsWith(tab.href);
+          const state =
+            tab.key === "overview"
+              ? undefined
+              : states[tab.key as ReadinessTab];
           return (
             <Link
               key={tab.key}
               href={tab.href}
               className={cn(
                 "flex flex-none items-center gap-2 rounded-t-xl border-b-2 px-3 py-2.5 text-[13px] transition-colors",
-                active ? "border-[#111] text-black" : "border-transparent text-black/45 hover:text-black/75",
+                active
+                  ? "border-[#111] text-black"
+                  : "border-transparent text-black/45 hover:text-black/75",
               )}
             >
               {state && <StatusDot tone={STATE_TONE[state]} />}
@@ -199,12 +271,16 @@ export type Crumb = { href: string; label: string };
 
 export function IdentityBar({
   trail,
+  current,
   title,
   meta,
   right,
 }: {
   /** every level above this page, outermost first; never empty */
   trail: Crumb[];
+  /** the level this page IS, shown last and not a link — a product report's own tabs name the product here, so the trail reads
+      Verification › installation › product. The arrow still goes one step up, to the last link above. */
+  current?: string;
   title: string;
   /** the one line that makes the title unambiguous — CN code, year, tier */
   meta?: React.ReactNode;
@@ -213,27 +289,82 @@ export function IdentityBar({
   const t = useT();
   return (
     <>
-      <nav aria-label={t("Breadcrumb")} className="flex min-w-0 items-center gap-x-1.5 text-[12px] text-black/45">
+      <nav
+        aria-label={t("Breadcrumb")}
+        className="flex min-w-0 items-center gap-x-1.5 text-[12px] text-black/45"
+      >
+        {/* BACK, ON EVERY SIZE. One step up — to the level the trail ends at.
+            On a phone the last crumb already carries the arrow (below), so this
+            one only appears from `sm` up, where the whole trail is shown and
+            nothing else says "go back". */}
+        <Link
+          href={trail[trail.length - 1].href}
+          aria-label={`${t("Back to")} ${trail[trail.length - 1].label}`}
+          title={`${t("Back to")} ${trail[trail.length - 1].label}`}
+          className="-ml-1 mr-0.5 hidden h-6 w-6 flex-none place-items-center rounded-md text-black/45 transition-colors hover:bg-black/[0.05] hover:text-black sm:grid"
+        >
+          <ArrowLeft size={15} strokeWidth={1.5} aria-hidden />
+        </Link>
         {trail.map((crumb, i) => {
           const last = i === trail.length - 1;
           return (
             <React.Fragment key={crumb.href}>
-              {i > 0 && <ChevronRight size={13} strokeWidth={1.5} className="hidden flex-none text-black/25 sm:block" aria-hidden />}
+              {i > 0 && (
+                <ChevronRight
+                  size={13}
+                  strokeWidth={1.5}
+                  className="hidden flex-none text-black/25 sm:block"
+                  aria-hidden
+                />
+              )}
               <Link
                 href={crumb.href}
-                className={cn("min-w-0 items-center gap-1.5 py-0.5 transition-colors hover:text-black", last ? "inline-flex" : "hidden sm:inline-flex")}
+                className={cn(
+                  "min-w-0 items-center gap-1.5 py-0.5 transition-colors hover:text-black",
+                  last ? "inline-flex" : "hidden sm:inline-flex",
+                )}
               >
-                {last && <ArrowLeft size={14} strokeWidth={1.5} className="flex-none sm:hidden" aria-hidden />}
+                {last && (
+                  <ArrowLeft
+                    size={14}
+                    strokeWidth={1.5}
+                    className="flex-none sm:hidden"
+                    aria-hidden
+                  />
+                )}
                 <span className="truncate">{crumb.label}</span>
               </Link>
             </React.Fragment>
           );
         })}
+        {current && (
+          <>
+            <ChevronRight
+              size={13}
+              strokeWidth={1.5}
+              className="hidden flex-none text-black/25 sm:block"
+              aria-hidden
+            />
+            {/* Not on a phone: there the bar shows only the back step, and the title right under it already says this. */}
+            <span
+              aria-current="page"
+              className="hidden min-w-0 truncate py-0.5 text-black/75 sm:inline"
+            >
+              {current}
+            </span>
+          </>
+        )}
       </nav>
       <div className="mt-1 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1.5">
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
-          <h1 className="min-w-0 truncate font-[family-name:var(--font-plex)] text-[21px] font-light leading-tight tracking-tight text-[#111]">{title}</h1>
-          {meta && <span className="font-mono text-[11.5px] text-black/40">{meta}</span>}
+          <h1 className="min-w-0 truncate font-[family-name:var(--font-plex)] text-[21px] font-light leading-tight tracking-tight text-[#111]">
+            {title}
+          </h1>
+          {meta && (
+            <span className="font-mono text-[11.5px] text-black/40">
+              {meta}
+            </span>
+          )}
         </div>
         {/* flex-none so it is never squeezed by the title beside it, and
             flex-wrap so it folds onto its own lines instead of overflowing
@@ -250,7 +381,11 @@ export function IdentityBar({
             wrap at. That is why a four-counter strip sat 408px wide inside a
             343px column on a phone and had its last counter cut off — the
             counter, not coincidentally, most often being "blocked". */}
-        {right && <div className="flex max-w-full flex-none flex-wrap items-center gap-x-3 gap-y-1.5">{right}</div>}
+        {right && (
+          <div className="flex max-w-full flex-none flex-wrap items-center gap-x-3 gap-y-1.5">
+            {right}
+          </div>
+        )}
       </div>
     </>
   );
@@ -267,11 +402,20 @@ export function IdentityBar({
    once and understood, and it carries the one sentence that says what would
    open it. See lib/tree-entity.ts's entityTabs() for where that sentence is
    decided. */
-export function EntityTabStrip({ tabs, activeKey }: { tabs: EntityTabSpec[]; activeKey: EntityTabSpec["key"] }) {
+export function EntityTabStrip({
+  tabs,
+  activeKey,
+}: {
+  tabs: EntityTabSpec[];
+  activeKey: EntityTabSpec["key"];
+}) {
   const t = useT();
   return (
     <div className="flex items-center justify-between gap-3 border-b border-black/[0.06]">
-      <nav className="-mx-1 flex flex-1 gap-1 overflow-x-auto pb-px" aria-label={t("Entity sections")}>
+      <nav
+        className="-mx-1 flex flex-1 gap-1 overflow-x-auto pb-px"
+        aria-label={t("Entity sections")}
+      >
         {/* `tab`, not `t` — see TabStrip above: shadowing the translator left
             this strip in English inside an otherwise Thai page. */}
         {tabs.map((tab) =>
@@ -281,7 +425,9 @@ export function EntityTabStrip({ tabs, activeKey }: { tabs: EntityTabSpec[]; act
               href={tab.href}
               className={cn(
                 "flex flex-none items-center gap-2 rounded-t-xl border-b-2 px-3 py-2.5 text-[13px] transition-colors",
-                tab.key === activeKey ? "border-[#111] text-black" : "border-transparent text-black/45 hover:text-black/75",
+                tab.key === activeKey
+                  ? "border-[#111] text-black"
+                  : "border-transparent text-black/45 hover:text-black/75",
               )}
             >
               {t(tab.label)}
@@ -321,8 +467,7 @@ export function ResponsibilityBar({ tab }: { tab: WorkspaceTabKey }) {
      so `t(someEnglishString)` resolves exactly as a literal would, and the
      table stays a plain module with no React in it. */
   const t = useT();
-  // The prototype intake tab is nobody's scheduled homework — no bar.
-  const r = tab === "intake" ? undefined : RESPONSIBILITY[tab];
+  const r = RESPONSIBILITY[tab];
   if (!r) return null;
   const supplierOwned = r.owner === "supplier";
 
@@ -330,17 +475,25 @@ export function ResponsibilityBar({ tab }: { tab: WorkspaceTabKey }) {
     <div
       className={cn(
         "flex flex-col gap-2 rounded-xl border-l-[3px] px-4 py-3 sm:flex-row sm:items-start sm:gap-4",
-        supplierOwned ? "border-l-[#d97706] bg-[#fffbeb]" : "border-l-black/20 bg-[#faf9f7]",
+        supplierOwned
+          ? "border-l-[#d97706] bg-[#fffbeb]"
+          : "border-l-black/20 bg-[#faf9f7]",
       )}
     >
       <span className="flex flex-none items-center gap-2">
         <span
           className={cn(
             "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.1em]",
-            supplierOwned ? "border-[rgba(180,83,9,0.25)] bg-white text-[#b45309]" : "border-black/12 bg-white text-black/55",
+            supplierOwned
+              ? "border-[rgba(180,83,9,0.25)] bg-white text-[#b45309]"
+              : "border-black/12 bg-white text-black/55",
           )}
         >
-          {supplierOwned ? <Users size={11} strokeWidth={1.5} /> : <User size={11} strokeWidth={1.5} />}
+          {supplierOwned ? (
+            <Users size={11} strokeWidth={1.5} />
+          ) : (
+            <User size={11} strokeWidth={1.5} />
+          )}
           {t(OWNER_LABEL[r.owner])}
         </span>
         <span className="inline-flex items-center gap-1.5 font-mono text-[10.5px] uppercase tracking-[0.08em] text-black/40">
@@ -348,7 +501,12 @@ export function ResponsibilityBar({ tab }: { tab: WorkspaceTabKey }) {
           {t(CADENCE_LABEL[r.cadence])}
         </span>
       </span>
-      <p className={cn("min-w-0 text-[12.5px] leading-relaxed", supplierOwned ? "text-[#78350f]" : "text-black/55")}>
+      <p
+        className={cn(
+          "min-w-0 text-[12.5px] leading-relaxed",
+          supplierOwned ? "text-[#78350f]" : "text-black/55",
+        )}
+      >
         <span className="font-medium">{t(r.due)}.</span> {t(r.yourJob)}
       </p>
     </div>
@@ -368,7 +526,17 @@ export function tabKeyFromPath(pathname: string, id: string): WorkspaceTabKey {
   // is what they used to do and which told a reader chasing a tier-3 supplier
   // to "keep the identity correct".
   if (head === "tree") return "precursors";
-  const known: WorkspaceTabKey[] = ["mmd", "monthly", "precursors", "evidence", "readiness", "settings", "intake"];
+  if (head === "readiness") return "overview";
+  if (head === "carbon-price") return "carbon_price";
+  const known: WorkspaceTabKey[] = [
+    "mmd",
+    "monthly",
+    "precursors",
+    "evidence",
+    "readiness",
+    "settings",
+  ];
+  if (head === "intake") return "monthly";
   return known.find((k) => k === head) ?? "overview";
 }
 
@@ -411,16 +579,30 @@ export function SectionCard({
   className?: string;
 }) {
   return (
-    <section id={id} className={cn("rounded-2xl border border-black/[0.07] bg-white p-5 sm:p-6", className)}>
+    <section
+      id={id}
+      className={cn(
+        "rounded-2xl border border-black/[0.07] bg-white p-5 sm:p-6",
+        className,
+      )}
+    >
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h2 className="font-[family-name:var(--font-plex)] text-lg font-light tracking-tight text-[#111]">{title}</h2>
+            <h2 className="font-[family-name:var(--font-plex)] text-lg font-light tracking-tight text-[#111]">
+              {title}
+            </h2>
             {help && <HelpTip title={helpTitle ?? title}>{help}</HelpTip>}
           </div>
-          {blurb && <p className="mt-1 max-w-2xl text-[13px] leading-relaxed text-black/45">{blurb}</p>}
+          {blurb && (
+            <p className="mt-1 max-w-2xl text-[13px] leading-relaxed text-black/45">
+              {blurb}
+            </p>
+          )}
         </div>
-        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+        {actions && (
+          <div className="flex flex-wrap items-center gap-2">{actions}</div>
+        )}
       </div>
       {children}
     </section>
@@ -440,17 +622,22 @@ export function FactGrid({
   rows: [label: string, value: React.ReactNode][];
   badges?: React.ReactNode;
 }) {
+  const t = useT();
   return (
     <>
       <dl className="grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
         {rows.map(([k, v]) => (
           <div key={k}>
-            <dt className="text-[11px] uppercase tracking-[0.1em] text-black/40">{k}</dt>
+            <dt className="text-[11px] uppercase tracking-[0.1em] text-black/40">
+              {t(k)}
+            </dt>
             <dd className="mt-1 text-[13px] text-black/75">{v}</dd>
           </div>
         ))}
       </dl>
-      {badges && <div className="mt-4 flex flex-wrap items-center gap-2">{badges}</div>}
+      {badges && (
+        <div className="mt-4 flex flex-wrap items-center gap-2">{badges}</div>
+      )}
     </>
   );
 }
@@ -482,7 +669,13 @@ export function GroupHeading({
 
 /** A note the exporter should read but not act on immediately. `tone="warn"`
     for anything that changes what they should do next. */
-export function Note({ tone = "muted", children }: { tone?: "muted" | "warn" | "err" | "info"; children: React.ReactNode }) {
+export function Note({
+  tone = "muted",
+  children,
+}: {
+  tone?: "muted" | "warn" | "err" | "info";
+  children: React.ReactNode;
+}) {
   return (
     <div
       className={cn(
@@ -509,7 +702,13 @@ export function Note({ tone = "muted", children }: { tone?: "muted" | "warn" | "
     The label is the single word. "Show a worked example" describes the button
     rather than naming what is behind it, and a screen with eight of them
     spends eight lines saying "show". */
-export function ExampleToggle({ example, label = "Example" }: { example: string; label?: string }) {
+export function ExampleToggle({
+  example,
+  label = "Example",
+}: {
+  example: string;
+  label?: string;
+}) {
   const t = useT();
   const [open, setOpen] = React.useState(false);
   return (
@@ -521,7 +720,7 @@ export function ExampleToggle({ example, label = "Example" }: { example: string;
         data-lock="allow"
         className="text-[11px] uppercase tracking-[0.1em] text-black/35 underline decoration-black/20 underline-offset-2 hover:text-black/60"
       >
-        {open ? "Hide example" : label}
+        {open ? t("Hide example") : t(label)}
       </button>
       {open && (
         <p className="mt-1.5 rounded-lg border border-dashed border-black/10 bg-[#faf9f7] px-3 py-2 text-[12px] italic leading-relaxed text-black/40">
@@ -535,9 +734,24 @@ export function ExampleToggle({ example, label = "Example" }: { example: string;
 /** Numbers in tables. Tabular figures so columns line up — a verifier scans
     these vertically, and proportional digits make that harder than it needs
     to be. */
-export function Num({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <span className={cn("font-mono text-[12px] tabular-nums", className)}>{children}</span>;
+export function Num({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <span className={cn("font-mono text-[12px] tabular-nums", className)}>
+      {children}
+    </span>
+  );
 }
 
 export const fmt = (v: number, dp = 2): string =>
-  Number.isFinite(v) ? v.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: dp }) : "—";
+  Number.isFinite(v)
+    ? v.toLocaleString("en-GB", {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: dp,
+      })
+    : "—";

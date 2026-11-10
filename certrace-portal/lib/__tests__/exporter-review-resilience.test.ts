@@ -31,8 +31,28 @@ const storage = new MemoryStorage();
 g.window = { localStorage: storage };
 g.localStorage = storage;
 
-const { DECLARATIONS } = await import("../data");
-const { resolveSubmissions, loadExporterState } = await import("../exporter-review");
+const { DECLARATIONS } = await import("./fixtures/declaration");
+const { resolveSubmissions, loadExporterState } = await import(
+  "../exporter-review"
+);
+const { listSupplierRows } = await import("../supplier-directory");
+
+test("an empty account does not inherit bundled suppliers or fabricated submissions", () => {
+  storage.clear();
+  assert.deepEqual(listSupplierRows(), []);
+  const decl = { ...DECLARATIONS[0], id: "decl-empty-account" };
+  const submittedFixture = decl.suppliers.find(
+    (row) => row.status === "submitted",
+  );
+  assert.ok(submittedFixture);
+  const submission = resolveSubmissions(decl, loadExporterState(decl.id)).find(
+    (row) => row.supplier.id === submittedFixture.id,
+  );
+  assert.ok(submission);
+  assert.equal(submission.submitted, false);
+  assert.deepEqual(submission.values, {});
+  assert.deepEqual(submission.docs, {});
+});
 
 test("resolveSubmissions resolves a server-backed (non-fixture) declaration id without crashing", () => {
   const base = DECLARATIONS[0];
@@ -51,10 +71,17 @@ test("resolveSubmissions resolves a server-backed (non-fixture) declaration id w
 test("loadExporterState deep-defaults dispatch/recipients from a partial persisted blob", () => {
   const declId = "decl-partial-0002";
   // Legacy blob: a dispatch object missing acknowledgedAt, and no recipients.
-  storage.setItem(`certrace:exporter:${declId}`, JSON.stringify({ dispatch: { o3ciPushedAt: null, templateSentAt: null } }));
+  storage.setItem(
+    `certrace:exporter:${declId}`,
+    JSON.stringify({ dispatch: { o3ciPushedAt: null, templateSentAt: null } }),
+  );
 
   const st = loadExporterState(declId);
 
-  assert.ok(st.dispatch.acknowledgedAt && typeof st.dispatch.acknowledgedAt === "object", "acknowledgedAt defaulted");
+  assert.ok(
+    st.dispatch.acknowledgedAt &&
+      typeof st.dispatch.acknowledgedAt === "object",
+    "acknowledgedAt defaulted",
+  );
   assert.equal(st.recipients.buyer, true, "recipients defaulted");
 });

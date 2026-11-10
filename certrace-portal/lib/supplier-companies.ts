@@ -1,3 +1,4 @@
+import { accountStorage } from "./account-storage";
 /* ════════════════════════════════════════════════════════════
    SUPPLIER COMPANIES — the level above an installation
 
@@ -54,7 +55,9 @@ export const supplierUid = () => secureId("sup");
 function read(): SupplierCompany[] {
   if (typeof window === "undefined") return [];
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(KEY) ?? "[]") as SupplierCompany[];
+    const parsed = JSON.parse(
+      accountStorage.getItem(KEY) ?? "[]",
+    ) as SupplierCompany[];
     return Array.isArray(parsed) ? parsed.map(hydrate) : [];
   } catch {
     return [];
@@ -64,7 +67,7 @@ function read(): SupplierCompany[] {
 function write(all: SupplierCompany[]): SupplierCompany[] {
   if (typeof window === "undefined") return all;
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(all));
+    accountStorage.setItem(KEY, JSON.stringify(all));
   } catch {
     /* ignore quota */
   }
@@ -90,13 +93,17 @@ export const hydrate = (raw: Partial<SupplierCompany>): SupplierCompany => ({
   id: raw.id ?? supplierUid(),
 });
 
-export const listSupplierCompanies = (): SupplierCompany[] => read().sort((a, b) => a.name.localeCompare(b.name));
+export const listSupplierCompanies = (): SupplierCompany[] =>
+  read().sort((a, b) => a.name.localeCompare(b.name));
 
-export const getSupplierCompany = (id: string): SupplierCompany | null => read().find((s) => s.id === id) ?? null;
+export const getSupplierCompany = (id: string): SupplierCompany | null =>
+  read().find((s) => s.id === id) ?? null;
 
 /** Match on name, for the one case an id cannot answer: reconciling a company
     that already exists in the legacy directory with one created here. */
-export const findSupplierCompanyByName = (name: string): SupplierCompany | null => {
+export const findSupplierCompanyByName = (
+  name: string,
+): SupplierCompany | null => {
   const key = name.trim().toLowerCase();
   return read().find((s) => s.name.trim().toLowerCase() === key) ?? null;
 };
@@ -107,7 +114,11 @@ export const findSupplierCompanyByName = (name: string): SupplierCompany | null 
     second one. The Suppliers page shows the country beside the name so the
     pair is distinguishable. */
 export function saveSupplierCompany(input: SupplierCompany): SupplierCompany {
-  const record: SupplierCompany = { ...input, name: input.name.trim(), id: input.id || supplierUid() };
+  const record: SupplierCompany = {
+    ...input,
+    name: input.name.trim(),
+    id: input.id || supplierUid(),
+  };
   const rest = read().filter((s) => s.id !== record.id);
   write([...rest, record]);
   return record;
@@ -121,7 +132,8 @@ export function removeSupplierCompany(id: string): SupplierCompany[] {
     are required; the rest can be filled in later without leaving a row that
     cannot be contacted. */
 export const canSaveSupplier = (s: SupplierCompany): boolean =>
-  Boolean(s.name.trim()) && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.contactEmail.trim());
+  Boolean(s.name.trim()) &&
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.contactEmail.trim());
 
 /* ── Bringing the old directory across ──────────────────────────
    lib/supplier-directory.ts holds every company the exporter worked with
@@ -133,7 +145,14 @@ export const canSaveSupplier = (s: SupplierCompany): boolean =>
    the Suppliers page. Idempotent and one-directional: matched by name, and a
    company that already exists here is never overwritten — an edited record
    must not be reverted by a fixture. */
-export function seedSupplierCompaniesFrom(rows: { company: string; country?: string; contact?: string; email?: string }[]): SupplierCompany[] {
+export function seedSupplierCompaniesFrom(
+  rows: {
+    company: string;
+    country?: string;
+    contact?: string;
+    email?: string;
+  }[],
+): SupplierCompany[] {
   const existing = read();
   const known = new Set(existing.map((s) => s.name.trim().toLowerCase()));
   const additions: SupplierCompany[] = [];
@@ -162,6 +181,7 @@ export function seedSupplierCompaniesFrom(rows: { company: string; country?: str
 export function supplierEmailError(raw: string): string | null {
   const value = raw.trim();
   if (!value) return "An email address — this is where each month's link goes.";
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return "That does not look like an email address.";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))
+    return "That does not look like an email address.";
   return null;
 }

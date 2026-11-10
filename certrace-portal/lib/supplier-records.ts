@@ -1,3 +1,4 @@
+import { accountStorage } from "./account-storage";
 /* ════════════════════════════════════════════════════════════
    THE DATA HUB — a supplier's data record, owned by the supplier
 
@@ -31,14 +32,22 @@
    ════════════════════════════════════════════════════════════ */
 
 import { valueKey, type SectionKey, type SupplierRequest } from "./supplier";
-import type { DocState, SupplierProfile, SupplierState } from "./supplier-store";
+import type {
+  DocState,
+  SupplierProfile,
+  SupplierState,
+} from "./supplier-store";
 
 /* ── Identity ──────────────────────────────────────────────────
    A record is keyed by the producing company, not by any id the exporter
    minted — that's what lets the same mill be recognised across declarations,
    across exporters, and (for self-supply) as the exporter's own installation. */
 export const recordKey = (company: string) =>
-  company.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "unknown";
+  company
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "") || "unknown";
 
 /* ── Access control (feature 7) ────────────────────────────────
    The supplier answers the exporter who asked — that part isn't in question.
@@ -86,8 +95,16 @@ export const SECTION_ACCESS: Record<SectionKey, SectionAccessMeta> = {
     restrictable: false,
     note: "CBAM identifies the producing installation by name, country, address and coordinates — all four are required in the filing.",
   },
-  goods: { key: "goods", restrictable: false, note: "CN code, production route and quantity are the goods being declared. The filing cannot be made without them." },
-  emissions: { key: "emissions", restrictable: false, note: "Embedded emissions per tonne are the declaration itself. Required." },
+  goods: {
+    key: "goods",
+    restrictable: false,
+    note: "CN code, production route and quantity are the goods being declared. The filing cannot be made without them.",
+  },
+  emissions: {
+    key: "emissions",
+    restrictable: false,
+    note: "Embedded emissions per tonne are the declaration itself. Required.",
+  },
   activity: {
     key: "activity",
     restrictable: true,
@@ -106,8 +123,16 @@ export const SECTION_ACCESS: Record<SectionKey, SectionAccessMeta> = {
     alwaysSharedWith: ["verifier"],
     note: "These rows name your own upstream suppliers and what you pay them in carbon. Their contribution stays inside your reported total either way — only the breakdown is withheld from the buyer. Precursor integrity is one of the seven things a verifier tests, so it always reaches them.",
   },
-  carbon: { key: "carbon", restrictable: false, note: "A carbon price you've already paid reduces the buyer's certificate bill. Withholding it would cost them money and you goodwill." },
-  verification: { key: "verification", restrictable: false, note: "The verifier's identity and opinion are what make an actual-data claim credible. Required." },
+  carbon: {
+    key: "carbon",
+    restrictable: false,
+    note: "A carbon price you've already paid reduces the buyer's certificate bill. Withholding it would cost them money and you goodwill.",
+  },
+  verification: {
+    key: "verification",
+    restrictable: false,
+    note: "The verifier's identity and opinion are what make an actual-data claim credible. Required.",
+  },
   documents: {
     key: "documents",
     restrictable: true,
@@ -122,12 +147,19 @@ export type AccessPolicy = {
   reuseByOrg: Record<string, boolean>;
 };
 
-export const defaultAccessPolicy = (): AccessPolicy => ({ sections: {}, reuseByOrg: {} });
+export const defaultAccessPolicy = (): AccessPolicy => ({
+  sections: {},
+  reuseByOrg: {},
+});
 
 /** Is this section shared onward with this audience? Locked sections always
     are, and so are sections a given audience is never allowed to be cut out
     of — see `alwaysSharedWith`. */
-export function isShared(policy: AccessPolicy | undefined, section: SectionKey, audience: Audience): boolean {
+export function isShared(
+  policy: AccessPolicy | undefined,
+  section: SectionKey,
+  audience: Audience,
+): boolean {
   const meta = SECTION_ACCESS[section];
   if (!meta?.restrictable) return true;
   if (meta.alwaysSharedWith?.includes(audience)) return true;
@@ -136,13 +168,20 @@ export function isShared(policy: AccessPolicy | undefined, section: SectionKey, 
 }
 
 /** Every restrictable section the supplier has actually held back. */
-export function restrictedSections(policy: AccessPolicy | undefined, audience: Audience): SectionKey[] {
-  return (Object.keys(SECTION_ACCESS) as SectionKey[]).filter((k) => SECTION_ACCESS[k].restrictable && !isShared(policy, k, audience));
+export function restrictedSections(
+  policy: AccessPolicy | undefined,
+  audience: Audience,
+): SectionKey[] {
+  return (Object.keys(SECTION_ACCESS) as SectionKey[]).filter(
+    (k) => SECTION_ACCESS[k].restrictable && !isShared(policy, k, audience),
+  );
 }
 
 /** May this exporter's next request pre-fill from the saved record? */
-export const canReuse = (record: SupplierRecord | null, org: string): boolean =>
-  record ? record.access.reuseByOrg[org] !== false : true;
+export const canReuse = (
+  record: SupplierRecord | null,
+  org: string,
+): boolean => (record ? record.access.reuseByOrg[org] !== false : true);
 
 /* ── The record ────────────────────────────────────────────────
    Product answers are keyed by CATALOGUE product id (`hrc`, `rebar`, …), not
@@ -188,7 +227,9 @@ export type Attestation = {
 export const ATTESTATION_STATEMENT =
   "I confirm that the data submitted is complete and accurate to the best of my knowledge, that it relates to the installation and reporting period stated, and that supporting records are available for verification on request.";
 
-export const attestationComplete = (a: Attestation | null | undefined): boolean =>
+export const attestationComplete = (
+  a: Attestation | null | undefined,
+): boolean =>
   Boolean(a && a.signatoryName.trim() && a.signatoryRole.trim() && a.signedAt);
 
 export type SupplierRecord = {
@@ -213,11 +254,17 @@ export type SupplierRecord = {
 /** A record is verification-grade once someone named has attested to it. An
     exporter can still use an unattested record — they just cannot present it
     to a verifier as anything more than an internal figure. */
-export const isVerificationGrade = (r: SupplierRecord | null | undefined): boolean => attestationComplete(r?.attestation);
+export const isVerificationGrade = (
+  r: SupplierRecord | null | undefined,
+): boolean => attestationComplete(r?.attestation);
 
 const KEY = "certrace:supplier-records";
 
-export function emptyRecord(company: string, country = "—", selfSupplied = false): SupplierRecord {
+export function emptyRecord(
+  company: string,
+  country = "—",
+  selfSupplied = false,
+): SupplierRecord {
   const now = Date.now();
   return {
     key: recordKey(company),
@@ -239,7 +286,7 @@ export function emptyRecord(company: string, country = "—", selfSupplied = fal
 export function loadRecords(): Record<string, SupplierRecord> {
   if (typeof window === "undefined") return {};
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = accountStorage.getItem(KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw) as Record<string, SupplierRecord>;
     return parsed && typeof parsed === "object" ? parsed : {};
@@ -251,20 +298,25 @@ export function loadRecords(): Record<string, SupplierRecord> {
 export function saveRecords(all: Record<string, SupplierRecord>): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(all));
+    accountStorage.setItem(KEY, JSON.stringify(all));
   } catch {
     /* ignore quota — a lost record must never block a submission */
   }
 }
 
-export const listRecords = (): SupplierRecord[] => Object.values(loadRecords()).sort((a, b) => b.updatedAt - a.updatedAt);
+export const listRecords = (): SupplierRecord[] =>
+  Object.values(loadRecords()).sort((a, b) => b.updatedAt - a.updatedAt);
 
 export function getRecord(company: string): SupplierRecord | null {
   return loadRecords()[recordKey(company)] ?? null;
 }
 
 /** Read-modify-write one record. Creates it when it doesn't exist yet. */
-export function mutateRecord(company: string, fn: (r: SupplierRecord) => SupplierRecord, seed?: Partial<SupplierRecord>): SupplierRecord {
+export function mutateRecord(
+  company: string,
+  fn: (r: SupplierRecord) => SupplierRecord,
+  seed?: Partial<SupplierRecord>,
+): SupplierRecord {
   const all = loadRecords();
   const k = recordKey(company);
   const base = all[k] ?? { ...emptyRecord(company), ...seed };
@@ -280,8 +332,17 @@ export function mutateRecord(company: string, fn: (r: SupplierRecord) => Supplie
    per-product answers, so the next declaration can find them by product. */
 export function writeSubmissionToRecord(
   req: SupplierRequest,
-  state: Pick<SupplierState, "values" | "docs" | "profile" | "versions" | "attestation">,
-  meta: { declId: string; declName: string; periodLabel: string; periodEnd?: string; selfSupplied?: boolean },
+  state: Pick<
+    SupplierState,
+    "values" | "docs" | "profile" | "versions" | "attestation"
+  >,
+  meta: {
+    declId: string;
+    declName: string;
+    periodLabel: string;
+    periodEnd?: string;
+    selfSupplied?: boolean;
+  },
 ): SupplierRecord {
   const productIds = new Set(req.products.map((p) => p.product.id));
   const installation: Record<string, string> = {};
@@ -342,7 +403,11 @@ export function writeSubmissionToRecord(
         contributions,
       };
     },
-    { company: req.supplierName, country: req.supplierCountry, selfSupplied: meta.selfSupplied ?? false },
+    {
+      company: req.supplierName,
+      country: req.supplierCountry,
+      selfSupplied: meta.selfSupplied ?? false,
+    },
   );
 }
 
@@ -361,9 +426,18 @@ export type RecordRead = {
   sourcePeriods: string[];
 };
 
-export function readRequestFromRecord(req: SupplierRequest, record?: SupplierRecord | null): RecordRead {
+export function readRequestFromRecord(
+  req: SupplierRequest,
+  record?: SupplierRecord | null,
+): RecordRead {
   const r = record ?? getRecord(req.supplierName);
-  const empty: RecordRead = { values: {}, docs: {}, carriedKeys: [], sourceAt: null, sourcePeriods: [] };
+  const empty: RecordRead = {
+    values: {},
+    docs: {},
+    carriedKeys: [],
+    sourceAt: null,
+    sourcePeriods: [],
+  };
   if (!r) return empty;
 
   const values: Record<string, string> = {};
@@ -424,7 +498,10 @@ export type Freshness = "fresh" | "aging" | "stale" | "unknown";
 export const FRESH_DAYS = 90;
 export const AGING_DAYS = 365;
 
-export const FRESHNESS_META: Record<Freshness, { label: string; tone: "ok" | "warn" | "err" | "muted" }> = {
+export const FRESHNESS_META: Record<
+  Freshness,
+  { label: string; tone: "ok" | "warn" | "err" | "muted" }
+> = {
   fresh: { label: "current", tone: "ok" },
   aging: { label: "ageing", tone: "warn" },
   stale: { label: "stale", tone: "err" },
@@ -453,7 +530,10 @@ export type StaleVerdict = {
 };
 
 /** Judge carried-forward data against the period it's now being reused in. */
-export function assessFreshness(read: Pick<RecordRead, "sourceAt" | "sourcePeriods">, requestPeriod: string): StaleVerdict {
+export function assessFreshness(
+  read: Pick<RecordRead, "sourceAt" | "sourcePeriods">,
+  requestPeriod: string,
+): StaleVerdict {
   const level = freshnessOf(read.sourceAt);
   const days = daysSince(read.sourceAt);
   const others = read.sourcePeriods.filter((p) => p && p !== requestPeriod);
@@ -469,11 +549,18 @@ export function assessFreshness(read: Pick<RecordRead, "sourceAt" | "sourcePerio
     message = `This data is ${days} days old. Have a look before you submit — fuel mix, scrap ratio and grid factors all drift.`;
   }
 
-  return { level, days, periodMismatch, sourcePeriods: read.sourcePeriods, message };
+  return {
+    level,
+    days,
+    periodMismatch,
+    sourcePeriods: read.sourcePeriods,
+    message,
+  };
 }
 
 /** Worst of the two signals — what a badge should show. */
-export const staleLevel = (v: StaleVerdict): Freshness => (v.periodMismatch && v.level !== "unknown" ? "stale" : v.level);
+export const staleLevel = (v: StaleVerdict): Freshness =>
+  v.periodMismatch && v.level !== "unknown" ? "stale" : v.level;
 
 /* ── Freshness at the point of use (validation V14) ─────────────
    `freshnessOf` above asks "how old is this today". A verifier asks a
@@ -490,14 +577,21 @@ export type PointOfUseFreshness = {
   message: string | null;
 };
 
-export function freshnessAtPeriodEnd(sourceAt: number | null | undefined, periodEndISO: string | undefined): PointOfUseFreshness {
-  if (sourceAt == null) return { level: "unknown", daysAtPeriodEnd: null, message: null };
-  const end = periodEndISO ? Date.parse(`${periodEndISO}T23:59:59Z`) : Date.now();
+export function freshnessAtPeriodEnd(
+  sourceAt: number | null | undefined,
+  periodEndISO: string | undefined,
+): PointOfUseFreshness {
+  if (sourceAt == null)
+    return { level: "unknown", daysAtPeriodEnd: null, message: null };
+  const end = periodEndISO
+    ? Date.parse(`${periodEndISO}T23:59:59Z`)
+    : Date.now();
   const reference = Number.isFinite(end) ? end : Date.now();
   // A figure reported after the period closed is not "negative days old" — it
   // is current for that period, which is the normal case.
   const days = Math.max(0, Math.floor((reference - sourceAt) / 86_400_000));
-  const level: Freshness = days <= FRESH_DAYS ? "fresh" : days <= AGING_DAYS ? "aging" : "stale";
+  const level: Freshness =
+    days <= FRESH_DAYS ? "fresh" : days <= AGING_DAYS ? "aging" : "stale";
   const message =
     level === "stale"
       ? `This data was already ${days} days old when the reporting period closed. Anything past a year has to be re-confirmed before a verifier will accept it.`
@@ -509,23 +603,41 @@ export function freshnessAtPeriodEnd(sourceAt: number | null | undefined, period
 
 /** The same judgement for a whole supplier record — what a precursor row
     drawing on that record inherits. */
-export const recordFreshnessAtPeriodEnd = (record: SupplierRecord | null | undefined, periodEndISO: string | undefined): PointOfUseFreshness =>
+export const recordFreshnessAtPeriodEnd = (
+  record: SupplierRecord | null | undefined,
+  periodEndISO: string | undefined,
+): PointOfUseFreshness =>
   freshnessAtPeriodEnd(record?.updatedAt ?? null, periodEndISO);
 
 /* ── Access mutations ─────────────────────────────────────────── */
-export function setSectionAccess(company: string, section: SectionKey, audience: Audience, allowed: boolean): SupplierRecord {
+export function setSectionAccess(
+  company: string,
+  section: SectionKey,
+  audience: Audience,
+  allowed: boolean,
+): SupplierRecord {
   return mutateRecord(company, (r) => ({
     ...r,
     access: {
       ...r.access,
-      sections: { ...r.access.sections, [section]: { ...r.access.sections[section], [audience]: allowed } },
+      sections: {
+        ...r.access.sections,
+        [section]: { ...r.access.sections[section], [audience]: allowed },
+      },
     },
   }));
 }
 
-export function setReuseForOrg(company: string, org: string, allowed: boolean): SupplierRecord {
+export function setReuseForOrg(
+  company: string,
+  org: string,
+  allowed: boolean,
+): SupplierRecord {
   return mutateRecord(company, (r) => ({
     ...r,
-    access: { ...r.access, reuseByOrg: { ...r.access.reuseByOrg, [org]: allowed } },
+    access: {
+      ...r.access,
+      reuseByOrg: { ...r.access.reuseByOrg, [org]: allowed },
+    },
   }));
 }

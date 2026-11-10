@@ -1,3 +1,4 @@
+import { accountStorage } from "../account-storage";
 /* ════════════════════════════════════════════════════════════
    THE FINAL REPORT, FROZEN AT SIGN-OFF
 
@@ -43,7 +44,7 @@ type Store = Record<string, FinalReportSnapshot>;
 function read(): Store {
   if (typeof window === "undefined") return {};
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = accountStorage.getItem(KEY);
     const parsed = raw ? (JSON.parse(raw) as Store) : {};
     return parsed && typeof parsed === "object" ? parsed : {};
   } catch {
@@ -54,7 +55,7 @@ function read(): Store {
 function write(store: Store): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(store));
+    accountStorage.setItem(KEY, JSON.stringify(store));
   } catch {
     /* ignore quota — the signature itself (lib/pack-signoff.ts) still
        recorded the fingerprint even if the heavier document body didn't
@@ -63,7 +64,9 @@ function write(store: Store): void {
   }
 }
 
-export const getFinalReportSnapshot = (workspaceId: string): FinalReportSnapshot | null => read()[workspaceId] ?? null;
+export const getFinalReportSnapshot = (
+  workspaceId: string,
+): FinalReportSnapshot | null => read()[workspaceId] ?? null;
 
 /** Called at the same moment as signOffPack() — see lib/pack-signoff.ts —
     never on its own. `doc` must be the exact document a plain
@@ -71,7 +74,11 @@ export const getFinalReportSnapshot = (workspaceId: string): FinalReportSnapshot
     the JSON round-trip below so a later mutation of the workspace's live
     objects (or of the doc a caller is still holding a reference to) cannot
     reach back into what was signed. */
-export function saveFinalReportSnapshot(workspaceId: string, fingerprint: string, doc: FinalReportDoc): FinalReportSnapshot {
+export function saveFinalReportSnapshot(
+  workspaceId: string,
+  fingerprint: string,
+  doc: FinalReportDoc,
+): FinalReportSnapshot {
   const record: FinalReportSnapshot = {
     workspaceId,
     fingerprint,

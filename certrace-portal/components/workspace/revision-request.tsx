@@ -34,12 +34,27 @@
 
 import * as React from "react";
 import { Check, MessageSquareWarning, Undo2 } from "lucide-react";
-import { Button, Field, SaveButton, inputClass, cn, useSaveState } from "@/components/ui";
+import {
+  Button,
+  Field,
+  SaveButton,
+  inputClass,
+  cn,
+  useSaveState,
+} from "@/components/ui";
 import { SectionCard } from "@/components/workspace/chrome";
 import { STEP_LABEL } from "@/lib/month-quality";
-import { reopenMonth } from "@/lib/monthly-data";
-import { AREAS_BY_STEP, REVISION_CHIP, resolveAreas } from "@/lib/month-revision";
-import { formatSubmissionDate, requestRevision, type MonthSubmission } from "@/lib/month-submission";
+import { requestWorkspaceRevision } from "@/lib/workspace-link-sync";
+import { toast } from "@/components/toast";
+import {
+  AREAS_BY_STEP,
+  REVISION_CHIP,
+  resolveAreas,
+} from "@/lib/month-revision";
+import {
+  formatSubmissionDate,
+  type MonthSubmission,
+} from "@/lib/month-submission";
 import { monthNameLong } from "@/lib/workspace";
 import { useT } from "@/lib/i18n";
 
@@ -49,6 +64,7 @@ export function RevisionRequestPanel({
   disabled,
   onChanged,
   onReopened,
+  beforeChange,
 }: {
   submission: MonthSubmission;
   month: string;
@@ -57,6 +73,7 @@ export function RevisionRequestPanel({
   onChanged: (next: MonthSubmission) => void;
   /** the readings have gone back to draft — the page reloads them */
   onReopened?: () => void;
+  beforeChange?: () => Promise<boolean>;
 }) {
   const t = useT();
   const [picked, setPicked] = React.useState<string[]>([]);
@@ -70,18 +87,33 @@ export function RevisionRequestPanel({
   const outstanding = submission.state === "changes_requested";
   const alreadyAsked = resolveAreas(submission.revisionAreas);
 
-  const toggle = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+  const toggle = (id: string) =>
+    setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
 
   const submitRequest = () => {
     if (!note.trim()) return;
-    send.run(() => {
-      onChanged(requestRevision(submission.workspaceId, month, note, picked));
-      /* SENDING IT BACK IS WHAT REOPENS IT. A month left submitted while its
-         state says "revision requested" is a form the supplier cannot type
-         into under a list of things they have been asked to change — they
-         would read the request, find every field locked, and reply asking to
-         be let in. Asking for the fix IS granting access to make it. */
-      reopenMonth(submission.workspaceId, month);
+    send.run(async () => {
+      try {
+        if (beforeChange && !(await beforeChange()))
+          throw new Error(
+            "Save your latest changes before requesting a revision.",
+          );
+        onChanged(
+          await requestWorkspaceRevision(
+            submission.workspaceId,
+            month,
+            note,
+            picked,
+          ),
+        );
+      } catch (cause) {
+        toast({
+          message: t("Not sent yet"),
+          detail: cause instanceof Error ? cause.message : t("Please retry."),
+          tone: "warn",
+        });
+        throw cause;
+      }
       onReopened?.();
       setOpen(false);
       setNote("");
@@ -96,9 +128,15 @@ export function RevisionRequestPanel({
         blurb={`${monthNameLong(month)} is with the supplier. Their link now opens on what you asked for, with each part outlined.`}
       >
         <div className="flex flex-wrap items-center gap-2">
-          <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px]", REVISION_CHIP)}>
+          <span
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px]",
+              REVISION_CHIP,
+            )}
+          >
             <MessageSquareWarning size={12} strokeWidth={1.5} />
-            Round {submission.revisionRound ?? 1} · sent {formatSubmissionDate(submission.revisionAt)}
+            Round {submission.revisionRound ?? 1} · sent{" "}
+            {formatSubmissionDate(submission.revisionAt)}
           </span>
           {submission.revisionCarriedEdits && (
             <span className="inline-flex items-center rounded-full border border-[#fde68a] bg-[#fffbeb] px-2.5 py-1 text-[11px] text-[#b45309]">
@@ -109,25 +147,37 @@ export function RevisionRequestPanel({
 
         {submission.revisionNote && (
           <p className="mt-4 rounded-xl border border-black/[0.07] bg-[#faf9f7] px-4 py-3 text-[13px] leading-relaxed text-black/65">
-            <strong className="font-medium text-black/80">{t("You asked for:")}</strong> {submission.revisionNote}
+            <strong className="font-medium text-black/80">
+              {t("You asked for:")}
+            </strong>{" "}
+            {submission.revisionNote}
           </p>
         )}
 
         {alreadyAsked.length > 0 ? (
           <ul className="mt-4 grid gap-2 sm:grid-cols-2">
             {alreadyAsked.map((a) => (
-              <li key={a.id} className="flex items-start gap-2.5 rounded-xl border border-[rgba(60,122,203,0.25)] bg-[#eff6ff] px-3.5 py-2.5">
+              <li
+                key={a.id}
+                className="flex items-start gap-2.5 rounded-xl border border-[rgba(60,122,203,0.25)] bg-[#eff6ff] px-3.5 py-2.5"
+              >
                 <span className="mt-[6px] h-1.5 w-1.5 flex-none rounded-full bg-[#3C7ACB]" />
                 <span className="min-w-0">
-                  <span className="block text-[12.5px] text-black/80">{a.label}</span>
-                  <span className="mt-0.5 block font-pixel text-[9.5px] uppercase tracking-[0.14em] text-black/35">{t(STEP_LABEL[a.step])}</span>
+                  <span className="block text-[12.5px] text-black/80">
+                    {a.label}
+                  </span>
+                  <span className="mt-0.5 block font-pixel text-[9.5px] uppercase tracking-[0.14em] text-black/35">
+                    {t(STEP_LABEL[a.step])}
+                  </span>
                 </span>
               </li>
             ))}
           </ul>
         ) : (
           <p className="mt-4 text-[12.5px] leading-relaxed text-black/45">
-            {t("No particular part was named, so the whole month went back. Naming the parts next time is what puts a blue outline on their screen.")}
+            {t(
+              "No particular part was named, so the whole month went back. Naming the parts next time is what puts a blue outline on their screen.",
+            )}
           </p>
         )}
       </SectionCard>
@@ -140,30 +190,56 @@ export function RevisionRequestPanel({
       helpTitle={t("What the supplier receives")}
       help={
         <>
-          <p>{t("Everything you tick here is outlined in blue on their own screen, on the step it belongs to.")}</p>
-          <p className="mt-2">{t("The first page of their link lists them, with a button that walks them to the first one.")}</p>
-          <p className="mt-2">{t("The outline stays after they answer it, so a second round of questions is readable against the first.")}</p>
+          <p>
+            {t(
+              "Everything you tick here is outlined in blue on their own screen, on the step it belongs to.",
+            )}
+          </p>
+          <p className="mt-2">
+            {t(
+              "The first page of their link lists them, with a button that walks them to the first one.",
+            )}
+          </p>
+          <p className="mt-2">
+            {t(
+              "The outline stays after they answer it, so a second round of questions is readable against the first.",
+            )}
+          </p>
         </>
       }
-      blurb={t("Name the parts that need another look, say what is wrong with them, and the month goes back.")}
+      blurb={t(
+        "Name the parts that need another look, say what is wrong with them, and the month goes back.",
+      )}
       actions={
         !open && (
-          <Button size="sm" variant="secondary" disabled={disabled} onClick={() => setOpen(true)}>
-            <MessageSquareWarning size={13} strokeWidth={1.5} /> {t("Ask for a fix")}
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={disabled}
+            onClick={() => setOpen(true)}
+          >
+            <MessageSquareWarning size={13} strokeWidth={1.5} />{" "}
+            {t("Ask for a fix")}
           </Button>
         )
       }
     >
       {disabled ? (
         <p className="text-[13px] leading-relaxed text-black/45">
-          Nothing has been submitted for {monthNameLong(month)} yet, so there is nobody to send it back to. Send the month&rsquo;s link from the
-          Monthly data tab first.
+          {t(
+            "Nothing has been submitted for {month} yet, so there is nobody to send it back to. Send the month’s link from the Monthly data tab first.",
+            { month: monthNameLong(month) },
+          )}
         </p>
       ) : !open ? (
         <p className="text-[13px] leading-relaxed text-black/45">
           {submission.state === "confirmed"
-            ? "You have confirmed this month. Asking for a revision reopens the conversation and puts it back with the supplier."
-            : "A note on its own leaves them matching one sentence against twenty screens. Tick the parts as well and their screen marks them."}
+            ? t(
+                "You have confirmed this month. Asking for a revision reopens the conversation and puts it back with the supplier.",
+              )
+            : t(
+                "A note on its own leaves them matching one sentence against twenty screens. Tick the parts as well and their screen marks them.",
+              )}
         </p>
       ) : (
         <div className="space-y-5">
@@ -171,26 +247,47 @@ export function RevisionRequestPanel({
           <div
             className={cn(
               "rounded-xl border px-4 py-3 text-[12.5px] leading-relaxed",
-              submission.editedByExporter ? "border-[#fde68a] bg-[#fffbeb] text-[#b45309]" : "border-black/[0.08] bg-[#faf9f7] text-black/55",
+              submission.editedByExporter
+                ? "border-[#fde68a] bg-[#fffbeb] text-[#b45309]"
+                : "border-black/[0.08] bg-[#faf9f7] text-black/55",
             )}
           >
             {submission.editedByExporter ? (
               <>
-                <strong className="font-medium">{t("Your edited version is what goes back.")}</strong> {t("You have changed figures since this was submitted, so sending the original would ask them to fix something you have already fixed. They will see your numbers and revise from there.")}
+                <strong className="font-medium">
+                  {t("Your edited version is what goes back.")}
+                </strong>{" "}
+                {t(
+                  "You have changed figures since this was submitted, so sending the original would ask them to fix something you have already fixed. They will see your numbers and revise from there.",
+                )}
               </>
             ) : (
-              <>The version they submitted goes back unchanged. You have not edited it.</>
+              <>
+                {t(
+                  "The version they submitted goes back unchanged. You have not edited it.",
+                )}
+              </>
             )}
           </div>
 
           <div>
             <span className="mb-2 block text-[11px] uppercase tracking-[0.1em] text-black/55">
-              Which parts {picked.length > 0 && <span className="text-black/35">· {picked.length} selected</span>}
+              {t("Which parts")}{" "}
+              {picked.length > 0 && (
+                <span className="text-black/35">
+                  · {t("{n} selected", { n: picked.length })}
+                </span>
+              )}
             </span>
             <div className="grid gap-4 sm:grid-cols-2">
               {AREAS_BY_STEP.map((group) => (
-                <div key={group.step} className="rounded-xl border border-black/[0.07] bg-[#faf9f7] p-3.5">
-                  <div className="font-pixel text-[9.5px] uppercase tracking-[0.16em] text-black/40">{t(STEP_LABEL[group.step])}</div>
+                <div
+                  key={group.step}
+                  className="rounded-xl border border-black/[0.07] bg-[#faf9f7] p-3.5"
+                >
+                  <div className="font-pixel text-[9.5px] uppercase tracking-[0.16em] text-black/40">
+                    {t(STEP_LABEL[group.step])}
+                  </div>
                   <div className="mt-2 space-y-1.5">
                     {group.areas.map((a) => {
                       const on = picked.includes(a.id);
@@ -199,7 +296,9 @@ export function RevisionRequestPanel({
                           key={a.id}
                           className={cn(
                             "flex cursor-pointer items-start gap-2.5 rounded-lg border px-3 py-2 transition-colors",
-                            on ? "border-[rgba(60,122,203,0.35)] bg-[#eff6ff]" : "border-transparent hover:bg-white",
+                            on
+                              ? "border-[rgba(60,122,203,0.35)] bg-[#eff6ff]"
+                              : "border-transparent hover:bg-white",
                           )}
                         >
                           <input
@@ -209,8 +308,12 @@ export function RevisionRequestPanel({
                             className="mt-0.5 h-3.5 w-3.5 flex-none accent-[#3C7ACB]"
                           />
                           <span className="min-w-0">
-                            <span className="block text-[12.5px] leading-snug text-black/80">{a.label}</span>
-                            <span className="mt-0.5 block text-[11.5px] leading-relaxed text-black/45">{a.hint}</span>
+                            <span className="block text-[12.5px] leading-snug text-black/80">
+                              {a.label}
+                            </span>
+                            <span className="mt-0.5 block text-[11.5px] leading-relaxed text-black/45">
+                              {a.hint}
+                            </span>
                           </span>
                         </label>
                       );
@@ -220,21 +323,35 @@ export function RevisionRequestPanel({
               ))}
             </div>
             <p className="mt-2 text-[11.5px] leading-relaxed text-black/40">
-              {t("Tick nothing and the whole month goes back with your note alone — which is what it used to do, and what leaves them guessing.")}
+              {t(
+                "Tick nothing and the whole month goes back with your note alone — which is what it used to do, and what leaves them guessing.",
+              )}
             </p>
           </div>
 
-          <Field label={t("What is wrong with them")} hint={t("Name the figure and what is wrong with it. Required — a list of parts with no reason is a list of parts.")}>
+          <Field
+            label={t("What is wrong with them")}
+            hint={t(
+              "Name the figure and what is wrong with it. Required — a list of parts with no reason is a list of parts.",
+            )}
+          >
             <textarea
               className={cn(inputClass, "min-h-[110px] resize-y py-2.5")}
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder={t("The natural gas emission factor is 0.0561 tCO₂ per m³. It should be per GJ — please check the invoice and re-enter it.")}
+              placeholder={t(
+                "The natural gas emission factor is 0.0561 tCO₂ per m³. It should be per GJ — please check the invoice and re-enter it.",
+              )}
             />
           </Field>
 
           <div className="flex flex-wrap items-center gap-3">
-            <Button size="sm" variant="secondary" onClick={() => setOpen(false)} disabled={send.state !== "idle"}>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setOpen(false)}
+              disabled={send.state !== "idle"}
+            >
               <Undo2 size={13} strokeWidth={1.5} /> {t("Cancel")}
             </Button>
             <SaveButton
@@ -242,7 +359,11 @@ export function RevisionRequestPanel({
               onClick={submitRequest}
               disabled={!note.trim()}
               icon={<Check size={13} strokeWidth={2} />}
-              idleLabel={picked.length > 0 ? `Send ${picked.length} part${picked.length === 1 ? "" : "s"} back` : "Send the month back"}
+              idleLabel={
+                picked.length > 0
+                  ? `Send ${picked.length} part${picked.length === 1 ? "" : "s"} back`
+                  : "Send the month back"
+              }
               savingLabel={t("Sending…")}
               savedLabel={t("Sent back")}
             />

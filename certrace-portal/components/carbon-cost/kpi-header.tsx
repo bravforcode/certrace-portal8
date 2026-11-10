@@ -42,13 +42,19 @@
 
 import { Card, Stat, cn } from "@/components/ui";
 import { useFormat, useT, type TFunction } from "@/lib/i18n";
-import type { ScopeFigures, ScopeProjection, ScopeStanding, StandingReason } from "@/lib/cbam/carbon-scope";
+import type {
+  ScopeFigures,
+  ScopeProjection,
+  ScopeStanding,
+  StandingReason,
+} from "@/lib/cbam/carbon-scope";
 
 /* Second line of defence against a non-number reaching the screen — see
    lib/cbam/carbon-scope.ts's `finite`, which is the first. "NaN t" on a
    compliance figure reads as a broken product; "—" reads as "not yet", which
    is what an unworkable figure actually is. */
-const isNum = (n: number | null): n is number => n != null && Number.isFinite(n);
+const isNum = (n: number | null): n is number =>
+  n != null && Number.isFinite(n);
 
 /* ── OFFICIAL / NOT OFFICIAL ────────────────────────────────────
    The one label that decides what an exporter may do with everything else on
@@ -75,32 +81,39 @@ export function standingLabel(reason: StandingReason, t: TFunction): string {
 }
 
 export function standingDetail(standing: ScopeStanding, t: TFunction): string {
-  const { reason, monthsCounted, monthsPossible, monthsEntered, products } = standing;
+  const { reason, monthsCounted, monthsPossible, monthsEntered, products } =
+    standing;
   if (reason === "official")
     return products === 1
-      ? t("A full twelve months submitted, with every precursor figure verified. This is the figure that goes on the report.")
-      : t("All {count} products have a full twelve months submitted and every precursor figure verified.", { count: products });
+      ? t("All twelve months are in and every precursor is verified.")
+      : t("All {count} products: twelve months in, precursors verified.", {
+          count: products,
+        });
 
   if (reason === "no_data")
     return monthsEntered > 0
-      ? t(
-          "{entered} of {possible} months have been started but not submitted, so nothing counts toward the year yet. Submit them on Monthly data and these figures fill themselves in.",
-          { entered: monthsEntered, possible: monthsPossible },
-        )
-      : t("No months submitted yet. Each month you submit on Monthly data adds to the figures here.");
+      ? t("{entered} of {possible} months started, none submitted yet.", {
+          entered: monthsEntered,
+          possible: monthsPossible,
+        })
+      : t("No month submitted yet.");
 
   if (reason === "partial_year")
     return t(
-      "{counted} of {possible} months submitted. The figures below are what those months add up to — real, but a part of a year, and a year is what gets declared.",
+      "{counted} of {possible} months submitted. Part of a year, so not official.",
       { counted: monthsCounted, possible: monthsPossible },
     );
 
-  return t(
-    "A full year is in, but the precursor figures behind it are not all verified. Record the verified figure on each supply-chain row and this becomes official.",
-  );
+  return t("The year is in, but not every precursor is verified yet.");
 }
 
-export function StandingChip({ standing, className }: { standing: ScopeStanding; className?: string }) {
+export function StandingChip({
+  standing,
+  className,
+}: {
+  standing: ScopeStanding;
+  className?: string;
+}) {
   const t = useT();
   return (
     <span
@@ -153,8 +166,12 @@ export function CarbonCostKpiHeader({
   const total = on ? projection.totalEmbeddedTCO2e : figures.totalEmbeddedTCO2e;
   const gap = on ? projection.avgGapPercent : figures.avgGapPercent;
 
-  const tonnes = (n: number | null) => (isNum(n) ? `${number(n, { maximumFractionDigits: 1 })} t` : "—");
-  const percent = (n: number | null) => (isNum(n) ? `${number(n, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%` : "—");
+  const tonnes = (n: number | null) =>
+    isNum(n) ? `${number(n, { maximumFractionDigits: 1 })} t` : "—";
+  const percent = (n: number | null) =>
+    isNum(n)
+      ? `${number(n, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`
+      : "—";
 
   /* WHY A FIGURE IS A DASH, IN THE WORDS OF THE THING THAT WOULD FILL IT.
      "No submitted months yet" is true and unhelpful on an account that has
@@ -164,25 +181,34 @@ export function CarbonCostKpiHeader({
     ? standing.monthsEntered > monthsCounted
       ? standing.monthsEntered === 1
         ? t("1 month started, not submitted yet")
-        : t("{entered} months started, none submitted yet", { entered: standing.monthsEntered })
+        : t("{entered} months started, none submitted yet", {
+            entered: standing.monthsEntered,
+          })
       : t("No submitted months yet")
     : on
       ? t("{scope} · at this year's rate", { scope: scopeLabel })
       : monthsCounted === 1
         ? t("{scope} · 1 submitted month", { scope: scopeLabel })
-        : t("{scope} · {count} submitted months", { scope: scopeLabel, count: monthsCounted });
+        : t("{scope} · {count} submitted months", {
+            scope: scopeLabel,
+            count: monthsCounted,
+          });
 
   const gapSub = !isNum(gap)
     ? t("Nothing comparable yet")
     : on
-      ? t("unchanged — a gap is a ratio, so scaling the year leaves it where it is")
+      ? t("unchanged by scaling")
       : comparableCount === 1
         ? gap >= 0
           ? t("below the default · one product")
           : t("above the default · one product")
         : gap >= 0
-          ? t("below the default · averaged over {count} products", { count: comparableCount })
-          : t("above the default · averaged over {count} products", { count: comparableCount });
+          ? t("below the default · averaged over {count} products", {
+              count: comparableCount,
+            })
+          : t("above the default · averaged over {count} products", {
+              count: comparableCount,
+            });
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 [&>*]:min-w-0">
@@ -192,7 +218,11 @@ export function CarbonCostKpiHeader({
             <ProjectedChip />
           </div>
         )}
-        <Stat value={tonnes(total)} label={t("Total embedded emissions")} sub={totalSub} />
+        <Stat
+          value={tonnes(total)}
+          label={t("Total embedded emissions")}
+          sub={totalSub}
+        />
       </Card>
 
       <Card warm={on} className="p-6">
@@ -204,7 +234,11 @@ export function CarbonCostKpiHeader({
         {/* Positive = better than the default (lower actual emissions), the
             same convention every other benchmark surface uses, so two numbers
             on two screens can never read as disagreeing. */}
-        <Stat value={percent(gap)} label={t("Avg. gap vs. default")} sub={gapSub} />
+        <Stat
+          value={percent(gap)}
+          label={t("Avg. gap vs. default")}
+          sub={gapSub}
+        />
       </Card>
     </div>
   );

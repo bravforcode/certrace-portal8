@@ -62,7 +62,7 @@ import * as React from "react";
 import { Card, cn } from "@/components/ui";
 import { useT } from "@/lib/i18n";
 import type { EmissionsChartData } from "@/lib/cbam/carbon-scope";
-import { monthName, type VerificationWorkspace } from "@/lib/workspace";
+import { monthNameShown, type VerificationWorkspace } from "@/lib/workspace";
 
 /* ── The chart draws at ITS OWN SIZE, not at a fixed one scaled to fit ──
    A fixed viewBox stretched to the container is the usual way to make an SVG
@@ -79,14 +79,19 @@ import { monthName, type VerificationWorkspace } from "@/lib/workspace";
 const MIN_W = 300;
 const PAD = { top: 18, right: 16, bottom: 30, left: 52 };
 
-function useMeasuredWidth(): [React.RefObject<HTMLDivElement | null>, number | null] {
+function useMeasuredWidth(): [
+  React.RefObject<HTMLDivElement | null>,
+  number | null,
+] {
   const ref = React.useRef<HTMLDivElement | null>(null);
   const [width, setWidth] = React.useState<number | null>(null);
 
   React.useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const observer = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width));
+    const observer = new ResizeObserver(([entry]) =>
+      setWidth(entry.contentRect.width),
+    );
     observer.observe(el);
     setWidth(el.getBoundingClientRect().width);
     return () => observer.disconnect();
@@ -121,7 +126,8 @@ const PROJECTED_OPACITY = 0.45;
    printing "NaN" reads as a broken product; printing a dash reads as "nothing
    here yet", which is what it is. lib/cbam/carbon-scope.ts already collapses
    the two, and this is the second line of the same defence. */
-const fmt = (v: number | null | undefined) => (v == null || !Number.isFinite(v) ? "—" : v.toFixed(3));
+const fmt = (v: number | null | undefined) =>
+  v == null || !Number.isFinite(v) ? "—" : v.toFixed(3);
 
 export function EmissionsChart({
   data,
@@ -146,13 +152,22 @@ export function EmissionsChart({
      refused sits in `points` (it is a real month with real production) but has
      no figures, and reading the legend off it would blank four numbers that
      the month before had. */
-  const latest = [...points].reverse().find((p) => p.total != null && !p.projected) ?? null;
+  const latest =
+    [...points].reverse().find((p) => p.total != null && !p.projected) ?? null;
 
   /* Narrowed once, here, so the plot below is written against numbers rather
      than against nullable numbers it has to re-check at every use. */
   const plottable = points.flatMap((p) =>
     p.direct != null && p.indirect != null && p.total != null
-      ? [{ month: p.month, direct: p.direct, indirect: p.indirect, total: p.total, projected: p.projected }]
+      ? [
+          {
+            month: p.month,
+            direct: p.direct,
+            indirect: p.indirect,
+            total: p.total,
+            projected: p.projected,
+          },
+        ]
       : [],
   );
   const measuredCount = plottable.filter((p) => !p.projected).length;
@@ -171,19 +186,27 @@ export function EmissionsChart({
           {t("Embedded emissions, month by month")}
         </h2>
         <p className="font-mono text-[11px] text-black/35">
-          {workspace.productName} · {workspace.installationName} · {workspace.year}
+          {t(workspace.productName)} · {workspace.installationName} ·{" "}
+          {workspace.year}
         </p>
       </div>
       <p className="mt-1.5 max-w-2xl text-[12.5px] leading-relaxed text-black/45">
         {t(
-          "Per tonne of product, split into what your site emitted, what its electricity cost, and what was already in the materials you bought.",
+          "Per tonne: your site, its electricity and the materials you bought.",
         )}
         {data.multiple &&
           " " +
-            t("Your selection covers several products — per-tonne figures are only comparable within one, so this is the first of them.")}
+            t(
+              "Several products selected. Showing the first — per-tonne figures only compare within one product.",
+            )}
       </p>
 
-      <Legend values={values} defaultSee={defaultSee} unit={unit} projected={projectedCount > 0} />
+      <Legend
+        values={values}
+        defaultSee={defaultSee}
+        unit={unit}
+        projected={projectedCount > 0}
+      />
 
       {/* Only months the engine could actually work out are plottable. One
           whose fuel row it refused stays a real submitted month everywhere
@@ -194,21 +217,28 @@ export function EmissionsChart({
       {plottable.length === 0 ? (
         <p className="mt-5 rounded-xl border border-dashed border-black/10 px-4 py-8 text-center text-[13px] leading-relaxed text-black/40">
           {points.length === 0
-            ? t("No submitted months with production yet. Each month you submit adds a point here.")
-            : t("None of the submitted months could be worked out yet — open Monthly data to see which readings are missing.")}
+            ? t("No submitted month yet.")
+            : t(
+                "The submitted months could not be worked out. Check Monthly data for missing readings.",
+              )}
         </p>
       ) : plottable.length === 1 ? (
         <p className="mt-5 rounded-xl border border-dashed border-black/10 px-4 py-8 text-center text-[13px] leading-relaxed text-black/40">
-          {t("One month in. A second submitted month gives the lines a direction to show.")}
+          {t("One month in. A second gives the lines a direction.")}
         </p>
       ) : (
         <>
-          <Plot points={plottable} defaultSee={defaultSee} precursorPerTonne={precursorPerTonne} unit={unit} />
+          <Plot
+            points={plottable}
+            defaultSee={defaultSee}
+            precursorPerTonne={precursorPerTonne}
+            unit={unit}
+          />
           {skipped > 0 && (
             <p className="mt-1.5 text-[11.5px] leading-relaxed text-[#b45309]">
               {skipped === 1
-                ? t("1 submitted month is not plotted — its emissions could not be worked out. Monthly data says which reading is missing.")
-                : t("{count} submitted months are not plotted — their emissions could not be worked out. Monthly data says which reading is missing.", {
+                ? t("1 month is not plotted — a reading is missing.")
+                : t("{count} months are not plotted — readings are missing.", {
                     count: skipped,
                   })}
             </p>
@@ -247,30 +277,63 @@ function Legend({
     /* Five columns normally, six once the projected key joins them — a fixed
        five would drop that sixth entry onto a row of its own, where a legend
        key reads as a stray statistic rather than as part of the key above it. */
-    <dl className={cn("mt-5 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3", projected ? "lg:grid-cols-6" : "lg:grid-cols-5")}>
+    <dl
+      className={cn(
+        "mt-5 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3",
+        projected ? "lg:grid-cols-6" : "lg:grid-cols-5",
+      )}
+    >
       {keys.map((k) => (
         <div key={k} className="min-w-0">
           <dt className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.1em] text-black/40">
             <span
               aria-hidden
-              className={cn("inline-block h-[2px] w-3.5 flex-none rounded-full", values[k] == null && "opacity-30")}
+              className={cn(
+                "inline-block h-[2px] w-3.5 flex-none rounded-full",
+                values[k] == null && "opacity-30",
+              )}
               style={{ background: SERIES[k].color }}
             />
             {t(SERIES_LABEL[k])}
           </dt>
-          <dd className={cn("mt-1 font-mono text-[15px] tabular-nums", values[k] == null ? "text-black/25" : "text-[#111]")}>{fmt(values[k])}</dd>
+          <dd
+            className={cn(
+              "mt-1 font-mono text-[15px] tabular-nums",
+              values[k] == null ? "text-black/25" : "text-[#111]",
+            )}
+          >
+            {fmt(values[k])}
+          </dd>
           <dd className="mt-0.5 text-[10.5px] text-black/35">
-            {values[k] == null ? (k === "precursor" ? t("No verified data yet") : t("Not entered yet")) : unit}
+            {values[k] == null
+              ? k === "precursor"
+                ? t("No verified data yet")
+                : t("Not entered yet")
+              : unit}
           </dd>
         </div>
       ))}
       <div className="min-w-0">
         <dt className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.1em] text-black/40">
-          <span aria-hidden className="inline-block h-0 w-3.5 flex-none border-t border-dashed border-black/45" />
+          <span
+            aria-hidden
+            className="inline-block h-0 w-3.5 flex-none border-t border-dashed border-black/45"
+          />
           {t("EU default")}
         </dt>
-        <dd className={cn("mt-1 font-mono text-[15px] tabular-nums", defaultSee == null ? "text-black/25" : "text-[#111]")}>{fmt(defaultSee)}</dd>
-        <dd className="mt-0.5 text-[10.5px] text-black/35">{defaultSee == null ? t("None on file for this good") : t("what a buyer assumes")}</dd>
+        <dd
+          className={cn(
+            "mt-1 font-mono text-[15px] tabular-nums",
+            defaultSee == null ? "text-black/25" : "text-[#111]",
+          )}
+        >
+          {fmt(defaultSee)}
+        </dd>
+        <dd className="mt-0.5 text-[10.5px] text-black/35">
+          {defaultSee == null
+            ? t("None on file for this good")
+            : t("what a buyer assumes")}
+        </dd>
       </div>
       {/* The fifth entry only exists while there is something projected on the
           chart. A permanent "Projected —" row would be a legend key for a
@@ -278,18 +341,32 @@ function Legend({
       {projected && (
         <div className="min-w-0">
           <dt className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.1em] text-black/40">
-            <span aria-hidden className="inline-block h-3 w-3.5 flex-none rounded-sm" style={{ background: PROJECTED_BAND }} />
+            <span
+              aria-hidden
+              className="inline-block h-3 w-3.5 flex-none rounded-sm"
+              style={{ background: PROJECTED_BAND }}
+            />
             {t("Projected")}
           </dt>
-          <dd className="mt-1 font-mono text-[15px] tabular-nums text-black/45">{t("assumed")}</dd>
-          <dd className="mt-0.5 text-[10.5px] text-black/35">{t("at the year-to-date rate")}</dd>
+          <dd className="mt-1 font-mono text-[15px] tabular-nums text-black/45">
+            {t("assumed")}
+          </dd>
+          <dd className="mt-0.5 text-[10.5px] text-black/35">
+            {t("at the year-to-date rate")}
+          </dd>
         </div>
       )}
     </dl>
   );
 }
 
-type PlottablePoint = { month: string; direct: number; indirect: number; total: number; projected: boolean };
+type PlottablePoint = {
+  month: string;
+  direct: number;
+  indirect: number;
+  total: number;
+  projected: boolean;
+};
 
 function Plot({
   points,
@@ -308,11 +385,18 @@ function Plot({
   const W = Math.max(MIN_W, Math.round(measured ?? 720));
   const H = W < 480 ? 200 : 240;
 
-  const maxY = Math.max(defaultSee ?? 0, precursorPerTonne ?? 0, ...points.map((p) => p.total)) * 1.15 || 1;
+  const maxY =
+    Math.max(
+      defaultSee ?? 0,
+      precursorPerTonne ?? 0,
+      ...points.map((p) => p.total),
+    ) * 1.15 || 1;
   const innerW = W - PAD.left - PAD.right;
   const innerH = H - PAD.top - PAD.bottom;
 
-  const x = (i: number) => PAD.left + (points.length === 1 ? innerW / 2 : (i / (points.length - 1)) * innerW);
+  const x = (i: number) =>
+    PAD.left +
+    (points.length === 1 ? innerW / 2 : (i / (points.length - 1)) * innerW);
   const y = (v: number) => PAD.top + innerH - (v / maxY) * innerH;
 
   /* ── ONE SEGMENT AT A TIME, not one path per series ─────────────
@@ -338,7 +422,9 @@ function Plot({
     { key: "total", segs: segments((p) => p.total) },
     { key: "direct", segs: segments((p) => p.direct) },
     { key: "indirect", segs: segments((p) => p.indirect) },
-    ...(precursorPerTonne != null ? [{ key: "precursor" as Key, segs: segments(() => precursorPerTonne) }] : []),
+    ...(precursorPerTonne != null
+      ? [{ key: "precursor" as Key, segs: segments(() => precursorPerTonne) }]
+      : []),
   ];
 
   const defaultY = defaultSee != null ? y(defaultSee) : null;
@@ -370,18 +456,41 @@ function Plot({
         height={H}
         className="mt-4 w-full"
         role="img"
-        aria-label={t("Embedded emissions per tonne for each submitted month, in {unit}. Current values are listed above the chart.", { unit })}
+        aria-label={t(
+          "Embedded emissions per tonne, by submitted month, in {unit}.",
+          { unit },
+        )}
       >
         {/* Behind the gridlines, so a projected month is a region the chart
             sits ON rather than a rectangle drawn over it. */}
         {bands.map((b) => (
-          <rect key={b.key} x={b.x} y={PAD.top} width={b.width} height={innerH} fill={PROJECTED_BAND} />
+          <rect
+            key={b.key}
+            x={b.x}
+            y={PAD.top}
+            width={b.width}
+            height={innerH}
+            fill={PROJECTED_BAND}
+          />
         ))}
 
         {[0, maxY / 2, maxY].map((v) => (
           <g key={v}>
-            <line x1={PAD.left} x2={W - PAD.right} y1={y(v)} y2={y(v)} stroke="rgba(0,0,0,0.06)" strokeWidth={1} />
-            <text x={PAD.left - 8} y={y(v) + 3} textAnchor="end" fontSize={9} fill="rgba(0,0,0,0.35)">
+            <line
+              x1={PAD.left}
+              x2={W - PAD.right}
+              y1={y(v)}
+              y2={y(v)}
+              stroke="rgba(0,0,0,0.06)"
+              strokeWidth={1}
+            />
+            <text
+              x={PAD.left - 8}
+              y={y(v) + 3}
+              textAnchor="end"
+              fontSize={9}
+              fill="rgba(0,0,0,0.35)"
+            >
               {v.toFixed(2)}
             </text>
           </g>
@@ -389,8 +498,22 @@ function Plot({
 
         {defaultY != null && (
           <>
-            <line x1={PAD.left} x2={W - PAD.right} y1={defaultY} y2={defaultY} stroke="rgba(0,0,0,0.45)" strokeWidth={1} strokeDasharray="4 3" />
-            <text x={W - PAD.right} y={defaultY - 5} textAnchor="end" fontSize={9} fill="rgba(0,0,0,0.45)">
+            <line
+              x1={PAD.left}
+              x2={W - PAD.right}
+              y1={defaultY}
+              y2={defaultY}
+              stroke="rgba(0,0,0,0.45)"
+              strokeWidth={1}
+              strokeDasharray="4 3"
+            />
+            <text
+              x={W - PAD.right}
+              y={defaultY - 5}
+              textAnchor="end"
+              fontSize={9}
+              fill="rgba(0,0,0,0.45)"
+            >
               {t("EU default")} {defaultSee!.toFixed(2)}
             </text>
           </>
@@ -406,7 +529,12 @@ function Plot({
               strokeWidth={SERIES[key].width}
               strokeLinecap="round"
               strokeLinejoin="round"
-              {...(s.projected ? { strokeDasharray: PROJECTED_DASH, opacity: PROJECTED_OPACITY } : {})}
+              {...(s.projected
+                ? {
+                    strokeDasharray: PROJECTED_DASH,
+                    opacity: PROJECTED_OPACITY,
+                  }
+                : {})}
             />
           )),
         )}
@@ -428,18 +556,24 @@ function Plot({
           >
             <title>
               {p.projected
-                ? t("{month} — projected {total} {unit} at the year-to-date rate", {
-                    month: monthName(p.month),
-                    total: p.total.toFixed(4),
-                    unit,
-                  })
-                : t("{month} — total {total} {unit} (direct {direct}, indirect {indirect})", {
-                    month: monthName(p.month),
-                    total: p.total.toFixed(4),
-                    unit,
-                    direct: p.direct.toFixed(4),
-                    indirect: p.indirect.toFixed(4),
-                  })}
+                ? t(
+                    "{month} — projected {total} {unit} at the year-to-date rate",
+                    {
+                      month: monthNameShown(p.month),
+                      total: p.total.toFixed(4),
+                      unit,
+                    },
+                  )
+                : t(
+                    "{month} — total {total} {unit} (direct {direct}, indirect {indirect})",
+                    {
+                      month: monthNameShown(p.month),
+                      total: p.total.toFixed(4),
+                      unit,
+                      direct: p.direct.toFixed(4),
+                      indirect: p.indirect.toFixed(4),
+                    },
+                  )}
             </title>
           </circle>
         ))}
@@ -449,30 +583,39 @@ function Plot({
             eight copies of one label, and squeezed into a 24px band on a phone
             it would be an unreadable smear. */}
         {firstProjected >= 0 && step > 34 && (
-          <text x={x(firstProjected) - step / 2 + 4} y={PAD.top + 10} fontSize={8.5} fill="rgba(0,0,0,0.35)">
+          <text
+            x={x(firstProjected) - step / 2 + 4}
+            y={PAD.top + 10}
+            fontSize={8.5}
+            fill="rgba(0,0,0,0.35)"
+          >
             {t("Projected")}
           </text>
         )}
 
         <text x={PAD.left} y={H - 9} fontSize={9} fill="rgba(0,0,0,0.35)">
-          {monthName(points[0].month)}
+          {monthNameShown(points[0].month)}
         </text>
-        <text x={W - PAD.right} y={H - 9} textAnchor="end" fontSize={9} fill="rgba(0,0,0,0.35)">
-          {monthName(points[points.length - 1].month)}
+        <text
+          x={W - PAD.right}
+          y={H - 9}
+          textAnchor="end"
+          fontSize={9}
+          fill="rgba(0,0,0,0.35)"
+        >
+          {monthNameShown(points[points.length - 1].month)}
         </text>
       </svg>
 
       <p className="mt-2 text-[11.5px] leading-relaxed text-black/40">
-        {t("Months with no submitted production are left out rather than plotted as zero.")}
+        {t("Months without production are left out.")}
         {precursorPerTonne != null &&
           " " +
-            t(
-              "The precursor line is level because a precursor figure is declared once for the whole reporting period, not month by month — the same way it enters the report.",
-            )}
+            t("The precursor line is level: it is declared once for the year.")}
         {firstProjected >= 0 &&
           " " +
             t(
-              "The shaded months are not readings. They carry the year-to-date rate forward on the assumption that the rest of the year runs like the months you have submitted.",
+              "Shaded months are not readings. They carry the year-to-date rate forward.",
             )}
       </p>
     </div>

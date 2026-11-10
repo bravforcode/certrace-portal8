@@ -1,10 +1,11 @@
+import { accountStorage, companyDirectory } from "./account-storage";
+import { loadSession } from "./api/session";
 /* ════════════════════════════════════════════════════════════
    TEAM STORE — one registry of people who can be asked to check things.
 
-   The four seeded reviewers (ESG, Compliance, Legal, Verifier) come from the
-   demo fixtures; anyone added through the "Add person" popup — from a
-   submission's reviewer picker, the report sign-off step, or the Team page —
-   persists here in localStorage and immediately shows up in all three places.
+   People added through the "Add person" popup — from a submission's reviewer
+   picker, the report sign-off step, or the Team page — persist through
+   accountStorage in PostgreSQL and appear in all three places.
 
    Assignments themselves live elsewhere:
      · per-submission reviewers  → lib/exporter-review.ts  (review.reviewers)
@@ -13,8 +14,6 @@
    would slot in.
    ════════════════════════════════════════════════════════════ */
 
-import { REVIEWERS } from "./exporter-review";
-
 export type TeamMember = {
   id: string;
   name: string;
@@ -22,64 +21,18 @@ export type TeamMember = {
   role: string; // display position, e.g. "ESG / Sustainability"
   dept: string;
   kind: "internal" | "external";
-  builtin?: boolean; // seeded fixture — cannot be removed
+  builtin?: boolean; // legacy imported row
 };
 
-/* ── The roles you can hand somebody ────────────────────────────
-   THE ACCOUNT HAS EXACTLY THREE ROLES: Owner, Member, and Legal /
-   compliance. Two of them can be given to somebody new, and those two are
-   what this list is.
-
-   IT USED TO OFFER FIVE JOB TITLES — ESG / Sustainability, Compliance, Legal
-   counsel, Finance, Management — and that was a list of DEPARTMENTS wearing
-   the clothes of a permission model. Four of the five resolved to the same
-   seat role ("member"), so an exporter who carefully picked "Finance" for
-   their accountant and "Management" for their MD gave both of them precisely
-   the same access, and the Team page then described the account in terms of
-   three roles the picker had never mentioned. A control that appears to
-   decide something and does not is worse than no control: it is a decision
-   the reader believes they have made.
-
-   So the picker now offers the roles that actually exist, named exactly as
-   the Team page names them, and each carries the one sentence that says what
-   it can do.
-
-   NO VERIFIER. Certrace has no verifier portal in this build: nothing an
-   invited verifier is granted is reachable by them. Offering the role creates
-   a seat that describes access which does not exist, and an exporter who
-   invites their accredited body here would reasonably believe the body had
-   been given something. It comes back when there is a portal behind it. */
-export const POSITION_OPTIONS: { value: string; dept: string; kind: "internal" | "external"; hint: string }[] = [
-  { value: "Member", dept: "Operations", kind: "internal", hint: "builds workspaces and fills months in" },
-  { value: "Legal / compliance", dept: "Legal", kind: "internal", hint: "reviews and signs off before it leaves" },
-];
-
-/** The role a seat is granted when nothing else is chosen. */
-export const DEFAULT_POSITION = POSITION_OPTIONS[0].value;
-
-const SEED_EMAILS: Record<string, string> = {
-  esg: "ananya@siamsteel.co.th",
-  compliance: "wasawat@siamsteel.co.th",
-  legal: "krit@kritlegal.co.th",
-  verifier: "verification@tuv-sud.example",
-};
-
-const SEED: TeamMember[] = REVIEWERS.map((r) => ({
-  id: r.id,
-  name: r.name,
-  email: SEED_EMAILS[r.id] ?? "",
-  role: r.role,
-  dept: r.dept,
-  kind: r.id === "legal" || r.id === "verifier" ? "external" : "internal",
-  builtin: true,
-}));
+/* New contacts are Members. Saved legacy positions remain on existing records
+   so reviewer and sign-off references still resolve. */
 
 const KEY = "certrace:team-members";
 
 function loadAdded(): TeamMember[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = accountStorage.getItem(KEY);
     if (!raw) return [];
     const arr = JSON.parse(raw) as TeamMember[];
     return Array.isArray(arr) ? arr : [];
@@ -91,15 +44,74 @@ function loadAdded(): TeamMember[] {
 function saveAdded(members: TeamMember[]): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(members));
+    accountStorage.setItem(KEY, JSON.stringify(members));
   } catch {
     /* ignore quota */
   }
 }
 
-/** Everyone — seeded reviewers first, then people added at runtime. */
+/** Members saved for this account. */
 export function loadTeam(): TeamMember[] {
-  return [...SEED, ...loadAdded()];
+  const user = loadSession()?.user;
+  const members = loadAdded();
+  const directory = companyDirectory();
+  if (directory) {
+    // Keep the saved contact's ID so old reviewer assignments still resolve.
+    const profile = JSON.parse(
+      accountStorage.getItem("certrace:profile") ?? "null",
+    );
+    const ownerName =
+      directory.isOwner &&
+      [profile?.firstName, profile?.lastName].filter(Boolean).join(" ");
+    const active = directory.members.map((person) => {
+      const contact = members.find(
+        (m) => m.email.toLowerCase() === person.email.toLowerCase(),
+      );
+      return {
+        ...contact,
+        id: person.role === "Owner" ? person.id : (contact?.id ?? person.id),
+        name:
+          person.role === "Owner" && ownerName
+            ? ownerName
+            : person.name === person.email && contact?.name
+              ? contact.name
+              : person.name,
+        email: person.email,
+        role: person.role,
+        dept: contact?.dept ?? "",
+        kind: contact?.kind ?? ("internal" as const),
+        builtin: true,
+      };
+    });
+    return [
+      ...active,
+      ...members.filter(
+        (m) =>
+          !active.some((p) => p.email.toLowerCase() === m.email.toLowerCase()),
+      ),
+    ];
+  }
+  if (!user) return members;
+  const profile =
+    JSON.parse(accountStorage.getItem("certrace:profile") ?? "null") ?? {};
+  const name =
+    [profile.firstName ?? user.firstName, profile.lastName ?? user.lastName]
+      .filter(Boolean)
+      .join(" ") || user.email;
+  return [
+    {
+      id: user.id,
+      name,
+      email: user.email,
+      role: "Owner",
+      dept: "",
+      kind: "internal",
+      builtin: true,
+    },
+    ...members.filter(
+      (m) => m.email.toLowerCase() !== user.email.toLowerCase(),
+    ),
+  ];
 }
 
 export function getTeamMember(id: string): TeamMember | undefined {
@@ -108,18 +120,20 @@ export function getTeamMember(id: string): TeamMember | undefined {
 
 /** Add (or return the existing) member — deduped by email so inviting the
     same person twice from different pages never forks their identity. */
-export function addTeamMember(input: { name: string; email: string; role: string }): TeamMember {
+export function addTeamMember(input: {
+  name: string;
+  email: string;
+}): TeamMember {
   const email = input.email.trim().toLowerCase();
   const existing = loadTeam().find((m) => m.email.toLowerCase() === email);
   if (existing) return existing;
-  const pos = POSITION_OPTIONS.find((p) => p.value === input.role);
   const member: TeamMember = {
     id: `tm-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
     name: input.name.trim(),
     email: input.email.trim(),
-    role: input.role,
-    dept: pos?.dept ?? "Compliance",
-    kind: pos?.kind ?? "internal",
+    role: "Member",
+    dept: "Operations",
+    kind: "internal",
   };
   saveAdded([...loadAdded(), member]);
   return member;

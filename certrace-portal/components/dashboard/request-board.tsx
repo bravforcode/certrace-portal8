@@ -44,46 +44,107 @@ export type RequestBoardStats = {
 /* Whose move it is, top to bottom. The label says the state; the hint says
    who is holding it, because that is the thing a reader is actually sorting
    by when they scan this. */
-const ROWS: { key: keyof RequestBoardStats; label: string; hint: string; tone: Tone }[] = [
-  { key: "toSend", label: "To send", hint: "yours to send", tone: SMART_LINK_STATE_TONE.send_now },
-  { key: "late", label: "Late", hint: "past the date you set", tone: SMART_LINK_STATE_TONE.late },
-  { key: "inProgress", label: "In progress", hint: "with the supplier", tone: SMART_LINK_STATE_TONE.in_process },
-  { key: "answered", label: "Answered", hint: "back and readable", tone: SMART_LINK_STATE_TONE.done },
+const ROWS: {
+  key: keyof RequestBoardStats;
+  label: string;
+  hint: string;
+  tone: Tone;
+}[] = [
+  {
+    key: "toSend",
+    label: "To send",
+    hint: "yours to send",
+    tone: SMART_LINK_STATE_TONE.send_now,
+  },
+  {
+    key: "late",
+    label: "Late",
+    hint: "past the date you set",
+    tone: SMART_LINK_STATE_TONE.late,
+  },
+  {
+    key: "inProgress",
+    label: "In progress",
+    hint: "with the supplier",
+    tone: SMART_LINK_STATE_TONE.in_process,
+  },
+  {
+    key: "answered",
+    label: "Answered",
+    hint: "back and readable",
+    tone: SMART_LINK_STATE_TONE.done,
+  },
 ];
 
 export function RequestBoard({ stats }: { stats: RequestBoardStats }) {
   const t = useT();
-  const total = stats.toSend + stats.late + stats.inProgress + stats.answered + stats.notDue;
+  const total =
+    stats.toSend +
+    stats.late +
+    stats.inProgress +
+    stats.answered +
+    stats.notDue;
 
   return (
     <Card className="flex h-full flex-col p-6">
       <div className="mb-4 flex items-baseline justify-between gap-3">
-        <h2 className="font-[family-name:var(--font-plex)] text-lg font-light tracking-tight text-[#111]">{t("What you've asked for")}</h2>
-        <Link href="/smart-links" className="flex-none font-pixel text-[10px] uppercase tracking-[0.12em] text-black/40 hover:text-black">
-          {t("All links")} <ArrowRight size={11} strokeWidth={1.5} className="inline align-[-1px]" />
+        <h2 className="font-[family-name:var(--font-plex)] text-lg font-light tracking-tight text-[#111]">
+          {t("What you've asked for")}
+        </h2>
+        <Link
+          href="/smart-links"
+          className="flex-none font-pixel text-[10px] uppercase tracking-[0.12em] text-black/40 hover:text-black"
+        >
+          {t("All links")}{" "}
+          <ArrowRight
+            size={11}
+            strokeWidth={1.5}
+            className="inline align-[-1px]"
+          />
         </Link>
       </div>
 
       {total === 0 ? (
-        <p className="text-[13px] text-black/45">{t("No requests yet. They appear here the moment a workspace asks for its first month.")}</p>
+        <p className="text-[13px] text-black/45">
+          {t(
+            "No requests yet. They appear here the moment a product report asks for its first month.",
+          )}
+        </p>
       ) : (
         <ul className="divide-y divide-black/[0.05]">
           {ROWS.map((row) => {
             const count = stats[row.key] as number;
             return (
               <li key={row.key}>
-                <Link href="/smart-links" className="flex items-center justify-between gap-3 py-3 transition-colors hover:bg-[#fafaf8]">
+                <Link
+                  href="/smart-links"
+                  className="flex items-center justify-between gap-3 py-3 transition-colors hover:bg-[#fafaf8]"
+                >
                   <span className="flex min-w-0 items-center gap-2.5">
-                    <StatusDot tone={row.tone} glow={count > 0 && (row.key === "late" || row.key === "toSend")} />
+                    <StatusDot
+                      tone={row.tone}
+                      glow={
+                        count > 0 &&
+                        (row.key === "late" || row.key === "toSend")
+                      }
+                    />
                     <span className="min-w-0">
-                      <span className="block truncate text-[13.5px] text-black/70">{t(row.label)}</span>
-                      <span className="block truncate text-[11.5px] text-black/35">{t(row.hint)}</span>
+                      <span className="block truncate text-[13.5px] text-black/70">
+                        {t(row.label)}
+                      </span>
+                      <span className="block truncate text-[11.5px] text-black/35">
+                        {t(row.hint)}
+                      </span>
                     </span>
                   </span>
                   <span
                     className={cn(
                       "flex-none font-[family-name:var(--font-plex)] text-[22px] font-light leading-none tabular-nums",
-                      count === 0 ? "text-black/25" : row.key === "late" ? "text-[#b45309]" : "text-[#111]",
+                      count === 0
+                        ? "text-black/25"
+                        : row.key === "late"
+                          ? "text-[#b45309]"
+                          : "text-[#111]",
                     )}
                   >
                     {count}
@@ -96,7 +157,10 @@ export function RequestBoard({ stats }: { stats: RequestBoardStats }) {
       )}
 
       <p className="mt-auto pt-4 text-[11.5px] leading-relaxed text-black/40">
-        {t("{percent}% of precursor figures still rest on an EU default value.", { percent: Math.round(stats.percentOnDefault) })}
+        {t(
+          "{percent}% of precursor figures still rest on an EU default value.",
+          { percent: Math.round(stats.percentOnDefault) },
+        )}
       </p>
     </Card>
   );

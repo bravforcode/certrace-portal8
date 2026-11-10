@@ -35,10 +35,20 @@ import { ListTree } from "lucide-react";
 import { Button, EmptyState, Modal } from "@/components/ui";
 import { useWorkspace } from "@/components/workspace/provider";
 import { buildSupplierPrecursorTree } from "@/lib/supplier-tree";
-import { flatten, getSupplier, saveSupplier, treeFor, type PrecursorSupplier, type SupplierNode } from "@/lib/precursor-suppliers";
+import {
+  flatten,
+  getSupplier,
+  saveSupplier,
+  treeFor,
+  type PrecursorSupplier,
+  type SupplierNode,
+} from "@/lib/precursor-suppliers";
 import { ensureChainRootSupplier } from "@/lib/chain-root-supplier";
 import { makePrecursorLinkToken, precursorLinkFor } from "@/lib/precursor-link";
-import { ensurePrecursorLink, pullPrecursorAnswers } from "@/lib/precursor-link-sync";
+import {
+  ensurePrecursorLink,
+  pullPrecursorAnswers,
+} from "@/lib/precursor-link-sync";
 import { TreeNodeCard } from "@/components/tree-node-card";
 import { TreeTable } from "@/components/tree-table";
 import { TreeVerifiedDataModal } from "@/components/tree-verified-data-modal";
@@ -52,7 +62,11 @@ import { useT } from "@/lib/i18n";
     sits at the top, which is exactly `depth: 1` — the same shape treeFor
     hands back for a tier-1 precursor, so SupplierEditor's indentation and
     every other reader of SupplierNode need no special case for it. */
-const asNode = (row: PrecursorSupplier): SupplierNode => ({ ...row, children: [], depth: 1 });
+const asNode = (row: PrecursorSupplier): SupplierNode => ({
+  ...row,
+  children: [],
+  depth: 1,
+});
 
 function findTreeNode(nodes: TreeNode[], id: string): TreeNode | null {
   for (const n of nodes) {
@@ -63,15 +77,27 @@ function findTreeNode(nodes: TreeNode[], id: string): TreeNode | null {
   return null;
 }
 
-export function ChainEditor({ rootNodeId, view = "tree" }: { rootNodeId?: string; view?: ChainView }) {
+export function ChainEditor({
+  rootNodeId,
+  view = "tree",
+}: {
+  rootNodeId?: string;
+  view?: ChainView;
+}) {
   const t = useT();
   const { workspace } = useWorkspace();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [roots, setRoots] = React.useState<TreeNode[]>(() => buildSupplierPrecursorTree(workspace.id));
-  const [verifiedDataNodeId, setVerifiedDataNodeId] = React.useState<string | null>(null);
-  const [addPrecursorParentId, setAddPrecursorParentId] = React.useState<string | null>(null);
+  const [roots, setRoots] = React.useState<TreeNode[]>(() =>
+    buildSupplierPrecursorTree(workspace.id),
+  );
+  const [verifiedDataNodeId, setVerifiedDataNodeId] = React.useState<
+    string | null
+  >(null);
+  const [addPrecursorParentId, setAddPrecursorParentId] = React.useState<
+    string | null
+  >(null);
   const [resendTarget, setResendTarget] = React.useState<TreeNode | null>(null);
 
   // notifyTreeChanged so the sidebar's copy of this same chain
@@ -116,17 +142,25 @@ export function ChainEditor({ rootNodeId, view = "tree" }: { rootNodeId?: string
      workspace is created: a chain nobody has opened this dialog on has
      nothing to store, and back-filling every existing workspace would be a
      migration for a record that is derived from one already on file. */
-  const verifiedDataTreeNode = verifiedDataNodeId ? findTreeNode(roots, verifiedDataNodeId) : null;
+  const verifiedDataTreeNode = verifiedDataNodeId
+    ? findTreeNode(roots, verifiedDataNodeId)
+    : null;
   const verifiedDataNode: SupplierNode | null = React.useMemo(() => {
     if (!verifiedDataTreeNode) return null;
     if (verifiedDataTreeNode.kind === "precursor") {
-      return flatten(treeFor(workspace.id)).find((n) => n.id === verifiedDataTreeNode.id) ?? null;
+      return (
+        flatten(treeFor(workspace.id)).find(
+          (n) => n.id === verifiedDataTreeNode.id,
+        ) ?? null
+      );
     }
     return asNode(ensureChainRootSupplier(workspace));
     // Re-read when the open row changes, and after a save (`roots` is rebuilt
     // by reload()), so the dialog never shows a snapshot the store has moved on from.
   }, [verifiedDataTreeNode, workspace, roots]);
-  const addPrecursorParent = addPrecursorParentId ? findTreeNode(roots, addPrecursorParentId) : null;
+  const addPrecursorParent = addPrecursorParentId
+    ? findTreeNode(roots, addPrecursorParentId)
+    : null;
   // The chain's root — the installation this product is made at. A chain is
   // built FROM one workspace (lib/supplier-tree.ts), so there is exactly one
   // root and it exists the instant the workspace does, even with zero
@@ -134,7 +168,9 @@ export function ChainEditor({ rootNodeId, view = "tree" }: { rootNodeId?: string
   const rootNode = roots[0] ?? null;
 
   // What gets rendered: the whole forest, or the one node this page is about.
-  const shown = rootNodeId ? [findTreeNode(roots, rootNodeId)].filter((n): n is TreeNode => n != null) : roots;
+  const shown = rootNodeId
+    ? [findTreeNode(roots, rootNodeId)].filter((n): n is TreeNode => n != null)
+    : roots;
 
   /* ── What the sidebar's chain links do here ────────────────────
      ?node=<id> scrolls that node's card into view; ?add=<nodeId> opens the
@@ -149,11 +185,16 @@ export function ChainEditor({ rootNodeId, view = "tree" }: { rootNodeId?: string
   const selectedNodeId = searchParams.get("node");
   const addParam = searchParams.get("add");
 
-  const clearParams = React.useCallback(() => router.replace(pathname, { scroll: false }), [router, pathname]);
+  const clearParams = React.useCallback(
+    () => router.replace(pathname, { scroll: false }),
+    [router, pathname],
+  );
 
   React.useEffect(() => {
     if (!selectedNodeId) return;
-    document.getElementById(`tree-node-${selectedNodeId}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    document
+      .getElementById(`tree-node-${selectedNodeId}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [selectedNodeId, roots]);
 
   /* Which node the URL is asking to add under. Resolved to an id — a plain
@@ -165,7 +206,13 @@ export function ChainEditor({ rootNodeId, view = "tree" }: { rootNodeId?: string
      silently hang a supplier's precursor off the wrong parent. */
   const chainRootId = rootNode?.id ?? null;
   const addTargetId =
-    addParam == null ? null : addParam === "1" ? chainRootId : findTreeNode(roots, addParam) ? addParam : null;
+    addParam == null
+      ? null
+      : addParam === "1"
+        ? chainRootId
+        : findTreeNode(roots, addParam)
+          ? addParam
+          : null;
 
   // Keyed on the id, not the node object. reload() rebuilds the tree from
   // scratch, so the node is a fresh object every time a precursor is saved —
@@ -192,16 +239,26 @@ export function ChainEditor({ rootNodeId, view = "tree" }: { rootNodeId?: string
        deliberately not IN the tree (see PrecursorSupplier.isChainRoot), and
        it is sendable like any other. Addressing the row by its id is what
        finds both. */
-    const row = getSupplier(workspace.id, node.id) ?? (node.kind === "installation" ? ensureChainRootSupplier(workspace) : null);
+    const row =
+      getSupplier(workspace.id, node.id) ??
+      (node.kind === "installation"
+        ? ensureChainRootSupplier(workspace)
+        : null);
     if (!row) return;
-    const token = row.smartLinkToken ?? makePrecursorLinkToken(workspace.id, row.id);
+    const token =
+      row.smartLinkToken ?? makePrecursorLinkToken(workspace.id, row.id);
     const now = new Date().toISOString();
     /* `smartLinkSentAt` still only moves once — the link-status state machine
        reads it as "has this supplier ever been asked", and re-stamping it on
        every resend would reset a chain's whole invite history. The once-a-day
        throttle needs the OTHER question, so `smartLinkLastSentAt` moves every
        time. */
-    saveSupplier({ ...row, smartLinkToken: token, smartLinkSentAt: row.smartLinkSentAt ?? now, smartLinkLastSentAt: now });
+    saveSupplier({
+      ...row,
+      smartLinkToken: token,
+      smartLinkSentAt: row.smartLinkSentAt ?? now,
+      smartLinkLastSentAt: now,
+    });
     reload();
     /* With a backend the copied link is a server-issued one the producer can
        open on their own machine (lib/precursor-link-sync.ts); without one it
@@ -211,7 +268,8 @@ export function ChainEditor({ rootNodeId, view = "tree" }: { rootNodeId?: string
       .then((minted) => {
         if (minted) reload();
         const url = minted ?? precursorLinkFor(workspace.id, row.id);
-        if (typeof navigator !== "undefined" && navigator.clipboard) void navigator.clipboard.writeText(url).catch(() => {});
+        if (typeof navigator !== "undefined" && navigator.clipboard)
+          void navigator.clipboard.writeText(url).catch(() => {});
       });
   };
 
@@ -219,7 +277,8 @@ export function ChainEditor({ rootNodeId, view = "tree" }: { rootNodeId?: string
     /* `sentAt` is a tree field, and the root has no tree row — so the "have we
        asked before" question is put to the STORED row, which is the same
        answer for a precursor and the only answer there is for the root. */
-    const sent = getSupplier(workspace.id, node.id)?.smartLinkSentAt ?? node.sentAt;
+    const sent =
+      getSupplier(workspace.id, node.id)?.smartLinkSentAt ?? node.sentAt;
     if (sent) {
       setResendTarget(node);
       return;
@@ -235,7 +294,7 @@ export function ChainEditor({ rootNodeId, view = "tree" }: { rootNodeId?: string
         // blank page if the workspace record itself is somehow missing here.
         <EmptyState
           icon={<ListTree size={28} strokeWidth={1.25} />}
-          title={t("This workspace isn't set up yet")}
+          title={t("This product report isn't set up yet")}
           body={t("Something is missing before a chain can be built here.")}
           action={
             <Link
@@ -284,11 +343,17 @@ export function ChainEditor({ rootNodeId, view = "tree" }: { rootNodeId?: string
           once, copy the URL" is the drift this component exists to prevent. */}
       <TreeVerifiedDataModal
         node={verifiedDataNode}
-        eyebrow={verifiedDataTreeNode?.kind === "installation" ? "Installation" : "Precursor"}
+        eyebrow={
+          verifiedDataTreeNode?.kind === "installation"
+            ? "Installation"
+            : "Precursor"
+        }
         onClose={() => setVerifiedDataNodeId(null)}
         onSaved={reload}
         onSend={() => {
-          const target = verifiedDataNodeId ? findTreeNode(roots, verifiedDataNodeId) : null;
+          const target = verifiedDataNodeId
+            ? findTreeNode(roots, verifiedDataNodeId)
+            : null;
           if (target) handleSend(target);
         }}
       />
@@ -312,11 +377,19 @@ export function ChainEditor({ rootNodeId, view = "tree" }: { rootNodeId?: string
         onClose={() => setResendTarget(null)}
         eyebrow={t("Precursor")}
         title={t("Resend link?")}
-        lead={resendTarget ? `A link was already sent to ${resendTarget.name || "this supplier"}. Copy a fresh one to send again?` : undefined}
+        lead={
+          resendTarget
+            ? `A link was already sent to ${resendTarget.name || "this supplier"}. Copy a fresh one to send again?`
+            : undefined
+        }
         width="max-w-md"
         footer={
           <>
-            <Button size="sm" variant="secondary" onClick={() => setResendTarget(null)}>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setResendTarget(null)}
+            >
               {t("Cancel")}
             </Button>
             <Button

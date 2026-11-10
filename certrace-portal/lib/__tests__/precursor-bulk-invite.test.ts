@@ -27,33 +27,69 @@ const storage = new MemoryStorage();
 g.window = { localStorage: storage };
 g.localStorage = storage;
 
-const { sendAllPrecursorLinks, decodePrecursorLinkToken } = await import("../precursor-link");
+const { sendAllPrecursorLinks, decodePrecursorLinkToken } = await import(
+  "../precursor-link"
+);
 const { createWorkspace } = await import("../workspace");
-const { saveSupplier, emptySupplier, getSupplier, listSuppliers } = await import("../precursor-suppliers");
+const { saveSupplier, emptySupplier, getSupplier, listSuppliers } =
+  await import("../precursor-suppliers");
 
 test("an empty chain sends nothing", () => {
   storage.clear();
-  const ws = createWorkspace({ installationId: "TH-A", installationName: "Plant A", productId: "billet", productionRoute: "scrap_eaf", year: 2026 });
+  const ws = createWorkspace({
+    installationId: "TH-A",
+    installationName: "Plant A",
+    productId: "billet",
+    productionRoute: "scrap_eaf",
+    year: 2026,
+  });
   const result = sendAllPrecursorLinks(ws);
-  assert.deepEqual(result, { sent: 0, skippedVerified: 0, skippedAlreadyInvited: 0, skippedScrap: 0 });
+  assert.deepEqual(result, {
+    sent: 0,
+    skippedVerified: 0,
+    skippedAlreadyInvited: 0,
+    skippedScrap: 0,
+  });
 });
 
 test("a never-invited node gets a token stamped and a sent timestamp", () => {
   storage.clear();
-  const ws = createWorkspace({ installationId: "TH-A", installationName: "Plant A", productId: "billet", productionRoute: "scrap_eaf", year: 2026 });
-  const s = saveSupplier({ ...emptySupplier(ws.id, null), name: "Chonburi Foundry" });
+  const ws = createWorkspace({
+    installationId: "TH-A",
+    installationName: "Plant A",
+    productId: "billet",
+    productionRoute: "scrap_eaf",
+    year: 2026,
+  });
+  const s = saveSupplier({
+    ...emptySupplier(ws.id, null),
+    name: "Chonburi Foundry",
+  });
   const result = sendAllPrecursorLinks(ws);
   assert.equal(result.sent, 1);
   const saved = getSupplier(ws.id, s.id)!;
   assert.ok(saved.smartLinkToken);
   assert.ok(saved.smartLinkSentAt);
-  assert.deepEqual(decodePrecursorLinkToken(saved.smartLinkToken!), { workspaceId: ws.id, precursorNodeId: s.id });
+  assert.deepEqual(decodePrecursorLinkToken(saved.smartLinkToken!), {
+    workspaceId: ws.id,
+    precursorNodeId: s.id,
+  });
 });
 
 test("scrap is never sent a link — nothing to verify", () => {
   storage.clear();
-  const ws = createWorkspace({ installationId: "TH-A", installationName: "Plant A", productId: "billet", productionRoute: "scrap_eaf", year: 2026 });
-  saveSupplier({ ...emptySupplier(ws.id, null), name: "Scrap Co", isScrap: true });
+  const ws = createWorkspace({
+    installationId: "TH-A",
+    installationName: "Plant A",
+    productId: "billet",
+    productionRoute: "scrap_eaf",
+    year: 2026,
+  });
+  saveSupplier({
+    ...emptySupplier(ws.id, null),
+    name: "Scrap Co",
+    isScrap: true,
+  });
   const result = sendAllPrecursorLinks(ws);
   assert.equal(result.sent, 0);
   assert.equal(result.skippedScrap, 1);
@@ -61,7 +97,13 @@ test("scrap is never sent a link — nothing to verify", () => {
 
 test("a fully verified node is skipped, not re-invited", () => {
   storage.clear();
-  const ws = createWorkspace({ installationId: "TH-A", installationName: "Plant A", productId: "billet", productionRoute: "scrap_eaf", year: 2026 });
+  const ws = createWorkspace({
+    installationId: "TH-A",
+    installationName: "Plant A",
+    productId: "billet",
+    productionRoute: "scrap_eaf",
+    year: 2026,
+  });
   const now = ws.periodStart;
   saveSupplier({
     ...emptySupplier(ws.id, null),
@@ -73,6 +115,11 @@ test("a fully verified node is skipped, not re-invited", () => {
     verifierAccreditationExpiryDate: "2030-01-01",
     verificationReportIssueDate: now,
     verificationSectoralScope: "Iron and steel",
+    verificationCoverageStart: ws.periodStart,
+    verificationCoverageEnd: ws.periodEnd,
+    verifierName: "Example verifier",
+    verifierAccreditationNumber: "EX-123",
+    verifierAccreditationIssuingCountry: "TH",
     smartLinkSentAt: now,
     smartLinkOpenedAt: now,
     smartLinkSubmittedAt: now,
@@ -84,7 +131,13 @@ test("a fully verified node is skipped, not re-invited", () => {
 
 test("a node already invited THIS period is skipped on a second bulk send", () => {
   storage.clear();
-  const ws = createWorkspace({ installationId: "TH-A", installationName: "Plant A", productId: "billet", productionRoute: "scrap_eaf", year: 2026 });
+  const ws = createWorkspace({
+    installationId: "TH-A",
+    installationName: "Plant A",
+    productId: "billet",
+    productionRoute: "scrap_eaf",
+    year: 2026,
+  });
   saveSupplier({ ...emptySupplier(ws.id, null), name: "Chonburi Foundry" });
 
   const first = sendAllPrecursorLinks(ws);
@@ -97,8 +150,18 @@ test("a node already invited THIS period is skipped on a second bulk send", () =
 
 test("a node invited in a PRIOR period is re-invited, not skipped", () => {
   storage.clear();
-  const ws = createWorkspace({ installationId: "TH-A", installationName: "Plant A", productId: "billet", productionRoute: "scrap_eaf", year: 2026 });
-  saveSupplier({ ...emptySupplier(ws.id, null), name: "Chonburi Foundry", smartLinkSentAt: "2025-03-01T00:00:00.000Z" });
+  const ws = createWorkspace({
+    installationId: "TH-A",
+    installationName: "Plant A",
+    productId: "billet",
+    productionRoute: "scrap_eaf",
+    year: 2026,
+  });
+  saveSupplier({
+    ...emptySupplier(ws.id, null),
+    name: "Chonburi Foundry",
+    smartLinkSentAt: "2025-03-01T00:00:00.000Z",
+  });
   const result = sendAllPrecursorLinks(ws);
   assert.equal(result.sent, 1);
   assert.equal(result.skippedAlreadyInvited, 0);
@@ -106,8 +169,19 @@ test("a node invited in a PRIOR period is re-invited, not skipped", () => {
 
 test("a re-sent node reuses its existing token rather than minting a new one", () => {
   storage.clear();
-  const ws = createWorkspace({ installationId: "TH-A", installationName: "Plant A", productId: "billet", productionRoute: "scrap_eaf", year: 2026 });
-  saveSupplier({ ...emptySupplier(ws.id, null), name: "Chonburi Foundry", smartLinkToken: "existing-token", smartLinkSentAt: "2025-03-01T00:00:00.000Z" });
+  const ws = createWorkspace({
+    installationId: "TH-A",
+    installationName: "Plant A",
+    productId: "billet",
+    productionRoute: "scrap_eaf",
+    year: 2026,
+  });
+  saveSupplier({
+    ...emptySupplier(ws.id, null),
+    name: "Chonburi Foundry",
+    smartLinkToken: "existing-token",
+    smartLinkSentAt: "2025-03-01T00:00:00.000Z",
+  });
   sendAllPrecursorLinks(ws);
   const saved = listSuppliers(ws.id)[0];
   assert.equal(saved.smartLinkToken, "existing-token");
@@ -115,7 +189,13 @@ test("a re-sent node reuses its existing token rather than minting a new one", (
 
 test("a mixed chain reports accurate counts across every category", () => {
   storage.clear();
-  const ws = createWorkspace({ installationId: "TH-A", installationName: "Plant A", productId: "billet", productionRoute: "scrap_eaf", year: 2026 });
+  const ws = createWorkspace({
+    installationId: "TH-A",
+    installationName: "Plant A",
+    productId: "billet",
+    productionRoute: "scrap_eaf",
+    year: 2026,
+  });
   saveSupplier({ ...emptySupplier(ws.id, null), name: "Fresh invite" });
   saveSupplier({ ...emptySupplier(ws.id, null), name: "Scrap", isScrap: true });
   saveSupplier({
@@ -128,11 +208,20 @@ test("a mixed chain reports accurate counts across every category", () => {
     verifierAccreditationExpiryDate: "2030-01-01",
     verificationReportIssueDate: ws.periodStart,
     verificationSectoralScope: "Iron and steel",
+    verificationCoverageStart: ws.periodStart,
+    verificationCoverageEnd: ws.periodEnd,
+    verifierName: "Example verifier",
+    verifierAccreditationNumber: "EX-123",
+    verifierAccreditationIssuingCountry: "TH",
     smartLinkSentAt: ws.periodStart,
     smartLinkOpenedAt: ws.periodStart,
     smartLinkSubmittedAt: ws.periodStart,
   });
-  saveSupplier({ ...emptySupplier(ws.id, null), name: "Already invited this period", smartLinkSentAt: ws.periodStart });
+  saveSupplier({
+    ...emptySupplier(ws.id, null),
+    name: "Already invited this period",
+    smartLinkSentAt: ws.periodStart,
+  });
 
   const result = sendAllPrecursorLinks(ws);
   assert.equal(result.sent, 1);

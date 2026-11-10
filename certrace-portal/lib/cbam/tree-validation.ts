@@ -43,7 +43,11 @@ function indexById(roots: TreeNode[]): Map<string, TreeNode> {
     returned by `buildSupplierPrecursorTree()`; passing a single root works
     identically since only ancestors of `targetParentNodeId` are ever
     visited. */
-export function wouldCreateCycle(roots: TreeNode[], targetParentNodeId: string, candidateEntityId: string): CycleCheckResult {
+export function wouldCreateCycle(
+  roots: TreeNode[],
+  targetParentNodeId: string,
+  candidateEntityId: string,
+): CycleCheckResult {
   const byId = indexById(roots);
   let current = byId.get(targetParentNodeId) ?? null;
 
@@ -52,8 +56,11 @@ export function wouldCreateCycle(roots: TreeNode[], targetParentNodeId: string, 
   // otherwise adding a precursor directly under a node naming the same
   // entity as itself would slip through.
   while (current) {
-    if (current.entityId === candidateEntityId) return { cycle: true, conflictingNode: current };
-    current = current.parentNodeId ? (byId.get(current.parentNodeId) ?? null) : null;
+    if (current.entityId === candidateEntityId)
+      return { cycle: true, conflictingNode: current };
+    current = current.parentNodeId
+      ? (byId.get(current.parentNodeId) ?? null)
+      : null;
   }
   return { cycle: false };
 }

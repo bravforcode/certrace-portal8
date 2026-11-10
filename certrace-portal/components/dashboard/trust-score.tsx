@@ -32,14 +32,24 @@ export function TrustScoreWidget() {
   const t = useT();
   return (
     <Card className="p-6">
-      <h2 className="font-[family-name:var(--font-plex)] text-lg font-light tracking-tight text-[#111]">{t("Compliance trust score")}</h2>
+      <h2 className="font-[family-name:var(--font-plex)] text-lg font-light tracking-tight text-[#111]">
+        {t("Compliance trust score")}
+      </h2>
 
       <div className="mt-4 flex items-start gap-3 rounded-xl border border-[rgba(29,78,216,0.16)] bg-[#eff6ff] px-4 py-3.5">
-        <Info size={15} strokeWidth={1.5} className="mt-0.5 flex-none text-[#1d4ed8]" />
+        <Info
+          size={15}
+          strokeWidth={1.5}
+          className="mt-0.5 flex-none text-[#1d4ed8]"
+        />
         <div className="min-w-0 text-[12.5px] leading-relaxed text-[#1d4ed8]">
-          <p className="font-medium">{t("Waiting on a workspace-level calculation.")}</p>
+          <p className="font-medium">
+            {t("Waiting on a product-report-level calculation.")}
+          </p>
           <p className="mt-1 text-[#1d4ed8]/80">
-            {t("A trust score exists for declarations, but it reads a declaration’s supplier-review rollup — a workspace has no equivalent. Rather than invent a second, differently-defined score for this page, this widget stays empty until one calculation covers both.")}
+            {t(
+              "A trust score exists for declarations, but it reads a declaration’s supplier-review rollup — a product report has no equivalent. Rather than invent a second, differently-defined score for this page, this widget stays empty until one calculation covers both.",
+            )}
           </p>
         </div>
       </div>

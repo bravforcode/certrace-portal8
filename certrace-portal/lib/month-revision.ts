@@ -46,13 +46,6 @@ export type RevisionArea = {
    reads top-to-bottom in the order they will be worked through. */
 export const REVISION_AREAS: RevisionArea[] = [
   {
-    id: "installation",
-    step: "installation",
-    anchor: "qf-installation",
-    label: "The installation record",
-    hint: "Address, economic activity, UNLOCODE, the coordinates of the main emission source, the authorised representative.",
-  },
-  {
     id: "mmd-boundary",
     step: "mmd",
     anchor: "qf-mmd-boundaryDescription",
@@ -130,13 +123,6 @@ export const REVISION_AREAS: RevisionArea[] = [
     hint: "Emissions from the materials themselves rather than from fuel.",
   },
   {
-    id: "precursors",
-    step: "precursors",
-    anchor: "qf-precursors",
-    label: "Precursors received",
-    hint: "How much of each bought-in CBAM input arrived this month.",
-  },
-  {
     id: "documents",
     step: "documents",
     anchor: "qf-documents",
@@ -145,7 +131,8 @@ export const REVISION_AREAS: RevisionArea[] = [
   },
 ];
 
-export const revisionArea = (id: string): RevisionArea | undefined => REVISION_AREAS.find((a) => a.id === id);
+export const revisionArea = (id: string): RevisionArea | undefined =>
+  REVISION_AREAS.find((a) => a.id === id);
 
 /** The areas a stored request names, in flow order and with anything unknown
     dropped — an id that no longer exists must not render as a blank row. */
@@ -155,8 +142,11 @@ export const resolveAreas = (ids: string[] | undefined): RevisionArea[] =>
 /** Grouped for the exporter's picker: one block per step of the flow, so the
     list reads as the screens the supplier will actually visit. */
 export const AREAS_BY_STEP: { step: FindingStep; areas: RevisionArea[] }[] = (
-  ["installation", "mmd", "monthly", "precursors", "documents"] as FindingStep[]
-).map((step) => ({ step, areas: REVISION_AREAS.filter((a) => a.step === step) }));
+  ["mmd", "monthly", "documents"] as FindingStep[]
+).map((step) => ({
+  step,
+  areas: REVISION_AREAS.filter((a) => a.step === step),
+}));
 
 /* ── The blue ──────────────────────────────────────────────────
    One colour, defined once, for "this is what was asked about". It is not the
@@ -165,5 +155,7 @@ export const AREAS_BY_STEP: { step: FindingStep; areas: RevisionArea[] }[] = (
    it. It stays on after the field is answered, because the supplier's next
    question is "which ones have I already dealt with", and a highlight that
    vanishes on the first keystroke cannot answer it. */
-export const REVISION_RING = "ring-2 ring-[#3C7ACB] ring-offset-2 ring-offset-[#f5f4f0]";
-export const REVISION_CHIP = "border-[rgba(60,122,203,0.35)] bg-[#eff6ff] text-[#1d4ed8]";
+export const REVISION_RING =
+  "ring-2 ring-[#3C7ACB] ring-offset-2 ring-offset-[#f5f4f0]";
+export const REVISION_CHIP =
+  "border-[rgba(60,122,203,0.35)] bg-[#eff6ff] text-[#1d4ed8]";

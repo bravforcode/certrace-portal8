@@ -11,7 +11,20 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-const { emptySupplier, supplierPrecursorGaps, precursorSubmissionGaps } = await import("../precursor-suppliers");
+const { emptySupplier, supplierPrecursorGaps, precursorSubmissionGaps } =
+  await import("../precursor-suppliers");
+const { precursorLinkGaps } = await import("../cbam/precursor-basis");
+
+test("a default-value precursor link does not demand exporter-owned fields", () => {
+  const row = { ...emptySupplier("ws-1"), valueBasis: "default" as const };
+  assert.ok(precursorSubmissionGaps(row).length > 0);
+  assert.deepEqual(precursorLinkGaps(row), []);
+});
+
+test("legacy precursor links keep their existing submission requirements", () => {
+  const row = emptySupplier("ws-1");
+  assert.deepEqual(precursorLinkGaps(row), precursorSubmissionGaps(row));
+});
 
 /* WHERE the plant is. Row-level checks are happy with a name; a SUBMISSION
    is scoped to a plant a verifier has to be able to reach, so the supplier
@@ -52,8 +65,15 @@ test("a blank purchased precursor is missing everything the row needs", () => {
 });
 
 test("clearing the country field on a purchased precursor is caught", () => {
-  const s = { ...emptySupplier("ws-1", null), name: "Chonburi Foundry", installationName: "Chonburi Works", country: "" };
-  assert.ok(supplierPrecursorGaps(s).some((g) => g.includes("Country of origin")));
+  const s = {
+    ...emptySupplier("ws-1", null),
+    name: "Chonburi Foundry",
+    installationName: "Chonburi Works",
+    country: "",
+  };
+  assert.ok(
+    supplierPrecursorGaps(s).some((g) => g.includes("Country of origin")),
+  );
 });
 
 test("a fully filled purchased precursor has no gaps", () => {
@@ -101,7 +121,11 @@ test("same-installation origin asks for the source process, not an installation 
     monthlyQuantities: [{ month: "2026-01", tonnes: 50 }],
   };
   const gaps = supplierPrecursorGaps(s);
-  assert.deepEqual(gaps, [], "installation identity and reporting period are purchased-only, and this row supplies everything same-installation needs");
+  assert.deepEqual(
+    gaps,
+    [],
+    "installation identity and reporting period are purchased-only, and this row supplies everything same-installation needs",
+  );
 });
 
 test("same-installation origin without a source process is still incomplete", () => {
@@ -114,7 +138,9 @@ test("same-installation origin without a source process is still incomplete", ()
     specificEmbeddedDirectTco2PerT: 0.02,
     monthlyQuantities: [{ month: "2026-01", tonnes: 50 }],
   };
-  assert.ok(supplierPrecursorGaps(s).some((g) => g.includes("production processes")));
+  assert.ok(
+    supplierPrecursorGaps(s).some((g) => g.includes("production processes")),
+  );
 });
 
 test("scrap is excused from the SEE and reporting-period checks, but not from identity or quantity", () => {
@@ -129,8 +155,14 @@ test("scrap is excused from the SEE and reporting-period checks, but not from id
     monthlyQuantities: [{ month: "2026-01", tonnes: 200 }],
   };
   const gaps = supplierPrecursorGaps(s);
-  assert.ok(!gaps.some((g) => g.includes("embedded emissions")), "scrap has no SEE to report");
-  assert.ok(!gaps.some((g) => g.includes("reporting period")), "scrap has no verification period to report");
+  assert.ok(
+    !gaps.some((g) => g.includes("embedded emissions")),
+    "scrap has no SEE to report",
+  );
+  assert.ok(
+    !gaps.some((g) => g.includes("reporting period")),
+    "scrap has no verification period to report",
+  );
   assert.ok(!gaps.some((g) => g.includes("Company name")));
 });
 
@@ -145,7 +177,10 @@ test("an EU-origin purchased precursor is excused from SEE and reporting period 
     monthlyQuantities: [{ month: "2026-01", tonnes: 100 }],
   };
   const gaps = supplierPrecursorGaps(s);
-  assert.ok(!gaps.some((g) => g.includes("embedded emissions")), "EU origin is locked to 0 — nothing to ask for");
+  assert.ok(
+    !gaps.some((g) => g.includes("embedded emissions")),
+    "EU origin is locked to 0 — nothing to ask for",
+  );
   assert.ok(!gaps.some((g) => g.includes("reporting period")));
 });
 

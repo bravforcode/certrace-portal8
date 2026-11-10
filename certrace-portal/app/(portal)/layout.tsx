@@ -10,7 +10,11 @@ import { RequireSession } from "@/components/require-session";
    AccountProvider sits ABOVE the shell, not inside it: the sidebar's plan
    strip reads the trial countdown from it, and the read-only lock has to be
    mounted before any page under it renders. */
-export default function PortalLayout({ children }: { children: React.ReactNode }) {
+export default function PortalLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <RequireSession>
       <AccountProvider>

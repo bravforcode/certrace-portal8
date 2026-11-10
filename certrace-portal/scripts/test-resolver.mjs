@@ -10,7 +10,7 @@
    never by the app, so the running product keeps Next's own resolution. */
 
 import { registerHooks } from "node:module";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
 
@@ -28,7 +28,30 @@ function probe(basePath) {
 }
 
 registerHooks({
+  load(url, context, nextLoad) {
+    // Next imports static JSON as a module; Node's native ESM loader wants an
+    // import attribute that Next's source syntax does not use.
+    if (
+      url.startsWith("file:") &&
+      url.endsWith("/lib/data/eu-precursor-defaults-2026.json")
+    ) {
+      return {
+        format: "module",
+        source: `export default ${readFileSync(fileURLToPath(url), "utf8")}`,
+        shortCircuit: true,
+      };
+    }
+    return nextLoad(url, context);
+  },
   resolve(specifier, context, nextResolve) {
+    // Next's extensionless CommonJS entry points are also used by the reference language provider.
+    if (/^next\/[a-z-]+$/.test(specifier)) {
+      try {
+        return nextResolve(specifier, context);
+      } catch {
+        return nextResolve(`${specifier}.js`, context);
+      }
+    }
     // tsconfig `paths`: "@/*" → project root
     if (specifier.startsWith("@/")) {
       const hit = probe(path.join(ROOT, specifier.slice(2)));
@@ -37,7 +60,9 @@ registerHooks({
 
     // Relative specifier with no extension — the repo's normal style.
     if (specifier.startsWith(".") && !path.extname(specifier)) {
-      const parentPath = context.parentURL?.startsWith("file:") ? fileURLToPath(context.parentURL) : null;
+      const parentPath = context.parentURL?.startsWith("file:")
+        ? fileURLToPath(context.parentURL)
+        : null;
       if (parentPath) {
         const hit = probe(path.resolve(path.dirname(parentPath), specifier));
         if (hit) return { url: pathToFileURL(hit).href, shortCircuit: true };

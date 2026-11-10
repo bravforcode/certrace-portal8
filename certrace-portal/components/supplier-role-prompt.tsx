@@ -19,22 +19,23 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Button, Modal } from "@/components/ui";
 import { InstallationModal } from "@/components/workspace/installation-form";
-import { emptyInstallation, hasOwnInstallation, saveInstallation } from "@/lib/installations";
+import {
+  emptyInstallation,
+  hasOwnInstallation,
+  saveInstallation,
+} from "@/lib/installations";
 import { useT } from "@/lib/i18n";
+import { accountStorage } from "@/lib/account-storage";
 
 const ANSWERED_KEY = "certrace:supplier-role-answered";
 
 export const hasAnsweredSupplierRole = (): boolean => {
   if (typeof window === "undefined") return true;
-  return window.localStorage.getItem(ANSWERED_KEY) === "1" || hasOwnInstallation();
+  return accountStorage.getItem(ANSWERED_KEY) === "1" || hasOwnInstallation();
 };
 
 const markAnswered = () => {
-  try {
-    window.localStorage.setItem(ANSWERED_KEY, "1");
-  } catch {
-    /* ignore quota */
-  }
+  accountStorage.setItem(ANSWERED_KEY, "1");
 };
 
 export function SupplierRolePrompt({
@@ -69,7 +70,9 @@ export function SupplierRolePrompt({
         onClose={no}
         eyebrow={t("Before you invite anyone")}
         title={t("Are you a supplier as well?")}
-        lead={t("Many exporters produce the good themselves. If your own company operates the installation, you do not invite a supplier — the data comes to you.")}
+        lead={t(
+          "Many exporters produce the good themselves. If your own company operates the installation, you do not invite a supplier — the data comes to you.",
+        )}
         width="max-w-lg"
         footer={
           <>
@@ -83,7 +86,9 @@ export function SupplierRolePrompt({
         }
       >
         <p className="text-[13px] leading-relaxed text-black/55">
-          {t("Answering yes registers your own installation and switches you to the supplier side of the portal, where the monthly requests for your own site are waiting. You can still invite third-party suppliers afterwards — most exporters do both.")}
+          {t(
+            "Answering yes registers your own installation and switches you to the supplier side of the portal, where the monthly requests for your own site are waiting. You can still invite third-party suppliers afterwards — most exporters do both.",
+          )}
         </p>
       </Modal>
 
@@ -96,7 +101,9 @@ export function SupplierRolePrompt({
         initial={emptyInstallation(true)}
         allowSelfToggle={false}
         title={t("Register your installation")}
-        lead={t("Your own site is the installation a verifier will scope against. Register it once and every workspace reuses it.")}
+        lead={t(
+          "Your own site is the installation a verifier will scope against. Register it once and every product report reuses it.",
+        )}
         onSaved={(saved) => {
           saveInstallation({ ...saved, self: true });
           setRegistering(false);

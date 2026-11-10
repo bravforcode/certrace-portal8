@@ -39,7 +39,11 @@
 import { downloadFile } from "../download";
 import { countryName } from "../config";
 import { annualEvidence } from "../workspace-evidence";
-import { DATA_ORIGIN_LABEL, totalTonnes, type PrecursorSupplier } from "../precursor-suppliers";
+import {
+  DATA_ORIGIN_LABEL,
+  totalTonnes,
+  type PrecursorSupplier,
+} from "../precursor-suppliers";
 
 const esc = (v: unknown): string =>
   String(v ?? "")
@@ -49,9 +53,15 @@ const esc = (v: unknown): string =>
     .replace(/"/g, "&quot;");
 
 const num = (v: number | null | undefined, dp = 4): string =>
-  v != null && Number.isFinite(v) ? v.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: dp }) : "—";
+  v != null && Number.isFinite(v)
+    ? v.toLocaleString("en-GB", {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: dp,
+      })
+    : "—";
 
-const dash = (v: string | null | undefined): string => (v && String(v).trim() ? esc(v) : "—");
+const dash = (v: string | null | undefined): string =>
+  v && String(v).trim() ? esc(v) : "—";
 
 const STYLE = `
   @page { size: A4; margin: 16mm 14mm; }
@@ -83,7 +93,10 @@ function kv(rows: [string, string][]): string {
   return `<dl class="kv">${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join("")}</dl>`;
 }
 
-const CHECK_LABEL: Record<"accreditationValid" | "sectoralScopeMatch" | "periodCovered" | "fileIntact", string> = {
+const CHECK_LABEL: Record<
+  "accreditationValid" | "sectoralScopeMatch" | "periodCovered" | "fileIntact",
+  string
+> = {
   accreditationValid: "Verifier accreditation valid",
   sectoralScopeMatch: "Sectoral scope matches product category",
   periodCovered: "Reporting period covered by report",
@@ -97,9 +110,13 @@ export type PrecursorNodeExportResult = { html: string; fileName: string };
     plus its workspace id (for the one evidence lookup, the attached
     report's file name), returns html + a suggested file name. Never reads
     ambient state beyond that. */
-export function buildPrecursorNodeExport(node: PrecursorSupplier): PrecursorNodeExportResult {
+export function buildPrecursorNodeExport(
+  node: PrecursorSupplier,
+): PrecursorNodeExportResult {
   const reportFile = node.verificationReportFileId
-    ? annualEvidence(node.workspaceId).find((i) => i.id === node.verificationReportFileId)?.fileName
+    ? annualEvidence(node.workspaceId).find(
+        (i) => i.id === node.verificationReportFileId,
+      )?.fileName
     : undefined;
 
   const monthlyRows = node.monthlyQuantities.filter((q) => q.tonnes > 0);
@@ -129,7 +146,12 @@ export function buildPrecursorNodeExport(node: PrecursorSupplier): PrecursorNode
     ["Installation unique ID", dash(node.installationUniqueId)],
     ["UN/LOCODE", dash(node.unlocode)],
     ["Full address", dash(node.fullAddress)],
-    ["Coordinates", node.latitude != null && node.longitude != null ? `${node.latitude}, ${node.longitude}` : "—"],
+    [
+      "Coordinates",
+      node.latitude != null && node.longitude != null
+        ? `${node.latitude}, ${node.longitude}`
+        : "—",
+    ],
   ])}
 
   <h2>What they supply</h2>
@@ -146,28 +168,56 @@ export function buildPrecursorNodeExport(node: PrecursorSupplier): PrecursorNode
     ["Indirect", `${num(node.specificEmbeddedIndirectTco2PerT)} tCO₂e/t`],
     ["Total", `${num(node.seeTco2ePerT)} tCO₂e/t`],
     ["Data origin", esc(DATA_ORIGIN_LABEL[node.dataOrigin])],
-    ["Reporting period", node.reportingPeriodStart && node.reportingPeriodEnd ? `${node.reportingPeriodStart} to ${node.reportingPeriodEnd}` : "—"],
+    [
+      "Reporting period",
+      node.reportingPeriodStart && node.reportingPeriodEnd
+        ? `${node.reportingPeriodStart} to ${node.reportingPeriodEnd}`
+        : "—",
+    ],
   ])}
 
   <h2>Quantity</h2>
   ${kv([
-    ["Per-tonne ratio override", node.qtyPerTonneOverride != null ? `${num(node.qtyPerTonneOverride)} t/t` : "—"],
-    ["Total consumed (monthly readings)", total > 0 ? `${num(total, 3)} t` : "—"],
+    [
+      "Per-tonne ratio override",
+      node.qtyPerTonneOverride != null
+        ? `${num(node.qtyPerTonneOverride)} t/t`
+        : "—",
+    ],
+    [
+      "Total consumed (monthly readings)",
+      total > 0 ? `${num(total, 3)} t` : "—",
+    ],
   ])}
   ${
     monthlyRows.length > 0
       ? `<table><thead><tr><th>Month</th><th class="n">Tonnes</th></tr></thead><tbody>${monthlyRows
-          .map((q) => `<tr><td>${esc(q.month)}</td><td class="n">${num(q.tonnes, 3)}</td></tr>`)
+          .map(
+            (q) =>
+              `<tr><td>${esc(q.month)}</td><td class="n">${num(q.tonnes, 3)}</td></tr>`,
+          )
           .join("")}</tbody></table>`
       : ""
   }
 
   <h2>Verification evidence</h2>
   ${kv([
-    ["Report attached", reportFile ? esc(reportFile) : node.verificationReportFileId ? "Attached (file name unavailable)" : "—"],
+    [
+      "Report attached",
+      reportFile
+        ? esc(reportFile)
+        : node.verificationReportFileId
+          ? "Attached (file name unavailable)"
+          : "—",
+    ],
     ["Verifier name", dash(node.verifierName)],
     ["Accreditation number", dash(node.verifierAccreditationNumber)],
-    ["Accreditation issuing country", node.verifierAccreditationIssuingCountry ? esc(countryName(node.verifierAccreditationIssuingCountry)) : "—"],
+    [
+      "Accreditation issuing country",
+      node.verifierAccreditationIssuingCountry
+        ? esc(countryName(node.verifierAccreditationIssuingCountry))
+        : "—",
+    ],
     ["Accreditation expiry date", dash(node.verifierAccreditationExpiryDate)],
     ["Report issue date", dash(node.verificationReportIssueDate)],
     ["Report expires", dash(node.verificationReportExpiresAt)],
@@ -179,7 +229,10 @@ export function buildPrecursorNodeExport(node: PrecursorSupplier): PrecursorNode
       ? `<h2>Verification checks — as recorded by Certrace</h2>
     <table><thead><tr><th>Check</th><th>Result</th></tr></thead><tbody>
       ${(Object.keys(CHECK_LABEL) as (keyof typeof CHECK_LABEL)[])
-        .map((k) => `<tr><td>${esc(CHECK_LABEL[k])}</td><td class="${checks[k] ? "pass" : "fail"}">${checks[k] ? "Pass" : "Fail"}</td></tr>`)
+        .map(
+          (k) =>
+            `<tr><td>${esc(CHECK_LABEL[k])}</td><td class="${checks[k] ? "pass" : "fail"}">${checks[k] ? "Pass" : "Fail"}</td></tr>`,
+        )
         .join("")}
     </tbody></table>
     ${checks.failedReasons.length > 0 ? `<div class="note warn">${esc(checks.failedReasons.join(" "))}</div>` : ""}`
@@ -190,7 +243,10 @@ export function buildPrecursorNodeExport(node: PrecursorSupplier): PrecursorNode
 
 </div></body></html>`;
 
-  const slug = (node.name || node.precursorName || "precursor").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const slug = (node.name || node.precursorName || "precursor")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
   return { html, fileName: `${slug}-submitted-data.html` };
 }
 

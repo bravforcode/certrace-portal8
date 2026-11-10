@@ -1,3 +1,4 @@
+import { accountStorage } from "./account-storage";
 /* ════════════════════════════════════════════════════════════
    ANNUAL PRODUCTION — the denominator
 
@@ -44,7 +45,7 @@ type Store = Record<string, ProductionRecord>;
 function load(): Store {
   if (typeof window === "undefined") return {};
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = accountStorage.getItem(KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw) as Store;
     return parsed && typeof parsed === "object" ? parsed : {};
@@ -56,14 +57,15 @@ function load(): Store {
 function save(store: Store): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(store));
+    accountStorage.setItem(KEY, JSON.stringify(store));
   } catch {
     /* ignore quota — a lost denominator must surface as "not entered", never
        as a silent zero that quietly divides by nothing */
   }
 }
 
-export const getProduction = (declarationId: string): ProductionRecord | null => load()[declarationId] ?? null;
+export const getProduction = (declarationId: string): ProductionRecord | null =>
+  load()[declarationId] ?? null;
 
 /** Tonnes, or null when nothing has been entered. Callers must handle null —
     a `?? 0` here would turn "unknown" into "divide by zero". */
@@ -84,8 +86,12 @@ export function setProduction(
     declarationId,
     tonnes,
     provenance,
-    confirmedAt: confirmedAgainstShippedTonnes != null ? Date.now() : (prev?.confirmedAt ?? null),
-    confirmedAgainstShippedTonnes: confirmedAgainstShippedTonnes ?? prev?.confirmedAgainstShippedTonnes,
+    confirmedAt:
+      confirmedAgainstShippedTonnes != null
+        ? Date.now()
+        : (prev?.confirmedAt ?? null),
+    confirmedAgainstShippedTonnes:
+      confirmedAgainstShippedTonnes ?? prev?.confirmedAgainstShippedTonnes,
     updatedAt: Date.now(),
   };
   store[declarationId] = rec;
@@ -119,7 +125,8 @@ export type ProductionDiff = {
     January are ordinary, not an error. Beyond that it needs an explanation. */
 export const SHIPPED_OVER_PRODUCED_TOLERANCE = {
   value: 1.05,
-  source: "ASSUMPTION — opening-stock headroom, agreed with the ESG team; not a regulatory figure",
+  source:
+    "ASSUMPTION — opening-stock headroom, agreed with the ESG team; not a regulatory figure",
 };
 
 /* ════════════════════════════════════════════════════════════
@@ -145,7 +152,9 @@ export const SHIPPED_OVER_PRODUCED_TOLERANCE = {
 
 /** The one entry point for a workspace's annual production. Reads the monthly
     sum; there is deliberately no corresponding setter. */
-export function getAnnualProductionQuantity(workspaceId: string): AnnualProduction | null {
+export function getAnnualProductionQuantity(
+  workspaceId: string,
+): AnnualProduction | null {
   const ws = getWorkspace(workspaceId);
   if (!ws) return null;
   return annualProductionFor(ws);
@@ -166,7 +175,9 @@ export function workspaceProductionTonnes(workspaceId: string): number | null {
  *
  *  Do not delete — other code may still import it. Do not implement — a
  *  writable annual total is exactly the path this build removed. */
-export function setAnnualProductionQuantity(workspaceId: string): AnnualProduction | null {
+export function setAnnualProductionQuantity(
+  workspaceId: string,
+): AnnualProduction | null {
   if (typeof console !== "undefined") {
     console.warn(
       "[certrace] setAnnualProductionQuantity is a no-op. Annual production is the sum of the monthly entries — edit the month, not the total.",
@@ -180,7 +191,10 @@ export function setAnnualProductionQuantity(workspaceId: string): AnnualProducti
     When the declaration draws on a workspace, the derived monthly sum wins
     and the manual field is shown read-only. Otherwise the stored record is
     returned exactly as before, so nothing about the Part 1 flow changes. */
-export function productionTonnesForDeclaration(declarationId: string, workspaceId?: string | null): number | null {
+export function productionTonnesForDeclaration(
+  declarationId: string,
+  workspaceId?: string | null,
+): number | null {
   if (workspaceId) {
     const derived = workspaceProductionTonnes(workspaceId);
     if (derived != null) return derived;
@@ -188,9 +202,18 @@ export function productionTonnesForDeclaration(declarationId: string, workspaceI
   return productionTonnes(declarationId);
 }
 
-export function compareShippedToProduced(producedTonnes: number | null, shippedTonnes: number): ProductionDiff {
+export function compareShippedToProduced(
+  producedTonnes: number | null,
+  shippedTonnes: number,
+): ProductionDiff {
   if (producedTonnes == null || !(producedTonnes > 0)) {
-    return { producedTonnes, shippedTonnes, deltaTonnes: null, ratio: null, overshipped: false };
+    return {
+      producedTonnes,
+      shippedTonnes,
+      deltaTonnes: null,
+      ratio: null,
+      overshipped: false,
+    };
   }
   const ratio = shippedTonnes / producedTonnes;
   return {

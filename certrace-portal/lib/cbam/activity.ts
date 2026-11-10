@@ -61,14 +61,22 @@ export const PROVENANCE_HINT: Record<ProvenanceSource, string> = {
   invoice: "A supplier invoice or utility bill. Give the invoice number.",
   lab: "A laboratory certificate, e.g. a fuel calorific-value analysis.",
   erp: "Your production or energy system. Give the report or export reference.",
-  national_dataset: "A published national factor, e.g. the TGO grid factor. Name the dataset and year.",
-  eu_default: "The EU fallback value. Carries a markup in the definitive period — see the data-gap register.",
-  ASSUMPTION: "An engineering estimate with no document behind it. Allowed, but it is declared as an assumption and a verifier will test it.",
+  national_dataset:
+    "A published national factor, e.g. the TGO grid factor. Name the dataset and year.",
+  eu_default:
+    "The EU fallback value. Carries a markup in the definitive period — see the data-gap register.",
+  ASSUMPTION:
+    "An engineering estimate with no document behind it. Allowed, but it is declared as an assumption and a verifier will test it.",
 };
 
 /** Sources a verifier can trace to a document. Anything outside this set has
     to justify itself in the MMD's assumptions register. */
-export const EVIDENCED_SOURCES = new Set<ProvenanceSource>(["meter", "invoice", "lab", "erp"]);
+export const EVIDENCED_SOURCES = new Set<ProvenanceSource>([
+  "meter",
+  "invoice",
+  "lab",
+  "erp",
+]);
 
 export type Provenance = {
   source: ProvenanceSource;
@@ -88,9 +96,11 @@ export const emptyProvenance = (enteredBy: string): Provenance => ({
   enteredAt: new Date().toISOString(),
 });
 
-export const isAssumption = (p: Provenance | undefined): boolean => p?.source === "ASSUMPTION";
+export const isAssumption = (p: Provenance | undefined): boolean =>
+  p?.source === "ASSUMPTION";
 
-export const hasEvidence = (p: Provenance | undefined): boolean => Boolean(p?.evidenceFileId);
+export const hasEvidence = (p: Provenance | undefined): boolean =>
+  Boolean(p?.evidenceFileId);
 
 /* ── Fuels ──────────────────────────────────────────────────────
    The emission factor is tCO₂ per GJ, always. A quantity in m³/kg/l/t reaches
@@ -170,7 +180,11 @@ export type FuelEntry = {
 /* ── Electricity ────────────────────────────────────────────────
    ABSOLUTE MWh for the period. Per-tonne is derived by the engine, once, by
    dividing by annual production — never stored, never entered. */
-export type ElectricityFactorSource = "grid_national" | "ppa" | "self_generated" | "eu_default";
+export type ElectricityFactorSource =
+  | "grid_national"
+  | "ppa"
+  | "self_generated"
+  | "eu_default";
 
 export const ELECTRICITY_FACTOR_SOURCES: ElectricityFactorSource[] = [
   "grid_national",
@@ -179,12 +193,13 @@ export const ELECTRICITY_FACTOR_SOURCES: ElectricityFactorSource[] = [
   "eu_default",
 ];
 
-export const ELECTRICITY_FACTOR_LABEL: Record<ElectricityFactorSource, string> = {
-  grid_national: "Public grid — country default",
-  ppa: "Power purchase agreement",
-  self_generated: "Self-generated on site",
-  eu_default: "Public grid — country default (EU)",
-};
+export const ELECTRICITY_FACTOR_LABEL: Record<ElectricityFactorSource, string> =
+  {
+    grid_national: "Public grid — country default",
+    ppa: "Power purchase agreement",
+    self_generated: "Self-generated on site",
+    eu_default: "Public grid — country default (EU)",
+  };
 
 /* ── Which sources take the country default ─────────────────────
    Grid supply takes the Commission's country default and nothing else — a
@@ -261,7 +276,11 @@ export const PRODUCTION_NEVER_AUTOFILL_NOTE =
   "Shipped is not produced. Output can be sold domestically, held as stock, or shipped under another declaration — " +
   "so the production quantity is entered from your own production records, not derived from shipments.";
 
-export const emptyDataset = (declarationId: string, period: ReportingPeriod, enteredBy: string): ActivityDataset => ({
+export const emptyDataset = (
+  declarationId: string,
+  period: ReportingPeriod,
+  enteredBy: string,
+): ActivityDataset => ({
   declarationId,
   period,
   annualProductionTonnes: 0,
@@ -284,7 +303,10 @@ export const emptyFuelEntry = (id: string, enteredBy: string): FuelEntry => ({
   provenance: emptyProvenance(enteredBy),
 });
 
-export const emptyElectricityEntry = (id: string, enteredBy: string): ElectricityEntry => ({
+export const emptyElectricityEntry = (
+  id: string,
+  enteredBy: string,
+): ElectricityEntry => ({
   id,
   mwhAbsolute: 0,
   emissionFactor: 0,
@@ -292,7 +314,10 @@ export const emptyElectricityEntry = (id: string, enteredBy: string): Electricit
   provenance: emptyProvenance(enteredBy),
 });
 
-export const emptyProcessEntry = (id: string, enteredBy: string): ProcessEmissionEntry => ({
+export const emptyProcessEntry = (
+  id: string,
+  enteredBy: string,
+): ProcessEmissionEntry => ({
   id,
   material: "",
   massTonnes: 0,
@@ -324,14 +349,34 @@ export function provenanceRefs(d: ActivityDataset): ProvenanceRef[] {
   ];
   for (const f of d.fuels) {
     const name = FUEL_LABEL[f.fuel];
-    out.push({ key: `fuel:${f.id}:quantity`, label: `${name} — quantity`, provenance: f.provenance, critical: true });
-    out.push({ key: `fuel:${f.id}:ef`, label: `${name} — emission factor`, provenance: f.efProvenance, critical: true });
+    out.push({
+      key: `fuel:${f.id}:quantity`,
+      label: `${name} — quantity`,
+      provenance: f.provenance,
+      critical: true,
+    });
+    out.push({
+      key: `fuel:${f.id}:ef`,
+      label: `${name} — emission factor`,
+      provenance: f.efProvenance,
+      critical: true,
+    });
     if (f.ncvProvenance) {
-      out.push({ key: `fuel:${f.id}:ncv`, label: `${name} — net calorific value`, provenance: f.ncvProvenance, critical: true });
+      out.push({
+        key: `fuel:${f.id}:ncv`,
+        label: `${name} — net calorific value`,
+        provenance: f.ncvProvenance,
+        critical: true,
+      });
     }
   }
   for (const e of d.electricity) {
-    out.push({ key: `electricity:${e.id}:mwh`, label: "Electricity — consumption & factor", provenance: e.provenance, critical: true });
+    out.push({
+      key: `electricity:${e.id}:mwh`,
+      label: "Electricity — consumption & factor",
+      provenance: e.provenance,
+      critical: true,
+    });
   }
   for (const p of d.processEmissions) {
     out.push({
@@ -351,4 +396,7 @@ export const assumptionRefs = (d: ActivityDataset): ProvenanceRef[] =>
 
 /** Has the exporter entered anything at all yet? */
 export const datasetIsEmpty = (d: ActivityDataset): boolean =>
-  d.fuels.length === 0 && d.electricity.length === 0 && d.processEmissions.length === 0 && !(d.annualProductionTonnes > 0);
+  d.fuels.length === 0 &&
+  d.electricity.length === 0 &&
+  d.processEmissions.length === 0 &&
+  !(d.annualProductionTonnes > 0);

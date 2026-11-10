@@ -1,3 +1,4 @@
+import { accountStorage } from "./account-storage";
 /* ════════════════════════════════════════════════════════════
    INSTALLATIONS — the producing sites a workspace can be about
 
@@ -42,6 +43,69 @@ import { getOrgIdentity } from "./org";
    `name` is the ENGLISH name, because that is the one the template marks as
    required and the one that reaches the declarant. `nameLocal` is field (i),
    which is optional and is where "บริษัท ไทย ทินเพลท จำกัด" belongs. */
+/* ── The monitoring-plan summary, entered once ─────────────────
+   Annex IV to Implementing Regulation (EU) 2025/2547, items 2–6: what the
+   installation does, as opposed to which goods it made this year. These facts
+   change when the plant changes, not when the year does, so they are asked
+   once here and printed into every year's monitoring plan and operator's
+   emissions report. Free text is English (the report must be in English);
+   each yes/no carries a detail line that is asked only when the answer is yes. */
+export type YesNo = "" | "yes" | "no";
+
+export type InstallationMonitoring = {
+  /** 2(b) non-CBAM production processes carried out at the installation */
+  nonCbamProcesses: string;
+  /** 2(d) the five most important fuels, by energy content */
+  topFuels: string;
+  /** 2(e) the five most important materials leading to process emissions, by emissions */
+  topMaterials: string;
+  /** 2(f) continuous emissions measurement */
+  cems: YesNo;
+  cemsDetail: string;
+  /** 2(g) zero-rated fuels, and how zero-rating is demonstrated */
+  zeroRatedFuels: YesNo;
+  zeroRatedDetail: string;
+  /** 2(h) measurable heat imported from or exported to other installations */
+  heatTrade: YesNo;
+  heatDetail: string;
+  /** 3 electricity consumed from different sources */
+  electricityMixed: YesNo;
+  electricityDetail: string;
+  /** 4 electricity produced inside the installation */
+  onsiteElectricity: YesNo;
+  onsiteElectricityDetail: string;
+  /** 5 waste gases produced and used, imported or exported */
+  wasteGases: YesNo;
+  wasteGasDetail: string;
+  /** 6 CO₂ transferred to other installations or infrastructure */
+  co2Transfer: YesNo;
+  co2TransferDetail: string;
+  /** 1.1.1 electricity from this installation is imported into the EU — the only
+      trigger for the declarant-specific addendum */
+  electricityToEu: YesNo;
+};
+
+export const emptyMonitoring = (): InstallationMonitoring => ({
+  nonCbamProcesses: "",
+  topFuels: "",
+  topMaterials: "",
+  cems: "",
+  cemsDetail: "",
+  zeroRatedFuels: "",
+  zeroRatedDetail: "",
+  heatTrade: "",
+  heatDetail: "",
+  electricityMixed: "",
+  electricityDetail: "",
+  onsiteElectricity: "",
+  onsiteElectricityDetail: "",
+  wasteGases: "",
+  wasteGasDetail: "",
+  co2Transfer: "",
+  co2TransferDetail: "",
+  electricityToEu: "",
+});
+
 export type Installation = {
   /** operator reference — the id a verifier and the buyer both quote. Not a
       template field; it is how Certrace keys the record and groups workspaces. */
@@ -90,6 +154,20 @@ export type Installation = {
       CBAM good in a workspace and nothing else running through the same
       plant. Optional: an empty list is a complete, common answer. */
   otherGoods: { name: string; description?: string }[];
+
+  /* ── The operator, and the installation's identity in the CBAM Registry ──
+     Annex IV items 1(a)–(c) and 1(d). Entered once with the rest of this
+     record and printed on every report made at the site. */
+  /** 1(a) name of the operator — the legal person that runs the installation */
+  operatorName: string;
+  /** 1(b) corporate or activity registration number of the operator */
+  operatorRegistrationNumber: string;
+  /** 1(c) full address of the operator, in English */
+  operatorAddress: string;
+  /** 1(d) unique installation identifier in the CBAM Registry, once issued */
+  registryId: string;
+  /** items 2–6 */
+  monitoring: InstallationMonitoring;
   createdAt: string;
 };
 
@@ -141,14 +219,22 @@ export function referenceTaken(raw: string, excludeId?: string): boolean {
   return read().some((i) => i.id === value && i.id !== exclude);
 }
 
-export function referenceError(raw: string, countryCode?: string, excludeId?: string): string | null {
+export function referenceError(
+  raw: string,
+  countryCode?: string,
+  excludeId?: string,
+): string | null {
   const value = raw.trim();
   if (!value) return "Give this installation a reference.";
-  if (value.length < MIN_REFERENCE_LENGTH) return `At least ${MIN_REFERENCE_LENGTH} characters — “TH-RAYONG-01”, not “TH1”.`;
-  if (value.length > MAX_REFERENCE_LENGTH) return `At most ${MAX_REFERENCE_LENGTH} characters.`;
-  if (value.startsWith("-") || value.endsWith("-")) return "Cannot start or end with a hyphen.";
+  if (value.length < MIN_REFERENCE_LENGTH)
+    return `At least ${MIN_REFERENCE_LENGTH} characters — “TH-RAYONG-01”, not “TH1”.`;
+  if (value.length > MAX_REFERENCE_LENGTH)
+    return `At most ${MAX_REFERENCE_LENGTH} characters.`;
+  if (value.startsWith("-") || value.endsWith("-"))
+    return "Cannot start or end with a hyphen.";
   if (value.includes("--")) return "Use single hyphens.";
-  if (!REFERENCE_RE.test(value)) return "Country code, then a hyphen, then letters and numbers — “TH-RAYONG-01”.";
+  if (!REFERENCE_RE.test(value))
+    return "Country code, then a hyphen, then letters and numbers — “TH-RAYONG-01”.";
   if (countryCode && !value.startsWith(`${countryCode.toUpperCase()}-`))
     return `Start with ${countryCode.toUpperCase()}— the country this installation is in.`;
   if (referenceTaken(value, excludeId))
@@ -157,42 +243,52 @@ export function referenceError(raw: string, countryCode?: string, excludeId?: st
 }
 
 /* ── Required and optional ──────────────────────────────────────
-   The EU template marks field (i) — the local-language name — optional, and
-   leaves the rest to the operator. Certrace is stricter, because a field left
+   The form asks for what Annex IV of 2025/2547 item 1(d) asks for — name,
+   address, UN/LOCODE, coordinates — plus the reference that keys the record.
+   Certrace is stricter than the template about those, because a field left
    blank here becomes a question the verifier asks three months later.
 
+   NOT ASKED ANY MORE: `nameLocal`, `economicActivity`, `contactName`,
+   `contactEmail` and `contactPhone`. None of them is an item of a report in the
+   set, so the form no longer carries them. They stay on the record (and in
+   anything already stored) so nothing is lost; the legacy workbook-shaped
+   documents still print them if they are there. The email in particular is NOT
+   where a supplier's monthly link goes — that is the supplier company's own
+   address (lib/reminder-registration.ts) — so an installation has no use for one.
+
    OPTIONAL, deliberately:
-     · nameLocal        — the template says so
-     · economicActivity — useful context, not an identifier
-     · contactName / contactPhone — a company can nominate its representative
-       later without blocking the site record
      · poBox            — most sites do not have one, and requiring it would
        make the form unfillable for them
 
    Everything else identifies the plant, and a workspace pointing at a site
-   with no city or no coordinates is a workspace a declarant cannot file.
+   with no city or no coordinates is a workspace a declarant cannot file. */
+export type InstallationFieldErrors = Partial<
+  Record<keyof Installation | "coordinates", string>
+>;
 
-   THE EMAIL IS CONDITIONAL, and `requireEmail` is what asks for it. A site
-   registered on its own is a record; a site registered while creating a
-   WORKSPACE is a standing arrangement to ask somebody for data — the monthly
-   link and the chain's own "Send link" both go to this address, and every
-   screen that discovers it is blank discovers it months later, with nowhere
-   to send. So the new-workspace flow turns it on and the flows that only
-   record a site leave it as it was. */
-export type InstallationFieldErrors = Partial<Record<keyof Installation | "coordinates", string>>;
-
-export function installationErrors(i: Installation, excludeId?: string, requireEmail = false): InstallationFieldErrors {
+export function installationErrors(
+  i: Installation,
+  excludeId?: string,
+): InstallationFieldErrors {
   const e: InstallationFieldErrors = {};
   const req = (v: string, msg: string) => (v && v.trim() ? undefined : msg);
 
-  e.name = req(i.name, "The English name of the site. This is the name the declarant and the verifier use.");
+  e.name = req(
+    i.name,
+    "The English name of the site. This is the name the declarant and the verifier use.",
+  );
   e.id = referenceError(i.id, i.country, excludeId) ?? undefined;
-  e.street = req(i.street, "Street and number. A verifier has to be able to find the site.");
+  e.street = req(
+    i.street,
+    "Street and number. A verifier has to be able to find the site.",
+  );
   e.postcode = req(i.postcode, "Post code.");
   e.city = req(i.city, "City.");
   e.country = req(i.country, "Country.");
-  e.unlocode = req(i.unlocode, "UNLOCODE. If the site does not have one, apply through UNECE — see the help beside the field.");
-  if (requireEmail) e.contactEmail = emailError(i.contactEmail) ?? undefined;
+  e.unlocode = req(
+    i.unlocode,
+    "UNLOCODE. If the site does not have one, apply through UNECE — see the help beside the field.",
+  );
   const coord = coordinateError(i.lat, i.lng);
   if (coord) e.coordinates = coord;
   else {
@@ -200,7 +296,8 @@ export function installationErrors(i: Installation, excludeId?: string, requireE
     if (!i.lng.trim()) e.lng = "Longitude of the main emission source.";
   }
 
-  for (const k of Object.keys(e) as (keyof InstallationFieldErrors)[]) if (!e[k]) delete e[k];
+  for (const k of Object.keys(e) as (keyof InstallationFieldErrors)[])
+    if (!e[k]) delete e[k];
   return e;
 }
 
@@ -211,7 +308,8 @@ export function installationErrors(i: Installation, excludeId?: string, requireE
 export function emailError(raw: string): string | null {
   const value = (raw ?? "").trim();
   if (!value) return "An email address — this is where each month's link goes.";
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return "That does not look like an email address.";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))
+    return "That does not look like an email address.";
   return null;
 }
 
@@ -224,8 +322,10 @@ export function coordinateError(lat: string, lng: string): string | null {
   if (!a || !b) return "Give both coordinates, or neither.";
   const nlat = Number(a);
   const nlng = Number(b);
-  if (!Number.isFinite(nlat) || nlat < -90 || nlat > 90) return "Latitude is between −90 and 90.";
-  if (!Number.isFinite(nlng) || nlng < -180 || nlng > 180) return "Longitude is between −180 and 180.";
+  if (!Number.isFinite(nlat) || nlat < -90 || nlat > 90)
+    return "Latitude is between −90 and 90.";
+  if (!Number.isFinite(nlng) || nlng < -180 || nlng > 180)
+    return "Longitude is between −180 and 180.";
   return null;
 }
 
@@ -234,7 +334,9 @@ export function coordinateError(lat: string, lng: string): string | null {
 function read(): Installation[] {
   if (typeof window === "undefined") return [];
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(KEY) ?? "[]") as Partial<Installation>[];
+    const parsed = JSON.parse(
+      accountStorage.getItem(KEY) ?? "[]",
+    ) as Partial<Installation>[];
     return Array.isArray(parsed) ? parsed.map(hydrate) : [];
   } catch {
     return [];
@@ -244,7 +346,7 @@ function read(): Installation[] {
 function write(all: Installation[]): Installation[] {
   if (typeof window === "undefined") return all;
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(all));
+    accountStorage.setItem(KEY, JSON.stringify(all));
   } catch {
     /* ignore quota */
   }
@@ -285,6 +387,11 @@ export function emptyInstallation(self = false): Installation {
     contactEmail: "",
     contactPhone: "",
     otherGoods: [],
+    operatorName: "",
+    operatorRegistrationNumber: "",
+    operatorAddress: "",
+    registryId: "",
+    monitoring: emptyMonitoring(),
     createdAt: new Date().toISOString(),
   };
 }
@@ -292,7 +399,12 @@ export function emptyInstallation(self = false): Installation {
 /** Records written before a field existed load as `undefined` and would render
     an uncontrolled input. Everything that reads a stored installation goes
     through here so a missing field is an empty string, never a crash. */
-export const hydrate = (raw: Partial<Installation>): Installation => ({ ...emptyInstallation(Boolean(raw.self)), ...raw });
+export const hydrate = (raw: Partial<Installation>): Installation => ({
+  ...emptyInstallation(Boolean(raw.self)),
+  ...raw,
+  // Nested, so a record saved before these existed gets every key rather than none.
+  monitoring: { ...emptyMonitoring(), ...(raw.monitoring ?? {}) },
+});
 
 /* ── The record a workspace points at ───────────────────────────
    THE OWNERSHIP COMES FROM THE WORKSPACE, NOT FROM A DEFAULT.
@@ -331,7 +443,9 @@ export type WorkspaceInstallationRef = {
   supplierId?: string;
 };
 
-export function installationForWorkspace(w: WorkspaceInstallationRef): Installation {
+export function installationForWorkspace(
+  w: WorkspaceInstallationRef,
+): Installation {
   const stored = getInstallation(w.installationId);
   if (stored) return stored;
   const self = Boolean(w.selfSupplied);
@@ -348,9 +462,12 @@ export function installationForWorkspace(w: WorkspaceInstallationRef): Installat
 /** Own site first, then alphabetical — the exporter's own plant is the one
     they pick most often, so it is never buried in a list of suppliers. */
 export const listInstallations = (): Installation[] =>
-  read().sort((a, b) => Number(b.self) - Number(a.self) || a.name.localeCompare(b.name));
+  read().sort(
+    (a, b) => Number(b.self) - Number(a.self) || a.name.localeCompare(b.name),
+  );
 
-export const getInstallation = (id: string): Installation | null => read().find((i) => i.id === id) ?? null;
+export const getInstallation = (id: string): Installation | null =>
+  read().find((i) => i.id === id) ?? null;
 
 /** Every site the exporter operates themselves.
 
@@ -360,12 +477,14 @@ export const getInstallation = (id: string): Installation | null => read().find(
     mill in Chonburi could only ever register one of them as theirs. The second
     had to be entered as a third-party supplier, so its months went "out" to a
     supplier who was the exporter themselves, and never landed in their inbox. */
-export const ownInstallations = (): Installation[] => listInstallations().filter((i) => i.self);
+export const ownInstallations = (): Installation[] =>
+  listInstallations().filter((i) => i.self);
 
 /** The exporter's own installation — the FIRST one, kept for the screens that
     genuinely want a single answer ("your registered site" in onboarding). Use
     `ownInstallations()` anywhere the count can be more than one. */
-export const ownInstallation = (): Installation | null => ownInstallations()[0] ?? null;
+export const ownInstallation = (): Installation | null =>
+  ownInstallations()[0] ?? null;
 
 export const hasOwnInstallation = (): boolean => ownInstallation() !== null;
 
@@ -395,29 +514,52 @@ export function removeInstallation(id: string): Installation[] {
 
 /** Everything a workspace needs to name an installation without loading the
     whole record — used by the picker and by the workspace card. */
-export type InstallationOption = { id: string; name: string; self: boolean; supplierId?: string };
+export type InstallationOption = {
+  id: string;
+  name: string;
+  self: boolean;
+  supplierId?: string;
+};
 
 /** The picker's list. Installations already used by a workspace are folded in
     even when they predate this store, so an existing estate is never hidden by
     an upgrade — and the exporter's own site is synthesised from the org
     profile when they have not registered one yet, because "myself" has to be
     offerable before it has been filled in. */
-export function pickerOptions(usedByWorkspaces: InstallationOption[] = []): InstallationOption[] {
+export function pickerOptions(
+  usedByWorkspaces: InstallationOption[] = [],
+): InstallationOption[] {
   const seen = new Map<string, InstallationOption>();
 
   const own = ownInstallations();
   if (own.length > 0) {
-    for (const i of own) seen.set(i.id, { id: i.id, name: i.name, self: true, supplierId: "" });
+    for (const i of own)
+      seen.set(i.id, { id: i.id, name: i.name, self: true, supplierId: "" });
   } else {
     // "Myself" has to be offerable before it has been filled in, so the org
     // profile stands in until a real record exists.
     const org = getOrgIdentity();
-    if (org.installationId) seen.set(org.installationId, { id: org.installationId, name: org.name, self: true, supplierId: "" });
+    if (org.installationId)
+      seen.set(org.installationId, {
+        id: org.installationId,
+        name: org.name,
+        self: true,
+        supplierId: "",
+      });
   }
 
-  for (const i of listInstallations()) if (!seen.has(i.id)) seen.set(i.id, { id: i.id, name: i.name, self: i.self, supplierId: i.supplierId });
+  for (const i of listInstallations())
+    if (!seen.has(i.id))
+      seen.set(i.id, {
+        id: i.id,
+        name: i.name,
+        self: i.self,
+        supplierId: i.supplierId,
+      });
   for (const u of usedByWorkspaces) if (!seen.has(u.id)) seen.set(u.id, u);
-  return [...seen.values()].sort((a, b) => Number(b.self) - Number(a.self) || a.name.localeCompare(b.name));
+  return [...seen.values()].sort(
+    (a, b) => Number(b.self) - Number(a.self) || a.name.localeCompare(b.name),
+  );
 }
 
 /** Which fields a verifier will ask for and this record has not answered.
@@ -434,17 +576,17 @@ export function missingFields(i: Installation | null): string[] {
      saved installation read as permanently missing its reference on every
      screen that calls this. Same fix, same reason, as `existingId` on
      InstallationStep. */
-  if (referenceError(i.id, i.country, i.id)) gaps.push("Installation reference");
+  if (referenceError(i.id, i.country, i.id))
+    gaps.push("Installation reference");
   if (!i.street.trim()) gaps.push("Street, number");
   if (!i.city.trim()) gaps.push("City");
   if (!i.country.trim()) gaps.push("Country");
-  if (!i.economicActivity.trim()) gaps.push("Economic activity");
   // The template asks for both coordinates of the main emission source, and a
   // site a verifier cannot place is a site they will ask about.
-  if (!i.lat.trim() || !i.lng.trim()) gaps.push("Coordinates of the main emission source");
-  if (!i.contactName.trim()) gaps.push("Name of authorised representative");
-  if (!i.contactEmail.trim()) gaps.push("Email");
+  if (!i.lat.trim() || !i.lng.trim())
+    gaps.push("Coordinates of the main emission source");
   return gaps;
 }
 
-export const isInstallationComplete = (i: Installation | null): boolean => missingFields(i).length === 0;
+export const isInstallationComplete = (i: Installation | null): boolean =>
+  missingFields(i).length === 0;

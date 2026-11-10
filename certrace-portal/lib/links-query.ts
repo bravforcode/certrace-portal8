@@ -34,11 +34,13 @@ const LINK_KEY = ["smart-link"] as const;
 const linkKey = (token: string | undefined) => [...LINK_KEY, token] as const;
 
 const SUBMISSIONS_KEY = ["submissions"] as const;
-export const submissionsKey = (declId: string | undefined) => [...SUBMISSIONS_KEY, declId] as const;
+export const submissionsKey = (declId: string | undefined) =>
+  [...SUBMISSIONS_KEY, declId] as const;
 /* Nested under the declaration's key on purpose — one supplier's answers are
    part of that declaration's cache — which is why anything invalidating the
    feed alone has to say `exact`. */
-export const submissionStateKey = (declId: string, token: string | undefined) => [...submissionsKey(declId), token, "state"] as const;
+export const submissionStateKey = (declId: string, token: string | undefined) =>
+  [...submissionsKey(declId), token, "state"] as const;
 
 /** The exporter's "who has answered" feed for one declaration.
 
@@ -66,7 +68,11 @@ export function useSubmissions(declId: string | undefined) {
     submission whose answers aren't in this browser, so the list stays a cheap
     status glance and only the one being read costs a full fetch. Cached per
     token — reopening the same supplier does not refetch. */
-export function useSubmissionState(declId: string, token: string | undefined, enabled: boolean) {
+export function useSubmissionState(
+  declId: string,
+  token: string | undefined,
+  enabled: boolean,
+) {
   return useQuery<SupplierState>({
     queryKey: submissionStateKey(declId, token),
     queryFn: () => getSubmissionState(declId, token ?? ""),
@@ -96,7 +102,9 @@ export function useSmartLink(token: string | undefined) {
 function useSyncLinkState(token: string) {
   const client = useQueryClient();
   return (state: SupplierState) =>
-    client.setQueryData<LinkResolution>(linkKey(token), (old) => (old ? { ...old, state } : old));
+    client.setQueryData<LinkResolution>(linkKey(token), (old) =>
+      old ? { ...old, state } : old,
+    );
 }
 
 /** Autosave the whole state blob, last-write-wins. Retried on transport
@@ -104,6 +112,7 @@ function useSyncLinkState(token: string) {
 export function useSaveLinkState(token: string) {
   const sync = useSyncLinkState(token);
   return useMutation({
+    scope: { id: `smart-link:${token}` },
     mutationFn: (state: SupplierState) => saveLinkState(token, state),
     retry: 3,
     onSuccess: (state) => sync(state),
@@ -125,14 +134,21 @@ export function useSaveLinkState(token: string) {
 export function useRequestRevision(declId: string) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: ({ token, input }: { token: string; input: RevisionInput }) => requestRevision(declId, token, input),
+    mutationFn: ({ token, input }: { token: string; input: RevisionInput }) =>
+      requestRevision(declId, token, input),
     onSuccess: (state, { token }) => {
       // The review pane reads the answers through this key, and the server
       // just returned the authoritative state — seed it rather than refetch.
-      client.setQueryData<SupplierState>(submissionStateKey(declId, token), state);
+      client.setQueryData<SupplierState>(
+        submissionStateKey(declId, token),
+        state,
+      );
       // The status the submissions feed carries is now stale. `exact` because
       // that key is a prefix of the one just seeded.
-      client.invalidateQueries({ queryKey: submissionsKey(declId), exact: true });
+      client.invalidateQueries({
+        queryKey: submissionsKey(declId),
+        exact: true,
+      });
     },
   });
 }
@@ -142,6 +158,8 @@ export function useRequestRevision(declId: string) {
 export function useSubmitLink(token: string) {
   const sync = useSyncLinkState(token);
   return useMutation({
+    scope: { id: `smart-link:${token}` },
+    meta: { silent: true },
     mutationFn: (input: SubmitInput) => submitLink(token, input),
     retry: 3,
     onSuccess: (state) => sync(state),

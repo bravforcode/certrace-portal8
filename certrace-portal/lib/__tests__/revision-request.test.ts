@@ -12,7 +12,7 @@
      while the supplier's link stayed submitted and read-only.
 
      THE EXPORTER'S HALF — their record of the decision: lifecycle, comment,
-     which items they picked. Nothing in docs/API-CONTRACT.md carries it, so it
+     which items they picked. The backend API does not carry it, so it
      is local in BOTH modes.
 
    So recordRevisionDecision must write the second and never the first, and
@@ -44,7 +44,8 @@ const storage = new MemoryStorage();
 g.window = { localStorage: storage };
 g.localStorage = storage;
 
-const { requestRevision, recordRevisionDecision, loadExporterState } = await import("../exporter-review");
+const { requestRevision, recordRevisionDecision, loadExporterState } =
+  await import("../exporter-review");
 const { makeToken } = await import("../supplier");
 const { loadState } = await import("../supplier-store");
 
@@ -53,7 +54,8 @@ const SUPPLIER = "s2";
 const PAYLOAD = {
   fields: ["direct_emissions", "electricity_consumed"],
   docs: ["mill_test_certificate"],
-  comment: "Direct emissions look high for an EAF route — please confirm actual vs default.",
+  comment:
+    "Direct emissions look high for an EAF route — please confirm actual vs default.",
 };
 
 const supplierKey = `certrace:supplier:${makeToken(DECL, SUPPLIER)}`;
@@ -100,10 +102,16 @@ test("the exporter's decision survives being recorded twice — a retried send i
   storage.clear();
 
   recordRevisionDecision(DECL, SUPPLIER, 2, PAYLOAD);
-  const second = recordRevisionDecision(DECL, SUPPLIER, 2, { ...PAYLOAD, fields: ["direct_emissions"] });
+  const second = recordRevisionDecision(DECL, SUPPLIER, 2, {
+    ...PAYLOAD,
+    fields: ["direct_emissions"],
+  });
 
   const review = second.reviews[SUPPLIER];
   assert.deepEqual(review?.unlockedFields, ["direct_emissions"]);
   assert.equal(Object.keys(second.reviews).length, 1);
-  assert.equal(loadExporterState(DECL).reviews[SUPPLIER]?.unlockedFields.length, 1);
+  assert.equal(
+    loadExporterState(DECL).reviews[SUPPLIER]?.unlockedFields.length,
+    1,
+  );
 });

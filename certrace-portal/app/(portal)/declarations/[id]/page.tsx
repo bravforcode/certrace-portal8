@@ -33,7 +33,11 @@ import { useT } from "@/lib/i18n";
 
 type View = "reports" | "workflow";
 
-export default function DeclarationDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default function DeclarationDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const t = useT();
   const { id } = React.use(params);
   const router = useRouter();
@@ -49,7 +53,10 @@ export default function DeclarationDetailPage({ params }: { params: Promise<{ id
 
   return (
     <div className="space-y-5">
-      <nav className="flex gap-1 border-b border-black/[0.06] pb-px" aria-label={t("Declaration view")}>
+      <nav
+        className="flex gap-1 border-b border-black/[0.06] pb-px"
+        aria-label={t("Declaration view")}
+      >
         {(
           [
             ["reports", "Reports"],
@@ -62,7 +69,9 @@ export default function DeclarationDetailPage({ params }: { params: Promise<{ id
             onClick={() => setView(key)}
             className={cn(
               "rounded-t-xl border-b-2 px-3 py-2.5 text-[13px] transition-colors",
-              view === key ? "border-[#111] text-black" : "border-transparent text-black/45 hover:text-black/75",
+              view === key
+                ? "border-[#111] text-black"
+                : "border-transparent text-black/45 hover:text-black/75",
             )}
           >
             {label}
@@ -71,7 +80,10 @@ export default function DeclarationDetailPage({ params }: { params: Promise<{ id
       </nav>
 
       {view === "reports" ? (
-        <DeclarationHierarchy declaration={declaration} onOpenFullWorkflow={() => setView("workflow")} />
+        <DeclarationHierarchy
+          declaration={declaration}
+          onOpenFullWorkflow={() => setView("workflow")}
+        />
       ) : (
         <DeclarationWorkflow declaration={declaration} />
       )}

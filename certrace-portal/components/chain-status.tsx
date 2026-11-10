@@ -25,21 +25,54 @@
 import * as React from "react";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/components/ui";
-import { CHAIN_STAGES, STAGE_HINT, STAGE_LABEL, chainScore, chainStage, stageIndex, type ChainStage } from "@/lib/chain-progress";
+import {
+  CHAIN_STAGES,
+  STAGE_HINT,
+  STAGE_LABEL,
+  chainScore,
+  chainStage,
+  stageIndex,
+  type ChainStage,
+} from "@/lib/chain-progress";
 import type { TreeNode } from "@/types/supplier-tree";
 
 /* Same four colours the seven-state pill already uses for the equivalent
    states (components/tree-node-card.tsx's STATUS_STYLE) — amber for waiting,
    blue for underway, green for done — so collapsing seven into four never
    changes what a colour means. */
-const STAGE_STYLE: Record<ChainStage, { chip: string; fill: string; empty: string }> = {
-  not_started: { chip: "border-black/[0.08] bg-black/[0.02] text-black/45", fill: "bg-black/25", empty: "bg-black/[0.08]" },
-  tracking: { chip: "border-[rgba(161,98,7,0.18)] bg-[#fefce8] text-[#a16207]", fill: "bg-[#a16207]", empty: "bg-[rgba(161,98,7,0.16)]" },
-  in_progress: { chip: "border-[rgba(29,78,216,0.18)] bg-[#eff6ff] text-[#1d4ed8]", fill: "bg-[#1d4ed8]", empty: "bg-[rgba(29,78,216,0.16)]" },
-  buyer_ready: { chip: "border-[rgba(5,150,105,0.18)] bg-[#ecfdf5] text-[#047857]", fill: "bg-[#047857]", empty: "bg-[rgba(5,150,105,0.16)]" },
+const STAGE_STYLE: Record<
+  ChainStage,
+  { chip: string; fill: string; empty: string }
+> = {
+  not_started: {
+    chip: "border-black/[0.08] bg-black/[0.02] text-black/45",
+    fill: "bg-black/25",
+    empty: "bg-black/[0.08]",
+  },
+  tracking: {
+    chip: "border-[rgba(161,98,7,0.18)] bg-[#fefce8] text-[#a16207]",
+    fill: "bg-[#a16207]",
+    empty: "bg-[rgba(161,98,7,0.16)]",
+  },
+  in_progress: {
+    chip: "border-[rgba(29,78,216,0.18)] bg-[#eff6ff] text-[#1d4ed8]",
+    fill: "bg-[#1d4ed8]",
+    empty: "bg-[rgba(29,78,216,0.16)]",
+  },
+  buyer_ready: {
+    chip: "border-[rgba(5,150,105,0.18)] bg-[#ecfdf5] text-[#047857]",
+    fill: "bg-[#047857]",
+    empty: "bg-[rgba(5,150,105,0.16)]",
+  },
 };
 
-export function StageMeter({ node, className }: { node: TreeNode; className?: string }) {
+export function StageMeter({
+  node,
+  className,
+}: {
+  node: TreeNode;
+  className?: string;
+}) {
   const t = useT();
   const stage = chainStage(node);
   const step = stageIndex(stage);
@@ -47,7 +80,11 @@ export function StageMeter({ node, className }: { node: TreeNode; className?: st
 
   return (
     <span
-      className={cn("inline-flex flex-none items-center gap-2 whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.08em]", style.chip, className)}
+      className={cn(
+        "inline-flex flex-none items-center gap-2 whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.08em]",
+        style.chip,
+        className,
+      )}
       title={`Step ${step} of ${CHAIN_STAGES.length} — ${t(STAGE_HINT[stage])}`}
       /* One control, one announcement: without this a screen reader reads
          four unlabelled bars and then the words, as five separate things. */
@@ -56,7 +93,13 @@ export function StageMeter({ node, className }: { node: TreeNode; className?: st
     >
       <span aria-hidden className="flex items-center gap-[2px]">
         {CHAIN_STAGES.map((_, i) => (
-          <span key={i} className={cn("h-[3px] w-[7px] rounded-full transition-colors", i < step ? style.fill : style.empty)} />
+          <span
+            key={i}
+            className={cn(
+              "h-[3px] w-[7px] rounded-full transition-colors",
+              i < step ? style.fill : style.empty,
+            )}
+          />
         ))}
       </span>
       {t(STAGE_LABEL[stage])}
@@ -69,7 +112,13 @@ export function StageMeter({ node, className }: { node: TreeNode; className?: st
     a permanently expandable checklist on every row of a forty-row chain is
     forty things to open before the reader finds the one that matters. The
     number is what scans; the detail is what you open. */
-export function ScoreChip({ node, className }: { node: TreeNode; className?: string }) {
+export function ScoreChip({
+  node,
+  className,
+}: {
+  node: TreeNode;
+  className?: string;
+}) {
   const score = chainScore(node);
   if (!score) return null;
 
@@ -82,11 +131,17 @@ export function ScoreChip({ node, className }: { node: TreeNode; className?: str
 
   return (
     <span
-      className={cn("inline-flex flex-none items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.08em]", tone, className)}
+      className={cn(
+        "inline-flex flex-none items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.08em]",
+        tone,
+        className,
+      )}
       title={score.title}
     >
       {score.label}
-      <span className="font-mono text-[10.5px] tabular-nums">{score.value}</span>
+      <span className="font-mono text-[10.5px] tabular-nums">
+        {score.value}
+      </span>
     </span>
   );
 }

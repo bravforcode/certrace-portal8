@@ -37,33 +37,113 @@ export type DefaultValue = {
    Individual products map onto these via their catalogue group. */
 const BY_GROUP: Record<string, DefaultValue> = {
   // ── Iron & steel ──
-  "Primary inputs": { seeTotal: 1.9, seeDirect: 1.75, source: "Sintered ore / pig iron / DRI & ferro-alloy category defaults" },
-  "Semi-finished": { seeTotal: 2.1, seeDirect: 1.95, source: "Crude steel (ingots, billets, slabs) category default" },
-  "Flat products": { seeTotal: 2.2, seeDirect: 2.0, source: "Hot/cold-rolled and coated flat-product category default" },
-  "Long products": { seeTotal: 1.95, seeDirect: 1.8, source: "Bars, rods, sections category default" },
-  "Stainless & alloy": { seeTotal: 2.6, seeDirect: 2.35, source: "Stainless & other alloy steel category default" },
-  "Tubes & pipes": { seeTotal: 2.5, seeDirect: 2.25, source: "Seamless & welded tube category default" },
-  Articles: { seeTotal: 2.4, seeDirect: 2.15, source: "Downstream articles of iron or steel category default" },
+  "Primary inputs": {
+    seeTotal: 1.9,
+    seeDirect: 1.75,
+    source: "Sintered ore / pig iron / DRI & ferro-alloy category defaults",
+  },
+  "Semi-finished": {
+    seeTotal: 2.1,
+    seeDirect: 1.95,
+    source: "Crude steel (ingots, billets, slabs) category default",
+  },
+  "Flat products": {
+    seeTotal: 2.2,
+    seeDirect: 2.0,
+    source: "Hot/cold-rolled and coated flat-product category default",
+  },
+  "Long products": {
+    seeTotal: 1.95,
+    seeDirect: 1.8,
+    source: "Bars, rods, sections category default",
+  },
+  "Stainless & alloy": {
+    seeTotal: 2.6,
+    seeDirect: 2.35,
+    source: "Stainless & other alloy steel category default",
+  },
+  "Tubes & pipes": {
+    seeTotal: 2.5,
+    seeDirect: 2.25,
+    source: "Seamless & welded tube category default",
+  },
+  Articles: {
+    seeTotal: 2.4,
+    seeDirect: 2.15,
+    source: "Downstream articles of iron or steel category default",
+  },
   // ── Aluminium ──
-  Unwrought: { seeTotal: 8.6, seeDirect: 1.9, source: "Primary (electrolysis-route) unwrought aluminium category default" },
-  "Wrought products": { seeTotal: 9.4, seeDirect: 2.2, source: "Wrought aluminium (bars, sheet, foil, tube) category default" },
+  Unwrought: {
+    seeTotal: 8.6,
+    seeDirect: 1.9,
+    source: "Primary (electrolysis-route) unwrought aluminium category default",
+  },
+  "Wrought products": {
+    seeTotal: 9.4,
+    seeDirect: 2.2,
+    source: "Wrought aluminium (bars, sheet, foil, tube) category default",
+  },
 };
 
 /* Where a specific good is materially different from its group — a galvanised
    sheet carries the coating line's emissions on top of the substrate; scrap-fed
    EAF routes sit well below the flat-product average. */
 const BY_PRODUCT: Record<string, DefaultValue> = {
-  ironore: { seeTotal: 0.2, seeDirect: 0.18, source: "Sintered / pelletised iron ore category default" },
-  pigiron: { seeTotal: 1.9, seeDirect: 1.8, source: "Pig iron, non-alloy category default" },
-  dri: { seeTotal: 1.45, seeDirect: 1.3, source: "Direct reduced iron (DRI / HBI) category default" },
-  femn: { seeTotal: 2.4, seeDirect: 2.1, source: "Ferro-manganese category default" },
-  fecr: { seeTotal: 3.1, seeDirect: 2.7, source: "Ferro-chromium category default" },
-  feni: { seeTotal: 3.8, seeDirect: 3.3, source: "Ferro-nickel category default" },
-  galv: { seeTotal: 2.4, seeDirect: 2.15, source: "Hot-dip galvanised sheet category default" },
-  prepaint: { seeTotal: 2.5, seeDirect: 2.2, source: "Pre-painted / colour-coated sheet category default" },
-  tinplate: { seeTotal: 2.45, seeDirect: 2.15, source: "Tinplate category default" },
-  "al-unwrought": { seeTotal: 8.6, seeDirect: 1.9, source: "Unwrought aluminium, not alloyed — category default" },
-  "al-foil": { seeTotal: 10.2, seeDirect: 2.4, source: "Aluminium foil category default" },
+  ironore: {
+    seeTotal: 0.2,
+    seeDirect: 0.18,
+    source: "Sintered / pelletised iron ore category default",
+  },
+  pigiron: {
+    seeTotal: 1.9,
+    seeDirect: 1.8,
+    source: "Pig iron, non-alloy category default",
+  },
+  dri: {
+    seeTotal: 1.45,
+    seeDirect: 1.3,
+    source: "Direct reduced iron (DRI / HBI) category default",
+  },
+  femn: {
+    seeTotal: 2.4,
+    seeDirect: 2.1,
+    source: "Ferro-manganese category default",
+  },
+  fecr: {
+    seeTotal: 3.1,
+    seeDirect: 2.7,
+    source: "Ferro-chromium category default",
+  },
+  feni: {
+    seeTotal: 3.8,
+    seeDirect: 3.3,
+    source: "Ferro-nickel category default",
+  },
+  galv: {
+    seeTotal: 2.4,
+    seeDirect: 2.15,
+    source: "Hot-dip galvanised sheet category default",
+  },
+  prepaint: {
+    seeTotal: 2.5,
+    seeDirect: 2.2,
+    source: "Pre-painted / colour-coated sheet category default",
+  },
+  tinplate: {
+    seeTotal: 2.45,
+    seeDirect: 2.15,
+    source: "Tinplate category default",
+  },
+  "al-unwrought": {
+    seeTotal: 8.6,
+    seeDirect: 1.9,
+    source: "Unwrought aluminium, not alloyed — category default",
+  },
+  "al-foil": {
+    seeTotal: 10.2,
+    seeDirect: 2.4,
+    source: "Aluminium foil category default",
+  },
 };
 
 /** The EU fallback default for one good, or null when we hold no reference. */
@@ -95,7 +175,11 @@ export type Benchmark = {
     `basis` picks which half of the comparison matters: "total" is the honest
     environmental read; "direct" is the one that moves the certificate bill for
     Annex II goods. */
-export function benchmark(product: CatalogProduct, reported: number, basis: "total" | "direct" = "total"): Benchmark | null {
+export function benchmark(
+  product: CatalogProduct,
+  reported: number,
+  basis: "total" | "direct" = "total",
+): Benchmark | null {
   const dv = defaultValueFor(product);
   if (!dv) return null;
   const fallback = basis === "direct" ? dv.seeDirect : dv.seeTotal;
@@ -104,11 +188,15 @@ export function benchmark(product: CatalogProduct, reported: number, basis: "tot
   const deltaPct = (delta / fallback) * 100;
   // Inside ±2% of the fallback there is nothing to claim either way — measurement
   // noise, not performance.
-  const verdict: BenchmarkVerdict = Math.abs(deltaPct) < 2 ? "level" : delta < 0 ? "better" : "worse";
+  const verdict: BenchmarkVerdict =
+    Math.abs(deltaPct) < 2 ? "level" : delta < 0 ? "better" : "worse";
   return { verdict, reported, fallback, delta, deltaPct, source: dv.source };
 }
 
-export const BENCHMARK_META: Record<BenchmarkVerdict, { label: string; tone: "ok" | "warn" | "err" | "muted" }> = {
+export const BENCHMARK_META: Record<
+  BenchmarkVerdict,
+  { label: string; tone: "ok" | "warn" | "err" | "muted" }
+> = {
   better: { label: "below the EU default", tone: "ok" },
   level: { label: "at the EU default", tone: "muted" },
   worse: { label: "above the EU default", tone: "warn" },

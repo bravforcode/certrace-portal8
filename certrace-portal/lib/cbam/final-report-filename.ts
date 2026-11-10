@@ -1,3 +1,4 @@
+import { accountStorage } from "../account-storage";
 /* ════════════════════════════════════════════════════════════
    THE DOWNLOAD FILENAME
 
@@ -32,7 +33,7 @@ type Store = Record<string, ReportVersion>;
 function read(): Store {
   if (typeof window === "undefined") return {};
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = accountStorage.getItem(KEY);
     const parsed = raw ? (JSON.parse(raw) as Store) : {};
     return parsed && typeof parsed === "object" ? parsed : {};
   } catch {
@@ -43,14 +44,15 @@ function read(): Store {
 function write(store: Store): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(store));
+    accountStorage.setItem(KEY, JSON.stringify(store));
   } catch {
     /* Quota. The version is a label on a file that has already been built —
        losing it costs a version number, never the download itself. */
   }
 }
 
-export const getReportVersion = (workspaceId: string): ReportVersion | null => read()[workspaceId] ?? null;
+export const getReportVersion = (workspaceId: string): ReportVersion | null =>
+  read()[workspaceId] ?? null;
 
 /** The version this download should carry, recorded as it is handed out.
 
@@ -61,7 +63,12 @@ export const getReportVersion = (workspaceId: string): ReportVersion | null => r
     sign-off gate computes, so "changed" means exactly what it means there. */
 export function nextVersion(workspaceId: string, fingerprint: string): string {
   const previous = read()[workspaceId] ?? null;
-  const minor = previous == null ? 0 : previous.fingerprint === fingerprint ? previous.minor : previous.minor + 1;
+  const minor =
+    previous == null
+      ? 0
+      : previous.fingerprint === fingerprint
+        ? previous.minor
+        : previous.minor + 1;
   const store = read();
   store[workspaceId] = { minor, fingerprint, at: new Date().toISOString() };
   write(store);
@@ -73,7 +80,10 @@ export function nextVersion(workspaceId: string, fingerprint: string): string {
     returns an empty string — an unnamed segment would silently produce
     `MMD__Rebar_2026_v1.0.pdf`, which reads as a missing field rather than as
     a name nobody entered. */
-export function fileSegment(raw: string | null | undefined, fallback: string): string {
+export function fileSegment(
+  raw: string | null | undefined,
+  fallback: string,
+): string {
   const cleaned = String(raw ?? "")
     .trim()
     .replace(/[\s/\\]+/g, "-")

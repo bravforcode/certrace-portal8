@@ -1,3 +1,4 @@
+import { accountStorage } from "../account-storage";
 /* ════════════════════════════════════════════════════════════
    THE ELECTRICITY UNIT MIGRATION (gap G1)
 
@@ -36,7 +37,8 @@ export const ELEC_UNIT_FIELD = "elec-consumed-unit";
     `quantity`, which is only what THIS exporter bought. */
 export const OUTPUT_FIELD = "production-output";
 
-export const elecUnitKey = (productId?: string) => valueKey(ELEC_UNIT_FIELD, productId);
+export const elecUnitKey = (productId?: string) =>
+  valueKey(ELEC_UNIT_FIELD, productId);
 
 const num = (raw: string | undefined): number | null => {
   if (!raw || !raw.trim()) return null;
@@ -70,12 +72,22 @@ export function readElectricity(
 ): ElectricityReading {
   const raw = num(values[valueKey("elec-consumed", productId)]);
   const tag = values[elecUnitKey(productId)];
-  const unit: ElectricityUnit = tag === "MWh_absolute" ? "MWh_absolute" : "MWh_per_tonne";
+  const unit: ElectricityUnit =
+    tag === "MWh_absolute" ? "MWh_absolute" : "MWh_per_tonne";
   const legacy = tag !== "MWh_absolute" && tag !== "MWh_per_tonne";
-  const outputTonnes = num(values[valueKey(OUTPUT_FIELD, productId)]) ?? outputOverride ?? null;
+  const outputTonnes =
+    num(values[valueKey(OUTPUT_FIELD, productId)]) ?? outputOverride ?? null;
 
   if (raw == null) {
-    return { raw: null, unit, legacy, outputTonnes, mwhAbsolute: null, perTonne: null, blockedOnOutput: false };
+    return {
+      raw: null,
+      unit,
+      legacy,
+      outputTonnes,
+      mwhAbsolute: null,
+      perTonne: null,
+      blockedOnOutput: false,
+    };
   }
 
   if (unit === "MWh_absolute") {
@@ -92,7 +104,15 @@ export function readElectricity(
 
   // Legacy per-tonne. Convert UP to absolute exactly once; never divide.
   if (!(outputTonnes && outputTonnes > 0)) {
-    return { raw, unit, legacy, outputTonnes, mwhAbsolute: null, perTonne: raw, blockedOnOutput: true };
+    return {
+      raw,
+      unit,
+      legacy,
+      outputTonnes,
+      mwhAbsolute: null,
+      perTonne: raw,
+      blockedOnOutput: true,
+    };
   }
   return {
     raw,
@@ -107,7 +127,9 @@ export function readElectricity(
 
 /** The patch to merge into a value map when the electricity figure is written.
     One place, so a value can never be saved without its unit. */
-export const stampElectricityUnit = (productId?: string): Record<string, string> => ({
+export const stampElectricityUnit = (
+  productId?: string,
+): Record<string, string> => ({
   [elecUnitKey(productId)]: "MWh_absolute",
 });
 
@@ -161,7 +183,8 @@ export function planElectricityMigration(
       beforeMWhPerTonne: reading.raw,
       outputTonnes: reading.outputTonnes,
       afterMWhAbsolute: reading.mwhAbsolute,
-      indirectPerTonne: factor != null && factor > 0 ? reading.raw * factor : null,
+      indirectPerTonne:
+        factor != null && factor > 0 ? reading.raw * factor : null,
       blockedOnOutput: reading.blockedOnOutput,
     });
   }
@@ -174,7 +197,7 @@ const ACK_KEY = "certrace:elec-migration-ack";
 export function migrationAcknowledged(declId: string): boolean {
   if (typeof window === "undefined") return true;
   try {
-    const raw = window.localStorage.getItem(ACK_KEY);
+    const raw = accountStorage.getItem(ACK_KEY);
     return raw ? (JSON.parse(raw) as string[]).includes(declId) : false;
   } catch {
     return false;
@@ -184,9 +207,10 @@ export function migrationAcknowledged(declId: string): boolean {
 export function acknowledgeMigration(declId: string): void {
   if (typeof window === "undefined") return;
   try {
-    const raw = window.localStorage.getItem(ACK_KEY);
+    const raw = accountStorage.getItem(ACK_KEY);
     const list = raw ? (JSON.parse(raw) as string[]) : [];
-    if (!list.includes(declId)) window.localStorage.setItem(ACK_KEY, JSON.stringify([...list, declId]));
+    if (!list.includes(declId))
+      accountStorage.setItem(ACK_KEY, JSON.stringify([...list, declId]));
   } catch {
     /* ignore */
   }

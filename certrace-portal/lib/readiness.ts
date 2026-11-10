@@ -41,19 +41,58 @@
    ════════════════════════════════════════════════════════════ */
 
 import { carbonPriceState, getCarbonPrice } from "./carbon-price";
-import { annualCoverage, annualScopeFor, CARBON_PRICE_KEY, coverageForMonth, isReviewed } from "./workspace-evidence";
-import { monthCounts, monthsForWorkspace, monthsMissingNcv, type MonthlyEntry } from "./monthly-data";
-import { precursorContribution } from "./precursor-suppliers";
-import { estimatedGapTCO2e, finalVersionCovering, loadDraft } from "./workspace-mmd";
-import { workspaceSEE } from "./workspace-see";
-import { getWorkspace, isComplexWorkspace, monthNameLong, type VerificationWorkspace } from "./workspace";
+import {
+  annualCoverage,
+  annualScopeFor,
+  CARBON_PRICE_KEY,
+  coverageForMonth,
+  isReviewed,
+} from "./workspace-evidence";
+import {
+  monthCounts,
+  monthsForWorkspace,
+  monthsMissingNcv,
+  type MonthlyEntry,
+} from "./monthly-data";
+import { listSuppliers, precursorContribution } from "./precursor-suppliers";
+import {
+  estimatedGapTCO2e,
+  finalVersionCovering,
+  loadDraft,
+} from "./workspace-mmd";
+import { workspaceSEE, internalContribution } from "./workspace-see";
+import {
+  getWorkspace,
+  isComplexWorkspace,
+  monthNameLong,
+  type VerificationWorkspace,
+} from "./workspace";
 import { workspaceRequiresIndirectEmissions } from "./cbam/product-category-rules";
 
-export type TabState = "complete" | "incomplete" | "blocked" | "not_applicable" | "not_started" | "pending";
+export type TabState =
+  | "complete"
+  | "incomplete"
+  | "blocked"
+  | "not_applicable"
+  | "not_started"
+  | "pending";
 
-export type ReadinessTab = "mmd" | "monthly" | "precursors" | "evidence" | "carbon_price" | "materiality";
+export type ReadinessTab =
+  | "mmd"
+  | "monthly"
+  | "precursors"
+  | "evidence"
+  | "carbon_price"
+  | "materiality";
 
-export const READINESS_TABS: ReadinessTab[] = ["mmd", "monthly", "precursors", "evidence", "carbon_price", "materiality"];
+export const READINESS_TABS: ReadinessTab[] = [
+  "mmd",
+  "monthly",
+  "precursors",
+  "evidence",
+  "carbon_price",
+  "materiality",
+];
 
 export const TAB_LABEL: Record<ReadinessTab, string> = {
   mmd: "MMD",
@@ -93,7 +132,8 @@ export type WorkspaceReadiness = {
 /** The materiality self-check threshold, carried forward from Part 1. */
 export const MATERIALITY_THRESHOLD = {
   value: 0.05,
-  source: "Build spec §4 — readiness is complete only when the materiality self-check is ≤ 5%",
+  source:
+    "Build spec §4 — readiness is complete only when the materiality self-check is ≤ 5%",
 };
 
 const link = (id: string, path = "") => `/workspaces/${id}${path}`;
@@ -109,14 +149,21 @@ function mmdReadiness(ws: VerificationWorkspace): TabReadiness {
   if (final) return { tab: "mmd", state: "complete", missing: [] };
 
   const draft = loadDraft(ws.id, ws.periodStart, ws.periodEnd);
-  const hasDraft = Boolean(draft.boundaryDescription.trim() || draft.fuelInstruments.length > 0);
+  const hasDraft = Boolean(
+    draft.boundaryDescription.trim() || draft.fuelInstruments.length > 0,
+  );
   return {
     tab: "mmd",
     state: "blocked",
     blockingReason: hasDraft
       ? "The MMD is still a draft. A draft methodology does not satisfy the readiness gate — finalise it to stamp the version a verifier will work from."
       : "No final MMD exists for this period. A verifier cannot start without an approved monitoring methodology.",
-    missing: [{ label: hasDraft ? "Finalise the MMD" : "Write and finalise the MMD", deepLink: link(ws.id, "/mmd") }],
+    missing: [
+      {
+        label: hasDraft ? "Finalise the MMD" : "Write and finalise the MMD",
+        deepLink: link(ws.id, "/mmd"),
+      },
+    ],
   };
 }
 
@@ -127,7 +174,9 @@ function mmdReadiness(ws: VerificationWorkspace): TabReadiness {
    that cannot be performed, and the annual figure would be wrong rather than
    incomplete. */
 const monthHasSubstance = (m: MonthlyEntry): boolean =>
-  m.productionTonnes > 0 && m.electricityMwh > 0 && m.fuels.length > 0;
+  // A month in which nothing was made is complete as it stands: the plant stood idle, so there is no production, power or fuel to be missing.
+  Boolean(m.notManufactured) ||
+  (m.productionTonnes > 0 && m.electricityMwh > 0 && m.fuels.length > 0);
 
 function monthlyReadiness(ws: VerificationWorkspace): TabReadiness {
   const missingNcv = monthsMissingNcv(ws);
@@ -136,7 +185,10 @@ function monthlyReadiness(ws: VerificationWorkspace): TabReadiness {
       tab: "monthly",
       state: "blocked",
       blockingReason: `${missingNcv.length === 1 ? "One month has" : `${missingNcv.length} months have`} a fuel quantity with no net calorific value. An emission factor in tCO₂/GJ cannot be applied to a volume without one, so those months cannot be converted to energy at all.`,
-      missing: missingNcv.map((m) => ({ label: `${monthNameLong(m)} — fuel is missing its NCV`, deepLink: link(ws.id, `/monthly/${m}`) })),
+      missing: missingNcv.map((m) => ({
+        label: `${monthNameLong(m)} — fuel is missing its NCV`,
+        deepLink: link(ws.id, `/monthly/${m}`),
+      })),
     };
   }
 
@@ -144,7 +196,10 @@ function monthlyReadiness(ws: VerificationWorkspace): TabReadiness {
   const missing: MissingItem[] = [];
   for (const m of months) {
     if (!monthCounts(m)) {
-      missing.push({ label: `${monthNameLong(m.month)} not submitted`, deepLink: link(ws.id, `/monthly/${m.month}`) });
+      missing.push({
+        label: `${monthNameLong(m.month)} not submitted`,
+        deepLink: link(ws.id, `/monthly/${m.month}`),
+      });
       continue;
     }
     if (!monthHasSubstance(m)) {
@@ -152,11 +207,18 @@ function monthlyReadiness(ws: VerificationWorkspace): TabReadiness {
       if (!(m.productionTonnes > 0)) gaps.push("production");
       if (!(m.electricityMwh > 0)) gaps.push("electricity");
       if (m.fuels.length === 0) gaps.push("fuel");
-      missing.push({ label: `${monthNameLong(m.month)} — no ${gaps.join(", ")}`, deepLink: link(ws.id, `/monthly/${m.month}`) });
+      missing.push({
+        label: `${monthNameLong(m.month)} — no ${gaps.join(", ")}`,
+        deepLink: link(ws.id, `/monthly/${m.month}`),
+      });
     }
   }
 
-  return { tab: "monthly", state: missing.length === 0 ? "complete" : "incomplete", missing };
+  return {
+    tab: "monthly",
+    state: missing.length === 0 ? "complete" : "incomplete",
+    missing,
+  };
 }
 
 /* ── Precursors ─────────────────────────────────────────────────
@@ -164,7 +226,8 @@ function monthlyReadiness(ws: VerificationWorkspace): TabReadiness {
    CBAM scope, and showing it permanently amber would teach the exporter to
    ignore amber. */
 function precursorReadiness(ws: VerificationWorkspace): TabReadiness {
-  if (!isComplexWorkspace(ws)) return { tab: "precursors", state: "not_applicable", missing: [] };
+  if (!isComplexWorkspace(ws))
+    return { tab: "precursors", state: "not_applicable", missing: [] };
 
   const result = precursorContribution(ws);
 
@@ -173,36 +236,54 @@ function precursorReadiness(ws: VerificationWorkspace): TabReadiness {
       tab: "precursors",
       state: "blocked",
       blockingReason: result.error.message,
-      missing: [{ label: "Fix the precursor chain", deepLink: link(ws.id, "/precursors") }],
+      missing: [
+        {
+          label: "Fix the precursor chain",
+          deepLink: link(ws.id, "/precursors"),
+        },
+      ],
     };
   }
 
-  if (result.overDefaultCap) {
-    return {
-      tab: "precursors",
-      state: "blocked",
-      blockingReason: `${(result.defaultValueShare * 100).toFixed(1)}% of the precursor contribution rests on default values, over the 20% cap for a complex good. Get an actual figure from the supplier behind the largest default-value tier, or the filing rests on values the EU marks up.`,
-      missing: result.byNode
-        .filter((n) => n.dataOrigin === "default_value" && !n.isScrap)
-        .map((n) => ({ label: `${n.name || n.precursorName || "Unnamed supplier"} — using a default value`, deepLink: link(ws.id, "/precursors") })),
-    };
-  }
-
-  if (result.byNode.length === 0) {
+  // Products this site makes itself are precursors too (items 18 and 19) — a good built only from those has a chain.
+  const madeHere = internalContribution(ws).rows;
+  if (result.byNode.length === 0 && madeHere.length === 0) {
     return {
       tab: "precursors",
       state: "incomplete",
-      missing: [{ label: "No precursor suppliers recorded for a complex good", deepLink: link(ws.id, "/precursors") }],
+      missing: [
+        {
+          label: "No precursor suppliers recorded for a complex good",
+          deepLink: link(ws.id, "/precursors"),
+        },
+      ],
     };
   }
+  const madeHereOpen = madeHere
+    .filter((r) => r.issue)
+    .map((r) => ({
+      label: `${r.source?.productName ?? "A product made here"} — ${r.issue}`,
+      deepLink: link(ws.id, "/precursors"),
+    }));
 
   return {
     tab: "precursors",
-    state: result.incomplete.length === 0 ? "complete" : "incomplete",
-    missing: result.incomplete.map((n) => ({
-      label: `${n.name || n.precursorName || "Unnamed supplier"} — missing quantity, installation or SEE`,
-      deepLink: link(ws.id, "/precursors"),
-    })),
+    state:
+      result.incomplete.length === 0 && madeHereOpen.length === 0
+        ? "complete"
+        : "incomplete",
+    missing: [...madeHereOpen, ...result.incomplete].map((n) => {
+      if ("deepLink" in n) return n;
+      const row = listSuppliers(ws.id).find((r) => r.id === n.id);
+      const who = n.precursorName || n.name || "Unnamed precursor";
+      const label =
+        row?.valueBasis === "actual"
+          ? `${who} — actual value chosen, not yet usable (the default stands in until the precursor's verified data is complete)`
+          : row?.valueBasis === "default"
+            ? `${who} — missing its CN code or the quantity used`
+            : `${who} — missing quantity, installation or SEE`;
+      return { label, deepLink: link(ws.id, "/precursors") };
+    }),
   };
 }
 
@@ -229,7 +310,12 @@ function evidenceReadiness(ws: VerificationWorkspace): TabReadiness {
     return {
       tab: "evidence",
       state: "not_started",
-      missing: [{ label: "No months submitted yet — there is nothing to evidence", deepLink: link(ws.id, "/monthly") }],
+      missing: [
+        {
+          label: "No months submitted yet — there is nothing to evidence",
+          deepLink: link(ws.id, "/monthly"),
+        },
+      ],
     };
   }
 
@@ -251,17 +337,32 @@ function evidenceReadiness(ws: VerificationWorkspace): TabReadiness {
   }
 
   const price = getCarbonPrice(ws.id);
-  for (const row of annualCoverage(ws.id, annualScopeFor(ws.id, ws.periodStart, ws.periodEnd, price.amountPerTonne > 0))) {
+  for (const row of annualCoverage(
+    ws.id,
+    annualScopeFor(
+      ws.id,
+      ws.periodStart,
+      ws.periodEnd,
+      price.amountPerTonne > 0,
+    ),
+  )) {
     if (row.covered) continue;
-    // The carbon-price receipt is claimed on Readiness; the other two annual
+    // The carbon-price receipt is claimed on the product's Carbon price tab; the other two annual
     // keys are asserted by the MMD, so that is where each one is fixed.
-    const target = row.key === CARBON_PRICE_KEY.key ? "/readiness#carbon-price" : "/mmd";
-    missing.push({ label: `${row.label}: no document`, deepLink: link(ws.id, target) });
+    const target = row.key === CARBON_PRICE_KEY.key ? "/carbon-price" : "/mmd";
+    missing.push({
+      label: `${row.label}: no document`,
+      deepLink: link(ws.id, target),
+    });
   }
 
   // Evidence is never "blocked": a missing document is a gap to fill, not
   // arithmetic that cannot be performed.
-  return { tab: "evidence", state: missing.length === 0 ? "complete" : "incomplete", missing };
+  return {
+    tab: "evidence",
+    state: missing.length === 0 ? "complete" : "incomplete",
+    missing,
+  };
 }
 
 /* ── Carbon price ───────────────────────────────────────────────
@@ -271,9 +372,15 @@ function carbonPriceReadiness(ws: VerificationWorkspace): TabReadiness {
   const record = getCarbonPrice(ws.id);
   // The receipt is attached on the Evidence tab against the `carbon-price`
   // key, so that is where the answer to "is it evidenced?" has to come from.
-  const receipt = annualCoverage(ws.id, annualScopeFor(ws.id, ws.periodStart, ws.periodEnd, record.amountPerTonne > 0)).find(
-    (r) => r.key === CARBON_PRICE_KEY.key,
-  );
+  const receipt = annualCoverage(
+    ws.id,
+    annualScopeFor(
+      ws.id,
+      ws.periodStart,
+      ws.periodEnd,
+      record.amountPerTonne > 0,
+    ),
+  ).find((r) => r.key === CARBON_PRICE_KEY.key);
   const state = carbonPriceState(record, Boolean(receipt?.covered));
 
   if (state.blocked) {
@@ -281,14 +388,24 @@ function carbonPriceReadiness(ws: VerificationWorkspace): TabReadiness {
       tab: "carbon_price",
       state: "blocked",
       blockingReason: state.reason ?? undefined,
-      missing: [{ label: "Attach the carbon price payment receipt", deepLink: link(ws.id, "/evidence#annual") }],
+      missing: [
+        {
+          label: "Attach the carbon price payment receipt",
+          deepLink: link(ws.id, "/evidence#annual"),
+        },
+      ],
     };
   }
   if (!state.complete) {
     return {
       tab: "carbon_price",
       state: "incomplete",
-      missing: [{ label: state.reason ?? "Carbon price not recorded", deepLink: link(ws.id, "/readiness#carbon-price") }],
+      missing: [
+        {
+          label: state.reason ?? "Carbon price not recorded",
+          deepLink: link(ws.id, "/carbon-price"),
+        },
+      ],
     };
   }
   return { tab: "carbon_price", state: "complete", missing: [] };
@@ -307,12 +424,18 @@ export type MaterialityResult = {
 
 export function materiality(ws: VerificationWorkspace): MaterialityResult {
   const see = workspaceSEE(ws);
-  const total = see.directTCO2 + see.indirectTCO2;
+  // Indirect emissions are part of the figure only for goods outside Annex II; for steel and aluminium the 5 % is read against the direct emissions.
+  const total = see.directTCO2 + (see.indirectCounted ? see.indirectTCO2 : 0);
   const draft = loadDraft(ws.id, ws.periodStart, ws.periodEnd);
   const final = finalVersionCovering(ws.id, ws.periodStart, ws.periodEnd);
   const estimated = estimatedGapTCO2e(final ? final.content : draft);
   const share = total > 0 ? estimated / total : 0;
-  return { estimatedTCO2e: estimated, totalTCO2e: total, share, overThreshold: share > MATERIALITY_THRESHOLD.value };
+  return {
+    estimatedTCO2e: estimated,
+    totalTCO2e: total,
+    share,
+    overThreshold: share > MATERIALITY_THRESHOLD.value,
+  };
 }
 
 function materialityReadiness(ws: VerificationWorkspace): TabReadiness {
@@ -326,7 +449,12 @@ function materialityReadiness(ws: VerificationWorkspace): TabReadiness {
     return {
       tab: "materiality",
       state: "not_started",
-      missing: [{ label: "Nothing recorded yet to assess materiality against", deepLink: link(ws.id, "/monthly") }],
+      missing: [
+        {
+          label: "Nothing recorded yet to assess materiality against",
+          deepLink: link(ws.id, "/monthly"),
+        },
+      ],
     };
   }
 
@@ -335,7 +463,12 @@ function materialityReadiness(ws: VerificationWorkspace): TabReadiness {
       tab: "materiality",
       state: "blocked",
       blockingReason: `${(m.share * 100).toFixed(1)}% of this year's emissions are estimated rather than measured, over the 5% self-check. Past that point the estimate is the number — close the largest data gaps with primary data before engaging a verifier, or brief them on it in advance rather than letting them find it.`,
-      missing: [{ label: "Reduce the estimated share in the MMD's data-gap register", deepLink: link(ws.id, "/mmd#gaps") }],
+      missing: [
+        {
+          label: "Reduce the estimated share in the MMD's data-gap register",
+          deepLink: link(ws.id, "/mmd#gaps"),
+        },
+      ],
     };
   }
   return { tab: "materiality", state: "complete", missing: [] };
@@ -344,7 +477,9 @@ function materialityReadiness(ws: VerificationWorkspace): TabReadiness {
 /* ── The whole picture ──────────────────────────────────────────
    overall = blocked if any tab is blocked; else incomplete if any applicable
    tab is incomplete; else complete. */
-export function workspaceReadiness(workspace: VerificationWorkspace): WorkspaceReadiness {
+export function workspaceReadiness(
+  workspace: VerificationWorkspace,
+): WorkspaceReadiness {
   const tabs: TabReadiness[] = [
     mmdReadiness(workspace),
     monthlyReadiness(workspace),
@@ -366,25 +501,38 @@ export function workspaceReadiness(workspace: VerificationWorkspace): WorkspaceR
       : "complete";
 
   const completeCount = applicable.filter((t) => t.state === "complete").length;
-  const percentComplete = applicable.length > 0 ? Math.round((completeCount / applicable.length) * 100) : 0;
+  const percentComplete =
+    applicable.length > 0
+      ? Math.round((completeCount / applicable.length) * 100)
+      : 0;
 
   return { tabs, overall, percentComplete };
 }
 
 /** The seven-dot strip on the dashboard card, in tab order. */
-export const dotStates = (r: WorkspaceReadiness): TabState[] => READINESS_TABS.map((t) => r.tabs.find((x) => x.tab === t)?.state ?? "incomplete");
+export const dotStates = (r: WorkspaceReadiness): TabState[] =>
+  READINESS_TABS.map(
+    (t) => r.tabs.find((x) => x.tab === t)?.state ?? "incomplete",
+  );
 
 /** Everything not yet done, flattened — the Overview's "what's missing" list. */
-export const allMissing = (r: WorkspaceReadiness): { tab: ReadinessTab; item: MissingItem }[] =>
+export const allMissing = (
+  r: WorkspaceReadiness,
+): { tab: ReadinessTab; item: MissingItem }[] =>
   r.tabs.flatMap((t) => t.missing.map((item) => ({ tab: t.tab, item })));
 
 /* ── Evidence-acceptance detail ─────────────────────────────────
    Exposed so the Evidence tab can show the same "awaiting review" figure the
    readiness rules read, rather than computing a second, subtly different one. */
-export function unreviewedEvidenceCount(workspaceId: string, entries: MonthlyEntry[]): number {
+export function unreviewedEvidenceCount(
+  workspaceId: string,
+  entries: MonthlyEntry[],
+): number {
   let n = 0;
   const ws = getWorkspace(workspaceId);
-  const requiresIndirect = ws ? workspaceRequiresIndirectEmissions(ws.productId) : false;
+  const requiresIndirect = ws
+    ? workspaceRequiresIndirectEmissions(ws.productId)
+    : false;
   for (const m of entries) {
     for (const row of coverageForMonth(workspaceId, m, requiresIndirect).rows) {
       n += row.items.filter((i) => !isReviewed(i)).length;

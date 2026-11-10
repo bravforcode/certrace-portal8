@@ -7,7 +7,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 const { configureApi } = await import("../api/config");
-const { warmBackend, resetWarmBackend, WARM_INTERVAL_MS } = await import("../api/warm");
+const { warmBackend, resetWarmBackend, WARM_INTERVAL_MS } = await import(
+  "../api/warm"
+);
 
 type Captured = { url: string; init: RequestInit };
 

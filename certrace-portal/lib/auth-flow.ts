@@ -12,7 +12,13 @@
    nobody notices until a customer reads it.
    ════════════════════════════════════════════════════════════ */
 
-import { hasCode, isAccountSuspended, isApiError, type AuthUser } from "@/lib/api";
+import { pendingInvitation } from "./company-session";
+import {
+  hasCode,
+  isAccountSuspended,
+  isApiError,
+  type AuthUser,
+} from "@/lib/api";
 
 /* Enough to catch "somebody@" and "somebody@company" — the two shapes that
    look finished in the box and bounce every email we send. The real check is
@@ -29,8 +35,10 @@ export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
    arrives here (AUTH_NOT_CONFIGURED, see app/routers/auth.py), which is the
    case that makes the distinction worth keeping: nothing the reader owns can
    fix it, and "try again in a moment" is the only true thing to say. */
-const UNREACHABLE = "We couldn't reach the server. Check your connection and try again.";
-const SERVER_TROUBLE = "The server is having trouble. Please try again in a moment.";
+const UNREACHABLE =
+  "We couldn't reach the server. Check your connection and try again.";
+const SERVER_TROUBLE =
+  "The server is having trouble. Please try again in a moment.";
 
 function transportFailure(cause: unknown): string | null {
   if (hasCode(cause, "NETWORK", "TIMEOUT")) return UNREACHABLE;
@@ -46,14 +54,17 @@ function transportFailure(cause: unknown): string | null {
  * who is a customer, and this sentence has to keep that promise.
  */
 export function signInError(cause: unknown): string {
-  if (hasCode(cause, "INVALID_CREDENTIALS")) return "Email or password is incorrect.";
+  if (hasCode(cause, "INVALID_CREDENTIALS"))
+    return "Email or password is incorrect.";
   /* The one failure whose sentence the SERVER owns. A suspension (Terms
      §20.4) is refused after the password is checked, so the person reading
      this typed it correctly — telling them to check it would send them round
      a loop that cannot end. The server's message names where to take it up,
      and it is the only thing on this screen that can help. */
   if (isAccountSuspended(cause) && isApiError(cause)) return cause.message;
-  return transportFailure(cause) ?? "We couldn't sign you in. Please try again.";
+  return (
+    transportFailure(cause) ?? "We couldn't sign you in. Please try again."
+  );
 }
 
 /** A failed signup, and which field — if any — the message belongs under. */
@@ -67,20 +78,32 @@ export type SignUpFailure = { message: string; field: "email" | null };
  * instead — which is the thing the sentence has to tell them.
  */
 export function signUpError(cause: unknown): SignUpFailure {
+  if (hasCode(cause, "LEGAL_VERSION_CHANGED")) {
+    return {
+      message:
+        "The Terms of Service or Privacy Policy changed. Review them and agree again.",
+      field: null,
+    };
+  }
   if (hasCode(cause, "EMAIL_TAKEN")) {
-    return { message: "An account already exists for that email. Sign in instead.", field: "email" };
+    return {
+      message: "An account already exists for that email. Sign in instead.",
+      field: "email",
+    };
   }
   const transport = transportFailure(cause);
   if (transport) return { message: transport, field: null };
-  return { message: "We couldn't create your account. Please try again.", field: null };
+  return {
+    message: "We couldn't create your account. Please try again.",
+    field: null,
+  };
 }
 
 /* ── What a brand-new account starts with: nothing ──────────────
    The profile store ships preloaded with the demo organisation so the rest of
    the portal has something to render. Signing up has to wipe that back to
-   empty, or /onboarding opens with a stranger's company, name, job title,
-   sector and phone number already filled in — answers nobody gave, which are
-   accepted precisely because they are never read. */
+   empty, or the new account starts with a stranger's company, name, job
+   title, sector and phone number already filled in. */
 export const BLANK_SIGNUP = {
   firstName: "",
   lastName: "",
@@ -89,20 +112,23 @@ export const BLANK_SIGNUP = {
   jobTitle: "",
   phone: "",
   lineId: "",
+  goalAchieve: [] as string[],
+  currentManagement: [] as string[],
+  biggestChallenge: [] as string[],
+  cbamProductCount: "",
+  supplierCount: "",
+  installationCount: "",
+  customerCount: "",
+  hearAbout: "",
   onboarded: false,
 } as const;
 
-/* ── Where signing in lands ─────────────────────────────────────
-   /onboarding/setup is the SIGN-IN flow: it confirms what the account already
-   told us and opens the dashboard. It is the right destination for every
-   account that finished signing up, which is what `onboarded` records.
-
-   The exception is the account that never did. A signup writes `onboarded =
-   false` and the server keeps it that way until the wizard finishes, so
-   somebody who closed the tab halfway through comes back to the flow they
-   abandoned rather than to a "confirm your details" screen that has nothing
-   to confirm. This is the flag lib/api/auth.ts describes; the server is the
-   one place it survives a cleared browser. */
-export function signInDestination(user: Pick<AuthUser, "onboarded">): string {
-  return user.onboarded ? "/onboarding/setup" : "/onboarding";
+/* Registration owns the questionnaire. Returning users enter the workspace
+   if approved, or see their account status while approval is pending. */
+export function signInDestination(
+  user: Pick<AuthUser, "onboarded" | "ready">,
+): string {
+  if (pendingInvitation()) return "/join";
+  if (!user.ready) return "/pending";
+  return "/dashboard";
 }

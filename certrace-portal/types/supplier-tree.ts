@@ -16,7 +16,12 @@ export type TreeNodeKind = "installation" | "precursor";
     workspace readiness down to the five states the tree actually renders a
     pill for — "blocked" covers both a failed verification check and a
     workspace with a blocked readiness tab. */
-export type TrackingStatus = "not_sent" | "invited" | "in_progress" | "ready" | "blocked";
+export type TrackingStatus =
+  | "not_sent"
+  | "invited"
+  | "in_progress"
+  | "ready"
+  | "blocked";
 
 /** The Foundation Pack's node-status vocabulary — computed live by
     computeNodeStatus() (lib/supplier-tree.ts), never stored. `BLOCKED`
@@ -37,7 +42,10 @@ export type NodeStatus =
     lib/precursor-suppliers.ts's qtyPerTonneOverride and monthlyQuantities.
     Never defaulted to 1:1: null means the ratio genuinely isn't on file yet,
     not that it's assumed equal. */
-export type PrecursorRatio = { precursorMassConsumed: number; outputMassProduced: number };
+export type PrecursorRatio = {
+  precursorMassConsumed: number;
+  outputMassProduced: number;
+};
 
 export interface TreeNode {
   /** stable id of the underlying record — a synthetic `installation:<id>`

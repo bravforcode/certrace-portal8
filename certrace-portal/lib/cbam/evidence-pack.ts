@@ -52,7 +52,11 @@ import {
   type EvidenceItem,
   type EvidenceSourceType,
 } from "../workspace-evidence";
-import { monthName, workspaceTitle, type VerificationWorkspace } from "../workspace";
+import {
+  monthName,
+  workspaceTitle,
+  type VerificationWorkspace,
+} from "../workspace";
 
 const esc = (v: unknown): string =>
   String(v ?? "")
@@ -186,7 +190,8 @@ const isEmbeddableImage = (e: EvidenceItem): boolean =>
 
 /** The document TYPE the centre counter counts within. Source type is the
     right grain: a verifier samples "the fuel invoices", not "the uploads". */
-const typeLabel = (t: EvidenceSourceType): string => EVIDENCE_SOURCE_LABEL[t] ?? String(t);
+const typeLabel = (t: EvidenceSourceType): string =>
+  EVIDENCE_SOURCE_LABEL[t] ?? String(t);
 
 /** What this document is, for the centre of the bar — the type plus the month
     it belongs to, because "Utility invoice" alone does not identify one of
@@ -206,7 +211,9 @@ function documentTitle(e: EvidenceItem): string {
    twelve they are looking at; it just does not partition the count. */
 const seriesKey = (e: EvidenceItem): string => String(e.sourceType);
 
-export function buildEvidencePackSection(ws: VerificationWorkspace): EvidencePackSection {
+export function buildEvidencePackSection(
+  ws: VerificationWorkspace,
+): EvidencePackSection {
   /* Ordered by the five formal categories first (§5/§6.3 of the restructure
      pack — Production & Process Records, Laboratory Analysis & Third-Party
      Verification, Supplier-Submitted Documentation, Organisational &
@@ -223,7 +230,9 @@ export function buildEvidencePackSection(ws: VerificationWorkspace): EvidencePac
     const scopeA = annualIds.has(a.id) ? 0 : 1;
     const scopeB = annualIds.has(b.id) ? 0 : 1;
     if (scopeA !== scopeB) return scopeA - scopeB;
-    const typeCompare = typeLabel(a.sourceType).localeCompare(typeLabel(b.sourceType));
+    const typeCompare = typeLabel(a.sourceType).localeCompare(
+      typeLabel(b.sourceType),
+    );
     if (typeCompare !== 0) return typeCompare;
     return (a.month ?? "").localeCompare(b.month ?? "");
   });
@@ -253,7 +262,11 @@ export function buildEvidencePackSection(ws: VerificationWorkspace): EvidencePac
 
   /* ── Page 1 · contents ──────────────────────────────────── */
   const byType = [...totalOfType.entries()]
-    .map(([key, count]) => ({ key, count, label: typeLabel(ordered.find((e) => seriesKey(e) === key)!.sourceType) }))
+    .map(([key, count]) => ({
+      key,
+      count,
+      label: typeLabel(ordered.find((e) => seriesKey(e) === key)!.sourceType),
+    }))
     .sort((a, b) => a.label.localeCompare(b.label));
   pages.push(`
 <section class="page">
@@ -307,7 +320,9 @@ export function buildEvidencePackSection(ws: VerificationWorkspace): EvidencePac
              <tbody>
              ${referred
                .map(
-                 (e) => `<tr><td>${esc(e.fileName)}</td><td>${esc(typeLabel(e.sourceType))}</td>
+                 (
+                   e,
+                 ) => `<tr><td>${esc(e.fileName)}</td><td>${esc(typeLabel(e.sourceType))}</td>
                    <td>${e.month ? esc(monthName(e.month)) : "Annual"}</td></tr>`,
                )
                .join("")}
@@ -381,7 +396,9 @@ export function buildEvidencePackSection(ws: VerificationWorkspace): EvidencePac
   };
 }
 
-export function buildEvidencePack(ws: VerificationWorkspace): EvidencePackResult {
+export function buildEvidencePack(
+  ws: VerificationWorkspace,
+): EvidencePackResult {
   const section = buildEvidencePackSection(ws);
   const title = `CBAM evidence pack — ${workspaceTitle(ws)}`;
   const html = `<!doctype html>
@@ -393,10 +410,18 @@ export function buildEvidencePack(ws: VerificationWorkspace): EvidencePackResult
 ${section.bodyHtml}
 </body></html>`;
 
-  return { html, fileName: `cbam-evidence-pack-${section.fileNameSlug}.html`, embedded: section.embedded, referred: section.referred, totalPages: section.totalPages };
+  return {
+    html,
+    fileName: `cbam-evidence-pack-${section.fileNameSlug}.html`,
+    embedded: section.embedded,
+    referred: section.referred,
+    totalPages: section.totalPages,
+  };
 }
 
-export function downloadEvidencePack(ws: VerificationWorkspace): EvidencePackResult {
+export function downloadEvidencePack(
+  ws: VerificationWorkspace,
+): EvidencePackResult {
   const pack = buildEvidencePack(ws);
   downloadFile(pack.fileName, pack.html, "text/html");
   return pack;

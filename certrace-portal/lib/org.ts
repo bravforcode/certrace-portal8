@@ -1,16 +1,16 @@
+import { accountStorage } from "./account-storage";
 /* ════════════════════════════════════════════════════════════
    ORGANISATION IDENTITY — single source of truth for "who is the exporter".
 
-   Settings → Organisation writes a live overlay to localStorage
+   Settings → Organisation writes the account profile to PostgreSQL
    (`certrace:profile`, see lib/profile.tsx). Every OUTPUT surface — the
    supplier Smart Link, the Registry XML <Operator>, the PDF package and the
    dispatch screens — must read the SAME identity, or the platform emits
    documents in the wrong legal name (the exact failure the 2026-07-13
    compliance test caught: renamed org never reached the outputs).
 
-   Isomorphic: on the server (or before hydration) it falls back to the ORG
-   fixture, so nothing breaks during SSR; client-side readers get the live
-   legal name the moment localStorage is available.
+   Before hydration it returns empty fields rather than a sample company's
+   legal identity. Client readers see the saved profile after account load.
    ════════════════════════════════════════════════════════════ */
 
 import { ORG, USER } from "./data";
@@ -37,16 +37,19 @@ export function getOrgIdentity(): OrgIdentity {
   };
   if (typeof window === "undefined") return base;
   try {
-    const saved = JSON.parse(window.localStorage.getItem(PROFILE_KEY) ?? "null");
+    const saved = JSON.parse(accountStorage.getItem(PROFILE_KEY) ?? "null");
     if (!saved) return base;
     const first = (saved.firstName ?? "").trim();
     const last = (saved.lastName ?? "").trim();
     return {
       ...base,
       name: (saved.companyName ?? "").trim() || base.name,
-      installationId: (saved.installationId ?? "").trim() || base.installationId,
+      installationId:
+        (saved.installationId ?? "").trim() || base.installationId,
       origin: saved.jurisdiction || base.origin,
-      contact: first ? `${first}${last ? ` ${last.charAt(0)}.` : ""}` : base.contact,
+      contact: first
+        ? `${first}${last ? ` ${last.charAt(0)}.` : ""}`
+        : base.contact,
       role: (saved.jobTitle ?? "").trim() || base.role,
     };
   } catch {

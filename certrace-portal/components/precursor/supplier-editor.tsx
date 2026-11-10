@@ -13,11 +13,28 @@
 
 import * as React from "react";
 import { Link2Off, TriangleAlert } from "lucide-react";
-import { AutoSaveBadge, EnglishWhyTip, Field, NumberInput, TagBadge, inputClass, useAutoSave, cn } from "@/components/ui";
+import {
+  AutoSaveBadge,
+  EnglishWhyTip,
+  Field,
+  NumberInput,
+  TagBadge,
+  inputClass,
+  useAutoSave,
+  cn,
+} from "@/components/ui";
 import { DatePicker, Select } from "@/components/controls";
 import { fmt } from "@/components/workspace/chrome";
 import { annualEvidence } from "@/lib/workspace-evidence";
-import { aggregatedGoodsCategory, COUNTRIES, PRODUCT_CATALOG, countryName, getCatalogProduct, isEuOrExempt, productType } from "@/lib/config";
+import {
+  aggregatedGoodsCategory,
+  COUNTRIES,
+  PRODUCT_CATALOG,
+  countryName,
+  getCatalogProduct,
+  isEuOrExempt,
+  productType,
+} from "@/lib/config";
 import { coordinateError } from "@/lib/installations";
 import { defaultValueForId } from "@/lib/default-values";
 import {
@@ -44,8 +61,16 @@ import { useT } from "@/lib/i18n";
 
 /* Two views onto one catalogue. Selecting from either fills both, which is
    what makes the pair impossible to contradict. */
-const PRODUCT_OPTIONS = PRODUCT_CATALOG.map((p) => ({ value: p.id, label: p.name, hint: `CN ${p.cnCode} · ${p.group}` }));
-const CN_OPTIONS = PRODUCT_CATALOG.map((p) => ({ value: p.id, label: p.cnCode, hint: p.name }));
+const PRODUCT_OPTIONS = PRODUCT_CATALOG.map((p) => ({
+  value: p.id,
+  label: p.name,
+  hint: `CN ${p.cnCode} · ${p.group}`,
+}));
+const CN_OPTIONS = PRODUCT_CATALOG.map((p) => ({
+  value: p.id,
+  label: p.cnCode,
+  hint: p.name,
+}));
 
 /* Local draft, autosaved. The caller is told to rebuild only when something
    that changes the SHAPE of the chain changes — not on every character. */
@@ -87,9 +112,15 @@ export function SupplierEditor({
      has something to check against without the editor needing its own file
      input. */
   React.useEffect(() => {
-    const items = annualEvidence(node.workspaceId).filter((i) => i.fieldKeys.includes(`precursor:${node.id}`));
+    const items = annualEvidence(node.workspaceId).filter((i) =>
+      i.fieldKeys.includes(`precursor:${node.id}`),
+    );
     const latest = items[0]?.id; // annualEvidence is already newest-first
-    setDraft((d) => (d.verificationReportFileId === latest ? d : { ...d, verificationReportFileId: latest }));
+    setDraft((d) =>
+      d.verificationReportFileId === latest
+        ? d
+        : { ...d, verificationReportFileId: latest },
+    );
   }, [node.workspaceId, node.id, node.dataOrigin, evidenceVersion]);
 
   const autosave = useAutoSave(draft, (d) => {
@@ -106,9 +137,11 @@ export function SupplierEditor({
       ...d,
       smartLinkToken: current?.smartLinkToken ?? d.smartLinkToken,
       smartLinkSentAt: current?.smartLinkSentAt ?? d.smartLinkSentAt,
-      smartLinkLastSentAt: current?.smartLinkLastSentAt ?? d.smartLinkLastSentAt,
+      smartLinkLastSentAt:
+        current?.smartLinkLastSentAt ?? d.smartLinkLastSentAt,
       smartLinkOpenedAt: current?.smartLinkOpenedAt ?? d.smartLinkOpenedAt,
-      smartLinkSubmittedAt: current?.smartLinkSubmittedAt ?? d.smartLinkSubmittedAt,
+      smartLinkSubmittedAt:
+        current?.smartLinkSubmittedAt ?? d.smartLinkSubmittedAt,
     });
     /* THE SAVE IS WHAT MAKES THE VERSION, not the keystroke. recordVersion
        compares against the last snapshot and returns null when nothing
@@ -122,19 +155,26 @@ export function SupplierEditor({
     onSaved();
   });
 
-  const set = (p: Partial<PrecursorSupplier>) => setDraft((d) => ({ ...d, ...p }));
+  const set = (p: Partial<PrecursorSupplier>) =>
+    setDraft((d) => ({ ...d, ...p }));
 
   const locked = Boolean(draft.catalogProductId);
-  const catalogProduct = draft.catalogProductId ? getCatalogProduct(draft.catalogProductId) : undefined;
+  const catalogProduct = draft.catalogProductId
+    ? getCatalogProduct(draft.catalogProductId)
+    : undefined;
   const isPurchased = draft.origin === "purchased";
   const isExempt = isPurchased && isEuOrExempt(draft.country);
-  const derivedCategory = catalogProduct ? aggregatedGoodsCategory(catalogProduct) : null;
+  const derivedCategory = catalogProduct
+    ? aggregatedGoodsCategory(catalogProduct)
+    : null;
   const showSectorParams = derivedCategory === "Iron or steel products";
   const supplierGaps = supplierPrecursorGaps(draft);
   // Only once something has been typed — an empty box on a form that
   // autosaves is not yet a mistake, and marking it red on arrival is how a
   // screen teaches people to ignore red.
-  const contactEmailError = (draft.contactEmail ?? "").trim() ? supplierEmailError(draft.contactEmail ?? "") : null;
+  const contactEmailError = (draft.contactEmail ?? "").trim()
+    ? supplierEmailError(draft.contactEmail ?? "")
+    : null;
 
   const pickFromCatalog = (id: string) => {
     const p = getCatalogProduct(id);
@@ -155,7 +195,9 @@ export function SupplierEditor({
      exporter to look the number up and retype it. A typed "default" is a
      number nobody can trace; a filled one carries its source into the report
      and into the verifier pack. */
-  const defaultForDraft = draft.catalogProductId ? defaultValueForId(draft.catalogProductId) : null;
+  const defaultForDraft = draft.catalogProductId
+    ? defaultValueForId(draft.catalogProductId)
+    : null;
   const usingDefault = draft.dataOrigin === "default_value";
 
   const setDataOrigin = (next: DataOrigin) => {
@@ -169,7 +211,9 @@ export function SupplierEditor({
     // override the total the moment this saves (see saveSupplier).
     set({
       dataOrigin: next,
-      seeTco2ePerT: defaultForDraft ? defaultForDraft.seeTotal : draft.seeTco2ePerT,
+      seeTco2ePerT: defaultForDraft
+        ? defaultForDraft.seeTotal
+        : draft.seeTco2ePerT,
       specificEmbeddedDirectTco2PerT: null,
       specificEmbeddedIndirectTco2PerT: null,
     });
@@ -199,24 +243,43 @@ export function SupplierEditor({
   const precursorProductBlock = (
     <div className="mt-4 rounded-xl border border-black/[0.07] bg-[#faf9f7] p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <span className="text-[11px] uppercase tracking-[0.1em] text-black/55">{t("Precursor product")}</span>
+        <span className="text-[11px] uppercase tracking-[0.1em] text-black/55">
+          {t("Precursor product")}
+        </span>
         {locked && (
           <button
             type="button"
             onClick={unlink}
             className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[0.08em] text-black/40 hover:text-black"
           >
-            <Link2Off size={12} strokeWidth={1.5} /> {t("Enter it by hand instead")}
+            <Link2Off size={12} strokeWidth={1.5} />{" "}
+            {t("Enter it by hand instead")}
           </button>
         )}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label={t("Product name")} hint={locked ? "From the CBAM catalogue — locked to the CN code beside it." : "Search the catalogue, or type it if it is not listed."}>
+        <Field
+          label={t("Product name")}
+          hint={
+            locked
+              ? "From the CBAM catalogue — locked to the CN code beside it."
+              : "Search the catalogue, or type it if it is not listed."
+          }
+        >
           {locked ? (
-            <div className={cn(inputClass, "flex items-center justify-between gap-2 bg-black/[0.02]")}>
-              <span className="truncate text-black/70">{draft.precursorName}</span>
-              {catalogProduct && <TagBadge tone="info">{productType(catalogProduct)}</TagBadge>}
+            <div
+              className={cn(
+                inputClass,
+                "flex items-center justify-between gap-2 bg-black/[0.02]",
+              )}
+            >
+              <span className="truncate text-black/70">
+                {draft.precursorName}
+              </span>
+              {catalogProduct && (
+                <TagBadge tone="info">{productType(catalogProduct)}</TagBadge>
+              )}
             </div>
           ) : (
             <>
@@ -239,9 +302,23 @@ export function SupplierEditor({
           )}
         </Field>
 
-        <Field label={t("CN code")} hint={locked ? "From the CBAM catalogue — locked to the product beside it." : "Pick a CN code and the product name fills in."}>
+        <Field
+          label={t("CN code")}
+          hint={
+            locked
+              ? "From the CBAM catalogue — locked to the product beside it."
+              : "Pick a CN code and the product name fills in."
+          }
+        >
           {locked ? (
-            <div className={cn(inputClass, "bg-black/[0.02] font-mono text-black/70")}>{draft.cnCode}</div>
+            <div
+              className={cn(
+                inputClass,
+                "bg-black/[0.02] font-mono text-black/70",
+              )}
+            >
+              {draft.cnCode}
+            </div>
           ) : (
             <>
               <Select
@@ -263,12 +340,21 @@ export function SupplierEditor({
           )}
         </Field>
 
-        <Field label={t("Production route")} hint={t("How it is made — it tells a verifier which precursors should sit above this tier.")}>
+        <Field
+          label={t("Production route")}
+          hint={t(
+            "How it is made — it tells a verifier which precursors should sit above this tier.",
+          )}
+        >
           <Select
             value={draft.productionRoute}
             onChange={(v) => set({ productionRoute: v })}
             placeholder={t("Route, where known")}
-            options={PRODUCTION_ROUTES.map((r) => ({ value: r.label, label: r.label, hint: `${r.standardName} — ${r.hint}` }))}
+            options={PRODUCTION_ROUTES.map((r) => ({
+              value: r.label,
+              label: t(r.label),
+              hint: `${t(r.standardName)} — ${t(r.hint)}`,
+            }))}
             searchable
             ariaLabel={t("Production route")}
           />
@@ -278,7 +364,10 @@ export function SupplierEditor({
   );
 
   return (
-    <div className="border-b border-black/[0.05] bg-[#faf9f7] p-4" style={{ paddingLeft: `${(node.depth - 1) * 20 + 16}px` }}>
+    <div
+      className="border-b border-black/[0.05] bg-[#faf9f7] p-4"
+      style={{ paddingLeft: `${(node.depth - 1) * 20 + 16}px` }}
+    >
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         {/* "Tier 3" names this row's position in a chain the reader is not
             looking at from inside this dialog. What they ARE looking at is
@@ -300,9 +389,14 @@ export function SupplierEditor({
             their link or the exporter filled it in here — so the rule is
             attached to the label rather than left on the other screen. */}
         <span className="flex items-center gap-1.5">
-          <span className="font-pixel text-[10px] uppercase tracking-[0.14em] text-black/40">{t("Supplier form")}</span>
+          <span className="font-pixel text-[10px] uppercase tracking-[0.14em] text-black/40">
+            {t("Supplier form")}
+          </span>
           <span className="text-[11px] normal-case tracking-normal text-black/45">
-            {t("· fill in")} <strong className="font-medium text-black/70">{t("English")}</strong>
+            {t("· fill in")}{" "}
+            <strong className="font-medium text-black/70">
+              {t("English")}
+            </strong>
           </span>
           <EnglishWhyTip />
         </span>
@@ -314,7 +408,10 @@ export function SupplierEditor({
           <Select
             value={draft.origin}
             onChange={(v) => set({ origin: v as PrecursorOrigin })}
-            options={PRECURSOR_ORIGINS.map((o) => ({ value: o, label: PRECURSOR_ORIGIN_LABEL[o] }))}
+            options={PRECURSOR_ORIGINS.map((o) => ({
+              value: o,
+              label: PRECURSOR_ORIGIN_LABEL[o],
+            }))}
             ariaLabel={t("Precursor origin")}
           />
         </Field>
@@ -331,12 +428,24 @@ export function SupplierEditor({
               "Producing installation" box, which is the same eight answers
               in two places the supplier's own screen shows as one. */}
           <div className="mt-4 rounded-xl border border-black/[0.07] bg-white p-4">
-            <span className="mb-3 block text-[11px] uppercase tracking-[0.1em] text-black/55">{t("Product installation")}</span>
+            <span className="mb-3 block text-[11px] uppercase tracking-[0.1em] text-black/55">
+              {t("Product installation")}
+            </span>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label={t("Company")} hint={t("The company you buy from.")}>
-                <input className={inputClass} value={draft.name} onChange={(e) => set({ name: e.target.value })} placeholder={t("Chonburi Foundry")} />
+                <input
+                  className={inputClass}
+                  value={draft.name}
+                  onChange={(e) => set({ name: e.target.value })}
+                  placeholder={t("Chonburi Foundry")}
+                />
               </Field>
-              <Field label={t("Installation")} hint={t("Where it was actually produced. A trader's name is not an installation.")}>
+              <Field
+                label={t("Installation")}
+                hint={t(
+                  "Where it was actually produced. A trader's name is not an installation.",
+                )}
+              >
                 <input
                   className={inputClass}
                   value={draft.installationName}
@@ -349,7 +458,11 @@ export function SupplierEditor({
                   value={draft.country}
                   onChange={(v) => set({ country: v })}
                   searchable
-                  options={COUNTRIES.map((c) => ({ value: c.code, label: c.name, hint: c.code }))}
+                  options={COUNTRIES.map((c) => ({
+                    value: c.code,
+                    label: c.name,
+                    hint: c.code,
+                  }))}
                   ariaLabel={t("Country")}
                 />
               </Field>
@@ -359,32 +472,68 @@ export function SupplierEditor({
                   box, because these now sit in the block above it. */}
               {!isExempt && (
                 <>
-                  <Field label={t("Installation reference")} hint={t("The producing plant's own reference for itself.")}>
-                    <input className={inputClass} value={draft.installationUniqueId ?? ""} onChange={(e) => set({ installationUniqueId: e.target.value })} placeholder={t("TH-CHON-0042")} />
+                  <Field
+                    label={t("Installation reference")}
+                    hint={t("The producing plant's own reference for itself.")}
+                  >
+                    <input
+                      className={inputClass}
+                      value={draft.installationUniqueId ?? ""}
+                      onChange={(e) =>
+                        set({ installationUniqueId: e.target.value })
+                      }
+                      placeholder={t("TH-CHON-0042")}
+                    />
                   </Field>
                   <Field label={t("UN/LOCODE")}>
                     <input
                       className={cn(inputClass, "font-mono")}
                       value={draft.unlocode ?? ""}
-                      onChange={(e) => set({ unlocode: e.target.value.toUpperCase() })}
+                      onChange={(e) =>
+                        set({ unlocode: e.target.value.toUpperCase() })
+                      }
                       placeholder={t("THLCH")}
                     />
                   </Field>
                   <Field label={t("Full address")} hint={t("In English.")}>
-                    <input className={inputClass} value={draft.fullAddress ?? ""} onChange={(e) => set({ fullAddress: e.target.value })} placeholder={t("88 Moo 4, Sriracha, Chonburi 20230")} />
+                    <input
+                      className={inputClass}
+                      value={draft.fullAddress ?? ""}
+                      onChange={(e) => set({ fullAddress: e.target.value })}
+                      placeholder={t("88 Moo 4, Sriracha, Chonburi 20230")}
+                    />
                   </Field>
-                  <Field label={t("Latitude")} hint={coordinateError(String(draft.latitude ?? ""), String(draft.longitude ?? "")) ?? undefined}>
+                  <Field
+                    label={t("Latitude")}
+                    hint={
+                      coordinateError(
+                        String(draft.latitude ?? ""),
+                        String(draft.longitude ?? ""),
+                      ) ?? undefined
+                    }
+                  >
                     <NumberInput
                       value={draft.latitude}
                       min={-90}
                       max={90}
-                      invalid={Boolean(coordinateError(String(draft.latitude ?? ""), String(draft.longitude ?? "")))}
+                      invalid={Boolean(
+                        coordinateError(
+                          String(draft.latitude ?? ""),
+                          String(draft.longitude ?? ""),
+                        ),
+                      )}
                       onChange={(v) => set({ latitude: v })}
                       ariaLabel={t("Latitude")}
                     />
                   </Field>
                   <Field label={t("Longitude")}>
-                    <NumberInput value={draft.longitude} min={-180} max={180} onChange={(v) => set({ longitude: v })} ariaLabel={t("Longitude")} />
+                    <NumberInput
+                      value={draft.longitude}
+                      min={-180}
+                      max={180}
+                      onChange={(v) => set({ longitude: v })}
+                      ariaLabel={t("Longitude")}
+                    />
                   </Field>
                 </>
               )}
@@ -401,9 +550,16 @@ export function SupplierEditor({
               rather than from a different page. The telephone is the
               supplier form's own picked control, not a text box. */}
           <div className="mt-4 rounded-xl border border-black/[0.07] bg-white p-4">
-            <span className="mb-3 block text-[11px] uppercase tracking-[0.1em] text-black/55">{t("Who fills this in")}</span>
+            <span className="mb-3 block text-[11px] uppercase tracking-[0.1em] text-black/55">
+              {t("Who fills this in")}
+            </span>
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              <Field label={t("Contact person")} hint={t("The named person who answers for these figures. A department is not an answer.")}>
+              <Field
+                label={t("Contact person")}
+                hint={t(
+                  "The named person who answers for these figures. A department is not an answer.",
+                )}
+              >
                 <input
                   className={inputClass}
                   value={draft.contactName ?? ""}
@@ -411,30 +567,47 @@ export function SupplierEditor({
                   placeholder={t("Somchai Prasert")}
                 />
               </Field>
-              <Field label={t("Email")} hint={t("Where this precursor's own link is sent.")}>
+              <Field
+                label={t("Email")}
+                hint={t("Where this precursor's own link is sent.")}
+              >
                 <input
-                  className={cn(inputClass, contactEmailError && "border-[#dc2626]")}
+                  className={cn(
+                    inputClass,
+                    contactEmailError && "border-[#dc2626]",
+                  )}
                   type="email"
                   value={draft.contactEmail ?? ""}
                   onChange={(e) => set({ contactEmail: e.target.value })}
                   placeholder={t("somchai@gjsteel.co.th")}
                   aria-invalid={Boolean(contactEmailError)}
                 />
-                {contactEmailError && <span className="mt-1.5 block text-[11.5px] text-[#dc2626]">{contactEmailError}</span>}
+                {contactEmailError && (
+                  <span className="mt-1.5 block text-[11.5px] text-[#dc2626]">
+                    {contactEmailError}
+                  </span>
+                )}
               </Field>
               {/* Not a <Field>: that wraps its children in a <label>, and a
                   label holding two controls forwards every click to the
                   first one — tapping the number would open the code menu. */}
               <div className="block">
-                <span className="mb-2 block text-[11px] uppercase tracking-[0.1em] text-black/55">{t("Telephone")}</span>
-                <SupplierPhoneField value={draft.contactPhone ?? ""} country={draft.country} onChange={(v) => set({ contactPhone: v })} />
+                <span className="mb-2 block text-[11px] uppercase tracking-[0.1em] text-black/55">
+                  {t("Telephone")}
+                </span>
+                <SupplierPhoneField
+                  value={draft.contactPhone ?? ""}
+                  country={draft.country}
+                  onChange={(v) => set({ contactPhone: v })}
+                />
               </div>
             </div>
           </div>
 
           {isExempt && (
             <p className="mt-3 rounded-xl border border-[rgba(5,150,105,0.2)] bg-[#ecfdf5] px-3.5 py-2.5 text-[12.5px] leading-relaxed text-[#047857]">
-              {countryName(draft.country)} is in the EU or an exempted territory (CH/NO/IS/LI). No CBAM liability arises from this precursor — SEE
+              {countryName(draft.country)} is in the EU or an exempted territory
+              (CH/NO/IS/LI). No CBAM liability arises from this precursor — SEE
               is locked at 0 and no verification report is required.
             </p>
           )}
@@ -442,7 +615,12 @@ export function SupplierEditor({
       ) : (
         <>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <Field label={t("Source production process")} hint={t("Which of this installation's own processes made it — e.g. the sinter line, not a supplier.")}>
+            <Field
+              label={t("Source production process")}
+              hint={t(
+                "Which of this installation's own processes made it — e.g. the sinter line, not a supplier.",
+              )}
+            >
               <input
                 className={inputClass}
                 value={draft.sourceProcessId ?? ""}
@@ -459,11 +637,18 @@ export function SupplierEditor({
       )}
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <Field label={t("Data origin")} hint={t(DATA_ORIGIN_HINT[draft.dataOrigin])}>
+        <Field
+          label={t("Data origin")}
+          hint={t(DATA_ORIGIN_HINT[draft.dataOrigin])}
+        >
           <Select
             value={draft.dataOrigin}
             onChange={(v) => setDataOrigin(v as DataOrigin)}
-            options={DATA_ORIGINS.map((o) => ({ value: o, label: t(DATA_ORIGIN_LABEL[o]), hint: DATA_ORIGIN_HINT[o] }))}
+            options={DATA_ORIGINS.map((o) => ({
+              value: o,
+              label: t(DATA_ORIGIN_LABEL[o]),
+              hint: DATA_ORIGIN_HINT[o],
+            }))}
             ariaLabel={t("Data origin")}
           />
         </Field>
@@ -474,25 +659,41 @@ export function SupplierEditor({
           is what lets a verifier see which half of the figure carries which
           kind of evidence. */}
       <div className="mt-4 rounded-xl border border-black/[0.07] bg-white p-4">
-        <span className="mb-3 block text-[11px] uppercase tracking-[0.1em] text-black/55">{t("Specific embedded emissions")}</span>
+        <span className="mb-3 block text-[11px] uppercase tracking-[0.1em] text-black/55">
+          {t("Specific embedded emissions")}
+        </span>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label={t("Direct")} hint={draft.isScrap ? "Forced to 0 — scrap carries no embedded emissions." : "From this supplier's own CBAM communication."}>
+          <Field
+            label={t("Direct")}
+            hint={
+              draft.isScrap
+                ? "Forced to 0 — scrap carries no embedded emissions."
+                : "From this supplier's own CBAM communication."
+            }
+          >
             <NumberInput
               value={draft.isScrap ? 0 : draft.specificEmbeddedDirectTco2PerT}
               min={0}
               unit="tCO₂e/t"
               disabled={draft.isScrap || usingDefault || isExempt}
-              onChange={(v) => set({ specificEmbeddedDirectTco2PerT: v ?? null })}
+              onChange={(v) =>
+                set({ specificEmbeddedDirectTco2PerT: v ?? null })
+              }
               ariaLabel={t("Specific embedded direct emissions")}
             />
           </Field>
-          <Field label={t("Indirect")} hint={t("Electricity embedded in the precursor.")}>
+          <Field
+            label={t("Indirect")}
+            hint={t("Electricity embedded in the precursor.")}
+          >
             <NumberInput
               value={draft.isScrap ? 0 : draft.specificEmbeddedIndirectTco2PerT}
               min={0}
               unit="tCO₂e/t"
               disabled={draft.isScrap || usingDefault || isExempt}
-              onChange={(v) => set({ specificEmbeddedIndirectTco2PerT: v ?? null })}
+              onChange={(v) =>
+                set({ specificEmbeddedIndirectTco2PerT: v ?? null })
+              }
               ariaLabel={t("Specific embedded indirect emissions")}
             />
           </Field>
@@ -504,17 +705,30 @@ export function SupplierEditor({
               and how much of it goes into a tonne of the parent. */}
           {isPurchased && !draft.isScrap && !isExempt && (
             <>
-              <Field label={t("Reporting period start")} hint={t("Of the producing installation's own report.")}>
-                <DatePicker value={draft.reportingPeriodStart ?? ""} onChange={(iso) => set({ reportingPeriodStart: iso })} ariaLabel={t("Reporting period start")} />
+              <Field
+                label={t("Reporting period start")}
+                hint={t("Of the producing installation's own report.")}
+              >
+                <DatePicker
+                  value={draft.reportingPeriodStart ?? ""}
+                  onChange={(iso) => set({ reportingPeriodStart: iso })}
+                  ariaLabel={t("Reporting period start")}
+                />
               </Field>
               <Field label={t("Reporting period end")}>
-                <DatePicker value={draft.reportingPeriodEnd ?? ""} onChange={(iso) => set({ reportingPeriodEnd: iso })} ariaLabel={t("Reporting period end")} />
+                <DatePicker
+                  value={draft.reportingPeriodEnd ?? ""}
+                  onChange={(iso) => set({ reportingPeriodEnd: iso })}
+                  ariaLabel={t("Reporting period end")}
+                />
               </Field>
             </>
           )}
           <Field
             label={t("Quantity — per-tonne ratio")}
-            hint={t("Used only when no monthly quantities are recorded. The TOTAL consumed to produce the output, including material that never reaches the finished good — offcuts, spillage, scrap, burn-off. Cut 20% away and you consumed 100 t to ship 80 t; record 100.")}
+            hint={t(
+              "Used only when no monthly quantities are recorded. The TOTAL consumed to produce the output, including material that never reaches the finished good — offcuts, spillage, scrap, burn-off. Cut 20% away and you consumed 100 t to ship 80 t; record 100.",
+            )}
           >
             <NumberInput
               value={draft.qtyPerTonneOverride}
@@ -529,7 +743,10 @@ export function SupplierEditor({
             period note reads after it, as a condition on the figure rather
             than as an interruption between the figure and its sum. */}
         <p className="mt-3 text-[12px] text-black/45">
-          {t("Total:")} <span className="font-mono tabular-nums text-black/70">{fmt(draft.seeTco2ePerT ?? 0, 4)} tCO₂e/t</span>
+          {t("Total:")}{" "}
+          <span className="font-mono tabular-nums text-black/70">
+            {fmt(draft.seeTco2ePerT ?? 0, 4)} tCO₂e/t
+          </span>
           {usingDefault &&
             (defaultForDraft
               ? ` — from the published default for this category, ${defaultForDraft.source}. It cannot be edited while the origin is "default value".`
@@ -537,44 +754,105 @@ export function SupplierEditor({
         </p>
         {isPurchased && !draft.isScrap && !isExempt && (
           <p className="mt-2 text-[11.5px] leading-relaxed text-black/45">
-            {t("A verification report is attached in Documents, below. Actual data from a precursor made elsewhere counts only if a report from an accredited verifier covers this period — attach it there for the four-check gate under “Data origin” to pass.")}
+            {t(
+              "A verification report is attached in Documents, below. Actual data from a precursor made elsewhere counts only if a report from an accredited verifier covers this period — attach it there for the four-check gate under “Data origin” to pass.",
+            )}
           </p>
         )}
-        {draft.dataOrigin === "supplier_verified" && draft.verificationChecks && draft.verificationChecks.failedReasons.length > 0 && (
-          <p className="mt-2 flex items-start gap-2 rounded-lg border border-[#fecaca] bg-[#fef2f2] px-3 py-2 text-[12px] leading-relaxed text-[#991b1b]">
-            <TriangleAlert size={13} strokeWidth={1.5} className="mt-0.5 flex-none" />
-            <span>
-              This claimed a verified figure but the checks did not pass, so it has been recorded as a default value instead:{" "}
-              {draft.verificationChecks.failedReasons.join(" ")}
-            </span>
-          </p>
-        )}
+        {draft.dataOrigin === "supplier_verified" &&
+          draft.verificationChecks &&
+          draft.verificationChecks.failedReasons.length > 0 && (
+            <p className="mt-2 flex items-start gap-2 rounded-lg border border-[#fecaca] bg-[#fef2f2] px-3 py-2 text-[12px] leading-relaxed text-[#991b1b]">
+              <TriangleAlert
+                size={13}
+                strokeWidth={1.5}
+                className="mt-0.5 flex-none"
+              />
+              <span>
+                This claimed a verified figure but the checks did not pass, so
+                it has been recorded as a default value instead:{" "}
+                {draft.verificationChecks.failedReasons.join(" ")}
+              </span>
+            </p>
+          )}
       </div>
 
       {showSectorParams && (
         <div className="mt-4 rounded-xl border border-black/[0.07] bg-white p-4">
-          <span className="mb-3 block text-[11px] uppercase tracking-[0.1em] text-black/55">{t("Iron or steel products — sector parameters")}</span>
+          <span className="mb-3 block text-[11px] uppercase tracking-[0.1em] text-black/55">
+            {t("Iron or steel products — sector parameters")}
+          </span>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            <Field label={t("Main reducing agent")} optional hint={t("Used in this precursor's own production, if known.")}>
-              <input className={inputClass} value={draft.reducingAgent ?? ""} onChange={(e) => set({ reducingAgent: e.target.value })} placeholder={t("Coke")} />
+            <Field
+              label={t("Main reducing agent")}
+              optional
+              hint={t("Used in this precursor's own production, if known.")}
+            >
+              <input
+                className={inputClass}
+                value={draft.reducingAgent ?? ""}
+                onChange={(e) => set({ reducingAgent: e.target.value })}
+                placeholder={t("Coke")}
+              />
             </Field>
             <Field label={t("Mn")} optional>
-              <NumberInput value={draft.mnPct} min={0} max={100} unit="%" onChange={(v) => set({ mnPct: v })} ariaLabel={t("Manganese mass percent")} />
+              <NumberInput
+                value={draft.mnPct}
+                min={0}
+                max={100}
+                unit="%"
+                onChange={(v) => set({ mnPct: v })}
+                ariaLabel={t("Manganese mass percent")}
+              />
             </Field>
             <Field label={t("Cr")} optional>
-              <NumberInput value={draft.crPct} min={0} max={100} unit="%" onChange={(v) => set({ crPct: v })} ariaLabel={t("Chromium mass percent")} />
+              <NumberInput
+                value={draft.crPct}
+                min={0}
+                max={100}
+                unit="%"
+                onChange={(v) => set({ crPct: v })}
+                ariaLabel={t("Chromium mass percent")}
+              />
             </Field>
             <Field label={t("Ni")} optional>
-              <NumberInput value={draft.niPct} min={0} max={100} unit="%" onChange={(v) => set({ niPct: v })} ariaLabel={t("Nickel mass percent")} />
+              <NumberInput
+                value={draft.niPct}
+                min={0}
+                max={100}
+                unit="%"
+                onChange={(v) => set({ niPct: v })}
+                ariaLabel={t("Nickel mass percent")}
+              />
             </Field>
             <Field label={t("Other alloying elements")} optional>
-              <NumberInput value={draft.otherAlloyingPct} min={0} max={100} unit="%" onChange={(v) => set({ otherAlloyingPct: v })} ariaLabel={t("Other alloying elements mass percent")} />
+              <NumberInput
+                value={draft.otherAlloyingPct}
+                min={0}
+                max={100}
+                unit="%"
+                onChange={(v) => set({ otherAlloyingPct: v })}
+                ariaLabel={t("Other alloying elements mass percent")}
+              />
             </Field>
             <Field label={t("Scrap per tonne of product")} optional>
-              <NumberInput value={draft.scrapRatioTPerT} min={0} unit="t/t" onChange={(v) => set({ scrapRatioTPerT: v })} ariaLabel={t("Scrap ratio")} />
+              <NumberInput
+                value={draft.scrapRatioTPerT}
+                min={0}
+                unit="t/t"
+                onChange={(v) => set({ scrapRatioTPerT: v })}
+                ariaLabel={t("Scrap ratio")}
+              />
             </Field>
             <Field label={t("Pre-consumer share of that scrap")} optional>
-              <NumberInput value={draft.preConsumerScrapPct} min={0} max={100} unit="%" onChange={(v) => set({ preConsumerScrapPct: v })} ariaLabel={t("Pre-consumer scrap percent")} />
+              <NumberInput
+                value={draft.preConsumerScrapPct}
+                min={0}
+                max={100}
+                unit="%"
+                onChange={(v) => set({ preConsumerScrapPct: v })}
+                ariaLabel={t("Pre-consumer scrap percent")}
+              />
             </Field>
           </div>
         </div>
@@ -593,21 +871,30 @@ export function SupplierEditor({
             className="mt-0.5 h-4 w-4 flex-none accent-[#111]"
           />
           <span>
-            {t("This input is scrap or waste — SEE is forced to 0 at any depth.")}
-            <span className="mt-0.5 block text-[11px] text-black/40">{t("Un-ticking clears the figure back to unknown rather than leaving a 0 behind.")}</span>
+            {t(
+              "This input is scrap or waste — SEE is forced to 0 at any depth.",
+            )}
+            <span className="mt-0.5 block text-[11px] text-black/40">
+              {t(
+                "Un-ticking clears the figure back to unknown rather than leaving a 0 behind.",
+              )}
+            </span>
           </span>
         </label>
       </div>
 
       {looksLikeScrap(draft) && (
         <p className="mt-3 text-[12px] text-[#b45309]">
-          &ldquo;{draft.precursorName}&rdquo; reads like scrap but is not flagged. Nothing has been changed — tick the box if it is.
+          &ldquo;{draft.precursorName}&rdquo; reads like scrap but is not
+          flagged. Nothing has been changed — tick the box if it is.
         </p>
       )}
 
       {draft.dataOrigin === "supplier_verified" && (
         <p className="mt-3 text-[11.5px] leading-relaxed text-black/40">
-          {t("Add a child here only if you are modelling this precursor entry’s own upstream chain yourself. If the figure above already came verified, it already accounts for whatever went into making this precursor — do not add children under a verified figure. A single supplier may appear against more than one precursor entry; this note is about THIS entry’s material, not about the supplier as a whole.")}
+          {t(
+            "Add a child here only if you are modelling this precursor entry’s own upstream chain yourself. If the figure above already came verified, it already accounts for whatever went into making this precursor — do not add children under a verified figure. A single supplier may appear against more than one precursor entry; this note is about THIS entry’s material, not about the supplier as a whole.",
+          )}
         </p>
       )}
 
@@ -628,51 +915,85 @@ export function SupplierEditor({
           verification arises, so there is nothing here to ask for. */}
       {isPurchased && !draft.isScrap && !isExempt && (
         <div className="mt-4 rounded-xl border border-black/[0.07] bg-white p-4">
-          <span className="mb-3 block text-[11px] uppercase tracking-[0.1em] text-black/55">{t("Verification evidence")}</span>
+          <span className="mb-3 block text-[11px] uppercase tracking-[0.1em] text-black/55">
+            {t("Verification evidence")}
+          </span>
           <p className="mb-3.5 text-[12px] leading-relaxed text-black/45">
-            {t("Two separate things: the report itself, attached in Documents below, and the facts it states, typed here. The facts are what get checked — Certrace does not read the PDF.")}
+            {t(
+              "Two separate things: the report itself, attached in Documents below, and the facts it states, typed here. The facts are what get checked — Certrace does not read the PDF.",
+            )}
           </p>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label={t("Verifier name")}>
-              <input className={inputClass} value={draft.verifierName ?? ""} onChange={(e) => set({ verifierName: e.target.value })} placeholder={t("SGS Thailand")} />
+              <input
+                className={inputClass}
+                value={draft.verifierName ?? ""}
+                onChange={(e) => set({ verifierName: e.target.value })}
+                placeholder={t("SGS Thailand")}
+              />
             </Field>
             <Field label={t("Accreditation number")}>
               <input
                 className={inputClass}
                 value={draft.verifierAccreditationNumber ?? ""}
-                onChange={(e) => set({ verifierAccreditationNumber: e.target.value })}
+                onChange={(e) =>
+                  set({ verifierAccreditationNumber: e.target.value })
+                }
                 placeholder={t("TH-ACC-001")}
               />
             </Field>
             <Field label={t("Accreditation issuing country")}>
               <Select
                 value={draft.verifierAccreditationIssuingCountry ?? ""}
-                onChange={(v) => set({ verifierAccreditationIssuingCountry: v })}
+                onChange={(v) =>
+                  set({ verifierAccreditationIssuingCountry: v })
+                }
                 searchable
-                options={COUNTRIES.map((c) => ({ value: c.code, label: c.name }))}
+                options={COUNTRIES.map((c) => ({
+                  value: c.code,
+                  label: c.name,
+                }))}
                 ariaLabel={t("Accreditation issuing country")}
               />
             </Field>
             <Field label={t("Accreditation expiry date")}>
               <DatePicker
                 value={draft.verifierAccreditationExpiryDate ?? ""}
-                onChange={(iso) => set({ verifierAccreditationExpiryDate: iso })}
+                onChange={(iso) =>
+                  set({ verifierAccreditationExpiryDate: iso })
+                }
                 ariaLabel={t("Accreditation expiry date")}
               />
             </Field>
             <Field label={t("Report issue date")}>
-              <DatePicker value={draft.verificationReportIssueDate ?? ""} onChange={(iso) => set({ verificationReportIssueDate: iso })} ariaLabel={t("Report issue date")} />
+              <DatePicker
+                value={draft.verificationReportIssueDate ?? ""}
+                onChange={(iso) => set({ verificationReportIssueDate: iso })}
+                ariaLabel={t("Report issue date")}
+              />
             </Field>
             <Field label={t("Sectoral scope")} hint={t("e.g. Iron and steel.")}>
               <input
                 className={inputClass}
                 value={draft.verificationSectoralScope ?? ""}
-                onChange={(e) => set({ verificationSectoralScope: e.target.value })}
+                onChange={(e) =>
+                  set({ verificationSectoralScope: e.target.value })
+                }
                 placeholder={t("Iron and steel")}
               />
             </Field>
-            <Field label={t("Report expires")} optional hint={t("When this report itself needs renewing — leave blank if it does not lapse.")}>
-              <DatePicker value={draft.verificationReportExpiresAt ?? ""} onChange={(iso) => set({ verificationReportExpiresAt: iso })} ariaLabel={t("Report expiry date")} />
+            <Field
+              label={t("Report expires")}
+              optional
+              hint={t(
+                "When this report itself needs renewing — leave blank if it does not lapse.",
+              )}
+            >
+              <DatePicker
+                value={draft.verificationReportExpiresAt ?? ""}
+                onChange={(iso) => set({ verificationReportExpiresAt: iso })}
+                ariaLabel={t("Report expiry date")}
+              />
             </Field>
           </div>
         </div>
@@ -680,7 +1001,10 @@ export function SupplierEditor({
 
       {showGaps && supplierGaps.length > 0 && (
         <div className="mt-4 rounded-xl border border-[#fde68a] bg-[#fffbeb] p-3.5">
-          <p className="text-[12px] font-medium text-[#92400e]">Not yet complete — {supplierGaps.length} required field{supplierGaps.length === 1 ? "" : "s"} missing:</p>
+          <p className="text-[12px] font-medium text-[#92400e]">
+            Not yet complete — {supplierGaps.length} required field
+            {supplierGaps.length === 1 ? "" : "s"} missing:
+          </p>
           <ul className="mt-1.5 space-y-1 text-[12px] leading-relaxed text-[#92400e]">
             {supplierGaps.map((g) => (
               <li key={g} className="flex items-start gap-1.5">
@@ -691,7 +1015,6 @@ export function SupplierEditor({
           </ul>
         </div>
       )}
-
     </div>
   );
 }

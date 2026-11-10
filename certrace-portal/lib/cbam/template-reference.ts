@@ -120,7 +120,12 @@ export const AGGREGATED_GOODS: AggregatedGood[] = [
     indirectRelevantTransitional: true,
     routeRelevant: true,
     pfcRelevant: false,
-    routes: ["Basic oxygen steelmaking", "Electric arc furnace", "Other production routes", "Unknown production routes"],
+    routes: [
+      "Basic oxygen steelmaking",
+      "Electric arc furnace",
+      "Other production routes",
+      "Unknown production routes",
+    ],
     specialParameters: [
       "The main reducing agent of the precursor, if known",
       "% Mn",
@@ -140,7 +145,13 @@ export const AGGREGATED_GOODS: AggregatedGood[] = [
     routeRelevant: false,
     pfcRelevant: false,
     routes: ALL_ROUTES,
-    specialParameters: ["The main reducing agent of the precursor, if known", "% Mn", "% Cr", "% Ni", "% other alloys"],
+    specialParameters: [
+      "The main reducing agent of the precursor, if known",
+      "% Mn",
+      "% Cr",
+      "% Ni",
+      "% other alloys",
+    ],
   },
   {
     id: "pig_iron",
@@ -150,8 +161,19 @@ export const AGGREGATED_GOODS: AggregatedGood[] = [
     indirectRelevantTransitional: true,
     routeRelevant: true,
     pfcRelevant: false,
-    routes: ["Blast furnace route", "Smelting reduction", "Other production routes", "Unknown production routes"],
-    specialParameters: ["The main reducing agent of the precursor, if known", "% Mn", "% Cr", "% Ni", "% other alloys"],
+    routes: [
+      "Blast furnace route",
+      "Smelting reduction",
+      "Other production routes",
+      "Unknown production routes",
+    ],
+    specialParameters: [
+      "The main reducing agent of the precursor, if known",
+      "% Mn",
+      "% Cr",
+      "% Ni",
+      "% other alloys",
+    ],
   },
   {
     id: "alloys",
@@ -239,7 +261,12 @@ export const AGGREGATED_GOODS: AggregatedGood[] = [
     routeRelevant: false,
     pfcRelevant: false,
     routes: ALL_ROUTES,
-    specialParameters: ["% N as ammonium (NH4+)", "% N as nitrate (NO3–)", "% N as Urea", "% N in other (organic) forms"],
+    specialParameters: [
+      "% N as ammonium (NH4+)",
+      "% N as nitrate (NO3–)",
+      "% N as Urea",
+      "% N in other (organic) forms",
+    ],
   },
   {
     id: "aluminium_products",
@@ -250,7 +277,11 @@ export const AGGREGATED_GOODS: AggregatedGood[] = [
     routeRelevant: false,
     pfcRelevant: true,
     routes: ALL_ROUTES,
-    specialParameters: ["t scrap per t aluminium", "% non-aluminium elements", "% pre-consumer scrap"],
+    specialParameters: [
+      "t scrap per t aluminium",
+      "% non-aluminium elements",
+      "% pre-consumer scrap",
+    ],
   },
   {
     id: "unwrought_aluminium",
@@ -260,8 +291,17 @@ export const AGGREGATED_GOODS: AggregatedGood[] = [
     indirectRelevantTransitional: true,
     routeRelevant: true,
     pfcRelevant: true,
-    routes: ["Primary (electrolytic) smelting", "Secondary melting (recycling)", "Other production routes", "Unknown production routes"],
-    specialParameters: ["t scrap per t aluminium", "% non-aluminium elements", "% pre-consumer scrap"],
+    routes: [
+      "Primary (electrolytic) smelting",
+      "Secondary melting (recycling)",
+      "Other production routes",
+      "Unknown production routes",
+    ],
+    specialParameters: [
+      "t scrap per t aluminium",
+      "% non-aluminium elements",
+      "% pre-consumer scrap",
+    ],
   },
   {
     id: "electricity",
@@ -276,8 +316,10 @@ export const AGGREGATED_GOODS: AggregatedGood[] = [
   },
 ];
 
-export const goodById = (id: string): AggregatedGood | undefined => AGGREGATED_GOODS.find((g) => g.id === id);
-export const goodByLabel = (label: string): AggregatedGood | undefined => AGGREGATED_GOODS.find((g) => g.label.trim() === label.trim());
+export const goodById = (id: string): AggregatedGood | undefined =>
+  AGGREGATED_GOODS.find((g) => g.id === id);
+export const goodByLabel = (label: string): AggregatedGood | undefined =>
+  AGGREGATED_GOODS.find((g) => g.label.trim() === label.trim());
 
 /* ── CN code → aggregated goods category ────────────────────────
    Parameters_Constants!B133 (CONST_CNTR_ListGoodsForCN) and the 569 codes
@@ -870,7 +912,9 @@ export const CN_TO_GOOD: Record<string, string> = {
 /** The aggregated goods category for a CN code, or undefined if it is not a
     CBAM good. Tolerant of spaces and dots; an 8-digit code is required, because
     a 6-digit HS heading genuinely does not determine the category. */
-export function categoryForCn(cnCode: string | null | undefined): AggregatedGood | undefined {
+export function categoryForCn(
+  cnCode: string | null | undefined,
+): AggregatedGood | undefined {
   const digits = String(cnCode ?? "").replace(/[^0-9]/g, "");
   if (digits.length !== 8) return undefined;
   const id = CN_TO_GOOD[digits];
@@ -894,10 +938,19 @@ export const DATA_QUALITY_OPTIONS = [
 ] as const;
 
 /** B43:E43 — CONST_DataVerification */
-export const DATA_VERIFICATION_OPTIONS = ["Third-party verification", "Internal audits", "Four eyes principle", "None"] as const;
+export const DATA_VERIFICATION_OPTIONS = [
+  "Third-party verification",
+  "Internal audits",
+  "Four eyes principle",
+  "None",
+] as const;
 
 /** B44:D44 — CONST_DataQualityJustification */
-export const DATA_QUALITY_JUSTIFICATION_OPTIONS = ["Unreasonable costs for more accurate monitoring", "Data gaps", "Other"] as const;
+export const DATA_QUALITY_JUSTIFICATION_OPTIONS = [
+  "Unreasonable costs for more accurate monitoring",
+  "Data gaps",
+  "Other",
+] as const;
 
 /** C45:I45 — CONST_CarbonPriceType */
 export const CARBON_PRICE_TYPE_OPTIONS = [
@@ -912,23 +965,46 @@ export const CARBON_PRICE_TYPE_OPTIONS = [
 ] as const;
 
 /** C46:G46 — CONST_RebateType */
-export const REBATE_TYPE_OPTIONS = ["None", "Free allocation", "Financial compensation", "Tax deduction", "Combination", "Other"] as const;
+export const REBATE_TYPE_OPTIONS = [
+  "None",
+  "Free allocation",
+  "Financial compensation",
+  "Tax deduction",
+  "Combination",
+  "Other",
+] as const;
 
 /** B56:D56 — CONST_MonitoringApproach */
-export const MONITORING_APPROACH_OPTIONS = ["Combustion", "Process emissions", "Mass Balance"] as const;
+export const MONITORING_APPROACH_OPTIONS = [
+  "Combustion",
+  "Process emissions",
+  "Mass Balance",
+] as const;
 
 /** B57:C57 — CONST_PFCSlopeOrOvervoltage */
-export const PFC_METHOD_OPTIONS = ["Slope method", "Overvoltage method"] as const;
+export const PFC_METHOD_OPTIONS = [
+  "Slope method",
+  "Overvoltage method",
+] as const;
 
 /** B58:E58 — CONST_ReducingAgent */
-export const REDUCING_AGENT_OPTIONS = ["Coal or coke", "Natural gas", "Biogas", "Hydrogen"] as const;
+export const REDUCING_AGENT_OPTIONS = [
+  "Coal or coke",
+  "Natural gas",
+  "Biogas",
+  "Hydrogen",
+] as const;
 
 /** B55:C55 — CONST_CEMSType */
 export const CEMS_TYPE_OPTIONS = ["CO2", "N2O"] as const;
 
 /** B68:C68 / B69:D69 */
 export const MEASURED_OR_DEFAULT_OPTIONS = ["Measured", "Default"] as const;
-export const MEASURED_DEFAULT_UNKNOWN_OPTIONS = ["Measured", "Default", "Unknown"] as const;
+export const MEASURED_DEFAULT_UNKNOWN_OPTIONS = [
+  "Measured",
+  "Default",
+  "Unknown",
+] as const;
 
 /** B15:H15 — CONST_ElecSource. These are the CLAUSE REFERENCES from Annex II
     of IR 2025/2547, not descriptions, and the workbook prints them raw into
@@ -936,13 +1012,38 @@ export const MEASURED_DEFAULT_UNKNOWN_OPTIONS = ["Measured", "Default", "Unknown
     "D.4.1" needs to know what it means, so the gloss travels with the code —
     but the code is what gets filed, unchanged. */
 export const ELECTRICITY_EF_SOURCES: { code: string; gloss: string }[] = [
-  { code: "D.4(a)", gloss: "Actual emission factor of the electricity received, where a direct technical link or PPA supports it" },
-  { code: "D.4(b)", gloss: "Grid emission factor of the country of production" },
-  { code: "D.4.1", gloss: "Electricity received from the grid — default country factor" },
-  { code: "D.4.2", gloss: "Electricity from a direct technical link with a generating installation" },
-  { code: "D.4.3.1", gloss: "Power purchase agreement — actual factor of the contracted generator" },
-  { code: "D.4.3.2", gloss: "Power purchase agreement — residual mix or fallback factor" },
-  { code: "Mix", gloss: "More than one of the above applied across the period; the split is described in the monitoring methodology" },
+  {
+    code: "D.4(a)",
+    gloss:
+      "Actual emission factor of the electricity received, where a direct technical link or PPA supports it",
+  },
+  {
+    code: "D.4(b)",
+    gloss: "Grid emission factor of the country of production",
+  },
+  {
+    code: "D.4.1",
+    gloss: "Electricity received from the grid — default country factor",
+  },
+  {
+    code: "D.4.2",
+    gloss:
+      "Electricity from a direct technical link with a generating installation",
+  },
+  {
+    code: "D.4.3.1",
+    gloss:
+      "Power purchase agreement — actual factor of the contracted generator",
+  },
+  {
+    code: "D.4.3.2",
+    gloss: "Power purchase agreement — residual mix or fallback factor",
+  },
+  {
+    code: "Mix",
+    gloss:
+      "More than one of the above applied across the period; the split is described in the monitoring methodology",
+  },
 ];
 
 /* ── Global warming potentials ────────────────────────────────
@@ -957,7 +1058,8 @@ export const GWP = {
   CF4: 6630,
   /** hexafluoroethane — aluminium anode effects */
   C2F6: 11100,
-  source: "CBAM Communication template v2.1.1, Parameters_Constants!B76:B78 (IPCC AR5 100-year GWP)",
+  source:
+    "CBAM Communication template v2.1.1, Parameters_Constants!B76:B78 (IPCC AR5 100-year GWP)",
 } as const;
 
 /** B13 — the template's own natural-gas emission factor, tCO₂/TJ. Present so
@@ -965,7 +1067,8 @@ export const GWP = {
 export const TEMPLATE_NATURAL_GAS_EF = {
   value: 56.1,
   unit: "tCO₂/TJ",
-  source: "CBAM Communication template v2.1.1, Parameters_Constants!B13 (CONST_EFNatGas)",
+  source:
+    "CBAM Communication template v2.1.1, Parameters_Constants!B13 (CONST_EFNatGas)",
 } as const;
 
 /** The units the template writes into its own output rows, so a Certrace
@@ -1011,88 +1114,109 @@ export const COMMUNICATION_COLUMNS: CommunicationColumn[] = [
     key: "process",
     label: "Production process from which the products arise",
     example: "Example process A",
-    purpose: "Ties the row back to one production process, so a verifier can find the emissions that produced this figure.",
+    purpose:
+      "Ties the row back to one production process, so a verifier can find the emissions that produced this figure.",
   },
   {
     column: "E",
     key: "aggregatedGood",
     label: "Type of aggregated good or precursor",
     example: "Iron or steel products",
-    purpose: "One of the 18 CBAM categories. It decides which default values and which sector parameters apply.",
+    purpose:
+      "One of the 18 CBAM categories. It decides which default values and which sector parameters apply.",
   },
   {
     column: "F",
     key: "cnCode",
     label: "CN Codes",
     example: "72071919",
-    purpose: "The 8-digit code on the customs declaration. This is what the importer matches the consignment against.",
+    purpose:
+      "The 8-digit code on the customs declaration. This is what the importer matches the consignment against.",
   },
   {
     column: "G",
     key: "cnName",
     label: "CN Name",
-    example: "Semi-finished products of iron or non-alloy steel, containing by weight < 0,25% of carbon",
-    purpose: "The official description of that CN code — printed so a mismatch between code and goods is visible.",
+    example:
+      "Semi-finished products of iron or non-alloy steel, containing by weight < 0,25% of carbon",
+    purpose:
+      "The official description of that CN code — printed so a mismatch between code and goods is visible.",
   },
   {
     column: "H",
     key: "productName",
-    label: "Product name (used for communication with reporting declarant, e.g. on invoices)",
+    label:
+      "Product name (used for communication with reporting declarant, e.g. on invoices)",
     example: "Example name A",
-    purpose: "Your own commercial name for the product, so the importer can match this row to an invoice line.",
+    purpose:
+      "Your own commercial name for the product, so the importer can match this row to an invoice line.",
   },
   {
     column: "I",
     key: "seeDirect",
     label: "SEE (direct)",
     example: "0.915",
-    purpose: "Specific embedded DIRECT emissions per tonne, including everything carried in from precursors.",
+    purpose:
+      "Specific embedded DIRECT emissions per tonne, including everything carried in from precursors.",
   },
   {
     column: "J",
     key: "seeIndirect",
     label: "SEE (indirect)",
     example: "0.396",
-    purpose: "Specific embedded INDIRECT (electricity) emissions per tonne, including precursors.",
+    purpose:
+      "Specific embedded INDIRECT (electricity) emissions per tonne, including precursors.",
   },
   {
     column: "K",
     key: "seeTotal",
     label: "SEE (total)",
     example: "1.311",
-    purpose: "Direct plus indirect. This is the number the importer uses to calculate the certificates due.",
+    purpose:
+      "Direct plus indirect. This is the number the importer uses to calculate the certificates due.",
   },
-  { column: "L", key: "unit", label: "Unit", example: "tCO2e/t", purpose: "Always tCO2e per tonne, except electricity which is per MWh." },
+  {
+    column: "L",
+    key: "unit",
+    label: "Unit",
+    example: "tCO2e/t",
+    purpose: "Always tCO2e per tonne, except electricity which is per MWh.",
+  },
   {
     column: "M",
     key: "defaultShare",
     label: "Share of emissions by default value",
     example: "0.0",
-    purpose: "How much of the figure rests on default values rather than measurement, as a decimal. 0 means fully actual data.",
+    purpose:
+      "How much of the figure rests on default values rather than measurement, as a decimal. 0 means fully actual data.",
   },
   {
     column: "N",
     key: "electricityEfSource",
     label: "Source for electricity EF",
     example: "D.4.1",
-    purpose: "Which rule in Annex II the electricity emission factor came from.",
+    purpose:
+      "Which rule in Annex II the electricity emission factor came from.",
   },
   {
     column: "O",
     key: "embeddedElectricity",
     label: "Embedded electricity (MWh/t)",
     example: "0.281",
-    purpose: "Electricity per tonne including the chain — needed where the importer must recompute indirect emissions on EU factors.",
+    purpose:
+      "Electricity per tonne including the chain — needed where the importer must recompute indirect emissions on EU factors.",
   },
 ];
 
 /** Columns P onward on Summary_Products are the sector parameters, and WHICH
     ones appear depends on the aggregated good — Parameters_Constants!B110:I127.
     A report renders exactly `good.specialParameters`, in that order. */
-export const specialParametersFor = (goodId: string): string[] => goodById(goodId)?.specialParameters ?? [];
+export const specialParametersFor = (goodId: string): string[] =>
+  goodById(goodId)?.specialParameters ?? [];
 
 /** Whether indirect emissions are reported at all for a good under the
     definitive regime. Steel and aluminium are excluded, which is why a steel
     report showing an indirect column of zeroes is right and one showing a
     figure needs explaining. */
-export const indirectApplies = (goodId: string): boolean => goodById(goodId)?.indirectRelevantDefinitive ?? true;
+export const indirectApplies = (goodId: string): boolean =>
+  goodById(goodId)?.indirectRelevantDefinitive ?? true;

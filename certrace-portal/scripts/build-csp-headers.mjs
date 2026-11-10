@@ -87,10 +87,18 @@ function inlineScriptHashes(html) {
   for (const [, attributes, body] of html.matchAll(INLINE_SCRIPT)) {
     // A JSON payload in a <script type="application/json"> is data the browser
     // never executes, so CSP has no say over it and a hash would be noise.
-    const type = /\stype=["']?([^"'\s>]+)/i.exec(attributes)?.[1]?.toLowerCase();
-    if (type && !["module", "text/javascript", "application/javascript"].includes(type)) continue;
+    const type = /\stype=["']?([^"'\s>]+)/i
+      .exec(attributes)?.[1]
+      ?.toLowerCase();
+    if (
+      type &&
+      !["module", "text/javascript", "application/javascript"].includes(type)
+    )
+      continue;
     if (!body) continue;
-    hashes.add(`'sha256-${createHash("sha256").update(body, "utf8").digest("base64")}'`);
+    hashes.add(
+      `'sha256-${createHash("sha256").update(body, "utf8").digest("base64")}'`,
+    );
   }
   return [...hashes];
 }
@@ -125,7 +133,9 @@ let source;
 try {
   source = readFileSync(headersPath, "utf8");
 } catch {
-  fail(`${headersPath} not found — the build output should carry public/_headers.`);
+  fail(
+    `${headersPath} not found — the build output should carry public/_headers.`,
+  );
 }
 
 const blocks = parseHeaders(source);
@@ -136,12 +146,26 @@ if (!global) fail(`${headersPath} has no /* block to build on.`);
    Those are carried through untouched — but not if one sets a policy of its
    own, because that would comma-merge with the per-page policy below. */
 const passthrough = blocks.filter((block) => block.pattern !== "/*");
-if (passthrough.some((block) => block.headers.some((header) => header.key.toLowerCase() === CSP.toLowerCase()))) {
-  fail("a path-specific rule already sets a Content-Security-Policy; it would merge with the generated ones.");
+if (
+  passthrough.some((block) =>
+    block.headers.some(
+      (header) => header.key.toLowerCase() === CSP.toLowerCase(),
+    ),
+  )
+) {
+  fail(
+    "a path-specific rule already sets a Content-Security-Policy; it would merge with the generated ones.",
+  );
 }
 
-let basePolicy = global.headers.find((header) => header.key.toLowerCase() === CSP.toLowerCase())?.value;
+let basePolicy = global.headers.find(
+  (header) => header.key.toLowerCase() === CSP.toLowerCase(),
+)?.value;
 if (!basePolicy) fail("the /* block declares no Content-Security-Policy.");
+
+// Cloudflare serves these generated asset rules over HTTPS. Keep the upgrade
+// there, while the shared source policy also works on an HTTP-only VPS preview.
+basePolicy += "; upgrade-insecure-requests";
 
 /* ── the backend origin ──
    public/_headers is a static file and cannot know where the API lives; the
@@ -171,17 +195,25 @@ if (configuredApi) {
   console.log(`build-csp-headers: connect-src includes ${origin}.`);
 }
 if (/script-src[^;]*'unsafe-inline'/.test(basePolicy)) {
-  fail("script-src still allows 'unsafe-inline' — remove it; the hashes generated here replace it.");
+  fail(
+    "script-src still allows 'unsafe-inline' — remove it; the hashes generated here replace it.",
+  );
 }
 if (!/(^|;)\s*script-src\s/.test(basePolicy)) {
   fail("the policy has no script-src directive to add hashes to.");
 }
 
 const pages = htmlFiles(outDir)
-  .map((file) => ({ path: requestPath(file, outDir), hashes: inlineScriptHashes(readFileSync(file, "utf8")) }))
+  .map((file) => ({
+    path: requestPath(file, outDir),
+    hashes: inlineScriptHashes(readFileSync(file, "utf8")),
+  }))
   .sort((a, b) => a.path.localeCompare(b.path));
 
-if (pages.length === 0) fail(`no prerendered HTML found under ${outDir} — nothing would carry a policy.`);
+if (pages.length === 0)
+  fail(
+    `no prerendered HTML found under ${outDir} — nothing would carry a policy.`,
+  );
 
 const withHashes = (hashes) =>
   basePolicy.replace(/(^|;)(\s*script-src\s[^;]*)/, (match, lead, directive) =>
@@ -208,7 +240,11 @@ const lines = [
 ];
 
 for (const block of passthrough) {
-  lines.push(block.pattern, ...block.headers.map((header) => `  ${header.key}: ${header.value}`), "");
+  lines.push(
+    block.pattern,
+    ...block.headers.map((header) => `  ${header.key}: ${header.value}`),
+    "",
+  );
 }
 
 for (const page of pages) {
@@ -217,11 +253,15 @@ for (const page of pages) {
 
 const ruleCount = pages.length + passthrough.length + 1;
 if (ruleCount > MAX_RULES) {
-  fail(`${ruleCount} rules exceeds Cloudflare's limit of ${MAX_RULES}; rules past the limit are dropped.`);
+  fail(
+    `${ruleCount} rules exceeds Cloudflare's limit of ${MAX_RULES}; rules past the limit are dropped.`,
+  );
 }
 const tooLong = lines.filter((line) => line.length > MAX_LINE);
 if (tooLong.length) {
-  fail(`${tooLong.length} line(s) exceed Cloudflare's ${MAX_LINE}-character limit, starting with "${tooLong[0].slice(0, 60)}…".`);
+  fail(
+    `${tooLong.length} line(s) exceed Cloudflare's ${MAX_LINE}-character limit, starting with "${tooLong[0].slice(0, 60)}…".`,
+  );
 }
 
 writeFileSync(headersPath, `${lines.join("\n")}\n`);

@@ -233,7 +233,7 @@ configurable rather than hardcoded.
 Owner: Security Admin. Immutable, append-only feed of every mutating action
 across every module (actor, before/after, reason, timestamp). This is the
 module that makes every other module's power safe to grant — ties directly
-into the hash-chained audit design already noted in `docs/SECURITY.md` and
+into the hash-chained audit design in
 `docs/EXPORTER-PORTAL-REDESIGN.md` §15, which currently has no server to back
 it. Building this console is what would finally require that server.
 
@@ -256,7 +256,7 @@ decisions.
 ### 5.12 Legal / Privacy (`/admin/legal`)
 Owner: Legal & Data Privacy. Contract/DPA repository, GDPR data-subject
 request log, retention-schedule enforcement status (ties to the PII/retention
-item already flagged as a production blocker in `docs/SECURITY.md`).
+item required before handling production personal data).
 
 ---
 
@@ -317,7 +317,7 @@ ImpersonationSession { id, staffId, orgId, startedAt, endedAt, reason }
    Flags/Integrations, full cross-department Analytics/Reports.
 5. **Phase 5 — hardening**: Legal & Data Privacy module, impersonation
    audit hardening, maker-checker enforcement made non-bypassable everywhere
-   (today's mock login has no real RBAC enforcement, per `docs/SECURITY.md` —
+   (today's mock login has no real RBAC enforcement —
    this phase is where that debt gets paid for the admin console specifically).
 
 ---
@@ -336,5 +336,4 @@ ImpersonationSession { id, staffId, orgId, startedAt, endedAt, reason }
   `certrace-platform`'s real Prisma backend.
 
 Related: `docs/EXPORTER-PORTAL-REDESIGN.md` (post-submission architecture +
-per-org Admin role), `docs/SECURITY.md` (production-blocking items this
-console would inherit).
+per-org Admin role).

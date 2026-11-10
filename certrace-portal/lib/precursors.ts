@@ -19,7 +19,11 @@
    trees. Nothing here re-implements the sum — it delegates.
    ════════════════════════════════════════════════════════════ */
 
-import { parsePrecursorTree, precursorSEE, formatTree } from "./cbam/precursor-tree";
+import {
+  parsePrecursorTree,
+  precursorSEE,
+  formatTree,
+} from "./cbam/precursor-tree";
 
 export type PrecursorRow = {
   name: string;
@@ -30,7 +34,9 @@ export type PrecursorRow = {
 };
 
 /** Parse a stored precursors value. JSON array → rows; legacy prose → null. */
-export function parsePrecursors(raw: string | undefined | null): PrecursorRow[] | null {
+export function parsePrecursors(
+  raw: string | undefined | null,
+): PrecursorRow[] | null {
   if (!raw || !raw.trim().startsWith("[")) return null;
   try {
     const arr = JSON.parse(raw);

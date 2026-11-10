@@ -1,3 +1,8 @@
+import { accountStorage, publicScope } from "./account-storage";
+import { apiConfigured } from "./api/config";
+import { request } from "./api/http";
+import { assertSessionUnchanged, sessionEpoch } from "./api/session";
+import { loadEvidenceFile } from "./document-files";
 /* ════════════════════════════════════════════════════════════
    MONTHLY EVIDENCE PACKS, WITH AI EXTRACTION THAT ONLY EVER PROPOSES
 
@@ -21,26 +26,24 @@
    could no longer answer "who checked this?", which is the first question
    asked about any figure that came out of a PDF.
 
-   ── THE PRIVACY DECISION, STATED OUT LOUD ──────────────────────
-   Extraction runs CLIENT-SIDE against the Anthropic API with the file as
-   base64. Real utility bills carry customer account numbers, addresses and
-   meter identifiers, and the API key lives in the browser. §6 of the build
-   spec flags this as a decision to make before enabling it for customers:
-
-     · the key is entered by the exporter and kept in localStorage — it is
-       never bundled, never committed, and never sent anywhere but Anthropic
-     · extraction is OFF until a key is entered; the whole tab works without it
-     · the honest production answer is a backend proxy, and that is what the
-       banner in the UI says
-
-   Nothing here is enabled by default. A workspace with no key still uploads,
-   stores and indexes evidence — it just asks a human to type the numbers.
+   Extraction runs through the account or token-scoped backend. Files are stored through
+   the account or supplier-link file API; no API key is stored in the browser.
+   Review remains required before a proposed value changes a report.
    ════════════════════════════════════════════════════════════ */
 
-import Anthropic from "@anthropic-ai/sdk";
-import { applyEuStandard, fuelEvidenceKey, fuelTypeDef, fuelTypeLabel, isTypeIStandard, listMonths, type MonthlyEntry } from "./monthly-data";
+import {
+  applyEuStandard,
+  fuelEvidenceKey,
+  fuelTypeDef,
+  fuelTypeLabel,
+  isTypeIStandard,
+  listMonths,
+  processEntryLabel,
+  type MonthlyEntry,
+} from "./monthly-data";
+import { scrapOf } from "./cbam/sector-pack";
 import { listSuppliers } from "./precursor-suppliers";
-import { loadDraft, listVersions } from "./workspace-mmd";
+import { loadDraft } from "./workspace-mmd";
 import { getWorkspace } from "./workspace";
 import { workspaceRequiresIndirectEmissions } from "./cbam/product-category-rules";
 import { planAllows } from "./plan";
@@ -96,6 +99,8 @@ export const EVIDENCE_SOURCE_LABEL: Record<EvidenceSourceType, string> = {
 export type ExtractionStatus = "pending" | "done" | "failed" | "needs_review";
 
 export type ExtractedField = {
+  page?: number;
+  excerpt?: string;
   key: string;
   value: string;
   unit?: string;
@@ -119,9 +124,16 @@ export type ExtractionResult = {
     looks right is more dangerous than one that obviously failed. */
 export const CONFIDENCE_FLOOR = 0.8;
 
-export const isLowConfidence = (f: ExtractedField): boolean => f.confidence < CONFIDENCE_FLOOR;
+export const isLowConfidence = (f: ExtractedField): boolean =>
+  f.confidence < CONFIDENCE_FLOOR;
 
 export type EvidenceItem = {
+  reviewedBy?: string;
+  reviewedAt?: string;
+  fileHash?: string;
+  localFileId?: string;
+  serverFileId?: string;
+
   id: string;
   workspaceId: string;
   /** 'YYYY-MM'; omitted for annual-scope evidence */
@@ -147,11 +159,8 @@ export type EvidenceItem = {
   boundTo?: string;
 };
 
-/* ── Store ──────────────────────────────────────────────────────
-   Keyed by workspace. Above the inline limit only the metadata is kept — a
-   handful of 5 MB scans in localStorage takes the whole store down with it,
-   and §6 of the spec names exactly this as the forcing function for a real
-   backend. */
+/* Evidence metadata uses the account document store. Original file bytes live
+   behind the file API; fileDataUrl remains readable for legacy imports. */
 const KEY = "certrace:workspace-evidence";
 
 /** Same threshold Part 1 uses in lib/cbam/evidence.ts. */
@@ -160,12 +169,14 @@ export const INLINE_BYTES_LIMIT = 1_500_000;
 type Store = Record<string, EvidenceItem[]>;
 
 export const uid = () =>
-  typeof crypto !== "undefined" && crypto.randomUUID ? `ev-${crypto.randomUUID().slice(0, 10)}` : `ev-${Date.now().toString(36)}`;
+  typeof crypto !== "undefined" && crypto.randomUUID
+    ? `ev-${crypto.randomUUID().slice(0, 10)}`
+    : `ev-${Date.now().toString(36)}`;
 
 function read(): Store {
   if (typeof window === "undefined") return {};
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = accountStorage.getItem(KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw) as Store;
     return parsed && typeof parsed === "object" ? parsed : {};
@@ -177,7 +188,7 @@ function read(): Store {
 function write(store: Store): boolean {
   if (typeof window === "undefined") return false;
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(store));
+    accountStorage.setItem(KEY, JSON.stringify(store));
     return true;
   } catch {
     /* Quota. The caller is told, because an evidence file the exporter
@@ -187,17 +198,28 @@ function write(store: Store): boolean {
 }
 
 export const listEvidence = (workspaceId: string): EvidenceItem[] =>
-  (read()[workspaceId] ?? []).sort((a, b) => b.capturedAt.localeCompare(a.capturedAt));
+  (read()[workspaceId] ?? []).sort((a, b) =>
+    b.capturedAt.localeCompare(a.capturedAt),
+  );
 
-export const getEvidenceItem = (workspaceId: string, id: string): EvidenceItem | null =>
+export const getEvidenceItem = (
+  workspaceId: string,
+  id: string,
+): EvidenceItem | null =>
   listEvidence(workspaceId).find((e) => e.id === id) ?? null;
 
-export const evidenceForMonth = (workspaceId: string, month: string): EvidenceItem[] =>
-  listEvidence(workspaceId).filter((e) => e.month === month);
+export const evidenceForMonth = (
+  workspaceId: string,
+  month: string,
+): EvidenceItem[] => listEvidence(workspaceId).filter((e) => e.month === month);
 
-export const annualEvidence = (workspaceId: string): EvidenceItem[] => listEvidence(workspaceId).filter((e) => !e.month);
+export const annualEvidence = (workspaceId: string): EvidenceItem[] =>
+  listEvidence(workspaceId).filter((e) => !e.month);
 
-export function saveEvidence(item: EvidenceItem): { item: EvidenceItem; stored: boolean } {
+export function saveEvidence(item: EvidenceItem): {
+  item: EvidenceItem;
+  stored: boolean;
+} {
   const store = read();
   const rows = store[item.workspaceId] ?? [];
   const idx = rows.findIndex((r) => r.id === item.id);
@@ -217,7 +239,10 @@ export function saveEvidence(item: EvidenceItem): { item: EvidenceItem; stored: 
   return { item, stored };
 }
 
-export function removeEvidence(workspaceId: string, id: string): EvidenceItem[] {
+export function removeEvidence(
+  workspaceId: string,
+  id: string,
+): EvidenceItem[] {
   const store = read();
   store[workspaceId] = (store[workspaceId] ?? []).filter((e) => e.id !== id);
   write(store);
@@ -264,7 +289,12 @@ export function removeEvidenceForWorkspace(workspaceId: string): void {
 /** Who at the exporter usually holds the document. Matches the department
     grouping on the printed checklist, so a pack can be split and handed out
     rather than chased one item at a time by one person. */
-export type EvidenceDepartment = "operations" | "finance" | "suppliers" | "lab" | "organisation";
+export type EvidenceDepartment =
+  | "operations"
+  | "finance"
+  | "suppliers"
+  | "lab"
+  | "organisation";
 
 /* Formal, professional labels — the names a verifier or a buyer's declarant
    sees on the checklist, in the exported reports and on every filter chip.
@@ -285,25 +315,44 @@ export const EVIDENCE_DEPARTMENT_LABEL: Record<EvidenceDepartment, string> = {
     recommends working them in — that is B → A → C (Finance first, since it
     is usually already on file; Operations second; Suppliers last, since it
     depends on someone else responding) — see `acknowledgeEvidenceOnboarding`. */
-export const EVIDENCE_CATEGORY_ORDER: EvidenceDepartment[] = ["operations", "finance", "suppliers", "lab", "organisation"];
+export const EVIDENCE_CATEGORY_ORDER: EvidenceDepartment[] = [
+  "operations",
+  "finance",
+  "suppliers",
+  "lab",
+  "organisation",
+];
 
 /** The B → A → C completion order the onboarding banner recommends, as
     department keys — distinct from `EVIDENCE_CATEGORY_ORDER`, which is the
     A-through-E order the cards are always laid out in on the page. */
-export const EVIDENCE_RECOMMENDED_ORDER: EvidenceDepartment[] = ["finance", "operations", "suppliers"];
+export const EVIDENCE_RECOMMENDED_ORDER: EvidenceDepartment[] = [
+  "finance",
+  "operations",
+  "suppliers",
+];
 
 /** Who to ask for a document in this department, and why that department is
     or isn't the easy starting point — shown once per category header, not
     repeated on every card. */
-export const EVIDENCE_DEPARTMENT_WHO_TO_ASK: Record<EvidenceDepartment, string> = {
+export const EVIDENCE_DEPARTMENT_WHO_TO_ASK: Record<
+  EvidenceDepartment,
+  string
+> = {
   operations: "Engineering / technical staff, the ERP administrator",
-  finance: "Finance department — these are usually already on file for bill payment",
-  suppliers: "Nobody internal — these arrive from external suppliers through their Smart Link",
+  finance:
+    "Finance department — these are usually already on file for bill payment",
+  suppliers:
+    "Nobody internal — these arrive from external suppliers through their Smart Link",
   lab: "An external fuel-testing company",
   organisation: "HR or management, once per company — not once per month",
 };
 
-export type EvidenceFrequency = "monthly" | "per_shipment" | "one_time" | "as_needed";
+export type EvidenceFrequency =
+  | "monthly"
+  | "per_shipment"
+  | "one_time"
+  | "as_needed";
 
 export const EVIDENCE_FREQUENCY_LABEL: Record<EvidenceFrequency, string> = {
   monthly: "Monthly",
@@ -380,16 +429,51 @@ export const UTILITY_INVOICE_KEY: RequiredKey = {
   cite: "Annex II D · A.2(4), IR (EU) 2025/2547",
   department: "finance",
   frequency: "monthly",
-  whoToAsk: "Finance department — the electricity authority's bill (MEA/PEA) for the reporting month",
+  whoToAsk:
+    "Finance department — the electricity authority's bill (MEA/PEA) for the reporting month",
 };
 
 /** Every electricity-only document, whether or not THIS workspace's category
     triggers it — evidence-cards.tsx uses this to render the "Not required"
     placeholder cards, the same way ALL_CONDITIONAL_ANNUAL_KEYS already does
     for the PPA/precursor/lab-analysis cards. */
-export const ALL_ELECTRICITY_KEYS: RequiredKey[] = [ELECTRICITY_CONSUMED_KEY, ELECTRICITY_FACTOR_KEY, UTILITY_INVOICE_KEY];
+/* Where the electricity factor rests on a generator of the plant's own choosing — a direct technical link or a power purchase
+   agreement — Annex II D.4.3 lists what has to be shown: the single line diagram of the link, and smart-meter data for what the
+   generator produced and what was delivered, in periods of an hour or less. (The contract itself is CONTRACT_OR_PPA_KEY.) */
+export const SINGLE_LINE_DIAGRAM_KEY: RequiredKey = {
+  key: "single-line-diagram",
+  label:
+    "Single line diagram — the direct connection between the generator and the installation",
+  cite: "Annex II D.4.3, IR (EU) 2025/2547",
+  department: "operations",
+  frequency: "one_time",
+  whoToAsk: "The plant's electrical engineer, or the generator's operator",
+};
 
-export function requiredKeysForMonth(entry: MonthlyEntry, requiresIndirect: boolean): RequiredKey[] {
+export const SMART_METER_DATA_KEY: RequiredKey = {
+  key: "smart-meter-data",
+  label:
+    "Smart-meter data — what the generator produced and what was delivered to the installation, in periods of an hour or less",
+  cite: "Annex II D.4.3, IR (EU) 2025/2547",
+  department: "operations",
+  frequency: "monthly",
+  whoToAsk: "The generator's operator, and the plant's metering staff",
+};
+
+export const ALL_ELECTRICITY_KEYS: RequiredKey[] = [
+  ELECTRICITY_CONSUMED_KEY,
+  ELECTRICITY_FACTOR_KEY,
+  UTILITY_INVOICE_KEY,
+  SMART_METER_DATA_KEY,
+  SINGLE_LINE_DIAGRAM_KEY,
+];
+
+export function requiredKeysForMonth(
+  entry: MonthlyEntry,
+  requiresIndirect: boolean,
+): RequiredKey[] {
+  // A month in which nothing was made has no figures to evidence.
+  if (entry.notManufactured) return [];
   const keys: RequiredKey[] = [
     {
       key: "production",
@@ -397,14 +481,35 @@ export function requiredKeysForMonth(entry: MonthlyEntry, requiresIndirect: bool
       // one line rather than two — a plant that already logs to its ERP
       // has one document, not two, and a checklist that demanded both
       // would read as broken to the one exporter who does this correctly.
-      label: "ERP production export / meter log — monthly production volume for the reporting period",
+      label:
+        "ERP production export / meter log — monthly production volume for the reporting period",
       cite: "Annex II A.2(4), IR (EU) 2025/2547",
       department: "operations",
       frequency: "monthly",
-      whoToAsk: "Engineering/technical staff, or the ERP administrator (SAP, Odoo, etc.)",
+      whoToAsk:
+        "Engineering/technical staff, or the ERP administrator (SAP, Odoo, etc.)",
     },
   ];
-  if (requiresIndirect) keys.push(ELECTRICITY_CONSUMED_KEY, ELECTRICITY_FACTOR_KEY, UTILITY_INVOICE_KEY);
+  if (requiresIndirect)
+    keys.push(
+      ELECTRICITY_CONSUMED_KEY,
+      ELECTRICITY_FACTOR_KEY,
+      UTILITY_INVOICE_KEY,
+    );
+  // Actual indirect emissions from a PPA or a direct technical link: the evidence Annex II D.4.3 lists.
+  const sources = entry.electricitySources ?? [];
+  if (
+    requiresIndirect &&
+    sources.some(
+      (s) => s.sourceType === "ppa" || s.sourceType === "direct_technical_link",
+    )
+  )
+    keys.push(SMART_METER_DATA_KEY);
+  if (
+    requiresIndirect &&
+    sources.some((s) => s.sourceType === "direct_technical_link")
+  )
+    keys.push(SINGLE_LINE_DIAGRAM_KEY);
   /* THE LABEL COMES FROM THE ROW, not from a guess.
 
      This used to call `fuelTypeLabel(f.fuelType)` with no second argument, so
@@ -430,7 +535,8 @@ export function requiredKeysForMonth(entry: MonthlyEntry, requiresIndirect: bool
       cite: "Annex II A.2(4) · A.3, IR (EU) 2025/2547",
       department: "operations",
       frequency: "monthly",
-      whoToAsk: "Engineering/technical staff who read the meter or log the delivery",
+      whoToAsk:
+        "Engineering/technical staff who read the meter or log the delivery",
     });
     // A separate line from the row above on purpose: the meter reading and
     // the vendor's invoice are two different documents held by two
@@ -441,7 +547,8 @@ export function requiredKeysForMonth(entry: MonthlyEntry, requiresIndirect: bool
       cite: "Annex II A.2(4), IR (EU) 2025/2547",
       department: "finance",
       frequency: "monthly",
-      whoToAsk: "Finance department — the vendor's receipt (e.g. PTT, oil companies)",
+      whoToAsk:
+        "Finance department — the vendor's receipt (e.g. PTT, oil companies)",
     });
     // A biomass row can only be reported at less than the full fossil-
     // equivalent factor once the sustainability criteria behind that are
@@ -456,10 +563,178 @@ export function requiredKeysForMonth(entry: MonthlyEntry, requiresIndirect: bool
         cite: "Annex II Point B.3.3, IR (EU) 2025/2547 · Directive (EU) 2018/2001 Art. 29(2)–(7), (10)",
         department: "operations",
         frequency: "monthly",
-        whoToAsk: "Whoever holds the supplier's sustainability certification or self-declaration for this biomass",
+        whoToAsk:
+          "Whoever holds the supplier's sustainability certification or self-declaration for this biomass",
       });
     }
   });
+
+  /* STEEL AND ALUMINIUM: THE DOCUMENTS BEHIND THE NEW ROWS.
+     Every source stream the form now asks for has a record somebody can show a
+     verifier — what was bought and used, the analysis behind a carbon content
+     that is not the EU's, the potline records behind the anode-effect figure and
+     the measurement behind a plant's own PFC factors, the receiving record of
+     scrap. They are listed only for the rows that are filled in, so a plant that
+     does not use electrodes is not asked for an electrode invoice. */
+  for (const e of entry.processEmissionEntries ?? []) {
+    if (!(Number(e.quantityT) !== 0)) continue;
+    const name = processEntryLabel(e);
+    keys.push({
+      key: `process:${e.id}`,
+      label: `${name} — purchase and consumption records for the source stream`,
+      cite: "Annex II B.4 · A.2(4), IR (EU) 2025/2547",
+      department: "operations",
+      frequency: "monthly",
+      whoToAsk:
+        "Stores or purchasing — the delivery notes and the stock or consumption log",
+    });
+    if (e.method === "mass_balance" && e.carbonContent != null) {
+      keys.push({
+        key: `carbon-content:${e.id}`,
+        label: `${name} — laboratory analysis or supplier specification of the carbon content`,
+        cite: "Annex II B.3.2 · B.5, IR (EU) 2025/2547",
+        department: "lab",
+        frequency: "as_needed",
+        whoToAsk:
+          "The supplier's specification sheet, or an accredited laboratory (ISO/IEC 17025 recommended)",
+      });
+    }
+  }
+  if (entry.pfc) {
+    keys.push({
+      key: "pfc",
+      label:
+        "Potline records — anode-effect minutes per cell-day (or overvoltage and current efficiency) for the month",
+      cite: "Annex II B.7, IR (EU) 2025/2547",
+      department: "operations",
+      frequency: "monthly",
+      whoToAsk:
+        "The potline control system or the smelter's process-engineering team",
+    });
+    if (entry.pfc.ownCf4Factor != null || entry.pfc.ownC2f6Fraction != null) {
+      keys.push({
+        key: "pfc-factors",
+        label:
+          "Field-measurement report behind the installation's own CF₄ and C₂F₆ factors",
+        cite: "Annex II B.7.1 · B.7.2, IR (EU) 2025/2547",
+        department: "lab",
+        frequency: "one_time",
+        whoToAsk:
+          "The consultant or laboratory that measured the duct — renewed at least every three years",
+      });
+    }
+  }
+  if (scrapOf(entry).tonnes > 0) {
+    keys.push({
+      key: "scrap",
+      label:
+        "Scrap receiving records — tonnes by type and whether pre-consumer or post-consumer",
+      cite: "Annex IV item 35, IR (EU) 2025/2547",
+      department: "operations",
+      frequency: "monthly",
+      whoToAsk: "The scrapyard or the weighbridge log",
+    });
+  }
+  /* THE PAPER BEHIND A WORKED-OUT QUANTITY. A quantity the form calculated — from a
+     stock change, a share of a shared meter, a gas's volume and composition, a month's
+     alloy analysis — is only as good as the records the calculation started from, so
+     each is asked for only when the month uses it. */
+  /* THE REST OF WHAT THE REGULATION SAYS A VERIFIER WILL ASK FOR, each only when the month reports the thing:
+     measured emissions (B.6), CO₂ received or sent on (B.8), measurable heat bought or sold. */
+  if ((entry.measuredEmissions ?? []).some((e) => Number(e.tCO2e) > 0)) {
+    keys.push({
+      key: "cems-records",
+      label:
+        "Continuous measurement records and the calibration (QAL2) certificate of each analyser",
+      cite: "Annex II B.6, IR (EU) 2025/2547",
+      department: "operations",
+      frequency: "monthly",
+      whoToAsk:
+        "The environmental or instrumentation team that runs the analysers",
+    });
+  }
+  if (Number(entry.co2ReceivedT) > 0 || Number(entry.co2TransferredOutT) > 0) {
+    keys.push({
+      key: "co2-transfer-records",
+      label:
+        "Records of the CO₂ received or sent on — the quantities, and the receiving installation's or storage site's confirmation",
+      cite: "Annex II B.8, IR (EU) 2025/2547",
+      department: "operations",
+      frequency: "monthly",
+      whoToAsk:
+        "The process engineers, and the contact at the receiving installation",
+    });
+  }
+  if (Object.values(entry.heatGj ?? {}).some((n) => (n ?? 0) > 0)) {
+    keys.push({
+      key: "heat-records",
+      label:
+        "Heat meter records and the statement of the installation the heat came from or went to",
+      department: "operations",
+      frequency: "monthly",
+      whoToAsk: "Engineering staff who read the heat meter",
+    });
+  }
+  if (
+    entry.fuels.some((f) => f.stock) ||
+    (entry.processEmissionEntries ?? []).some((e) => e.stock)
+  ) {
+    keys.push({
+      key: "stock-records",
+      label:
+        "Stock records — the quantity in store at the start and at the end of the month, and the delivery notes",
+      cite: "Annex II B.4.1, IR (EU) 2025/2547",
+      department: "operations",
+      frequency: "monthly",
+      whoToAsk: "Stores — the stock count or the tank-gauge log",
+    });
+  }
+  if (
+    entry.fuels.some((f) => f.shared) ||
+    (entry.electricitySources ?? []).some((s) => s.shared)
+  ) {
+    keys.push({
+      key: "allocation-basis",
+      label:
+        "Meter log and allocation basis — the whole meter's reading, and the figures the split between products is made from",
+      cite: "Annex IV items 26 · 29 · 30, IR (EU) 2025/2547",
+      department: "operations",
+      frequency: "monthly",
+      whoToAsk: "Engineering staff who read the shared meter",
+    });
+  }
+  if ((entry.wasteGases ?? []).length > 0) {
+    keys.push({
+      key: "waste-gas-records",
+      label:
+        "Waste-gas flow and analysis records — the volume and the composition of each gas",
+      cite: "Annex IV item 17 · Annex II B.5, IR (EU) 2025/2547",
+      department: "lab",
+      frequency: "monthly",
+      whoToAsk:
+        "The gas flow-meter log and the laboratory or chromatograph results",
+    });
+  }
+  if (
+    entry.composition &&
+    [
+      entry.composition.mnPct,
+      entry.composition.crPct,
+      entry.composition.niPct,
+      entry.composition.otherPct,
+    ].some((v) => v != null)
+  ) {
+    keys.push({
+      key: "mill-certificates",
+      label:
+        "Mill test certificates — the alloy analysis of the heats made in the month",
+      cite: "Annex IV item 35, IR (EU) 2025/2547",
+      department: "lab",
+      frequency: "monthly",
+      whoToAsk:
+        "The quality department — the mill test certificate of each heat",
+    });
+  }
   return keys;
 }
 
@@ -511,11 +786,13 @@ export const ANNUAL_REQUIRED_KEYS: RequiredKey[] = [
        measuring equipment is "calibrated, adjusted, and checked at regular
        intervals including prior to use, and checked against measurement
        standards traceable to international measurement standards". */
-    label: "Calibration certificate for measuring instruments",
+    label:
+      "Calibration certificate for measuring instruments — and, where an instrument is under legal metrological control, its verification certificate",
     cite: "Annex II A.5(22)(a) · A.3(1)(b)–(c), IR (EU) 2025/2547",
     department: "operations",
     frequency: "monthly",
-    whoToAsk: "The meter manufacturer, or a contracted calibration company — must show the most recent calibration date",
+    whoToAsk:
+      "The meter manufacturer, or a contracted calibration company — must show the most recent calibration date",
   },
   {
     key: "installation-diagram",
@@ -528,6 +805,7 @@ export const ANNUAL_REQUIRED_KEYS: RequiredKey[] = [
   {
     key: "internal-qa-record",
     label: "Internal QA record — the review log before data is submitted",
+    cite: "Annex II A.5(22)(e), IR (EU) 2025/2547",
     department: "organisation",
     frequency: "one_time",
   },
@@ -644,6 +922,15 @@ const STATIC_KEY_DEPARTMENT: Record<string, EvidenceDepartment> = {
   "supplier-communication-template": "suppliers",
   "mill-test-certificate": "suppliers",
   "contract-or-ppa": "organisation",
+  "single-line-diagram": "operations",
+  "smart-meter-data": "operations",
+  "cems-records": "operations",
+  "co2-transfer-records": "operations",
+  "heat-records": "operations",
+  "stock-records": "operations",
+  "allocation-basis": "operations",
+  "waste-gas-records": "lab",
+  "mill-certificates": "lab",
   "lab-analysis": "lab",
   "default-value-justification": "organisation",
   "carbon-price": "finance",
@@ -653,21 +940,31 @@ export function departmentForFieldKey(key: string): EvidenceDepartment {
   if (key.startsWith("fuel-invoice:")) return "finance";
   if (key.startsWith("fuel:")) return "operations";
   if (key.startsWith("precursor:")) return "suppliers";
+  // The steel and aluminium rows: what was used and what the potline logged is the plant's; an analysis or a measurement report is the laboratory's.
+  if (key.startsWith("process:") || key === "pfc" || key === "scrap")
+    return "operations";
+  if (key.startsWith("carbon-content:") || key === "pfc-factors") return "lab";
   return STATIC_KEY_DEPARTMENT[key] ?? "organisation";
 }
 
 /** An item can in principle carry more than one field key; the first is
     always the one it was uploaded against, so that is what decides its
     category. */
-export const departmentForEvidenceItem = (item: Pick<EvidenceItem, "fieldKeys">): EvidenceDepartment =>
-  departmentForFieldKey(item.fieldKeys[0] ?? "");
+export const departmentForEvidenceItem = (
+  item: Pick<EvidenceItem, "fieldKeys">,
+): EvidenceDepartment => departmentForFieldKey(item.fieldKeys[0] ?? "");
 
 /** What is actually in play for one workspace, read from what it already
     records — the precursor chain's data origins and the methodology's factor
     sources. Derived rather than asked, because a checkbox saying "we use
     default values" is a second copy of an answer the workspace already has,
     and the two would drift. */
-export function annualScopeFor(workspaceId: string, periodStart: string, periodEnd: string, carbonPricePaid: boolean): AnnualScope {
+export function annualScopeFor(
+  workspaceId: string,
+  periodStart: string,
+  periodEnd: string,
+  carbonPricePaid: boolean,
+): AnnualScope {
   const suppliers = listSuppliers(workspaceId);
   const mmd = loadDraft(workspaceId, periodStart, periodEnd);
   const instruments = [...mmd.fuelInstruments, ...mmd.electricityInstruments];
@@ -677,10 +974,14 @@ export function annualScopeFor(workspaceId: string, periodStart: string, periodE
   const ws = getWorkspace(workspaceId);
   return {
     carbonPricePaid,
-    requiresIndirectEmissions: ws ? workspaceRequiresIndirectEmissions(ws.productId) : false,
+    requiresIndirectEmissions: ws
+      ? workspaceRequiresIndirectEmissions(ws.productId)
+      : false,
     // Scrap carries no embedded emissions, so it is not a precursor whose
     // producer has anything to verify — same short-circuit the SEE walk makes.
-    hasPurchasedPrecursors: suppliers.some((s) => !s.isScrap && s.dataOrigin !== "default_value"),
+    hasPurchasedPrecursors: suppliers.some(
+      (s) => !s.isScrap && s.dataOrigin !== "default_value",
+    ),
     usesLabAnalysis: instruments.some((m) => m.factorSource === "lab_analysis"),
     usesDefaultValues: suppliers.some((s) => s.dataOrigin === "default_value"),
     // A PPA or a direct technical link is the only case where the electricity
@@ -688,8 +989,10 @@ export function annualScopeFor(workspaceId: string, periodStart: string, periodE
     // read off whatever a month actually recorded, source list or (on an
     // older entry that never adopted it) the legacy scalar field.
     hasPpaOrDirectLink: listMonths(workspaceId).some((m) => {
-      const isPpaOrLink = (t: string) => t === "ppa" || t === "direct_technical_link";
-      if (m.electricitySources && m.electricitySources.length > 0) return m.electricitySources.some((s) => isPpaOrLink(s.sourceType));
+      const isPpaOrLink = (t: string) =>
+        t === "ppa" || t === "direct_technical_link";
+      if (m.electricitySources && m.electricitySources.length > 0)
+        return m.electricitySources.some((s) => isPpaOrLink(s.sourceType));
       return isPpaOrLink(m.electricityFactorSource);
     }),
     // A finalised version covering a period that ends before this one starts
@@ -737,7 +1040,7 @@ const ONBOARDING_ACK_KEY = "certrace:evidence-onboarding-ack";
 export function evidenceOnboardingAcknowledged(workspaceId: string): boolean {
   if (typeof window === "undefined") return true;
   try {
-    const raw = window.localStorage.getItem(ONBOARDING_ACK_KEY);
+    const raw = accountStorage.getItem(ONBOARDING_ACK_KEY);
     return raw ? (JSON.parse(raw) as string[]).includes(workspaceId) : false;
   } catch {
     return false;
@@ -747,9 +1050,13 @@ export function evidenceOnboardingAcknowledged(workspaceId: string): boolean {
 export function acknowledgeEvidenceOnboarding(workspaceId: string): void {
   if (typeof window === "undefined") return;
   try {
-    const raw = window.localStorage.getItem(ONBOARDING_ACK_KEY);
+    const raw = accountStorage.getItem(ONBOARDING_ACK_KEY);
     const list = raw ? (JSON.parse(raw) as string[]) : [];
-    if (!list.includes(workspaceId)) window.localStorage.setItem(ONBOARDING_ACK_KEY, JSON.stringify([...list, workspaceId]));
+    if (!list.includes(workspaceId))
+      accountStorage.setItem(
+        ONBOARDING_ACK_KEY,
+        JSON.stringify([...list, workspaceId]),
+      );
   } catch {
     /* ignore */
   }
@@ -762,6 +1069,7 @@ export function acknowledgeEvidenceOnboarding(workspaceId: string): void {
    at proves nothing, and counting it green would put a number in front of a
    verifier that nobody has tied to a document. */
 export function isReviewed(item: EvidenceItem): boolean {
+  if (!supportsEvidenceExtraction(item)) return true;
   const x = item.extraction;
   // No extraction at all = a human attached it deliberately. That counts.
   if (!x) return true;
@@ -814,7 +1122,10 @@ export type CoverageRow = {
     Exported because `SectionEvidence` builds its rows from a `keys` prop
     rather than from a coverage function — and building them by hand is how
     the citation stopped reaching the screen the first time. */
-export function coverageRowFor(rk: RequiredKey, items: EvidenceItem[]): CoverageRow {
+export function coverageRowFor(
+  rk: RequiredKey,
+  items: EvidenceItem[],
+): CoverageRow {
   const matching = items.filter((i) => i.fieldKeys.includes(rk.key));
   const reviewed = matching.filter(isReviewed);
   const bound = reviewed.filter((i) => isBound(i, rk));
@@ -842,9 +1153,15 @@ export type MonthCoverage = {
   complete: boolean;
 };
 
-export function coverageForMonth(workspaceId: string, entry: MonthlyEntry, requiresIndirect: boolean): MonthCoverage {
+export function coverageForMonth(
+  workspaceId: string,
+  entry: MonthlyEntry,
+  requiresIndirect: boolean,
+): MonthCoverage {
   const items = evidenceForMonth(workspaceId, entry.month);
-  const rows = requiredKeysForMonth(entry, requiresIndirect).map((rk) => coverageRowFor(rk, items));
+  const rows = requiredKeysForMonth(entry, requiresIndirect).map((rk) =>
+    coverageRowFor(rk, items),
+  );
   const covered = rows.filter((r) => r.covered).length;
   return {
     month: entry.month,
@@ -852,7 +1169,9 @@ export function coverageForMonth(workspaceId: string, entry: MonthlyEntry, requi
     covered,
     total: rows.length,
     ratio: rows.length > 0 ? covered / rows.length : 1,
-    complete: rows.length > 0 && covered === rows.length,
+    complete: entry.notManufactured
+      ? true
+      : rows.length > 0 && covered === rows.length,
   };
 }
 
@@ -861,15 +1180,29 @@ export function coverageForMonth(workspaceId: string, entry: MonthlyEntry, requi
     because "March is 75% covered" and "the year is 62% covered" answer
     different questions, and only the second one tells an exporter whether
     they are ready to call a verifier. */
-export type YearCoverage = { covered: number; total: number; ratio: number; complete: boolean; awaitingReview: number };
+export type YearCoverage = {
+  covered: number;
+  total: number;
+  ratio: number;
+  complete: boolean;
+  awaitingReview: number;
+};
 
-export function yearCoverage(workspaceId: string, entries: MonthlyEntry[], scope: AnnualScope): YearCoverage {
+export function yearCoverage(
+  workspaceId: string,
+  entries: MonthlyEntry[],
+  scope: AnnualScope,
+): YearCoverage {
   let covered = 0;
   let total = 0;
   let awaitingReview = 0;
 
   for (const entry of entries) {
-    const cov = coverageForMonth(workspaceId, entry, scope.requiresIndirectEmissions ?? false);
+    const cov = coverageForMonth(
+      workspaceId,
+      entry,
+      scope.requiresIndirectEmissions ?? false,
+    );
     covered += cov.covered;
     total += cov.total;
     awaitingReview += cov.rows.reduce((a, r) => a + r.awaitingReview, 0);
@@ -880,10 +1213,19 @@ export function yearCoverage(workspaceId: string, entries: MonthlyEntry[], scope
     awaitingReview += row.awaitingReview;
   }
 
-  return { covered, total, ratio: total > 0 ? covered / total : 1, complete: total > 0 && covered === total, awaitingReview };
+  return {
+    covered,
+    total,
+    ratio: total > 0 ? covered / total : 1,
+    complete: total > 0 && covered === total,
+    awaitingReview,
+  };
 }
 
-export function annualCoverage(workspaceId: string, scope: AnnualScope): CoverageRow[] {
+export function annualCoverage(
+  workspaceId: string,
+  scope: AnnualScope,
+): CoverageRow[] {
   const items = annualEvidence(workspaceId);
   return annualRequiredKeys(scope).map((rk) => coverageRowFor(rk, items));
 }
@@ -898,70 +1240,51 @@ export function annualCoverage(workspaceId: string, scope: AnnualScope): Coverag
 export const EXTRACTION_MODEL = "claude-sonnet-4-6";
 export const EXTRACTION_MAX_TOKENS = 1000;
 
-const API_KEY_STORAGE = "certrace:anthropic-key";
+export const extractionAvailable = (): boolean =>
+  apiConfigured() && planAllows("aiExtraction");
 
-export const getApiKey = (): string => {
-  if (typeof window === "undefined") return "";
-  try {
-    return window.localStorage.getItem(API_KEY_STORAGE) ?? "";
-  } catch {
-    return "";
-  }
-};
-
-export function setApiKey(key: string): void {
-  if (typeof window === "undefined") return;
-  try {
-    if (key.trim()) window.localStorage.setItem(API_KEY_STORAGE, key.trim());
-    else window.localStorage.removeItem(API_KEY_STORAGE);
-  } catch {
-    /* ignore */
-  }
+/** Only records with monthly readings have fields this reader can propose.
+ * Diagrams, certificates, QA records and other supporting documents stay evidence. */
+export function supportsEvidenceExtraction(
+  item: Pick<EvidenceItem, "fieldKeys" | "mimeType">,
+): boolean {
+  if (
+    item.fieldKeys.some((key) =>
+      ["installation-diagram", "single-line-diagram"].includes(key),
+    )
+  )
+    return false;
+  if (
+    item.mimeType &&
+    !["application/pdf", "image/png", "image/jpeg"].includes(item.mimeType)
+  )
+    return false;
+  return item.fieldKeys.some(
+    (key) =>
+      [
+        "production",
+        "electricity-consumed",
+        "utility-invoice",
+        "smart-meter-data",
+      ].includes(key) ||
+      key.startsWith("fuel:") ||
+      key.startsWith("fuel-invoice:"),
+  );
 }
 
-/* TWO CONDITIONS, AND BOTH ARE REAL. A key has to be on the device — that is
-   the technical one — and the PLAN has to include extraction, which it does
-   from Standard up. Reading a document with a model costs money per document,
-   which is why it is the one thing in the whole workflow a tier switches off;
-   nothing about the CALCULATION is ever gated (see the pricing block in
-   lib/config.ts). With it off, every field is still typed in by hand and the
-   file is still attached to the month — the tab loses a shortcut, not a
-   capability. */
-export const extractionAvailable = (): boolean => planAllows("aiExtraction") && getApiKey().length > 0;
-
-/** Why it is unavailable, when it is — so the panel can say which of the two
-    it is rather than going quiet. */
-export const extractionBlockedByPlan = (): boolean => !planAllows("aiExtraction");
-
+function extractionPath(): { path: string; auth: boolean } {
+  const scope = publicScope();
+  return scope
+    ? {
+        path: `/api/v1/links/${scope.split("/")[2]!}/evidence`,
+        auth: false,
+      }
+    : { path: "/api/v1/evidence", auth: true };
+}
+export const extractionBlockedByPlan = (): boolean =>
+  !planAllows("aiExtraction");
 export const EXTRACTION_PRIVACY_NOTE =
-  "Extraction sends the uploaded file to the Anthropic API directly from this browser, using a key stored on this device. " +
-  "Real utility bills carry account numbers and addresses. For production, route this through your own backend so the key " +
-  "never reaches a browser and you control what leaves your network. Everything else on this tab works without it.";
-
-/* The instruction. Deliberately narrow — it asks for the fields a utility or
-   fuel invoice actually carries, tells the model to omit what is not there
-   rather than guess, and requires a confidence per field so the UI can apply
-   the 0.8 floor. "ONLY JSON" is stated twice because a single stray sentence
-   of prose breaks the parse. */
-const SYSTEM_PROMPT = [
-  "You read utility and fuel invoices, meter logs and production records for a CBAM emissions workspace.",
-  "Return ONLY a JSON object. No prose, no explanation, no markdown fences.",
-  "",
-  "Shape:",
-  '{"fields":[{"key":string,"value":string,"unit":string|null,"confidence":number}],"summary":string}',
-  "",
-  "Use these keys where the document contains them, and OMIT any key the document does not contain:",
-  '  "billing-period-start"  (YYYY-MM-DD)',
-  '  "billing-period-end"    (YYYY-MM-DD)',
-  '  "electricity-consumed"  (unit "kWh" or "MWh", exactly as printed)',
-  '  "total-amount"          (unit = the currency)',
-  '  "meter-number"',
-  '  "supplier-name"',
-  "",
-  "confidence is 0 to 1 and reflects how clearly the value is printed. Use a low value when a figure is",
-  "handwritten, partially obscured, ambiguous between several numbers on the page, or inferred rather than read.",
-  "Never invent a value to fill a key. Return ONLY the JSON object.",
-].join("\n");
+  "Document extraction sends the selected file through Certrace to Anthropic. Review extracted values before accepting them.";
 
 /** Strip ``` fences before parsing. Models sometimes wrap JSON despite being
     told not to, and a fence is not a reason to lose a good extraction. */
@@ -973,9 +1296,14 @@ export function stripFences(text: string): string {
 
 /** Defensive parse. Anything unexpected returns null, and the caller degrades
     to manual entry — never to a half-populated field list. */
-export function parseExtraction(text: string): { fields: ExtractedField[]; summary?: string } | null {
+export function parseExtraction(
+  text: string,
+): { fields: ExtractedField[]; summary?: string } | null {
   try {
-    const parsed = JSON.parse(stripFences(text)) as { fields?: unknown; summary?: unknown };
+    const parsed = JSON.parse(stripFences(text)) as {
+      fields?: unknown;
+      summary?: unknown;
+    };
     if (!parsed || !Array.isArray(parsed.fields)) return null;
     const fields: ExtractedField[] = [];
     for (const raw of parsed.fields as Record<string, unknown>[]) {
@@ -987,39 +1315,25 @@ export function parseExtraction(text: string): { fields: ExtractedField[]; summa
       fields.push({
         key,
         value,
-        unit: typeof raw?.unit === "string" && raw.unit.trim() ? raw.unit.trim() : undefined,
+        unit:
+          typeof raw?.unit === "string" && raw.unit.trim()
+            ? raw.unit.trim()
+            : undefined,
         // An absent or nonsense confidence is treated as LOW, not as high —
         // the failure mode of a missing number must be more review, not less.
-        confidence: Number.isFinite(confidence) ? Math.min(1, Math.max(0, confidence)) : 0,
+        confidence: Number.isFinite(confidence)
+          ? Math.min(1, Math.max(0, confidence))
+          : 0,
         accepted: false,
       });
     }
-    return { fields, summary: typeof parsed.summary === "string" ? parsed.summary : undefined };
+    return {
+      fields,
+      summary: typeof parsed.summary === "string" ? parsed.summary : undefined,
+    };
   } catch {
     return null;
   }
-}
-
-const base64Of = (dataUrl: string): string => dataUrl.slice(dataUrl.indexOf(",") + 1);
-
-const IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
-
-/** Build the content block for the file. A PDF goes in as a document block, an
-    image as an image block; anything else the API cannot read is refused here
-    rather than sent and rejected. */
-function fileBlock(dataUrl: string, mimeType: string): Anthropic.ContentBlockParam | null {
-  const data = base64Of(dataUrl);
-  if (!data) return null;
-  if (mimeType === "application/pdf") {
-    return { type: "document", source: { type: "base64", media_type: "application/pdf", data } };
-  }
-  if (IMAGE_TYPES.includes(mimeType)) {
-    return {
-      type: "image",
-      source: { type: "base64", media_type: mimeType as "image/jpeg" | "image/png" | "image/gif" | "image/webp", data },
-    };
-  }
-  return null;
 }
 
 /** Run extraction over one uploaded file.
@@ -1027,52 +1341,54 @@ function fileBlock(dataUrl: string, mimeType: string): Anthropic.ContentBlockPar
     NEVER THROWS. Every failure path returns a `failed` ExtractionResult with
     a message, because the contract with the caller is that a failed
     extraction degrades to manual entry and the uploaded file survives. */
-export async function runExtraction(item: EvidenceItem): Promise<ExtractionResult> {
-  const failed = (error: string): ExtractionResult => ({ status: "failed", fields: [], extractedAt: new Date().toISOString(), error });
-
-  const apiKey = getApiKey();
-  if (!apiKey) return failed("No Anthropic API key is set on this device. Enter one to enable extraction, or type the values in by hand.");
-  if (!item.fileDataUrl) return failed("The file was too large to keep in the browser, so there is nothing to read. Enter the values by hand.");
-
-  const block = fileBlock(item.fileDataUrl, item.mimeType ?? "");
-  if (!block) {
-    return failed(`${item.mimeType || "This file type"} cannot be read automatically — extraction handles PDFs and images. Enter the values by hand.`);
-  }
+export async function runExtraction(
+  item: EvidenceItem,
+): Promise<ExtractionResult | undefined> {
+  if (!supportsEvidenceExtraction(item)) return;
+  const scope = publicScope();
+  const epoch = sessionEpoch();
+  const checkScope = () => {
+    assertSessionUnchanged(epoch);
+    if (publicScope() !== scope)
+      throw new Error(
+        "The open form changed. Reopen it before reading documents.",
+      );
+  };
+  const failed = (error: string): ExtractionResult => ({
+    status: "failed",
+    fields: [],
+    extractedAt: new Date().toISOString(),
+    error,
+  });
 
   try {
-    const client = new Anthropic({
-      apiKey,
-      // The whole feature is a browser call; the flag is the SDK's way of
-      // making that an explicit, greppable decision rather than an accident.
-      dangerouslyAllowBrowser: true,
+    const { path, auth } = extractionPath();
+    const capability = await request<{ available: boolean }>(
+      `${path}/extraction`,
+      { auth },
+    );
+    checkScope();
+    if (!capability.available) return;
+    const file = await loadEvidenceFile(item);
+    checkScope();
+    if (!file)
+      return failed(
+        "The original document is unavailable. Upload it again or enter the values by hand.",
+      );
+    const response = await request<{ text: string }>(`${path}/extract`, {
+      method: "POST",
+      rawBody: file,
+      contentType: item.mimeType ?? file.type,
+      auth,
+      timeoutMs: 60_000,
     });
-
-    const response = await client.messages.create({
-      model: EXTRACTION_MODEL,
-      max_tokens: EXTRACTION_MAX_TOKENS,
-      system: SYSTEM_PROMPT,
-      messages: [
-        {
-          role: "user",
-          content: [
-            block,
-            {
-              type: "text",
-              text: `Read this ${EVIDENCE_SOURCE_LABEL[item.sourceType].toLowerCase()} and return the JSON object.`,
-            },
-          ],
-        },
-      ],
-    });
-
-    const text = response.content
-      .filter((b): b is Anthropic.TextBlock => b.type === "text")
-      .map((b) => b.text)
-      .join("");
-
+    checkScope();
+    const text = response.text;
     const parsed = parseExtraction(text);
-    if (!parsed || parsed.fields.length === 0) {
-      return failed("Nothing readable came back from the document. Enter the values by hand — the file is still attached.");
+    if (!parsed) {
+      return failed(
+        "Nothing readable came back from the document. Enter the values by hand — the file is still attached.",
+      );
     }
 
     return {
@@ -1085,7 +1401,9 @@ export async function runExtraction(item: EvidenceItem): Promise<ExtractionResul
     };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    return failed(`Extraction failed: ${message}. The file is still attached — enter the values by hand.`);
+    return failed(
+      `Extraction failed: ${message}. The file is still attached — enter the values by hand.`,
+    );
   }
 }
 
@@ -1096,17 +1414,108 @@ export async function runExtraction(item: EvidenceItem): Promise<ExtractionResul
    kWh → MWh is applied here, once. A bill printed in kWh accepted straight
    into `electricityMwh` would overstate indirect emissions by 1000× and look
    entirely plausible on the screen — the field would just read "393,750". */
-export type AcceptOutcome = { entry: MonthlyEntry; applied: string | null; note: string };
+export type AcceptOutcome = {
+  entry: MonthlyEntry;
+  applied: string | null;
+  note: string;
+};
 
-export function applyAcceptedField(entry: MonthlyEntry, field: ExtractedField): AcceptOutcome {
+export function applyAcceptedField(
+  entry: MonthlyEntry,
+  field: ExtractedField,
+  item?: Pick<EvidenceItem, "fieldKeys">,
+): AcceptOutcome {
   const numeric = Number(String(field.value).replace(/[,\s]/g, ""));
+  const unchanged = (note: string): AcceptOutcome => ({
+    entry,
+    applied: null,
+    note,
+  });
+  const unit = (field.unit ?? "").trim().toLowerCase();
+  if (
+    WRITEABLE_KEYS.has(field.key) &&
+    (!String(field.value).trim() || !Number.isFinite(numeric) || numeric < 0)
+  )
+    return unchanged(
+      "Enter a non-negative number before accepting this reading.",
+    );
+
+  if (field.key === "production" && item?.fieldKeys.includes("production")) {
+    const tonnes = ["t", "tonne", "tonnes"].includes(unit)
+      ? numeric
+      : unit === "kg"
+        ? numeric / 1000
+        : null;
+    if (tonnes === null)
+      return unchanged(
+        "Production units must be tonnes or kg. Enter the value manually.",
+      );
+    return {
+      entry: { ...entry, productionTonnes: tonnes },
+      applied: "productionTonnes",
+      note: `${tonnes} t written to this month.`,
+    };
+  }
+
+  if (field.key === "fuel-quantity") {
+    const fuelKeys =
+      item?.fieldKeys.filter((key) => key.startsWith("fuel:")) ?? [];
+    const fuel =
+      fuelKeys.length === 1
+        ? entry.fuels.find((f) => `fuel:${f.id}` === fuelKeys[0])
+        : undefined;
+    if (!fuel || fuel.stock || fuel.shared)
+      return unchanged(
+        "Enter this quantity on the matching fuel row; delivery, stock and shared-meter figures need manual review.",
+      );
+    if (unit.replace("³", "3") !== fuel.unit.toLowerCase())
+      return unchanged(
+        `Convert the fuel quantity to ${fuel.unit} and enter it manually.`,
+      );
+    return {
+      entry: {
+        ...entry,
+        fuels: entry.fuels.map((f) =>
+          f.id === fuel.id ? { ...f, quantity: numeric } : f,
+        ),
+      },
+      applied: `fuel:${fuel.id}`,
+      note: `${numeric} ${fuel.unit} written to the matching fuel row.`,
+    };
+  }
 
   if (field.key === "electricity-consumed") {
-    if (!Number.isFinite(numeric)) return { entry, applied: null, note: `"${field.value}" is not a number.` };
-    const unit = (field.unit ?? "").toLowerCase();
+    if (
+      item &&
+      !item.fieldKeys.some((key) =>
+        [
+          "electricity-consumed",
+          "utility-invoice",
+          "smart-meter-data",
+        ].includes(key),
+      )
+    )
+      return unchanged(
+        "Recorded against the document. Enter electricity from its own supporting record.",
+      );
+    if (!["kwh", "mwh"].includes(unit))
+      return unchanged(
+        "Electricity units must be kWh or MWh. Enter the value manually.",
+      );
+    const sources = entry.electricitySources;
+    if (sources && (sources.length > 1 || sources[0]?.shared))
+      return unchanged(
+        "Enter this reading on the matching electricity source; it cannot replace a total across multiple or shared sources.",
+      );
     const mwh = unit === "kwh" ? numeric / 1000 : numeric;
     return {
-      entry: { ...entry, electricityMwh: mwh },
+      entry: {
+        ...entry,
+        electricityMwh: mwh,
+        ...(sources?.length === 1
+          ? { electricitySources: [{ ...sources[0]!, mwh }] }
+          : {}),
+      },
       applied: "electricityMwh",
       note:
         unit === "kwh"
@@ -1118,18 +1527,28 @@ export function applyAcceptedField(entry: MonthlyEntry, field: ExtractedField): 
   /* Every other extracted field is CONTEXT, not an input to the calculation:
      a billing period, a meter number and a supplier name are what let a
      verifier tie the document to the month, but none of them belongs in a
-     figure. They are recorded on the evidence item and appended to the
-     month's notes, never written over a number. */
-  return { entry, applied: null, note: "Recorded against the document. This field is context for the verifier, not a calculation input." };
+     figure. They are recorded on the evidence item, never written over a number. */
+  return {
+    entry,
+    applied: null,
+    note: "Recorded against the document. This field is context for the verifier, not a calculation input.",
+  };
 }
 
 /** Which extracted keys can actually write into a month. Everything else is
     accepted as context — the UI says so rather than implying a silent write. */
-export const WRITEABLE_KEYS = new Set(["electricity-consumed"]);
+export const WRITEABLE_KEYS = new Set([
+  "electricity-consumed",
+  "production",
+  "fuel-quantity",
+]);
 
-export const extractionSummaryLine = (x: ExtractionResult | undefined): string => {
+export const extractionSummaryLine = (
+  x: ExtractionResult | undefined,
+): string => {
   if (!x) return "No extraction run";
-  if (x.status === "failed") return x.error ?? "Extraction failed — enter values by hand";
+  if (x.status === "failed")
+    return x.error ?? "Extraction failed — enter values by hand";
   if (x.status === "pending") return "Reading the document…";
   const accepted = x.fields.filter((f) => f.accepted).length;
   return `${accepted} of ${x.fields.length} proposed values accepted`;
@@ -1160,22 +1579,35 @@ export function reconcileFuelEvidence(
   entry: MonthlyEntry,
   before: Record<string, boolean>,
   requiresIndirect: boolean,
-): { entry: MonthlyEntry; covered: Record<string, boolean>; reverted: string[] } {
+): {
+  entry: MonthlyEntry;
+  covered: Record<string, boolean>;
+  reverted: string[];
+} {
   const cov = coverageForMonth(workspaceId, entry, requiresIndirect);
   const covered: Record<string, boolean> = {};
   const reverted: string[] = [];
   let next = entry;
 
   for (const f of entry.fuels) {
-    const isCovered = cov.rows.find((r) => r.key === fuelEvidenceKey(f.id))?.covered ?? false;
+    const isCovered =
+      cov.rows.find((r) => r.key === fuelEvidenceKey(f.id))?.covered ?? false;
     covered[f.id] = isCovered;
-    if (before[f.id] !== true || isCovered || isTypeIStandard(f.factorSource)) continue;
+    if (before[f.id] !== true || isCovered || isTypeIStandard(f.factorSource))
+      continue;
 
     const locked = applyEuStandard({ ...f, factorSource: "eu_standard" });
     next = {
       ...next,
       fuels: next.fuels.map((x) =>
-        x.id === f.id ? { ...x, factorSource: "eu_standard" as const, efTco2PerGj: locked.efTco2PerGj, ncvMjPerUnit: locked.ncvMjPerUnit } : x,
+        x.id === f.id
+          ? {
+              ...x,
+              factorSource: "eu_standard" as const,
+              efTco2PerGj: locked.efTco2PerGj,
+              ncvMjPerUnit: locked.ncvMjPerUnit,
+            }
+          : x,
       ),
     };
     reverted.push(fuelTypeLabel(f.fuelType, f.fuelTypeOther));

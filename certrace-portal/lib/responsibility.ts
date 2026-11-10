@@ -28,8 +28,8 @@ import type { ReadinessTab } from "./readiness";
 export type Owner = "supplier" | "exporter";
 
 export const OWNER_LABEL: Record<Owner, string> = {
-  supplier: "Supplier fills this in",
-  exporter: "You fill this in",
+  supplier: "Supplier fills in",
+  exporter: "You fill in",
 };
 
 export const OWNER_SHORT: Record<Owner, string> = {
@@ -61,56 +61,58 @@ export type Responsibility = {
   yourJob: string;
 };
 
-export const RESPONSIBILITY: Record<ReadinessTab | "overview" | "readiness" | "settings", Responsibility> = {
+export const RESPONSIBILITY: Record<
+  ReadinessTab | "overview" | "readiness" | "settings",
+  Responsibility
+> = {
   overview: {
     owner: "exporter",
     cadence: "continuous",
-    due: "Whenever something changes",
-    what: "What this report covers and where it stands.",
-    yourJob: "Keep the identity correct. Everything downstream is scoped by it.",
+    due: "Whenever it changes",
+    what: "What this report covers.",
+    yourJob: "Keep it correct.",
   },
   mmd: {
     owner: "supplier",
     cadence: "annual",
-    due: "Once, at the end of the reporting year",
-    what: "How the installation measures what it measures. It describes a plant, not a month, so it is written once and amended only when the plant changes.",
-    yourJob: "Ask for it once. Chase it in Q4, before the year closes — a methodology finalised after the fact is the first thing a verifier questions.",
+    due: "Once a year",
+    what: "How the plant measures. Written once, changed only when the plant changes.",
+    yourJob: "Ask early — finish it before the year closes.",
   },
   monthly: {
     owner: "supplier",
     cadence: "monthly",
-    due: "Within a few weeks of each month closing",
-    what: "The readings: production, fuel, process emissions, electricity — plus the documents behind them.",
-    yourJob: "Send monthly, not once — a March bill requested in December is usually impossible to find.",
+    due: "Every month",
+    what: "Production, fuel, electricity and the documents behind them.",
+    yourJob: "Ask every month, not once.",
   },
   precursors: {
     owner: "supplier",
-    cadence: "monthly",
-    due: "With each month's readings",
-    what: "What went into the good, from whom, and how much of it — tier by tier up the chain.",
-    yourJob: "The slowest data in the workspace — your supplier has to chase theirs. Start early; top tiers often arrive as ratios, not tonnages.",
+    cadence: "annual",
+    due: "Once a year",
+    what: "One final figure for each direct precursor.",
+    yourJob: "Choose default or actual. For actual, copy the link and send it.",
   },
   evidence: {
     owner: "exporter",
     cadence: "annual",
     due: "Once a year",
-    what: "The installation-level paperwork: identity, calibration records, and a carbon-price receipt where a deduction is claimed.",
-    yourJob:
-      "Only the annual scope lives here now. Monthly bills belong inside their month, and precursor certificates belong on the precursor row — both are attached where the figure they support is entered.",
+    what: "Identity, calibration and carbon-price papers.",
+    yourJob: "Attach each document next to its figure.",
   },
   readiness: {
     owner: "exporter",
     cadence: "continuous",
-    due: "Before you engage a verifier",
-    what: "Whether this report would survive verification, and what is missing if not.",
-    yourJob: "Read it before you book the verifier, not after.",
+    due: "Before the verifier",
+    what: "Whether this report would pass verification.",
+    yourJob: "Read it before you book a verifier.",
   },
   settings: {
     owner: "exporter",
     cadence: "continuous",
-    due: "Set it once, correct it when the plant changes",
-    what: "When the monthly request goes out, who it chases, and how to stop it.",
-    yourJob: "Match the send day to when whoever fills this in actually closes their books.",
+    due: "Set once",
+    what: "When the monthly request goes out.",
+    yourJob: "Match the send day to their month-end.",
   },
   /* carbon_price and materiality are readiness RULES, not tabs with screens of
      their own — they surface inside Readiness. They are here because
@@ -120,16 +122,16 @@ export const RESPONSIBILITY: Record<ReadinessTab | "overview" | "readiness" | "s
   carbon_price: {
     owner: "exporter",
     cadence: "annual",
-    due: "Once a year, only if you claim a deduction",
-    what: "Carbon price paid in Thailand and claimed against the CBAM liability.",
-    yourJob: "Claimed, never auto-applied. If you claim it, the payment receipt goes in the annual evidence scope.",
+    due: "Once a year, if you claim it",
+    what: "Carbon price paid at home.",
+    yourJob: "Keep the payment receipt.",
   },
   materiality: {
     owner: "exporter",
     cadence: "continuous",
-    due: "Checked automatically",
-    what: "Whether the estimated portion of the year's emissions stays under the 5% materiality threshold.",
-    yourJob: "Derived from the MMD's data-gap register. Nothing to fill in — it moves when the gaps do.",
+    due: "Automatic",
+    what: "Whether estimates stay under 5 % of the year's emissions.",
+    yourJob: "Nothing to fill in.",
   },
 };
 

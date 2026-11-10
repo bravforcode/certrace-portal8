@@ -9,7 +9,12 @@
    repeated here rather than treated as settled.
    ════════════════════════════════════════════════════════════ */
 
-import { linkStatus, listSuppliers, valueType, type PrecursorSupplier } from "../precursor-suppliers";
+import {
+  linkStatus,
+  listSuppliers,
+  valueType,
+  type PrecursorSupplier,
+} from "../precursor-suppliers";
 import { PRECURSOR_STALE_DAYS } from "./action-queue";
 import type { VerificationWorkspace } from "../workspace";
 
@@ -27,28 +32,54 @@ export const PRECURSOR_RISK_WEIGHTS = {
     as "expiring soon". */
 export const ACCREDITATION_EXPIRY_WINDOW_DAYS = 60;
 
-export type NodeRiskContribution = { node: PrecursorSupplier; points: number; reason: string };
+export type NodeRiskContribution = {
+  node: PrecursorSupplier;
+  points: number;
+  reason: string;
+};
 
-function riskPointsFor(node: PrecursorSupplier, periodEnd: string, now: Date): NodeRiskContribution[] {
+function riskPointsFor(
+  node: PrecursorSupplier,
+  periodEnd: string,
+  now: Date,
+): NodeRiskContribution[] {
   const contributions: NodeRiskContribution[] = [];
   if (node.isScrap) return contributions;
 
   if (valueType(node) === "default") {
-    contributions.push({ node, points: PRECURSOR_RISK_WEIGHTS.defaultValue, reason: "on a default value, not yet verified" });
+    contributions.push({
+      node,
+      points: PRECURSOR_RISK_WEIGHTS.defaultValue,
+      reason: "on a default value, not yet verified",
+    });
   }
 
   const status = linkStatus(node);
   if (status === "invited_not_opened" && node.smartLinkSentAt) {
-    const daysSinceSent = Math.round((now.getTime() - new Date(node.smartLinkSentAt).getTime()) / 86_400_000);
+    const daysSinceSent = Math.round(
+      (now.getTime() - new Date(node.smartLinkSentAt).getTime()) / 86_400_000,
+    );
     if (daysSinceSent > PRECURSOR_STALE_DAYS) {
-      contributions.push({ node, points: PRECURSOR_RISK_WEIGHTS.staleInvite, reason: `invited ${daysSinceSent} days ago, still not opened` });
+      contributions.push({
+        node,
+        points: PRECURSOR_RISK_WEIGHTS.staleInvite,
+        reason: `invited ${daysSinceSent} days ago, still not opened`,
+      });
     }
   }
 
   if (node.verifierAccreditationExpiryDate) {
-    const daysToExpiry = Math.round((new Date(node.verifierAccreditationExpiryDate).getTime() - new Date(periodEnd).getTime()) / 86_400_000);
+    const daysToExpiry = Math.round(
+      (new Date(node.verifierAccreditationExpiryDate).getTime() -
+        new Date(periodEnd).getTime()) /
+        86_400_000,
+    );
     if (daysToExpiry >= 0 && daysToExpiry <= ACCREDITATION_EXPIRY_WINDOW_DAYS) {
-      contributions.push({ node, points: PRECURSOR_RISK_WEIGHTS.accreditationExpiringSoon, reason: `verifier accreditation expires within ${ACCREDITATION_EXPIRY_WINDOW_DAYS} days of period end` });
+      contributions.push({
+        node,
+        points: PRECURSOR_RISK_WEIGHTS.accreditationExpiringSoon,
+        reason: `verifier accreditation expires within ${ACCREDITATION_EXPIRY_WINDOW_DAYS} days of period end`,
+      });
     }
   }
 
@@ -64,9 +95,17 @@ function riskPointsFor(node: PrecursorSupplier, periodEnd: string, now: Date): N
   // the distinction defaultValue's own 15 points cannot make on its own.
   if (node.smartLinkSubmittedAt && node.verificationChecks) {
     const c = node.verificationChecks;
-    const allPassed = c.accreditationValid && c.sectoralScopeMatch && c.periodCovered && c.fileIntact;
+    const allPassed =
+      c.accreditationValid &&
+      c.sectoralScopeMatch &&
+      c.periodCovered &&
+      c.fileIntact;
     if (!allPassed) {
-      contributions.push({ node, points: PRECURSOR_RISK_WEIGHTS.failedValidation, reason: "submitted, but failed the four-check validation" });
+      contributions.push({
+        node,
+        points: PRECURSOR_RISK_WEIGHTS.failedValidation,
+        reason: "submitted, but failed the four-check validation",
+      });
     }
   }
 
@@ -78,10 +117,16 @@ export type PrecursorRiskResult = {
   topFactor: NodeRiskContribution | null;
 };
 
-export function precursorRiskFor(workspace: Pick<VerificationWorkspace, "id" | "periodEnd">, now: Date = new Date()): PrecursorRiskResult {
+export function precursorRiskFor(
+  workspace: Pick<VerificationWorkspace, "id" | "periodEnd">,
+  now: Date = new Date(),
+): PrecursorRiskResult {
   const nodes = listSuppliers(workspace.id);
   const all = nodes.flatMap((n) => riskPointsFor(n, workspace.periodEnd, now));
   const total = all.reduce((a, c) => a + c.points, 0);
-  const topFactor = all.length > 0 ? all.reduce((best, c) => (c.points > best.points ? c : best)) : null;
+  const topFactor =
+    all.length > 0
+      ? all.reduce((best, c) => (c.points > best.points ? c : best))
+      : null;
   return { score: Math.min(100, total), topFactor };
 }

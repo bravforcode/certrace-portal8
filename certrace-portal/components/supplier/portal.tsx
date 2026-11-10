@@ -11,7 +11,17 @@ import type { SupplierState } from "@/lib/supplier-store";
 import { SupplierProvider, useSupplier } from "./context";
 import { SupplierShell } from "./shell";
 import { FormView } from "./form-view";
-import { LandingView, ProfileView, OverviewView, DocumentsView, SharingView, TeamView, CheckView, SubmitView, DoneView } from "./views";
+import {
+  LandingView,
+  ProfileView,
+  OverviewView,
+  DocumentsView,
+  SharingView,
+  TeamView,
+  CheckView,
+  SubmitView,
+  DoneView,
+} from "./views";
 
 function CurrentView() {
   const { view } = useSupplier();
@@ -41,9 +51,15 @@ function CurrentView() {
   }
 }
 
-export function SupplierPortal({ req, initialState }: { req: SupplierRequest; initialState?: SupplierState }) {
+export function SupplierPortal({
+  req,
+  initialState,
+}: {
+  req: SupplierRequest;
+  initialState: SupplierState;
+}) {
   return (
-    <SupplierProvider req={req} initialState={initialState}>
+    <SupplierProvider key={req.token} req={req} initialState={initialState}>
       <SupplierShell>
         <CurrentView />
       </SupplierShell>

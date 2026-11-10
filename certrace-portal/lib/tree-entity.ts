@@ -17,7 +17,11 @@
    ════════════════════════════════════════════════════════════ */
 
 import { buildSupplierPrecursorTree } from "./supplier-tree";
-import { getSupplier, listSuppliers, type PrecursorSupplier } from "./precursor-suppliers";
+import {
+  getSupplier,
+  listSuppliers,
+  type PrecursorSupplier,
+} from "./precursor-suppliers";
 import { listWorkspaces } from "./workspace";
 import type { TreeNode } from "@/types/supplier-tree";
 
@@ -36,7 +40,8 @@ import type { TreeNode } from "@/types/supplier-tree";
     other precursor has none, and gets its own detail page instead. */
 export function entityWorkspaceId(node: TreeNode): string | null {
   if (node.kind === "installation") return node.workspaceId ?? null;
-  if (node.kind === "precursor" && node.workspaceId) return getSupplier(node.workspaceId, node.id)?.linkedWorkspaceId ?? null;
+  if (node.kind === "precursor" && node.workspaceId)
+    return getSupplier(node.workspaceId, node.id)?.linkedWorkspaceId ?? null;
   return null;
 }
 
@@ -51,7 +56,9 @@ export function entityWorkspaceId(node: TreeNode): string | null {
     Everything else gets its own page under the chain it belongs to. */
 export function entityHref(node: TreeNode, chainWorkspaceId: string): string {
   const ws = entityWorkspaceId(node);
-  return ws ? `/workspaces/${ws}` : `/workspaces/${chainWorkspaceId}/tree/${entitySegment(node)}`;
+  return ws
+    ? `/workspaces/${ws}`
+    : `/workspaces/${chainWorkspaceId}/tree/${entitySegment(node)}`;
 }
 
 /** The URL segment that names a node on its own page.
@@ -65,12 +72,17 @@ export function entityHref(node: TreeNode, chainWorkspaceId: string): string {
 export const INSTALLATION_SEGMENT = "installation";
 
 export const entitySegment = (node: TreeNode): string =>
-  node.kind === "installation" ? INSTALLATION_SEGMENT : encodeURIComponent(node.id);
+  node.kind === "installation"
+    ? INSTALLATION_SEGMENT
+    : encodeURIComponent(node.id);
 
 /** This node, found anywhere in its chain, by the segment entitySegment()
     wrote. Returns null for a segment that isn't in the tree — a stale
     bookmark, or a precursor deleted since. */
-export function findChainNode(chainWorkspaceId: string, segment: string): TreeNode | null {
+export function findChainNode(
+  chainWorkspaceId: string,
+  segment: string,
+): TreeNode | null {
   const roots = buildSupplierPrecursorTree(chainWorkspaceId);
   if (segment === INSTALLATION_SEGMENT) return roots[0] ?? null;
   const walk = (nodes: TreeNode[]): TreeNode | null => {
@@ -102,23 +114,43 @@ export type EntityTabSpec = {
    something a missing tab cannot: that this entity is the kind of thing that
    HAS monthly data, and exactly what would unlock it. Which is the sentence
    in `lockedReason`, shown on the tab and again on the page. */
-export function entityTabs(node: TreeNode, chainWorkspaceId: string): EntityTabSpec[] {
+export function entityTabs(
+  node: TreeNode,
+  chainWorkspaceId: string,
+): EntityTabSpec[] {
   const ws = entityWorkspaceId(node);
   if (ws) {
     return [
       { key: "overview", label: "Overview", href: `/workspaces/${ws}` },
-      { key: "monthly", label: "Monthly data", href: `/workspaces/${ws}/monthly` },
-      { key: "readiness", label: "Readiness", href: `/workspaces/${ws}/readiness` },
-      { key: "settings", label: "Settings", href: `/workspaces/${ws}/settings` },
+      {
+        key: "monthly",
+        label: "Monthly data",
+        href: `/workspaces/${ws}/monthly`,
+      },
+      {
+        key: "readiness",
+        label: "Readiness",
+        href: `/workspaces/${ws}/readiness`,
+      },
+      {
+        key: "settings",
+        label: "Settings",
+        href: `/workspaces/${ws}/settings`,
+      },
     ];
   }
 
   // Only ever a precursor: the root installation always has a workspace (see
   // entityWorkspaceId above), so it always takes the four real tabs.
-  const locked = "This precursor has no workspace of its own yet. Track a report for it and its own months, readiness and settings open here.";
+  const locked =
+    "This precursor has no product report of its own yet. Track a report for it and its own months, readiness and settings open here.";
 
   return [
-    { key: "overview", label: "Overview", href: `/workspaces/${chainWorkspaceId}/tree/${entitySegment(node)}` },
+    {
+      key: "overview",
+      label: "Overview",
+      href: `/workspaces/${chainWorkspaceId}/tree/${entitySegment(node)}`,
+    },
     { key: "monthly", label: "Monthly data", lockedReason: locked },
     { key: "readiness", label: "Readiness", lockedReason: locked },
     { key: "settings", label: "Settings", lockedReason: locked },
@@ -145,7 +177,7 @@ export function entityTabs(node: TreeNode, chainWorkspaceId: string): EntityTabS
    with all the other suppliers on it.
 
    ONE PASS OVER EVERY CHAIN. `linkedWorkspaceId` lives on the precursor row,
-   so the question "who links to this workspace" can only be answered by
+   so the question "who links to this product report" can only be answered by
    looking — there is no back-pointer on the workspace, and adding one would
    be a second copy of the same fact to keep in step. Chains are small (a
    handful of rows each) and this runs once per navigation. */
@@ -160,7 +192,8 @@ export function trackedParentOf(workspaceId: string): TrackedParent | null {
   for (const w of listWorkspaces()) {
     if (w.id === workspaceId) continue;
     for (const s of listSuppliers(w.id)) {
-      if (s.linkedWorkspaceId === workspaceId) return { workspaceId: w.id, precursor: s };
+      if (s.linkedWorkspaceId === workspaceId)
+        return { workspaceId: w.id, precursor: s };
     }
   }
   return null;

@@ -56,7 +56,13 @@ const complete = {
   verifierAccreditationExpiryDate: "2027-01-01",
   verificationReportIssueDate: "2026-06-01",
   verificationSectoralScope: "Iron or steel products",
-  verificationChecks: { accreditationValid: true, sectoralScopeMatch: true, periodCovered: true, fileIntact: true, failedReasons: [] },
+  verificationChecks: {
+    accreditationValid: true,
+    sectoralScopeMatch: true,
+    periodCovered: true,
+    fileIntact: true,
+    failedReasons: [],
+  },
 };
 
 test("the export names the entity, its identity, SEE, quantity and verifier facts", () => {
@@ -94,12 +100,26 @@ test("a failed check names the specific reason, and a node with no verification 
   const failed = {
     ...complete,
     dataOrigin: "default_value" as const,
-    verificationChecks: { accreditationValid: false, sectoralScopeMatch: true, periodCovered: true, fileIntact: true, failedReasons: ["The accreditation expired 2025-01-01, before the report was issued on 2026-06-01."] },
+    verificationChecks: {
+      accreditationValid: false,
+      sectoralScopeMatch: true,
+      periodCovered: true,
+      fileIntact: true,
+      failedReasons: [
+        "The accreditation expired 2025-01-01, before the report was issued on 2026-06-01.",
+      ],
+    },
   };
   const { html } = buildPrecursorNodeExport(failed);
   assert.match(html, /The accreditation expired 2025-01-01/);
 
-  const neverVerified = { ...emptySupplier("ws-1", null), id: "p2", workspaceId: "ws-1", name: "Coke Co", precursorName: "Coke" };
+  const neverVerified = {
+    ...emptySupplier("ws-1", null),
+    id: "p2",
+    workspaceId: "ws-1",
+    name: "Coke Co",
+    precursorName: "Coke",
+  };
   const { html: html2 } = buildPrecursorNodeExport(neverVerified);
   assert.match(html2, /No verification has been attempted/);
   assert.doesNotMatch(html2, /0\/4/);

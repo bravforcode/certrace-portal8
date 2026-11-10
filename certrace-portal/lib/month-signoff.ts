@@ -1,3 +1,4 @@
+import { accountStorage } from "./account-storage";
 /* ════════════════════════════════════════════════════════════
    INTERNAL SIGN-OFF, PER MONTH
 
@@ -25,7 +26,7 @@ type Store = Record<string, Record<string, Signoff>>;
 function read(): Store {
   if (typeof window === "undefined") return {};
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = accountStorage.getItem(KEY);
     const parsed = raw ? (JSON.parse(raw) as Store) : {};
     return parsed && typeof parsed === "object" ? parsed : {};
   } catch {
@@ -36,18 +37,30 @@ function read(): Store {
 function write(store: Store): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(store));
+    accountStorage.setItem(KEY, JSON.stringify(store));
   } catch {
     /* Quota — the caller re-reads and will show the month unsigned, which is
        the safe direction to fail in. */
   }
 }
 
-export const monthSignoff = (workspaceId: string, month: string): Signoff | null => read()[workspaceId]?.[month] ?? null;
+export const monthSignoff = (
+  workspaceId: string,
+  month: string,
+): Signoff | null => read()[workspaceId]?.[month] ?? null;
 
-export function signOffMonth(workspaceId: string, month: string, name: string, role: string): Signoff | null {
+export function signOffMonth(
+  workspaceId: string,
+  month: string,
+  name: string,
+  role: string,
+): Signoff | null {
   if (!name.trim()) return null;
-  const stamp: Signoff = { name: name.trim(), role: role.trim(), at: new Date().toISOString() };
+  const stamp: Signoff = {
+    name: name.trim(),
+    role: role.trim(),
+    at: new Date().toISOString(),
+  };
   const store = read();
   store[workspaceId] = { ...(store[workspaceId] ?? {}), [month]: stamp };
   write(store);

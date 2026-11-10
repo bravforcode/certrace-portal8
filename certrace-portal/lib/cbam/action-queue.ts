@@ -12,28 +12,51 @@
    ════════════════════════════════════════════════════════════ */
 
 import { getCarbonPrice } from "../carbon-price";
-import { annualCoverage, annualScopeFor, coverageForMonth } from "../workspace-evidence";
+import {
+  annualCoverage,
+  annualScopeFor,
+  coverageForMonth,
+} from "../workspace-evidence";
 import { monthCounts, monthsForWorkspace } from "../monthly-data";
-import { dispatchesFor, dueDateFor, dueStateFor, effectiveDueDay } from "../month-dispatch";
+import {
+  calendarDaysUntil,
+  dispatchesFor,
+  dueDateFor,
+  dueStateFor,
+  effectiveDueDay,
+} from "../month-dispatch";
 import { linkStatus, listSuppliers } from "../precursor-suppliers";
 import { finalVersionCovering, loadDraft } from "../workspace-mmd";
-import { monthNameLong, scheduleFor, type VerificationWorkspace } from "../workspace";
+import {
+  monthNameLong,
+  scheduleFor,
+  type VerificationWorkspace,
+} from "../workspace";
 import { precursorSeeDeadlineFor } from "./precursor-deadlines";
+import { currentLang, dateLocaleFor } from "../i18n";
 
-export type ActionItemType = "monthly_data" | "precursor_invite" | "mmd_draft" | "document_unbound" | "precursor_deadline";
+export type ActionItemType =
+  | "monthly_data"
+  | "precursor_invite"
+  | "mmd_draft"
+  | "document_unbound"
+  | "precursor_deadline";
 
 export type ActionItem = {
   type: ActionItemType;
   /** negative = overdue by this many days, positive = due in this many days */
   daysUntilDue: number;
   label: string;
+  /** the label as a template and its parts, so a screen can say it in its own language — `label` is the same sentence, in English */
+  say?: { key: string; vars: Record<string, string | number> };
   workspaceId: string;
   workspaceLabel: string;
   deepLink: string;
 };
 
 const DAY_MS = 86_400_000;
-const daysBetween = (a: Date, b: Date) => Math.round((a.getTime() - b.getTime()) / DAY_MS);
+const daysBetween = (a: Date, b: Date) =>
+  Math.round((a.getTime() - b.getTime()) / DAY_MS);
 
 /** Stale threshold for a precursor invite nobody has opened or finished —
     configurable, not a magic number scattered through the UI. */
@@ -57,8 +80,9 @@ function monthlyDataItems(ws: VerificationWorkspace, now: Date): ActionItem[] {
 
     items.push({
       type: "monthly_data",
-      daysUntilDue: daysBetween(due, now),
+      daysUntilDue: calendarDaysUntil(due, now),
       label: `${monthNameLong(entry.month)} data`,
+      say: { key: "{month} data", vars: { month: monthNameLong(entry.month) } },
       workspaceId: ws.id,
       workspaceLabel: ws.productName,
       deepLink: `/workspaces/${ws.id}/monthly/${entry.month}`,
@@ -67,12 +91,16 @@ function monthlyDataItems(ws: VerificationWorkspace, now: Date): ActionItem[] {
   return items;
 }
 
-function precursorInviteItems(ws: VerificationWorkspace, now: Date): ActionItem[] {
+function precursorInviteItems(
+  ws: VerificationWorkspace,
+  now: Date,
+): ActionItem[] {
   const items: ActionItem[] = [];
   for (const s of listSuppliers(ws.id)) {
     if (s.isScrap || !s.smartLinkSentAt) continue;
     const status = linkStatus(s);
-    if (status !== "invited_not_opened" && status !== "opened_in_progress") continue;
+    if (status !== "invited_not_opened" && status !== "opened_in_progress")
+      continue;
     const sentAt = new Date(s.smartLinkSentAt);
     const daysSinceSent = daysBetween(now, sentAt);
     if (daysSinceSent < PRECURSOR_STALE_DAYS) continue;
@@ -81,6 +109,10 @@ function precursorInviteItems(ws: VerificationWorkspace, now: Date): ActionItem[
       type: "precursor_invite",
       daysUntilDue: -(daysSinceSent - PRECURSOR_STALE_DAYS),
       label: `${s.name || s.precursorName || "Precursor supplier"} — no response`,
+      say: {
+        key: "{name} — no response",
+        vars: { name: s.name || s.precursorName || "Precursor supplier" },
+      },
       workspaceId: ws.id,
       workspaceLabel: ws.productName,
       deepLink: `/workspaces/${ws.id}/precursors`,
@@ -96,21 +128,31 @@ function precursorInviteItems(ws: VerificationWorkspace, now: Date): ActionItem[
     row per node would repeat the same date once per supplier. Silent once
     every precursor in the chain is already verified, or once there are no
     precursors at all. */
-function precursorDeadlineItems(ws: VerificationWorkspace, now: Date): ActionItem[] {
+function precursorDeadlineItems(
+  ws: VerificationWorkspace,
+  now: Date,
+): ActionItem[] {
   const nodes = listSuppliers(ws.id).filter((s) => !s.isScrap);
   if (nodes.length === 0) return [];
-  const allVerified = nodes.every((s) => linkStatus(s) === "submitted_verified");
+  const allVerified = nodes.every(
+    (s) => linkStatus(s) === "submitted_verified",
+  );
   if (allVerified) return [];
 
   const deadline = precursorSeeDeadlineFor(ws, undefined, now);
   if (deadline.status === "on_track") return [];
 
-  const unverifiedCount = nodes.filter((s) => linkStatus(s) !== "submitted_verified").length;
+  const unverifiedCount = nodes.filter(
+    (s) => linkStatus(s) !== "submitted_verified",
+  ).length;
   return [
     {
       type: "precursor_deadline",
       daysUntilDue: deadline.daysUntilDue,
-      label: `${unverifiedCount} precursor${unverifiedCount === 1 ? "" : "s"} not yet verified — SEE & verification due ${deadline.due.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}`,
+      label:
+        unverifiedCount === 1
+          ? `1 precursor not yet verified — SEE & verification due ${deadline.due.toLocaleDateString(dateLocaleFor(currentLang()), { day: "numeric", month: "short", year: "numeric" })}`
+          : `${unverifiedCount} precursors not yet verified — SEE & verification due ${deadline.due.toLocaleDateString(dateLocaleFor(currentLang()), { day: "numeric", month: "short", year: "numeric" })}`,
       workspaceId: ws.id,
       workspaceLabel: ws.productName,
       deepLink: `/workspaces/${ws.id}/precursors`,
@@ -127,7 +169,11 @@ function mmdDraftItems(ws: VerificationWorkspace): ActionItem[] {
   // "a change in progress" — it is simply not started, and belongs to the
   // MMD tab's own readiness state, not this queue.
   const draft = loadDraft(ws.id, ws.periodStart, ws.periodEnd);
-  const started = Boolean(draft.boundaryDescription.trim() || draft.fuelTypeIds.length > 0 || draft.fuelInstruments.length > 0);
+  const started = Boolean(
+    draft.boundaryDescription.trim() ||
+      draft.fuelTypeIds.length > 0 ||
+      draft.fuelInstruments.length > 0,
+  );
   if (!started) return [];
   const final = finalVersionCovering(ws.id, ws.periodStart, ws.periodEnd);
   if (final) return [];
@@ -146,7 +192,12 @@ function mmdDraftItems(ws: VerificationWorkspace): ActionItem[] {
 function unboundDocumentItems(ws: VerificationWorkspace): ActionItem[] {
   const items: ActionItem[] = [];
   const price = getCarbonPrice(ws.id);
-  const scope = annualScopeFor(ws.id, ws.periodStart, ws.periodEnd, price.amountPerTonne > 0);
+  const scope = annualScopeFor(
+    ws.id,
+    ws.periodStart,
+    ws.periodEnd,
+    price.amountPerTonne > 0,
+  );
 
   for (const row of annualCoverage(ws.id, scope)) {
     if (row.awaitingBinding > 0) {
@@ -154,6 +205,10 @@ function unboundDocumentItems(ws: VerificationWorkspace): ActionItem[] {
         type: "document_unbound",
         daysUntilDue: 0,
         label: `${row.label} — uploaded, needs binding`,
+        say: {
+          key: "{label} — uploaded, needs binding",
+          vars: { label: row.label },
+        },
         workspaceId: ws.id,
         workspaceLabel: ws.productName,
         deepLink: `/workspaces/${ws.id}/mmd`,
@@ -161,12 +216,20 @@ function unboundDocumentItems(ws: VerificationWorkspace): ActionItem[] {
     }
   }
   for (const entry of monthsForWorkspace(ws)) {
-    for (const row of coverageForMonth(ws.id, entry, scope.requiresIndirectEmissions ?? false).rows) {
+    for (const row of coverageForMonth(
+      ws.id,
+      entry,
+      scope.requiresIndirectEmissions ?? false,
+    ).rows) {
       if (row.awaitingBinding > 0) {
         items.push({
           type: "document_unbound",
           daysUntilDue: 0,
           label: `${monthNameLong(entry.month)} — ${row.label} — needs binding`,
+          say: {
+            key: "{month} — {label} — needs binding",
+            vars: { month: monthNameLong(entry.month), label: row.label },
+          },
           workspaceId: ws.id,
           workspaceLabel: ws.productName,
           deepLink: `/workspaces/${ws.id}/monthly/${entry.month}`,
@@ -183,7 +246,10 @@ function unboundDocumentItems(ws: VerificationWorkspace): ActionItem[] {
     document, a stalled MMD draft) carry daysUntilDue 0, which places them
     between "overdue" and "due soon" — needs attention now, but not getting
     later every day the way a missed month does. */
-export function actionQueueFor(workspaces: VerificationWorkspace[], now: Date = new Date()): ActionItem[] {
+export function actionQueueFor(
+  workspaces: VerificationWorkspace[],
+  now: Date = new Date(),
+): ActionItem[] {
   const items: ActionItem[] = [];
   for (const ws of workspaces) {
     items.push(

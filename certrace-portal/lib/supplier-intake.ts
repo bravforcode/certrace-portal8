@@ -15,9 +15,18 @@
    version does not write them into the questionnaire.
    ════════════════════════════════════════════════════════════ */
 
-import { CONFIDENCE_FLOOR, uid, type ExtractedField } from "./workspace-evidence";
+import {
+  CONFIDENCE_FLOOR,
+  uid,
+  type ExtractedField,
+} from "./workspace-evidence";
 import { detect, type Detection, type DocSubject } from "./smart-intake";
-import { isOnceField, valueKey, type RequestDocAsk, type SupplierRequest } from "./supplier";
+import {
+  isOnceField,
+  valueKey,
+  type RequestDocAsk,
+  type SupplierRequest,
+} from "./supplier";
 import { markAiFilled } from "./ai-fill";
 
 /** Which requested document a detected subject answers. */
@@ -65,30 +74,41 @@ export const subscribeSupplierIntake = (l: () => void) => {
   return () => listeners.delete(l);
 };
 
-export const supplierIntakeQueue = (token: string): SupplierIntakeDoc[] => queues.get(token) ?? EMPTY;
+export const supplierIntakeQueue = (token: string): SupplierIntakeDoc[] =>
+  queues.get(token) ?? EMPTY;
 
 function setQueue(token: string, next: SupplierIntakeDoc[]) {
   queues.set(token, next);
   emit();
 }
 
-export function patchSupplierDoc(token: string, id: string, patch: Partial<SupplierIntakeDoc>) {
+export function patchSupplierDoc(
+  token: string,
+  id: string,
+  patch: Partial<SupplierIntakeDoc>,
+) {
   setQueue(
     token,
-    supplierIntakeQueue(token).map((d) => (d.id === id ? { ...d, ...patch } : d)),
+    supplierIntakeQueue(token).map((d) =>
+      d.id === id ? { ...d, ...patch } : d,
+    ),
   );
 }
 
 export const clearFinishedSupplierDocs = (token: string) =>
   setQueue(
     token,
-    supplierIntakeQueue(token).filter((d) => d.status === "reading" || d.status === "review"),
+    supplierIntakeQueue(token).filter(
+      (d) => d.status === "reading" || d.status === "review",
+    ),
   );
 
 async function sha256(bytes: ArrayBuffer): Promise<string | undefined> {
   try {
     const digest = await crypto.subtle.digest("SHA-256", bytes);
-    return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    return [...new Uint8Array(digest)]
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
   } catch {
     return undefined;
   }
@@ -99,7 +119,8 @@ const PREVIEW_BYTES_LIMIT = 1_500_000;
 const toDataUrl = (bytes: ArrayBuffer, mime: string): string => {
   let bin = "";
   const view = new Uint8Array(bytes);
-  for (let i = 0; i < view.length; i += 0x8000) bin += String.fromCharCode(...view.subarray(i, i + 0x8000));
+  for (let i = 0; i < view.length; i += 0x8000)
+    bin += String.fromCharCode(...view.subarray(i, i + 0x8000));
   return `data:${mime || "application/octet-stream"};base64,${btoa(bin)}`;
 };
 
@@ -131,12 +152,25 @@ export async function addSupplierFiles(
       const doc = fresh[i];
       const bytes = await file.arrayBuffer();
       const hash = await sha256(bytes);
-      const earlier = supplierIntakeQueue(token).find((d) => d.id !== doc.id && d.hash && d.hash === hash && d.status !== "discarded");
-      const duplicateOf = earlier?.fileName ?? (alreadyAttached.has(`${file.name}|${file.size}`) ? `${file.name} (already attached)` : undefined);
+      const earlier = supplierIntakeQueue(token).find(
+        (d) =>
+          d.id !== doc.id &&
+          d.hash &&
+          d.hash === hash &&
+          d.status !== "discarded",
+      );
+      const duplicateOf =
+        earlier?.fileName ??
+        (alreadyAttached.has(`${file.name}|${file.size}`)
+          ? `${file.name} (already attached)`
+          : undefined);
       const detection = await detect(file, bytes, year);
       patchSupplierDoc(token, doc.id, {
         hash,
-        fileDataUrl: file.size <= PREVIEW_BYTES_LIMIT ? toDataUrl(bytes, file.type) : undefined,
+        fileDataUrl:
+          file.size <= PREVIEW_BYTES_LIMIT
+            ? toDataUrl(bytes, file.type)
+            : undefined,
         status: "review",
         detection,
         subject: detection.subject,
@@ -157,17 +191,28 @@ export type SupplierVerdict = {
   notNeeded: string | null;
 };
 
-export function supplierVerdict(doc: SupplierIntakeDoc, requested: RequestDocAsk[], isEditable: (docId: string) => boolean): SupplierVerdict {
+export function supplierVerdict(
+  doc: SupplierIntakeDoc,
+  requested: RequestDocAsk[],
+  isEditable: (docId: string) => boolean,
+): SupplierVerdict {
   const suggestedId = DOC_ID_FOR[doc.subject];
-  const suggested = suggestedId ? requested.find((r) => r.id === suggestedId) : undefined;
-  const target = doc.targetOverride ? requested.find((r) => r.id === doc.targetOverride) : suggested;
+  const suggested = suggestedId
+    ? requested.find((r) => r.id === suggestedId)
+    : undefined;
+  const target = doc.targetOverride
+    ? requested.find((r) => r.id === doc.targetOverride)
+    : suggested;
 
   let notNeeded: string | null = null;
   let blocked: string | null = null;
   if (doc.status === "review") {
     if (!target) {
-      if (doc.subject === "unknown") blocked = "Pick what this document is first.";
-      else notNeeded = "{exporter} did not ask for this document. Pick a requested document above if it belongs to one.";
+      if (doc.subject === "unknown")
+        blocked = "Pick what this document is first.";
+      else
+        notNeeded =
+          "{exporter} did not ask for this document. Pick a requested document above if it belongs to one.";
     } else if (!isEditable(target.id)) {
       blocked = "Locked — not part of this revision.";
     }
@@ -223,7 +268,8 @@ export function questionnaireWritesFor(
         return pc.startsWith(cn) || cn.startsWith(pc);
       })
     : undefined;
-  const product = byCn ?? (req.products.length === 1 ? req.products[0] : undefined);
+  const product =
+    byCn ?? (req.products.length === 1 ? req.products[0] : undefined);
 
   const out: QuestionnaireWrite[] = [];
   for (const key of WRITES_FROM_CBAM_SHEET) {
@@ -251,7 +297,11 @@ export function questionnaireWritesFor(
 export type QuestionnaireAccess = {
   req: SupplierRequest;
   getValue: (fieldId: string, productId?: string) => string;
-  setValue: (fieldId: string, productId: string | undefined, value: string) => void;
+  setValue: (
+    fieldId: string,
+    productId: string | undefined,
+    value: string,
+  ) => void;
   isEditable: (key: string) => boolean;
 };
 
@@ -261,20 +311,39 @@ export type QuestionnaireAccess = {
 export async function fileSupplierDoc(
   doc: SupplierIntakeDoc,
   verdict: SupplierVerdict,
-  uploadFiles: (docId: string, files: File[]) => Promise<{ name: string; reason: string }[]>,
+  uploadFiles: (
+    docId: string,
+    files: File[],
+  ) => Promise<{ name: string; reason: string }[]>,
   questionnaire?: QuestionnaireAccess,
 ): Promise<{ ok: boolean; message: string; written: number }> {
-  if (verdict.blocked) return { ok: false, message: verdict.blocked, written: 0 };
-  if (verdict.notNeeded || !verdict.target) return { ok: false, message: verdict.notNeeded ?? "Pick a requested document for this file.", written: 0 };
+  if (verdict.blocked)
+    return { ok: false, message: verdict.blocked, written: 0 };
+  if (verdict.notNeeded || !verdict.target)
+    return {
+      ok: false,
+      message: verdict.notNeeded ?? "Pick a requested document for this file.",
+      written: 0,
+    };
   const file = originals.get(doc.id);
-  if (!file) return { ok: false, message: "The file is no longer in this page. Drop it again.", written: 0 };
+  if (!file)
+    return {
+      ok: false,
+      message: "The file is no longer in this page. Drop it again.",
+      written: 0,
+    };
 
   const refused = await uploadFiles(verdict.target.id, [file]);
-  if (refused.length > 0) return { ok: false, message: refused[0].reason, written: 0 };
+  if (refused.length > 0)
+    return { ok: false, message: refused[0].reason, written: 0 };
 
   let written = 0;
   if (questionnaire) {
-    for (const w of questionnaireWritesFor(doc, questionnaire.req, questionnaire.getValue)) {
+    for (const w of questionnaireWritesFor(
+      doc,
+      questionnaire.req,
+      questionnaire.getValue,
+    )) {
       const key = valueKey(w.fieldId, w.productId);
       if (!w.accepted || !questionnaire.isEditable(key)) continue;
       questionnaire.setValue(w.fieldId, w.productId, w.value);
@@ -283,6 +352,9 @@ export async function fileSupplierDoc(
     }
   }
 
-  patchSupplierDoc(doc.token, doc.id, { status: "filed", filedTo: { docId: verdict.target.id, label: verdict.target.label } });
+  patchSupplierDoc(doc.token, doc.id, {
+    status: "filed",
+    filedTo: { docId: verdict.target.id, label: verdict.target.label },
+  });
   return { ok: true, message: verdict.target.label, written };
 }

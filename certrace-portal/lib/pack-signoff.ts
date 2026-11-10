@@ -1,3 +1,4 @@
+import { accountStorage } from "./account-storage";
 /* ════════════════════════════════════════════════════════════
    INTERNAL SIGN-OFF BEFORE THE PACK LEAVES
 
@@ -45,7 +46,7 @@ type Store = Record<string, PackSignOff>;
 function read(): Store {
   if (typeof window === "undefined") return {};
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = accountStorage.getItem(KEY);
     const parsed = raw ? (JSON.parse(raw) as Store) : {};
     return parsed && typeof parsed === "object" ? parsed : {};
   } catch {
@@ -56,7 +57,7 @@ function read(): Store {
 function write(store: Store): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(store));
+    accountStorage.setItem(KEY, JSON.stringify(store));
   } catch {
     /* ignore quota */
   }
@@ -91,9 +92,15 @@ export function packFingerprint(input: {
   ].join("|");
 }
 
-export const getSignOff = (workspaceId: string): PackSignOff | null => read()[workspaceId] ?? null;
+export const getSignOff = (workspaceId: string): PackSignOff | null =>
+  read()[workspaceId] ?? null;
 
-export function signOffPack(workspaceId: string, name: string, jobTitle: string, fingerprint: string): PackSignOff {
+export function signOffPack(
+  workspaceId: string,
+  name: string,
+  jobTitle: string,
+  fingerprint: string,
+): PackSignOff {
   const record: PackSignOff = {
     workspaceId,
     name: name.trim(),
@@ -124,15 +131,22 @@ export type SignOffState =
   | { kind: "stale"; signOff: PackSignOff };
 
 /** What the download button should do right now. */
-export function signOffState(workspaceId: string, complete: boolean, fingerprint: string): SignOffState {
+export function signOffState(
+  workspaceId: string,
+  complete: boolean,
+  fingerprint: string,
+): SignOffState {
   const signOff = getSignOff(workspaceId);
   if (!complete) return { kind: "draft_open", signOff: null };
   if (!signOff) return { kind: "needs_signature", signOff: null };
-  return signOff.fingerprint === fingerprint ? { kind: "signed", signOff } : { kind: "stale", signOff };
+  return signOff.fingerprint === fingerprint
+    ? { kind: "signed", signOff }
+    : { kind: "stale", signOff };
 }
 
 /** Can the final (non-draft) pack be downloaded? */
-export const canDownloadFinal = (s: SignOffState): boolean => s.kind === "draft_open" || s.kind === "signed";
+export const canDownloadFinal = (s: SignOffState): boolean =>
+  s.kind === "draft_open" || s.kind === "signed";
 
 export const SIGNOFF_DISCLAIMER =
   "This is an internal control, not an electronic signature. It records who inside your company approved these figures and when, so that a pack " +

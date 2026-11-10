@@ -30,7 +30,7 @@
    ════════════════════════════════════════════════════════════ */
 
 import { apiConfigured } from "./config";
-import { request } from "./http";
+import { api, result as apiResult } from "./client";
 import { loadSession, saveSession, type Session } from "./session";
 import type { AuthUser } from "./auth";
 
@@ -41,17 +41,31 @@ const PENDING_KEY = "certrace.google-sign-in";
     authorized redirect URI on the OAuth client in Google Cloud Console. */
 export const GOOGLE_CALLBACK_PATH = "/auth/google";
 
-const clientId = (): string => (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "").trim();
+const clientId = (): string =>
+  (process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "").trim();
 
 /** The button shows only when there is both a client to sign in with and a
     backend to verify the answer. Either alone would be a button that fails. */
-export const googleSignInEnabled = (): boolean => clientId().length > 0 && apiConfigured();
+export const googleSignInEnabled = (): boolean =>
+  clientId().length > 0 && apiConfigured();
 
 /** What the round trip is for. "link" connects Google to the account that is
     already signed in (Settings) and keeps its password; "signin" opens one. */
 export type GoogleIntent = "signin" | "link";
 
-type Pending = { state: string; nonce: string; intent?: GoogleIntent };
+type SignUpConsent = {
+  termsVersionId: string;
+  privacyVersionId: string;
+  termsAccepted: boolean;
+  privacyAccepted: boolean;
+  marketingOptIn: boolean;
+};
+type Pending = {
+  state: string;
+  nonce: string;
+  intent?: GoogleIntent;
+  consent?: SignUpConsent;
+};
 
 function randomToken(): string {
   const bytes = new Uint8Array(24);
@@ -60,7 +74,11 @@ function randomToken(): string {
 }
 
 /** The URL that starts a sign-in. Separate from the redirect so it can be tested. */
-export function googleAuthorizeUrl(origin: string, pending: Pending, loginHint?: string): string {
+export function googleAuthorizeUrl(
+  origin: string,
+  pending: Pending,
+  loginHint?: string,
+): string {
   const params = new URLSearchParams({
     client_id: clientId(),
     redirect_uri: `${origin}${GOOGLE_CALLBACK_PATH}`,
@@ -79,19 +97,29 @@ export function googleAuthorizeUrl(origin: string, pending: Pending, loginHint?:
   return `${GOOGLE_AUTHORIZE_URL}?${params.toString()}`;
 }
 
-export function beginGoogleSignIn(): void {
-  startRoundTrip({ state: randomToken(), nonce: randomToken(), intent: "signin" });
+export function beginGoogleSignIn(consent?: SignUpConsent): void {
+  startRoundTrip({
+    state: randomToken(),
+    nonce: randomToken(),
+    intent: "signin",
+    consent,
+  });
 }
 
 /** Settings → "Connect Google". Needs a signed-in session; comes back through
     the same /auth/google page, which sends the person back to Settings. */
 export function beginGoogleLink(accountEmail: string): void {
-  startRoundTrip({ state: randomToken(), nonce: randomToken(), intent: "link" }, accountEmail);
+  startRoundTrip(
+    { state: randomToken(), nonce: randomToken(), intent: "link" },
+    accountEmail,
+  );
 }
 
 function startRoundTrip(pending: Pending, loginHint?: string): void {
   sessionStorage.setItem(PENDING_KEY, JSON.stringify(pending));
-  window.location.assign(googleAuthorizeUrl(window.location.origin, pending, loginHint));
+  window.location.assign(
+    googleAuthorizeUrl(window.location.origin, pending, loginHint),
+  );
 }
 
 /** Why a callback could not be completed, before or without asking the backend. */
@@ -110,7 +138,9 @@ export class GoogleCallbackError extends Error {
 export function pendingGoogleIntent(): GoogleIntent {
   try {
     const raw = sessionStorage.getItem(PENDING_KEY);
-    return raw && (JSON.parse(raw) as Partial<Pending>).intent === "link" ? "link" : "signin";
+    return raw && (JSON.parse(raw) as Partial<Pending>).intent === "link"
+      ? "link"
+      : "signin";
   } catch {
     return "signin";
   }
@@ -122,13 +152,20 @@ function takePending(): Pending | null {
     sessionStorage.removeItem(PENDING_KEY);
     const parsed = raw ? (JSON.parse(raw) as Partial<Pending>) : null;
     if (!parsed?.state || !parsed.nonce) return null;
-    return { state: parsed.state, nonce: parsed.nonce, intent: parsed.intent === "link" ? "link" : "signin" };
+    return {
+      state: parsed.state,
+      nonce: parsed.nonce,
+      intent: parsed.intent === "link" ? "link" : "signin",
+      consent: parsed.consent,
+    };
   } catch {
     return null;
   }
 }
 
-export type GoogleCallbackResult = { intent: "signin"; session: Session } | { intent: "link"; user: AuthUser };
+export type GoogleCallbackResult =
+  | { intent: "signin"; session: Session; fromRegistration: boolean }
+  | { intent: "link"; user: AuthUser };
 
 /**
  * Finishes a round trip from the callback URL's fragment: checks `state`,
@@ -140,7 +177,9 @@ export type GoogleCallbackResult = { intent: "signin"; session: Session } | { in
  * and the backend's ApiError (INVALID_GOOGLE_TOKEN, GOOGLE_ACCOUNT_CONFLICT,
  * GOOGLE_EMAIL_MISMATCH…) for one it refused.
  */
-export async function completeGoogleCallback(fragment: string): Promise<GoogleCallbackResult> {
+export async function completeGoogleCallback(
+  fragment: string,
+): Promise<GoogleCallbackResult> {
   const params = new URLSearchParams(fragment.replace(/^#/, ""));
   const pending = takePending();
 
@@ -149,25 +188,31 @@ export async function completeGoogleCallback(fragment: string): Promise<GoogleCa
   // never started here.
   if (!pending) throw new GoogleCallbackError("expired");
   const idToken = params.get("id_token");
-  if (!idToken || params.get("state") !== pending.state) throw new GoogleCallbackError("invalid");
+  if (!idToken || params.get("state") !== pending.state)
+    throw new GoogleCallbackError("invalid");
 
   if (pending.intent === "link") {
     // Carries the bearer: the backend links Google to the token holder.
-    const { user } = await request<{ user: AuthUser }>("/api/auth/google/link", {
-      method: "POST",
-      body: { idToken, nonce: pending.nonce },
-    });
+    const { user } = await apiResult(
+      api().api.auth.google.link.post({ idToken, nonce: pending.nonce }),
+    );
     const current = loadSession();
     if (current) saveSession({ ...current, user });
     return { intent: "link", user };
   }
 
-  const result = await request<{ accessToken: string; refreshToken: string; user: AuthUser }>("/api/auth/google", {
-    method: "POST",
-    body: { idToken, nonce: pending.nonce },
-    auth: false,
-  });
-  const session: Session = { accessToken: result.accessToken, refreshToken: result.refreshToken, user: result.user };
-  saveSession(session);
-  return { intent: "signin", session };
+  const result = await apiResult(
+    api().api.auth.google.post({
+      idToken,
+      nonce: pending.nonce,
+      ...pending.consent,
+    }),
+  );
+  const { signedIn } = await import("./auth");
+  const session = await signedIn(result);
+  return {
+    intent: "signin",
+    session,
+    fromRegistration: Boolean(pending.consent),
+  };
 }

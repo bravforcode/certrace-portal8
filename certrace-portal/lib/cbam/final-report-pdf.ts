@@ -32,6 +32,7 @@
    ════════════════════════════════════════════════════════════ */
 
 import type { EvidenceItem } from "../workspace-evidence";
+import { loadEvidenceFile } from "../document-files";
 import type { Block, FinalReportDoc, Part } from "./final-report-doc";
 
 const MARGIN = 48;
@@ -52,15 +53,50 @@ const LANDSCAPE_COLUMN_THRESHOLD = 7;
    through this first, so an unsupported glyph degrades to "?" instead of
    shipping corrupted text in a government-facing document. */
 const UNICODE_FALLBACK: Record<string, string> = {
-  "→": "->", "≥": ">=", "≤": "<=", "·": "-", "×": "x", "−": "-", "÷": "/",
+  "→": "->",
+  "≥": ">=",
+  "≤": "<=",
+  "·": "-",
+  "×": "x",
+  "−": "-",
+  "÷": "/",
   /* The SEE workings are written in the regulation's own notation, so the
      summation sign reaches the renderer on every report. Left unmapped it
      printed "?_m production_m", which reads as a corrupted formula rather
      than the sum it is. */
-  "Σ": "SUM", "∑": "SUM", "Δ": "delta", "δ": "delta", "α": "alpha", "β": "beta", "η": "eta", "ρ": "rho",
-  "₀": "0", "₁": "1", "₂": "2", "₃": "3", "₄": "4", "₅": "5", "₆": "6", "₇": "7", "₈": "8", "₉": "9",
-  "²": "2", "³": "3", "√": "sqrt", "∞": "inf", "≈": "~=", "≠": "!=",
-  "ᵢ": "i", "ⱼ": "j", "ₖ": "k", "ₘ": "m", "ₙ": "n", "ₐ": "a", "ₑ": "e", "ₒ": "o", "ₓ": "x",
+  Σ: "SUM",
+  "∑": "SUM",
+  Δ: "delta",
+  δ: "delta",
+  α: "alpha",
+  β: "beta",
+  η: "eta",
+  ρ: "rho",
+  "₀": "0",
+  "₁": "1",
+  "₂": "2",
+  "₃": "3",
+  "₄": "4",
+  "₅": "5",
+  "₆": "6",
+  "₇": "7",
+  "₈": "8",
+  "₉": "9",
+  "²": "2",
+  "³": "3",
+  "√": "sqrt",
+  "∞": "inf",
+  "≈": "~=",
+  "≠": "!=",
+  ᵢ: "i",
+  ⱼ: "j",
+  ₖ: "k",
+  ₘ: "m",
+  ₙ: "n",
+  ₐ: "a",
+  ₑ: "e",
+  ₒ: "o",
+  ₓ: "x",
 };
 
 /** What stands in for a run of characters the core fonts cannot draw. One
@@ -113,7 +149,10 @@ export function pdfSafe(input: string): string {
     suite, which asserts against the bare report bytes) are unaffected. */
 export type HeadingSeen = (label: string, jsPdfPage: number) => void;
 
-export async function renderReportPdf(doc: FinalReportDoc, onHeading?: HeadingSeen): Promise<Uint8Array> {
+export async function renderReportPdf(
+  doc: FinalReportDoc,
+  onHeading?: HeadingSeen,
+): Promise<Uint8Array> {
   const { jsPDF } = await import("jspdf");
   const { default: autoTable } = await import("jspdf-autotable");
   const pdf = new jsPDF({ unit: "pt", format: "a4" });
@@ -145,13 +184,19 @@ export async function renderReportPdf(doc: FinalReportDoc, onHeading?: HeadingSe
   const room = (needed: number) => {
     flush();
     if (y + needed <= height() - MARGIN) return;
-    pdf.addPage(isLandscape() ? A4_LANDSCAPE : A4, isLandscape() ? "landscape" : "portrait");
+    pdf.addPage(
+      isLandscape() ? A4_LANDSCAPE : A4,
+      isLandscape() ? "landscape" : "portrait",
+    );
     y = MARGIN;
   };
 
   const eyebrow = (s: string) => {
     room(22);
-    pdf.setFont("courier", "normal").setFontSize(7.5).setTextColor(...MUTED);
+    pdf
+      .setFont("courier", "normal")
+      .setFontSize(7.5)
+      .setTextColor(...MUTED);
     pdf.text(pdfSafe(s.toUpperCase()), MARGIN, y);
     /* Clear of the heading that follows: a 20pt title drawn 14pt below this
        baseline reaches back up into it. */
@@ -160,7 +205,10 @@ export async function renderReportPdf(doc: FinalReportDoc, onHeading?: HeadingSe
 
   const heading = (s: string, size = 15) => {
     room(size + 14);
-    pdf.setFont("helvetica", "normal").setFontSize(size).setTextColor(...INK);
+    pdf
+      .setFont("helvetica", "normal")
+      .setFontSize(size)
+      .setTextColor(...INK);
     const lines = pdf.splitTextToSize(pdfSafe(s), inner()) as string[];
     for (const line of lines) {
       room(size + 4);
@@ -185,7 +233,10 @@ export async function renderReportPdf(doc: FinalReportDoc, onHeading?: HeadingSe
     })();
     for (const line of lines) {
       room(size + 3);
-      pdf.setFont("helvetica", "normal").setFontSize(size).setTextColor(...color);
+      pdf
+        .setFont("helvetica", "normal")
+        .setFontSize(size)
+        .setTextColor(...color);
       pdf.text(line, MARGIN, y);
       y += size + 2.5;
     }
@@ -195,8 +246,14 @@ export async function renderReportPdf(doc: FinalReportDoc, onHeading?: HeadingSe
   const bullets = (items: string[]) => {
     for (const item of items) {
       room(12);
-      pdf.setFont("helvetica", "normal").setFontSize(8).setTextColor(...MUTED);
-      const lines = pdf.splitTextToSize(pdfSafe(item), inner() - 12) as string[];
+      pdf
+        .setFont("helvetica", "normal")
+        .setFontSize(8)
+        .setTextColor(...MUTED);
+      const lines = pdf.splitTextToSize(
+        pdfSafe(item),
+        inner() - 12,
+      ) as string[];
       lines.forEach((line, i) => {
         room(11);
         pdf.text(i === 0 ? `- ${line}` : `  ${line}`, MARGIN, y);
@@ -212,17 +269,31 @@ export async function renderReportPdf(doc: FinalReportDoc, onHeading?: HeadingSe
       startY: y,
       margin: { left: MARGIN, right: MARGIN },
       theme: "plain",
-      styles: { font: "helvetica", fontSize: 8.5, cellPadding: { top: 3, bottom: 3, left: 0, right: 6 }, textColor: INK, lineWidth: 0 },
-      columnStyles: { 0: { cellWidth: inner() * 0.42, textColor: MUTED }, 1: { cellWidth: inner() * 0.58 } },
+      styles: {
+        font: "helvetica",
+        fontSize: 8.5,
+        cellPadding: { top: 3, bottom: 3, left: 0, right: 6 },
+        textColor: INK,
+        lineWidth: 0,
+      },
+      columnStyles: {
+        0: { cellWidth: inner() * 0.42, textColor: MUTED },
+        1: { cellWidth: inner() * 0.58 },
+      },
       body: rows.map((r) => [pdfSafe(r.label), pdfSafe(r.value)]),
     });
-    y = (pdf as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 14;
+    y =
+      (pdf as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable
+        .finalY + 14;
   };
 
   const dataTable = (columns: string[], rows: string[][], caption?: string) => {
     if (caption) {
       room(14);
-      pdf.setFont("helvetica", "normal").setFontSize(8).setTextColor(...MUTED);
+      pdf
+        .setFont("helvetica", "normal")
+        .setFontSize(8)
+        .setTextColor(...MUTED);
       pdf.text(pdfSafe(caption), MARGIN, y);
       y += 12;
     }
@@ -234,12 +305,26 @@ export async function renderReportPdf(doc: FinalReportDoc, onHeading?: HeadingSe
       startY: y,
       margin: { left: MARGIN, right: MARGIN },
       theme: "grid",
-      styles: { font: "helvetica", fontSize: size, cellPadding: 3, textColor: INK, lineColor: [226, 223, 216], lineWidth: 0.4, overflow: "linebreak" },
-      headStyles: { fillColor: [247, 246, 243], textColor: INK, fontStyle: "normal" },
+      styles: {
+        font: "helvetica",
+        fontSize: size,
+        cellPadding: 3,
+        textColor: INK,
+        lineColor: [226, 223, 216],
+        lineWidth: 0.4,
+        overflow: "linebreak",
+      },
+      headStyles: {
+        fillColor: [247, 246, 243],
+        textColor: INK,
+        fontStyle: "normal",
+      },
       head: [columns.map(pdfSafe)],
       body: rows.map((r) => r.map(pdfSafe)),
     });
-    y = (pdf as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 14;
+    y =
+      (pdf as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable
+        .finalY + 14;
   };
 
   const block = (b: Block) => {
@@ -257,8 +342,14 @@ export async function renderReportPdf(doc: FinalReportDoc, onHeading?: HeadingSe
     room(30);
     pdf.setFillColor(254, 243, 226);
     pdf.rect(MARGIN, y - 9, inner(), 26, "F");
-    pdf.setFont("helvetica", "bold").setFontSize(8.5).setTextColor(...WARN);
-    const lines = pdf.splitTextToSize(pdfSafe(doc.cover.draftBanner), inner() - 16) as string[];
+    pdf
+      .setFont("helvetica", "bold")
+      .setFontSize(8.5)
+      .setTextColor(...WARN);
+    const lines = pdf.splitTextToSize(
+      pdfSafe(doc.cover.draftBanner),
+      inner() - 16,
+    ) as string[];
     let ly = y + 2;
     for (const line of lines.slice(0, 2)) {
       pdf.text(line, MARGIN + 8, ly);
@@ -272,7 +363,10 @@ export async function renderReportPdf(doc: FinalReportDoc, onHeading?: HeadingSe
 
   if (doc.cover.outstanding.length > 0) {
     bullets(doc.cover.outstanding);
-    paragraph("The workspace's Readiness tab carries the complete list, each item linked to the screen that clears it.", 8);
+    paragraph(
+      "The product report's Readiness tab carries the complete list, each item linked to the screen that clears it.",
+      8,
+    );
   }
 
   if (doc.cover.workings.length > 0) {
@@ -281,13 +375,19 @@ export async function renderReportPdf(doc: FinalReportDoc, onHeading?: HeadingSe
       "Certrace's own working, printed before the template's parts so it never interrupts them. Each block gives the formula, the same formula with " +
         "this installation's numbers in it, then the result. Re-key the middle line and you should land on the bottom one.",
     );
-    pdf.setFont("courier", "normal").setFontSize(7.5).setTextColor(...INK);
+    pdf
+      .setFont("courier", "normal")
+      .setFontSize(7.5)
+      .setTextColor(...INK);
     for (const w of doc.cover.workings) {
       for (const raw of w.split("\n")) {
         const lines = pdf.splitTextToSize(pdfSafe(raw), inner()) as string[];
         for (const line of lines) {
           room(11);
-          pdf.setFont("courier", "normal").setFontSize(7.5).setTextColor(...INK);
+          pdf
+            .setFont("courier", "normal")
+            .setFontSize(7.5)
+            .setTextColor(...INK);
           pdf.text(line, MARGIN, y);
           y += 9.5;
         }
@@ -303,7 +403,8 @@ export async function renderReportPdf(doc: FinalReportDoc, onHeading?: HeadingSe
       twelve columns before its sector-specific ones, which is under 30pt a
       column. The whole SUBSECTION moves to landscape, not just the table, so
       its heading and its note travel with it. */
-  const isWide = (b: Block) => b.kind === "table" && b.columns.length > LANDSCAPE_COLUMN_THRESHOLD;
+  const isWide = (b: Block) =>
+    b.kind === "table" && b.columns.length > LANDSCAPE_COLUMN_THRESHOLD;
 
   const renderPart = (part: Part) => {
     request("portrait");
@@ -343,7 +444,8 @@ export function bytesFromDataUrl(dataUrl: string): Uint8Array {
   return new Uint8Array(Buffer.from(b64, "base64"));
 }
 
-const mimeOf = (item: EvidenceItem): string => (item.mimeType ?? "").toLowerCase();
+const mimeOf = (item: EvidenceItem): string =>
+  (item.mimeType ?? "").toLowerCase();
 
 export type MergeFailure = { fileName: string; reason: string };
 
@@ -369,11 +471,18 @@ type TocEntry = { label: string; page: number; indent: boolean };
    0 0 24 24, stroke-width 1.6, no fill) — one mark, one set of coordinates,
    so the header drawn here and the one that HTML path once drew never
    quietly diverge. */
-const MARK_PATHS = ["M15.5 4.5a7.5 7.5 0 1 0 0 15 7.5 7.5 0 0 1 0-15Z", "M8.5 4.5a7.5 7.5 0 0 1 0 15"];
+const MARK_PATHS = [
+  "M15.5 4.5a7.5 7.5 0 1 0 0 15 7.5 7.5 0 0 1 0-15Z",
+  "M8.5 4.5a7.5 7.5 0 0 1 0 15",
+];
 const MARK_VIEWBOX = 24;
 
-export async function assembleFinalReportPdf(doc: FinalReportDoc): Promise<FinalReportPdf> {
-  const { PDFDocument, StandardFonts, PDFName, PDFArray, rgb } = await import("pdf-lib");
+export async function assembleFinalReportPdf(
+  doc: FinalReportDoc,
+): Promise<FinalReportPdf> {
+  const { PDFDocument, StandardFonts, PDFName, PDFArray, rgb } = await import(
+    "pdf-lib"
+  );
 
   const out = await PDFDocument.create();
   const font = await out.embedFont(StandardFonts.Helvetica);
@@ -385,10 +494,22 @@ export async function assembleFinalReportPdf(doc: FinalReportDoc): Promise<Final
   const textPage = (title: string, lines: string[] = []) => {
     const page = out.addPage(A4);
     const { height } = page.getSize();
-    page.drawText(pdfSafe(title), { x: MARGIN, y: height / 2, size: 18, font, color: rgb(0.07, 0.07, 0.07) });
+    page.drawText(pdfSafe(title), {
+      x: MARGIN,
+      y: height / 2,
+      size: 18,
+      font,
+      color: rgb(0.07, 0.07, 0.07),
+    });
     let ly = height / 2 - 24;
     for (const line of lines) {
-      page.drawText(pdfSafe(line), { x: MARGIN, y: ly, size: 9, font: mono, color: rgb(0.42, 0.41, 0.39) });
+      page.drawText(pdfSafe(line), {
+        x: MARGIN,
+        y: ly,
+        size: 9,
+        font: mono,
+        color: rgb(0.42, 0.41, 0.39),
+      });
       ly -= 13;
     }
     return page;
@@ -398,10 +519,15 @@ export async function assembleFinalReportPdf(doc: FinalReportDoc): Promise<Final
   // Part/Subsection heading, in this document's OWN page numbering.
   const reportToc: TocEntry[] = [];
   const reportBytes = await renderReportPdf(doc, (label, jsPdfPage) => {
-    reportToc.push({ label, page: jsPdfPage, indent: !label.startsWith("Part ") });
+    reportToc.push({
+      label,
+      page: jsPdfPage,
+      indent: !label.startsWith("Part "),
+    });
   });
   const reportPdf = await PDFDocument.load(reportBytes);
-  for (const page of await out.copyPages(reportPdf, reportPdf.getPageIndices())) out.addPage(page);
+  for (const page of await out.copyPages(reportPdf, reportPdf.getPageIndices()))
+    out.addPage(page);
 
   /* THE TABLE OF CONTENTS PAGE IS RESERVED, NOT APPENDED.
      `renderReportPdf`'s own page-break rule (see the "PAGE BREAKS ARE LAZY"
@@ -415,27 +541,34 @@ export async function assembleFinalReportPdf(doc: FinalReportDoc): Promise<Final
   const toc: TocEntry[] = reportToc.map((e) => ({ ...e, page: e.page + 1 }));
 
   // §4 — the divider, immediately after Part 4.
-  toc.push({ label: "Supporting Evidence", page: out.getPageCount() + 1, indent: false });
+  toc.push({
+    label: "Supporting Evidence",
+    page: out.getPageCount() + 1,
+    indent: false,
+  });
   textPage("Supporting Evidence");
 
   let embedded = 0;
   const placeholders: MergeFailure[] = [];
 
   for (const section of doc.evidence) {
-    toc.push({ label: section.title, page: out.getPageCount() + 1, indent: true });
-    textPage(section.title, [`Category ${section.ordinal} of 5`, `${section.items.length} document(s)`]);
+    toc.push({
+      label: section.title,
+      page: out.getPageCount() + 1,
+      indent: true,
+    });
+    textPage(section.title, [
+      `Category ${section.ordinal} of 5`,
+      `${section.items.length} document(s)`,
+    ]);
 
     for (const item of section.items) {
       const name = item.fileName || "unnamed file";
       try {
-        if (!item.fileDataUrl) {
-          /* Metadata-only: the file was over the inline storage limit, so
-             only its record is held. Named, not dropped — the reader has to
-             know to ask for it. */
-          throw new Error("held outside the browser — the file exceeds the inline storage limit and must be sent as the original");
-        }
+        const file = await loadEvidenceFile(item);
+        if (!file) throw new Error("The original file is unavailable.");
         const mime = mimeOf(item);
-        const bytes = bytesFromDataUrl(item.fileDataUrl);
+        const bytes = new Uint8Array(await file.arrayBuffer());
 
         if (mime === "application/pdf") {
           const src = await PDFDocument.load(bytes);
@@ -445,27 +578,47 @@ export async function assembleFinalReportPdf(doc: FinalReportDoc): Promise<Final
           continue;
         }
 
-        if (mime === "image/jpeg" || mime === "image/jpg" || mime === "image/png") {
-          const image = mime === "image/png" ? await out.embedPng(bytes) : await out.embedJpg(bytes);
+        if (
+          mime === "image/jpeg" ||
+          mime === "image/jpg" ||
+          mime === "image/png"
+        ) {
+          const image =
+            mime === "image/png"
+              ? await out.embedPng(bytes)
+              : await out.embedJpg(bytes);
           const page = out.addPage(A4);
           const { width: pw, height: ph } = page.getSize();
           /* Scaled to fit, never cropped: a page of a scanned certificate
              with its corner cut off is not evidence of anything. */
-          const scale = Math.min((pw - MARGIN * 2) / image.width, (ph - MARGIN * 2) / image.height, 1);
+          const scale = Math.min(
+            (pw - MARGIN * 2) / image.width,
+            (ph - MARGIN * 2) / image.height,
+            1,
+          );
           const w = image.width * scale;
           const h = image.height * scale;
-          page.drawImage(image, { x: (pw - w) / 2, y: (ph - h) / 2, width: w, height: h });
+          page.drawImage(image, {
+            x: (pw - w) / 2,
+            y: (ph - h) / 2,
+            width: w,
+            height: h,
+          });
           embedded++;
           continue;
         }
 
-        throw new Error(`${item.mimeType || "this file type"} cannot be converted to PDF in the browser`);
+        throw new Error(
+          `${item.mimeType || "this file type"} cannot be converted to PDF in the browser`,
+        );
       } catch (e) {
         const reason = e instanceof Error ? e.message : String(e);
         placeholders.push({ fileName: name, reason });
         /* §2 — a failed conversion holds its POSITION. Dropping it would
            make the appendix look complete when it is not. */
-        textPage("Evidence file could not be rendered", [`${name} — ${reason}`]);
+        textPage("Evidence file could not be rendered", [
+          `${name} — ${reason}`,
+        ]);
       }
     }
   }
@@ -481,7 +634,11 @@ export async function assembleFinalReportPdf(doc: FinalReportDoc): Promise<Final
   const INK_3 = rgb(0.29, 0.29, 0.28);
   const INK_4 = rgb(0.47, 0.46, 0.44);
 
-  const linkTo = (page: (typeof allPages)[number], rect: [number, number, number, number], targetIndex: number) => {
+  const linkTo = (
+    page: (typeof allPages)[number],
+    rect: [number, number, number, number],
+    targetIndex: number,
+  ) => {
     const annotRef = out.context.register(
       out.context.obj({
         Type: "Annot",
@@ -498,7 +655,13 @@ export async function assembleFinalReportPdf(doc: FinalReportDoc): Promise<Final
 
   {
     const { width, height } = tocPage.getSize();
-    tocPage.drawText("Table of Contents", { x: MARGIN, y: height - MARGIN - 6, size: 16, font: fontBold, color: INK });
+    tocPage.drawText("Table of Contents", {
+      x: MARGIN,
+      y: height - MARGIN - 6,
+      size: 16,
+      font: fontBold,
+      color: INK,
+    });
     let y = height - MARGIN - 42;
     const rowH = 15.5;
     for (const entry of toc) {
@@ -512,20 +675,44 @@ export async function assembleFinalReportPdf(doc: FinalReportDoc): Promise<Final
       const pageWidth = mono.widthOfTextAtSize(pageLabel, size);
       const labelWidth = labelFont.widthOfTextAtSize(label, size);
 
-      tocPage.drawText(label, { x, y, size, font: labelFont, color: entry.indent ? INK_3 : INK });
-      tocPage.drawText(pageLabel, { x: rightX - pageWidth, y, size, font: mono, color: INK_3 });
+      tocPage.drawText(label, {
+        x,
+        y,
+        size,
+        font: labelFont,
+        color: entry.indent ? INK_3 : INK,
+      });
+      tocPage.drawText(pageLabel, {
+        x: rightX - pageWidth,
+        y,
+        size,
+        font: mono,
+        color: INK_3,
+      });
 
       const leaderStart = x + labelWidth + 6;
       const leaderEnd = rightX - pageWidth - 6;
       const dotWidth = font.widthOfTextAtSize(". ", size);
       if (leaderEnd > leaderStart && dotWidth > 0) {
-        const dots = Math.max(0, Math.floor((leaderEnd - leaderStart) / dotWidth));
-        tocPage.drawText(". ".repeat(dots), { x: leaderStart, y, size, font, color: LINE });
+        const dots = Math.max(
+          0,
+          Math.floor((leaderEnd - leaderStart) / dotWidth),
+        );
+        tocPage.drawText(". ".repeat(dots), {
+          x: leaderStart,
+          y,
+          size,
+          font,
+          color: LINE,
+        });
       }
 
       // A row's whole width is clickable, not just the label — a reader's
       // eye lands anywhere across the dotted leader before it clicks.
-      const targetIndex = Math.max(0, Math.min(allPages.length - 1, entry.page - 1));
+      const targetIndex = Math.max(
+        0,
+        Math.min(allPages.length - 1, entry.page - 1),
+      );
       linkTo(tocPage, [MARGIN, y - 3, rightX, y + size + 2], targetIndex);
 
       y -= rowH;
@@ -549,10 +736,15 @@ export async function assembleFinalReportPdf(doc: FinalReportDoc): Promise<Final
     }
     return label;
   };
-  const truncateToWidth = (text: string, size: number, maxWidth: number): string => {
+  const truncateToWidth = (
+    text: string,
+    size: number,
+    maxWidth: number,
+  ): string => {
     if (font.widthOfTextAtSize(text, size) <= maxWidth) return text;
     let t = text;
-    while (t.length > 1 && font.widthOfTextAtSize(`${t}…`, size) > maxWidth) t = t.slice(0, -1);
+    while (t.length > 1 && font.widthOfTextAtSize(`${t}…`, size) > maxWidth)
+      t = t.slice(0, -1);
     return `${t}…`;
   };
 
@@ -567,26 +759,59 @@ export async function assembleFinalReportPdf(doc: FinalReportDoc): Promise<Final
     const markSize = 9;
     const markScale = markSize / MARK_VIEWBOX;
     for (const d of MARK_PATHS) {
-      page.drawSvgPath(d, { x: MARGIN, y: top, scale: markScale, borderColor: INK, borderWidth: 1.6 * markScale });
+      page.drawSvgPath(d, {
+        x: MARGIN,
+        y: top,
+        scale: markScale,
+        borderColor: INK,
+        borderWidth: 1.6 * markScale,
+      });
     }
-    page.drawText("CERTRACE", { x: MARGIN + markSize + 5, y: top - markSize + 1, size: 7, font, color: INK });
+    page.drawText("CERTRACE", {
+      x: MARGIN + markSize + 5,
+      y: top - markSize + 1,
+      size: 7,
+      font,
+      color: INK,
+    });
 
     // Center — the section active on this page, ellipsised rather than
     // overlapping the page-number zone on a long title.
     const section = activeSectionFor(pageNumber);
     if (section) {
       const centerMaxWidth = width - MARGIN * 2 - 220;
-      const centerText = truncateToWidth(pdfSafe(section), 9.5, Math.max(80, centerMaxWidth));
+      const centerText = truncateToWidth(
+        pdfSafe(section),
+        9.5,
+        Math.max(80, centerMaxWidth),
+      );
       const centerWidth = font.widthOfTextAtSize(centerText, 9.5);
-      page.drawText(centerText, { x: (width - centerWidth) / 2, y: top - 7, size: 9.5, font, color: INK_3 });
+      page.drawText(centerText, {
+        x: (width - centerWidth) / 2,
+        y: top - 7,
+        size: 9.5,
+        font,
+        color: INK_3,
+      });
     }
 
     // Right — plain sequential numbering, no denominator.
     const pageText = `Page ${pageNumber}`;
     const pageWidth = mono.widthOfTextAtSize(pageText, 9.5);
-    page.drawText(pageText, { x: width - MARGIN - pageWidth, y: top - 7, size: 9.5, font: mono, color: INK_4 });
+    page.drawText(pageText, {
+      x: width - MARGIN - pageWidth,
+      y: top - 7,
+      size: 9.5,
+      font: mono,
+      color: INK_4,
+    });
 
-    page.drawLine({ start: { x: MARGIN, y: top - 16 }, end: { x: width - MARGIN, y: top - 16 }, thickness: 0.5, color: LINE });
+    page.drawLine({
+      start: { x: MARGIN, y: top - 16 },
+      end: { x: width - MARGIN, y: top - 16 },
+      thickness: 0.5,
+      color: LINE,
+    });
   }
 
   const bytes = await out.save();

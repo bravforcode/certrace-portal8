@@ -42,7 +42,8 @@ import {
 
 const OTHER = "__other__";
 
-const isListed = (v: string): boolean => (PROCESS_OPTIONS as readonly string[]).includes(v);
+const isListed = (v: string): boolean =>
+  (PROCESS_OPTIONS as readonly string[]).includes(v);
 
 export function ExclusionProcessSelect({
   /** the row being edited */
@@ -61,7 +62,13 @@ export function ExclusionProcessSelect({
   /* Taken by ANOTHER row. This row's own value stays in the list, or the
      select would render with nothing selected the moment it was chosen. */
   const takenElsewhere = React.useMemo(
-    () => new Set(all.filter((x) => x.id !== value.id).map((x) => x.process).filter(isListed)),
+    () =>
+      new Set(
+        all
+          .filter((x) => x.id !== value.id)
+          .map((x) => x.process)
+          .filter(isListed),
+      ),
     [all, value.id],
   );
 
@@ -87,7 +94,10 @@ export function ExclusionProcessSelect({
 
   const options = React.useMemo(
     () => [
-      ...PROCESS_OPTIONS.filter((p) => !takenElsewhere.has(p)).map((p) => ({ value: p, label: p })),
+      ...PROCESS_OPTIONS.filter((p) => !takenElsewhere.has(p)).map((p) => ({
+        value: p,
+        label: p,
+      })),
       {
         value: OTHER,
         label: "Other — describe it",
@@ -119,18 +129,25 @@ export function ExclusionProcessSelect({
       />
       {custom && (
         <input
-          className={cn(inputClass, !value.process.trim() && "border-[#f59e0b]/60")}
+          className={cn(
+            inputClass,
+            !value.process.trim() && "border-[#f59e0b]/60",
+          )}
           value={value.process}
           disabled={disabled}
           autoFocus
-          placeholder={t("Name it as your team names it — e.g. Billet reheating, Line 3")}
+          placeholder={t(
+            "Name it as your team names it — e.g. Billet reheating, Line 3",
+          )}
           aria-label={t("Name the excluded process")}
           onChange={(e) => onChange(e.target.value)}
         />
       )}
       {listExhausted && (
         <p className="text-[11px] leading-relaxed text-black/40">
-          {t("Every process on the list is already declared outside the boundary. If that is right, nothing is inside it — check the “Processes included” list above.")}
+          {t(
+            "Every process on the list is already declared outside the boundary. If that is right, nothing is inside it — check the “Processes included” list above.",
+          )}
         </p>
       )}
     </div>
@@ -175,18 +192,29 @@ export function ExclusionGroundSelect({
             groundOther: v === "other" ? value.groundOther : "",
           })
         }
-        options={EXCLUSION_GROUNDS.map((g) => ({ value: g, label: t(EXCLUSION_GROUND_LABEL[g]), hint: EXCLUSION_GROUND_HINT[g] }))}
+        options={EXCLUSION_GROUNDS.map((g) => ({
+          value: g,
+          label: t(EXCLUSION_GROUND_LABEL[g]),
+          hint: EXCLUSION_GROUND_HINT[g],
+        }))}
         ariaLabel={t("Ground for excluding it")}
       />
       {isOther && (
         <input
-          className={cn(inputClass, !value.groundOther.trim() && "border-[#f59e0b]/60")}
+          className={cn(
+            inputClass,
+            !value.groundOther.trim() && "border-[#f59e0b]/60",
+          )}
           value={value.groundOther}
           disabled={disabled}
           autoFocus
-          placeholder={t("State the ground — e.g. Leased to a tenant with its own permit")}
+          placeholder={t(
+            "State the ground — e.g. Leased to a tenant with its own permit",
+          )}
           aria-label={t("Describe the ground for excluding it")}
-          onChange={(e) => onChange({ ground: "other", groundOther: e.target.value })}
+          onChange={(e) =>
+            onChange({ ground: "other", groundOther: e.target.value })
+          }
         />
       )}
     </div>

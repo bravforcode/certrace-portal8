@@ -1,3 +1,4 @@
+import { accountStorage } from "./account-storage";
 /* ════════════════════════════════════════════════════════════
    THE MONTH'S SUBMISSION — who signed it, and what happened after
 
@@ -30,6 +31,8 @@
    Frontend-only MVP: one localStorage key, same seam as the other stores.
    ════════════════════════════════════════════════════════════ */
 
+import { dateLocaleNow } from "./i18n";
+
 export type Attestation = {
   /** typed name — browser-local demo metadata, never an e-signature */
   fullName: string;
@@ -59,6 +62,9 @@ export type MonthSubmission = {
   state: ReviewState;
   /** set when the supplier submits; cleared when anyone edits afterwards */
   attestation: Attestation | null;
+  /** EVERY authorisation ever given for this month, oldest first. `attestation` is the one standing now; this is the record,
+      and an exporter's edit that voids the first does not remove it. */
+  history?: Attestation[];
   /** ISO timestamp of the supplier's submission */
   submittedAt?: string;
   /* ── The exporter's side ──────────────────────────────────── */
@@ -109,7 +115,7 @@ type Store = Record<string, Record<string, MonthSubmission>>;
 function read(): Store {
   if (typeof window === "undefined") return {};
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(KEY) ?? "{}") as Store;
+    const parsed = JSON.parse(accountStorage.getItem(KEY) ?? "{}") as Store;
     return parsed && typeof parsed === "object" ? parsed : {};
   } catch {
     return {};
@@ -119,13 +125,16 @@ function read(): Store {
 function write(store: Store): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(store));
+    accountStorage.setItem(KEY, JSON.stringify(store));
   } catch {
     /* ignore quota */
   }
 }
 
-export const emptySubmission = (workspaceId: string, month: string): MonthSubmission => ({
+export const emptySubmission = (
+  workspaceId: string,
+  month: string,
+): MonthSubmission => ({
   workspaceId,
   month,
   state: "open",
@@ -133,26 +142,42 @@ export const emptySubmission = (workspaceId: string, month: string): MonthSubmis
   editedByExporter: false,
 });
 
-export const submissionsFor = (workspaceId: string): Record<string, MonthSubmission> => read()[workspaceId] ?? {};
+export const submissionsFor = (
+  workspaceId: string,
+): Record<string, MonthSubmission> => read()[workspaceId] ?? {};
 
-export const submissionFor = (workspaceId: string, month: string): MonthSubmission =>
+export const submissionFor = (
+  workspaceId: string,
+  month: string,
+): MonthSubmission =>
   submissionsFor(workspaceId)[month] ?? emptySubmission(workspaceId, month);
 
 function put(next: MonthSubmission): MonthSubmission {
   const store = read();
-  store[next.workspaceId] = { ...(store[next.workspaceId] ?? {}), [next.month]: next };
+  store[next.workspaceId] = {
+    ...(store[next.workspaceId] ?? {}),
+    [next.month]: next,
+  };
   write(store);
   return next;
 }
 
 /** The supplier attests and sends. Resets the exporter's edit flag: whatever
     they changed last round has been superseded by a fresh submission. */
-export function submitWithAttestation(workspaceId: string, month: string, attestation: Attestation): MonthSubmission {
+export function submitWithAttestation(
+  workspaceId: string,
+  month: string,
+  attestation: Attestation,
+): MonthSubmission {
   const prev = submissionFor(workspaceId, month);
   return put({
     ...prev,
     state: "submitted",
     attestation,
+    history: [
+      ...authorisationHistory(prev).slice().reverse(),
+      attestation,
+    ].slice(-50),
     submittedAt: new Date().toISOString(),
     editedByExporter: false,
     editedAt: undefined,
@@ -167,6 +192,37 @@ export function submitWithAttestation(workspaceId: string, month: string, attest
   });
 }
 
+/** Who authorised this month and when, newest first. A month submitted before the record was kept still shows the one authorisation it had. */
+export function authorisationHistory(
+  s: MonthSubmission | null | undefined,
+): Attestation[] {
+  if (!s) return [];
+  const all =
+    s.history && s.history.length > 0
+      ? s.history
+      : s.attestation
+        ? [s.attestation]
+        : [];
+  return all.slice().sort((a, b) => b.at.localeCompare(a.at));
+}
+
+/** "25 Oct 2026 · 14:32" — the date the platform uses everywhere, and the time it was pressed. */
+export function formatAuthorisedAt(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const date = d.toLocaleDateString(dateLocaleNow(), {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+  const time = d.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  return `${date} · ${time}`;
+}
+
 /** Called whenever the EXPORTER changes a figure on a month that had already
     been submitted.
 
@@ -175,23 +231,45 @@ export function submitWithAttestation(workspaceId: string, month: string, attest
     onto figures they have not seen would be the product forging a signature.
     The month stays submitted — it is still their data, edited — and the screen
     says who edited it. */
-export function markExporterEdited(workspaceId: string, month: string): MonthSubmission {
+export function markExporterEdited(
+  workspaceId: string,
+  month: string,
+): MonthSubmission {
   const prev = submissionFor(workspaceId, month);
   if (prev.state === "open") return prev;
-  return put({ ...prev, editedByExporter: true, editedAt: new Date().toISOString(), attestation: null });
+  return put({
+    ...prev,
+    editedByExporter: true,
+    editedAt: new Date().toISOString(),
+    attestation: null,
+  });
 }
 
 /** Hand the month to a colleague. Not an approval — a named person now owns
     looking at it, which is the thing an owner actually wants to record. */
-export function assignReviewer(workspaceId: string, month: string, reviewerId: string, reviewerName: string): MonthSubmission {
+export function assignReviewer(
+  workspaceId: string,
+  month: string,
+  reviewerId: string,
+  reviewerName: string,
+): MonthSubmission {
   const prev = submissionFor(workspaceId, month);
   return put({ ...prev, state: "in_review", reviewerId, reviewerName });
 }
 
 /** The exporter accepts the month as it now stands. */
-export function confirmMonth(workspaceId: string, month: string, by: string): MonthSubmission {
+export function confirmMonth(
+  workspaceId: string,
+  month: string,
+  by: string,
+): MonthSubmission {
   const prev = submissionFor(workspaceId, month);
-  return put({ ...prev, state: "confirmed", confirmedBy: by, confirmedAt: new Date().toISOString() });
+  return put({
+    ...prev,
+    state: "confirmed",
+    confirmedBy: by,
+    confirmedAt: new Date().toISOString(),
+  });
 }
 
 /** Send it back for a revision.
@@ -200,7 +278,12 @@ export function confirmMonth(workspaceId: string, month: string, by: string): Mo
     already edited the month, the supplier is being asked to revise the
     EXPORTER'S version, not the one they submitted. Callers do not compute
     this — it is read off the record, so the two cannot disagree. */
-export function requestRevision(workspaceId: string, month: string, note: string, areas: string[] = []): MonthSubmission {
+export function requestRevision(
+  workspaceId: string,
+  month: string,
+  note: string,
+  areas: string[] = [],
+): MonthSubmission {
   const prev = submissionFor(workspaceId, month);
   return put({
     ...prev,
@@ -220,31 +303,60 @@ export function requestRevision(workspaceId: string, month: string, note: string
 /* ── The supplier asks to reopen a submitted month ──────────────
    Only from a month that is actually closed, and only one at a time: a second
    press while one is pending must not overwrite the reason already sent. */
-export function requestEdit(workspaceId: string, month: string, reason: string): MonthSubmission {
+export function requestEdit(
+  workspaceId: string,
+  month: string,
+  reason: string,
+): MonthSubmission {
   const prev = submissionFor(workspaceId, month);
   if (prev.editRequest?.state === "pending") return prev;
-  return put({ ...prev, editRequest: { at: new Date().toISOString(), reason: reason.trim(), state: "pending" } });
+  return put({
+    ...prev,
+    editRequest: {
+      at: new Date().toISOString(),
+      reason: reason.trim(),
+      state: "pending",
+    },
+  });
 }
 
 /** The exporter agrees. This RECORDS the decision; reopening the month itself
     is the caller's job (`reopenMonth` in lib/monthly-data.ts) because the
     readings are a different store, and a half-applied approval that says yes
     without unlocking anything is worse than a refusal. */
-export function approveEditRequest(workspaceId: string, month: string, by: string): MonthSubmission {
+export function approveEditRequest(
+  workspaceId: string,
+  month: string,
+  by: string,
+): MonthSubmission {
   const prev = submissionFor(workspaceId, month);
   if (!prev.editRequest) return prev;
   return put({
     ...prev,
-    editRequest: { ...prev.editRequest, state: "approved", decidedAt: new Date().toISOString(), decidedBy: by },
+    editRequest: {
+      ...prev.editRequest,
+      state: "approved",
+      decidedAt: new Date().toISOString(),
+      decidedBy: by,
+    },
   });
 }
 
-export function rejectEditRequest(workspaceId: string, month: string, by: string): MonthSubmission {
+export function rejectEditRequest(
+  workspaceId: string,
+  month: string,
+  by: string,
+): MonthSubmission {
   const prev = submissionFor(workspaceId, month);
   if (!prev.editRequest) return prev;
   return put({
     ...prev,
-    editRequest: { ...prev.editRequest, state: "rejected", decidedAt: new Date().toISOString(), decidedBy: by },
+    editRequest: {
+      ...prev.editRequest,
+      state: "rejected",
+      decidedAt: new Date().toISOString(),
+      decidedBy: by,
+    },
   });
 }
 
@@ -256,7 +368,10 @@ export const REVIEW_STATE_LABEL: Record<ReviewState, string> = {
   changes_requested: "Revision requested",
 };
 
-export const REVIEW_STATE_TONE: Record<ReviewState, "muted" | "info" | "warn" | "ok"> = {
+export const REVIEW_STATE_TONE: Record<
+  ReviewState,
+  "muted" | "info" | "warn" | "ok"
+> = {
   open: "muted",
   submitted: "info",
   in_review: "info",
@@ -273,10 +388,14 @@ export const REVIEW_STATE_TONE: Record<ReviewState, "muted" | "info" | "warn" | 
 
    `n` counts submissions rather than revisions: v1 is what the supplier first
    sent, and every resubmission after a round of questions is the next one. */
-export function submissionVersion(s: MonthSubmission): { label: string; at: string | null } | null {
+export function submissionVersion(
+  s: MonthSubmission,
+): { label: string; at: string | null } | null {
   if (s.state === "open") return null;
   const n = (s.revisionRound ?? 0) + 1;
-  const at = s.editedByExporter ? (s.editedAt ?? s.submittedAt ?? null) : (s.submittedAt ?? null);
+  const at = s.editedByExporter
+    ? (s.editedAt ?? s.submittedAt ?? null)
+    : (s.submittedAt ?? null);
   return { label: s.editedByExporter ? `v${n} · edited by you` : `v${n}`, at };
 }
 
@@ -286,5 +405,9 @@ export function formatSubmissionDate(iso: string | null | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  return d.toLocaleDateString(dateLocaleNow(), {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }

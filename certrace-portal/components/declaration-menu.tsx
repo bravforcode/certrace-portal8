@@ -17,25 +17,46 @@ import { duplicateToDraft } from "@/lib/duplicate";
 import { useDeleteDeclaration } from "@/lib/declarations-query";
 import { useT } from "@/lib/i18n";
 
-function MenuItems({ decl, close, afterDelete }: { decl: Declaration; close: () => void; afterDelete?: () => void }) {
+function MenuItems({
+  decl,
+  close,
+  afterDelete,
+}: {
+  decl: Declaration;
+  close: () => void;
+  afterDelete?: () => void;
+}) {
   const router = useRouter();
   const t = useT();
   const removeDeclaration = useDeleteDeclaration();
   const [armed, setArmed] = React.useState(false);
-  const item = "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[12.5px] text-black/65 transition-colors hover:bg-[#fafaf8] hover:text-black";
+  const item =
+    "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[12.5px] text-black/65 transition-colors hover:bg-[#fafaf8] hover:text-black";
 
   const duplicate = () => {
     const id = duplicateToDraft(decl);
-    toast({ message: t("Duplicated as a draft"), detail: t("Scope and suppliers copied — adjust the period and quantities."), tone: "ok" });
+    toast({
+      message: t("Duplicated as a draft"),
+      detail: t(
+        "Scope and suppliers copied — adjust the period and quantities.",
+      ),
+      tone: "ok",
+    });
     close();
     router.push(`/declarations/new?draft=${id}`);
   };
 
   const copyLink = () => {
     if (typeof navigator !== "undefined" && navigator.clipboard) {
-      navigator.clipboard.writeText(`${window.location.origin}/declarations/${decl.id}`);
+      navigator.clipboard.writeText(
+        `${window.location.origin}/declarations/${decl.id}`,
+      );
     }
-    toast({ message: t("Link copied"), detail: t("Anyone on your team with a seat can open it."), tone: "info" });
+    toast({
+      message: t("Link copied"),
+      detail: t("Anyone on your team with a seat can open it."),
+      tone: "info",
+    });
     close();
   };
 
@@ -49,11 +70,19 @@ function MenuItems({ decl, close, afterDelete }: { decl: Declaration; close: () 
       // every open screen agrees the row is gone.
       await removeDeclaration.mutateAsync(decl.id);
     } catch {
-      toast({ message: t("Couldn't delete that declaration"), detail: t("Check your connection and try again."), tone: "err" });
+      toast({
+        message: t("Couldn't delete that declaration"),
+        detail: t("Check your connection and try again."),
+        tone: "err",
+      });
       close();
       return;
     }
-    toast({ message: t("Declaration deleted"), detail: t("Supplier submissions stay on their own record."), tone: "info" });
+    toast({
+      message: t("Declaration deleted"),
+      detail: t("Supplier submissions stay on their own record."),
+      tone: "info",
+    });
     close();
     afterDelete?.();
   };
@@ -61,14 +90,30 @@ function MenuItems({ decl, close, afterDelete }: { decl: Declaration; close: () 
   return (
     <div>
       <button onClick={duplicate} className={item}>
-        <Copy size={13} strokeWidth={1.5} className="flex-none text-black/40" /> {t("Duplicate as draft")}
+        <Copy size={13} strokeWidth={1.5} className="flex-none text-black/40" />{" "}
+        {t("Duplicate as draft")}
       </button>
       <button onClick={copyLink} className={item}>
-        <Link2 size={13} strokeWidth={1.5} className="flex-none text-black/40" /> {t("Copy link")}
+        <Link2
+          size={13}
+          strokeWidth={1.5}
+          className="flex-none text-black/40"
+        />{" "}
+        {t("Copy link")}
       </button>
       <div className="mx-2 my-1 h-px bg-black/[0.06]" />
-      <button onClick={del} className={cn(item, "text-[#dc2626] hover:bg-[#fef2f2] hover:text-[#dc2626]")}>
-        {armed ? <Check size={13} strokeWidth={2} className="flex-none" /> : <Trash2 size={13} strokeWidth={1.5} className="flex-none" />}
+      <button
+        onClick={del}
+        className={cn(
+          item,
+          "text-[#dc2626] hover:bg-[#fef2f2] hover:text-[#dc2626]",
+        )}
+      >
+        {armed ? (
+          <Check size={13} strokeWidth={2} className="flex-none" />
+        ) : (
+          <Trash2 size={13} strokeWidth={1.5} className="flex-none" />
+        )}
         {armed ? t("Click again to confirm") : t("Delete declaration")}
       </button>
     </div>
@@ -94,7 +139,9 @@ export function DeclarationMenu({
       trigger={(open) => (
         <span
           role="presentation"
-          aria-label={t("Actions for {name}", { name: decl.title ?? decl.name })}
+          aria-label={t("Actions for {name}", {
+            name: decl.title ?? decl.name,
+          })}
           title={t("More actions")}
           className={cn(
             "grid place-items-center rounded-lg transition-colors",
@@ -112,7 +159,9 @@ export function DeclarationMenu({
         </span>
       )}
     >
-      {(close) => <MenuItems decl={decl} close={close} afterDelete={afterDelete} />}
+      {(close) => (
+        <MenuItems decl={decl} close={close} afterDelete={afterDelete} />
+      )}
     </Dropdown>
   );
 }

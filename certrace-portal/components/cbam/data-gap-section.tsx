@@ -18,7 +18,12 @@ import { Card, Button, Eyebrow, inputClass, cn } from "@/components/ui";
 import { DatePicker, Select } from "@/components/controls";
 import { ProvenanceForm } from "@/components/cbam/provenance-form";
 import { emptyProvenance } from "@/lib/cbam/activity";
-import { monthsInPeriod, monthLabel, displayDate, type ReportingPeriod } from "@/lib/cbam/boundary";
+import {
+  monthsInPeriod,
+  monthLabel,
+  displayDate,
+  type ReportingPeriod,
+} from "@/lib/cbam/boundary";
 import { useT } from "@/lib/i18n";
 import {
   ESTIMATION_METHODS,
@@ -84,7 +89,8 @@ export function DataGapSection({
     onGapsChange(saveGap(entry));
   };
 
-  const patch = (g: GapEntry, p: Partial<GapEntry>) => onGapsChange(saveGap({ ...g, ...p }));
+  const patch = (g: GapEntry, p: Partial<GapEntry>) =>
+    onGapsChange(saveGap({ ...g, ...p }));
 
   return (
     <Card className="p-6">
@@ -96,14 +102,23 @@ export function DataGapSection({
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="font-mono text-[11px] text-black/30">5</span>
-              <h2 className="text-[15px] text-black/80">{t("Month coverage & data gaps")}</h2>
+              <h2 className="text-[15px] text-black/80">
+                {t("Month coverage & data gaps")}
+              </h2>
             </div>
             <p className="mt-1 max-w-2xl text-[12.5px] leading-relaxed text-black/45">
-              {t("Every month in the period needs a reading, or an entry explaining why not. A month that has neither is the one thing a verifier cannot work around.")}
+              {t(
+                "Every month in the period needs a reading, or an entry explaining why not. A month that has neither is the one thing a verifier cannot work around.",
+              )}
             </p>
           </div>
         </div>
-        <Button size="sm" variant="secondary" className="flex-none" onClick={addGap}>
+        <Button
+          size="sm"
+          variant="secondary"
+          className="flex-none"
+          onClick={addGap}
+        >
           <Plus size={13} strokeWidth={1.5} /> {t("Add gap")}
         </Button>
       </div>
@@ -127,7 +142,13 @@ export function DataGapSection({
                       ? "border-[#d97706]/30 bg-[#fffbeb] text-[#b45309]"
                       : "border-[#dc2626]/30 bg-[#fef2f2] text-[#dc2626]",
                 )}
-                title={hasData ? "Primary data" : row.covered ? "Explained by a gap entry" : "No reading and no explanation"}
+                title={
+                  hasData
+                    ? "Primary data"
+                    : row.covered
+                      ? "Explained by a gap entry"
+                      : "No reading and no explanation"
+                }
               >
                 {monthLabel(m)}
               </button>
@@ -135,25 +156,36 @@ export function DataGapSection({
           })}
         </div>
         <p className="mt-2.5 text-[11.5px] leading-relaxed text-black/40">
-          <span className="text-[#047857]">{t("green")}</span> = primary data · <span className="text-[#b45309]">{t("amber")}</span> = explained by a gap
-          entry · <span className="text-[#dc2626]">{t("red")}</span> = unexplained
+          <span className="text-[#047857]">{t("green")}</span> = primary data ·{" "}
+          <span className="text-[#b45309]">{t("amber")}</span> = explained by a
+          gap entry · <span className="text-[#dc2626]">{t("red")}</span> =
+          unexplained
         </p>
       </div>
 
       {unexplained.length > 0 && (
         <p className="mt-4 flex items-start gap-1.5 rounded-xl border border-[#dc2626]/25 bg-[#fef2f2] px-3 py-2.5 text-[12.5px] leading-relaxed text-[#dc2626]">
-          <TriangleAlert size={13} strokeWidth={1.8} className="mt-[2px] flex-none" />
+          <TriangleAlert
+            size={13}
+            strokeWidth={1.8}
+            className="mt-[2px] flex-none"
+          />
           <span>
-            {unexplained.length} month{unexplained.length === 1 ? "" : "s"} with neither a reading nor an explanation:{" "}
-            {unexplained.map((m) => monthLabel(m.month)).join(", ")}. Add a gap entry for each, or mark the month as covered once the
-            reading is in.
+            {unexplained.length} month{unexplained.length === 1 ? "" : "s"} with
+            neither a reading nor an explanation:{" "}
+            {unexplained.map((m) => monthLabel(m.month)).join(", ")}. Add a gap
+            entry for each, or mark the month as covered once the reading is in.
           </span>
         </p>
       )}
 
       {share.escalate && (
         <p className="mt-4 flex items-start gap-1.5 rounded-xl border border-[#d97706]/30 bg-[#fffbeb] px-3 py-2.5 text-[12.5px] leading-relaxed text-[#b45309]">
-          <TriangleAlert size={13} strokeWidth={1.8} className="mt-[2px] flex-none" />
+          <TriangleAlert
+            size={13}
+            strokeWidth={1.8}
+            className="mt-[2px] flex-none"
+          />
           <span>{share.message}</span>
         </p>
       )}
@@ -162,7 +194,10 @@ export function DataGapSection({
       {gaps.length > 0 && (
         <div className="mt-6 space-y-4">
           {gaps.map((g) => (
-            <div key={g.id} className="rounded-2xl border border-black/[0.07] p-4">
+            <div
+              key={g.id}
+              className="rounded-2xl border border-black/[0.07] p-4"
+            >
               <div className="flex flex-wrap items-end gap-3">
                 <label className="min-w-[200px] flex-1">
                   <Lbl>{t("Affected parameter")}</Lbl>
@@ -170,16 +205,26 @@ export function DataGapSection({
                     className={inputClass}
                     value={g.affectedParameter}
                     placeholder={t("e.g. natural gas consumption")}
-                    onChange={(e) => patch(g, { affectedParameter: e.target.value })}
+                    onChange={(e) =>
+                      patch(g, { affectedParameter: e.target.value })
+                    }
                   />
                 </label>
                 <label className="min-w-[130px] flex-none">
                   <Lbl>{t("From")}</Lbl>
-                  <DatePicker value={g.periodStart} onChange={(iso) => patch(g, { periodStart: iso })} ariaLabel={t("Data gap — period start")} />
+                  <DatePicker
+                    value={g.periodStart}
+                    onChange={(iso) => patch(g, { periodStart: iso })}
+                    ariaLabel={t("Data gap — period start")}
+                  />
                 </label>
                 <label className="min-w-[130px] flex-none">
                   <Lbl>{t("To")}</Lbl>
-                  <DatePicker value={g.periodEnd} onChange={(iso) => patch(g, { periodEnd: iso })} ariaLabel={t("Data gap — period end")} />
+                  <DatePicker
+                    value={g.periodEnd}
+                    onChange={(iso) => patch(g, { periodEnd: iso })}
+                    ariaLabel={t("Data gap — period end")}
+                  />
                 </label>
                 <label className="min-w-[140px] flex-none">
                   <Lbl>{t("Estimated tCO₂e")}</Lbl>
@@ -187,7 +232,9 @@ export function DataGapSection({
                     className={inputClass}
                     inputMode="decimal"
                     value={g.estimatedTCO2e || ""}
-                    onChange={(e) => patch(g, { estimatedTCO2e: Number(e.target.value) || 0 })}
+                    onChange={(e) =>
+                      patch(g, { estimatedTCO2e: Number(e.target.value) || 0 })
+                    }
                   />
                 </label>
                 <button
@@ -209,7 +256,9 @@ export function DataGapSection({
                   <textarea
                     className={cn(inputClass, "min-h-[72px] resize-y")}
                     value={g.reason}
-                    placeholder={t("e.g. the main gas meter failed on 12 August and was replaced on 3 September")}
+                    placeholder={t(
+                      "e.g. the main gas meter failed on 12 August and was replaced on 3 September",
+                    )}
                     onChange={(e) => patch(g, { reason: e.target.value })}
                   />
                 </label>
@@ -217,36 +266,62 @@ export function DataGapSection({
                   <Lbl>{t("How the gap was filled")}</Lbl>
                   <Select
                     value={g.estimationMethod}
-                    onChange={(v) => patch(g, { estimationMethod: v as EstimationMethod })}
-                    options={ESTIMATION_METHODS.map((m) => ({ value: m, label: ESTIMATION_METHOD_LABEL[m] }))}
+                    onChange={(v) =>
+                      patch(g, { estimationMethod: v as EstimationMethod })
+                    }
+                    options={ESTIMATION_METHODS.map((m) => ({
+                      value: m,
+                      label: ESTIMATION_METHOD_LABEL[m],
+                    }))}
                   />
-                  <p className="mt-1.5 text-[11.5px] leading-relaxed text-black/40">{t(ESTIMATION_METHOD_HINT[g.estimationMethod])}</p>
+                  <p className="mt-1.5 text-[11.5px] leading-relaxed text-black/40">
+                    {t(ESTIMATION_METHOD_HINT[g.estimationMethod])}
+                  </p>
                 </div>
               </div>
 
               <label className="mt-3 block">
                 <Lbl>{t("Why the estimate cannot flatter you")}</Lbl>
                 <textarea
-                  className={cn(inputClass, "min-h-[64px] resize-y", !g.conservativeJustification.trim() && "border-[#d97706]/50")}
+                  className={cn(
+                    inputClass,
+                    "min-h-[64px] resize-y",
+                    !g.conservativeJustification.trim() &&
+                      "border-[#d97706]/50",
+                  )}
                   value={g.conservativeJustification}
-                  placeholder={t("e.g. we used the highest monthly consumption of the year rather than the average, so the estimate is above any plausible actual")}
-                  onChange={(e) => patch(g, { conservativeJustification: e.target.value })}
+                  placeholder={t(
+                    "e.g. we used the highest monthly consumption of the year rather than the average, so the estimate is above any plausible actual",
+                  )}
+                  onChange={(e) =>
+                    patch(g, { conservativeJustification: e.target.value })
+                  }
                 />
                 <span className="mt-1.5 block text-[11.5px] leading-relaxed text-black/40">
-                  {t("Conservativeness is one of the seven things a verifier tests. The question is not whether you estimated — it is whether the estimate could have come out in your favour.")}
+                  {t(
+                    "Conservativeness is one of the seven things a verifier tests. The question is not whether you estimated — it is whether the estimate could have come out in your favour.",
+                  )}
                 </span>
               </label>
 
               <div className="mt-3">
                 <Lbl>{t("Provenance")}</Lbl>
-                <ProvenanceForm value={g.provenance} onChange={(p) => patch(g, { provenance: p })} compact />
+                <ProvenanceForm
+                  value={g.provenance}
+                  onChange={(p) => patch(g, { provenance: p })}
+                  compact
+                />
               </div>
             </div>
           ))}
 
           <p className="text-right font-mono text-[11px] text-black/40">
-            {share.estimatedTCO2e.toLocaleString("en-US", { maximumFractionDigits: 2 })} tCO₂e estimated
-            {totalTCO2e > 0 && ` · ${(share.share * 100).toFixed(1)}% of the total`}
+            {share.estimatedTCO2e.toLocaleString("en-US", {
+              maximumFractionDigits: 2,
+            })}{" "}
+            tCO₂e estimated
+            {totalTCO2e > 0 &&
+              ` · ${(share.share * 100).toFixed(1)}% of the total`}
           </p>
         </div>
       )}
@@ -255,5 +330,9 @@ export function DataGapSection({
 }
 
 function Lbl({ children }: { children: React.ReactNode }) {
-  return <span className="mb-1.5 block text-[10px] uppercase tracking-[0.12em] text-black/40">{children}</span>;
+  return (
+    <span className="mb-1.5 block text-[10px] uppercase tracking-[0.12em] text-black/40">
+      {children}
+    </span>
+  );
 }

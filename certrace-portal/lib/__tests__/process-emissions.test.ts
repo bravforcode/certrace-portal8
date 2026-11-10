@@ -5,11 +5,21 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-const { processEmissionEntryTCO2, resolvedOxidationFactor } = await import("../monthly-data");
-const { standardProcessEmission, massBalanceProcessEmission, CARBONATE_FACTORS, CARBON_CONTENTS } = await import("../cbam/process-factors");
+const { processEmissionEntryTCO2, resolvedOxidationFactor } = await import(
+  "../monthly-data"
+);
+const {
+  standardProcessEmission,
+  massBalanceProcessEmission,
+  CARBONATE_FACTORS,
+  CARBON_CONTENTS,
+} = await import("../cbam/process-factors");
 
 const near = (actual: number, expected: number, tol = 1e-6) =>
-  assert.ok(Math.abs(actual - expected) <= tol, `expected ≈${expected}, got ${actual}`);
+  assert.ok(
+    Math.abs(actual - expected) <= tol,
+    `expected ≈${expected}, got ${actual}`,
+  );
 
 /* ── Bug 5 · standard method ─────────────────────────────────── */
 
@@ -41,7 +51,13 @@ test("Bug 5 — every seeded carbonate/oxide/fixed factor from the spec is prese
 });
 
 test("processEmissionEntryTCO2 dispatches to the standard formula for a standard entry", () => {
-  const e = { id: "e1", method: "standard" as const, materialId: "MgCO3", quantityT: 10, conversionFactor: 1 };
+  const e = {
+    id: "e1",
+    method: "standard" as const,
+    materialId: "MgCO3",
+    quantityT: 10,
+    conversionFactor: 1,
+  };
   near(processEmissionEntryTCO2(e), 10 * 0.522);
 });
 
@@ -54,36 +70,88 @@ test("Bug 5 — mass balance: Em = 3.664 × AD × CC, against the seeded carbon-
 });
 
 test("Bug 5 — a NEGATIVE quantity (an output stream) REDUCES total emissions — the whole point of mass balance", () => {
-  const input = { id: "e1", method: "mass_balance" as const, materialId: "iron_scrap", quantityT: 100 }; // input, positive
-  const output = { id: "e2", method: "mass_balance" as const, materialId: "steel_scrap", quantityT: -80 }; // output, negative
+  const input = {
+    id: "e1",
+    method: "mass_balance" as const,
+    materialId: "iron_scrap",
+    quantityT: 100,
+  }; // input, positive
+  const output = {
+    id: "e2",
+    method: "mass_balance" as const,
+    materialId: "steel_scrap",
+    quantityT: -80,
+  }; // output, negative
 
   const inputEm = processEmissionEntryTCO2(input);
   const outputEm = processEmissionEntryTCO2(output);
   assert.ok(inputEm > 0, "an input stream is a positive emission");
-  assert.ok(outputEm < 0, "an output stream is a negative emission — carbon left inside the product, never emitted");
+  assert.ok(
+    outputEm < 0,
+    "an output stream is a negative emission — carbon left inside the product, never emitted",
+  );
 
   const totalWithOutput = inputEm + outputEm;
-  assert.ok(totalWithOutput < inputEm, "including the output stream must reduce the total relative to the input alone");
+  assert.ok(
+    totalWithOutput < inputEm,
+    "including the output stream must reduce the total relative to the input alone",
+  );
 });
 
 /* ── Bug 6 · oxidation factor, sourced not typed ────────────────── */
 
 test("Bug 6 — the conservative default is always exactly 1, regardless of any stray stored oxidationFactor", () => {
-  assert.equal(resolvedOxidationFactor({ oxidationFactorSource: "conservative_default", cAsh: 5, cTotal: 10 }), 1);
-  assert.equal(resolvedOxidationFactor({}), 1, "unset behaves as the conservative default");
+  assert.equal(
+    resolvedOxidationFactor({
+      oxidationFactorSource: "conservative_default",
+      cAsh: 5,
+      cTotal: 10,
+    }),
+    1,
+  );
+  assert.equal(
+    resolvedOxidationFactor({}),
+    1,
+    "unset behaves as the conservative default",
+  );
 });
 
 test("Bug 6 — measured path derives OF = 1 − (C_ash / C_total), never trusts a typed figure", () => {
-  const of = resolvedOxidationFactor({ oxidationFactorSource: "measured", cAsh: 2, cTotal: 100 });
+  const of = resolvedOxidationFactor({
+    oxidationFactorSource: "measured",
+    cAsh: 2,
+    cTotal: 100,
+  });
   near(of, 1 - 2 / 100);
 });
 
 test("Bug 6 — a measured claim with no C_total collapses back to the conservative default rather than guessing", () => {
-  assert.equal(resolvedOxidationFactor({ oxidationFactorSource: "measured", cAsh: 2, cTotal: undefined }), 1);
-  assert.equal(resolvedOxidationFactor({ oxidationFactorSource: "measured", cAsh: 2, cTotal: 0 }), 1);
+  assert.equal(
+    resolvedOxidationFactor({
+      oxidationFactorSource: "measured",
+      cAsh: 2,
+      cTotal: undefined,
+    }),
+    1,
+  );
+  assert.equal(
+    resolvedOxidationFactor({
+      oxidationFactorSource: "measured",
+      cAsh: 2,
+      cTotal: 0,
+    }),
+    1,
+  );
 });
 
 test("Bug 6 — a measured result outside (0, 1] is rejected back to the default rather than accepted", () => {
   // C_ash > C_total would give a negative OF — physically impossible.
-  assert.equal(resolvedOxidationFactor({ oxidationFactorSource: "measured", cAsh: 150, cTotal: 100 }), 1);
+  assert.equal(
+    resolvedOxidationFactor({
+      oxidationFactorSource: "measured",
+      cAsh: 150,
+      cTotal: 100,
+    }),
+    1,
+  );
 });

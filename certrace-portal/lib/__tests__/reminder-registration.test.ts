@@ -29,14 +29,22 @@ class MemoryStorage {
 
 const storage = new MemoryStorage();
 const g = globalThis as unknown as { window?: unknown; localStorage?: unknown };
-g.window = { localStorage: storage, location: { origin: "https://portal.certrace.co" } };
+g.window = {
+  localStorage: storage,
+  location: { origin: "https://portal.certrace.co" },
+};
 g.localStorage = storage;
 
-const { reminderSubjectFor, reminderSubjectKey } = await import("../reminder-registration");
+const { reminderSubjectFor, reminderSubjectKey } = await import(
+  "../reminder-registration"
+);
 const { createWorkspace } = await import("../workspace");
 const { saveSupplierCompany } = await import("../supplier-companies");
 
-function seed(over: Record<string, unknown> = {}, supplier: Record<string, unknown> | null = {}) {
+function seed(
+  over: Record<string, unknown> = {},
+  supplier: Record<string, unknown> | null = {},
+) {
   storage.clear();
   let supplierId: string | undefined;
   if (supplier) {
@@ -67,7 +75,12 @@ function seed(over: Record<string, unknown> = {}, supplier: Record<string, unkno
 
 test("an ask carries the label and deadline the job cannot work out itself", () => {
   const workspace = seed();
-  const subject = reminderSubjectFor(workspace.id, "2026-03", "en");
+  const subject = reminderSubjectFor(
+    workspace.id,
+    "2026-03",
+    "en",
+    "https://portal.certrace.co/w/server-issued-token",
+  );
 
   assert.ok(subject, "a workspace with a contactable supplier is chaseable");
   assert.equal(subject.key, reminderSubjectKey(workspace.id, "2026-03"));
@@ -79,15 +92,29 @@ test("an ask carries the label and deadline the job cannot work out itself", () 
      is due in April — which is the off-by-one worth pinning. */
   assert.match(String(subject.body.dueDate), /^2026-04-/);
   /* Absolute: a job writing an email has no origin to resolve a path against. */
-  assert.match(String(subject.body.linkUrl), /^https:\/\/portal\.certrace\.co\/w\//);
+  assert.match(
+    String(subject.body.linkUrl),
+    /^https:\/\/portal\.certrace\.co\/w\//,
+  );
   assert.equal(subject.body.locale, "en");
+});
+
+test("a reminder is not registered with a browser-only link", () => {
+  const workspace = seed();
+  assert.equal(reminderSubjectFor(workspace.id, "2026-03", "en"), null);
 });
 
 test("the subject key is stable across sends", () => {
   /* It is the delivery log's key on the server. A new id per send would make
      every rung of the ladder look unsent, and re-send the whole thing nightly. */
-  assert.equal(reminderSubjectKey("ws-1", "2026-03"), reminderSubjectKey("ws-1", "2026-03"));
-  assert.notEqual(reminderSubjectKey("ws-1", "2026-03"), reminderSubjectKey("ws-1", "2026-04"));
+  assert.equal(
+    reminderSubjectKey("ws-1", "2026-03"),
+    reminderSubjectKey("ws-1", "2026-03"),
+  );
+  assert.notEqual(
+    reminderSubjectKey("ws-1", "2026-03"),
+    reminderSubjectKey("ws-1", "2026-04"),
+  );
 });
 
 test("a self-supplied workspace has nobody to chase", () => {

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { createPortal } from "react-dom";
+import { persistReportChange } from "@/lib/persist-report-change";
 import Link from "next/link";
 import { useT, useFormat } from "@/lib/i18n";
 import { Check, HelpCircle, Languages, X } from "lucide-react";
@@ -28,12 +29,29 @@ const toneText: Record<Tone, string> = {
   muted: "text-black/40",
 };
 
-export function StatusDot({ tone = "muted", pulse, glow, className }: { tone?: Tone; pulse?: boolean; glow?: boolean; className?: string }) {
+export function StatusDot({
+  tone = "muted",
+  pulse,
+  glow,
+  className,
+}: {
+  tone?: Tone;
+  pulse?: boolean;
+  glow?: boolean;
+  className?: string;
+}) {
   return (
     <span
       aria-hidden
-      className={cn("inline-block h-[6px] w-[6px] flex-none rounded-full", pulse && "ct-pulse", className)}
-      style={{ background: dotColor[tone], boxShadow: glow ? `0 0 6px ${dotColor[tone]}` : undefined }}
+      className={cn(
+        "inline-block h-[6px] w-[6px] flex-none rounded-full",
+        pulse && "ct-pulse",
+        className,
+      )}
+      style={{
+        background: dotColor[tone],
+        boxShadow: glow ? `0 0 6px ${dotColor[tone]}` : undefined,
+      }}
     />
   );
 }
@@ -75,17 +93,28 @@ type BtnProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 /* Shared with ButtonLink below, so a button and a link that sit side by side
    are the same control at the same size — see its header. */
 const btnBase =
-  "inline-flex items-center justify-center gap-2 rounded-xl uppercase tracking-[0.1em] transition-colors disabled:opacity-40 disabled:pointer-events-none";
-const btnSizing = (size: "md" | "sm") => (size === "sm" ? "px-4 py-2 text-[11px]" : "px-6 py-3 text-[13px]");
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl uppercase tracking-[0.1em] transition-colors disabled:opacity-40 disabled:pointer-events-none";
+const btnSizing = (size: "md" | "sm") =>
+  size === "sm" ? "px-4 py-2 text-[11px]" : "px-6 py-3 text-[13px]";
 const btnVariants: Record<"primary" | "secondary" | "ghost", string> = {
   primary: "bg-[#111] text-white hover:bg-[#333]",
-  secondary: "border border-black/10 text-black/60 hover:border-black/25 hover:text-black hover:bg-black/[0.04]",
+  secondary:
+    "border border-black/10 text-black/60 hover:border-black/25 hover:text-black hover:bg-black/[0.04]",
   ghost: "text-black/45 hover:text-black",
 };
 
-export function Button({ variant = "primary", size = "md", className, children, ...props }: BtnProps) {
+export function Button({
+  variant = "primary",
+  size = "md",
+  className,
+  children,
+  ...props
+}: BtnProps) {
   return (
-    <button className={cn(btnBase, btnSizing(size), btnVariants[variant], className)} {...props}>
+    <button
+      className={cn(btnBase, btnSizing(size), btnVariants[variant], className)}
+      {...props}
+    >
       {children}
     </button>
   );
@@ -122,11 +151,20 @@ export function ButtonLink({
   external?: boolean;
   className?: string;
   children: React.ReactNode;
-} & Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, "href" | "className" | "children">) {
+} & Omit<
+  React.AnchorHTMLAttributes<HTMLAnchorElement>,
+  "href" | "className" | "children"
+>) {
   const cls = cn(btnBase, btnSizing(size), btnVariants[variant], className);
   if (external) {
     return (
-      <a href={href} target="_blank" rel="noopener noreferrer" className={cls} {...rest}>
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={cls}
+        {...rest}
+      >
         {children}
       </a>
     );
@@ -170,13 +208,18 @@ export type SaveState = "idle" | "saving" | "saved";
 export function useSaveState(holdSavedMs = 1600) {
   const [state, setState] = React.useState<SaveState>("idle");
   const run = React.useCallback(
-    (action?: () => void, delayMs = 700) => {
+    (action?: () => void | Promise<unknown>, delayMs = 0) => {
       if (state === "saving") return;
       setState("saving");
-      window.setTimeout(() => {
-        action?.();
-        setState("saved");
-        window.setTimeout(() => setState("idle"), holdSavedMs);
+      window.setTimeout(async () => {
+        try {
+          await persistReportChange(() => action?.());
+          setState("saved");
+          window.setTimeout(() => setState("idle"), holdSavedMs);
+        } catch {
+          // Failed account writes remain pending in the retry/export banner.
+          setState("idle");
+        }
       }, delayMs);
     },
     [state, holdSavedMs],
@@ -204,7 +247,10 @@ export function SaveButton({
 } & Omit<BtnProps, "children" | "disabled">) {
   // The primary button is dark-filled (needs a light spinner); secondary/ghost
   // are light (needs a dark one) — otherwise the spinner is invisible on one of them.
-  const spinnerClass = variant === "primary" ? "border-white/25 border-t-white/80" : "border-black/15 border-t-black/50";
+  const spinnerClass =
+    variant === "primary"
+      ? "border-white/25 border-t-white/80"
+      : "border-black/15 border-t-black/50";
   // Defaults resolve through the dictionary, so a call site that doesn't pass
   // labels still speaks the interface language.
   const t = useT();
@@ -212,9 +258,21 @@ export function SaveButton({
   const saving = savingLabel ?? t("Saving…");
   const saved = savedLabel ?? t("Saved");
   return (
-    <Button size="sm" variant={variant} disabled={state === "saving" || disabled} className={className} {...props}>
+    <Button
+      size="sm"
+      variant={variant}
+      disabled={state === "saving" || disabled}
+      className={className}
+      {...props}
+    >
       {state === "saving" ? (
-        <span className={cn("h-3.5 w-3.5 animate-spin rounded-full border-2", spinnerClass)} aria-hidden />
+        <span
+          className={cn(
+            "h-3.5 w-3.5 animate-spin rounded-full border-2",
+            spinnerClass,
+          )}
+          aria-hidden
+        />
       ) : state === "saved" ? (
         <Check size={13} strokeWidth={1.5} />
       ) : (
@@ -226,13 +284,32 @@ export function SaveButton({
 }
 
 /* ── Eyebrow / labels ───────────────────────────────────── */
-export function Eyebrow({ children, className }: { children: React.ReactNode; className?: string }) {
+export function Eyebrow({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <span className={cn("font-pixel text-[11px] uppercase tracking-[0.18em] text-black/40", className)}>{children}</span>
+    <span
+      className={cn(
+        "font-pixel text-[11px] uppercase tracking-[0.18em] text-black/40",
+        className,
+      )}
+    >
+      {children}
+    </span>
   );
 }
 
-export function TagBadge({ children, tone }: { children: React.ReactNode; tone?: Tone }) {
+export function TagBadge({
+  children,
+  tone,
+}: {
+  children: React.ReactNode;
+  tone?: Tone;
+}) {
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full bg-black/[0.04] px-3 py-1 font-pixel text-[11px] uppercase tracking-[0.16em] text-black/40">
       {tone && <StatusDot tone={tone} pulse={tone === "ok"} />}
@@ -288,7 +365,11 @@ export function Chip({
     <span
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.12em]",
-        filled ? toneChip[tone] : live ? toneChip.ok : "border-black/10 bg-black/[0.03] text-black/45",
+        filled
+          ? toneChip[tone]
+          : live
+            ? toneChip.ok
+            : "border-black/10 bg-black/[0.03] text-black/45",
         className,
       )}
     >
@@ -323,7 +404,9 @@ export function FilterChip({
       data-lock="allow"
       className={cn(
         "inline-flex items-center rounded-full border px-3 py-1 text-[11px] transition-colors",
-        active ? "border-transparent bg-[#111] text-white" : "border-black/10 text-black/50 hover:border-black/25 hover:text-black",
+        active
+          ? "border-transparent bg-[#111] text-white"
+          : "border-black/10 text-black/50 hover:border-black/25 hover:text-black",
       )}
     >
       {children}
@@ -332,35 +415,71 @@ export function FilterChip({
 }
 
 /* ── Status label (dot + lowercase mono) ────────────────── */
-export function StatusLabel({ tone, label, pulse, glow }: { tone: Tone; label: string; pulse?: boolean; glow?: boolean }) {
+export function StatusLabel({
+  tone,
+  label,
+  pulse,
+  glow,
+}: {
+  tone: Tone;
+  label: string;
+  pulse?: boolean;
+  glow?: boolean;
+}) {
   return (
     <span className="inline-flex items-center gap-2">
       <StatusDot tone={tone} pulse={pulse} glow={glow} />
-      <span className={cn("font-mono text-[11px] tracking-wide", toneText[tone])}>{label}</span>
+      <span
+        className={cn("font-mono text-[11px] tracking-wide", toneText[tone])}
+      >
+        {label}
+      </span>
     </span>
   );
 }
 
 /* ── Progress bar ───────────────────────────────────────── */
-export function Progress({ value, tone = "ok" }: { value: number; tone?: Tone }) {
+export function Progress({
+  value,
+  tone = "ok",
+}: {
+  value: number;
+  tone?: Tone;
+}) {
   return (
     <div className="h-[3px] w-full overflow-hidden rounded-full bg-black/[0.07]">
       <div
         className="h-full rounded-full transition-[width] duration-700"
-        style={{ width: `${Math.min(100, Math.max(0, value))}%`, background: value >= 100 ? "#10b981" : dotColor[tone], ...(tone !== "ok" && value < 100 ? { background: dotColor[tone] } : {}) }}
+        style={{
+          width: `${Math.min(100, Math.max(0, value))}%`,
+          background: value >= 100 ? "#10b981" : dotColor[tone],
+          ...(tone !== "ok" && value < 100
+            ? { background: dotColor[tone] }
+            : {}),
+        }}
       />
     </div>
   );
 }
 
 /* ── Stat numeral ───────────────────────────────────────── */
-export function Stat({ value, label, sub }: { value: React.ReactNode; label: string; sub?: string }) {
+export function Stat({
+  value,
+  label,
+  sub,
+}: {
+  value: React.ReactNode;
+  label: string;
+  sub?: string;
+}) {
   return (
     <div>
       <div className="font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111] sm:text-4xl">
         {value}
       </div>
-      <div className="mt-2 text-[11px] uppercase tracking-[0.1em] text-black/40">{label}</div>
+      <div className="mt-2 text-[11px] uppercase tracking-[0.1em] text-black/40">
+        {label}
+      </div>
       {sub && <div className="mt-1 text-xs text-black/35">{sub}</div>}
     </div>
   );
@@ -384,10 +503,22 @@ export function Stat({ value, label, sub }: { value: React.ReactNode; label: str
    they get the identical markup rather than a lookalike. */
 export function OptionalTag() {
   const t = useT();
-  return <span className="normal-case tracking-normal text-black/30">{t("· optional")}</span>;
+  return (
+    <span className="normal-case tracking-normal text-black/30">
+      {t("· optional")}
+    </span>
+  );
 }
 
-export function FieldLabel({ label, optional, children }: { label: string; optional?: boolean; children?: React.ReactNode }) {
+export function FieldLabel({
+  label,
+  optional,
+  children,
+}: {
+  label: string;
+  optional?: boolean;
+  children?: React.ReactNode;
+}) {
   return (
     <span className="mb-2 flex items-center gap-1.5 text-[11px] uppercase tracking-[0.1em] text-black/55">
       {label}
@@ -413,7 +544,72 @@ export function Field({
     <label className="block">
       <FieldLabel label={label} optional={optional} />
       {children}
-      {hint && <span className="mt-1.5 block text-xs text-black/35">{hint}</span>}
+      {hint && (
+        <span className="mt-1.5 block text-xs text-black/35">{hint}</span>
+      )}
+    </label>
+  );
+}
+
+/* ── Checkbox ───────────────────────────────────────────────
+   The platform's checkbox: a 20 px rounded square, ink-filled with a white tick
+   when on, a hairline outline when off. The real <input> stays in the DOM
+   (visually hidden) so it keeps its keyboard behaviour, its label association
+   and its form semantics; the square is drawn from it with `peer`, and the focus
+   ring (DS §2.4) is drawn on the square, where the eye is, rather than on the
+   hidden input. Not the browser's native box — that one cannot follow the system. */
+export function Checkbox({
+  checked,
+  onChange,
+  label,
+  hint,
+  disabled,
+  className,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: React.ReactNode;
+  /** a second, quieter line under the label */
+  hint?: React.ReactNode;
+  disabled?: boolean;
+  className?: string;
+}) {
+  return (
+    <label
+      className={cn(
+        "flex items-start gap-2.5",
+        disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
+        className,
+      )}
+    >
+      <input
+        type="checkbox"
+        className="peer sr-only"
+        checked={checked}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span
+        aria-hidden
+        className={cn(
+          "mt-px grid h-5 w-5 flex-none place-items-center rounded-md border transition-colors peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-black/40",
+          checked
+            ? "border-transparent bg-[#111] text-white"
+            : "border-black/25 bg-white",
+        )}
+      >
+        {checked && <Check size={12} strokeWidth={2.5} />}
+      </span>
+      <span className="min-w-0">
+        <span className="block text-[13px] leading-snug text-black/75">
+          {label}
+        </span>
+        {hint && (
+          <span className="mt-0.5 block text-[11.5px] leading-snug text-black/40">
+            {hint}
+          </span>
+        )}
+      </span>
     </label>
   );
 }
@@ -440,7 +636,9 @@ export function Switch({
       onClick={() => onChange?.(!checked)}
       className={cn(
         "relative inline-flex h-6 w-10 flex-none items-center rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-        checked ? "border-transparent bg-[#111]" : "border-black/15 bg-black/[0.06]",
+        checked
+          ? "border-transparent bg-[#111]"
+          : "border-black/15 bg-black/[0.06]",
       )}
     >
       <span
@@ -515,7 +713,11 @@ export function NumberInput({
   React.useEffect(() => {
     const parsed = draft.trim() === "" ? null : Number(draft.replace(/,/g, ""));
     const incoming = value == null || Number.isNaN(value) ? null : value;
-    if (parsed !== incoming && !(parsed != null && incoming != null && parsed === incoming)) setDraft(external);
+    if (
+      parsed !== incoming &&
+      !(parsed != null && incoming != null && parsed === incoming)
+    )
+      setDraft(external);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [external]);
 
@@ -556,7 +758,12 @@ export function NumberInput({
     <div className={className}>
       <div className="relative">
         <input
-          className={cn(inputClass, inputClassName, (invalid || over || under) && "border-[#dc2626]", unit && "pr-14")}
+          className={cn(
+            inputClass,
+            inputClassName,
+            (invalid || over || under) && "border-[#dc2626]",
+            unit && "pr-14",
+          )}
           inputMode="decimal"
           autoComplete="off"
           aria-label={ariaLabel}
@@ -567,11 +774,23 @@ export function NumberInput({
           onBlur={blur}
         />
         {unit && (
-          <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 font-mono text-[12px] text-black/35">{unit}</span>
+          <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 font-mono text-[12px] text-black/35">
+            {unit}
+          </span>
         )}
       </div>
-      {over && <span className="mt-1.5 block text-[11px] text-[#dc2626]">Cannot be more than {max}{unit ? ` ${unit}` : ""}.</span>}
-      {under && <span className="mt-1.5 block text-[11px] text-[#dc2626]">Cannot be less than {min}{unit ? ` ${unit}` : ""}.</span>}
+      {over && (
+        <span className="mt-1.5 block text-[11px] text-[#dc2626]">
+          Cannot be more than {max}
+          {unit ? ` ${unit}` : ""}.
+        </span>
+      )}
+      {under && (
+        <span className="mt-1.5 block text-[11px] text-[#dc2626]">
+          Cannot be less than {min}
+          {unit ? ` ${unit}` : ""}.
+        </span>
+      )}
     </div>
   );
 }
@@ -601,12 +820,25 @@ export function NumberInput({
    and its width shrinks with the window rather than staying 300px. */
 const HELP_TIP_WIDTH = 300;
 
-export function HelpTip({ title, children, className }: { title?: string; children: React.ReactNode; className?: string }) {
+export function HelpTip({
+  title,
+  children,
+  className,
+}: {
+  title?: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
   const [open, setOpen] = React.useState(false);
   const [mounted, setMounted] = React.useState(false);
   const triggerRef = React.useRef<HTMLButtonElement | null>(null);
   const panelRef = React.useRef<HTMLDivElement | null>(null);
-  const [style, setStyle] = React.useState<React.CSSProperties>({ position: "fixed", top: -9999, left: -9999, visibility: "hidden" });
+  const [style, setStyle] = React.useState<React.CSSProperties>({
+    position: "fixed",
+    top: -9999,
+    left: -9999,
+    visibility: "hidden",
+  });
 
   React.useEffect(() => setMounted(true), []);
 
@@ -614,7 +846,8 @@ export function HelpTip({ title, children, className }: { title?: string; childr
     if (!open) return;
     const onDown = (e: MouseEvent) => {
       const t = e.target as Node;
-      if (triggerRef.current?.contains(t) || panelRef.current?.contains(t)) return;
+      if (triggerRef.current?.contains(t) || panelRef.current?.contains(t))
+        return;
       setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
@@ -651,7 +884,15 @@ export function HelpTip({ title, children, className }: { title?: string; childr
       let left = r.right - width;
       left = Math.max(margin, Math.min(left, vw - margin - width));
 
-      setStyle({ position: "fixed", top: Math.round(top), left: Math.round(left), width, maxHeight, zIndex: 500, visibility: "visible" });
+      setStyle({
+        position: "fixed",
+        top: Math.round(top),
+        left: Math.round(left),
+        width,
+        maxHeight,
+        zIndex: 500,
+        visibility: "visible",
+      });
     };
     place();
     raf = requestAnimationFrame(place);
@@ -675,7 +916,9 @@ export function HelpTip({ title, children, className }: { title?: string; childr
         aria-expanded={open}
         className={cn(
           "grid h-6 w-6 flex-none place-items-center rounded-full border transition-colors",
-          open ? "border-black/30 bg-[#f0eee8] text-black/70" : "border-black/12 text-black/35 hover:border-black/25 hover:text-black/70",
+          open
+            ? "border-black/30 bg-[#f0eee8] text-black/70"
+            : "border-black/12 text-black/35 hover:border-black/25 hover:text-black/70",
         )}
       >
         <HelpCircle size={13} strokeWidth={1.5} />
@@ -686,11 +929,22 @@ export function HelpTip({ title, children, className }: { title?: string; childr
           <div
             ref={panelRef}
             role="dialog"
-            style={{ ...style, boxShadow: "0 8px 32px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.06)", overscrollBehavior: "contain" }}
+            style={{
+              ...style,
+              boxShadow:
+                "0 8px 32px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.06)",
+              overscrollBehavior: "contain",
+            }}
             className="ct-pop overflow-y-auto rounded-xl border border-black/[0.08] bg-white p-4 text-left normal-case tracking-normal"
           >
-            {title && <div className="mb-1.5 text-[11px] uppercase tracking-[0.1em] text-black/45">{title}</div>}
-            <div className="text-[12.5px] font-normal leading-relaxed text-black/60">{children}</div>
+            {title && (
+              <div className="mb-1.5 text-[11px] uppercase tracking-[0.1em] text-black/45">
+                {title}
+              </div>
+            )}
+            <div className="text-[12.5px] font-normal leading-relaxed text-black/60">
+              {children}
+            </div>
           </div>,
           document.body,
         )}
@@ -775,10 +1029,22 @@ export function Modal({
         <div className="flex flex-none items-start justify-between gap-4 border-b border-black/[0.06] px-6 py-5">
           <div className="min-w-0">
             {eyebrow && <Eyebrow>{eyebrow}</Eyebrow>}
-            <h2 className="mt-1.5 font-[family-name:var(--font-plex)] text-2xl font-light tracking-tight text-[#111]">{title}</h2>
-            {lead && <p className="mt-2 max-w-xl text-[13px] leading-relaxed text-black/45">{lead}</p>}
+            <h2 className="mt-1.5 font-[family-name:var(--font-plex)] text-2xl font-light tracking-tight text-[#111]">
+              {title}
+            </h2>
+            {lead && (
+              <p className="mt-2 max-w-xl text-[13px] leading-relaxed text-black/45">
+                {lead}
+              </p>
+            )}
           </div>
-          <button type="button" onClick={onClose} data-lock="allow" aria-label={t("Close")} className="-mr-1 -mt-1 flex-none rounded-lg p-2 text-black/30 hover:bg-black/[0.04] hover:text-black">
+          <button
+            type="button"
+            onClick={onClose}
+            data-lock="allow"
+            aria-label={t("Close")}
+            className="-mr-1 -mt-1 flex-none rounded-lg p-2 text-black/30 hover:bg-black/[0.04] hover:text-black"
+          >
             <X size={16} strokeWidth={1.5} />
           </button>
         </div>
@@ -787,9 +1053,13 @@ export function Modal({
             content and pushes the footer back off the bottom — the exact bug
             this layout exists to fix. overscroll-contain stops a flick at the
             end of the list from scrolling the page behind the dialog. */}
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5">
+          {children}
+        </div>
         {footer && (
-          <div className="flex flex-none flex-wrap items-center justify-end gap-3 border-t border-black/[0.06] px-6 py-4">{footer}</div>
+          <div className="flex flex-none flex-wrap items-center justify-end gap-3 border-t border-black/[0.06] px-6 py-4">
+            {footer}
+          </div>
         )}
       </div>
     </div>,
@@ -808,46 +1078,55 @@ export function Modal({
    status and `AutoSaveBadge` renders it in one shared shape. */
 export type AutoSaveStatus = "idle" | "pending" | "saving" | "saved" | "error";
 
-export function useAutoSave<T>(value: T, save: (v: T) => void, { delayMs = 600, enabled = true }: { delayMs?: number; enabled?: boolean } = {}) {
+export function useAutoSave<T>(
+  value: T,
+  save: (v: T) => unknown | Promise<unknown>,
+  {
+    delayMs = 600,
+    enabled = true,
+  }: { delayMs?: number; enabled?: boolean } = {},
+) {
   const [status, setStatus] = React.useState<AutoSaveStatus>("idle");
   const [savedAt, setSavedAt] = React.useState<Date | null>(null);
-  const saveRef = React.useRef(save);
-  saveRef.current = save;
-  // The first value a screen renders is the value it just loaded. Writing that
-  // straight back would stamp "saved" on a file nobody has touched.
+  const serialised = JSON.stringify(value);
+  const current = React.useRef({ value, serialised, save });
+  current.current = { value, serialised, save };
   const primed = React.useRef(false);
+  const lastSaved = React.useRef<string | undefined>(undefined);
+  const timer = React.useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
+  const queue = React.useRef<Promise<boolean>>(Promise.resolve(true));
+  const inFlight = React.useRef(0);
 
-  /* ── Why the value is compared BY CONTENT ──────────────────────
-     The effect used to depend on `value` by reference, and the supplier
-     portal passes an inline object — `useAutoSave({ entry, mmd, installation }, …)`
-     — which is a fresh identity on every render. That produced a loop nobody
-     could see the shape of from the outside:
-
-       effect runs → setStatus("pending") → re-render → NEW object literal →
-       effect runs again → clears the pending timer → setStatus("pending") …
-
-     and when a timer did survive, `setStatus("saving")` and
-     `setSavedAt(new Date())` each triggered another render, another new
-     literal, and another restart. The badge sat on "Unsaved changes…"
-     indefinitely on an idle form, the same data was written over and over,
-     and on a slow phone the form stuttered while typing.
-
-     Serialising is the honest fix: the hook's contract is "save this data
-     when it changes", and data equality is what that means. Callers must not
-     be required to memoise — the one that forgot is exactly the one that
-     broke, and it broke silently. */
-  const serialised = React.useMemo(() => {
-    try {
-      return JSON.stringify(value);
-    } catch {
-      // Circular or non-serialisable: fall back to identity, which is the old
-      // behaviour rather than a crash.
-      return null;
-    }
-  }, [value]);
-  const lastSaved = React.useRef<string | null>(null);
-  const valueRef = React.useRef(value);
-  valueRef.current = value;
+  // Serialize requests as well as keystrokes. A slow earlier response must not
+  // mark a newer edit saved, or let a later request write an older snapshot.
+  const flush = React.useCallback((): Promise<boolean> => {
+    clearTimeout(timer.current);
+    const snapshot = current.current;
+    inFlight.current++;
+    const job = queue.current.then(async () => {
+      try {
+        if (snapshot.serialised === lastSaved.current) return true;
+        if (current.current.serialised === snapshot.serialised)
+          setStatus("saving");
+        await persistReportChange(() => snapshot.save(snapshot.value));
+        lastSaved.current = snapshot.serialised;
+        if (current.current.serialised === snapshot.serialised) {
+          setSavedAt(new Date());
+          setStatus("saved");
+        }
+        return true;
+      } catch {
+        setStatus("error");
+        return false;
+      } finally {
+        inFlight.current--;
+      }
+    });
+    queue.current = job;
+    return job;
+  }, []);
 
   React.useEffect(() => {
     if (!enabled) return;
@@ -856,61 +1135,68 @@ export function useAutoSave<T>(value: T, save: (v: T) => void, { delayMs = 600, 
       lastSaved.current = serialised;
       return;
     }
-    // Nothing actually changed — a re-render for some other reason.
-    if (serialised !== null && serialised === lastSaved.current) return;
+    // Compare content: callers often pass a new inline object on every render.
+    if (serialised === lastSaved.current && inFlight.current === 0) return;
     setStatus("pending");
-    const t = window.setTimeout(() => {
-      setStatus("saving");
-      try {
-        saveRef.current(valueRef.current);
-        // Recorded BEFORE the state updates that follow, so the re-render they
-        // cause sees the value as already saved and does not re-arm the timer.
-        lastSaved.current = serialised;
-        setSavedAt(new Date());
-        setStatus("saved");
-      } catch {
-        setStatus("error");
-      }
+    timer.current = setTimeout(() => {
+      void flush();
     }, delayMs);
-    return () => window.clearTimeout(t);
-  }, [serialised, delayMs, enabled]);
-
-  const flush = React.useCallback(() => {
-    try {
-      saveRef.current(valueRef.current);
-      lastSaved.current = serialised;
-      setSavedAt(new Date());
-      setStatus("saved");
-    } catch {
-      setStatus("error");
-    }
-  }, [serialised]);
+    return () => clearTimeout(timer.current);
+  }, [serialised, delayMs, enabled, flush]);
 
   return { status, savedAt, flush };
 }
 
-export function AutoSaveBadge({ status, savedAt, className }: { status: AutoSaveStatus; savedAt?: Date | null; className?: string }) {
+export function AutoSaveBadge({
+  status,
+  savedAt,
+  className,
+}: {
+  status: AutoSaveStatus;
+  savedAt?: Date | null;
+  className?: string;
+}) {
   const t = useT();
   const { locale } = useFormat();
   /* The clock follows the interface language too — a Thai reader gets Thai
      digits' grouping and the 24-hour form their locale uses, rather than
      en-GB's, which is what this was pinned to. */
-  const time = savedAt ? savedAt.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }) : null;
+  const time = savedAt
+    ? savedAt.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })
+    : null;
   const map: Record<AutoSaveStatus, { label: string; tone: string }> = {
     idle: { label: t("All changes saved"), tone: "text-black/35" },
     pending: { label: t("Unsaved changes…"), tone: "text-black/45" },
     saving: { label: t("Saving…"), tone: "text-black/45" },
     saved: {
-      label: time ? t("Saved automatically at {time}", { time }) : t("Saved automatically"),
+      label: time
+        ? t("Saved automatically at {time}", { time })
+        : t("Saved automatically"),
       tone: "text-[#047857]",
     },
-    error: { label: t("Could not save — copy your entries before leaving"), tone: "text-[#dc2626]" },
+    error: {
+      label: t("Could not save — copy your entries before leaving"),
+      tone: "text-[#dc2626]",
+    },
   };
   const { label, tone } = map[status];
   return (
-    <span className={cn("inline-flex items-center gap-1.5 text-[11px]", tone, className)} aria-live="polite">
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 whitespace-nowrap text-[11px]",
+        tone,
+        className,
+      )}
+      aria-live="polite"
+    >
       {status === "saving" || status === "pending" ? (
-        <span className={cn("h-2.5 w-2.5 rounded-full border-2 border-black/15 border-t-black/45", status === "saving" && "animate-spin")} aria-hidden />
+        <span
+          className={cn(
+            "h-2.5 w-2.5 rounded-full border-2 border-black/15 border-t-black/45",
+            status === "saving" && "animate-spin",
+          )}
+          aria-hidden
+        />
       ) : status === "saved" ? (
         <Check size={12} strokeWidth={2} />
       ) : (
@@ -965,7 +1251,37 @@ export function EmptyState({
    here, at the render, so a caller can keep passing a plain literal; the
    dictionary is keyed by the English source string, so `t(scope)` resolves
    exactly as a literal would. */
-export function EnglishOnlyNotice({ className, scope = "everything you type" }: { className?: string; scope?: string }) {
+/** A sentence with one phrase to stress, written inside the translation as **this**, so the stress travels with the words whatever order the
+    language puts them in — "Please answer **in English**." / "请**用英文**回答。". */
+export function Emphasis({
+  text,
+  className,
+}: {
+  text: string;
+  className?: string;
+}) {
+  return (
+    <>
+      {text.split("**").map((part, i) =>
+        i % 2 === 1 ? (
+          <strong key={i} className={cn("font-medium", className)}>
+            {part}
+          </strong>
+        ) : (
+          <React.Fragment key={i}>{part}</React.Fragment>
+        ),
+      )}
+    </>
+  );
+}
+
+export function EnglishOnlyNotice({
+  className,
+  scope = "everything you type",
+}: {
+  className?: string;
+  scope?: string;
+}) {
   const t = useT();
   return (
     <div
@@ -974,10 +1290,18 @@ export function EnglishOnlyNotice({ className, scope = "everything you type" }: 
         className,
       )}
     >
-      <Languages size={14} strokeWidth={1.5} className="mt-[2px] flex-none text-[#3C7ACB]" />
+      <Languages
+        size={14}
+        strokeWidth={1.5}
+        className="mt-[2px] flex-none text-[#3C7ACB]"
+      />
       <p className="min-w-0">
-        <span className="text-black/80">{t("Please write {scope} in English", { scope: t(scope) })}</span>{" "}
-        {t("— an EU-accredited verifier reads it. Numbers and dates stay as they are.")}
+        <span className="text-black/80">
+          {t("Please write {scope} in English", { scope: t(scope) })}
+        </span>{" "}
+        {t(
+          "— an EU-accredited verifier reads it. Numbers and dates stay as they are.",
+        )}
       </p>
       <EnglishWhyTip className="ml-auto flex-none" />
     </div>
@@ -999,11 +1323,19 @@ export function EnglishWhyBody() {
   return (
     <>
       <p>
-        {t("An EU-accredited verifier reads this. Implementing Regulation (EU) 2025/2547 puts it in writing — the monitoring methodology under Article 5(6), the emissions report under Article 10(4).")}
+        {t(
+          "An EU-accredited verifier reads this. Implementing Regulation (EU) 2025/2547 puts it in writing — the monitoring methodology under Article 5(6), the emissions report under Article 10(4).",
+        )}
       </p>
-      <p className="mt-2">{t("Anything in Thai has to be translated before verification can start. English now is the same work done once, not twice.")}</p>
+      <p className="mt-2">
+        {t(
+          "Anything in Thai has to be translated before verification can start. English now is the same work done once, not twice.",
+        )}
+      </p>
       <p className="mt-2 text-black/45">
-        {t("Numbers, dates, CN codes and meter references stay as they are. If a machine only has a Thai name, write it in English with the Thai in brackets.")}
+        {t(
+          "Numbers, dates, CN codes and meter references stay as they are. If a machine only has a Thai name, write it in English with the Thai in brackets.",
+        )}
       </p>
     </>
   );
@@ -1026,10 +1358,24 @@ export function EnglishWhyTip({ className }: { className?: string }) {
 export function EnglishOnlyLine({ className }: { className?: string }) {
   const t = useT();
   return (
-    <p className={cn("flex items-start gap-2 text-[12.5px] leading-relaxed text-black/60", className)}>
-      <Languages size={14} strokeWidth={1.5} className="mt-[2px] flex-none text-[#3C7ACB]" />
+    <p
+      className={cn(
+        "flex items-start gap-2 text-[12.5px] leading-relaxed text-black/60",
+        className,
+      )}
+    >
+      <Languages
+        size={14}
+        strokeWidth={1.5}
+        className="mt-[2px] flex-none text-[#3C7ACB]"
+      />
       <span className="min-w-0">
-        <strong className="font-medium text-black/85">{t("Write everything in English.")}</strong> {t("An EU-accredited verifier reads it, and anything in Thai has to be translated first. Numbers and dates stay as they are.")}
+        <strong className="font-medium text-black/85">
+          {t("Write everything in English.")}
+        </strong>{" "}
+        {t(
+          "An EU-accredited verifier reads it, and anything in Thai has to be translated first. Numbers and dates stay as they are.",
+        )}
       </span>
       <EnglishWhyTip className="ml-auto flex-none" />
     </p>
@@ -1055,12 +1401,20 @@ export function PageHeader({
         <h1 className="mt-2 font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111] md:text-4xl">
           {title}
         </h1>
-        {lead && <p className="mt-3 max-w-xl text-sm leading-relaxed text-black/45">{lead}</p>}
+        {lead && (
+          <p className="mt-3 max-w-xl text-sm leading-relaxed text-black/45">
+            {lead}
+          </p>
+        )}
       </div>
       {/* `max-w-full` on the action and on the button inside it: a long label
           (Thai sets wide, and these are tracked capitals) otherwise keeps its
           one-line width and runs off a 320px screen instead of wrapping. */}
-      {actions && <div className="flex flex-wrap items-center gap-2 [&>*]:max-w-full [&_button]:max-w-full">{actions}</div>}
+      {actions && (
+        <div className="flex flex-wrap items-center gap-2 [&>*]:max-w-full [&_button]:max-w-full">
+          {actions}
+        </div>
+      )}
     </div>
   );
 }

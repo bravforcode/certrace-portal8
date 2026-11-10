@@ -25,7 +25,8 @@ export const LEGAL_PRIVACY_URL = "https://certrace.co/privacy";
    completion page while the other four are secondary. A Thai exporter stuck
    on a field at 9pm messages on LINE; they do not fill in a web form. */
 export const SOCIAL_LINE_URL = "https://lin.ee/P76yqsw";
-export const SOCIAL_LINKEDIN_URL = "https://www.linkedin.com/company/certrace-co";
+export const SOCIAL_LINKEDIN_URL =
+  "https://www.linkedin.com/company/certrace-co";
 export const SOCIAL_FACEBOOK_URL = "https://www.facebook.com/certrace";
 export const SOCIAL_INSTAGRAM_URL = "https://www.instagram.com/certrace";
 export const SOCIAL_YOUTUBE_URL = "https://www.youtube.com/@Certrace";
@@ -35,7 +36,8 @@ export const SOCIAL_YOUTUBE_URL = "https://www.youtube.com/@Certrace";
    shown, not to open a support thread and wait. YouTube rather than an
    in-app tour so it can be watched on a phone while the portal stays open on
    the desktop. */
-export const GUIDE_VIDEO_URL = "https://youtu.be/l4ZdQq5KA7Q?si=y0NoQGy5Fsl4mt2r";
+export const GUIDE_VIDEO_URL =
+  "https://youtu.be/l4ZdQq5KA7Q?si=y0NoQGy5Fsl4mt2r";
 
 /* "I want the product to do something it does not do." A DIFFERENT ERRAND
    from "Report a problem", which is why it is a separate row rather than one

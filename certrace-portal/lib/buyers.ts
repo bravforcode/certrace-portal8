@@ -1,3 +1,4 @@
+import { accountStorage } from "./account-storage";
 /* ════════════════════════════════════════════════════════════
    BUYERS — the EU importers a shipment goes to
 
@@ -53,12 +54,18 @@ export const emptyBuyer = (): Buyer => ({
   createdAt: new Date().toISOString(),
 });
 
-export const hydrate = (raw: Partial<Buyer>): Buyer => ({ ...emptyBuyer(), ...raw, id: raw.id ?? buyerUid() });
+export const hydrate = (raw: Partial<Buyer>): Buyer => ({
+  ...emptyBuyer(),
+  ...raw,
+  id: raw.id ?? buyerUid(),
+});
 
 function read(): Buyer[] {
   if (typeof window === "undefined") return [];
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(KEY) ?? "[]") as Partial<Buyer>[];
+    const parsed = JSON.parse(
+      accountStorage.getItem(KEY) ?? "[]",
+    ) as Partial<Buyer>[];
     return Array.isArray(parsed) ? parsed.map(hydrate) : [];
   } catch {
     return [];
@@ -68,16 +75,18 @@ function read(): Buyer[] {
 function write(all: Buyer[]): Buyer[] {
   if (typeof window === "undefined") return all;
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(all));
+    accountStorage.setItem(KEY, JSON.stringify(all));
   } catch {
     /* ignore quota */
   }
   return all;
 }
 
-export const listBuyers = (): Buyer[] => read().sort((a, b) => a.name.localeCompare(b.name));
+export const listBuyers = (): Buyer[] =>
+  read().sort((a, b) => a.name.localeCompare(b.name));
 
-export const getBuyer = (id: string): Buyer | null => read().find((b) => b.id === id) ?? null;
+export const getBuyer = (id: string): Buyer | null =>
+  read().find((b) => b.id === id) ?? null;
 
 export const findBuyerByName = (name: string): Buyer | null => {
   const key = name.trim().toLowerCase();
@@ -85,7 +94,12 @@ export const findBuyerByName = (name: string): Buyer | null => {
 };
 
 export function saveBuyer(input: Buyer): Buyer {
-  const record: Buyer = { ...input, name: input.name.trim(), eori: input.eori.trim().toUpperCase(), id: input.id || buyerUid() };
+  const record: Buyer = {
+    ...input,
+    name: input.name.trim(),
+    eori: input.eori.trim().toUpperCase(),
+    id: input.id || buyerUid(),
+  };
   write([...read().filter((b) => b.id !== record.id), record]);
   return record;
 }
@@ -101,11 +115,13 @@ export function removeBuyer(id: string): Buyer[] {
 export function buyerEoriError(raw: string): string | null {
   const value = raw.trim();
   if (!value) return null;
-  if (!eoriLooksValid(value)) return "Two-letter country code, then up to 15 letters or digits — “NL812345678”.";
+  if (!eoriLooksValid(value))
+    return "Two-letter country code, then up to 15 letters or digits — “NL812345678”.";
   return null;
 }
 
-export const canSaveBuyer = (b: Buyer): boolean => Boolean(b.name.trim()) && buyerEoriError(b.eori) === null;
+export const canSaveBuyer = (b: Buyer): boolean =>
+  Boolean(b.name.trim()) && buyerEoriError(b.eori) === null;
 
 /* ── Seeding from the shipment log ──────────────────────────────
    The log ships with demo rows carrying buyer names and EORIs as loose
@@ -114,7 +130,9 @@ export const canSaveBuyer = (b: Buyer): boolean => Boolean(b.name.trim()) && buy
    distinct (name, EORI) pairs already in the log become buyer records the
    first time the picker is opened. Idempotent — a name that already exists is
    left alone, so this never overwrites an edited record. */
-export function seedBuyersFromShipments(rows: { buyer: string; buyerEori?: string }[]): Buyer[] {
+export function seedBuyersFromShipments(
+  rows: { buyer: string; buyerEori?: string }[],
+): Buyer[] {
   const existing = read();
   const known = new Set(existing.map((b) => b.name.trim().toLowerCase()));
   const additions: Buyer[] = [];

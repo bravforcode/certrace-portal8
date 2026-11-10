@@ -26,7 +26,12 @@ const storage = new MemoryStorage();
 g.window = { localStorage: storage };
 g.localStorage = storage;
 
-const { nextDeclarationDeadline, daysToNextDeclarationDeadline, supplierFunnel, buyerReadyRows } = await import("../cbam/dashboard-aggregates");
+const {
+  nextDeclarationDeadline,
+  daysToNextDeclarationDeadline,
+  supplierFunnel,
+  buyerReadyRows,
+} = await import("../cbam/dashboard-aggregates");
 const { createWorkspace } = await import("../workspace");
 const { saveSupplier, emptySupplier } = await import("../precursor-suppliers");
 const { workspaceReadiness } = await import("../readiness");
@@ -63,11 +68,21 @@ test("the day count is positive and shrinks as the deadline approaches", () => {
 
 test("buyerReadyRows carries a reason only for the not-ready workspaces", () => {
   storage.clear();
-  const ws = createWorkspace({ installationId: "TH-A", installationName: "Plant A", productId: "billet", productionRoute: "scrap_eaf", year: 2026 });
+  const ws = createWorkspace({
+    installationId: "TH-A",
+    installationName: "Plant A",
+    productId: "billet",
+    productionRoute: "scrap_eaf",
+    year: 2026,
+  });
   const readiness = workspaceReadiness(ws);
   const rows = buyerReadyRows([{ workspace: ws, readiness }]);
   assert.equal(rows.length, 1);
-  assert.equal(rows[0].ready, false, "a freshly created workspace has nothing entered yet");
+  assert.equal(
+    rows[0].ready,
+    false,
+    "a freshly created workspace has nothing entered yet",
+  );
   assert.ok(rows[0].reason);
 });
 
@@ -76,27 +91,59 @@ test("buyerReadyRows carries a reason only for the not-ready workspaces", () => 
 test("an empty portfolio has an empty funnel, not a divide-by-zero", () => {
   storage.clear();
   const funnel = supplierFunnel([]);
-  assert.deepEqual(funnel, { invited: 0, responded: 0, verified: 0, totalPrecursorSuppliers: 0, withAccount: 0, staleCount: 0 });
+  assert.deepEqual(funnel, {
+    invited: 0,
+    responded: 0,
+    verified: 0,
+    totalPrecursorSuppliers: 0,
+    staleCount: 0,
+  });
 });
 
 test("scrap suppliers are excluded from the funnel — nothing to invite them to verify", () => {
   storage.clear();
-  const ws = createWorkspace({ installationId: "TH-A", installationName: "Plant A", productId: "billet", productionRoute: "scrap_eaf", year: 2026 });
-  saveSupplier({ ...emptySupplier(ws.id, null), name: "Scrap Co", isScrap: true, smartLinkSentAt: new Date().toISOString() });
+  const ws = createWorkspace({
+    installationId: "TH-A",
+    installationName: "Plant A",
+    productId: "billet",
+    productionRoute: "scrap_eaf",
+    year: 2026,
+  });
+  saveSupplier({
+    ...emptySupplier(ws.id, null),
+    name: "Scrap Co",
+    isScrap: true,
+    smartLinkSentAt: new Date().toISOString(),
+  });
   const funnel = supplierFunnel([ws]);
   assert.equal(funnel.totalPrecursorSuppliers, 0);
 });
 
 test("invited / responded / verified count correctly across the three stages", () => {
   storage.clear();
-  const ws = createWorkspace({ installationId: "TH-A", installationName: "Plant A", productId: "billet", productionRoute: "scrap_eaf", year: 2026 });
+  const ws = createWorkspace({
+    installationId: "TH-A",
+    installationName: "Plant A",
+    productId: "billet",
+    productionRoute: "scrap_eaf",
+    year: 2026,
+  });
   const now = new Date().toISOString();
   // Never invited.
   saveSupplier({ ...emptySupplier(ws.id, null), name: "Not yet invited" });
   // Invited, not opened.
-  saveSupplier({ ...emptySupplier(ws.id, null), name: "Invited only", smartLinkSentAt: now });
+  saveSupplier({
+    ...emptySupplier(ws.id, null),
+    name: "Invited only",
+    smartLinkSentAt: now,
+  });
   // Invited and opened (responded, not yet verified).
-  saveSupplier({ ...emptySupplier(ws.id, null), name: "Opened", smartLinkSentAt: now, smartLinkOpenedAt: now });
+  saveSupplier({
+    ...emptySupplier(ws.id, null),
+    name: "Opened",
+    smartLinkSentAt: now,
+    smartLinkOpenedAt: now,
+  });
   // Fully submitted and verified.
   saveSupplier({
     ...emptySupplier(ws.id, null),
@@ -108,6 +155,11 @@ test("invited / responded / verified count correctly across the three stages", (
     verifierAccreditationExpiryDate: "2027-01-01",
     verificationReportIssueDate: "2026-06-01",
     verificationSectoralScope: "Iron and steel",
+    verificationCoverageStart: "2026-01-01",
+    verificationCoverageEnd: "2026-12-31",
+    verifierName: "Example verifier",
+    verifierAccreditationNumber: "EX-123",
+    verifierAccreditationIssuingCountry: "TH",
     smartLinkSentAt: now,
     smartLinkOpenedAt: now,
     smartLinkSubmittedAt: now,
@@ -116,18 +168,36 @@ test("invited / responded / verified count correctly across the three stages", (
   const funnel = supplierFunnel([ws]);
   assert.equal(funnel.totalPrecursorSuppliers, 4);
   assert.equal(funnel.invited, 3, "everyone except the never-invited one");
-  assert.equal(funnel.responded, 2, "opened + verified, not the invited-only one");
+  assert.equal(
+    funnel.responded,
+    2,
+    "opened + verified, not the invited-only one",
+  );
   assert.equal(funnel.verified, 1);
 });
 
 test("a stale, unresponsive invite is counted; a fresh one is not", () => {
   storage.clear();
-  const ws = createWorkspace({ installationId: "TH-A", installationName: "Plant A", productId: "billet", productionRoute: "scrap_eaf", year: 2026 });
+  const ws = createWorkspace({
+    installationId: "TH-A",
+    installationName: "Plant A",
+    productId: "billet",
+    productionRoute: "scrap_eaf",
+    year: 2026,
+  });
   const stale = new Date();
   stale.setDate(stale.getDate() - 20);
   const fresh = new Date();
   fresh.setDate(fresh.getDate() - 2);
-  saveSupplier({ ...emptySupplier(ws.id, null), name: "Stale", smartLinkSentAt: stale.toISOString() });
-  saveSupplier({ ...emptySupplier(ws.id, null), name: "Fresh", smartLinkSentAt: fresh.toISOString() });
+  saveSupplier({
+    ...emptySupplier(ws.id, null),
+    name: "Stale",
+    smartLinkSentAt: stale.toISOString(),
+  });
+  saveSupplier({
+    ...emptySupplier(ws.id, null),
+    name: "Fresh",
+    smartLinkSentAt: fresh.toISOString(),
+  });
   assert.equal(supplierFunnel([ws]).staleCount, 1);
 });

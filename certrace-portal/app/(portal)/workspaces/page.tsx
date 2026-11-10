@@ -61,7 +61,6 @@ import {
   Archive,
   ArchiveRestore,
   ArrowRight,
-  Building2,
   ChevronLeft,
   ChevronRight,
   Factory,
@@ -72,17 +71,43 @@ import {
   Table2,
   Trash2,
 } from "lucide-react";
-import { Button, Card, Chip, EmptyState, PageHeader, Progress, TagBadge, cn } from "@/components/ui";
+import {
+  Button,
+  Card,
+  Chip,
+  EmptyState,
+  PageHeader,
+  Progress,
+  cn,
+} from "@/components/ui";
 import { ErrorState, LoadingState } from "@/components/query-state";
 import { Select } from "@/components/controls";
 import { toast } from "@/components/toast";
-import { DotStrip, StateChip } from "@/components/workspace/chrome";
+import { StateChip } from "@/components/workspace/chrome";
 import { WorkspaceMenu } from "@/components/workspace/workspace-menu";
+import {
+  InstallationMenu,
+  installationHref,
+} from "@/components/workspace/installation-menu";
+import {
+  ProductReportCard,
+  archivedOn,
+  restore,
+  toCards,
+  type CardData,
+} from "@/components/workspace/product-report-card";
 import { getCatalogProduct } from "@/lib/config";
-import { listInstallations } from "@/lib/installations";
-import { listSuppliers } from "@/lib/precursor-suppliers";
-import { dotStates, workspaceReadiness, type TabState } from "@/lib/readiness";
-import { groupBySupplier, routeLabel, type VerificationWorkspace } from "@/lib/workspace";
+import {
+  installationForWorkspace,
+} from "@/lib/installations";
+import { useActiveInstallation } from "@/lib/active-installation";
+import { profileStatus } from "@/lib/cbam/installation-profile";
+import type { TabState } from "@/lib/readiness";
+import {
+  groupBySupplier,
+  routeLabel,
+  type VerificationWorkspace,
+} from "@/lib/workspace";
 import { type WorkspaceDraft } from "@/lib/workspace-drafts";
 import {
   useArchivedWorkspaces,
@@ -94,31 +119,6 @@ import {
 } from "@/lib/store";
 import { useOrgIdentity } from "@/lib/workspaces-query";
 import { useT } from "@/lib/i18n";
-
-type CardData = {
-  workspace: VerificationWorkspace;
-  overall: TabState;
-  dots: TabState[];
-  percent: number;
-  precursors: number;
-};
-
-function toCards(workspaces: VerificationWorkspace[]): CardData[] {
-  return workspaces.map((w) => {
-    const readiness = workspaceReadiness(w);
-    return {
-      workspace: w,
-      overall: readiness.overall,
-      dots: dotStates(readiness),
-      percent: readiness.percentComplete,
-      precursors: listSuppliers(w.id).length,
-    };
-  });
-}
-
-
-
-
 
 /* ── Active or archived ─────────────────────────────────────────
    One screen, two scopes, and the archive is a SCOPE rather than a page of
@@ -171,14 +171,34 @@ export default function WorkspacesPage() {
   const [scope, setScope] = React.useState<Scope>("active");
   const [page, setPage] = React.useState(1);
 
-  const active = React.useMemo(() => cards ?? [], [cards]);
-  const archived = React.useMemo(() => archivedCards ?? [], [archivedCards]);
+  /* ONE INSTALLATION AT A TIME. The page reads only the current installation
+     (lib/active-installation.ts), switched from the profile menu or Settings →
+     Installation — so the site filter that used to sit in the toolbar is gone. */
+  const { active: current } = useActiveInstallation();
+  const atCurrent = React.useCallback(
+    (list: CardData[]) =>
+      current
+        ? list.filter((c) => c.workspace.installationId === current.id)
+        : list,
+    [current],
+  );
+  const active = React.useMemo(
+    () => atCurrent(cards ?? []),
+    [cards, atCurrent],
+  );
+  const archived = React.useMemo(
+    () => atCurrent(archivedCards ?? []),
+    [archivedCards, atCurrent],
+  );
   /* Everything below this line — filters, grouping, paging, the empty states —
      is written against `all` and never asks which scope it is in. That is the
      point of a scope: the archive is the same screen, reading a different
      list. */
   const all = scope === "archived" ? archived : active;
-  const years = React.useMemo(() => [...new Set(all.map((c) => c.workspace.year))].sort((a, b) => b - a), [all]);
+  const years = React.useMemo(
+    () => [...new Set(all.map((c) => c.workspace.year))].sort((a, b) => b - a),
+    [all],
+  );
 
   /* ── Goods, as the exporter's own estate contains them ──────
      Built from the workspaces on screen rather than from the 67-good
@@ -186,31 +206,20 @@ export default function WorkspacesPage() {
      and the CN code rides along because that is the number on the customs
      declaration they are holding. */
   const goods = React.useMemo(() => {
-    const seen = new Map<string, { value: string; label: string; hint: string }>();
+    const seen = new Map<
+      string,
+      { value: string; label: string; hint: string }
+    >();
     for (const c of all) {
       const w = c.workspace;
       const key = w.productId || w.productName;
       if (!key || seen.has(key)) continue;
       const cn = w.cnCode || getCatalogProduct(w.productId)?.cnCode || "";
-      seen.set(key, { value: key, label: w.productName, hint: cn ? `CN ${cn}` : "" });
-    }
-    return [...seen.values()].sort((a, b) => a.label.localeCompare(b.label));
-  }, [all]);
-
-  /* ── Installations, INCLUDING your own ──────────────────────
-     The registered own-site is offered even when it has no workspace yet.
-     Leaving it out made the exporter's own plant the one site they could not
-     filter by, which is the site most of them work on most. */
-  const installations = React.useMemo(() => {
-    const seen = new Map<string, { value: string; label: string; hint: string }>();
-    for (const c of all) {
-      const w = c.workspace;
-      if (!w.installationId || seen.has(w.installationId)) continue;
-      seen.set(w.installationId, { value: w.installationId, label: w.installationName || w.installationId, hint: w.installationId });
-    }
-    for (const inst of listInstallations()) {
-      if (seen.has(inst.id)) continue;
-      seen.set(inst.id, { value: inst.id, label: inst.name || inst.id, hint: inst.self ? `${inst.id} · your site` : inst.id });
+      seen.set(key, {
+        value: key,
+        label: w.productName,
+        hint: cn ? `CN ${cn}` : "",
+      });
     }
     return [...seen.values()].sort((a, b) => a.label.localeCompare(b.label));
   }, [all]);
@@ -219,7 +228,17 @@ export default function WorkspacesPage() {
     const q = query.trim().toLowerCase();
     return all.filter((c) => {
       const w = c.workspace;
-      if (q && ![w.productName, w.cnCode, w.supplierName, w.installationName, w.installationId].some((f) => (f ?? "").toLowerCase().includes(q))) return false;
+      if (
+        q &&
+        ![
+          w.productName,
+          w.cnCode,
+          w.supplierName,
+          w.installationName,
+          w.installationId,
+        ].some((f) => (f ?? "").toLowerCase().includes(q))
+      )
+        return false;
       if (good && (w.productId || w.productName) !== good) return false;
       if (installation && w.installationId !== installation) return false;
       if (year && String(w.year) !== year) return false;
@@ -235,11 +254,19 @@ export default function WorkspacesPage() {
   // exists — which renders as an empty screen that looks like "no results"
   // when there are plenty, one page up.
   React.useEffect(() => {
-    setPage((p) => Math.min(p, Math.max(1, Math.ceil(filtered.length / perPage))));
+    setPage((p) =>
+      Math.min(p, Math.max(1, Math.ceil(filtered.length / perPage))),
+    );
   }, [filtered.length, perPage]);
-  React.useEffect(() => setPage(1), [query, good, installation, year, state, scope]);
+  React.useEffect(
+    () => setPage(1),
+    [query, good, installation, year, state, scope],
+  );
 
-  const paged = React.useMemo(() => filtered.slice((page - 1) * perPage, page * perPage), [filtered, page, perPage]);
+  const paged = React.useMemo(
+    () => filtered.slice((page - 1) * perPage, page * perPage),
+    [filtered, page, perPage],
+  );
 
   /* The exporter's own company name, for the "your own sites" heading. Via
      the query rather than a render-time read — getOrgIdentity() touches
@@ -265,7 +292,9 @@ export default function WorkspacesPage() {
     }));
   }, [paged, selfName]);
 
-  const filtering = Boolean(query.trim() || good || installation || year || state !== "all");
+  const filtering = Boolean(
+    query.trim() || good || installation || year || state !== "all",
+  );
   const showingArchive = scope === "archived";
 
   const clear = () => {
@@ -291,17 +320,34 @@ export default function WorkspacesPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow={t("Verification")}
-        title={t("Verification workspaces")}
-        lead={t("One workspace per installation × product × reporting year. It is the screen you monitor each month, and the screen you hand to a verifier at the end of it.")}
+        title={t("Verification")}
+        lead={
+          current
+            ? t("{site} — the product reports you file at this installation.", {
+                site: current.name,
+              })
+            : t("Your sites, and the product reports you file at each one.")
+        }
         actions={
           /* Deliberately the full-size button rather than size="sm". This is
              the only action on the screen and the one an exporter arrives
              wanting; a small secondary-looking control was reading as a
              utility next to the page title. */
-          <Button className="whitespace-nowrap" onClick={() => router.push("/workspaces/new")}>
-            <Plus size={16} strokeWidth={1.5} /> {t("New workspace")}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="secondary"
+              className="whitespace-nowrap"
+              onClick={() => router.push("/settings?tab=installation")}
+            >
+              {t("Switch installation")}
+            </Button>
+            <Button
+              className="whitespace-nowrap"
+              onClick={() => router.push("/workspaces/new")}
+            >
+              <Plus size={16} strokeWidth={1.5} /> {t("New product report")}
+            </Button>
+          </div>
         }
       />
 
@@ -328,22 +374,46 @@ export default function WorkspacesPage() {
               view should never be a state you are in by accident. */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="relative min-w-0 flex-1">
-              <Search size={15} strokeWidth={1.5} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-black/30" />
+              <Search
+                size={15}
+                strokeWidth={1.5}
+                className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-black/30"
+              />
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder={showingArchive ? "Search archived workspaces…" : "Search by product, CN code, supplier or installation…"}
-                aria-label={showingArchive ? "Search archived workspaces" : "Search workspaces"}
+                placeholder={
+                  showingArchive
+                    ? "Search archived product reports…"
+                    : "Search by product, CN code, supplier or installation…"
+                }
+                aria-label={
+                  showingArchive
+                    ? "Search archived product reports"
+                    : "Search product reports"
+                }
                 className="w-full rounded-xl border border-black/10 bg-white py-2.5 pl-10 pr-4 text-sm text-black/70 placeholder:text-black/25 transition-colors focus:border-black/25 focus:outline-none"
               />
             </div>
             <div className="flex flex-none flex-wrap items-center gap-2 self-start sm:ml-auto sm:self-auto">
-              <ArchiveToggle active={showingArchive} count={archived.length} onClick={() => setScope(showingArchive ? "active" : "archived")} />
+              <ArchiveToggle
+                active={showingArchive}
+                count={archived.length}
+                onClick={() => setScope(showingArchive ? "active" : "archived")}
+              />
               <div className="flex items-center gap-1 rounded-xl border border-black/10 bg-white p-1">
-                <ViewToggle active={view === "cards"} onClick={() => setView("cards")} label={t("Cards")}>
+                <ViewToggle
+                  active={view === "cards"}
+                  onClick={() => setView("cards")}
+                  label={t("Cards")}
+                >
                   <LayoutGrid size={15} strokeWidth={1.5} />
                 </ViewToggle>
-                <ViewToggle active={view === "table"} onClick={() => setView("table")} label={t("Table")}>
+                <ViewToggle
+                  active={view === "table"}
+                  onClick={() => setView("table")}
+                  label={t("Table")}
+                >
                   <Table2 size={15} strokeWidth={1.5} />
                 </ViewToggle>
               </div>
@@ -363,16 +433,7 @@ export default function WorkspacesPage() {
               supplier → site → good grouping below; a filter pair ordered
               against the grouping under it reads as two mental models of one
               estate. */}
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            <FilterSelect
-              label={t("Installation")}
-              value={installation}
-              onChange={setInstallation}
-              allLabel={t("All installations")}
-              options={installations}
-              searchable={installations.length > 8}
-              searchPlaceholder={t("Site name or reference…")}
-            />
+          <div className="grid gap-2 sm:grid-cols-3">
             <FilterSelect
               label={t("Good")}
               value={good}
@@ -382,13 +443,25 @@ export default function WorkspacesPage() {
               searchable={goods.length > 8}
               searchPlaceholder={t("Name or CN code…")}
             />
-            <FilterSelect label={t("Year")} value={year} onChange={setYear} allLabel={t("All years")} options={years.map((y) => ({ value: String(y), label: String(y) }))} />
+            <FilterSelect
+              label={t("Year")}
+              value={year}
+              onChange={setYear}
+              allLabel={t("All years")}
+              options={years.map((y) => ({
+                value: String(y),
+                label: String(y),
+              }))}
+            />
             <FilterSelect
               label={t("Readiness")}
               value={state === "all" ? "" : state}
               onChange={(v) => setState((v || "all") as TabState | "all")}
               allLabel={t("Any readiness")}
-              options={STATES.map((s) => ({ value: s.id as string, label: s.label }))}
+              options={STATES.map((s) => ({
+                value: s.id as string,
+                label: s.label,
+              }))}
             />
           </div>
 
@@ -396,7 +469,9 @@ export default function WorkspacesPage() {
               list, and separating them from it with an unrelated strip breaks
               that pairing. They are still one scrolling line — a half-finished
               flow is a reminder, not a section. */}
-          {!showingArchive && drafts && drafts.length > 0 && <DraftStrip drafts={drafts} onDiscard={discardDraft} />}
+          {!showingArchive && drafts && drafts.length > 0 && (
+            <DraftStrip drafts={drafts} onDiscard={discardDraft} />
+          )}
 
           {/* The COUNT is the one line that stays scope-gated: "No matches out
               of 0" over an empty archive is a sentence about nothing, and the
@@ -405,16 +480,25 @@ export default function WorkspacesPage() {
             <div className="flex items-center justify-between gap-3">
               <p className="text-[11.5px] text-black/40">
                 {filtered.length === 0 ? (
-                  <>No matches out of {all.length}.</>
+                  <>{t("No matches out of {n}.", { n: all.length })}</>
                 ) : (
                   <>
-                    Showing <strong className="font-medium text-black/60">{from}–{to}</strong> of {filtered.length}
-                    {filtered.length === all.length ? "" : ` filtered`} {showingArchive ? "archived " : ""}workspace{filtered.length === 1 ? "" : "s"}.
+                    {t("Showing")}{" "}
+                    <strong className="font-medium text-black/60">
+                      {from}–{to}
+                    </strong>{" "}
+                    {t("of")} {filtered.length}
+                    {filtered.length === all.length
+                      ? ""
+                      : ` · ${t("filtered")}`}
                   </>
                 )}
               </p>
               {filtering && (
-                <button onClick={clear} className="text-[11px] uppercase tracking-[0.1em] text-black/40 underline decoration-black/20 underline-offset-2 hover:text-black">
+                <button
+                  onClick={clear}
+                  className="text-[11px] uppercase tracking-[0.1em] text-black/40 underline decoration-black/20 underline-offset-2 hover:text-black"
+                >
                   {t("Clear filters")}
                 </button>
               )}
@@ -428,29 +512,30 @@ export default function WorkspacesPage() {
         <EmptyState
           icon={<Archive size={28} strokeWidth={1.25} />}
           title={t("Nothing archived")}
-          body={t("Archiving takes a finished year out of the estate — off the dashboard, out of the Inbox, and no longer counted in Reports — without deleting a single reading. Anything you archive lands here, and comes back with one click.")}
+          body={t("Archived reports stay here, and come back with one click.")}
           action={
-            <Button size="sm" variant="secondary" onClick={() => setScope("active")}>
-              {t("Back to active workspaces")}
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => setScope("active")}
+            >
+              {t("Back to active reports")}
             </Button>
           }
         />
       ) : all.length === 0 ? (
         <EmptyState
           icon={<LayoutGrid size={28} strokeWidth={1.25} />}
-          title={t("No verification workspaces yet")}
-          body={t("A workspace is one installation × one product × one reporting year — “Steel billet · Plant A · 2026”. Monthly readings, the MMD, the precursor chain and evidence all hang off it.")}
-          action={
-            <Button onClick={() => router.push("/workspaces/new")}>
-              <Plus size={16} strokeWidth={1.5} /> {t("Create the first workspace")}
-            </Button>
-          }
+          title={t("No product reports yet")}
+          body={t(
+            "One product at one site for one year — like “Steel billet · Plant A · 2026”.",
+          )}
         />
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={<Search size={28} strokeWidth={1.25} />}
           title={t("Nothing matches those filters")}
-          body={t("Clear them to see every workspace, or widen one — readiness and year are the two that narrow hardest.")}
+          body={t("Clear a filter to see more.")}
           action={
             <Button size="sm" variant="secondary" onClick={clear}>
               {t("Clear filters")}
@@ -465,52 +550,58 @@ export default function WorkspacesPage() {
               from a badge. */}
           {showingArchive && (
             <p className="flex items-start gap-2.5 rounded-xl border-l-[3px] border-l-black/20 bg-[#faf9f7] px-4 py-3 text-[12.5px] leading-relaxed text-black/55">
-              <Archive size={14} strokeWidth={1.5} className="mt-0.5 flex-none text-black/35" />
+              <Archive
+                size={14}
+                strokeWidth={1.5}
+                className="mt-0.5 flex-none text-black/35"
+              />
               <span>
-                {t("These are out of the active estate — not on the dashboard, not chased in the Inbox, and not counted in Reports. Nothing has been deleted: open one to read it, or restore it to bring it back.")}
+                {t(
+                  "These are out of the active estate — not on the dashboard, not chased in the Inbox, and not counted in Reports. Nothing has been deleted: open one to read it, or restore it to bring it back.",
+                )}
               </span>
             </p>
           )}
           {view === "table" ? (
-            <WorkspaceTable rows={paged} onChanged={refresh} archived={showingArchive} />
+            <WorkspaceTable
+              rows={paged}
+              onChanged={refresh}
+              archived={showingArchive}
+            />
           ) : (
-            /* SUPPLIER → INSTALLATION → GOOD. The supplier is the headline
-               because it is the party an exporter chases; the installation is
-               the sub-heading because it is what a verifier scopes to; the
-               cards are the goods, because that is the unit of a workspace. */
+            /* COMPANY → INSTALLATION → REPORTING YEAR → PRODUCT REPORT.
+
+               The company is the headline because it is the party you chase.
+               The installation is a ROW you can act on — it holds what is
+               entered once, so it carries its own menu — and the reporting year
+               is the heading above the product reports of that year, so the
+               same CN code in two years is never two unlabelled cards. */
             grouped.map((group) => (
               <section key={group.supplierId} className="space-y-4">
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-black/[0.07] pb-2">
-                  <h2 className="flex items-center gap-2 font-[family-name:var(--font-plex)] text-2xl font-light tracking-tight text-[#111]">
-                    {group.self ? (
-                      <Factory size={17} strokeWidth={1.5} className="text-black/35" />
-                    ) : (
-                      <Building2 size={17} strokeWidth={1.5} className="text-black/35" />
-                    )}
+                  {/* The heading is just the company's name — no icon, no tag, whether
+                      it is your own company or a supplier. The factory icon belongs to
+                      the installation row beneath it, not to the company above. */}
+                  <h2 className="font-[family-name:var(--font-plex)] text-2xl font-light tracking-tight text-[#111]">
                     {group.supplierName}
                   </h2>
-                  {group.self && <TagBadge tone="info">{t("Your own sites")}</TagBadge>}
                   <span className="font-mono text-[11px] text-black/35">
-                    {group.installations.length} site{group.installations.length === 1 ? "" : "s"}
+                    {t(
+                      group.installations.length === 1
+                        ? "{n} site"
+                        : "{n} sites",
+                      { n: group.installations.length },
+                    )}
                   </span>
                 </div>
 
                 {group.installations.map((inst) => (
-                  <div key={inst.installationId} className="space-y-3">
-                    <div className="flex items-baseline gap-2.5 pl-0.5">
-                      <h3 className="font-pixel text-[11px] uppercase tracking-[0.16em] text-black/50">{inst.installationName}</h3>
-                      <span className="font-mono text-[11px] text-black/30">{inst.installationId}</span>
-                    </div>
-
-                    {/* items-stretch is the grid default and every card carries
-                        h-full through the link, so a row of cards is one height
-                        however long the product names are. */}
-                    <div className="grid items-stretch gap-3 md:grid-cols-2 xl:grid-cols-3">
-                      {inst.cards.map((c) => (
-                        <WorkspaceCard key={c.workspace.id} data={c} onChanged={refresh} archived={showingArchive} />
-                      ))}
-                    </div>
-                  </div>
+                  <InstallationBlock
+                    key={inst.installationId}
+                    inst={inst}
+                    onChanged={refresh}
+                    archived={showingArchive}
+                  />
                 ))}
               </section>
             ))
@@ -522,7 +613,143 @@ export default function WorkspacesPage() {
           never moves between a full page and a filtered one, and sticky so it
           is reachable without scrolling an entire page of cards first. It
           renders nothing when there is only one page. */}
-      <Pager page={page} pageCount={pageCount} onChange={setPage} total={filtered.length} from={from} to={to} />
+      <Pager
+        page={page}
+        pageCount={pageCount}
+        onChange={setPage}
+        total={filtered.length}
+        from={from}
+        to={to}
+      />
+    </div>
+  );
+}
+
+/* ── One installation, its years, and their product reports ──────
+   The row is the installation: its name opens the installation page, the
+   reference rides beside it, and the ⋯ at the right edge edits what is entered
+   once. The chip says how much of that one-time information is in — it is the
+   same count the installation's Readiness tab reports, so the two never
+   disagree. Under the row, reporting years run newest first, each with the
+   product reports of that year as cards. */
+function InstallationBlock({
+  inst,
+  onChanged,
+  archived,
+}: {
+  inst: { installationId: string; installationName: string; cards: CardData[] };
+  onChanged: () => void;
+  archived: boolean;
+}) {
+  const t = useT();
+  const first = inst.cards[0]?.workspace;
+  const record = React.useMemo(
+    () =>
+      installationForWorkspace({
+        installationId: inst.installationId,
+        installationName: inst.installationName,
+        selfSupplied: first?.selfSupplied,
+        supplierId: first?.supplierId,
+      }),
+    [
+      inst.installationId,
+      inst.installationName,
+      first?.selfSupplied,
+      first?.supplierId,
+    ],
+  );
+  const status = profileStatus(record);
+  const years = [...new Set(inst.cards.map((c) => c.workspace.year))].sort(
+    (a, b) => b - a,
+  );
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-3 rounded-2xl border border-black/[0.07] bg-white px-4 py-3 transition-colors hover:border-black/15">
+        <Link
+          href={installationHref(inst.installationId)}
+          className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-1"
+        >
+          <span className="flex min-w-0 items-center gap-2">
+            <Factory
+              size={15}
+              strokeWidth={1.5}
+              className="flex-none text-black/35"
+            />
+            <span className="truncate text-[15px] text-black/85">
+              {inst.installationName || inst.installationId}
+            </span>
+          </span>
+          <span className="font-mono text-[11px] text-black/40">
+            {inst.installationId}
+          </span>
+          <span className="font-mono text-[11px] text-black/30">
+            {t(
+              inst.cards.length === 1
+                ? "{n} product report"
+                : "{n} product reports",
+              { n: inst.cards.length },
+            )}
+          </span>
+        </Link>
+        <span
+          className={cn(
+            "hidden flex-none items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.1em] sm:inline-flex",
+            status.complete
+              ? "border-[rgba(5,150,105,0.18)] bg-[#ecfdf5] text-[#047857]"
+              : "border-[rgba(180,83,9,0.18)] bg-[#fffbeb] text-[#b45309]",
+          )}
+          title={
+            status.complete
+              ? t("Everything entered once for this installation is in.")
+              : t(
+                  "Information entered once for this installation is still missing.",
+                )
+          }
+        >
+          {status.complete
+            ? t("Installation info complete")
+            : t("Installation info {a}/{b}", {
+                a: status.answered,
+                b: status.total,
+              })}
+        </span>
+        <InstallationMenu
+          installationId={inst.installationId}
+          name={inst.installationName || inst.installationId}
+        />
+      </div>
+
+      {years.map((year) => {
+        const cards = inst.cards.filter((c) => c.workspace.year === year);
+        return (
+          <div key={year} className="space-y-2.5 pl-3 sm:pl-5">
+            <div className="flex items-baseline gap-2.5 border-l-2 border-black/15 pl-3">
+              <h3 className="font-pixel text-[11px] uppercase tracking-[0.16em] text-black/55">
+                {t("Reporting year")} {year}
+              </h3>
+              <span className="font-mono text-[11px] text-black/30">
+                {t(
+                  cards.length === 1
+                    ? "{n} product report"
+                    : "{n} product reports",
+                  { n: cards.length },
+                )}
+              </span>
+            </div>
+            <div className="grid items-stretch gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {cards.map((c) => (
+                <ProductReportCard
+                  key={c.workspace.id}
+                  data={c}
+                  onChanged={onChanged}
+                  archived={archived}
+                />
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -567,7 +794,8 @@ function Pager({
     else if (pages[pages.length - 1] !== "gap") push("gap");
   }
 
-  const btn = "grid h-8 min-w-8 place-items-center rounded-lg px-2 text-[12.5px] transition-colors";
+  const btn =
+    "grid h-8 min-w-8 place-items-center rounded-lg px-2 text-[12.5px] transition-colors";
 
   const go = (p: number) => {
     onChange(p);
@@ -590,7 +818,10 @@ function Pager({
           onClick={() => go(Math.max(1, page - 1))}
           disabled={page === 1}
           aria-label={t("Previous page")}
-          className={cn(btn, "text-black/45 hover:bg-black/[0.05] hover:text-black disabled:pointer-events-none disabled:text-black/15")}
+          className={cn(
+            btn,
+            "text-black/45 hover:bg-black/[0.05] hover:text-black disabled:pointer-events-none disabled:text-black/15",
+          )}
         >
           <ChevronLeft size={15} strokeWidth={1.5} />
         </button>
@@ -605,7 +836,12 @@ function Pager({
               type="button"
               onClick={() => go(p)}
               aria-current={p === page ? "page" : undefined}
-              className={cn(btn, p === page ? "bg-[#111] text-white" : "text-black/50 hover:bg-black/[0.05] hover:text-black")}
+              className={cn(
+                btn,
+                p === page
+                  ? "bg-[#111] text-white"
+                  : "text-black/50 hover:bg-black/[0.05] hover:text-black",
+              )}
             >
               {p}
             </button>
@@ -616,132 +852,36 @@ function Pager({
           onClick={() => go(Math.min(pageCount, page + 1))}
           disabled={page === pageCount}
           aria-label={t("Next page")}
-          className={cn(btn, "text-black/45 hover:bg-black/[0.05] hover:text-black disabled:pointer-events-none disabled:text-black/15")}
+          className={cn(
+            btn,
+            "text-black/45 hover:bg-black/[0.05] hover:text-black disabled:pointer-events-none disabled:text-black/15",
+          )}
         >
           <ChevronRight size={15} strokeWidth={1.5} />
         </button>
       </div>
       <span className="hidden font-mono text-[11px] text-black/40 sm:block">
-        Page {page} of {pageCount}
+        {t("Page {page} of {total}", { page, total: pageCount })}
       </span>
     </nav>
   );
 }
 
-/* ── Card ─────────────────────────────────────────────────── */
-function WorkspaceCard({ data, onChanged, archived = false }: { data: CardData; onChanged: () => void; archived?: boolean }) {
-  const t = useT();
-  const restoreWs = useRestoreWorkspace();
-  const { workspace, overall, dots, percent, precursors } = data;
-  return (
-    <div className={cn("relative h-full", archived && "opacity-75 transition-opacity hover:opacity-100")}>
-      {/* h-full on the LINK as well as the card. Without it the anchor sizes to
-          its content and `h-full` on the card inside means 100% of that — so
-          the cards in a row ended up as tall as their own text rather than as
-          tall as the row. */}
-      <Link href={`/workspaces/${workspace.id}/tree`} className="block h-full">
-        <Card className="flex h-full flex-col p-5 transition-colors hover:border-black/20">
-          <div className="flex items-start justify-between gap-3 pr-8">
-            <div className="min-w-0">
-              <div className="truncate text-[15px] text-black/85">{workspace.productName}</div>
-              <div className="mt-0.5 font-mono text-[11px] text-black/40">
-                CN {workspace.cnCode || "—"} · {routeLabel(workspace.productionRoute)} · {workspace.year}
-              </div>
-              {/* Whose plant this is, on the card as well as in the heading
-                  above it. A card gets copied into a screenshot, opened from a
-                  search result and read on a phone where the heading has
-                  scrolled away — all three lose the grouping that would
-                  otherwise be the only place the supplier is named. */}
-              <div className="mt-2">
-                <TagBadge tone={workspace.selfSupplied ? "info" : "muted"}>
-                  {workspace.selfSupplied ? t("Our own site") : workspace.supplierName || t("Unassigned supplier")}
-                </TagBadge>
-              </div>
-            </div>
-            <StateChip state={overall} />
-          </div>
-
-          {/* READINESS, not months submitted. Twelve months of readings is a
-              fraction of the work on a complex good — the precursor chain, the
-              MMD, the evidence and the carbon price all have to land too, and
-              "8 of 12 months" read as nearly done while three of those were
-              still empty. This is the same figure the workspace's own
-              Readiness section reports (readiness.percentComplete, over the
-              applicable tabs), so the card and the section never disagree.
-              mt-auto pins it and the strip below to the bottom, so the figures
-              line up across a row whatever the header above them wrapped to. */}
-          <div className="mt-auto pt-4">
-            <div className="mb-1.5 flex items-baseline justify-between gap-2">
-              <span className="font-mono text-[10.5px] uppercase tracking-[0.1em] text-black/35">{t("Readiness")}</span>
-              <span className="font-mono text-[11px] text-black/45">{percent}%</span>
-            </div>
-            <Progress value={percent} tone={overall === "blocked" ? "err" : overall === "complete" ? "ok" : "warn"} />
-          </div>
-
-          <div className="mt-4 flex items-center justify-between gap-3">
-            <DotStrip states={dots} />
-            <span className="font-mono text-[10.5px] text-black/35">
-              {precursors} precursor{precursors === 1 ? "" : "s"}
-            </span>
-          </div>
-
-          {/* Restore ON the card, not only in the kebab. Bringing something
-              back is the one thing a reader is in the archive to do, and it
-              is safe — hiding it behind a ⋯ makes the archive read as a
-              graveyard rather than a drawer. */}
-          {archived && (
-            <div className="mt-4 flex items-center justify-between gap-3 border-t border-black/[0.06] pt-3">
-              <span className="font-mono text-[10.5px] text-black/35">Archived {archivedOn(workspace)}</span>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  restore(workspace, restoreWs.mutate);
-                }}
-                className="inline-flex flex-none items-center gap-1.5 rounded-lg border border-black/10 px-2.5 py-1.5 text-[11.5px] text-black/60 transition-colors hover:border-black/25 hover:text-black"
-              >
-                <ArchiveRestore size={12} strokeWidth={1.5} /> {t("Restore")}
-              </button>
-            </div>
-          )}
-        </Card>
-      </Link>
-      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events --
-   the row is a <Link>; this wrapper exists only to stop the link firing when the
-   menu inside it is used. It is plumbing, not a control — the menu it wraps is the
-   control, and that one is a real button. */}
-<span className="absolute right-3 top-3" onClick={(e) => e.preventDefault()}>
-        <WorkspaceMenu workspace={workspace} afterChange={onChanged} />
-      </span>
-    </div>
-  );
-}
-
-/* ── Archive helpers, shared by the card and the table row ───── */
-
-/** The date it was put away, in the short form the rest of the estate uses.
-    A workspace archived before `archivedAt` existed simply has no date — the
-    badge says so rather than inventing "today", which would make an old
-    archive look like something that just happened. */
-function archivedOn(w: VerificationWorkspace): string {
-  if (!w.archivedAt) return "—";
-  const d = new Date(w.archivedAt);
-  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
-}
-
-/* Restore goes through the mutation, which invalidates the whole
-   ["workspaces"] prefix itself — no hand-rolled refresh needed. */
-function restore(w: VerificationWorkspace, mutate: (id: string) => void) {
-  mutate(w.id);
-  toast({ message: "Workspace restored", detail: `${w.productName} · ${w.installationName} is back in the estate.`, tone: "ok" });
-}
-
 /* ── Table ────────────────────────────────────────────────── */
-function WorkspaceTable({ rows, onChanged, archived = false }: { rows: CardData[]; onChanged: () => void; archived?: boolean }) {
+function WorkspaceTable({
+  rows,
+  onChanged,
+  archived = false,
+}: {
+  rows: CardData[];
+  onChanged: () => void;
+  archived?: boolean;
+}) {
   const t = useT();
   const router = useRouter();
   const restoreWs = useRestoreWorkspace();
-  const th = "px-4 py-2.5 text-left font-pixel text-[10px] uppercase tracking-[0.14em] text-black/35";
+  const th =
+    "px-4 py-2.5 text-left font-pixel text-[10px] uppercase tracking-[0.14em] text-black/35";
   return (
     <Card className="overflow-hidden">
       <div className="overflow-x-auto">
@@ -762,38 +902,72 @@ function WorkspaceTable({ rows, onChanged, archived = false }: { rows: CardData[
             {rows.map(({ workspace: w, overall, percent, precursors }) => (
               <tr
                 key={w.id}
-                onClick={() => router.push(`/workspaces/${w.id}/tree`)}
+                onClick={() => router.push(`/workspaces/${w.id}`)}
                 className="cursor-pointer border-b border-black/[0.05] transition-colors last:border-0 hover:bg-[#fafaf8]"
               >
                 <td className="px-4 py-3">
-                  <div className="text-[13px] text-black/80">{w.productName}</div>
-                  <div className="font-mono text-[11px] text-black/40">CN {w.cnCode || "—"}</div>
-                </td>
-                <td className="px-4 py-3">
-                  <div className={cn("text-[12.5px]", w.selfSupplied ? "text-black/50" : "text-black/65")}>
-                    {w.selfSupplied ? t("Our own site") : w.supplierName || t("Unassigned")}
+                  <div className="text-[13px] text-black/80">
+                    {t(w.productName)}
+                  </div>
+                  <div className="font-mono text-[11px] text-black/40">
+                    CN {w.cnCode || "—"}
                   </div>
                 </td>
                 <td className="px-4 py-3">
-                  <div className="text-[12.5px] text-black/65">{w.installationName}</div>
-                  <div className="font-mono text-[11px] text-black/35">{w.installationId}</div>
+                  <div
+                    className={cn(
+                      "text-[12.5px]",
+                      w.selfSupplied ? "text-black/50" : "text-black/65",
+                    )}
+                  >
+                    {w.selfSupplied
+                      ? t("Our own site")
+                      : w.supplierName || t("Unassigned")}
+                  </div>
                 </td>
-                <td className="px-4 py-3 text-[12px] text-black/60">{routeLabel(w.productionRoute)}</td>
-                <td className="px-4 py-3 font-mono text-[12px] text-black/60">{w.year}</td>
+                <td className="px-4 py-3">
+                  <div className="text-[12.5px] text-black/65">
+                    {w.installationName}
+                  </div>
+                  <div className="font-mono text-[11px] text-black/35">
+                    {w.installationId}
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-[12px] text-black/60">
+                  {t(routeLabel(w.productionRoute))}
+                </td>
+                <td className="px-4 py-3 font-mono text-[12px] text-black/60">
+                  {w.year}
+                </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <div className="w-16">
-                      <Progress value={percent} tone={overall === "blocked" ? "err" : overall === "complete" ? "ok" : "warn"} />
+                      <Progress
+                        value={percent}
+                        tone={
+                          overall === "blocked"
+                            ? "err"
+                            : overall === "complete"
+                              ? "ok"
+                              : "warn"
+                        }
+                      />
                     </div>
-                    <span className="font-mono text-[11px] text-black/45">{percent}%</span>
+                    <span className="font-mono text-[11px] text-black/45">
+                      {percent}%
+                    </span>
                   </div>
                 </td>
-                <td className="px-4 py-3 font-mono text-[12px] text-black/60">{precursors}</td>
+                <td className="px-4 py-3 font-mono text-[12px] text-black/60">
+                  {precursors}
+                </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     {archived ? (
                       <>
-                        <span className="font-mono text-[11px] text-black/40">{archivedOn(w)}</span>
+                        <span className="font-mono text-[11px] text-black/40">
+                          {archivedOn(w)}
+                        </span>
                         <button
                           type="button"
                           onClick={(e) => {
@@ -802,7 +976,8 @@ function WorkspaceTable({ rows, onChanged, archived = false }: { rows: CardData[
                           }}
                           className="inline-flex flex-none items-center gap-1.5 rounded-lg border border-black/10 px-2.5 py-1.5 text-[11.5px] text-black/60 transition-colors hover:border-black/25 hover:text-black"
                         >
-                          <ArchiveRestore size={12} strokeWidth={1.5} /> {t("Restore")}
+                          <ArchiveRestore size={12} strokeWidth={1.5} />{" "}
+                          {t("Restore")}
                         </button>
                       </>
                     ) : (
@@ -811,7 +986,7 @@ function WorkspaceTable({ rows, onChanged, archived = false }: { rows: CardData[
                     {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events --
    same as above: a click sink so the surrounding row navigation does not fire when
    the menu is used. Not itself interactive. */}
-<span onClick={(e) => e.stopPropagation()}>
+                    <span onClick={(e) => e.stopPropagation()}>
                       <WorkspaceMenu workspace={w} afterChange={onChanged} />
                     </span>
                   </div>
@@ -835,7 +1010,13 @@ function WorkspaceTable({ rows, onChanged, archived = false }: { rows: CardData[
    a row that ends flush at the container edge reads as a row that ends. They
    disable at each end and hide entirely when everything already fits, so they
    never promise more than there is. */
-function DraftStrip({ drafts, onDiscard }: { drafts: WorkspaceDraft[]; onDiscard: (id: string) => void }) {
+function DraftStrip({
+  drafts,
+  onDiscard,
+}: {
+  drafts: WorkspaceDraft[];
+  onDiscard: (id: string) => void;
+}) {
   const t = useT();
   const railRef = React.useRef<HTMLDivElement | null>(null);
   const [edges, setEdges] = React.useState({ left: false, right: false });
@@ -844,7 +1025,10 @@ function DraftStrip({ drafts, onDiscard }: { drafts: WorkspaceDraft[]; onDiscard
     const el = railRef.current;
     if (!el) return;
     const slack = el.scrollWidth - el.clientWidth;
-    setEdges({ left: el.scrollLeft > 4, right: slack > 4 && el.scrollLeft < slack - 4 });
+    setEdges({
+      left: el.scrollLeft > 4,
+      right: slack > 4 && el.scrollLeft < slack - 4,
+    });
   }, []);
 
   React.useEffect(() => {
@@ -862,14 +1046,19 @@ function DraftStrip({ drafts, onDiscard }: { drafts: WorkspaceDraft[]; onDiscard
   const nudge = (dir: -1 | 1) => {
     const el = railRef.current;
     if (!el) return;
-    el.scrollBy({ left: dir * Math.max(240, el.clientWidth * 0.8), behavior: "smooth" });
+    el.scrollBy({
+      left: dir * Math.max(240, el.clientWidth * 0.8),
+      behavior: "smooth",
+    });
   };
 
   const scrollable = edges.left || edges.right;
 
   return (
     <section className="space-y-2">
-      <h2 className="font-pixel text-[11px] uppercase tracking-[0.16em] text-black/40">{t("Draft")}</h2>
+      <h2 className="font-pixel text-[11px] uppercase tracking-[0.16em] text-black/40">
+        {t("Draft")}
+      </h2>
       <div
         ref={railRef}
         className="-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
@@ -882,10 +1071,18 @@ function DraftStrip({ drafts, onDiscard }: { drafts: WorkspaceDraft[]; onDiscard
       </div>
       {scrollable && (
         <div className="flex items-center justify-end gap-1">
-          <ArrowBtn label={t("Scroll drafts left")} disabled={!edges.left} onClick={() => nudge(-1)}>
+          <ArrowBtn
+            label={t("Scroll drafts left")}
+            disabled={!edges.left}
+            onClick={() => nudge(-1)}
+          >
             <ChevronLeft size={15} strokeWidth={1.5} />
           </ArrowBtn>
-          <ArrowBtn label={t("Scroll drafts right")} disabled={!edges.right} onClick={() => nudge(1)}>
+          <ArrowBtn
+            label={t("Scroll drafts right")}
+            disabled={!edges.right}
+            onClick={() => nudge(1)}
+          >
             <ChevronRight size={15} strokeWidth={1.5} />
           </ArrowBtn>
         </div>
@@ -894,7 +1091,17 @@ function DraftStrip({ drafts, onDiscard }: { drafts: WorkspaceDraft[]; onDiscard
   );
 }
 
-function ArrowBtn({ label, disabled, onClick, children }: { label: string; disabled: boolean; onClick: () => void; children: React.ReactNode }) {
+function ArrowBtn({
+  label,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string;
+  disabled: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
   return (
     <button
       type="button"
@@ -909,7 +1116,13 @@ function ArrowBtn({ label, disabled, onClick, children }: { label: string; disab
 }
 
 /* ── Draft card ───────────────────────────────────────────── */
-function DraftCard({ draft, onDiscard }: { draft: WorkspaceDraft; onDiscard: () => void }) {
+function DraftCard({
+  draft,
+  onDiscard,
+}: {
+  draft: WorkspaceDraft;
+  onDiscard: () => void;
+}) {
   const t = useT();
   const pct = Math.round((draft.display.step / draft.display.stepCount) * 100);
   return (
@@ -917,7 +1130,9 @@ function DraftCard({ draft, onDiscard }: { draft: WorkspaceDraft; onDiscard: () 
       <Link href={`/workspaces/new?draft=${draft.id}`} className="block h-full">
         <Card className="flex h-full flex-col border-dashed p-4 transition-colors hover:border-black/20 hover:bg-[#fafaf8]">
           <div className="min-w-0 pr-8">
-            <div className="truncate text-[14px] text-black/85">{draft.display.productName}</div>
+            <div className="truncate text-[14px] text-black/85">
+              {t(draft.display.productName)}
+            </div>
             <div className="mt-1 flex items-center gap-2">
               <Chip pulse={false}>{t("Draft")}</Chip>
               <span className="truncate font-mono text-[11px] text-black/40">
@@ -932,8 +1147,13 @@ function DraftCard({ draft, onDiscard }: { draft: WorkspaceDraft; onDiscard: () 
             <Progress value={pct} tone="muted" />
           </div>
           <div className="mt-3 flex items-center gap-2 border-t border-black/[0.06] pt-2.5 text-[11px] text-black/45">
-            <PenLine size={13} strokeWidth={1.5} /> {t("Continue where you left off")}
-            <ArrowRight size={15} strokeWidth={1.5} className="ml-auto text-black/30" />
+            <PenLine size={13} strokeWidth={1.5} />{" "}
+            {t("Continue where you left off")}
+            <ArrowRight
+              size={15}
+              strokeWidth={1.5}
+              className="ml-auto text-black/30"
+            />
           </div>
         </Card>
       </Link>
@@ -958,7 +1178,15 @@ function DraftCard({ draft, onDiscard }: { draft: WorkspaceDraft; onDiscard: () 
    Pressed reads as the black filled state rather than a tint: the archive is
    not the estate, and a reader who lands here from a bookmark or a mis-click
    should be able to tell at a glance that this is not the normal view. */
-function ArchiveToggle({ active, count, onClick }: { active: boolean; count: number; onClick: () => void }) {
+function ArchiveToggle({
+  active,
+  count,
+  onClick,
+}: {
+  active: boolean;
+  count: number;
+  onClick: () => void;
+}) {
   const t = useT();
   return (
     <button
@@ -968,21 +1196,40 @@ function ArchiveToggle({ active, count, onClick }: { active: boolean; count: num
       title={
         active
           ? "Back to the active estate"
-          : "Show archived workspaces — off the dashboard, out of the Inbox, not counted in Reports. Nothing is deleted."
+          : "Show archived product reports — off the dashboard, out of the Inbox, not counted in Reports. Nothing is deleted."
       }
       className={cn(
         "inline-flex h-10 flex-none items-center gap-2 rounded-xl border px-3 text-[12.5px] transition-colors",
-        active ? "border-black bg-[#111] text-white hover:bg-[#333]" : "border-black/10 bg-white text-black/50 hover:border-black/25 hover:text-black",
+        active
+          ? "border-black bg-[#111] text-white hover:bg-[#333]"
+          : "border-black/10 bg-white text-black/50 hover:border-black/25 hover:text-black",
       )}
     >
       <Archive size={14} strokeWidth={1.5} />
       {t("Archived")}
-      <span className={cn("font-mono text-[10.5px] tabular-nums", active ? "text-white/60" : "text-black/35")}>{count}</span>
+      <span
+        className={cn(
+          "font-mono text-[10.5px] tabular-nums",
+          active ? "text-white/60" : "text-black/35",
+        )}
+      >
+        {count}
+      </span>
     </button>
   );
 }
 
-function ViewToggle({ active, onClick, label, children }: { active: boolean; onClick: () => void; label: string; children: React.ReactNode }) {
+function ViewToggle({
+  active,
+  onClick,
+  label,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <button
       type="button"
@@ -990,7 +1237,12 @@ function ViewToggle({ active, onClick, label, children }: { active: boolean; onC
       aria-label={label}
       aria-pressed={active}
       title={label}
-      className={cn("grid h-8 w-9 place-items-center rounded-lg transition-colors", active ? "bg-[#111] text-white" : "text-black/40 hover:bg-black/[0.05] hover:text-black")}
+      className={cn(
+        "grid h-8 w-9 place-items-center rounded-lg transition-colors",
+        active
+          ? "bg-[#111] text-white"
+          : "text-black/40 hover:bg-black/[0.05] hover:text-black",
+      )}
     >
       {children}
     </button>
@@ -1016,7 +1268,9 @@ function FilterSelect({
 }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-[10px] uppercase tracking-[0.1em] text-black/40">{label}</span>
+      <span className="mb-1.5 block text-[10px] uppercase tracking-[0.1em] text-black/40">
+        {label}
+      </span>
       <Select
         value={value}
         onChange={(v) => onChange(v === "__all" ? "" : v)}

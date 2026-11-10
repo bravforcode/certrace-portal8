@@ -16,12 +16,13 @@ export const runtime = "edge";
 
    So there is now ONE form, and it is the supplier's:
 
-     · InstallationStep   the site record — shared, so a correction on either
-                          side reaches the other
      · MmdStep            the methodology in force
-     · MonthlyStep        production, fuels, electricity, process, notes
-     · PrecursorStep      what arrived from upstream
+     · MonthlyStep        production, fuels, electricity, process, the rest
      · DocumentsStep      what stands behind the figures
+
+   The installation's own record and the precursors received are NOT part of the
+   month: the site is entered once on the installation's Overview, and the
+   precursors live on the product report's Precursors tab.
 
    Field for field, in the same order, from the same components. It is not a
    resemblance that has to be maintained — it is the same code, so it cannot
@@ -67,18 +68,25 @@ export const runtime = "edge";
 import * as React from "react";
 import Link from "next/link";
 import { Copy, TriangleAlert } from "lucide-react";
-import { AutoSaveBadge, Button, useAutoSave } from "@/components/ui";
+import { AutoSaveBadge, Button, cn, useAutoSave } from "@/components/ui";
 import { toast } from "@/components/toast";
 import { type WorkspaceMmdContent } from "@/lib/workspace-mmd";
 import { syncFromMmd, syncFromMonth } from "@/lib/mmd-sync";
 import { Note, SectionCard, fmt } from "@/components/workspace/chrome";
 import { MonthReviewBar } from "@/components/workspace/month-review";
+import {
+  AuthorisationHistory,
+  ContentsBox,
+  ringField,
+} from "@/components/workspace/month-contents";
 import { RevisionRequestPanel } from "@/components/workspace/revision-request";
-import { DocumentsStep, InstallationStep, MmdStep, MonthlyStep, PrecursorStep } from "@/components/supplier/month-steps";
+import {
+  DocumentsStep,
+  MmdStep,
+  MonthlyStep,
+} from "@/components/supplier/month-steps";
 import { AiFillRunBanner } from "@/components/intake/ai-badge";
 import { useWorkspace } from "@/components/workspace/provider";
-import { emptyInstallation, type Installation } from "@/lib/installations";
-import { useInstallation, useSaveInstallation } from "@/lib/installations-query";
 import {
   copyFromPreviousMonth,
   emptyMonth,
@@ -90,22 +98,32 @@ import {
   type FuelEntry,
   type MonthlyEntry,
 } from "@/lib/monthly-data";
-import { type PrecursorSupplier } from "@/lib/precursor-suppliers";
-import { usePrecursorSuppliers, useSavePrecursorSupplier } from "@/lib/suppliers-query";
+import { deriveMonth } from "@/lib/monthly-inputs";
+import { runMonthQualityCheck, type ContentRow } from "@/lib/month-quality";
+import { authorisationHistory } from "@/lib/month-submission";
 import {
+  useClearNotManufactured,
   useMarkExporterEdited,
   useMmdDraft,
   useMonth,
+  useMonthEvidence,
   useSaveMmdDraft,
   useSaveMonth,
   useSubmission,
 } from "@/lib/workspace-data-query";
-import { coverageForMonth, reconcileFuelEvidence } from "@/lib/workspace-evidence";
+import {
+  coverageForMonth,
+  reconcileFuelEvidence,
+} from "@/lib/workspace-evidence";
 import { workspaceRequiresIndirectEmissions } from "@/lib/cbam/product-category-rules";
 import { monthNameLong } from "@/lib/workspace";
 import { useT } from "@/lib/i18n";
 
-export default function MonthEditorPage({ params }: { params: Promise<{ id: string; month: string }> }) {
+export default function MonthEditorPage({
+  params,
+}: {
+  params: Promise<{ id: string; month: string }>;
+}) {
   const t = useT();
   const { month } = React.use(params);
   const { workspace, refresh } = useWorkspace();
@@ -115,22 +133,23 @@ export default function MonthEditorPage({ params }: { params: Promise<{ id: stri
      cannot start from different pictures of the same month, and every write
      invalidates its way back to both. */
   const { data: savedMonth } = useMonth(workspace.id, month);
-  const { data: savedMmd } = useMmdDraft(workspace.id, workspace.periodStart, workspace.periodEnd);
-  const { data: savedInstallation } = useInstallation(workspace.installationId);
-  const { data: precursorRows } = usePrecursorSuppliers(workspace.id);
+  const { data: savedMmd } = useMmdDraft(
+    workspace.id,
+    workspace.periodStart,
+    workspace.periodEnd,
+  );
   const { data: submission } = useSubmission(workspace.id, month);
   const saveMonthMutation = useSaveMonth();
   const saveMmdDraft = useSaveMmdDraft();
-  const saveInstallationMutation = useSaveInstallation();
-  const savePrecursor = useSavePrecursorSupplier();
   const markEdited = useMarkExporterEdited();
+  const clearIdle = useClearNotManufactured();
+  const { data: monthEvidence } = useMonthEvidence(workspace.id, month);
 
   /* Edit buffers over those reads — typing stays synchronous, the autosave
      below writes through the mutations, and the effect after it reseeds the
      buffers whenever the store moves underneath. */
   const [entry, setEntry] = React.useState<MonthlyEntry | null>(null);
   const [mmd, setMmd] = React.useState<WorkspaceMmdContent | null>(null);
-  const [installation, setInstallation] = React.useState<Installation | null>(null);
   const [unlocked, setUnlocked] = React.useState(false);
 
   React.useEffect(() => {
@@ -140,21 +159,23 @@ export default function MonthEditorPage({ params }: { params: Promise<{ id: stri
   /* A month nobody has submitted is just a form — it opens editable, because
      there is no other way in. Once submitted it opens FIXED, and Edit is a
      deliberate act. */
-  const hasSubmission = entry?.status === "submitted" || entry?.status === "reviewed";
+  const hasSubmission =
+    entry?.status === "submitted" || entry?.status === "reviewed";
   const readOnly = hasSubmission && !unlocked;
 
   const autosave = useAutoSave(
-    { entry, mmd, installation },
-    (v) => {
-      if (v.entry) saveMonthMutation.mutate(v.entry);
-      if (v.mmd) saveMmdDraft.mutate({ workspaceId: workspace.id, content: v.mmd });
-      /* THE INSTALLATION IS ONE RECORD, NOT TWO COPIES. Writing it here is
-         what makes the exporter's correction reach the supplier's link, in the
-         same way the supplier's correction reaches this page. */
-      if (v.installation && v.installation.name.trim() && v.installation.id.trim()) saveInstallationMutation.mutate(v.installation);
+    { entry, mmd },
+    async (v) => {
+      if (v.entry) await saveMonthMutation.mutateAsync(v.entry);
+      if (v.mmd)
+        await saveMmdDraft.mutateAsync({
+          workspaceId: workspace.id,
+          content: v.mmd,
+        });
       // Editing a month somebody else attested to VOIDS that attestation —
       // their name must not travel onto figures they have not seen.
-      if (hasSubmission) markEdited.mutate({ workspaceId: workspace.id, month });
+      if (hasSubmission)
+        await markEdited.mutateAsync({ workspaceId: workspace.id, month });
       refresh();
     },
     { enabled: Boolean(entry) && !readOnly },
@@ -169,32 +190,32 @@ export default function MonthEditorPage({ params }: { params: Promise<{ id: stri
   const autosaveStatus = React.useRef(autosave.status);
   autosaveStatus.current = autosave.status;
   React.useEffect(() => {
-    if (autosaveStatus.current === "pending" || autosaveStatus.current === "saving") return;
-    if (savedMonth !== undefined) setEntry(savedMonth ?? emptyMonth(workspace.id, month));
+    if (
+      autosaveStatus.current === "pending" ||
+      autosaveStatus.current === "saving"
+    )
+      return;
+    if (savedMonth !== undefined)
+      setEntry(savedMonth ?? emptyMonth(workspace.id, month));
     if (savedMmd) setMmd(savedMmd);
-    // Empty installationId disables useInstallation, leaving its data undefined
-    // forever; fabricate the blank record so the page is not gated on it for good.
-    if (!workspace.installationId)
-      setInstallation({ ...emptyInstallation(), id: workspace.installationId, name: workspace.installationName });
-    else if (savedInstallation !== undefined)
-      setInstallation(
-        savedInstallation ?? { ...emptyInstallation(), id: workspace.installationId, name: workspace.installationName },
-      );
-  }, [savedMonth, savedMmd, savedInstallation, workspace.id, workspace.installationId, workspace.installationName, month]);
-
-  const precursors = React.useMemo(() => (precursorRows ?? []).filter((s) => s.parentId === null), [precursorRows]);
+  }, [savedMonth, savedMmd, workspace.id, month]);
 
   /** Which fuels had a supporting document a moment ago — see
       `reconcileFuelEvidence`. Seeded on load, because "was covered" cannot be
       recovered from the store after the file is gone. */
   const fuelEvidenceRef = React.useRef<Record<string, boolean>>({});
-  const requiresIndirect = workspaceRequiresIndirectEmissions(workspace.productId);
+  const requiresIndirect = workspaceRequiresIndirectEmissions(
+    workspace.productId,
+  );
 
   React.useEffect(() => {
     if (!entry) return;
     const cov = coverageForMonth(workspace.id, entry, requiresIndirect);
     fuelEvidenceRef.current = Object.fromEntries(
-      entry.fuels.map((f) => [f.id, cov.rows.find((r) => r.key === fuelEvidenceKey(f.id))?.covered ?? false]),
+      entry.fuels.map((f) => [
+        f.id,
+        cov.rows.find((r) => r.key === fuelEvidenceKey(f.id))?.covered ?? false,
+      ]),
     );
     // Only on arrival at a month — thereafter the snapshot is advanced by the
     // reconcile itself, and re-seeding on every keystroke would erase the
@@ -208,13 +229,19 @@ export default function MonthEditorPage({ params }: { params: Promise<{ id: stri
   const onDocumentsChanged = () => {
     setEntry((cur) => {
       if (!cur) return cur;
-      const r = reconcileFuelEvidence(workspace.id, cur, fuelEvidenceRef.current, requiresIndirect);
+      const r = reconcileFuelEvidence(
+        workspace.id,
+        cur,
+        fuelEvidenceRef.current,
+        requiresIndirect,
+      );
       fuelEvidenceRef.current = r.covered;
       if (r.reverted.length > 0) {
         queueMicrotask(() =>
           toast({
             message: `${r.reverted.join(", ")} reverted to the EU standard value`,
-            detail: "The document behind the Type II factor was removed, so the figure can no longer stand as entered.",
+            detail:
+              "The document behind the Type II factor was removed, so the figure can no longer stand as entered.",
             tone: "warn",
           }),
         );
@@ -224,9 +251,28 @@ export default function MonthEditorPage({ params }: { params: Promise<{ id: stri
     refresh();
   };
 
-  if (!entry || !mmd || !installation) return null;
+  if (!entry || !mmd) return null;
 
   const issues = monthIssues(entry);
+
+  /* What the plant is asked for, read the way the plant reads it (its Check step): completeness, not correctness. */
+  const report = runMonthQualityCheck({
+    entry,
+    mmd,
+    month,
+    peers: [],
+    documentCount: monthEvidence?.length ?? 0,
+    audience: "supplier",
+  });
+  const gotoRow = (row: ContentRow) => {
+    if (!ringField(row.field)) window.scrollTo({ top: 0, behavior: "smooth" });
+    if (row.state !== "ready")
+      toast({
+        message: t(row.label),
+        detail: row.note ? t(row.note) : t("Fill this in."),
+        tone: "info",
+      });
+  };
   const errors = issues.filter((i) => i.severity === "error");
   const warnings = issues.filter((i) => i.severity === "warn");
   const result = monthResult(entry);
@@ -243,7 +289,13 @@ export default function MonthEditorPage({ params }: { params: Promise<{ id: stri
      bug because it is one. The microtask puts it after the commit. */
   const announce = (notes: string[]) => {
     if (notes.length === 0) return;
-    queueMicrotask(() => toast({ message: "Methodology and month updated together", detail: notes.join(" "), tone: "info" }));
+    queueMicrotask(() =>
+      toast({
+        message: "Methodology and month updated together",
+        detail: notes.join(" "),
+        tone: "info",
+      }),
+    );
   };
 
   const setMmdSynced = (next: WorkspaceMmdContent) => {
@@ -252,9 +304,13 @@ export default function MonthEditorPage({ params }: { params: Promise<{ id: stri
       if (!prev) return prev;
       const r = syncFromMmd(next, prev, fuelLabel);
       announce(r.notes);
-      return r.entry.fuels === prev.fuels && r.entry.electricityFactorSource === prev.electricityFactorSource
+      return r.entry.fuels === prev.fuels &&
+        r.entry.electricityFactorSource === prev.electricityFactorSource
         ? prev
-        : { ...r.entry, status: prev.status === "empty" ? "draft" : prev.status };
+        : {
+            ...r.entry,
+            status: prev.status === "empty" ? "draft" : prev.status,
+          };
     });
   };
 
@@ -270,39 +326,45 @@ export default function MonthEditorPage({ params }: { params: Promise<{ id: stri
   const patch = (p: Partial<MonthlyEntry>) =>
     setEntry((prev) => {
       if (!prev) return prev;
-      const next = { ...prev, ...p, status: prev.status === "empty" ? "draft" : prev.status } as MonthlyEntry;
+      // A stock change, a shared meter, a gas row or a delivery WRITES the quantity it stands for — here, so the form shows the same figure the month will hold.
+      const next = deriveMonth({
+        ...prev,
+        ...p,
+        status: prev.status === "empty" ? "draft" : prev.status,
+      } as MonthlyEntry);
       // Only these two feed back into the methodology; a quantity keystroke
       // must not touch it, let alone announce it.
-      if (p.fuels !== undefined || p.electricityFactorSource !== undefined) queueMicrotask(() => syncMmdFromEntry(next));
+      if (p.fuels !== undefined || p.electricityFactorSource !== undefined)
+        queueMicrotask(() => syncMmdFromEntry(next));
       return next;
     });
 
   const patchFuel = (id: string, p: Partial<FuelEntry>) =>
     setEntry((prev) =>
       prev
-        ? { ...prev, fuels: prev.fuels.map((f) => (f.id === id ? { ...f, ...p } : f)), status: prev.status === "empty" ? "draft" : prev.status }
+        ? deriveMonth({
+            ...prev,
+            fuels: prev.fuels.map((f) => (f.id === id ? { ...f, ...p } : f)),
+            status: prev.status === "empty" ? "draft" : prev.status,
+          })
         : prev,
     );
-
-  const setPrecursorMonth = (row: PrecursorSupplier, tonnes: number | undefined) => {
-    const others = (row.monthlyQuantities ?? []).filter((q) => q.month !== month);
-    savePrecursor.mutate({
-      ...row,
-      monthlyQuantities: tonnes == null ? others : [...others, { month, tonnes }].sort((a, b) => a.month.localeCompare(b.month)),
-    });
-    refresh();
-  };
 
   const copyPrevious = () => {
     const cloned = copyFromPreviousMonth(workspace.id, month);
     if (!cloned) {
-      toast({ message: "Nothing to copy", detail: "The previous month has no fuel or electricity setup yet.", tone: "warn" });
+      toast({
+        message: "Nothing to copy",
+        detail: "The previous month has no fuel or electricity setup yet.",
+        tone: "warn",
+      });
       return;
     }
     setEntry(cloned);
     toast({
       message: "Setup copied",
-      detail: "Fuel types, factors, NCVs and the electricity factor were cloned. Quantities were NOT — enter this month's readings.",
+      detail:
+        "Fuel types, factors, NCVs and the electricity factor were cloned. Quantities were NOT — enter this month's readings.",
       tone: "ok",
     });
   };
@@ -324,21 +386,69 @@ export default function MonthEditorPage({ params }: { params: Promise<{ id: stri
           is left on this line is setup, which is the exporter's to copy. */}
       <div>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <span className="font-pixel text-[11px] uppercase tracking-[0.18em] text-black/40">{t("Monthly data")}</span>
+          <span className="font-pixel text-[11px] uppercase tracking-[0.18em] text-black/40">
+            {t("Monthly data")}
+          </span>
           <div className="flex flex-wrap items-center gap-3">
-            {!readOnly && <AutoSaveBadge status={autosave.status} savedAt={autosave.savedAt} />}
+            {!readOnly && (
+              <AutoSaveBadge
+                status={autosave.status}
+                savedAt={autosave.savedAt}
+              />
+            )}
             {hasPreviousMonthSetup(workspace.id, month) && !readOnly && (
               <Button size="sm" variant="secondary" onClick={copyPrevious}>
-                <Copy size={13} strokeWidth={1.5} /> {t("Copy setup from previous month")}
+                <Copy size={13} strokeWidth={1.5} />{" "}
+                {t("Copy setup from previous month")}
               </Button>
             )}
           </div>
         </div>
-        <h2 className="mt-1 font-[family-name:var(--font-plex)] text-2xl font-light tracking-tight text-[#111]">{monthNameLong(month)}</h2>
+        <h2 className="mt-1 font-[family-name:var(--font-plex)] text-2xl font-light tracking-tight text-[#111]">
+          {monthNameLong(month)}
+        </h2>
         <p className="mt-1.5 text-[12.5px] leading-relaxed text-black/45">
-          {t("The same form the supplier answers on their link, field for field. What you change here is what they see; what they send is what you read.")}
+          {t(
+            "On top, what the plant is asked for. Below it, what has been entered — fill in anything for them, or change it. It is the same form they answer on their link.",
+          )}
         </p>
       </div>
+
+      {/* A month in which nothing was made has no form: nothing is asked of the plant and nothing is counted. */}
+      {entry.notManufactured && (
+        <SectionCard
+          title={t("No production this month")}
+          blurb={t(
+            "You recorded that nothing was made in {month}. The plant is not asked for it, it counts as answered, and it adds no tonnes and no emissions to the year.",
+            { month: monthNameLong(month) },
+          )}
+        >
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() =>
+              clearIdle.mutate(
+                { workspaceId: workspace.id, month },
+                { onSuccess: () => refresh() },
+              )
+            }
+          >
+            {t("Undo — the plant did produce")}
+          </Button>
+        </SectionCard>
+      )}
+
+      {/* ══ WHAT THE PLANT IS ASKED FOR ══ — the same list the plant meets at its Check step, on top, so the first thing here is what is in and what is not. */}
+      {!entry.notManufactured && (
+        <ContentsBox
+          report={report}
+          onGoto={gotoRow}
+          title={t("What the plant is asked for")}
+          purpose={t(
+            "Every part of this month and whether it is filled in. Tap a row to go to it — you can fill any of it in for them.",
+          )}
+        />
+      )}
 
       {/* ══ WHAT THE MONTH SAYS, BEFORE THE FORM THAT SAYS IT ══
           Three blocks, in the order the exporter's own question runs:
@@ -356,58 +466,83 @@ export default function MonthEditorPage({ params }: { params: Promise<{ id: stri
 
           The form itself follows, because editing is what you do after all
           three, and only sometimes. */}
-      <SectionCard
-        title={t("This month")}
-        blurb={t("Computed from the form below. Monthly SEE is indicative only — the year's figure divides once, at the end.")}
-      >
-        <div className="grid gap-4 sm:grid-cols-4">
-          {[
-            ["Produced", `${fmt(result.productionTonnes, 2)} t`],
-            ["Fuel CO₂", `${fmt(result.fuelTCO2, 2)} tCO₂`],
-            ["Electricity CO₂", `${fmt(result.indirectTCO2, 2)} tCO₂`],
-            ["Total", `${fmt(result.directTCO2 + result.indirectTCO2, 2)} tCO₂`],
-          ].map(([k, v]) => (
-            <div key={k}>
-              <div className="text-[11px] uppercase tracking-[0.1em] text-black/40">{k}</div>
-              <div className="mt-1 font-mono text-[15px] text-black/80">{v}</div>
-            </div>
-          ))}
-        </div>
+      {!entry.notManufactured && (
+        <SectionCard
+          title={t("This month")}
+          blurb={t(
+            "Computed from the form below. Monthly SEE is indicative only — the year's figure divides once, at the end.",
+          )}
+        >
+          {/* Steel, aluminium and hydrogen count direct emissions only (Annex II to Regulation (EU) 2023/956): their electricity is not a tile and not part of the total. */}
+          <div
+            className={cn(
+              "grid gap-4",
+              requiresIndirect ? "sm:grid-cols-4" : "sm:grid-cols-3",
+            )}
+          >
+            {[
+              ["Produced", `${fmt(result.productionTonnes, 2)} t`],
+              ["Fuel CO₂", `${fmt(result.fuelTCO2, 2)} tCO₂`],
+              ...(requiresIndirect
+                ? [["Electricity CO₂", `${fmt(result.indirectTCO2, 2)} tCO₂`]]
+                : []),
+              requiresIndirect
+                ? [
+                    "Total",
+                    `${fmt(result.directTCO2 + result.indirectTCO2, 2)} tCO₂`,
+                  ]
+                : ["Direct CO₂", `${fmt(result.directTCO2, 2)} tCO₂`],
+            ].map(([k, v]) => (
+              <div key={k}>
+                <div className="text-[11px] uppercase tracking-[0.1em] text-black/40">
+                  {t(k)}
+                </div>
+                <div className="mt-1 font-mono text-[15px] text-black/80">
+                  {v}
+                </div>
+              </div>
+            ))}
+          </div>
 
-        {entry.submittedAt && (
-          <p className="mt-4 text-[12px] text-[#047857]">
-            Submitted {entry.submittedAt.slice(0, 10)} by {entry.submittedBy}.
-          </p>
-        )}
-      </SectionCard>
-
-      {submission && (
-        <MonthReviewBar
-          submission={submission}
-          month={month}
-          locked={readOnly}
-          canEdit={hasSubmission}
-          onUnlock={() => setUnlocked(true)}
-          /* The bar writes to the store itself; refresh() invalidates the
-             subtree, so the submission and the reloaded month both come back
-             through the queries above. */
-          onChanged={() => refresh()}
-          onReopened={() => {
-            setUnlocked(false);
-            refresh();
-          }}
-        />
+          {entry.submittedAt && (
+            <p className="mt-4 text-[12px] text-[#047857]">
+              {t("Submitted {date} by {name}.", {
+                date: entry.submittedAt.slice(0, 10),
+                name: entry.submittedBy ?? "",
+              })}
+            </p>
+          )}
+        </SectionCard>
       )}
 
-      {submission && (
+      {/* THE REVIEW AND THE REVISION REQUEST ARE ABOUT A SUBMISSION. Before anything has been sent they say "Not submitted — no version on file" and
+          "nobody to send it back to", which is two cards of nothing above a form; they appear once the plant has sent the month. */}
+      {submission &&
+        !entry.notManufactured &&
+        (submission.state !== "open" || hasSubmission) && (
+          <MonthReviewBar
+            submission={submission}
+            beforeChange={readOnly ? undefined : autosave.flush}
+            month={month}
+            locked={readOnly}
+            canEdit={hasSubmission}
+            onUnlock={() => setUnlocked(true)}
+            /* The bar writes to the store itself; refresh() invalidates the
+             subtree, so the submission and the reloaded month both come back
+             through the queries above. */
+            onChanged={() => refresh()}
+            onReopened={() => {
+              setUnlocked(false);
+              refresh();
+            }}
+          />
+        )}
+
+      {submission && !entry.notManufactured && submission.state !== "open" && (
         <RevisionRequestPanel
           submission={submission}
+          beforeChange={readOnly ? undefined : autosave.flush}
           month={month}
-          /* Gated on whether anything was ever SUBMITTED, not on whether the
-             readings are locked right now. A month reopened after an approved
-             edit request has a supplier on the other end of it — telling the
-             exporter there is nobody to send it back to would be false. */
-          disabled={submission.state === "open"}
           onChanged={() => refresh()}
           onReopened={() => {
             setUnlocked(false);
@@ -418,32 +553,53 @@ export default function MonthEditorPage({ params }: { params: Promise<{ id: stri
 
       {/* NOT "this month has been reviewed" — read-only is the state a
           SUBMITTED month opens in, before anybody has reviewed anything. */}
-      {readOnly && (
+      {readOnly && !entry.notManufactured && (
         <Note tone="info">
-          {t("Locked while you read it. Press")} <strong>{t("Edit")}</strong> {t("above to change a figure — doing so is recorded, and it replaces the supplier’s attestation with your own edit.")}
+          {t("Locked while you read it. Press")} <strong>{t("Edit")}</strong>{" "}
+          {t(
+            "above to change a figure — doing so is recorded, and it replaces the supplier’s attestation with your own edit.",
+          )}
         </Note>
       )}
 
       {/* ══ THE FORM — the supplier's, not a second version of it ══ */}
-      <InstallationStep
-        value={installation}
-        onChange={setInstallation}
-        readOnly={readOnly}
-        existingId={workspace.installationId}
-        autoSave={autosave.status}
-        savedAt={autosave.savedAt}
-      />
+      {!entry.notManufactured && (
+        <>
+          <MmdStep
+            value={mmd}
+            onChange={setMmdSynced}
+            readOnly={readOnly}
+            cnCode={workspace.cnCode}
+          />
 
-      <MmdStep value={mmd} onChange={setMmdSynced} readOnly={readOnly} cnCode={workspace.cnCode} />
+          {/* PROTOTYPE: "AI just filled these" when smart upload sent the reader here. */}
+          <AiFillRunBanner
+            scope={`ws:${workspace.id}`}
+            month={month}
+            hrefFor={(m) => `/workspaces/${workspace.id}/monthly/${m}`}
+            scroll={false}
+          />
 
-      {/* PROTOTYPE: "AI just filled these" when smart upload sent the reader here. */}
-      <AiFillRunBanner scope={`ws:${workspace.id}`} month={month} hrefFor={(m) => `/workspaces/${workspace.id}/monthly/${m}`} />
+          <MonthlyStep
+            workspaceId={workspace.id}
+            entry={entry}
+            patch={patch}
+            patchFuel={patchFuel}
+            readOnly={readOnly}
+          />
 
-      <MonthlyStep workspaceId={workspace.id} entry={entry} patch={patch} patchFuel={patchFuel} readOnly={readOnly} />
+          <DocumentsStep
+            workspaceId={workspace.id}
+            workspace={workspace}
+            entry={entry}
+            onChange={onDocumentsChanged}
+            onEntryChange={patch}
+          />
 
-      <PrecursorStep rows={precursors} month={month} onTonnes={setPrecursorMonth} readOnly={readOnly} />
-
-      <DocumentsStep workspaceId={workspace.id} workspace={workspace} entry={entry} onChange={onDocumentsChanged} />
+          {/* Who authorised the month, and when — the foot of the monthly data, as on the plant's own link. */}
+          <AuthorisationHistory history={authorisationHistory(submission)} />
+        </>
+      )}
 
       {/* ── What is wrong with it, AFTER it ───────────────────
           This block used to open the screen. A list of faults above a form is
@@ -455,11 +611,16 @@ export default function MonthEditorPage({ params }: { params: Promise<{ id: stri
         {errors.length > 0 && (
           <Note tone="err">
             <div className="flex items-center gap-2 font-medium">
-              <TriangleAlert size={14} strokeWidth={1.5} /> {errors.length} error{errors.length === 1 ? "" : "s"} — this month cannot be submitted
+              <TriangleAlert size={14} strokeWidth={1.5} />{" "}
+              {errors.length === 1
+                ? t("{n} error — this month cannot be submitted", { n: 1 })
+                : t("{n} errors — this month cannot be submitted", {
+                    n: errors.length,
+                  })}
             </div>
             <ul className="mt-2 list-disc space-y-1.5 pl-4">
               {errors.map((e, i) => (
-                <li key={i}>{e.message}</li>
+                <li key={i}>{t(e.message)}</li>
               ))}
             </ul>
           </Note>
@@ -468,27 +629,46 @@ export default function MonthEditorPage({ params }: { params: Promise<{ id: stri
         {warnings.length > 0 && (
           <Note tone="warn">
             <div className="font-medium">
-              {warnings.length} thing{warnings.length === 1 ? "" : "s"} worth a look — none of them block submission.
+              {warnings.length === 1
+                ? t("{n} thing worth a look — none of them block submission.", {
+                    n: 1,
+                  })
+                : t(
+                    "{n} things worth a look — none of them block submission.",
+                    { n: warnings.length },
+                  )}
             </div>
             <ul className="mt-2 list-disc space-y-1.5 pl-4">
               {warnings.map((w, i) => (
-                <li key={i}>{w.message}</li>
+                <li key={i}>{t(w.message)}</li>
               ))}
             </ul>
           </Note>
         )}
 
-        {errors.length === 0 && warnings.length === 0 && entry.status !== "empty" && (
-          <Note>{t("Nothing is outstanding in this month. Every figure the arithmetic needs is present.")}</Note>
-        )}
+        {errors.length === 0 &&
+          warnings.length === 0 &&
+          entry.status !== "empty" &&
+          !entry.notManufactured && (
+            <Note>
+              {t(
+                "Nothing is outstanding in this month. Every figure the arithmetic needs is present.",
+              )}
+            </Note>
+          )}
       </div>
 
       <p className="text-[12px] leading-relaxed text-black/40">
-        The precursor chain itself — who supplies what — is a property of the year, not of this month. Add or remove rows on the{" "}
-        <Link href={`/workspaces/${workspace.id}/tree`} className="underline underline-offset-2">
-          {t("Supply Chain")}
+        {t(
+          "The direct precursors — who supplies what, and how much — are a property of the year, not of this month. Add or change them on the",
+        )}{" "}
+        <Link
+          href={`/workspaces/${workspace.id}/precursors`}
+          className="underline underline-offset-2"
+        >
+          {t("Precursors")}
         </Link>{" "}
-        page; the tonnages stay here.
+        {t("tab.")}
       </p>
     </div>
   );

@@ -7,9 +7,18 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { validate, readiness, canOverride, type ValidationInput } from "../validate";
+import {
+  validate,
+  readiness,
+  canOverride,
+  type ValidationInput,
+} from "../validate";
 import { buildDossier, ASSERTIONS } from "../dossier";
-import { goldenDataset, goldenPrecursorTree, GOLDEN_DECLARATION_ID } from "../__fixtures__/golden";
+import {
+  goldenDataset,
+  goldenPrecursorTree,
+  GOLDEN_DECLARATION_ID,
+} from "../__fixtures__/golden";
 import { provenanceRefs } from "../activity";
 
 /** A clean input: golden data, everything evidenced, everything disclosed. */
@@ -41,7 +50,8 @@ function cleanInput(): ValidationInput {
   };
 }
 
-const ids = (input: ValidationInput) => new Set(validate(input).map((f) => f.id));
+const ids = (input: ValidationInput) =>
+  new Set(validate(input).map((f) => f.id));
 
 test("the golden dataset passes everything except month coverage", () => {
   const found = ids(cleanInput());
@@ -111,13 +121,31 @@ test("V7 — a scrap row with a non-zero figure blocks", () => {
       children: [],
     },
   ];
-  assert.equal(ids(input).has("V7"), false, "a non-scrap row with a figure is fine");
+  assert.equal(
+    ids(input).has("V7"),
+    false,
+    "a non-scrap row with a figure is fine",
+  );
 });
 
 test("V8 — a cyclic chain blocks", () => {
   const input = cleanInput();
-  const a = { id: "a", parentId: null, name: "Billet", qtyPerTonneOutput: 1, isScrap: false, children: [] as never[] };
-  const b = { id: "b", parentId: "a", name: "Pig iron", qtyPerTonneOutput: 1, isScrap: false, children: [a] };
+  const a = {
+    id: "a",
+    parentId: null,
+    name: "Billet",
+    qtyPerTonneOutput: 1,
+    isScrap: false,
+    children: [] as never[],
+  };
+  const b = {
+    id: "b",
+    parentId: "a",
+    name: "Pig iron",
+    qtyPerTonneOutput: 1,
+    isScrap: false,
+    children: [a],
+  };
   (a.children as unknown[]).push(b);
   input.precursorTree = [a as never];
   const finding = validate(input).find((f) => f.id === "V8");
@@ -155,7 +183,11 @@ test("V12 — gaps above a fifth of the total escalate", () => {
       estimationMethod: "prior_period_average",
       conservativeJustification: "used the highest month",
       estimatedTCO2e: input.totalTCO2e * 0.3,
-      provenance: { source: "ASSUMPTION", enteredBy: "x", enteredAt: "2026-09-01T00:00:00Z" },
+      provenance: {
+        source: "ASSUMPTION",
+        enteredBy: "x",
+        enteredAt: "2026-09-01T00:00:00Z",
+      },
       createdAt: 0,
     },
   ];
@@ -177,7 +209,9 @@ test("V15 — an undeclared assumption blocks; declaring it clears the rule", ()
   input.dataset!.fuels[0].efProvenance.source = "ASSUMPTION";
   assert.ok(ids(input).has("V15"));
 
-  input.disclosedAssumptions = new Set([`fuel:${input.dataset!.fuels[0].id}:ef`]);
+  input.disclosedAssumptions = new Set([
+    `fuel:${input.dataset!.fuels[0].id}:ef`,
+  ]);
   assert.equal(ids(input).has("V15"), false);
 });
 
@@ -185,9 +219,15 @@ test("the readiness score is weighted, links every failure, and blocks on errors
   const clean = readiness(validate(cleanInput()), GOLDEN_DECLARATION_ID);
   assert.equal(clean.rules.length, 16);
   assert.ok(clean.blocked, "V11 is an error, so it blocks");
-  assert.ok(clean.score > 70 && clean.score < 100, `expected a high-but-not-perfect score, got ${clean.score}`);
+  assert.ok(
+    clean.score > 70 && clean.score < 100,
+    `expected a high-but-not-perfect score, got ${clean.score}`,
+  );
   for (const r of clean.failing) {
-    assert.ok(r.screen.path.includes(GOLDEN_DECLARATION_ID), `${r.id} links to a fixing screen`);
+    assert.ok(
+      r.screen.path.includes(GOLDEN_DECLARATION_ID),
+      `${r.id} links to a fixing screen`,
+    );
     assert.ok(r.screen.label.length > 0);
   }
 
@@ -202,8 +242,18 @@ test("the readiness score is weighted, links every failure, and blocks on errors
 test("a clean run scores 100 and reads as ready", () => {
   const input = cleanInput();
   input.dataset!.monthsCovered = [
-    "2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06",
-    "2026-07", "2026-08", "2026-09", "2026-10", "2026-11", "2026-12",
+    "2026-01",
+    "2026-02",
+    "2026-03",
+    "2026-04",
+    "2026-05",
+    "2026-06",
+    "2026-07",
+    "2026-08",
+    "2026-09",
+    "2026-10",
+    "2026-11",
+    "2026-12",
   ];
   const r = readiness(validate(input), GOLDEN_DECLARATION_ID);
   assert.equal(r.errors, 0);
@@ -217,12 +267,21 @@ test("the dossier is ordered by the seven verifier assertions", () => {
   const r = readiness(validate(cleanInput()), GOLDEN_DECLARATION_ID);
   const d = buildDossier(GOLDEN_DECLARATION_ID, r);
   assert.equal(d.sections.length, 7);
-  assert.deepEqual(d.sections.map((s) => s.id), ASSERTIONS);
+  assert.deepEqual(
+    d.sections.map((s) => s.id),
+    ASSERTIONS,
+  );
   // V11 fails, and V11 serves completeness — so completeness is unanswered.
-  assert.equal(d.sections.find((s) => s.id === "completeness")!.status, "unanswered");
+  assert.equal(
+    d.sections.find((s) => s.id === "completeness")!.status,
+    "unanswered",
+  );
   assert.equal(d.selfContained, false);
   for (const s of d.sections) {
-    assert.ok(s.question.endsWith("?"), `${s.id} states the verifier's question`);
+    assert.ok(
+      s.question.endsWith("?"),
+      `${s.id} states the verifier's question`,
+    );
     assert.ok(s.expectedEvidence.length > 0);
   }
 });

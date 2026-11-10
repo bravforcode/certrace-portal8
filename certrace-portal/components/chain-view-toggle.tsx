@@ -53,18 +53,50 @@ export function useChainView(): [ChainView, (v: ChainView) => void] {
   return [view, choose];
 }
 
-const OPTIONS: { value: ChainView; label: string; icon: React.ElementType; title: string }[] = [
-  { value: "tree", label: "Tree", icon: ListTree, title: "See the chain as a hierarchy — what is made from what, one card per entity." },
-  { value: "table", label: "Table", icon: Table2, title: "See every tier at once as rows — for scanning which entities still need work." },
+const OPTIONS: {
+  value: ChainView;
+  label: string;
+  icon: React.ElementType;
+  title: string;
+}[] = [
+  {
+    value: "tree",
+    label: "Tree",
+    icon: ListTree,
+    title:
+      "See the chain as a hierarchy — what is made from what, one card per entity.",
+  },
+  {
+    value: "table",
+    label: "Table",
+    icon: Table2,
+    title:
+      "See every tier at once as rows — for scanning which entities still need work.",
+  },
 ];
 
-export function ChainViewToggle({ view, onChange, className }: { view: ChainView; onChange: (v: ChainView) => void; className?: string }) {
+export function ChainViewToggle({
+  view,
+  onChange,
+  className,
+}: {
+  view: ChainView;
+  onChange: (v: ChainView) => void;
+  className?: string;
+}) {
   const t = useT();
   return (
     /* A radiogroup, not two buttons: these are one setting with two values,
        and arrow-key movement between them is what a keyboard user expects
        from a segmented control. */
-    <div role="radiogroup" aria-label={t("Chain view")} className={cn("inline-flex flex-none items-center gap-0.5 rounded-xl border border-black/[0.08] bg-white p-0.5", className)}>
+    <div
+      role="radiogroup"
+      aria-label={t("Chain view")}
+      className={cn(
+        "inline-flex flex-none items-center gap-0.5 rounded-xl border border-black/[0.08] bg-white p-0.5",
+        className,
+      )}
+    >
       {OPTIONS.map(({ value, label, icon: Icon, title }) => {
         const active = view === value;
         return (
@@ -80,7 +112,9 @@ export function ChainViewToggle({ view, onChange, className }: { view: ChainView
             data-lock="allow"
             className={cn(
               "inline-flex items-center gap-1.5 rounded-[10px] px-2.5 py-1.5 text-[11px] uppercase tracking-[0.08em] transition-colors",
-              active ? "bg-[#111] text-white" : "text-black/45 hover:bg-black/[0.03] hover:text-black",
+              active
+                ? "bg-[#111] text-white"
+                : "text-black/45 hover:bg-black/[0.03] hover:text-black",
             )}
           >
             <Icon size={13} strokeWidth={1.5} />

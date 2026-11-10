@@ -104,7 +104,10 @@ export function monthsElapsed(year: number, asOf: Date = new Date()): number {
   return asOf.getMonth(); // 0-indexed month == count of months already closed
 }
 
-export function buyerProjections(year: number, asOf: Date = new Date()): ProjectionSummary {
+export function buyerProjections(
+  year: number,
+  asOf: Date = new Date(),
+): ProjectionSummary {
   const pricing = loadPricing();
   const workspaces = listWorkspaces().filter((w) => w.year === year);
   const byId = new Map(workspaces.map((w) => [w.id, w]));
@@ -112,19 +115,29 @@ export function buyerProjections(year: number, asOf: Date = new Date()): Project
   /* SEE per workspace, computed ONCE. workspaceSEE walks every month of
      activity data; calling it per shipment would make a 300-shipment year
      quadratic in the number of readings. */
-  const seeByWorkspace = new Map<string, { see: number; priceable: boolean; ws: VerificationWorkspace }>();
+  const seeByWorkspace = new Map<
+    string,
+    { see: number; priceable: boolean; ws: VerificationWorkspace }
+  >();
   const unpriceable: string[] = [];
   for (const w of workspaces) {
     const s = workspaceSEE(w);
     const priceable = s.computable && s.seeChargeable > 0;
-    seeByWorkspace.set(w.id, { see: priceable ? s.seeChargeable : 0, priceable, ws: w });
+    seeByWorkspace.set(w.id, {
+      see: priceable ? s.seeChargeable : 0,
+      priceable,
+      ws: w,
+    });
     if (!priceable) unpriceable.push(w.productName);
   }
 
   /* The claim is per WORKSPACE, per tonne of product, in the currency it was
      paid in. Apportioned to buyers by the tonnes each took — the only split
      that does not favour whoever happens to be listed first. */
-  const claimPerTonne = new Map<string, { perTonne: number; currency: string }>();
+  const claimPerTonne = new Map<
+    string,
+    { perTonne: number; currency: string }
+  >();
   for (const w of workspaces) {
     const s = seeByWorkspace.get(w.id);
     if (!s?.priceable) {
@@ -161,7 +174,8 @@ export function buyerProjections(year: number, asOf: Date = new Date()): Project
       products: [],
     };
     entry.shipments += 1;
-    if (!entry.products.includes(ws.productName)) entry.products.push(ws.productName);
+    if (!entry.products.includes(ws.productName))
+      entry.products.push(ws.productName);
     entry.buyerEori = entry.buyerEori ?? sh.buyerEori;
 
     const s = seeByWorkspace.get(sh.workspaceId);
@@ -176,7 +190,10 @@ export function buyerProjections(year: number, asOf: Date = new Date()): Project
         entry.claimed += sh.quantityTonnes * c.perTonne;
         // Mixed currencies across one buyer's workspaces would make the total
         // meaningless, so the row says so rather than adding baht to euros.
-        entry.claimedCurrency = entry.claimedCurrency && entry.claimedCurrency !== c.currency ? "mixed" : c.currency;
+        entry.claimedCurrency =
+          entry.claimedCurrency && entry.claimedCurrency !== c.currency
+            ? "mixed"
+            : c.currency;
       }
     }
     rows.set(sh.buyer, entry);

@@ -1,5 +1,5 @@
 /* Installations as queries — see lib/workspaces-query.ts for why the
-   localStorage-backed stores get staleTime 0. Note lib/workspaces-query.ts
+   account-backed stores get staleTime 0. Note lib/workspaces-query.ts
    already keys useKnownInstallations under ["installations", "known"]; the
    invalidations here reach it on purpose, since a saved or removed record
    changes what "known" means. */
@@ -7,6 +7,10 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  persistReportChange,
+  invalidateReportViews,
+} from "./persist-report-change";
 import {
   getInstallation,
   installationForWorkspace,
@@ -21,7 +25,11 @@ import {
 const KEY = ["installations"] as const;
 
 export function useOwnInstallations() {
-  return useQuery({ queryKey: [...KEY, "own"], queryFn: ownInstallations, staleTime: 0 });
+  return useQuery({
+    queryKey: [...KEY, "own"],
+    queryFn: ownInstallations,
+    staleTime: 0,
+  });
 }
 
 /** One installation by reference; `data` is `null` when the store has never
@@ -38,7 +46,9 @@ export function useInstallation(id: string | undefined) {
 /** The record a workspace points at — stored copy when it exists, otherwise
     fabricated from the workspace's own fields (never `null`). The whole ref
     is in the key because the fabricated record depends on every field of it. */
-export function useInstallationForWorkspace(w: WorkspaceInstallationRef | undefined) {
+export function useInstallationForWorkspace(
+  w: WorkspaceInstallationRef | undefined,
+) {
   return useQuery({
     queryKey: [...KEY, "for-workspace", w ?? null],
     queryFn: () => installationForWorkspace(w!),
@@ -60,16 +70,18 @@ export function useInstallationsForSupplier(supplierId: string | undefined) {
 export function useSaveInstallation() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (input: Installation) => Promise.resolve(saveInstallation(input)),
-    onSuccess: () => void client.invalidateQueries({ queryKey: KEY }),
+    mutationFn: (input: Installation) =>
+      persistReportChange(() => saveInstallation(input)),
+    onSuccess: () => void invalidateReportViews(client),
   });
 }
 
 export function useRemoveInstallation() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => Promise.resolve(removeInstallation(id)),
-    onSuccess: () => void client.invalidateQueries({ queryKey: KEY }),
+    mutationFn: (id: string) =>
+      persistReportChange(() => removeInstallation(id)),
+    onSuccess: () => void invalidateReportViews(client),
   });
 }
 

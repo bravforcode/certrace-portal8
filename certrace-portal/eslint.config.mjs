@@ -15,6 +15,7 @@ const config = [
       "node_modules/**",
       "public/**",
       "next-env.d.ts",
+      "lib/api/validators.js",
     ],
   },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
@@ -39,12 +40,25 @@ const config = [
          only teach people to add blanket disables, which is how the rule that
          matters stops being read. onClick and the key handlers stay covered,
          and those are what caught the attestation checkbox. */
-      "jsx-a11y/no-static-element-interactions": ["error", {
-        handlers: ["onClick", "onMouseDown", "onMouseUp", "onKeyPress", "onKeyDown", "onKeyUp"],
-      }],
+      "jsx-a11y/no-static-element-interactions": [
+        "error",
+        {
+          handlers: [
+            "onClick",
+            "onMouseDown",
+            "onMouseUp",
+            "onKeyPress",
+            "onKeyDown",
+            "onKeyUp",
+          ],
+        },
+      ],
       "jsx-a11y/no-noninteractive-element-interactions": "error",
       "jsx-a11y/interactive-supports-focus": "error",
-      "jsx-a11y/label-has-associated-control": ["error", { assert: "either", depth: 6 }],
+      "jsx-a11y/label-has-associated-control": [
+        "error",
+        { assert: "either", depth: 6 },
+      ],
     },
   },
 ];

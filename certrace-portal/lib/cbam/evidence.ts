@@ -1,3 +1,4 @@
+import { accountStorage } from "../account-storage";
 /* ════════════════════════════════════════════════════════════
    EVIDENCE AT DATA-POINT LEVEL (gap G7)
 
@@ -91,7 +92,7 @@ type Store = Record<string, EvidenceFile[]>;
 function read(): Store {
   if (typeof window === "undefined") return {};
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = accountStorage.getItem(KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw) as Store;
     return parsed && typeof parsed === "object" ? parsed : {};
@@ -103,16 +104,21 @@ function read(): Store {
 function write(store: Store): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(store));
+    accountStorage.setItem(KEY, JSON.stringify(store));
   } catch {
     /* ignore quota */
   }
 }
 
 export const listEvidence = (declarationId: string): EvidenceFile[] =>
-  (read()[declarationId] ?? []).sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt));
+  (read()[declarationId] ?? []).sort((a, b) =>
+    b.uploadedAt.localeCompare(a.uploadedAt),
+  );
 
-export const getEvidence = (declarationId: string, id: string): EvidenceFile | null =>
+export const getEvidence = (
+  declarationId: string,
+  id: string,
+): EvidenceFile | null =>
   listEvidence(declarationId).find((f) => f.id === id) ?? null;
 
 export function addEvidence(file: EvidenceFile): EvidenceFile[] {
@@ -122,23 +128,34 @@ export function addEvidence(file: EvidenceFile): EvidenceFile[] {
   return store[file.declarationId];
 }
 
-export function removeEvidence(declarationId: string, id: string): EvidenceFile[] {
+export function removeEvidence(
+  declarationId: string,
+  id: string,
+): EvidenceFile[] {
   const store = read();
-  store[declarationId] = (store[declarationId] ?? []).filter((f) => f.id !== id);
+  store[declarationId] = (store[declarationId] ?? []).filter(
+    (f) => f.id !== id,
+  );
   write(store);
   return store[declarationId];
 }
 
 export const uid = () =>
-  typeof crypto !== "undefined" && crypto.randomUUID ? `ev-${crypto.randomUUID().slice(0, 10)}` : `ev-${Date.now().toString(36)}`;
+  typeof crypto !== "undefined" && crypto.randomUUID
+    ? `ev-${crypto.randomUUID().slice(0, 10)}`
+    : `ev-${Date.now().toString(36)}`;
 
 /** sha-256 of the file bytes, so a swapped document is detectable. Returns
     undefined where WebCrypto is unavailable rather than inventing a digest. */
-export async function hashBytes(buffer: ArrayBuffer): Promise<string | undefined> {
+export async function hashBytes(
+  buffer: ArrayBuffer,
+): Promise<string | undefined> {
   try {
     if (typeof crypto === "undefined" || !crypto.subtle) return undefined;
     const digest = await crypto.subtle.digest("SHA-256", buffer);
-    return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    return [...new Uint8Array(digest)]
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
   } catch {
     return undefined;
   }
@@ -166,24 +183,39 @@ export type Coverage = {
   missing: CoverageRow[];
 };
 
-export function coverage(rows: Omit<CoverageRow, "fileName">[], files: EvidenceFile[]): Coverage {
+export function coverage(
+  rows: Omit<CoverageRow, "fileName">[],
+  files: EvidenceFile[],
+): Coverage {
   const byId = new Map(files.map((f) => [f.id, f]));
-  const full: CoverageRow[] = rows.map((r) => ({ ...r, fileName: r.evidenceFileId ? (byId.get(r.evidenceFileId)?.name ?? null) : null }));
+  const full: CoverageRow[] = rows.map((r) => ({
+    ...r,
+    fileName: r.evidenceFileId
+      ? (byId.get(r.evidenceFileId)?.name ?? null)
+      : null,
+  }));
   // A pointer to a file that has since been deleted is NOT coverage.
-  const covered = full.filter((r) => r.required && r.evidenceFileId && byId.has(r.evidenceFileId));
+  const covered = full.filter(
+    (r) => r.required && r.evidenceFileId && byId.has(r.evidenceFileId),
+  );
   const requiredRows = full.filter((r) => r.required);
   return {
     rows: full,
     requiredTotal: requiredRows.length,
     requiredCovered: covered.length,
     pct: requiredRows.length === 0 ? 1 : covered.length / requiredRows.length,
-    missing: requiredRows.filter((r) => !r.evidenceFileId || !byId.has(r.evidenceFileId)),
+    missing: requiredRows.filter(
+      (r) => !r.evidenceFileId || !byId.has(r.evidenceFileId),
+    ),
   };
 }
 
 /** Every figure that depends on one file — the reverse lookup. Replacing a
     superseded document is only safe when you can see what it moves. */
-export const dependents = (rows: CoverageRow[], fileId: string): CoverageRow[] => rows.filter((r) => r.evidenceFileId === fileId);
+export const dependents = (
+  rows: CoverageRow[],
+  fileId: string,
+): CoverageRow[] => rows.filter((r) => r.evidenceFileId === fileId);
 
 /** Which bucket an input's evidence naturally belongs in, so the upload
     dialog is pre-filled correctly and the pack groups itself. */

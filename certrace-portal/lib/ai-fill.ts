@@ -1,3 +1,4 @@
+import { accountStorage } from "./account-storage";
 /* ════════════════════════════════════════════════════════════
    AI-FILLED VALUES
 
@@ -25,7 +26,7 @@ const listeners = new Set<() => void>();
 function read(): Store {
   if (typeof window === "undefined") return {};
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = accountStorage.getItem(KEY);
     const parsed = raw ? (JSON.parse(raw) as Store) : {};
     return parsed && typeof parsed === "object" ? parsed : {};
   } catch {
@@ -35,17 +36,27 @@ function read(): Store {
 
 /** "8,420.50" and 8420.5 are the same figure; text compares trimmed. */
 export const normalise = (v: unknown): string => {
-  const s = String(v ?? "").trim().replace(/,/g, "");
+  const s = String(v ?? "")
+    .trim()
+    .replace(/,/g, "");
   const n = Number(s);
   return s !== "" && Number.isFinite(n) ? String(n) : s;
 };
 
-export function markAiFilled(scope: string, key: string, value: unknown, source: string): void {
+export function markAiFilled(
+  scope: string,
+  key: string,
+  value: unknown,
+  source: string,
+): void {
   if (typeof window === "undefined") return;
   try {
     const store = read();
-    store[scope] = { ...(store[scope] ?? {}), [key]: { value: normalise(value), source, at: new Date().toISOString() } };
-    window.localStorage.setItem(KEY, JSON.stringify(store));
+    store[scope] = {
+      ...(store[scope] ?? {}),
+      [key]: { value: normalise(value), source, at: new Date().toISOString() },
+    };
+    accountStorage.setItem(KEY, JSON.stringify(store));
   } catch {
     /* ignore quota — the highlight is a convenience, never the record */
   }
@@ -59,7 +70,11 @@ const subscribe = (l: () => void) => {
 };
 
 /** The AI entry for this box, but only while the box still holds AI's value. */
-export function useAiFill(scope: string | undefined, key: string, current: unknown): AiFillEntry | null {
+export function useAiFill(
+  scope: string | undefined,
+  key: string,
+  current: unknown,
+): AiFillEntry | null {
   const v = React.useSyncExternalStore(
     subscribe,
     () => version,
@@ -104,4 +119,5 @@ export function useFillRun(scope: string): FillRun | null {
 }
 
 /** Blue box for an AI-filled input. Leading `!` so it wins over inputClass. */
-export const AI_INPUT_CLASS = "!border-[#3C7ACB]/60 !bg-[#eff6ff] !text-[#1d4ed8]";
+export const AI_INPUT_CLASS =
+  "!border-[#3C7ACB]/60 !bg-[#eff6ff] !text-[#1d4ed8]";

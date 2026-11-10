@@ -1,3 +1,4 @@
+import { accountStorage } from "./account-storage";
 /* Draft persistence for the new-declaration wizard.
 
    Frontend-only MVP: drafts live in localStorage (this is the seam where a real
@@ -72,7 +73,9 @@ const KEY = "certrace:drafts";
    declaration could be both CBAM and Buyer at once) down to a single
    `display.purpose`. Normalise once here so nothing downstream needs to
    guard against it. */
-function normaliseDraft(d: Draft & { display: { purposes?: Purpose[] } }): Draft {
+function normaliseDraft(
+  d: Draft & { display: { purposes?: Purpose[] } },
+): Draft {
   return {
     ...d,
     display: {
@@ -85,10 +88,12 @@ function normaliseDraft(d: Draft & { display: { purposes?: Purpose[] } }): Draft
 export function loadDrafts(): Draft[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = accountStorage.getItem(KEY);
     if (!raw) return [];
     const arr = JSON.parse(raw) as Draft[];
-    return Array.isArray(arr) ? arr.map(normaliseDraft).sort((a, b) => b.updatedAt - a.updatedAt) : [];
+    return Array.isArray(arr)
+      ? arr.map(normaliseDraft).sort((a, b) => b.updatedAt - a.updatedAt)
+      : [];
   } catch {
     return [];
   }
@@ -103,7 +108,7 @@ export function saveDraft(draft: Draft): void {
   const all = loadDrafts().filter((d) => d.id !== draft.id);
   all.unshift(draft);
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(all));
+    accountStorage.setItem(KEY, JSON.stringify(all));
   } catch {
     /* ignore quota / serialization errors — a lost draft must never break the flow */
   }
@@ -113,11 +118,13 @@ export function deleteDraft(id: string): void {
   if (typeof window === "undefined") return;
   const all = loadDrafts().filter((d) => d.id !== id);
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(all));
+    accountStorage.setItem(KEY, JSON.stringify(all));
   } catch {
     /* ignore */
   }
 }
 
 export const newDraftId = () =>
-  typeof crypto !== "undefined" && crypto.randomUUID ? `draft-${crypto.randomUUID()}` : `draft-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  typeof crypto !== "undefined" && crypto.randomUUID
+    ? `draft-${crypto.randomUUID()}`
+    : `draft-${Date.now()}-${Math.random().toString(36).slice(2)}`;

@@ -12,10 +12,23 @@ const store = new Map<string, string>();
   },
 };
 
-const { emissionsByBuyer, unlinkedShipmentsFor, linkShipments, listShipments, shipmentsFor, pendingShipments, addShipment } =
-  await import("../../shipments");
+const {
+  emissionsByBuyer,
+  unlinkedShipmentsFor,
+  linkShipments,
+  listShipments,
+  shipmentsFor,
+  pendingShipments,
+  addShipment,
+} = await import("../../shipments");
 const { freezeCalculation, chargeableSeeForDate } = await import("../freeze");
-const { goldenDataset, goldenPrecursorTree, GOLDEN_DECLARATION_ID, GOLDEN_SHIPMENTS, GOLDEN_EXPECTED } = await import("../__fixtures__/golden");
+const {
+  goldenDataset,
+  goldenPrecursorTree,
+  GOLDEN_DECLARATION_ID,
+  GOLDEN_SHIPMENTS,
+  GOLDEN_EXPECTED,
+} = await import("../__fixtures__/golden");
 
 beforeEach(() => store.clear());
 
@@ -38,7 +51,11 @@ test("Buyer A's 136.0 t comes to 18.1075 tCO₂e end to end", async () => {
   });
 
   seedGoldenShipments();
-  const decl = { id: GOLDEN_DECLARATION_ID, periodStart: "2026-01-01", periodEnd: "2026-12-31" };
+  const decl = {
+    id: GOLDEN_DECLARATION_ID,
+    periodStart: "2026-01-01",
+    periodEnd: "2026-12-31",
+  };
 
   const candidates = unlinkedShipmentsFor(decl);
   /* The demo seed in lib/shipments.ts deliberately uses the same tonnages as
@@ -46,13 +63,23 @@ test("Buyer A's 136.0 t comes to 18.1075 tCO₂e end to end", async () => {
   const golden = candidates.filter((c) => c.buyer === "Buyer A");
   assert.equal(golden.length, 3);
 
-  linkShipments(golden.map((c) => c.id), GOLDEN_DECLARATION_ID);
+  linkShipments(
+    golden.map((c) => c.id),
+    GOLDEN_DECLARATION_ID,
+  );
 
   const linked = shipmentsFor(GOLDEN_DECLARATION_ID);
   assert.equal(linked.length, 3);
-  assert.ok(Math.abs(linked.reduce((a, s) => a + s.quantityTonnes, 0) - GOLDEN_EXPECTED.T_buyerA_tonnes) < 1e-9);
+  assert.ok(
+    Math.abs(
+      linked.reduce((a, s) => a + s.quantityTonnes, 0) -
+        GOLDEN_EXPECTED.T_buyerA_tonnes,
+    ) < 1e-9,
+  );
 
-  const rows = emissionsByBuyer(linked, (declId, date) => chargeableSeeForDate(declId, date));
+  const rows = emissionsByBuyer(linked, (declId, date) =>
+    chargeableSeeForDate(declId, date),
+  );
   const buyerA = rows.find((r) => r.buyer === "Buyer A")!;
   assert.ok(
     Math.abs(buyerA.embeddedTCO2e - GOLDEN_EXPECTED.T_buyerA_tCO2e) < 1e-3,
@@ -63,12 +90,19 @@ test("Buyer A's 136.0 t comes to 18.1075 tCO₂e end to end", async () => {
 
 test("nothing is linked without being asked — candidates are a proposal", () => {
   seedGoldenShipments();
-  const decl = { id: GOLDEN_DECLARATION_ID, periodStart: "2026-01-01", periodEnd: "2026-12-31" };
+  const decl = {
+    id: GOLDEN_DECLARATION_ID,
+    periodStart: "2026-01-01",
+    periodEnd: "2026-12-31",
+  };
 
   assert.ok(unlinkedShipmentsFor(decl).length > 0);
   // Merely listing candidates must not mutate anything.
   assert.equal(shipmentsFor(GOLDEN_DECLARATION_ID).length, 0);
-  assert.equal(listShipments().every((s) => s.declarationId === null), true);
+  assert.equal(
+    listShipments().every((s) => s.declarationId === null),
+    true,
+  );
 });
 
 test("pending shipments stay visible and stay out of buyer totals", () => {
@@ -81,7 +115,20 @@ test("pending shipments stay visible and stay out of buyer totals", () => {
 });
 
 test("a shipment outside the period is never proposed", () => {
-  addShipment({ date: "2025-11-02", buyer: "Buyer A", productId: "wirerod", quantityTonnes: 10, declarationId: null });
-  const candidates = unlinkedShipmentsFor({ id: GOLDEN_DECLARATION_ID, periodStart: "2026-01-01", periodEnd: "2026-12-31" });
-  assert.equal(candidates.some((c) => c.date === "2025-11-02"), false);
+  addShipment({
+    date: "2025-11-02",
+    buyer: "Buyer A",
+    productId: "wirerod",
+    quantityTonnes: 10,
+    declarationId: null,
+  });
+  const candidates = unlinkedShipmentsFor({
+    id: GOLDEN_DECLARATION_ID,
+    periodStart: "2026-01-01",
+    periodEnd: "2026-12-31",
+  });
+  assert.equal(
+    candidates.some((c) => c.date === "2025-11-02"),
+    false,
+  );
 });

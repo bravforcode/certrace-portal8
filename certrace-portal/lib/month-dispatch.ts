@@ -1,3 +1,4 @@
+import { accountStorage } from "./account-storage";
 /* ════════════════════════════════════════════════════════════
    THE MONTHLY DISPATCH RECORD — sent, chased, and when
 
@@ -27,11 +28,16 @@
    ════════════════════════════════════════════════════════════ */
 
 import { writeBlocked } from "./plan";
+import { currentLang, dateLocaleFor, translate } from "./i18n";
 
 /** What a blocked send returns when the month has never gone out: the shape a
     caller expects, with empty timestamps so every "has this been sent?" test
     in the product still answers no. Nothing is written. */
-const NEVER_SENT = (workspaceId: string, month: string, dueDay?: number): MonthDispatch => ({
+const NEVER_SENT = (
+  workspaceId: string,
+  month: string,
+  dueDay?: number,
+): MonthDispatch => ({
   workspaceId,
   month,
   sentAt: "",
@@ -80,7 +86,7 @@ type Store = Record<string, Record<string, MonthDispatch>>;
 function read(): Store {
   if (typeof window === "undefined") return {};
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(KEY) ?? "{}") as Store;
+    const parsed = JSON.parse(accountStorage.getItem(KEY) ?? "{}") as Store;
     return parsed && typeof parsed === "object" ? parsed : {};
   } catch {
     return {};
@@ -90,26 +96,38 @@ function read(): Store {
 function write(store: Store): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(store));
+    accountStorage.setItem(KEY, JSON.stringify(store));
   } catch {
     /* ignore quota */
   }
 }
 
-export const dispatchesFor = (workspaceId: string): Record<string, MonthDispatch> => read()[workspaceId] ?? {};
+export const dispatchesFor = (
+  workspaceId: string,
+): Record<string, MonthDispatch> => read()[workspaceId] ?? {};
 
-export const dispatchFor = (workspaceId: string, month: string): MonthDispatch | null => dispatchesFor(workspaceId)[month] ?? null;
+export const dispatchFor = (
+  workspaceId: string,
+  month: string,
+): MonthDispatch | null => dispatchesFor(workspaceId)[month] ?? null;
 
 /** Record that this month's link has gone out. Idempotent in the sense that
     re-sending never loses the first `sentAt` — "asked on the 5th, chased on
     the 19th" is the sentence an exporter needs a month later. */
-export function markMonthSent(workspaceId: string, month: string, dueDay?: number): MonthDispatch {
+export function markMonthSent(
+  workspaceId: string,
+  month: string,
+  dueDay?: number,
+): MonthDispatch {
   /* THE CHASING STOPS WHEN THE ACCOUNT DOES. A frozen account must not keep
      asking a supplier for a month nobody can accept — the UI already refuses,
      and this is the layer that makes it true even if some path gets past it.
      The existing record is returned unchanged so callers that read the result
      still get a coherent object. */
-  if (writeBlocked()) return dispatchFor(workspaceId, month) ?? NEVER_SENT(workspaceId, month, dueDay);
+  if (writeBlocked())
+    return (
+      dispatchFor(workspaceId, month) ?? NEVER_SENT(workspaceId, month, dueDay)
+    );
   const store = read();
   const forWorkspace = store[workspaceId] ?? {};
   const now = new Date().toISOString();
@@ -120,7 +138,15 @@ export function markMonthSent(workspaceId: string, month: string, dueDay?: numbe
       // link is not a new agreement, and silently extending the deadline every
       // time you chase is how a month stays "not late" until December.
       { ...prev, lastActionAt: now, resendCount: prev.resendCount + 1 }
-    : { workspaceId, month, sentAt: now, lastActionAt: now, resendCount: 0, reminderCount: 0, dueDay };
+    : {
+        workspaceId,
+        month,
+        sentAt: now,
+        lastActionAt: now,
+        resendCount: 0,
+        reminderCount: 0,
+        dueDay,
+      };
 
   store[workspaceId] = { ...forWorkspace, [month]: next };
   write(store);
@@ -131,13 +157,18 @@ export function markMonthSent(workspaceId: string, month: string, dueDay?: numbe
     if it has been sent, otherwise whatever the workspace currently says. Every
     screen that draws a due date or a countdown goes through here, so the month
     card, the Inbox and the dashboard cannot disagree about when it is late. */
-export const effectiveDueDay = (dispatch: MonthDispatch | null | undefined, scheduleDueDay: number): number =>
-  dispatch?.dueDay ?? scheduleDueDay;
+export const effectiveDueDay = (
+  dispatch: MonthDispatch | null | undefined,
+  scheduleDueDay: number,
+): number => dispatch?.dueDay ?? scheduleDueDay;
 
 /** A reminder is only meaningful for a month that has been sent — there is
     nothing to remind somebody of otherwise, and a reminder count on an
     unsent month would read as chasing somebody who was never asked. */
-export function markMonthReminded(workspaceId: string, month: string): MonthDispatch | null {
+export function markMonthReminded(
+  workspaceId: string,
+  month: string,
+): MonthDispatch | null {
   if (writeBlocked()) return dispatchFor(workspaceId, month);
   const store = read();
   const forWorkspace = store[workspaceId] ?? {};
@@ -145,7 +176,12 @@ export function markMonthReminded(workspaceId: string, month: string): MonthDisp
   if (!prev) return null;
 
   const now = new Date().toISOString();
-  const next: MonthDispatch = { ...prev, lastActionAt: now, lastReminderAt: now, reminderCount: prev.reminderCount + 1 };
+  const next: MonthDispatch = {
+    ...prev,
+    lastActionAt: now,
+    lastReminderAt: now,
+    reminderCount: prev.reminderCount + 1,
+  };
   store[workspaceId] = { ...forWorkspace, [month]: next };
   write(store);
   return next;
@@ -174,7 +210,12 @@ const REMINDER_INTERVAL_MS = REMINDER_INTERVAL_HOURS * 3_600_000;
 export type ReminderState =
   | { allowed: true }
   /** why not, in the words the button's tooltip should use */
-  | { allowed: false; reason: "not_sent" | "submitted" | "not_due" | "cooling_down"; nextAt?: Date; label: string };
+  | {
+      allowed: false;
+      reason: "not_sent" | "submitted" | "not_due" | "cooling_down";
+      nextAt?: Date;
+      label: string;
+    };
 
 export function reminderState(opts: {
   dispatch: MonthDispatch | null;
@@ -183,14 +224,41 @@ export function reminderState(opts: {
   now?: Date;
 }): ReminderState {
   const now = opts.now ?? new Date();
-  if (!opts.dispatch) return { allowed: false, reason: "not_sent", label: "Send this month first" };
-  if (opts.submitted) return { allowed: false, reason: "submitted", label: "This month is already in" };
-  if (now <= opts.due) return { allowed: false, reason: "not_due", label: `Not late yet — due ${formatDate(opts.due)}` };
+  const lang = currentLang();
+  if (!opts.dispatch)
+    return {
+      allowed: false,
+      reason: "not_sent",
+      label: translate(lang, "Send this month first"),
+    };
+  if (opts.submitted)
+    return {
+      allowed: false,
+      reason: "submitted",
+      label: translate(lang, "This month is already in"),
+    };
+  if (now <= opts.due)
+    return {
+      allowed: false,
+      reason: "not_due",
+      label: translate(lang, "Not late yet — due {date}", {
+        date: formatDate(opts.due),
+      }),
+    };
 
-  const last = opts.dispatch.lastReminderAt ? new Date(opts.dispatch.lastReminderAt).getTime() : null;
+  const last = opts.dispatch.lastReminderAt
+    ? new Date(opts.dispatch.lastReminderAt).getTime()
+    : null;
   if (last !== null && now.getTime() - last < REMINDER_INTERVAL_MS) {
     const nextAt = new Date(last + REMINDER_INTERVAL_MS);
-    return { allowed: false, reason: "cooling_down", nextAt, label: `Already chased — you can chase again ${formatClock(nextAt)}` };
+    return {
+      allowed: false,
+      reason: "cooling_down",
+      nextAt,
+      label: translate(lang, "Already chased — you can chase again {when}", {
+        when: formatClock(nextAt),
+      }),
+    };
   }
   return { allowed: true };
 }
@@ -198,13 +266,17 @@ export function reminderState(opts: {
 /** '14:30 today' / '02:00 tomorrow' — a reminder cooldown is measured in hours,
     so a bare date would tell the reader nothing about when it lifts. */
 export function formatClock(d: Date): string {
-  const time = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  const lang = currentLang();
+  const time = d.toLocaleTimeString(dateLocaleFor(lang), {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
   const midnight = new Date();
   midnight.setHours(0, 0, 0, 0);
   const days = Math.floor((d.getTime() - midnight.getTime()) / 86_400_000);
-  if (days <= 0) return `at ${time}`;
-  if (days === 1) return `at ${time} tomorrow`;
-  return `on ${formatDate(d)}`;
+  if (days <= 0) return translate(lang, "at {time}", { time });
+  if (days === 1) return translate(lang, "at {time} tomorrow", { time });
+  return translate(lang, "on {date}", { date: formatDate(d) });
 }
 
 export function removeDispatchesForWorkspace(workspaceId: string): void {
@@ -240,13 +312,31 @@ export function dueDateFor(month: string, dueDay: number): Date {
   return new Date(y, m, Math.min(Math.max(1, dueDay), 28));
 }
 
-export const formatDate = (d: Date): string => d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+/** Whole calendar days from today to `due` — negative once the due day is behind. Counted on the calendar, as a person counts them
+    ("due the 15th, today the 26th: 11 days late"), not in elapsed hours, which is what made one late month read as 71 days on its
+    card, 72 in the Smart Links table and 73 in the bell. UTC of the local date parts, so a daylight-saving change cannot move it. */
+export function calendarDaysUntil(due: Date, now: Date = new Date()): number {
+  const a = Date.UTC(due.getFullYear(), due.getMonth(), due.getDate());
+  const b = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((a - b) / 86_400_000);
+}
+
+/** '15 Sept 2026' · '15 ก.ย. 2026' — in the language on screen, the year Gregorian in both. */
+export const formatDate = (d: Date): string =>
+  d.toLocaleDateString(dateLocaleFor(currentLang()), {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 
 /** Where a month stands against its own deadline. `pending` means the month
     has not ended yet, so nothing can be late. */
 export type DueState = "pending" | "open" | "due_soon" | "overdue" | "done";
 
-export function dueStateFor(month: string, opts: { dueDay: number; submitted: boolean; now?: Date }): DueState {
+export function dueStateFor(
+  month: string,
+  opts: { dueDay: number; submitted: boolean; now?: Date },
+): DueState {
   if (opts.submitted) return "done";
   const now = opts.now ?? new Date();
   if (now < requestDateFor(month)) return "pending";
@@ -272,10 +362,16 @@ export type Countdown = {
   overdue: boolean;
   /** '9 days left' · '4 hours left' · '3 days late' */
   label: string;
+  /** the same sentence in the language on screen — `label` stays English, for what is written down */
+  text: string;
   due: Date;
 };
 
-export function countdownFor(month: string, dueDay: number, now: Date = new Date()): Countdown {
+export function countdownFor(
+  month: string,
+  dueDay: number,
+  now: Date = new Date(),
+): Countdown {
   const due = dueDateFor(month, dueDay);
   // End of the due day, not its midnight: a deadline of "15 February" that
   // expires at 00:00 on the 15th takes a whole day away from the person
@@ -285,11 +381,23 @@ export function countdownFor(month: string, dueDay: number, now: Date = new Date
   const msLeft = due.getTime() - now.getTime();
   const overdue = msLeft < 0;
   const abs = Math.abs(msLeft);
-  const days = Math.floor(abs / 86_400_000);
+  // Late is counted in calendar days (the day after the due day is one day late); time left is counted in whole days, then hours on the last day.
+  const days = overdue
+    ? Math.max(1, -calendarDaysUntil(dueDateFor(month, dueDay), now))
+    : Math.floor(abs / 86_400_000);
   const hours = Math.floor(abs / 3_600_000);
 
-  const amount = days >= 1 ? `${days} day${days === 1 ? "" : "s"}` : `${Math.max(1, hours)} hour${hours === 1 ? "" : "s"}`;
-  return { msLeft, overdue, due, label: overdue ? `${amount} late` : `${amount} left` };
+  const n = days >= 1 ? days : Math.max(1, hours);
+  const unit = days >= 1 ? "day" : "hour";
+  const amount = `${n} ${unit}${n === 1 ? "" : "s"}`;
+  const key = `{n} ${unit}${n === 1 ? "" : "s"} ${overdue ? "late" : "left"}`;
+  return {
+    msLeft,
+    overdue,
+    due,
+    label: overdue ? `${amount} late` : `${amount} left`,
+    text: translate(currentLang(), key, { n }),
+  };
 }
 
 export const DUE_STATE_LABEL: Record<DueState, string> = {

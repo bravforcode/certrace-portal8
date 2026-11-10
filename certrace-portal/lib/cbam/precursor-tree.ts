@@ -78,7 +78,9 @@ export class PrecursorTreeError extends Error {
 export const MAX_DEPTH = MAX_PRECURSOR_DEPTH.value;
 
 export const uid = () =>
-  typeof crypto !== "undefined" && crypto.randomUUID ? `p-${crypto.randomUUID().slice(0, 8)}` : `p-${Math.random().toString(36).slice(2, 10)}`;
+  typeof crypto !== "undefined" && crypto.randomUUID
+    ? `p-${crypto.randomUUID().slice(0, 8)}`
+    : `p-${Math.random().toString(36).slice(2, 10)}`;
 
 export const emptyNode = (parentId: string | null = null): PrecursorNode => ({
   id: uid(),
@@ -97,7 +99,11 @@ export const emptyNode = (parentId: string | null = null): PrecursorNode => ({
    Pure, no I/O, unit-tested against the spec §5.6 fixture. */
 
 /** Embedded emissions of ONE node, tCO₂e per tonne of that node's own output. */
-export function seeForNode(node: PrecursorNode, ancestry: Set<string> = new Set(), depth = 1): number {
+export function seeForNode(
+  node: PrecursorNode,
+  ancestry: Set<string> = new Set(),
+  depth = 1,
+): number {
   if (depth > MAX_DEPTH) {
     throw new PrecursorTreeError(
       "DEPTH",
@@ -129,7 +135,8 @@ export function seeForNode(node: PrecursorNode, ancestry: Set<string> = new Set(
   nextAncestry.add(node.id);
   let total = ownProcessSee(node);
   for (const child of node.children) {
-    total += child.qtyPerTonneOutput * seeForNode(child, nextAncestry, depth + 1);
+    total +=
+      child.qtyPerTonneOutput * seeForNode(child, nextAncestry, depth + 1);
   }
   return total;
 }
@@ -163,11 +170,19 @@ export type NodeContribution = {
 
 /** Σ over top-level nodes — the precursor share of the finished good's SEE,
     plus the per-node breakdown a reviewer needs to see where it came from. */
-export function precursorSEE(roots: PrecursorNode[]): { perTonne: number; byNode: NodeContribution[] } {
+export function precursorSEE(roots: PrecursorNode[]): {
+  perTonne: number;
+  byNode: NodeContribution[];
+} {
   const byNode: NodeContribution[] = [];
   let perTonne = 0;
 
-  const walk = (node: PrecursorNode, depth: number, factorFromRoot: number, ancestry: Set<string>) => {
+  const walk = (
+    node: PrecursorNode,
+    depth: number,
+    factorFromRoot: number,
+    ancestry: Set<string>,
+  ) => {
     const see = seeForNode(node, ancestry, depth);
     const contribution = factorFromRoot * node.qtyPerTonneOutput * see;
     byNode.push({
@@ -176,14 +191,23 @@ export function precursorSEE(roots: PrecursorNode[]): { perTonne: number; byNode
       depth,
       qtyPerTonneOutput: node.qtyPerTonneOutput,
       see,
-      ownSee: node.isScrap ? 0 : node.children.length === 0 ? see : ownProcessSee(node),
+      ownSee: node.isScrap
+        ? 0
+        : node.children.length === 0
+          ? see
+          : ownProcessSee(node),
       contribution,
       isScrap: node.isScrap,
     });
     const nextAncestry = new Set(ancestry);
     nextAncestry.add(node.id);
     for (const child of node.children) {
-      walk(child, depth + 1, factorFromRoot * node.qtyPerTonneOutput, nextAncestry);
+      walk(
+        child,
+        depth + 1,
+        factorFromRoot * node.qtyPerTonneOutput,
+        nextAncestry,
+      );
     }
   };
 
@@ -204,7 +228,9 @@ export function massBalanceYield(roots: PrecursorNode[]): number | null {
 }
 
 /** Depth-first walk with no arithmetic — used by editors and the dossier. */
-export function flattenTree(roots: PrecursorNode[]): { node: PrecursorNode; depth: number }[] {
+export function flattenTree(
+  roots: PrecursorNode[],
+): { node: PrecursorNode; depth: number }[] {
   const out: { node: PrecursorNode; depth: number }[] = [];
   const walk = (nodes: PrecursorNode[], depth: number) => {
     if (depth > MAX_DEPTH) return;
@@ -218,18 +244,34 @@ export function flattenTree(roots: PrecursorNode[]): { node: PrecursorNode; dept
 }
 
 export const treeDepth = (roots: PrecursorNode[]): number =>
-  roots.reduce((max, n) => Math.max(max, 1 + (n.children.length ? treeDepth(n.children) - 1 + 1 : 0)), 0);
+  roots.reduce(
+    (max, n) =>
+      Math.max(
+        max,
+        1 + (n.children.length ? treeDepth(n.children) - 1 + 1 : 0),
+      ),
+    0,
+  );
 
 /* ── Editing ────────────────────────────────────────────────────
    Immutable helpers so React state updates stay predictable. */
 
-export function updateNode(roots: PrecursorNode[], id: string, patch: Partial<PrecursorNode>): PrecursorNode[] {
+export function updateNode(
+  roots: PrecursorNode[],
+  id: string,
+  patch: Partial<PrecursorNode>,
+): PrecursorNode[] {
   return roots.map((n) =>
-    n.id === id ? { ...n, ...patch, id: n.id, children: patch.children ?? n.children } : { ...n, children: updateNode(n.children, id, patch) },
+    n.id === id
+      ? { ...n, ...patch, id: n.id, children: patch.children ?? n.children }
+      : { ...n, children: updateNode(n.children, id, patch) },
   );
 }
 
-export function addChild(roots: PrecursorNode[], parentId: string): PrecursorNode[] {
+export function addChild(
+  roots: PrecursorNode[],
+  parentId: string,
+): PrecursorNode[] {
   return roots.map((n) =>
     n.id === parentId
       ? { ...n, children: [...n.children, emptyNode(n.id)] }
@@ -238,8 +280,13 @@ export function addChild(roots: PrecursorNode[], parentId: string): PrecursorNod
 }
 
 /** Removing a node removes everything under it — a subtree is one claim. */
-export function removeSubtree(roots: PrecursorNode[], id: string): PrecursorNode[] {
-  return roots.filter((n) => n.id !== id).map((n) => ({ ...n, children: removeSubtree(n.children, id) }));
+export function removeSubtree(
+  roots: PrecursorNode[],
+  id: string,
+): PrecursorNode[] {
+  return roots
+    .filter((n) => n.id !== id)
+    .map((n) => ({ ...n, children: removeSubtree(n.children, id) }));
 }
 
 /* ── Storage & migration ────────────────────────────────────────
@@ -253,10 +300,18 @@ export function removeSubtree(roots: PrecursorNode[], id: string): PrecursorNode
 
    The flat→tree migration is lossless: a flat row is a leaf. */
 
-type LegacyRow = { name?: unknown; cn?: unknown; qty?: unknown; see?: unknown; route?: unknown };
+type LegacyRow = {
+  name?: unknown;
+  cn?: unknown;
+  qty?: unknown;
+  see?: unknown;
+  route?: unknown;
+};
 
 const isNodeShape = (v: unknown): boolean =>
-  typeof v === "object" && v !== null && ("children" in (v as object) || "qtyPerTonneOutput" in (v as object));
+  typeof v === "object" &&
+  v !== null &&
+  ("children" in (v as object) || "qtyPerTonneOutput" in (v as object));
 
 function fromLegacyRow(r: LegacyRow): PrecursorNode {
   const name = String(r?.name ?? "");
@@ -276,9 +331,14 @@ function fromLegacyRow(r: LegacyRow): PrecursorNode {
   };
 }
 
-function reviveNode(v: Record<string, unknown>, parentId: string | null): PrecursorNode {
+function reviveNode(
+  v: Record<string, unknown>,
+  parentId: string | null,
+): PrecursorNode {
   const id = typeof v.id === "string" && v.id ? v.id : uid();
-  const rawChildren = Array.isArray(v.children) ? (v.children as Record<string, unknown>[]) : [];
+  const rawChildren = Array.isArray(v.children)
+    ? (v.children as Record<string, unknown>[])
+    : [];
   return {
     id,
     parentId,
@@ -286,16 +346,22 @@ function reviveNode(v: Record<string, unknown>, parentId: string | null): Precur
     cnCode: String(v.cnCode ?? v.cn ?? ""),
     qtyPerTonneOutput: Number(v.qtyPerTonneOutput ?? v.qty ?? 0) || 0,
     isScrap: Boolean(v.isScrap),
-    seeDeclared: v.seeDeclared == null && v.see == null ? undefined : Number(v.seeDeclared ?? v.see) || 0,
+    seeDeclared:
+      v.seeDeclared == null && v.see == null
+        ? undefined
+        : Number(v.seeDeclared ?? v.see) || 0,
     route: String(v.route ?? ""),
-    supplierRecordKey: typeof v.supplierRecordKey === "string" ? v.supplierRecordKey : undefined,
+    supplierRecordKey:
+      typeof v.supplierRecordKey === "string" ? v.supplierRecordKey : undefined,
     children: rawChildren.map((c) => reviveNode(c, id)),
   };
 }
 
 /** Parse a stored precursors value into a tree. Returns null for legacy free
     text — the same signal `parsePrecursors` has always given. */
-export function parsePrecursorTree(raw: string | undefined | null): PrecursorNode[] | null {
+export function parsePrecursorTree(
+  raw: string | undefined | null,
+): PrecursorNode[] | null {
   if (!raw || !raw.trim().startsWith("[")) return null;
   try {
     const arr = JSON.parse(raw);
@@ -309,7 +375,8 @@ export function parsePrecursorTree(raw: string | undefined | null): PrecursorNod
   }
 }
 
-export const serializePrecursorTree = (roots: PrecursorNode[]): string => JSON.stringify(roots);
+export const serializePrecursorTree = (roots: PrecursorNode[]): string =>
+  JSON.stringify(roots);
 
 /** A node counts toward the calculation once it is named, has a quantity, and
     either declares its own SEE, is scrap, or has children that do. */
@@ -327,7 +394,11 @@ export function formatTree(roots: PrecursorNode[]): string {
     .map(({ node, depth }) => {
       const indent = "  ".repeat(depth - 1);
       const cn = node.cnCode?.trim() ? ` (CN ${node.cnCode})` : "";
-      const see = node.isScrap ? "0 tCO₂e/t (scrap)" : node.children.length ? "derived from inputs" : `${node.seeDeclared ?? "?"} tCO₂e/t`;
+      const see = node.isScrap
+        ? "0 tCO₂e/t (scrap)"
+        : node.children.length
+          ? "derived from inputs"
+          : `${node.seeDeclared ?? "?"} tCO₂e/t`;
       const route = node.route?.trim() ? ` · ${node.route}` : "";
       return `${indent}${depth > 1 ? "└ " : ""}${node.name}${cn} — ${node.qtyPerTonneOutput || "?"} t/t × ${see}${route}`;
     })

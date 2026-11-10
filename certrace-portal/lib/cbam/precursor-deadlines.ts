@@ -38,7 +38,8 @@ function statusFor(daysUntilDue: number): DeadlineStatus {
   return "on_track";
 }
 
-const daysBetween = (a: Date, b: Date) => Math.ceil((a.getTime() - b.getTime()) / 86_400_000);
+const daysBetween = (a: Date, b: Date) =>
+  Math.ceil((a.getTime() - b.getTime()) / 86_400_000);
 
 /** The exporter's own CBAM declaration deadline for a reporting year: 30
     September of the following year. Hardcoded per the CBAM regulation's own
@@ -56,11 +57,20 @@ export function filingDeadlineFor(reportingYear: number): Date {
     itself. */
 export const DEFAULT_PRECURSOR_DEADLINE_BUFFER_DAYS = 60;
 
-export function precursorSeeDeadlineFor(workspace: Pick<VerificationWorkspace, "year">, bufferDays = DEFAULT_PRECURSOR_DEADLINE_BUFFER_DAYS, now: Date = new Date()): Deadline {
+export function precursorSeeDeadlineFor(
+  workspace: Pick<VerificationWorkspace, "year">,
+  bufferDays = DEFAULT_PRECURSOR_DEADLINE_BUFFER_DAYS,
+  now: Date = new Date(),
+): Deadline {
   const filing = filingDeadlineFor(workspace.year);
   const due = new Date(filing.getTime() - bufferDays * 86_400_000);
   const daysUntilDue = daysBetween(due, now);
-  return { label: "Precursor SEE & verification due", due, status: statusFor(daysUntilDue), daysUntilDue };
+  return {
+    label: "Precursor SEE & verification due",
+    due,
+    status: statusFor(daysUntilDue),
+    daysUntilDue,
+  };
 }
 
 /** "Before the next period's data entry opens" — the reporting year's own
@@ -69,14 +79,30 @@ export function precursorSeeDeadlineFor(workspace: Pick<VerificationWorkspace, "
     lib/month-dispatch.ts). A monitoring plan not finalised by then is
     finalised after next year's data has already started arriving against
     it. */
-export function mmdFinalizationDeadlineFor(workspace: Pick<VerificationWorkspace, "year">, now: Date = new Date()): Deadline {
+export function mmdFinalizationDeadlineFor(
+  workspace: Pick<VerificationWorkspace, "year">,
+  now: Date = new Date(),
+): Deadline {
   const due = new Date(workspace.year, 11, 31, 23, 59, 59, 999);
   const daysUntilDue = daysBetween(due, now);
-  return { label: "Monitoring plan finalisation due", due, status: statusFor(daysUntilDue), daysUntilDue };
+  return {
+    label: "Monitoring plan finalisation due",
+    due,
+    status: statusFor(daysUntilDue),
+    daysUntilDue,
+  };
 }
 
 /** Whether the MMD deadline has already been met — a final version exists
     covering the whole period — in which case it is not "due" at all. */
-export function mmdAlreadyFinal(workspace: Pick<VerificationWorkspace, "id" | "periodStart" | "periodEnd">): boolean {
-  return finalVersionCovering(workspace.id, workspace.periodStart, workspace.periodEnd) != null;
+export function mmdAlreadyFinal(
+  workspace: Pick<VerificationWorkspace, "id" | "periodStart" | "periodEnd">,
+): boolean {
+  return (
+    finalVersionCovering(
+      workspace.id,
+      workspace.periodStart,
+      workspace.periodEnd,
+    ) != null
+  );
 }

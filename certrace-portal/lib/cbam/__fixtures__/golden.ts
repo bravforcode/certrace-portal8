@@ -56,7 +56,10 @@ export const goldenDataset = (): ActivityDataset => ({
       ncv: GOLDEN_INPUTS.NCV_gas,
       ncvProvenance: prov("lab", "Supplier gas spec sheet"),
       emissionFactor: GOLDEN_INPUTS.EF_gas,
-      efProvenance: prov("national_dataset", "IPCC 2006 / EU MRR 2018/2066 Annex VI"),
+      efProvenance: prov(
+        "national_dataset",
+        "IPCC 2006 / EU MRR 2018/2066 Annex VI",
+      ),
       oxidationFactor: GOLDEN_INPUTS.OX_gas,
       provenance: prov("invoice", "12 monthly gas invoices 2026"),
     },
@@ -108,9 +111,24 @@ export const goldenPrecursorTree = (): PrecursorNode[] => [
 
 /** Buyer A's three shipments — 136.0 t in total (spec §5.6 F5). */
 export const GOLDEN_SHIPMENTS = [
-  { buyer: "Buyer A", date: "2026-01-18", declarationId: GOLDEN_DECLARATION_ID, quantityTonnes: 45.2 },
-  { buyer: "Buyer A", date: "2026-02-09", declarationId: GOLDEN_DECLARATION_ID, quantityTonnes: 38.7 },
-  { buyer: "Buyer A", date: "2026-03-22", declarationId: GOLDEN_DECLARATION_ID, quantityTonnes: 52.1 },
+  {
+    buyer: "Buyer A",
+    date: "2026-01-18",
+    declarationId: GOLDEN_DECLARATION_ID,
+    quantityTonnes: 45.2,
+  },
+  {
+    buyer: "Buyer A",
+    date: "2026-02-09",
+    declarationId: GOLDEN_DECLARATION_ID,
+    quantityTonnes: 38.7,
+  },
+  {
+    buyer: "Buyer A",
+    date: "2026-03-22",
+    declarationId: GOLDEN_DECLARATION_ID,
+    quantityTonnes: 52.1,
+  },
 ];
 
 /** Expected values, spec §5.6 assertions table. */

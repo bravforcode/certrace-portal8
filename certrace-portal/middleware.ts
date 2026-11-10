@@ -23,6 +23,15 @@ function apiOrigin(): string {
   }
 }
 
+/** The public site, whose /trace/preview the Trace page frames. */
+function landingOrigin(): string {
+  try {
+    return new URL(process.env.NEXT_PUBLIC_LANDING_URL ?? "http://localhost:3000").origin;
+  } catch {
+    return "";
+  }
+}
+
 export function middleware(request: NextRequest) {
   const isDevelopment = process.env.NODE_ENV !== "production";
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
@@ -38,13 +47,19 @@ export function middleware(request: NextRequest) {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https://fonts.gstatic.com",
-    `connect-src 'self' https://api.anthropic.com${api ? ` ${api}` : ""}${isDevelopment ? " ws: wss:" : ""}`,
+    `connect-src 'self'${api ? ` ${api}` : ""}${isDevelopment ? " ws: wss:" : ""}`,
     "worker-src 'self' blob:",
     // Smart upload previews an uploaded PDF in an iframe from a blob: URL,
     // which default-src 'self' would otherwise refuse.
-    "frame-src 'self' blob:",
+    // ...and the Trace page frames the landing site's own profile page as its
+    // live preview (app/(portal)/trace).
+    `frame-src 'self' blob: ${landingOrigin()}`,
     "manifest-src 'self'",
-    ...(isDevelopment ? [] : ["upgrade-insecure-requests"]),
+    // Direct HTTP access to a VPS IP is used for deployment smoke tests.
+    // Upgrading its asset URLs would request HTTPS on the plain HTTP port.
+    ...(isDevelopment || request.nextUrl.protocol !== "https:"
+      ? []
+      : ["upgrade-insecure-requests"]),
   ].join("; ");
 
   const requestHeaders = new Headers(request.headers);
@@ -61,8 +76,14 @@ export function middleware(request: NextRequest) {
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("X-Frame-Options", "DENY");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-  response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), browsing-topics=()");
-  response.headers.set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload");
+  response.headers.set(
+    "Permissions-Policy",
+    "camera=(), microphone=(), geolocation=(), browsing-topics=()",
+  );
+  response.headers.set(
+    "Strict-Transport-Security",
+    "max-age=63072000; includeSubDomains; preload",
+  );
   response.headers.set("Cross-Origin-Opener-Policy", "same-origin");
   response.headers.set("Cross-Origin-Resource-Policy", "same-origin");
   response.headers.set("X-XSS-Protection", "0");
@@ -73,7 +94,8 @@ export function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     {
-      source: "/((?!api|_next/static|_next/image|favicon.ico|brand|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+      source:
+        "/((?!api|backend|_next/static|_next/image|favicon.ico|brand|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },

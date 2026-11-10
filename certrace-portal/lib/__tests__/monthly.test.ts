@@ -62,18 +62,33 @@ const {
   euStandardFor,
 } = await import("../monthly-data");
 const { matchesEuStandard } = await import("../cbam/fuel-defaults");
-const { saveSupplier, emptySupplier, precursorContribution, effectiveSee, treeFor } = await import("../precursor-suppliers");
+const {
+  saveSupplier,
+  emptySupplier,
+  precursorContribution,
+  effectiveSee,
+  treeFor,
+} = await import("../precursor-suppliers");
 const { workspaceSEE } = await import("../workspace-see");
 const { createWorkspace, monthsOf } = await import("../workspace");
 
 const near = (actual: number, expected: number, tol: number, what: string) =>
-  assert.ok(Math.abs(actual - expected) <= tol, `${what}: expected ≈${expected}, got ${actual} (tolerance ${tol})`);
+  assert.ok(
+    Math.abs(actual - expected) <= tol,
+    `${what}: expected ≈${expected}, got ${actual} (tolerance ${tol})`,
+  );
 
 /* ── The fixture ────────────────────────────────────────────── */
 
 function seedWorkspace(productId = "billet") {
   storage.clear();
-  const ws = createWorkspace({ installationId: "TH-PLANT-A", installationName: "Plant A", productId, productionRoute: "scrap_eaf", year: 2026 });
+  const ws = createWorkspace({
+    installationId: "TH-PLANT-A",
+    installationName: "Plant A",
+    productId,
+    productionRoute: "scrap_eaf",
+    year: 2026,
+  });
 
   for (const month of monthsOf(ws)) {
     saveMonth({
@@ -223,9 +238,20 @@ test("scrap contributes zero at any depth", () => {
 
 test("A6 — rebar ← billet (1.02) ← pig iron (0.85, SEE 1.9) gives 1.615 and 1.6473", () => {
   storage.clear();
-  const ws = createWorkspace({ installationId: "TH-PLANT-A", installationName: "Plant A", productId: "rebar", productionRoute: "scrap_eaf", year: 2026 });
+  const ws = createWorkspace({
+    installationId: "TH-PLANT-A",
+    installationName: "Plant A",
+    productId: "rebar",
+    productionRoute: "scrap_eaf",
+    year: 2026,
+  });
   for (const month of monthsOf(ws)) {
-    saveMonth({ ...emptyMonth(ws.id, month), month, productionTonnes: 875, status: "submitted" });
+    saveMonth({
+      ...emptyMonth(ws.id, month),
+      month,
+      productionTonnes: 875,
+      status: "submitted",
+    });
   }
 
   const billet = emptySupplier(ws.id, null);
@@ -247,7 +273,10 @@ test("A6 — rebar ← billet (1.02) ← pig iron (0.85, SEE 1.9) gives 1.615 an
     seeTco2ePerT: 1.9,
     dataOrigin: "supplier_verified",
     // 0.85 t pig iron per t of billet → 0.85 × 10,710
-    monthlyQuantities: monthsOf(ws).map((month) => ({ month, tonnes: 892.5 * 0.85 })),
+    monthlyQuantities: monthsOf(ws).map((month) => ({
+      month,
+      tonnes: 892.5 * 0.85,
+    })),
   });
 
   const roots = treeFor(ws.id);
@@ -257,10 +286,22 @@ test("A6 — rebar ← billet (1.02) ← pig iron (0.85, SEE 1.9) gives 1.615 an
   near(prec.perTonne, 1.6473, 1e-3, "contribution = 1.02 × 1.615");
 });
 
-test("A6 — marking pig iron default_value pushes the share past the 20% cap", () => {
+test("A6 — marking pig iron default_value pushes the default share to 100%, and blocks nothing", () => {
   storage.clear();
-  const ws = createWorkspace({ installationId: "TH-PLANT-A", installationName: "Plant A", productId: "rebar", productionRoute: "scrap_eaf", year: 2026 });
-  for (const month of monthsOf(ws)) saveMonth({ ...emptyMonth(ws.id, month), month, productionTonnes: 875, status: "submitted" });
+  const ws = createWorkspace({
+    installationId: "TH-PLANT-A",
+    installationName: "Plant A",
+    productId: "rebar",
+    productionRoute: "scrap_eaf",
+    year: 2026,
+  });
+  for (const month of monthsOf(ws))
+    saveMonth({
+      ...emptyMonth(ws.id, month),
+      month,
+      productionTonnes: 875,
+      status: "submitted",
+    });
 
   const billet = emptySupplier(ws.id, null);
   saveSupplier({
@@ -279,23 +320,47 @@ test("A6 — marking pig iron default_value pushes the share past the 20% cap", 
     precursorName: "Pig iron",
     seeTco2ePerT: 1.9,
     dataOrigin: "default_value",
-    monthlyQuantities: monthsOf(ws).map((month) => ({ month, tonnes: 892.5 * 0.85 })),
+    monthlyQuantities: monthsOf(ws).map((month) => ({
+      month,
+      tonnes: 892.5 * 0.85,
+    })),
   });
 
   const prec = precursorContribution(ws);
-  assert.equal(prec.overDefaultCap, true, "a chain resting entirely on a default value is over the 20% cap");
-  assert.equal(prec.byNode.find((n) => n.depth === 1)!.weakestOrigin, "default_value", "the weakest link propagates up");
+  assert.equal(
+    prec.overDefaultCap,
+    false,
+    "there is no 20% cap in the definitive-period rules (Annex II A.1(2), Article 15)",
+  );
+  assert.ok(
+    prec.defaultValueShare > 0.99,
+    "the share is still reported — the Precursors tab tells the exporter about it",
+  );
+  assert.equal(
+    prec.byNode.find((n) => n.depth === 1)!.weakestOrigin,
+    "default_value",
+    "the weakest link propagates up",
+  );
 });
 
 test("A6 — a cycle raises rather than looping", () => {
   storage.clear();
-  const ws = createWorkspace({ installationId: "X", installationName: "X", productId: "rebar", productionRoute: "scrap_eaf", year: 2026 });
+  const ws = createWorkspace({
+    installationId: "X",
+    installationName: "X",
+    productId: "rebar",
+    productionRoute: "scrap_eaf",
+    year: 2026,
+  });
   const a = emptySupplier(ws.id, null);
   const b = emptySupplier(ws.id, a.id);
   saveSupplier({ ...a, name: "A", parentId: b.id });
   saveSupplier({ ...b, name: "B" });
   const result = precursorContribution(ws);
-  assert.ok(result.error, "a cycle must surface as an error, not a hang or a silent zero");
+  assert.ok(
+    result.error,
+    "a cycle must surface as an error, not a hang or a silent zero",
+  );
 });
 
 /* ── §A2 acceptance — the NCV block ─────────────────────────── */
@@ -305,11 +370,16 @@ test("A2 — removing the NCV from one fuel row blocks that month's submission",
   const march = monthsForWorkspace(ws).find((m) => m.month === "2026-03")!;
   assert.equal(monthCanSubmit(march), true, "the seeded month submits cleanly");
 
-  const broken = { ...march, fuels: march.fuels.map((f) => ({ ...f, ncvMjPerUnit: undefined })) };
+  const broken = {
+    ...march,
+    fuels: march.fuels.map((f) => ({ ...f, ncvMjPerUnit: undefined })),
+  };
   saveMonth(broken);
 
   assert.equal(monthCanSubmit(broken), false);
-  const ncvError = monthIssues(broken).find((i) => i.severity === "error" && i.field.endsWith(":ncv"));
+  const ncvError = monthIssues(broken).find(
+    (i) => i.severity === "error" && i.field.endsWith(":ncv"),
+  );
   assert.ok(ncvError, "the blocking issue names the NCV field");
   assert.match(ncvError!.message, /tCO₂\/GJ cannot be applied to a volume/i);
 });
@@ -323,8 +393,17 @@ test('a monthly fuel row set to "Other fuel" with no name blocks the month', () 
   const march = monthsForWorkspace(ws).find((m) => m.month === "2026-03")!;
   assert.equal(monthCanSubmit(march), true, "the seeded month submits cleanly");
 
-  const unnamed = { ...march, fuels: march.fuels.map((f) => ({ ...f, fuelType: "other", fuelTypeOther: "" })) };
-  const issue = monthIssues(unnamed).find((i) => i.severity === "error" && i.field.endsWith(":type"));
+  const unnamed = {
+    ...march,
+    fuels: march.fuels.map((f) => ({
+      ...f,
+      fuelType: "other",
+      fuelTypeOther: "",
+    })),
+  };
+  const issue = monthIssues(unnamed).find(
+    (i) => i.severity === "error" && i.field.endsWith(":type"),
+  );
   assert.ok(issue, "an unnamed Other fuel is a blocking issue");
   assert.match(issue!.message, /"Other fuel" with no name/);
   assert.equal(monthCanSubmit(unnamed), false);
@@ -333,7 +412,14 @@ test('a monthly fuel row set to "Other fuel" with no name blocks the month', () 
 test("naming the other fuel clears it", () => {
   const ws = seedWorkspace();
   const march = monthsForWorkspace(ws).find((m) => m.month === "2026-03")!;
-  const named = { ...march, fuels: march.fuels.map((f) => ({ ...f, fuelType: "other", fuelTypeOther: "Rice husk pellets, 14.2 MJ/kg" })) };
+  const named = {
+    ...march,
+    fuels: march.fuels.map((f) => ({
+      ...f,
+      fuelType: "other",
+      fuelTypeOther: "Rice husk pellets, 14.2 MJ/kg",
+    })),
+  };
 
   assert.equal(
     monthIssues(named).some((i) => i.field.endsWith(":type")),
@@ -354,24 +440,67 @@ test("a listed fuel is never asked to describe itself", () => {
 test("A2 — a missing month makes the annual figure incomplete, not smaller", () => {
   const ws = seedWorkspace();
   const march = monthsForWorkspace(ws).find((m) => m.month === "2026-03")!;
-  saveMonth({ ...march, status: "empty", productionTonnes: 0, fuels: [], electricityMwh: 0 });
+  saveMonth({
+    ...march,
+    status: "empty",
+    productionTonnes: 0,
+    fuels: [],
+    electricityMwh: 0,
+  });
 
   const production = annualProductionFor(ws);
-  assert.equal(production.complete, false, "eleven months is not a complete year");
-  assert.deepEqual(production.missingMonths, ["2026-03"], "the gap is named, not absorbed");
-  near(production.tonnes, 9_625, 1e-9, "the total drops, and `complete` is what tells callers not to trust it");
+  assert.equal(
+    production.complete,
+    false,
+    "eleven months is not a complete year",
+  );
+  assert.deepEqual(
+    production.missingMonths,
+    ["2026-03"],
+    "the gap is named, not absorbed",
+  );
+  near(
+    production.tonnes,
+    9_625,
+    1e-9,
+    "the total drops, and `complete` is what tells callers not to trust it",
+  );
 });
 
 test("A2 — copy from previous month clones the setup but never the quantities", () => {
   const ws = seedWorkspace();
   const copied = copyFromPreviousMonth(ws.id, "2026-04")!;
   assert.equal(copied.fuels.length, 1);
-  assert.equal(copied.fuels[0].ncvMjPerUnit, 38, "NCV is carried — this is where transcription errors come from");
-  assert.equal(copied.fuels[0].efTco2PerGj, 0.0561, "emission factor is carried");
-  assert.equal(copied.electricityFactorTco2PerMwh, 0.4999, "electricity factor is carried");
-  assert.equal(copied.fuels[0].quantity, 0, "fuel quantity is NOT carried — a copied reading is a fabricated reading");
-  assert.equal(copied.electricityMwh, 0, "electricity consumption is NOT carried");
-  assert.equal(copied.productionTonnes, 875, "production stays whatever that month already had");
+  assert.equal(
+    copied.fuels[0].ncvMjPerUnit,
+    38,
+    "NCV is carried — this is where transcription errors come from",
+  );
+  assert.equal(
+    copied.fuels[0].efTco2PerGj,
+    0.0561,
+    "emission factor is carried",
+  );
+  assert.equal(
+    copied.electricityFactorTco2PerMwh,
+    0.4999,
+    "electricity factor is carried",
+  );
+  assert.equal(
+    copied.fuels[0].quantity,
+    0,
+    "fuel quantity is NOT carried — a copied reading is a fabricated reading",
+  );
+  assert.equal(
+    copied.electricityMwh,
+    0,
+    "electricity consumption is NOT carried",
+  );
+  assert.equal(
+    copied.productionTonnes,
+    875,
+    "production stays whatever that month already had",
+  );
 });
 
 /* ── §A8 acceptance — the verifier pack ─────────────────────── */
@@ -397,7 +526,8 @@ function seedGreenScaffolding(ws: { id: string; year: number }) {
           periodStart: "2026-01-01",
           periodEnd: "2026-12-31",
           content: {
-            boundaryDescription: "Scrap-EAF melting furnace and hot-rolling mill.",
+            boundaryDescription:
+              "Scrap-EAF melting furnace and hot-rolling mill.",
             processesIncluded: ["Melting (EAF)"],
             processesExcluded: [],
             periodStart: "2026-01-01",
@@ -420,12 +550,28 @@ function seedGreenScaffolding(ws: { id: string; year: number }) {
 
   storage.setItem(
     "certrace:carbon-price",
-    JSON.stringify({ [ws.id]: { workspaceId: ws.id, amountPerTonne: 0, currency: "THB", instrument: "none", recorded: true, updatedAt: "2026-01-01" } }),
+    JSON.stringify({
+      [ws.id]: {
+        workspaceId: ws.id,
+        amountPerTonne: 0,
+        currency: "THB",
+        instrument: "none",
+        recorded: true,
+        updatedAt: "2026-01-01",
+      },
+    }),
   );
   storage.setItem("certrace:shipments", JSON.stringify([]));
 
   const evidence: Record<string, unknown>[] = months.flatMap((m) =>
-    ["production", "electricity-consumed", "electricity-factor", "utility-invoice", `fuel:f-${m}`, `fuel-invoice:f-${m}`].map((key, i) => ({
+    [
+      "production",
+      "electricity-consumed",
+      "electricity-factor",
+      "utility-invoice",
+      `fuel:f-${m}`,
+      `fuel-invoice:f-${m}`,
+    ].map((key, i) => ({
       id: `ev-${m}-${i}`,
       workspaceId: ws.id,
       month: m,
@@ -436,8 +582,23 @@ function seedGreenScaffolding(ws: { id: string; year: number }) {
     })),
   );
   evidence.push(
-    { id: "ev-id", workspaceId: ws.id, fieldKeys: ["installation-identity"], sourceType: "other", fileName: "id.pdf", capturedAt: "2026-01-01T00:00:00.000Z" },
-    { id: "ev-cal", workspaceId: ws.id, fieldKeys: ["calibration-records"], sourceType: "calibration_record", fileName: "cal.pdf", capturedAt: "2026-01-01T00:00:00.000Z", boundTo: "2026" },
+    {
+      id: "ev-id",
+      workspaceId: ws.id,
+      fieldKeys: ["installation-identity"],
+      sourceType: "other",
+      fileName: "id.pdf",
+      capturedAt: "2026-01-01T00:00:00.000Z",
+    },
+    {
+      id: "ev-cal",
+      workspaceId: ws.id,
+      fieldKeys: ["calibration-records"],
+      sourceType: "calibration_record",
+      fileName: "cal.pdf",
+      capturedAt: "2026-01-01T00:00:00.000Z",
+      boundTo: "2026",
+    },
     /* The chain below reports the billet on ACTUAL supplier data, and under
        Annex II A.1(4) of IR (EU) 2025/2547 actual data from an external
        precursor producer is only actual data if a verification report stands
@@ -461,13 +622,52 @@ function seedGreenScaffolding(ws: { id: string; year: number }) {
        reading as green on a checklist that was wrong, not a workspace that
        was actually ready. utility-invoice is seeded per month above now —
        it moved out of the fixed annual keys into requiredKeysForMonth(). */
-    { id: "ev-diagram", workspaceId: ws.id, fieldKeys: ["installation-diagram"], sourceType: "other", fileName: "diagram.pdf", capturedAt: "2026-01-01T00:00:00.000Z" },
-    { id: "ev-org", workspaceId: ws.id, fieldKeys: ["internal-qa-record"], sourceType: "other", fileName: "qa-record.pdf", capturedAt: "2026-01-01T00:00:00.000Z" },
-    { id: "ev-qa", workspaceId: ws.id, fieldKeys: ["internal-qa-record"], sourceType: "other", fileName: "qa-log.pdf", capturedAt: "2026-01-01T00:00:00.000Z" },
-    { id: "ev-mill", workspaceId: ws.id, fieldKeys: ["mill-test-certificate"], sourceType: "mill_test_certificate", fileName: "mill-test.pdf", capturedAt: "2026-01-01T00:00:00.000Z", boundTo: "Chonburi Foundry" },
-    { id: "ev-ppa", workspaceId: ws.id, fieldKeys: ["contract-or-ppa"], sourceType: "other", fileName: "ppa.pdf", capturedAt: "2026-01-01T00:00:00.000Z" },
+    {
+      id: "ev-diagram",
+      workspaceId: ws.id,
+      fieldKeys: ["installation-diagram"],
+      sourceType: "other",
+      fileName: "diagram.pdf",
+      capturedAt: "2026-01-01T00:00:00.000Z",
+    },
+    {
+      id: "ev-org",
+      workspaceId: ws.id,
+      fieldKeys: ["internal-qa-record"],
+      sourceType: "other",
+      fileName: "qa-record.pdf",
+      capturedAt: "2026-01-01T00:00:00.000Z",
+    },
+    {
+      id: "ev-qa",
+      workspaceId: ws.id,
+      fieldKeys: ["internal-qa-record"],
+      sourceType: "other",
+      fileName: "qa-log.pdf",
+      capturedAt: "2026-01-01T00:00:00.000Z",
+    },
+    {
+      id: "ev-mill",
+      workspaceId: ws.id,
+      fieldKeys: ["mill-test-certificate"],
+      sourceType: "mill_test_certificate",
+      fileName: "mill-test.pdf",
+      capturedAt: "2026-01-01T00:00:00.000Z",
+      boundTo: "Chonburi Foundry",
+    },
+    {
+      id: "ev-ppa",
+      workspaceId: ws.id,
+      fieldKeys: ["contract-or-ppa"],
+      sourceType: "other",
+      fileName: "ppa.pdf",
+      capturedAt: "2026-01-01T00:00:00.000Z",
+    },
   );
-  storage.setItem("certrace:workspace-evidence", JSON.stringify({ [ws.id]: evidence }));
+  storage.setItem(
+    "certrace:workspace-evidence",
+    JSON.stringify({ [ws.id]: evidence }),
+  );
 
   const billet = emptySupplier(ws.id, null);
   saveSupplier({
@@ -500,13 +700,24 @@ test("A8 — the pack renders M4 as (317.2 + 45.0) tCO₂ / 10,500 t = 0.0345 tC
   seedGreenScaffolding(ws);
 
   const pack = buildVerifierPack(ws);
-  assert.equal(pack.draft, false, "with every tab complete the pack is not stamped DRAFT");
+  assert.equal(
+    pack.draft,
+    false,
+    "with every tab complete the pack is not stamped DRAFT",
+  );
   assert.ok(
-    pack.html.includes("(317.2 + 45.0) tCO₂ / 10,500 t") && pack.html.includes("0.0345 tCO₂e/t"),
+    pack.html.includes("(317.2 + 45.0) tCO₂ / 10,500 t") &&
+      pack.html.includes("0.0345 tCO₂e/t"),
     "the M4 substitution and result must render exactly as the spec's acceptance line",
   );
-  assert.ok(pack.html.includes("SEE_direct = direct_CO₂_annual / production_annual"), "the formula is shown alongside the substitution");
-  assert.ok(!pack.html.includes("DRAFT — NOT READY FOR VERIFICATION"), "a complete pack carries no draft stamp");
+  assert.ok(
+    pack.html.includes("SEE_direct = direct_CO₂_annual / production_annual"),
+    "the formula is shown alongside the substitution",
+  );
+  assert.ok(
+    !pack.html.includes("DRAFT — NOT READY FOR VERIFICATION"),
+    "a complete pack carries no draft stamp",
+  );
 });
 
 test("A8 — deleting March turns monthly amber and stamps the pack DRAFT", async () => {
@@ -516,35 +727,71 @@ test("A8 — deleting March turns monthly amber and stamps the pack DRAFT", asyn
   seedGreenScaffolding(ws);
 
   const march = monthsForWorkspace(ws).find((m) => m.month === "2026-03")!;
-  saveMonth({ ...march, status: "empty", productionTonnes: 0, fuels: [], electricityMwh: 0 });
+  saveMonth({
+    ...march,
+    status: "empty",
+    productionTonnes: 0,
+    fuels: [],
+    electricityMwh: 0,
+  });
 
   const readiness = workspaceReadiness(ws);
   const monthly = readiness.tabs.find((t) => t.tab === "monthly")!;
-  assert.equal(monthly.state, "incomplete", "a missing month is incomplete, not blocked and not complete");
+  assert.equal(
+    monthly.state,
+    "incomplete",
+    "a missing month is incomplete, not blocked and not complete",
+  );
   const item = monthly.missing.find((m) => m.label.includes("March 2026"));
   assert.ok(item, "the missing item names the month");
   assert.equal(item!.label, "March 2026 not submitted");
-  assert.equal(item!.deepLink, `/workspaces/${ws.id}/monthly/2026-03`, "and links straight to that month");
+  assert.equal(
+    item!.deepLink,
+    `/workspaces/${ws.id}/monthly/2026-03`,
+    "and links straight to that month",
+  );
 
   const pack = buildVerifierPack(ws, readiness);
   assert.equal(pack.draft, true);
-  assert.ok(pack.html.includes("DRAFT — NOT READY FOR VERIFICATION"), "an incomplete pack is stamped on the page, not only in the filename");
+  assert.ok(
+    pack.html.includes("DRAFT — NOT READY FOR VERIFICATION"),
+    "an incomplete pack is stamped on the page, not only in the filename",
+  );
 });
 
 /* ── The discipline the whole file exists to protect ────────── */
 
 test("Σ(emissions)/Σ(production) is not the mean of the monthly SEEs when output varies", () => {
   storage.clear();
-  const ws = createWorkspace({ installationId: "TH-PLANT-A", installationName: "Plant A", productId: "billet", productionRoute: "scrap_eaf", year: 2026 });
+  const ws = createWorkspace({
+    installationId: "TH-PLANT-A",
+    installationName: "Plant A",
+    productId: "billet",
+    productionRoute: "scrap_eaf",
+    year: 2026,
+  });
 
   // Same total emissions each month, wildly different output.
-  const outputs = [200, 1550, 200, 1550, 200, 1550, 200, 1550, 200, 1550, 200, 1550];
+  const outputs = [
+    200, 1550, 200, 1550, 200, 1550, 200, 1550, 200, 1550, 200, 1550,
+  ];
   monthsOf(ws).forEach((month, i) => {
     saveMonth({
       ...emptyMonth(ws.id, month),
       month,
       productionTonnes: outputs[i],
-      fuels: [{ id: `f-${month}`, fuelType: "natural_gas", quantity: 12_400, unit: "m3", ncvMjPerUnit: 38, efTco2PerGj: 0.0561, oxidationFactor: 1, factorSource: "lab_analysis" }],
+      fuels: [
+        {
+          id: `f-${month}`,
+          fuelType: "natural_gas",
+          quantity: 12_400,
+          unit: "m3",
+          ncvMjPerUnit: 38,
+          efTco2PerGj: 0.0561,
+          oxidationFactor: 1,
+          factorSource: "lab_analysis",
+        },
+      ],
       processEmissionsTco2: 0,
       electricityMwh: 0,
       electricityFactorTco2PerMwh: 0.4999,
@@ -555,10 +802,11 @@ test("Σ(emissions)/Σ(production) is not the mean of the monthly SEEs when outp
 
   const see = workspaceSEE(ws);
   const entries = monthsForWorkspace(ws);
-  const meanOfMonthly = entries.reduce((a, e) => {
-    const r = monthResult(e);
-    return a + r.directTCO2 / r.productionTonnes;
-  }, 0) / 12;
+  const meanOfMonthly =
+    entries.reduce((a, e) => {
+      const r = monthResult(e);
+      return a + r.directTCO2 / r.productionTonnes;
+    }, 0) / 12;
 
   assert.ok(
     Math.abs(see.seeDirect - meanOfMonthly) > 1e-3,
@@ -590,51 +838,113 @@ const gasRow = (over: Partial<Parameters<typeof fuelCO2>[0]> = {}) => ({
 });
 
 test("applyEuStandard fills the Point G pair, and re-fills it when the unit moves", () => {
-  const blank = applyEuStandard({ ...gasRow(), ncvMjPerUnit: undefined, efTco2PerGj: 0 });
+  const blank = applyEuStandard({
+    ...gasRow(),
+    ncvMjPerUnit: undefined,
+    efTco2PerGj: 0,
+  });
   near(blank.efTco2PerGj, 0.0561, 1e-9, "EF filled from Point G");
-  near(blank.ncvMjPerUnit!, 34.3488, 1e-4, "NCV filled through the density table");
+  near(
+    blank.ncvMjPerUnit!,
+    34.3488,
+    1e-4,
+    "NCV filled through the density table",
+  );
 
   // Diesel is invoiced in litres; the same row in tonnes is a different NCV.
-  const perLitre = applyEuStandard({ ...gasRow(), fuelType: "diesel", unit: "l" });
+  const perLitre = applyEuStandard({
+    ...gasRow(),
+    fuelType: "diesel",
+    unit: "l",
+  });
   near(perLitre.ncvMjPerUnit!, 35.7975, 1e-4, "litres");
-  const perTonne = applyEuStandard({ ...gasRow(), fuelType: "diesel", unit: "t" });
+  const perTonne = applyEuStandard({
+    ...gasRow(),
+    fuelType: "diesel",
+    unit: "t",
+  });
   near(perTonne.ncvMjPerUnit!, 43_000, 1e-6, "tonnes");
 });
 
 test("Bug 1/2 — Diesel in litres locks to Point G's exact EF/NCV pair, not a 1000× or 25× error", () => {
   // The live validator message this regression pins: "Point G gives 0.0741
   // tCO₂/GJ and 35.7975 MJ per l."
-  const diesel = applyEuStandard({ ...gasRow(), fuelType: "diesel", unit: "l", ncvMjPerUnit: undefined, efTco2PerGj: 0 });
-  near(diesel.efTco2PerGj, 0.0741, 1e-9, "EF: Point G's 74.1 tCO₂/TJ ÷ 1000, not ÷ 1");
-  near(diesel.ncvMjPerUnit!, 35.7975, 1e-4, "NCV: 43.0 GJ/t × 0.8325 kg/l density, not the bare mass figure");
+  const diesel = applyEuStandard({
+    ...gasRow(),
+    fuelType: "diesel",
+    unit: "l",
+    ncvMjPerUnit: undefined,
+    efTco2PerGj: 0,
+  });
+  near(
+    diesel.efTco2PerGj,
+    0.0741,
+    1e-9,
+    "EF: Point G's 74.1 tCO₂/TJ ÷ 1000, not ÷ 1",
+  );
+  near(
+    diesel.ncvMjPerUnit!,
+    35.7975,
+    1e-4,
+    "NCV: 43.0 GJ/t × 0.8325 kg/l density, not the bare mass figure",
+  );
 
   // Bug 2's own worry, made concrete: forgetting the TJ→GJ step makes
   // emissions 1000× too high. Ten litres of diesel does not emit a tonne of
   // CO₂ — assert the actual order of magnitude directly off fuelCO2.
   const co2 = fuelCO2({ ...diesel, quantity: 1000 }); // 1000 l ≈ 1 t of diesel
-  assert.ok(co2 > 2.5 && co2 < 3, `1000 l of diesel should emit roughly 2.66 tCO₂, not ${co2} (a 1000× bug would read ~2660, a 25× volume-unit bug would read ~66)`);
+  assert.ok(
+    co2 > 2.5 && co2 < 3,
+    `1000 l of diesel should emit roughly 2.66 tCO₂, not ${co2} (a 1000× bug would read ~2660, a 25× volume-unit bug would read ~66)`,
+  );
 });
 
 test("Bug 1 — matchesEuStandard rejects a hand-typed pair that drifts from Point G", () => {
-  assert.equal(matchesEuStandard("diesel", "l", 35.7975, 0.0741), true, "the table's own figures match themselves");
-  assert.equal(matchesEuStandard("diesel", "l", 35.7975, 0.08), false, "a typed EF that drifted from the table is rejected");
-  assert.equal(matchesEuStandard("diesel", "l", 30, 0.0741), false, "a typed NCV that drifted from the table is rejected");
+  assert.equal(
+    matchesEuStandard("diesel", "l", 35.7975, 0.0741),
+    true,
+    "the table's own figures match themselves",
+  );
+  assert.equal(
+    matchesEuStandard("diesel", "l", 35.7975, 0.08),
+    false,
+    "a typed EF that drifted from the table is rejected",
+  );
+  assert.equal(
+    matchesEuStandard("diesel", "l", 30, 0.0741),
+    false,
+    "a typed NCV that drifted from the table is rejected",
+  );
 });
 
 test("Bug 2 — euStandardFor's two-step chain: TJ→GJ and mass→volume are independent bugs, tested independently", () => {
   // step 1 alone: a mass-basis unit (tonnes) needs no density, only ÷1000.
   const perTonne = euStandardFor("natural_gas", "t")!;
   near(perTonne.efTco2PerGj, 0.0561, 1e-9, "56.1 tCO₂/TJ ÷ 1000");
-  near(perTonne.ncvMjPerUnit!, 48_000, 1e-6, "48.0 GJ/t × 1000 kg/t, no density involved");
+  near(
+    perTonne.ncvMjPerUnit!,
+    48_000,
+    1e-6,
+    "48.0 GJ/t × 1000 kg/t, no density involved",
+  );
 
   // step 2 alone: same fuel, volume unit, now the density table is load-bearing.
   const perM3 = euStandardFor("natural_gas", "m3")!;
   near(perM3.ncvMjPerUnit!, 34.3488, 1e-4, "48.0 GJ/t × 0.7156 kg/m³");
-  assert.equal(perM3.efTco2PerGj, perTonne.efTco2PerGj, "the EF (step 1) does not depend on the unit (step 2) — they are separate conversions");
+  assert.equal(
+    perM3.efTco2PerGj,
+    perTonne.efTco2PerGj,
+    "the EF (step 1) does not depend on the unit (step 2) — they are separate conversions",
+  );
 });
 
 test("a Type II row is left alone — the reader is copying a spec sheet", () => {
-  const lab = applyEuStandard({ ...gasRow(), factorSource: "lab_analysis", ncvMjPerUnit: 38, efTco2PerGj: 0.0555 });
+  const lab = applyEuStandard({
+    ...gasRow(),
+    factorSource: "lab_analysis",
+    ncvMjPerUnit: 38,
+    efTco2PerGj: 0.0555,
+  });
   assert.equal(lab.ncvMjPerUnit, 38);
   assert.equal(lab.efTco2PerGj, 0.0555);
 });
@@ -643,15 +953,28 @@ test("claiming an EU standard value while carrying a typed one blocks the month"
   const ws = seedWorkspace();
   const march = monthsForWorkspace(ws).find((m) => m.month === "2026-03")!;
   // The fixture's own lab-analysed row, relabelled as the EU default.
-  const mislabelled = { ...march, fuels: march.fuels.map((f) => ({ ...f, factorSource: "eu_standard" as const })) };
+  const mislabelled = {
+    ...march,
+    fuels: march.fuels.map((f) => ({
+      ...f,
+      factorSource: "eu_standard" as const,
+    })),
+  };
 
-  const issue = monthIssues(mislabelled).find((i) => i.severity === "error" && i.field.endsWith(":ef"));
+  const issue = monthIssues(mislabelled).find(
+    (i) => i.severity === "error" && i.field.endsWith(":ef"),
+  );
   assert.ok(issue, "the mismatch is a blocking issue, not a hint");
   assert.match(issue!.message, /Point G gives/);
   assert.equal(monthCanSubmit(mislabelled), false);
 
   // Restoring the table's own values clears it.
-  const restored = { ...march, fuels: march.fuels.map((f) => ({ ...applyEuStandard({ ...f, factorSource: "eu_standard" as const }) })) };
+  const restored = {
+    ...march,
+    fuels: march.fuels.map((f) => ({
+      ...applyEuStandard({ ...f, factorSource: "eu_standard" as const }),
+    })),
+  };
   assert.equal(monthCanSubmit(restored), true);
 });
 
@@ -660,10 +983,20 @@ test("an unlisted fuel cannot claim an EU standard value at all", () => {
   const march = monthsForWorkspace(ws).find((m) => m.month === "2026-03")!;
   const other = {
     ...march,
-    fuels: march.fuels.map((f) => ({ ...f, fuelType: "other", fuelTypeOther: "Rice husk pellets", factorSource: "eu_standard" as const })),
+    fuels: march.fuels.map((f) => ({
+      ...f,
+      fuelType: "other",
+      fuelTypeOther: "Rice husk pellets",
+      factorSource: "eu_standard" as const,
+    })),
   };
-  const issue = monthIssues(other).find((i) => i.field.endsWith(":factorSource"));
-  assert.ok(issue, "Point G names categories — an unlisted fuel is not one of them");
+  const issue = monthIssues(other).find((i) =>
+    i.field.endsWith(":factorSource"),
+  );
+  assert.ok(
+    issue,
+    "Point G names categories — an unlisted fuel is not one of them",
+  );
   assert.match(issue!.message, /no EU standard value/);
 });
 
@@ -675,7 +1008,11 @@ test("Thailand's grid factor is 0.47, and only a grid supply takes it", () => {
   // not claim to be the Commission's Annex II D.2.3 average — see
   // lib/cbam/electricity-grid-factors.ts.
   assert.equal(electricityFactorFor("grid_default"), 0.47);
-  assert.notEqual(electricityFactorFor("grid_default"), 0.4999, "not the EGAT/TGO domestic figure");
+  assert.notEqual(
+    electricityFactorFor("grid_default"),
+    0.4999,
+    "not the EGAT/TGO domestic figure",
+  );
   // Every other source carries the generator's own factor, never the country default.
   assert.equal(electricityFactorFor("self_generated"), null);
   assert.equal(electricityFactorFor("ppa"), null);
@@ -692,13 +1029,21 @@ test("a grid source carrying the country default no longer blocks submission", (
   // SOURCE as grid without moving the number to 0.47 is still stale data.
   const stale = { ...march, electricityFactorSource: "grid_default" as const };
   assert.ok(
-    monthIssues(stale).find((i) => i.severity === "error" && i.field === "electricityFactor"),
+    monthIssues(stale).find(
+      (i) => i.severity === "error" && i.field === "electricityFactor",
+    ),
     "a grid row not carrying the country default is still caught",
   );
 
-  const grid = { ...march, electricityFactorSource: "grid_default" as const, electricityFactorTco2PerMwh: 0.47 };
+  const grid = {
+    ...march,
+    electricityFactorSource: "grid_default" as const,
+    electricityFactorTco2PerMwh: 0.47,
+  };
   assert.equal(
-    monthIssues(grid).find((i) => i.severity === "error" && i.field === "electricityFactor"),
+    monthIssues(grid).find(
+      (i) => i.severity === "error" && i.field === "electricityFactor",
+    ),
     undefined,
     "with the country default in place, grid supply is a complete answer",
   );
@@ -714,43 +1059,83 @@ test("the grid factor left behind after switching away from grid is caught, once
   // does not match — the "grid must carry the grid figure" half only fires
   // once a country default is actually on file, so this exercises it
   // against a non-null published value directly rather than TH's own).
-  const nonGridStaleAtGridValue = { ...march, electricityFactorSource: "self_generated" as const, electricityFactorTco2PerMwh: 0.4999 };
+  const nonGridStaleAtGridValue = {
+    ...march,
+    electricityFactorSource: "self_generated" as const,
+    electricityFactorTco2PerMwh: 0.4999,
+  };
   // With TH's own default unpublished, the "still carrying the grid figure"
   // warning cannot fire either — there is no known grid figure to compare
   // against. Confirms the check degrades safely rather than guessing.
-  const warn = monthIssues(nonGridStaleAtGridValue).find((i) => i.field === "electricityFactor" && i.severity === "warn");
-  assert.equal(warn, undefined, "no known grid figure to compare against — nothing to flag as stale");
+  const warn = monthIssues(nonGridStaleAtGridValue).find(
+    (i) => i.field === "electricityFactor" && i.severity === "warn",
+  );
+  assert.equal(
+    warn,
+    undefined,
+    "no known grid figure to compare against — nothing to flag as stale",
+  );
 });
 
 /* ── Biomass fraction (Issue 5) ─────────────────────────────── */
 
 test("EF × (1 − BF) — Equation 10, with zero as the legal default", () => {
   const fossil = gasRow({ factorSource: "lab_analysis" });
-  const half = gasRow({ factorSource: "lab_analysis", biomassFraction: 0.5, biomassEvidenced: true });
+  const half = gasRow({
+    factorSource: "lab_analysis",
+    biomassFraction: 0.5,
+    biomassEvidenced: true,
+  });
   near(fuelCO2(half), fuelCO2(fossil) / 2, 1e-9, "half the stream zero-rated");
 
   // Unset behaves as 0 — the whole stream counts as fossil.
-  near(fuelCO2(gasRow({ factorSource: "lab_analysis", biomassFraction: undefined })), fuelCO2(fossil), 1e-9, "unknown is fossil");
+  near(
+    fuelCO2(
+      gasRow({ factorSource: "lab_analysis", biomassFraction: undefined }),
+    ),
+    fuelCO2(fossil),
+    1e-9,
+    "unknown is fossil",
+  );
 });
 
 test("a non-zero biomass fraction without the sustainability evidence blocks", () => {
   const ws = seedWorkspace();
   const march = monthsForWorkspace(ws).find((m) => m.month === "2026-03")!;
 
-  const claimed = { ...march, fuels: march.fuels.map((f) => ({ ...f, biomassFraction: 0.4 })) };
-  const issue = monthIssues(claimed).find((i) => i.severity === "error" && i.field.endsWith(":bf"));
+  const claimed = {
+    ...march,
+    fuels: march.fuels.map((f) => ({ ...f, biomassFraction: 0.4 })),
+  };
+  const issue = monthIssues(claimed).find(
+    (i) => i.severity === "error" && i.field.endsWith(":bf"),
+  );
   assert.ok(issue, "zero-rating carbon needs the criteria evidenced");
   assert.match(issue!.message, /2018\/2001/);
   assert.equal(monthCanSubmit(claimed), false);
 
-  const evidenced = { ...march, fuels: march.fuels.map((f) => ({ ...f, biomassFraction: 0.4, biomassEvidenced: true })) };
+  const evidenced = {
+    ...march,
+    fuels: march.fuels.map((f) => ({
+      ...f,
+      biomassFraction: 0.4,
+      biomassEvidenced: true,
+    })),
+  };
   assert.equal(monthCanSubmit(evidenced), true);
 });
 
 test("a biomass fraction stated as a percentage is refused rather than applied", () => {
   const ws = seedWorkspace();
   const march = monthsForWorkspace(ws).find((m) => m.month === "2026-03")!;
-  const pct = { ...march, fuels: march.fuels.map((f) => ({ ...f, biomassFraction: 40, biomassEvidenced: true })) };
+  const pct = {
+    ...march,
+    fuels: march.fuels.map((f) => ({
+      ...f,
+      biomassFraction: 40,
+      biomassEvidenced: true,
+    })),
+  };
   const issue = monthIssues(pct).find((i) => i.field.endsWith(":bf"));
   assert.match(issue!.message, /fraction, not a percentage/);
 });
@@ -760,8 +1145,136 @@ test("a biomass fraction stated as a percentage is refused rather than applied",
 test("a fuel row with no quantity blocks — it is a row that should not exist", () => {
   const ws = seedWorkspace();
   const march = monthsForWorkspace(ws).find((m) => m.month === "2026-03")!;
-  const empty = { ...march, fuels: march.fuels.map((f) => ({ ...f, quantity: 0 })) };
-  const issue = monthIssues(empty).find((i) => i.severity === "error" && i.field.endsWith(":quantity"));
+  const empty = {
+    ...march,
+    fuels: march.fuels.map((f) => ({ ...f, quantity: 0 })),
+  };
+  const issue = monthIssues(empty).find(
+    (i) => i.severity === "error" && i.field.endsWith(":quantity"),
+  );
   assert.ok(issue);
   assert.match(issue!.message, /remove the row/);
+});
+
+/* ── The rest of what a month reports (items 14, 16(b), 16(d), 17) ───── */
+
+test("continuously measured emissions are added to the month's direct emissions", () => {
+  const ws = seedWorkspace();
+  const march = monthsForWorkspace(ws).find((m) => m.month === "2026-03")!;
+  const base = monthResult(march);
+
+  const measured = {
+    ...march,
+    measuredEmissions: [
+      { id: "m1", source: "Furnace 2 stack", gas: "n2o" as const, tCO2e: 12.5 },
+    ],
+  };
+  const r = monthResult(measured);
+  assert.equal(r.measuredTCO2, 12.5);
+  near(
+    r.directTCO2,
+    base.directTCO2 + 12.5,
+    1e-9,
+    "Equation 4: Em_inst = Σ Em_calc + Σ Em_meas",
+  );
+});
+
+test("CO₂ sent on for storage comes off the month, and never takes it below zero", () => {
+  const ws = seedWorkspace();
+  const march = monthsForWorkspace(ws).find((m) => m.month === "2026-03")!;
+  const base = monthResult(march);
+
+  const sent = monthResult({ ...march, co2TransferredOutT: 10 });
+  near(sent.directTCO2, base.directTCO2 - 10, 1e-9, "counted as not emitted");
+  assert.equal(sent.transferredOutTCO2, 10);
+
+  const tooMuch = monthResult({
+    ...march,
+    co2TransferredOutT: base.directTCO2 + 5000,
+  });
+  assert.equal(
+    tooMuch.directTCO2,
+    0,
+    "floored: CO₂ cannot be un-emitted beyond what was counted",
+  );
+});
+
+test("received CO₂ is reported but does not move the month's emissions", () => {
+  const ws = seedWorkspace();
+  const march = monthsForWorkspace(ws).find((m) => m.month === "2026-03")!;
+  assert.equal(
+    monthResult({ ...march, co2ReceivedT: 40 }).directTCO2,
+    monthResult(march).directTCO2,
+  );
+});
+
+test("a measured source needs a name and a figure; more CO₂ sent on than existed is a warning", () => {
+  const ws = seedWorkspace();
+  const march = monthsForWorkspace(ws).find((m) => m.month === "2026-03")!;
+
+  const blank = monthIssues({
+    ...march,
+    measuredEmissions: [
+      { id: "m1", source: "", gas: "co2" as const, tCO2e: 0 },
+    ],
+  });
+  assert.equal(
+    blank.filter(
+      (i) => i.severity === "error" && i.field.startsWith("measured:"),
+    ).length,
+    2,
+  );
+
+  const silly = monthIssues({ ...march, co2TransferredOutT: 999_999 });
+  const w = silly.find((i) => i.field === "co2Transfer");
+  assert.ok(w && w.severity === "warn", "flagged, not blocking");
+});
+
+test("copying a month keeps the shape of the extras and none of their quantities", () => {
+  const ws = seedWorkspace();
+  const feb = monthsForWorkspace(ws).find((m) => m.month === "2026-02")!;
+  saveMonth({
+    ...feb,
+    measuredEmissions: [
+      { id: "m1", source: "Stack 1", gas: "co2" as const, tCO2e: 9 },
+    ],
+    nonCbamGoods: [{ id: "g1", name: "Galvanised sheet", tonnes: 300 }],
+  });
+  const copied = copyFromPreviousMonth(ws.id, "2026-03")!;
+  assert.equal(copied.measuredEmissions![0].source, "Stack 1");
+  assert.equal(copied.measuredEmissions![0].tCO2e, 0);
+  assert.equal(copied.nonCbamGoods![0].name, "Galvanised sheet");
+  assert.equal(copied.nonCbamGoods![0].tonnes, 0);
+});
+
+test("electricity does not hold back a month of a direct-only good — steel — but still does for a good that counts indirect emissions", async () => {
+  const cfg = await import("../config");
+  const steel = seedWorkspace("billet");
+  const march = monthsForWorkspace(steel).find((m) => m.month === "2026-03")!;
+  const noPower = { ...march, electricitySources: [], electricityMwh: 0 };
+  const steelIssues = monthIssues(noPower).filter(
+    (i) => i.field === "electricity",
+  );
+  assert.ok(steelIssues.length > 0, "it is still said, as a note");
+  assert.ok(
+    steelIssues.every((i) => i.severity === "warn"),
+    "steel is an Annex II good: only its direct emissions count, so missing power is not an error",
+  );
+  assert.match(steelIssues[0].message, /only direct emissions count/);
+
+  const cement = cfg.PRODUCT_CATALOG.find(
+    (p: { cnCode: string; category: string }) =>
+      cfg.aggregatedGoodsCategory(p as never) === "Cement",
+  )!;
+  const ws = seedWorkspace(cement.id);
+  const cMarch = monthsForWorkspace(ws).find((m) => m.month === "2026-03")!;
+  const cementIssues = monthIssues({
+    ...cMarch,
+    electricitySources: [],
+    electricityMwh: 0,
+  }).filter((i) => i.field === "electricity");
+  assert.ok(
+    cementIssues.some((i) => i.severity === "error"),
+    "cement counts indirect emissions, so the power it drew is part of its figure",
+  );
 });

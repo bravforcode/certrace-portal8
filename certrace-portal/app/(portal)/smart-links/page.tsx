@@ -46,7 +46,20 @@
 
 import * as React from "react";
 import { ArrowUpRight, Check, Copy, Link2, Send } from "lucide-react";
-import { Button, ButtonLink, Card, Chip, EmptyState, FilterChip, PageHeader, Progress, StatusDot, Modal, cn, useFlash } from "@/components/ui";
+import {
+  Button,
+  ButtonLink,
+  Card,
+  Chip,
+  EmptyState,
+  FilterChip,
+  PageHeader,
+  Progress,
+  StatusDot,
+  Modal,
+  cn,
+  useFlash,
+} from "@/components/ui";
 import { ErrorState, LoadingState } from "@/components/query-state";
 import { ActionButton } from "@/components/chain-actions";
 import { useQueryClient } from "@tanstack/react-query";
@@ -57,7 +70,6 @@ import {
   countByKind,
   countByState,
   countdown,
-  formatDay,
   SMART_LINK_KIND_BLURB,
   SMART_LINK_KIND_LABEL,
   SMART_LINK_STATE_BLURB,
@@ -69,11 +81,18 @@ import {
   type SmartLinkState,
 } from "@/lib/smart-links";
 import { scheduleFor, workspaceTitle } from "@/lib/workspace";
-import { SMART_LINKS_KEY, useMarkMonthSent, useSmartLinks } from "@/lib/workspace-data-query";
+import {
+  SMART_LINKS_KEY,
+  useMarkMonthSent,
+  useSmartLinks,
+} from "@/lib/workspace-data-query";
 import { ensureWorkspaceLink } from "@/lib/workspace-link-sync";
-import { ensurePrecursorLink, pullAllPrecursorAnswers } from "@/lib/precursor-link-sync";
+import {
+  ensurePrecursorLink,
+  pullAllPrecursorAnswers,
+} from "@/lib/precursor-link-sync";
 import { useSavePrecursorSupplier } from "@/lib/suppliers-query";
-import { useT } from "@/lib/i18n";
+import { useFormat, useT, type TFunction } from "@/lib/i18n";
 
 type StateFilter = SmartLinkState | "all";
 type KindFilter = SmartLinkKind | "all";
@@ -82,14 +101,18 @@ type KindFilter = SmartLinkKind | "all";
    inline from conditional fragments: the inline version produced "monthly data
    links." as a complete sentence whenever only the kind was filtered, which is
    a noun phrase with a full stop after it and reads as a bug. */
-function emptyFilterLine(state: StateFilter, kind: KindFilter): string {
-  const s = state === "all" ? null : SMART_LINK_STATE_LABEL[state].toLowerCase();
-  const k = kind === "all" ? null : SMART_LINK_KIND_LABEL[kind].toLowerCase();
+function emptyFilterLine(
+  state: StateFilter,
+  kind: KindFilter,
+  t: TFunction,
+): string {
+  const s = state === "all" ? null : t(SMART_LINK_STATE_LABEL[state]);
+  const k = kind === "all" ? null : t(SMART_LINK_KIND_LABEL[kind]);
 
-  if (s && k) return `None of your ${k} links are ${s}.`;
-  if (s) return `No links are ${s} right now.`;
-  if (k) return `You have no ${k} links yet.`;
-  return "Clear the filter to see every link.";
+  if (s && k) return t("No {kind} links are {state}.", { kind: k, state: s });
+  if (s) return t("No links are {state}.", { state: s });
+  if (k) return t("No {kind} links yet.", { kind: k });
+  return t("Clear the filter to see every link.");
 }
 
 export default function SmartLinksPage() {
@@ -107,7 +130,8 @@ export default function SmartLinksPage() {
     let live = true;
     void pullAllPrecursorAnswers()
       .then((changed) => {
-        if (live && changed > 0) void client.invalidateQueries({ queryKey: SMART_LINKS_KEY });
+        if (live && changed > 0)
+          void client.invalidateQueries({ queryKey: SMART_LINKS_KEY });
       })
       .catch(() => {});
     return () => {
@@ -123,8 +147,12 @@ export default function SmartLinksPage() {
   const stateCounts = React.useMemo(() => countByState(all), [all]);
   const kindCounts = React.useMemo(() => countByKind(all), [all]);
 
-  const shown = all.filter((l) => (state === "all" || l.state === state) && (kind === "all" || l.kind === kind));
-  const open = openId ? all.find((l) => l.id === openId) ?? null : null;
+  const shown = all.filter(
+    (l) =>
+      (state === "all" || l.state === state) &&
+      (kind === "all" || l.kind === kind),
+  );
+  const open = openId ? (all.find((l) => l.id === openId) ?? null) : null;
 
   if (isError) return <ErrorState onRetry={() => void refetch()} />;
   if (links === undefined) return <LoadingState />;
@@ -132,17 +160,22 @@ export default function SmartLinksPage() {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow={t("Smart Links")}
-        title={t("Every link you have issued")}
-        lead={t("A workspace asks for twelve months of readings and a verified figure from each of its precursor suppliers. Each of those asks is a link somebody opens and fills in — this is all of them, from every workspace, with where each one stands.")}
+        title={t("Smart Links")}
+        lead={t("Every request for data, and where it stands.")}
       />
 
       {all.length === 0 ? (
         <EmptyState
           icon={<Link2 size={28} strokeWidth={1.25} />}
           title={t("No links yet")}
-          body={t("Links appear the moment a workspace exists — one for each month of its reporting year, and one for each precursor supplier you add to its chain. Create your first workspace and the year lays itself out here.")}
-          action={<ButtonLink href="/workspaces/new">{t("Create a workspace")}</ButtonLink>}
+          body={t(
+            "A product report gets one link for each month, and one for each precursor supplier.",
+          )}
+          action={
+            <ButtonLink href="/workspaces/new">
+              {t("New product report")}
+            </ButtonLink>
+          }
         />
       ) : (
         <>
@@ -158,8 +191,12 @@ export default function SmartLinksPage() {
 
           {shown.length === 0 ? (
             <Card className="px-6 py-10 text-center">
-              <p className="text-[13.5px] text-black/55">{t("Nothing matches this filter.")}</p>
-              <p className="mx-auto mt-1.5 max-w-md text-[12.5px] leading-relaxed text-black/40">{emptyFilterLine(state, kind)}</p>
+              <p className="text-[13.5px] text-black/55">
+                {t("Nothing matches this filter.")}
+              </p>
+              <p className="mx-auto mt-1.5 max-w-md text-[12.5px] leading-relaxed text-black/40">
+                {emptyFilterLine(state, kind, t)}
+              </p>
               <div className="mt-4">
                 <Button
                   size="sm"
@@ -209,12 +246,23 @@ function Filters({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="mr-1 font-pixel text-[10px] uppercase tracking-[0.16em] text-black/35">{t("Status")}</span>
-        <FilterChip active={state === "all"} onClick={() => onState("all")} title={t("Every link, whatever state it is in.")}>
-          All · {total}
+        <span className="mr-1 font-pixel text-[10px] uppercase tracking-[0.16em] text-black/35">
+          {t("Status")}
+        </span>
+        <FilterChip
+          active={state === "all"}
+          onClick={() => onState("all")}
+          title={t("Every link.")}
+        >
+          {t("All")} · {total}
         </FilterChip>
         {SMART_LINK_STATES.map((s) => (
-          <FilterChip key={s} active={state === s} onClick={() => onState(s)} title={t(SMART_LINK_STATE_BLURB[s])}>
+          <FilterChip
+            key={s}
+            active={state === s}
+            onClick={() => onState(s)}
+            title={t(SMART_LINK_STATE_BLURB[s])}
+          >
             <StatusDot tone={SMART_LINK_STATE_TONE[s]} className="mr-1.5" />
             {t(SMART_LINK_STATE_LABEL[s])} · {stateCounts[s]}
           </FilterChip>
@@ -222,14 +270,28 @@ function Filters({
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
-        <span className="mr-1 font-pixel text-[10px] uppercase tracking-[0.16em] text-black/35">{t("Asking for")}</span>
-        <FilterChip active={kind === "all"} onClick={() => onKind("all")} title={t("Both kinds of ask.")}>
-          All · {total}
+        <span className="mr-1 font-pixel text-[10px] uppercase tracking-[0.16em] text-black/35">
+          {t("Asking for")}
+        </span>
+        <FilterChip
+          active={kind === "all"}
+          onClick={() => onKind("all")}
+          title={t("Both kinds.")}
+        >
+          {t("All")} · {total}
         </FilterChip>
-        <FilterChip active={kind === "monthly"} onClick={() => onKind("monthly")} title={t(SMART_LINK_KIND_BLURB.monthly)}>
+        <FilterChip
+          active={kind === "monthly"}
+          onClick={() => onKind("monthly")}
+          title={t(SMART_LINK_KIND_BLURB.monthly)}
+        >
           {t(SMART_LINK_KIND_LABEL.monthly)} · {kindCounts.monthly}
         </FilterChip>
-        <FilterChip active={kind === "verified_data"} onClick={() => onKind("verified_data")} title={t(SMART_LINK_KIND_BLURB.verified_data)}>
+        <FilterChip
+          active={kind === "verified_data"}
+          onClick={() => onKind("verified_data")}
+          title={t(SMART_LINK_KIND_BLURB.verified_data)}
+        >
           {t(SMART_LINK_KIND_LABEL.verified_data)} · {kindCounts.verified_data}
         </FilterChip>
       </div>
@@ -238,7 +300,11 @@ function Filters({
           self-explanatory words, and a reader who guesses wrong at what they
           mean acts on the wrong rows. One line, only for the filter actually
           on. */}
-      {state !== "all" && <p className="text-[12px] leading-relaxed text-black/45">{t(SMART_LINK_STATE_BLURB[state])}</p>}
+      {state !== "all" && (
+        <p className="text-[12px] leading-relaxed text-black/45">
+          {t(SMART_LINK_STATE_BLURB[state])}
+        </p>
+      )}
     </div>
   );
 }
@@ -259,9 +325,21 @@ function Filters({
    see it; a column that disappears taking its fact with it is worse than a
    scrollbar. The remaining scroller is kept for the in-between widths where
    two columns are back and the third has not fitted yet. */
-function Th({ children, className }: { children: React.ReactNode; className?: string }) {
+function Th({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <th scope="col" className={cn("whitespace-nowrap px-2 py-2.5 text-[10px] font-normal uppercase tracking-[0.1em] text-black/40 sm:px-3", className)}>
+    <th
+      scope="col"
+      className={cn(
+        "whitespace-nowrap px-2 py-2.5 text-[10px] font-normal uppercase tracking-[0.1em] text-black/40 sm:px-3",
+        className,
+      )}
+    >
       {children}
     </th>
   );
@@ -275,8 +353,26 @@ function deadlineTone(l: SmartLink): string {
   return l.msLeft <= 3 * 864e5 ? "text-[#b45309]" : "text-black/50";
 }
 
-function LinkTable({ links, onOpen }: { links: SmartLink[]; onOpen: (id: string) => void }) {
+/** The month a link covers, spelled in the active language; a precursor link keeps its supplier's name. */
+function useSubject() {
+  const { date } = useFormat();
+  return (l: SmartLink) => {
+    if (l.kind !== "monthly" || !l.month) return l.subject;
+    const [y, m] = l.month.split("-").map(Number);
+    return date(new Date(y, m - 1, 1), { month: "long", year: "numeric" });
+  };
+}
+
+function LinkTable({
+  links,
+  onOpen,
+}: {
+  links: SmartLink[];
+  onOpen: (id: string) => void;
+}) {
   const t = useT();
+  const { date } = useFormat();
+  const subjectOf = useSubject();
   return (
     <div className="overflow-x-auto rounded-2xl border border-black/[0.07] bg-white">
       {/* FIXED LAYOUT IS WHAT MAKES `truncate` WORK. In an auto-layout table a
@@ -287,16 +383,22 @@ function LinkTable({ links, onOpen }: { links: SmartLink[]; onOpen: (id: string)
       <table className="w-full table-fixed border-collapse text-left">
         <thead>
           <tr className="border-b border-black/[0.07] bg-[#faf9f7]">
-            <Th className="w-[46%] sm:w-[30%] sm:min-w-[170px]">{t("What is being asked")}</Th>
-            <Th className="hidden w-[150px] lg:table-cell">{t("Asking for")}</Th>
-            <Th className="hidden w-[22%] min-w-[160px] md:table-cell">{t("Who fills it in")}</Th>
+            <Th className="w-[46%] sm:w-[30%] sm:min-w-[170px]">
+              {t("Request")}
+            </Th>
+            <Th className="hidden w-[150px] lg:table-cell">
+              {t("Asking for")}
+            </Th>
+            <Th className="hidden w-[22%] min-w-[160px] md:table-cell">
+              {t("Who fills it in")}
+            </Th>
             {/* Sized to the longest label the vocabulary has, so a chip never
                 wraps — a status that wraps is the row a reader stops trusting. */}
             <Th className="w-[116px] sm:w-[132px]">{t("Status")}</Th>
             <Th className="hidden w-[150px] sm:table-cell">{t("Deadline")}</Th>
             <Th className="hidden w-[120px] xl:table-cell">{t("Filled in")}</Th>
             <Th className="w-[40px] sm:w-[48px]">
-              <span className="sr-only">{t("Open")}</span>
+              <span className="sr-only">{t("Open link")}</span>
             </Th>
           </tr>
         </thead>
@@ -312,9 +414,14 @@ function LinkTable({ links, onOpen }: { links: SmartLink[]; onOpen: (id: string)
               className="cursor-pointer border-b border-black/[0.05] align-top transition-colors last:border-b-0 hover:bg-[#fafaf8]"
             >
               <td className="px-2 py-3 sm:px-3">
-                <span className="block text-[13.5px] leading-snug text-black/80">{l.subject}</span>
-                <span className="mt-0.5 block truncate text-[11.5px] text-black/40" title={workspaceTitle(l.workspace)}>
-                  {workspaceTitle(l.workspace)}
+                <span className="block text-[13.5px] leading-snug text-black/80">
+                  {subjectOf(l)}
+                </span>
+                <span
+                  className="mt-0.5 block truncate text-[11.5px] text-black/40"
+                  title={workspaceTitle(l.workspace, t)}
+                >
+                  {workspaceTitle(l.workspace, t)}
                 </span>
 
                 {/* What the hidden columns were carrying, folded back in at
@@ -323,37 +430,73 @@ function LinkTable({ links, onOpen }: { links: SmartLink[]; onOpen: (id: string)
                   {t(SMART_LINK_KIND_LABEL[l.kind])}
                   <span className="md:hidden"> · {t(l.recipient)}</span>
                 </span>
-                <span className={cn("mt-0.5 block font-mono text-[11px] sm:hidden", deadlineTone(l))}>
-                  {l.state === "done" ? "deadline met" : countdown(l.msLeft)} · {formatDay(l.due)}
+                <span
+                  className={cn(
+                    "mt-0.5 block font-mono text-[11px] sm:hidden",
+                    deadlineTone(l),
+                  )}
+                >
+                  {l.state === "done"
+                    ? t("Deadline met")
+                    : countdown(l.msLeft, t, l.due)}{" "}
+                  · {date(l.due)}
                 </span>
               </td>
 
               <td className="hidden px-3 py-3 lg:table-cell">
-                <span className="text-[12.5px] text-black/60">{t(SMART_LINK_KIND_LABEL[l.kind])}</span>
+                <span className="text-[12.5px] text-black/60">
+                  {t(SMART_LINK_KIND_LABEL[l.kind])}
+                </span>
                 {/* Which of the three sources this link came from. A month
                     belonging to a workspace opened on a supplier's behalf is a
                     different conversation from one of your own plant's, and
                     the row is where that has to be said — the workspace title
                     alone does not carry it. */}
-                {l.viaPrecursor && <span className="mt-0.5 block text-[11px] text-black/35">{t("Tracked for a precursor")}</span>}
+                {l.viaPrecursor && (
+                  <span className="mt-0.5 block text-[11px] text-black/35">
+                    {t("Tracked for a precursor")}
+                  </span>
+                )}
               </td>
 
               <td className="hidden px-3 py-3 md:table-cell">
-                <span className="block truncate text-[12.5px] text-black/60" title={t(l.recipient)}>
+                <span
+                  className="block truncate text-[12.5px] text-black/60"
+                  title={t(l.recipient)}
+                >
                   {t(l.recipient)}
                 </span>
-                {l.toSelf && <span className="mt-0.5 block text-[11px] text-black/35">{t("Lands on you")}</span>}
+                {l.toSelf && (
+                  <span className="mt-0.5 block text-[11px] text-black/35">
+                    {t("Lands on you")}
+                  </span>
+                )}
               </td>
 
               <td className="whitespace-nowrap px-2 py-3 sm:px-3">
-                <Chip filled tone={SMART_LINK_STATE_TONE[l.state]} className="whitespace-nowrap">
+                <Chip
+                  filled
+                  tone={SMART_LINK_STATE_TONE[l.state]}
+                  className="whitespace-nowrap"
+                >
                   {t(SMART_LINK_STATE_LABEL[l.state])}
                 </Chip>
               </td>
 
               <td className="hidden whitespace-nowrap px-3 py-3 sm:table-cell">
-                <span className={cn("block font-mono text-[11.5px]", deadlineTone(l))}>{l.state === "done" ? "met" : countdown(l.msLeft)}</span>
-                <span className="mt-0.5 block font-mono text-[10.5px] text-black/30">{formatDay(l.due)}</span>
+                <span
+                  className={cn(
+                    "block font-mono text-[11.5px]",
+                    deadlineTone(l),
+                  )}
+                >
+                  {l.state === "done"
+                    ? t("Met")
+                    : countdown(l.msLeft, t, l.due)}
+                </span>
+                <span className="mt-0.5 block font-mono text-[10.5px] text-black/30">
+                  {date(l.due)}
+                </span>
               </td>
 
               <td className="hidden whitespace-nowrap px-3 py-3 xl:table-cell">
@@ -361,10 +504,21 @@ function LinkTable({ links, onOpen }: { links: SmartLink[]; onOpen: (id: string)
                     percentage. Both are drawn the same way so the column means
                     one thing, with the month's own word underneath. */}
                 <div className="w-[84px]">
-                  <Progress value={l.percentComplete} tone={l.percentComplete >= 100 ? "ok" : l.overdue ? "err" : "warn"} />
+                  <Progress
+                    value={l.percentComplete}
+                    tone={
+                      l.percentComplete >= 100
+                        ? "ok"
+                        : l.overdue
+                          ? "err"
+                          : "warn"
+                    }
+                  />
                 </div>
                 <span className="mt-1 block font-mono text-[10.5px] text-black/35">
-                  {l.monthStatus ? MONTH_STATUS_LABEL[l.monthStatus] : `${l.percentComplete}%`}
+                  {l.monthStatus
+                    ? t(MONTH_STATUS_LABEL[l.monthStatus])
+                    : `${l.percentComplete}%`}
                 </span>
               </td>
 
@@ -375,7 +529,7 @@ function LinkTable({ links, onOpen }: { links: SmartLink[]; onOpen: (id: string)
                     e.stopPropagation();
                     onOpen(l.id);
                   }}
-                  aria-label={`Open the link for ${l.subject}`}
+                  aria-label={`${t("Open link")} · ${subjectOf(l)}`}
                   className="rounded-lg p-1.5 text-black/25 transition-colors hover:bg-black/[0.04] hover:text-black"
                 >
                   <ArrowUpRight size={15} strokeWidth={1.5} />
@@ -395,15 +549,28 @@ function LinkTable({ links, onOpen }: { links: SmartLink[]; onOpen: (id: string)
    not only behind a Copy button, because an exporter pasting it into LINE or
    a phone call needs to be able to read it, and because a copy that silently
    fails on a browser without clipboard permission leaves nothing behind. */
-function LinkDialog({ link, onClose }: { link: SmartLink | null; onClose: () => void }) {
+function LinkDialog({
+  link,
+  onClose,
+}: {
+  link: SmartLink | null;
+  onClose: () => void;
+}) {
   const t = useT();
+  const subjectOf = useSubject();
   const [copied, flashCopied] = useFlash();
   const [sent, flashSent] = useFlash();
   const markSent = useMarkMonthSent();
   const savePrecursor = useSavePrecursorSupplier();
   const client = useQueryClient();
 
-  const localUrl = React.useMemo(() => (link && typeof window !== "undefined" ? `${window.location.origin}${link.path}` : ""), [link]);
+  const localUrl = React.useMemo(
+    () =>
+      link && typeof window !== "undefined"
+        ? `${window.location.origin}${link.path}`
+        : "",
+    [link],
+  );
   /* A link is minted on the server the moment it is looked at, so the
      address shown, copied and sent is one the supplier can open on their own
      machine (lib/workspace-link-sync.ts for a month, lib/precursor-link-sync.ts
@@ -435,7 +602,8 @@ function LinkDialog({ link, onClose }: { link: SmartLink | null; onClose: () => 
 
   const copy = () => {
     if (!url) return;
-    if (typeof navigator !== "undefined" && navigator.clipboard) void navigator.clipboard.writeText(url).catch(() => {});
+    if (typeof navigator !== "undefined" && navigator.clipboard)
+      void navigator.clipboard.writeText(url).catch(() => {});
     flashCopied();
   };
 
@@ -451,7 +619,11 @@ function LinkDialog({ link, onClose }: { link: SmartLink | null; onClose: () => 
      for the exporter to paste. */
   const send = () => {
     if (link.kind === "monthly" && link.month) {
-      markSent.mutate({ workspaceId: link.workspace.id, month: link.month, dueDay: scheduleFor(link.workspace).dueDay });
+      markSent.mutate({
+        workspaceId: link.workspace.id,
+        month: link.month,
+        dueDay: scheduleFor(link.workspace).dueDay,
+      });
     } else if (link.precursor) {
       const row = getSupplier(link.workspace.id, link.precursor.id);
       if (!row) return;
@@ -459,28 +631,37 @@ function LinkDialog({ link, onClose }: { link: SmartLink | null; onClose: () => 
       savePrecursor.mutate(
         {
           ...row,
-          smartLinkToken: row.smartLinkToken ?? makePrecursorLinkToken(link.workspace.id, row.id),
+          smartLinkToken:
+            row.smartLinkToken ??
+            makePrecursorLinkToken(link.workspace.id, row.id),
           smartLinkSentAt: row.smartLinkSentAt ?? now,
           smartLinkLastSentAt: now,
         },
         /* The precursor mutation settles its own keys but not this page's
            list, which derives from the same rows — SMART_LINKS_KEY is
            exported for exactly this nudge. */
-        { onSuccess: () => void client.invalidateQueries({ queryKey: SMART_LINKS_KEY }) },
+        {
+          onSuccess: () =>
+            void client.invalidateQueries({ queryKey: SMART_LINKS_KEY }),
+        },
       );
     }
-    if (url && typeof navigator !== "undefined" && navigator.clipboard) void navigator.clipboard.writeText(url).catch(() => {});
+    if (url && typeof navigator !== "undefined" && navigator.clipboard)
+      void navigator.clipboard.writeText(url).catch(() => {});
     flashSent();
   };
 
-  const workspaceHref = link.kind === "monthly" ? `/workspaces/${link.workspace.id}/monthly` : `/workspaces/${link.workspace.id}/tree`;
+  const workspaceHref =
+    link.kind === "monthly"
+      ? `/workspaces/${link.workspace.id}/monthly`
+      : `/workspaces/${link.workspace.id}/precursors`;
 
   return (
     <Modal
       open
       onClose={onClose}
       eyebrow={t(SMART_LINK_KIND_LABEL[link.kind])}
-      title={link.subject}
+      title={subjectOf(link)}
       lead={t(SMART_LINK_KIND_BLURB[link.kind])}
       footer={
         <>
@@ -488,7 +669,7 @@ function LinkDialog({ link, onClose }: { link: SmartLink | null; onClose: () => 
             {t("Close")}
           </Button>
           <ButtonLink href={workspaceHref} variant="secondary" size="sm">
-            {t("Open the workspace")}
+            {t("Open the product report")}
           </ButtonLink>
           <Button size="sm" onClick={send}>
             {sent ? (
@@ -497,7 +678,8 @@ function LinkDialog({ link, onClose }: { link: SmartLink | null; onClose: () => 
               </>
             ) : (
               <>
-                <Send size={13} strokeWidth={1.5} /> {link.sentAt ? "Send again" : "Send now"}
+                <Send size={13} strokeWidth={1.5} />{" "}
+                {link.sentAt ? t("Send again") : t("Send now")}
               </>
             )}
           </Button>
@@ -507,24 +689,41 @@ function LinkDialog({ link, onClose }: { link: SmartLink | null; onClose: () => 
       <div className="space-y-5">
         {/* Where it stands, in one line, before anything else. */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <Chip filled tone={SMART_LINK_STATE_TONE[link.state]}>{t(SMART_LINK_STATE_LABEL[link.state])}</Chip>
-          <span className="text-[12.5px] text-black/50">{t(SMART_LINK_STATE_BLURB[link.state])}</span>
+          <Chip filled tone={SMART_LINK_STATE_TONE[link.state]}>
+            {t(SMART_LINK_STATE_LABEL[link.state])}
+          </Chip>
+          <span className="text-[12.5px] text-black/50">
+            {t(SMART_LINK_STATE_BLURB[link.state])}
+          </span>
         </div>
 
         <Card warm className="p-4">
           <div className="flex items-baseline justify-between gap-3">
-            <span className="font-pixel text-[10px] uppercase tracking-[0.16em] text-black/35">{t("The link to hand over")}</span>
-            <ActionButton onClick={copy} className="inline-flex flex-none items-center gap-1.5">
-              {copied ? <Check size={11} strokeWidth={2} /> : <Copy size={11} strokeWidth={1.5} />}
-              {copied ? "Copied" : "Copy link"}
+            <span className="font-pixel text-[10px] uppercase tracking-[0.16em] text-black/35">
+              {t("Link")}
+            </span>
+            <ActionButton
+              onClick={copy}
+              className="inline-flex flex-none items-center gap-1.5"
+            >
+              {copied ? (
+                <Check size={11} strokeWidth={2} />
+              ) : (
+                <Copy size={11} strokeWidth={1.5} />
+              )}
+              {copied ? t("Copied") : t("Copy link")}
             </ActionButton>
           </div>
           {/* break-all, not truncate: a token is unreadable either way, but a
               truncated one cannot be read aloud or checked against what was
               pasted. */}
-          <p className="mt-2 break-all font-mono text-[11.5px] leading-relaxed text-black/60">{url}</p>
+          <p className="mt-2 break-all font-mono text-[11.5px] leading-relaxed text-black/60">
+            {url}
+          </p>
           <p className="mt-2.5 text-[12px] leading-relaxed text-black/40">
-            {t("Whoever opens this fills the form in on their own — they need no Certrace account and see nothing else in yours. Certrace does not email it for you: Send records that you asked and puts the address on your clipboard to paste wherever you reach them.")}
+            {t(
+              "No account needed. Send marks it as asked and copies the link — paste it wherever you reach them.",
+            )}
           </p>
         </Card>
 
@@ -534,8 +733,13 @@ function LinkDialog({ link, onClose }: { link: SmartLink | null; onClose: () => 
             filling this in is the person reading it — so the form itself is
             offered, in a new tab, exactly as the old Inbox row did. */}
         {link.toSelf && link.state !== "done" && (
-          <ButtonLink href={`/workspaces/${link.workspace.id}/monthly/${link.month}`} external size="sm">
-            {t("Fill this in yourself")} <ArrowUpRight size={13} strokeWidth={1.5} />
+          <ButtonLink
+            href={`/workspaces/${link.workspace.id}/monthly/${link.month}`}
+            external
+            size="sm"
+          >
+            {t("Fill this in yourself")}{" "}
+            <ArrowUpRight size={13} strokeWidth={1.5} />
           </ButtonLink>
         )}
       </div>
@@ -548,24 +752,51 @@ function LinkDialog({ link, onClose }: { link: SmartLink | null; onClose: () => 
     the reader learns where to look once. */
 function Facts({ link }: { link: SmartLink }) {
   const t = useT();
-  const stamp = (iso: string | null) => (iso ? formatDay(new Date(iso)) : "—");
+  const { date } = useFormat();
+  const stamp = (iso: string | null) => (iso ? date(new Date(iso)) : "—");
 
   const rows: [string, string][] = [
     [t("Who fills it in"), t(link.recipient)],
-    ["Workspace", workspaceTitle(link.workspace)],
-    ["Deadline", `${formatDay(link.due)} · ${link.state === "done" ? "met" : countdown(link.msLeft)}`],
-    ["First sent", stamp(link.sentAt)],
-    ...(link.resendCount > 0 ? ([["Chased", `${link.resendCount} time${link.resendCount === 1 ? "" : "s"} · last ${stamp(link.lastSentAt)}`]] as [string, string][]) : []),
-    ...(link.kind === "verified_data" ? ([["Opened", stamp(link.openedAt)]] as [string, string][]) : []),
-    ["Filled in", link.answeredAt ? stamp(link.answeredAt) : link.monthStatus ? MONTH_STATUS_LABEL[link.monthStatus] : `${link.percentComplete}% answered`],
+    [t("Product report"), workspaceTitle(link.workspace, t)],
+    [
+      t("Deadline"),
+      `${date(link.due)} · ${link.state === "done" ? t("Met") : countdown(link.msLeft, t, link.due)}`,
+    ],
+    [t("First sent"), stamp(link.sentAt)],
+    ...(link.resendCount > 0
+      ? ([
+          [
+            t("Chased"),
+            t("{n} times · last {date}", {
+              n: link.resendCount,
+              date: stamp(link.lastSentAt),
+            }),
+          ],
+        ] as [string, string][])
+      : []),
+    ...(link.kind === "verified_data"
+      ? ([[t("Opened"), stamp(link.openedAt)]] as [string, string][])
+      : []),
+    [
+      t("Filled in"),
+      link.answeredAt
+        ? stamp(link.answeredAt)
+        : link.monthStatus
+          ? t(MONTH_STATUS_LABEL[link.monthStatus])
+          : t("{n}% answered", { n: link.percentComplete }),
+    ],
   ];
 
   return (
     <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
       {rows.map(([label, value]) => (
         <div key={label} className="min-w-0">
-          <dt className="text-[10px] uppercase tracking-[0.1em] text-black/35">{label}</dt>
-          <dd className="mt-1 break-words text-[13px] text-black/70">{value}</dd>
+          <dt className="text-[10px] uppercase tracking-[0.1em] text-black/35">
+            {label}
+          </dt>
+          <dd className="mt-1 break-words text-[13px] text-black/70">
+            {value}
+          </dd>
         </div>
       ))}
     </dl>

@@ -49,7 +49,13 @@ function HomeLogo({ className }: { className?: string }) {
    content clips symmetrically off both ends, and since scrollTop can't go
    negative, that clipped top (the logo) becomes permanently unreachable —
    `safe center` is the standard fix. */
-export function AuthLayout({ children, description }: { children: React.ReactNode; description?: string }) {
+export function AuthLayout({
+  children,
+  description,
+}: {
+  children: React.ReactNode;
+  description?: string;
+}) {
   const t = useT();
   /* Every auth screen is the first thing someone opens before talking to the
      backend, so this is where it gets woken up — see lib/api/warm.ts. */
@@ -78,7 +84,9 @@ export function AuthLayout({ children, description }: { children: React.ReactNod
           </g>
         </svg>
 
-        <div className="relative"><HomeLogo className="h-6 w-auto" /></div>
+        <div className="relative">
+          <HomeLogo className="h-6 w-auto" />
+        </div>
 
         {/* Positioning copy, kept in step with the public site: category is
             "carbon compliance infrastructure", the hook is that the order is
@@ -104,7 +112,9 @@ export function AuthLayout({ children, description }: { children: React.ReactNod
 
       <div className="flex justify-center overflow-y-auto px-6 py-8 [align-items:safe_center] lg:py-16">
         <div className="w-full max-w-sm">
-          <div className="lg:hidden"><HomeLogo className="h-5 w-auto" /></div>
+          <div className="lg:hidden">
+            <HomeLogo className="h-5 w-auto" />
+          </div>
           {children}
         </div>
       </div>
@@ -127,7 +137,15 @@ export const GOOGLE_AUTH_ENABLED: boolean = googleSignInEnabled();
 
 /* "G" glyph drawn in brand-neutral strokes — no imported logo asset, just the
    universally-recognised four-colour mark so the button reads instantly. */
-export function GoogleButton({ onClick, loading, label = "Continue with Google" }: { onClick: () => void; loading?: boolean; label?: string }) {
+export function GoogleButton({
+  onClick,
+  loading,
+  label = "Continue with Google",
+}: {
+  onClick: () => void;
+  loading?: boolean;
+  label?: string;
+}) {
   const t = useT();
   return (
     <button
@@ -137,13 +155,28 @@ export function GoogleButton({ onClick, loading, label = "Continue with Google" 
       className="inline-flex w-full items-center justify-center gap-3 rounded-xl border border-black/10 bg-white px-6 py-3 text-[13px] text-black/70 transition-colors hover:border-black/25 hover:bg-black/[0.02] disabled:pointer-events-none disabled:opacity-50"
     >
       {loading ? (
-        <span className="h-4 w-4 animate-spin rounded-full border-2 border-black/15 border-t-black/50" aria-hidden />
+        <span
+          className="h-4 w-4 animate-spin rounded-full border-2 border-black/15 border-t-black/50"
+          aria-hidden
+        />
       ) : (
         <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden>
-          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
-          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.9-2.26 5.36-4.78 7.02l7.73 6c4.51-4.18 7.09-10.36 7.09-17.49z" />
-          <path fill="#FBBC05" d="M10.53 28.59A14.5 14.5 0 0 1 9.5 24c0-1.59.27-3.13.76-4.59l-7.98-6.19A24 24 0 0 0 0 24c0 3.87.92 7.53 2.56 10.78l7.97-6.19z" />
-          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
+          <path
+            fill="#EA4335"
+            d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
+          />
+          <path
+            fill="#4285F4"
+            d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.9-2.26 5.36-4.78 7.02l7.73 6c4.51-4.18 7.09-10.36 7.09-17.49z"
+          />
+          <path
+            fill="#FBBC05"
+            d="M10.53 28.59A14.5 14.5 0 0 1 9.5 24c0-1.59.27-3.13.76-4.59l-7.98-6.19A24 24 0 0 0 0 24c0 3.87.92 7.53 2.56 10.78l7.97-6.19z"
+          />
+          <path
+            fill="#34A853"
+            d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
+          />
         </svg>
       )}
       {loading ? t("Connecting…") : t(label)}
@@ -179,10 +212,18 @@ export function PasswordStrength({ value }: { value: string }) {
     <div className="mt-2">
       <div className="flex gap-1">
         {[0, 1, 2, 3].map((i) => (
-          <span key={i} className={cn("h-[3px] flex-1 rounded-full transition-colors")} style={{ background: i < score ? colors[score] : "rgba(0,0,0,0.08)" }} />
+          <span
+            key={i}
+            className={cn("h-[3px] flex-1 rounded-full transition-colors")}
+            style={{
+              background: i < score ? colors[score] : "rgba(0,0,0,0.08)",
+            }}
+          />
         ))}
       </div>
-      <span className="mt-1.5 block text-[11px] text-black/35">{t(labels[score])}</span>
+      <span className="mt-1.5 block text-[11px] text-black/35">
+        {t(labels[score])}
+      </span>
     </div>
   );
 }
@@ -211,10 +252,15 @@ export function AuthUnavailable({ lead }: { lead?: string }) {
         </p>
       </div>
       <p className="mt-3 text-[13px] leading-relaxed text-black/60">
-        {lead ?? t("Accounts aren't open on this deployment yet — there's no sign-in to complete.")}
+        {lead ??
+          t(
+            "Accounts aren't open on this deployment yet — there's no sign-in to complete.",
+          )}
       </p>
       <p className="mt-3 text-[13px] leading-relaxed text-black/45">
-        {t("If you're expecting access, the exporter who invited you can tell you when the portal opens.")}
+        {t(
+          "If you're expecting access, the exporter who invited you can tell you when the portal opens.",
+        )}
       </p>
     </div>
   );

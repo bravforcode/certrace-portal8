@@ -33,11 +33,29 @@
 import { getCarbonPrice, CARBON_PRICE_INSTRUMENT_LABEL } from "../carbon-price";
 import { getInstallation } from "../installations";
 import { getOrgIdentity } from "../org";
-import { monthsForWorkspace, fuelGJ, fuelTypeLabel, effectiveEf, resolvedOxidationFactor } from "../monthly-data";
+import {
+  monthsForWorkspace,
+  fuelGJ,
+  fuelTypeLabel,
+  effectiveEf,
+  resolvedOxidationFactor,
+} from "../monthly-data";
 import { workspaceReadiness, type WorkspaceReadiness } from "../readiness";
 import { workspaceSEE } from "../workspace-see";
-import { directMethodSummary, finalVersionCovering, loadDraft, migrateMmd, REDUCING_AGENT_LABEL, type SectorParameters } from "../workspace-mmd";
-import { goodsCategory, routeLabel, workspaceTitle, type VerificationWorkspace } from "../workspace";
+import {
+  directMethodSummary,
+  finalVersionCovering,
+  loadDraft,
+  migrateMmd,
+  REDUCING_AGENT_LABEL,
+  type SectorParameters,
+} from "../workspace-mmd";
+import {
+  goodsCategory,
+  routeLabel,
+  workspaceTitle,
+  type VerificationWorkspace,
+} from "../workspace";
 import {
   listEvidence,
   departmentForEvidenceItem,
@@ -47,7 +65,12 @@ import {
   type EvidenceItem,
 } from "../workspace-evidence";
 import { QUALITY_ASSURANCE_LABEL } from "./mmd";
-import { categoryForCn, indirectApplies, specialParametersFor, TEMPLATE_UNITS } from "./template-reference";
+import {
+  categoryForCn,
+  indirectApplies,
+  specialParametersFor,
+  TEMPLATE_UNITS,
+} from "./template-reference";
 
 /** What a field renders as when Certrace has no answer for it. Never an
     empty cell: a blank reads as "nothing needed here", and this has to read
@@ -62,7 +85,12 @@ export const OUTSTANDING_SHOWN = 12;
 
 export type FieldRow = { label: string; value: string };
 export type FieldsBlock = { kind: "fields"; rows: FieldRow[] };
-export type TableBlock = { kind: "table"; columns: string[]; rows: string[][]; caption?: string };
+export type TableBlock = {
+  kind: "table";
+  columns: string[];
+  rows: string[][];
+  caption?: string;
+};
 export type TextBlock = { kind: "text"; text: string };
 export type Block = FieldsBlock | TableBlock | TextBlock;
 
@@ -89,7 +117,20 @@ export const EVIDENCE_REPORT_CATEGORY_ORDER: EvidenceDepartment[] = [
     substantiates lands in this list — so a document behind a Part 2
     production route sorts ahead of one behind a Part 4 SEE figure, which is
     what a reader following the report forwards expects. */
-export const PART_ANCHORS = ["1.1", "1.2", "1.3", "1.4", "2.1", "2.2", "3.1", "3.2", "3.3", "3.4", "4.1", "4.2"] as const;
+export const PART_ANCHORS = [
+  "1.1",
+  "1.2",
+  "1.3",
+  "1.4",
+  "2.1",
+  "2.2",
+  "3.1",
+  "3.2",
+  "3.3",
+  "3.4",
+  "4.1",
+  "4.2",
+] as const;
 export type PartAnchor = (typeof PART_ANCHORS)[number];
 
 /** fieldKey → the subsection whose figure that document stands behind.
@@ -127,7 +168,8 @@ export function anchorForFieldKey(key: string): PartAnchor | null {
   return FIELD_ANCHOR[key] ?? null;
 }
 
-const anchorRank = (a: PartAnchor | null): number => (a == null ? Number.MAX_SAFE_INTEGER : PART_ANCHORS.indexOf(a));
+const anchorRank = (a: PartAnchor | null): number =>
+  a == null ? Number.MAX_SAFE_INTEGER : PART_ANCHORS.indexOf(a);
 
 export type EvidenceSection = {
   department: EvidenceDepartment;
@@ -150,7 +192,9 @@ export function planEvidence(workspaceId: string): EvidenceSection[] {
   const sections: EvidenceSection[] = [];
 
   EVIDENCE_REPORT_CATEGORY_ORDER.forEach((department, i) => {
-    const items = all.filter((e) => departmentForEvidenceItem(e) === department);
+    const items = all.filter(
+      (e) => departmentForEvidenceItem(e) === department,
+    );
     if (items.length === 0) return; // §5 — hidden entirely, not shown empty
 
     items.sort((a, b) => {
@@ -163,7 +207,12 @@ export function planEvidence(workspaceId: string): EvidenceSection[] {
       return String(a.capturedAt).localeCompare(String(b.capturedAt));
     });
 
-    sections.push({ department, ordinal: i + 1, title: `Evidence — ${EVIDENCE_DEPARTMENT_LABEL[department]}`, items });
+    sections.push({
+      department,
+      ordinal: i + 1,
+      title: `Evidence — ${EVIDENCE_DEPARTMENT_LABEL[department]}`,
+      items,
+    });
   });
 
   return sections;
@@ -174,7 +223,12 @@ export function planEvidence(workspaceId: string): EvidenceSection[] {
 /** Four decimals, matching the workbook's own example row (0.915 / 0.396 /
     1.311). Nothing rounds before it is printed. */
 const sig = (v: number, dp = 4): string =>
-  Number.isFinite(v) ? v.toLocaleString("en-GB", { minimumFractionDigits: 0, maximumFractionDigits: dp }) : NOT_PROVIDED;
+  Number.isFinite(v)
+    ? v.toLocaleString("en-GB", {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: dp,
+      })
+    : NOT_PROVIDED;
 
 const text = (v: unknown): string => {
   const s = String(v ?? "").trim();
@@ -188,7 +242,9 @@ function sectorParameterValue(label: string, p: SectorParameters): string {
   switch (label) {
     case "The main reducing agent of the precursor, if known":
       if (!p.reducingAgent) return NOT_PROVIDED;
-      return p.reducingAgent === "other" ? text(p.reducingAgentOther) : REDUCING_AGENT_LABEL[p.reducingAgent];
+      return p.reducingAgent === "other"
+        ? text(p.reducingAgentOther)
+        : REDUCING_AGENT_LABEL[p.reducingAgent];
     case "Steel mill identification number":
       return text(p.steelMillId);
     case "% Mn":
@@ -198,15 +254,31 @@ function sectorParameterValue(label: string, p: SectorParameters): string {
     case "% Ni":
       return p.niPct != null ? `${sig(p.niPct, 2)}%` : NOT_PROVIDED;
     case "% other alloys":
-      return p.otherAlloyingPct != null ? `${sig(p.otherAlloyingPct, 2)}%` : NOT_PROVIDED;
+      return p.otherAlloyingPct != null
+        ? `${sig(p.otherAlloyingPct, 2)}%`
+        : NOT_PROVIDED;
     case "% other materials":
-      return p.otherMaterialsPct != null ? `${sig(p.otherMaterialsPct, 2)}%` : NOT_PROVIDED;
+      return p.otherMaterialsPct != null
+        ? `${sig(p.otherMaterialsPct, 2)}%`
+        : NOT_PROVIDED;
     case "% carbon":
       return p.carbonPct != null ? `${sig(p.carbonPct, 2)}%` : NOT_PROVIDED;
     case "t scrap per t steel":
-      return p.scrapTonnesPerTonneSteel != null ? `${sig(p.scrapTonnesPerTonneSteel, 3)} t/t` : NOT_PROVIDED;
+      return p.scrapTonnesPerTonneSteel != null
+        ? `${sig(p.scrapTonnesPerTonneSteel, 3)} t/t`
+        : NOT_PROVIDED;
     case "% pre-consumer scrap":
-      return p.preConsumerScrapPct != null ? `${sig(p.preConsumerScrapPct, 2)}%` : NOT_PROVIDED;
+      return p.preConsumerScrapPct != null
+        ? `${sig(p.preConsumerScrapPct, 2)}%`
+        : NOT_PROVIDED;
+    case "t scrap per t aluminium":
+      return p.scrapTonnesPerTonneAluminium != null
+        ? `${sig(p.scrapTonnesPerTonneAluminium, 3)} t/t`
+        : NOT_PROVIDED;
+    case "% non-aluminium elements":
+      return p.nonAluminiumPct != null
+        ? `${sig(p.nonAluminiumPct, 2)}%`
+        : NOT_PROVIDED;
     default:
       return NOT_PROVIDED;
   }
@@ -219,14 +291,24 @@ export type FinalReportDoc = {
       content BEFORE Part 1 and nowhere else, so the workings, the precursor
       detail and the completeness note all live here rather than between
       parts where they would break the template's order. */
-  cover: { title: string; subtitle: string; draftBanner: string | null; notes: FieldRow[]; outstanding: string[]; workings: string[] };
+  cover: {
+    title: string;
+    subtitle: string;
+    draftBanner: string | null;
+    notes: FieldRow[];
+    outstanding: string[];
+    workings: string[];
+  };
   parts: Part[];
   evidence: EvidenceSection[];
   draft: boolean;
   fileNameSlug: string;
 };
 
-export function buildFinalReportDoc(ws: VerificationWorkspace, readiness?: WorkspaceReadiness): FinalReportDoc {
+export function buildFinalReportDoc(
+  ws: VerificationWorkspace,
+  readiness?: WorkspaceReadiness,
+): FinalReportDoc {
   const r = readiness ?? workspaceReadiness(ws);
   const draft = r.overall !== "complete";
   const see = workspaceSEE(ws);
@@ -234,7 +316,9 @@ export function buildFinalReportDoc(ws: VerificationWorkspace, readiness?: Works
   const inst = getInstallation(ws.installationId);
   const cp = getCarbonPrice(ws.id);
   const mmdFinal = finalVersionCovering(ws.id, ws.periodStart, ws.periodEnd);
-  const mmd = mmdFinal ? migrateMmd(mmdFinal.content, ws.periodStart, ws.periodEnd) : loadDraft(ws.id, ws.periodStart, ws.periodEnd);
+  const mmd = mmdFinal
+    ? migrateMmd(mmdFinal.content, ws.periodStart, ws.periodEnd)
+    : loadDraft(ws.id, ws.periodStart, ws.periodEnd);
 
   const good = categoryForCn(ws.cnCode);
   const categoryLabel = good ? good.label.trim() : text(goodsCategory(ws));
@@ -267,24 +351,46 @@ export function buildFinalReportDoc(ws: VerificationWorkspace, readiness?: Works
           {
             kind: "fields",
             rows: [
-              { label: "Name of the installation (optional)", value: text(inst?.nameLocal) },
-              { label: "Name of the installation (English name)", value: text(inst?.name ?? ws.installationName) },
+              {
+                label: "Name of the installation (optional)",
+                value: text(inst?.nameLocal),
+              },
+              {
+                label: "Name of the installation (English name)",
+                value: text(inst?.name ?? ws.installationName),
+              },
               { label: "Street, Number", value: text(inst?.street) },
-              { label: "Economic activity", value: text(inst?.economicActivity) },
+              {
+                label: "Economic activity",
+                value: text(inst?.economicActivity),
+              },
               { label: "Post code", value: text(inst?.postcode) },
               { label: "P.O. Box", value: text(inst?.poBox) },
               { label: "City", value: text(inst?.city) },
               { label: "Country", value: text(inst?.country) },
               { label: "UNLOCODE", value: text(inst?.unlocode) },
-              { label: "Coordinates of the main emission source (latitude)", value: text(inst?.lat) },
-              { label: "Coordinates of the main emission source (longitude)", value: text(inst?.lng) },
-              { label: "Name of authorised representative", value: text(inst?.contactName) },
+              {
+                label: "Coordinates of the main emission source (latitude)",
+                value: text(inst?.lat),
+              },
+              {
+                label: "Coordinates of the main emission source (longitude)",
+                value: text(inst?.lng),
+              },
+              {
+                label: "Name of authorised representative",
+                value: text(inst?.contactName),
+              },
               { label: "Email", value: text(inst?.contactEmail) },
               { label: "Telephone", value: text(inst?.contactPhone) },
               {
                 label: "Other goods produced at this installation (non-CBAM)",
                 value: inst?.otherGoods?.length
-                  ? inst.otherGoods.map((g) => (g.description ? `${g.name} — ${g.description}` : g.name)).join("; ")
+                  ? inst.otherGoods
+                      .map((g) =>
+                        g.description ? `${g.name} — ${g.description}` : g.name,
+                      )
+                      .join("; ")
                   : "None declared",
               },
             ],
@@ -298,7 +404,9 @@ export function buildFinalReportDoc(ws: VerificationWorkspace, readiness?: Works
            the installation's own — and verification is not required during
            the transitional period. The contract asks for the stated
            not-applicable line rather than a block of empty fields. */
-        blocks: [{ kind: "text", text: "Not applicable — transitional period." }],
+        blocks: [
+          { kind: "text", text: "Not applicable — transitional period." },
+        ],
       },
       {
         number: "1.4",
@@ -308,7 +416,8 @@ export function buildFinalReportDoc(ws: VerificationWorkspace, readiness?: Works
             kind: "fields",
             rows: [
               {
-                label: "Carbon price instrument: description and indication of the legal act for the carbon price, and for any rebate or other compensation obtained",
+                label:
+                  "Carbon price instrument: description and indication of the legal act for the carbon price, and for any rebate or other compensation obtained",
                 /* A stored instrument id that predates the current list has
                    no label. Reaching straight into the record printed the
                    word "undefined" into a government-facing field, so the
@@ -317,7 +426,10 @@ export function buildFinalReportDoc(ws: VerificationWorkspace, readiness?: Works
                   ? `${CARBON_PRICE_INSTRUMENT_LABEL[cp.instrument] ?? cp.instrument}${cp.rebates ? ` — rebate or compensation: ${cp.rebates}` : ""}`
                   : NOT_PROVIDED,
               },
-              { label: "Any additional information for the reporting declarant", value: text(mmd.boundaryDescription) },
+              {
+                label: "Any additional information for the reporting declarant",
+                value: text(mmd.boundaryDescription),
+              },
             ],
           },
         ],
@@ -332,7 +444,9 @@ export function buildFinalReportDoc(ws: VerificationWorkspace, readiness?: Works
       which is what the workbook itself does. */
   const routeCells = (fill: (route: string) => string): string[] => {
     const routes = good?.routes ?? [];
-    return Array.from({ length: 6 }, (_, i) => (routes[i] ? fill(routes[i]) : "n.a."));
+    return Array.from({ length: 6 }, (_, i) =>
+      routes[i] ? fill(routes[i]) : "n.a.",
+    );
   };
 
   const usedRoute = routeLabel(ws.productionRoute);
@@ -346,7 +460,15 @@ export function buildFinalReportDoc(ws: VerificationWorkspace, readiness?: Works
         blocks: [
           {
             kind: "table",
-            columns: ["Aggregated good produced", "Route 1", "Route 2", "Route 3", "Route 4", "Route 5", "Route 6"],
+            columns: [
+              "Aggregated good produced",
+              "Route 1",
+              "Route 2",
+              "Route 3",
+              "Route 4",
+              "Route 5",
+              "Route 6",
+            ],
             rows: [[categoryLabel, ...routeCells((route) => route)]],
           },
         ],
@@ -357,10 +479,25 @@ export function buildFinalReportDoc(ws: VerificationWorkspace, readiness?: Works
         blocks: [
           {
             kind: "table",
-            columns: ["Production process", "Aggregated goods category", "Route 1", "Route 2", "Route 3", "Route 4", "Route 5", "Route 6"],
+            columns: [
+              "Production process",
+              "Aggregated goods category",
+              "Route 1",
+              "Route 2",
+              "Route 3",
+              "Route 4",
+              "Route 5",
+              "Route 6",
+            ],
             /* "x" marks the route this process feeds into — the template's
                own convention, not a tick or a repeated label. */
-            rows: [[text(ws.productName), categoryLabel, ...routeCells((route) => (route === usedRoute ? "x" : ""))]],
+            rows: [
+              [
+                text(ws.productName),
+                categoryLabel,
+                ...routeCells((route) => (route === usedRoute ? "x" : "")),
+              ],
+            ],
           },
         ],
       },
@@ -369,7 +506,9 @@ export function buildFinalReportDoc(ws: VerificationWorkspace, readiness?: Works
 
   /* ── Part 3 — Emissions by monitoring methodology ──────────── */
 
-  const entries = monthsForWorkspace(ws).filter((e) => see.months.some((m) => m.month === e.month && m.counted));
+  const entries = monthsForWorkspace(ws).filter((e) =>
+    see.months.some((m) => m.month === e.month && m.counted),
+  );
 
   let totalGj = 0;
   let electricityGj = 0;
@@ -378,7 +517,10 @@ export function buildFinalReportDoc(ws: VerificationWorkspace, readiness?: Works
       type+its "other" text) rather than row id — each month's fuel rows are
       independent records of the same fuel, and the report speaks about the
       fuel, not the row. */
-  const fuelBreakdown = new Map<string, { label: string; gj: number; ef: number; tCO2: number; zeroRated: boolean }>();
+  const fuelBreakdown = new Map<
+    string,
+    { label: string; gj: number; ef: number; tCO2: number; zeroRated: boolean }
+  >();
   for (const entry of entries) {
     for (const f of entry.fuels) {
       let gj = 0;
@@ -396,10 +538,19 @@ export function buildFinalReportDoc(ws: VerificationWorkspace, readiness?: Works
          zero-rates, reported as its own memo line the way the template does,
          not folded into the CO2 total. */
       const bf = Math.min(1, Math.max(0, Number(f.biomassFraction) || 0));
-      if (bf > 0) biomassTCO2 += gj * (f.efTco2PerGj - effectiveEf(f)) * resolvedOxidationFactor(f);
+      if (bf > 0)
+        biomassTCO2 +=
+          gj * (f.efTco2PerGj - effectiveEf(f)) * resolvedOxidationFactor(f);
 
-      const key = f.fuelType === "other" ? `other:${f.fuelTypeOther}` : f.fuelType;
-      const row = fuelBreakdown.get(key) ?? { label: fuelTypeLabel(f.fuelType, f.fuelTypeOther), gj: 0, ef: f.efTco2PerGj, tCO2: 0, zeroRated: false };
+      const key =
+        f.fuelType === "other" ? `other:${f.fuelTypeOther}` : f.fuelType;
+      const row = fuelBreakdown.get(key) ?? {
+        label: fuelTypeLabel(f.fuelType, f.fuelTypeOther),
+        gj: 0,
+        ef: f.efTco2PerGj,
+        tCO2: 0,
+        zeroRated: false,
+      };
       row.gj += gj;
       row.tCO2 += gj * effectiveEf(f) * resolvedOxidationFactor(f);
       if (bf > 0) row.zeroRated = true;
@@ -432,17 +583,45 @@ export function buildFinalReportDoc(ws: VerificationWorkspace, readiness?: Works
           {
             kind: "table",
             caption: "Unit: TJ",
-            columns: ["", "Total fuel input", "Direct fuel for CBAM goods", "Fuel for electricity", "Direct fuel for non-CBAM goods", "Rest"],
+            columns: [
+              "",
+              "Total fuel input",
+              "Direct fuel for CBAM goods",
+              "Fuel for electricity",
+              "Direct fuel for non-CBAM goods",
+              "Rest",
+            ],
             rows: [
-              ["from sheet B_EmInst", NO_SHEET, NO_SHEET, NO_SHEET, NO_SHEET, NO_SHEET],
-              ["manual entries", TJ(totalGj), TJ(directFuelGj), TJ(electricityGj), NOT_PROVIDED, NOT_PROVIDED],
-              ["Results", TJ(totalGj), TJ(directFuelGj), TJ(electricityGj), NOT_PROVIDED, NOT_PROVIDED],
+              [
+                "from sheet B_EmInst",
+                NO_SHEET,
+                NO_SHEET,
+                NO_SHEET,
+                NO_SHEET,
+                NO_SHEET,
+              ],
+              [
+                "manual entries",
+                TJ(totalGj),
+                TJ(directFuelGj),
+                TJ(electricityGj),
+                NOT_PROVIDED,
+                NOT_PROVIDED,
+              ],
+              [
+                "Results",
+                TJ(totalGj),
+                TJ(directFuelGj),
+                TJ(electricityGj),
+                NOT_PROVIDED,
+                NOT_PROVIDED,
+              ],
             ],
           },
           {
             kind: "text",
             text:
-              "Direct fuel for non-CBAM goods and Rest are not collected by Certrace: the workspace's boundary is drawn around the CBAM good's own " +
+              "Direct fuel for non-CBAM goods and Rest are not collected by Certrace: the product report's boundary is drawn around the CBAM good's own " +
               "production process, so every fuel row inside it is already attributed to that good. A site that also burns fuel outside this boundary " +
               "must state that separately to its verifier. " +
               NO_SHEET_NOTE,
@@ -457,9 +636,15 @@ export function buildFinalReportDoc(ws: VerificationWorkspace, readiness?: Works
             ? [
                 {
                   kind: "table",
-                  caption: "Fuels contributing to Table 3.1's totals, individually. A fuel marked zero-rated still shows its real quantity and " +
+                  caption:
+                    "Fuels contributing to Table 3.1's totals, individually. A fuel marked zero-rated still shows its real quantity and " +
                     "catalogue emission factor — only its contribution to the total is zeroed, under Annex II Equation 10.",
-                  columns: ["Fuel", "Quantity (TJ)", "EF (catalogue, tCO2/GJ)", "Contribution (tCO2)"],
+                  columns: [
+                    "Fuel",
+                    "Quantity (TJ)",
+                    "EF (catalogue, tCO2/GJ)",
+                    "Contribution (tCO2)",
+                  ],
                   rows: [...fuelBreakdown.values()].map((r) => [
                     r.zeroRated ? `${r.label} (zero-rated — biomass)` : r.label,
                     TJ(r.gj),
@@ -468,7 +653,12 @@ export function buildFinalReportDoc(ws: VerificationWorkspace, readiness?: Works
                   ]),
                 },
               ]
-            : [{ kind: "text", text: "No fuel recorded for this workspace." }],
+            : [
+                {
+                  kind: "text",
+                  text: "No fuel recorded for this product report.",
+                },
+              ],
       },
       {
         number: "3.2",
@@ -488,7 +678,16 @@ export function buildFinalReportDoc(ws: VerificationWorkspace, readiness?: Works
               "Total emissions",
             ],
             rows: [
-              ["from sheet B_EmInst", NO_SHEET, NO_SHEET, NO_SHEET, NO_SHEET, NO_SHEET, NO_SHEET, NO_SHEET],
+              [
+                "from sheet B_EmInst",
+                NO_SHEET,
+                NO_SHEET,
+                NO_SHEET,
+                NO_SHEET,
+                NO_SHEET,
+                NO_SHEET,
+                NO_SHEET,
+              ],
               [
                 "manual entries",
                 sig(see.directTCO2),
@@ -530,11 +729,29 @@ export function buildFinalReportDoc(ws: VerificationWorkspace, readiness?: Works
           {
             kind: "table",
             caption: `Unit: ${TEMPLATE_UNITS.emissions}`,
-            columns: ["", "Calculation-based (excl. PFC emissions)", "Total PFC emissions", "Measurement-based", "Other"],
+            columns: [
+              "",
+              "Calculation-based (excl. PFC emissions)",
+              "Total PFC emissions",
+              "Measurement-based",
+              "Other",
+            ],
             rows: [
               ["from sheet B_EmInst", NO_SHEET, NO_SHEET, NO_SHEET, NO_SHEET],
-              ["manual entries", sig(see.directTCO2), good?.pfcRelevant ? NOT_PROVIDED : "n.a. — not a PFC category", NOT_PROVIDED, NOT_PROVIDED],
-              ["Results", sig(see.directTCO2), good?.pfcRelevant ? NOT_PROVIDED : "n.a. — not a PFC category", NOT_PROVIDED, NOT_PROVIDED],
+              [
+                "manual entries",
+                sig(see.directTCO2),
+                good?.pfcRelevant ? NOT_PROVIDED : "n.a. — not a PFC category",
+                NOT_PROVIDED,
+                NOT_PROVIDED,
+              ],
+              [
+                "Results",
+                sig(see.directTCO2),
+                good?.pfcRelevant ? NOT_PROVIDED : "n.a. — not a PFC category",
+                NOT_PROVIDED,
+                NOT_PROVIDED,
+              ],
             ],
           },
           {
@@ -554,7 +771,10 @@ export function buildFinalReportDoc(ws: VerificationWorkspace, readiness?: Works
           {
             kind: "fields",
             rows: [
-              { label: "General information on data quality", value: text(directMethodSummary(mmd)) },
+              {
+                label: "General information on data quality",
+                value: text(directMethodSummary(mmd)),
+              },
               {
                 /* The template asks for a justification CATEGORY when default
                    values predominate. Certrace does not collect the category,
@@ -566,22 +786,42 @@ export function buildFinalReportDoc(ws: VerificationWorkspace, readiness?: Works
                     ? `${sig(see.precursors.defaultValueShare * 100, 1)}% of the precursor contribution rests on EC-published default values. Justification category ${NOT_PROVIDED.toLowerCase()} — Certrace records the share, not the category.`
                     : "n.a. — no default values used",
               },
-              { label: "Information on quality assurance", value: text(QUALITY_ASSURANCE_LABEL[mmd.qualityAssurance]) },
+              {
+                label: "Information on quality assurance",
+                value: text(QUALITY_ASSURANCE_LABEL[mmd.qualityAssurance]),
+              },
               {
                 label: "Monitoring methodology document",
                 value: mmdFinal
                   ? `Final version ${mmdFinal.n}, issued ${new Date(mmdFinal.finalisedAt).toISOString().slice(0, 10)}`
                   : "DRAFT — not finalised",
               },
-              { label: "Processes inside the boundary", value: mmd.processesIncluded.length ? mmd.processesIncluded.join(" / ") : NOT_PROVIDED },
+              {
+                label: "Processes inside the boundary",
+                value: mmd.processesIncluded.length
+                  ? mmd.processesIncluded.join(" / ")
+                  : NOT_PROVIDED,
+              },
               {
                 label: "Declared exclusions",
-                value: mmd.exclusions.length ? mmd.exclusions.map((x) => `${x.process} — ${x.note || "no ground given"}`).join("; ") : "None declared",
+                value: mmd.exclusions.length
+                  ? mmd.exclusions
+                      .map(
+                        (x) => `${x.process} — ${x.note || "no ground given"}`,
+                      )
+                      .join("; ")
+                  : "None declared",
               },
               {
                 label: "Data gaps declared",
                 value: mmd.dataGaps.length
-                  ? `${mmd.dataGaps.length} — ${sig(mmd.dataGaps.reduce((a, g) => a + (Number(g.estimatedTCO2e) || 0), 0), 2)} tCO2e estimated`
+                  ? `${mmd.dataGaps.length} — ${sig(
+                      mmd.dataGaps.reduce(
+                        (a, g) => a + (Number(g.estimatedTCO2e) || 0),
+                        0,
+                      ),
+                      2,
+                    )} tCO2e estimated`
                   : "None",
               },
             ],
@@ -598,7 +838,8 @@ export function buildFinalReportDoc(ws: VerificationWorkspace, readiness?: Works
      workbook has no separate precursor column, so it belongs here. */
   const seeDirect = see.seeDirect + see.seePrecursor;
   const seeIndirect = see.seeIndirect;
-  const perUnit = unit === "MWh" ? "tCO2e/MWh" : TEMPLATE_UNITS.emissionsPerTonne;
+  const perUnit =
+    unit === "MWh" ? "tCO2e/MWh" : TEMPLATE_UNITS.emissionsPerTonne;
 
   /** Only the sector-specific parameters that apply to this CN code's
       category — a non-steel product must not print blank %Mn / %Cr / %Ni
@@ -632,7 +873,9 @@ export function buildFinalReportDoc(ws: VerificationWorkspace, readiness?: Works
     sig(see.precursors.defaultValueShare ?? 0, 3),
     text(mmd.electricitySupply),
     NOT_PROVIDED,
-    ...special.map((label) => sectorParameterValue(label, mmd.sectorParameters)),
+    ...special.map((label) =>
+      sectorParameterValue(label, mmd.sectorParameters),
+    ),
   ];
 
   const claimed = Number(cp?.amountPerTonne ?? 0);
@@ -642,7 +885,9 @@ export function buildFinalReportDoc(ws: VerificationWorkspace, readiness?: Works
      1.0, named as an assumption rather than folded silently into the
      arithmetic — see the note block below. */
   const shareRecorded = cp?.shareOfEmissionsCovered != null;
-  const share = shareRecorded ? Math.max(0, Math.min(100, cp!.shareOfEmissionsCovered!)) / 100 : 1;
+  const share = shareRecorded
+    ? Math.max(0, Math.min(100, cp!.shareOfEmissionsCovered!)) / 100
+    : 1;
   const rebate = 0;
   const coveredSE = see.seeTotal * share;
   const due = coveredSE * claimed;
@@ -711,27 +956,43 @@ export function buildFinalReportDoc(ws: VerificationWorkspace, readiness?: Works
      every named missing item. A tab carries `tab`/`blockingReason`/`missing`
      and nothing else — there is no display label on it to reach for. */
   const outstanding: string[] = [];
-  for (const t of r.tabs) if (t.blockingReason) outstanding.push(`${t.tab}: ${t.blockingReason}`);
-  for (const t of r.tabs) for (const m of t.missing) outstanding.push(`${t.tab}: ${m.label}`);
+  for (const t of r.tabs)
+    if (t.blockingReason) outstanding.push(`${t.tab}: ${t.blockingReason}`);
+  for (const t of r.tabs)
+    for (const m of t.missing) outstanding.push(`${t.tab}: ${m.label}`);
 
   const cover = {
     title: `Monitoring Methodology Documentation — ${text(ws.productName)}`,
     subtitle: `${text(ws.installationName)} · reporting period ${text(ws.periodStart)} to ${text(ws.periodEnd)} · operator ${text(org.name)}`,
-    draftBanner: draft ? `DRAFT — NOT READY FOR VERIFICATION. ${outstanding[0] ?? "The workspace has outstanding items."}` : null,
+    draftBanner: draft
+      ? `DRAFT — NOT READY FOR VERIFICATION. ${outstanding[0] ?? "The workspace has outstanding items."}`
+      : null,
     notes: [
-      { label: "Completeness at the time of generation", value: `${r.overall} — ${r.percentComplete}% of applicable tabs complete` },
+      {
+        label: "Completeness at the time of generation",
+        value: `${r.overall} — ${r.percentComplete}% of applicable tabs complete`,
+      },
       {
         label: "Outstanding",
-        value: outstanding.length ? `${outstanding.length} item(s) — the first ${Math.min(outstanding.length, OUTSTANDING_SHOWN)} are listed below` : "Nothing outstanding",
+        value: outstanding.length
+          ? `${outstanding.length} item(s) — the first ${Math.min(outstanding.length, OUTSTANDING_SHOWN)} are listed below`
+          : "Nothing outstanding",
       },
-      { label: "Equivalent to", value: "EU CBAM Communication template for installations v2.1.1 (13 December 2024)" },
+      {
+        label: "Equivalent to",
+        value:
+          "EU CBAM Communication template for installations v2.1.1 (13 December 2024)",
+      },
       {
         label: "Production quantity",
         value: see.computable
           ? `${sig(see.production.tonnes, 3)} ${unit} across ${see.production.monthsCounted} month(s)`
           : "No production quantity recorded — every per-tonne figure in this report is zero and must not be read as a result",
       },
-      { label: "Unit failures", value: see.errors.length ? see.errors.join("; ") : "None" },
+      {
+        label: "Unit failures",
+        value: see.errors.length ? see.errors.join("; ") : "None",
+      },
     ],
     /* Capped. A twelve-month workspace with nothing uploaded produces some
        three hundred of these, and a cover that runs to four pages is not a
@@ -741,7 +1002,10 @@ export function buildFinalReportDoc(ws: VerificationWorkspace, readiness?: Works
        sits BEFORE Part 1 — the contract forbids anything between the parts
        and between Part 4 and the evidence divider, and this is the only slot
        left that does not lose it. */
-    workings: see.workings.map((w) => `${w.id}  ${w.label}\n    ${w.formula}\n    ${w.substitution}\n    = ${w.result}`),
+    workings: see.workings.map(
+      (w) =>
+        `${w.id}  ${w.label}\n    ${w.formula}\n    ${w.substitution}\n    = ${w.result}`,
+    ),
   };
 
   const fileNameSlug = `${ws.productName}-${ws.installationName}-${ws.year}`
@@ -749,7 +1013,13 @@ export function buildFinalReportDoc(ws: VerificationWorkspace, readiness?: Works
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
 
-  return { cover, parts: [part1, part2, part3, part4], evidence: planEvidence(ws.id), draft, fileNameSlug };
+  return {
+    cover,
+    parts: [part1, part2, part3, part4],
+    evidence: planEvidence(ws.id),
+    draft,
+    fileNameSlug,
+  };
 }
 
 /** Re-exported so a caller sorting or grouping evidence outside this module

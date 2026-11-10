@@ -1,237 +1,122 @@
-/* ════════════════════════════════════════════════════════════
-   SIGN UP · SIGN IN · WHO AM I · PASSWORDS
-
-   Mirrors §1 of docs/API-CONTRACT.md.
-
-   `register` and `login` persist the session themselves. Every call site wants
-   that, and a version that returned the token for the caller to store would
-   eventually meet a caller that forgot — leaving someone signed in according
-   to the screen and signed out according to the next request.
-
-   ── The password calls ────────────────────────────────────────
-   These three waited on a backend change rather than a screen: `/forgot-password`
-   used to hand the reset code straight back in the response body, which made a
-   wired-up page a way to reset any account you could name. It no longer does —
-   the code goes to the mailbox and nowhere else — so the calls are here.
-
-   Two things the reset pair does NOT do, deliberately:
-
-   • `requestPasswordReset` and `resetPassword` never carry the session token
-     (`auth: false`). Someone who has forgotten their password does not have
-     one, and `/reset-password` opened in a browser that is still signed in
-     as somebody else must not send that person's credential along.
-   • `requestPasswordReset` resolves the same way whether or not the address
-     has an account. The server answers identically on purpose — a client that
-     turned one of those into a rejection would rebuild the membership oracle
-     the server just closed.
-
-   `changePassword` is the odd one out: it now REQUIRES the bearer. The server
-   changes the token holder's own password and ignores the body's email, so an
-   unauthenticated caller can no longer use it to test credentials. It also
-   revokes every session the account had and returns a fresh one for this tab,
-   which `changePassword` stores.
-   ════════════════════════════════════════════════════════════ */
-
-import { apiConfigured } from "./config";
-import { request } from "./http";
-import { clearSession, loadSession, saveSession, type Session } from "./session";
-
-export type AuthUser = {
-  id: string;
-  email: string;
-  /** False for a fresh signup — the portal routes those to /onboarding. */
-  onboarded: boolean;
-  firstName?: string;
-  lastName?: string;
-  companyName?: string;
-  /** A Google account is connected — Settings offers "Connect Google" when not. */
-  googleLinked?: boolean;
-};
-
-export type RegisterInput = {
-  email: string;
-  password: string;
-  firstName?: string;
-  lastName?: string;
-  companyName?: string;
-};
-
-export type LoginInput = {
-  email: string;
-  password: string;
-};
-
-type AuthResponse = {
-  accessToken: string;
-  refreshToken: string;
-  user: AuthUser;
-};
-
-export async function register(input: RegisterInput): Promise<Session> {
-  const result = await request<AuthResponse>("/api/auth/register", {
-    method: "POST",
-    body: input,
-    auth: false,
-  });
-  const session: Session = {
-    accessToken: result.accessToken,
-    refreshToken: result.refreshToken,
-    user: result.user,
-  };
-  saveSession(session);
-  return session;
-}
-
-export async function login(input: LoginInput): Promise<Session> {
-  const result = await request<AuthResponse>("/api/auth/login", {
-    method: "POST",
-    body: input,
-    auth: false,
-  });
-  const session: Session = {
-    accessToken: result.accessToken,
-    refreshToken: result.refreshToken,
-    user: result.user,
-  };
-  saveSession(session);
-  return session;
-}
-
-/** Confirms the stored token still works, and refreshes the user on it. */
-export async function me(): Promise<AuthUser> {
-  const result = await request<{ user: AuthUser }>("/api/auth/me");
-  return result.user;
-}
-
-/**
- * Records onboarding as finished, server-side and in the stored session.
- *
- * From the next sign-in on, login routes to /dashboard instead of back
- * through /onboarding/setup. One-way — nothing un-finishes a wizard.
- */
-export async function markOnboarded(): Promise<void> {
-  const result = await request<{ user: AuthUser }>("/api/auth/onboarded", {
-    method: "POST",
-  });
-  const session = loadSession();
-  if (session) saveSession({ ...session, user: result.user });
-}
-
-/* Clears this browser AND revokes the refresh token server-side, so a
-   signed-out session cannot quietly mint new access tokens for the rest of
-   the week. Fire-and-forget: the person is leaving now, not after a network
-   round-trip, and a failed revoke leaves them no worse than the pre-refresh
-   world (the access token still ages out within the hour). */
-export function logout(): void {
-  const session = loadSession();
-  clearSession();
-  const refreshToken = session?.refreshToken;
-  if (refreshToken && apiConfigured()) {
-    void request("/api/auth/logout", {
-      method: "POST",
-      body: { refreshToken },
-      auth: false,
-    }).catch(() => {
-      /* Already signed out locally — nothing the person can do with this. */
-    });
-  }
-}
-
-/* ── Passwords ──────────────────────────────────────────────
-   The wire format for these three is snake_case, unlike the rest of the
-   contract. That is the backend's existing shape and not worth a migration
-   for; it is mapped here so no screen has to know. */
-
-/** The language the reset email is written in — "en" or "th". */
+import { selectCompany, restoreCompanyPreference } from "../company-session";
+import type { AuthModel } from "@certrace/backend/src/modules/auth/model";
+import { api, result } from "./client";
+import {
+  clearSession,
+  loadSession,
+  saveSession,
+  type Session,
+} from "./session";
+export type AuthUser = typeof AuthModel.user.static;
+export type RegisterInput = typeof AuthModel.register.static;
+export type LoginInput = typeof AuthModel.login.static;
 export type EmailLocale = "en" | "th";
-
-type MessageResponse = { success: boolean; message: string };
-
-export type PasswordResetRequestInput = {
-  email: string;
-  /** The reader's language. Omitted, the server writes in English. */
-  locale?: EmailLocale;
-};
-
-/**
- * Asks for a reset code to be emailed.
- *
- * Resolves with the server's neutral confirmation whether or not the address
- * has an account — see the header note. It rejects only on a transport or
- * server failure, which is the one case a screen should surface.
- */
-export async function requestPasswordReset(input: PasswordResetRequestInput): Promise<string> {
-  const result = await request<MessageResponse>("/api/auth/forgot-password", {
-    method: "POST",
-    body: { email: input.email, locale: input.locale },
-    auth: false,
-  });
-  return result.message;
+export async function signedIn(response: { user: AuthUser }): Promise<Session> {
+  restoreCompanyPreference(response.user.id);
+  const session = { accessToken: "cookie", user: response.user };
+  const { hydrateAccount } = await import("../account-storage");
+  if (!response.user.legalConsentRequired) {
+    try {
+      await hydrateAccount(response.user.id, !response.user.ready);
+    } catch (error) {
+      // A policy may be published between sign-in and account hydration.
+      if (
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        error.code === "LEGAL_CONSENT_REQUIRED"
+      )
+        session.user = { ...session.user, legalConsentRequired: true };
+      else if (
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        error.code === "COMPANY_ACCESS" &&
+        !loadSession()
+      ) {
+        // A fresh tab may remember a seat the owner has since revoked.
+        selectCompany(response.user.id, response.user.id);
+        await hydrateAccount(response.user.id, !response.user.ready);
+      } else throw error;
+    }
+  }
+  saveSession(session);
+  return session;
 }
-
+export async function register(input: RegisterInput) {
+  return signedIn(await result(api().api.auth.register.post(input)));
+}
+export async function login(input: LoginInput) {
+  return signedIn(await result(api().api.auth.login.post(input)));
+}
+export async function me() {
+  return (await result(api().api.auth.me.get())).user;
+}
+export async function restoreSession() {
+  // Bootstrap discovers the cookie identity; all subsequent data reads bind to it.
+  return signedIn(await result(api(true, null).api.auth.me.get()));
+}
+export async function markOnboarded() {
+  const { user } = await result(api().api.auth.onboarded.post());
+  const current = loadSession();
+  if (current) saveSession({ ...current, user });
+}
+export function logout(): void {
+  void (async () => {
+    const { flushAccount, resetAccount } = await import("../account-storage");
+    await flushAccount();
+    await result(api().api.auth.logout.post({}));
+    resetAccount();
+    clearSession();
+  })().catch((error) => {
+    window.dispatchEvent(
+      new CustomEvent("certrace:save-error", {
+        detail:
+          error instanceof Error
+            ? error.message
+            : "Sign out failed. Please retry.",
+      }),
+    );
+  });
+}
+export type PasswordResetRequestInput = { email: string; locale?: EmailLocale };
+export async function requestPasswordReset(input: PasswordResetRequestInput) {
+  return (await result(api(false).api.auth["forgot-password"].post(input)))
+    .message;
+}
 export type PasswordResetInput = {
   email: string;
-  /** The six digits from the email. */
   code: string;
   newPassword: string;
   locale?: EmailLocale;
 };
-
-/**
- * Sets a new password using the emailed code.
- *
- * Throws `ApiError` with code `INVALID_RESET_TOKEN` when the code is wrong,
- * already used, or past its fifteen minutes.
- */
-export async function resetPassword(input: PasswordResetInput): Promise<string> {
-  const result = await request<MessageResponse>("/api/auth/reset-password", {
-    method: "POST",
-    body: {
-      email: input.email,
-      reset_token: input.code,
-      new_password: input.newPassword,
-      locale: input.locale,
-    },
-    auth: false,
-  });
-  return result.message;
+export async function resetPassword(input: PasswordResetInput) {
+  return (
+    await result(
+      api(false).api.auth["reset-password"].post({
+        email: input.email,
+        reset_token: input.code,
+        new_password: input.newPassword,
+        locale: input.locale,
+      }),
+    )
+  ).message;
 }
-
 export type ChangePasswordInput = {
   email: string;
   currentPassword: string;
   newPassword: string;
   locale?: EmailLocale;
 };
-
-/**
- * Changes the signed-in account's password.
- *
- * Sends the bearer — the server changes the token holder's password and
- * ignores `email` (still on the wire because the request model requires it).
- * Throws `ApiError` with `INVALID_CREDENTIALS` when the current password is
- * wrong, and `RATE_LIMITED` after too many tries.
- */
-export async function changePassword(input: ChangePasswordInput): Promise<string> {
-  const result = await request<MessageResponse & { accessToken?: string; refreshToken?: string }>(
-    "/api/auth/change-password",
-    {
-      method: "POST",
-      body: {
-        email: input.email,
-        current_password: input.currentPassword,
-        new_password: input.newPassword,
-        locale: input.locale,
-      },
-    },
+export async function changePassword(input: ChangePasswordInput) {
+  const response = await result(
+    api().api.auth["change-password"].post({
+      email: input.email,
+      current_password: input.currentPassword,
+      new_password: input.newPassword,
+      locale: input.locale,
+    }),
   );
-  /* A new password ends every session the account had, this one included —
-     that is what throws out anyone else holding it. The server hands this tab
-     a fresh pair; without storing it, the next refresh would fail and sign the
-     person out an hour after they changed their own password. */
-  const session = loadSession();
-  if (session && result.accessToken && result.refreshToken) {
-    saveSession({ ...session, accessToken: result.accessToken, refreshToken: result.refreshToken });
-  }
-  return result.message;
+  saveSession({ accessToken: "cookie", user: response.user });
+  return response.message;
 }

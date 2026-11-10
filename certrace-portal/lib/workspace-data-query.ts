@@ -4,10 +4,10 @@
    One cache for everything a single workspace's screens read: the MMD draft
    and its versions, the twelve months, dispatches, submissions, evidence,
    the derived SEE, the carbon price, the pack sign-off and the report
-   contents. All localStorage today; the swap to an API happens inside the
-   store modules and no screen moves.
+   contents. Values come from the hydrated PostgreSQL account working copy.
+   Saves await the API acknowledgement before completing.
 
-   staleTime 0 (overriding the provider's 30s): a localStorage read costs
+   staleTime 0 (overriding the provider's 30s): an in-memory read costs
    nothing, and plenty of flows still write around these mutations — those
    must be picked up the moment a screen remounts. See lib/workspaces-query.ts.
 
@@ -24,10 +24,25 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getCarbonPrice, saveCarbonPrice, type CarbonPriceRecord } from "./carbon-price";
+import {
+  persistReportChange,
+  invalidateReportViews,
+} from "./persist-report-change";
+import {
+  getCarbonPrice,
+  saveCarbonPrice,
+  type CarbonPriceRecord,
+} from "./carbon-price";
 import type { TFunction } from "./i18n";
-import { dispatchesFor, markMonthReminded, markMonthSent } from "./month-dispatch";
-import { registerMonthAnswered, registerMonthSent } from "./reminder-registration";
+import {
+  dispatchesFor,
+  markMonthReminded,
+  markMonthSent,
+} from "./month-dispatch";
+import {
+  registerMonthAnswered,
+  registerMonthSent,
+} from "./reminder-registration";
 import {
   approveEditRequest,
   assignReviewer,
@@ -41,13 +56,26 @@ import {
   submitWithAttestation,
   type Attestation,
 } from "./month-submission";
-import { getMonth, monthsForWorkspace, saveMonth, type MonthlyEntry } from "./monthly-data";
+import {
+  getMonth,
+  markNotManufactured,
+  clearNotManufactured,
+  monthsForWorkspace,
+  saveMonth,
+  type MonthlyEntry,
+} from "./monthly-data";
 import { signOffPack, signOffState } from "./pack-signoff";
 import type { WorkspaceReadiness } from "./readiness";
 import { reportContents } from "./report-contents";
 import { buildSmartLinks } from "./smart-links";
 import type { VerificationWorkspace } from "./workspace";
-import { annualCoverage, annualEvidence, evidenceForMonth, listEvidence, type AnnualScope } from "./workspace-evidence";
+import {
+  annualCoverage,
+  annualEvidence,
+  evidenceForMonth,
+  listEvidence,
+  type AnnualScope,
+} from "./workspace-evidence";
 import {
   finaliseVersion,
   finalVersionCovering,
@@ -71,13 +99,17 @@ const wsKey = (workspaceId: string) => [...ROOT, workspaceId] as const;
     a send or a precursor submission changes what this list says. */
 export const SMART_LINKS_KEY = [...ROOT, "smart-links"] as const;
 
-function useWorkspaceWrite<V extends { workspaceId: string }, R>(fn: (v: V) => R, movesSmartLinks = false) {
+function useWorkspaceWrite<V extends { workspaceId: string }, R>(
+  fn: (v: V) => R,
+  movesSmartLinks = false,
+) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (v: V) => Promise.resolve(fn(v)),
+    mutationFn: (v: V) => persistReportChange(() => fn(v)),
     onSuccess: (_result, v) => {
-      void client.invalidateQueries({ queryKey: wsKey(v.workspaceId) });
-      if (movesSmartLinks) void client.invalidateQueries({ queryKey: SMART_LINKS_KEY });
+      void invalidateReportViews(client);
+      if (movesSmartLinks)
+        void client.invalidateQueries({ queryKey: SMART_LINKS_KEY });
     },
   });
 }
@@ -88,16 +120,28 @@ function useWorkspaceWrite<V extends { workspaceId: string }, R>(fn: (v: V) => R
 export function useInvalidateWorkspaceData(workspaceId?: string): () => void {
   const client = useQueryClient();
   return () => {
-    void client.invalidateQueries({ queryKey: workspaceId ? wsKey(workspaceId) : ROOT });
-    if (workspaceId) void client.invalidateQueries({ queryKey: SMART_LINKS_KEY });
+    void client.invalidateQueries({
+      queryKey: workspaceId ? wsKey(workspaceId) : ROOT,
+    });
+    if (workspaceId)
+      void client.invalidateQueries({ queryKey: SMART_LINKS_KEY });
   };
 }
 
 /* ── Monitoring methodology (lib/workspace-mmd.ts) ───────────── */
 
-export function useMmdDraft(workspaceId: string | undefined, periodStart: string, periodEnd: string) {
+export function useMmdDraft(
+  workspaceId: string | undefined,
+  periodStart: string,
+  periodEnd: string,
+) {
   return useQuery({
-    queryKey: [...wsKey(workspaceId ?? ""), "mmd-draft", periodStart, periodEnd],
+    queryKey: [
+      ...wsKey(workspaceId ?? ""),
+      "mmd-draft",
+      periodStart,
+      periodEnd,
+    ],
     queryFn: () => loadDraft(workspaceId!, periodStart, periodEnd),
     enabled: Boolean(workspaceId),
     staleTime: 0,
@@ -122,9 +166,18 @@ export function useLatestMmdVersion(workspaceId: string | undefined) {
   });
 }
 
-export function useFinalMmdVersion(workspaceId: string | undefined, periodStart: string, periodEnd: string) {
+export function useFinalMmdVersion(
+  workspaceId: string | undefined,
+  periodStart: string,
+  periodEnd: string,
+) {
   return useQuery({
-    queryKey: [...wsKey(workspaceId ?? ""), "mmd-final", periodStart, periodEnd],
+    queryKey: [
+      ...wsKey(workspaceId ?? ""),
+      "mmd-final",
+      periodStart,
+      periodEnd,
+    ],
     queryFn: () => finalVersionCovering(workspaceId!, periodStart, periodEnd),
     enabled: Boolean(workspaceId),
     staleTime: 0,
@@ -132,18 +185,34 @@ export function useFinalMmdVersion(workspaceId: string | undefined, periodStart:
 }
 
 export const useSaveMmdDraft = () =>
-  useWorkspaceWrite(({ workspaceId, content }: { workspaceId: string; content: WorkspaceMmdContent }) =>
-    saveDraft(workspaceId, content),
+  useWorkspaceWrite(
+    ({
+      workspaceId,
+      content,
+    }: {
+      workspaceId: string;
+      content: WorkspaceMmdContent;
+    }) => saveDraft(workspaceId, content),
   );
 
 export const useFinaliseMmdVersion = () =>
-  useWorkspaceWrite(({ workspaceId, content, author }: { workspaceId: string; content: WorkspaceMmdContent; author: string }) =>
-    finaliseVersion(workspaceId, content, author),
+  useWorkspaceWrite(
+    ({
+      workspaceId,
+      content,
+      author,
+    }: {
+      workspaceId: string;
+      content: WorkspaceMmdContent;
+      author: string;
+    }) => finaliseVersion(workspaceId, content, author),
   );
 
 /* ── Monthly readings (lib/monthly-data.ts) ──────────────────── */
 
-export function useMonths(workspace: Pick<VerificationWorkspace, "id" | "year"> | undefined) {
+export function useMonths(
+  workspace: Pick<VerificationWorkspace, "id" | "year"> | undefined,
+) {
   return useQuery({
     // year is in the key: monthsForWorkspace derives the month list from it, so
     // a year change must re-list rather than serve last year's months.
@@ -154,7 +223,10 @@ export function useMonths(workspace: Pick<VerificationWorkspace, "id" | "year"> 
   });
 }
 
-export function useMonth(workspaceId: string | undefined, month: string | undefined) {
+export function useMonth(
+  workspaceId: string | undefined,
+  month: string | undefined,
+) {
   return useQuery({
     queryKey: [...wsKey(workspaceId ?? ""), "month", month],
     queryFn: () => getMonth(workspaceId!, month!),
@@ -165,7 +237,8 @@ export function useMonth(workspaceId: string | undefined, month: string | undefi
 
 /* A saved month moves the annual SEE, coverage, report contents AND the
    estate-wide ask list (a submitted month is an answered smart link). */
-export const useSaveMonth = () => useWorkspaceWrite((entry: MonthlyEntry) => saveMonth(entry), true);
+export const useSaveMonth = () =>
+  useWorkspaceWrite((entry: MonthlyEntry) => saveMonth(entry), true);
 
 /* ── Dispatches (lib/month-dispatch.ts) ──────────────────────── */
 
@@ -187,7 +260,17 @@ export function useDispatches(workspaceId: string | undefined) {
    lib/reminder-registration.ts. */
 export const useMarkMonthSent = () =>
   useWorkspaceWrite(
-    ({ workspaceId, month, dueDay, locale }: { workspaceId: string; month: string; dueDay?: number; locale?: string }) => {
+    ({
+      workspaceId,
+      month,
+      dueDay,
+      locale,
+    }: {
+      workspaceId: string;
+      month: string;
+      dueDay?: number;
+      locale?: string;
+    }) => {
       const dispatch = markMonthSent(workspaceId, month, dueDay);
       void registerMonthSent(workspaceId, month, locale);
       return dispatch;
@@ -195,8 +278,37 @@ export const useMarkMonthSent = () =>
     true,
   );
 
+export const useMarkNotManufactured = () =>
+  useWorkspaceWrite(
+    ({
+      workspaceId,
+      month,
+      by,
+    }: {
+      workspaceId: string;
+      month: string;
+      by: string;
+    }) => {
+      const entry = markNotManufactured(workspaceId, month, by);
+      void registerMonthAnswered(workspaceId, month);
+      return entry;
+    },
+    true,
+  );
+
+export const useClearNotManufactured = () =>
+  useWorkspaceWrite(
+    ({ workspaceId, month }: { workspaceId: string; month: string }) =>
+      clearNotManufactured(workspaceId, month),
+    true,
+  );
+
 export const useMarkMonthReminded = () =>
-  useWorkspaceWrite(({ workspaceId, month }: { workspaceId: string; month: string }) => markMonthReminded(workspaceId, month), true);
+  useWorkspaceWrite(
+    ({ workspaceId, month }: { workspaceId: string; month: string }) =>
+      markMonthReminded(workspaceId, month),
+    true,
+  );
 
 /* ── Submissions and the review loop (lib/month-submission.ts) ─
    None of these touch smart links: buildSmartLinks reads a month's answered
@@ -211,7 +323,10 @@ export function useSubmissions(workspaceId: string | undefined) {
   });
 }
 
-export function useSubmission(workspaceId: string | undefined, month: string | undefined) {
+export function useSubmission(
+  workspaceId: string | undefined,
+  month: string | undefined,
+) {
   return useQuery({
     queryKey: [...wsKey(workspaceId ?? ""), "submission", month],
     queryFn: () => submissionFor(workspaceId!, month!),
@@ -224,42 +339,108 @@ export function useSubmission(workspaceId: string | undefined, month: string | u
    schedule means the supplier who replied this morning is not chased tonight
    — which is the reminder nobody forgives, because they did the work. */
 export const useSubmitWithAttestation = () =>
-  useWorkspaceWrite(({ workspaceId, month, attestation }: { workspaceId: string; month: string; attestation: Attestation }) => {
-    const submission = submitWithAttestation(workspaceId, month, attestation);
-    void registerMonthAnswered(workspaceId, month);
-    return submission;
-  });
+  useWorkspaceWrite(
+    ({
+      workspaceId,
+      month,
+      attestation,
+    }: {
+      workspaceId: string;
+      month: string;
+      attestation: Attestation;
+    }) => {
+      const submission = submitWithAttestation(workspaceId, month, attestation);
+      void registerMonthAnswered(workspaceId, month);
+      return submission;
+    },
+  );
 
 export const useMarkExporterEdited = () =>
-  useWorkspaceWrite(({ workspaceId, month }: { workspaceId: string; month: string }) => markExporterEdited(workspaceId, month));
+  useWorkspaceWrite(
+    ({ workspaceId, month }: { workspaceId: string; month: string }) =>
+      markExporterEdited(workspaceId, month),
+  );
 
 export const useAssignReviewer = () =>
   useWorkspaceWrite(
-    ({ workspaceId, month, reviewerId, reviewerName }: { workspaceId: string; month: string; reviewerId: string; reviewerName: string }) =>
-      assignReviewer(workspaceId, month, reviewerId, reviewerName),
+    ({
+      workspaceId,
+      month,
+      reviewerId,
+      reviewerName,
+    }: {
+      workspaceId: string;
+      month: string;
+      reviewerId: string;
+      reviewerName: string;
+    }) => assignReviewer(workspaceId, month, reviewerId, reviewerName),
   );
 
 export const useConfirmMonth = () =>
-  useWorkspaceWrite(({ workspaceId, month, by }: { workspaceId: string; month: string; by: string }) => confirmMonth(workspaceId, month, by));
+  useWorkspaceWrite(
+    ({
+      workspaceId,
+      month,
+      by,
+    }: {
+      workspaceId: string;
+      month: string;
+      by: string;
+    }) => confirmMonth(workspaceId, month, by),
+  );
 
 export const useRequestRevision = () =>
-  useWorkspaceWrite(({ workspaceId, month, note, areas }: { workspaceId: string; month: string; note: string; areas?: string[] }) =>
-    requestRevision(workspaceId, month, note, areas),
+  useWorkspaceWrite(
+    ({
+      workspaceId,
+      month,
+      note,
+      areas,
+    }: {
+      workspaceId: string;
+      month: string;
+      note: string;
+      areas?: string[];
+    }) => requestRevision(workspaceId, month, note, areas),
   );
 
 export const useRequestEdit = () =>
-  useWorkspaceWrite(({ workspaceId, month, reason }: { workspaceId: string; month: string; reason: string }) =>
-    requestEdit(workspaceId, month, reason),
+  useWorkspaceWrite(
+    ({
+      workspaceId,
+      month,
+      reason,
+    }: {
+      workspaceId: string;
+      month: string;
+      reason: string;
+    }) => requestEdit(workspaceId, month, reason),
   );
 
 export const useApproveEditRequest = () =>
-  useWorkspaceWrite(({ workspaceId, month, by }: { workspaceId: string; month: string; by: string }) =>
-    approveEditRequest(workspaceId, month, by),
+  useWorkspaceWrite(
+    ({
+      workspaceId,
+      month,
+      by,
+    }: {
+      workspaceId: string;
+      month: string;
+      by: string;
+    }) => approveEditRequest(workspaceId, month, by),
   );
 
 export const useRejectEditRequest = () =>
-  useWorkspaceWrite(({ workspaceId, month, by }: { workspaceId: string; month: string; by: string }) =>
-    rejectEditRequest(workspaceId, month, by),
+  useWorkspaceWrite(
+    ({
+      workspaceId,
+      month,
+      by,
+    }: {
+      workspaceId: string;
+      month: string;
+      by: string;
+    }) => rejectEditRequest(workspaceId, month, by),
   );
 
 /* ── Evidence (lib/workspace-evidence.ts) ────────────────────── */
@@ -273,7 +454,10 @@ export function useEvidence(workspaceId: string | undefined) {
   });
 }
 
-export function useMonthEvidence(workspaceId: string | undefined, month: string | undefined) {
+export function useMonthEvidence(
+  workspaceId: string | undefined,
+  month: string | undefined,
+) {
   return useQuery({
     queryKey: [...wsKey(workspaceId ?? ""), "evidence", month],
     queryFn: () => evidenceForMonth(workspaceId!, month!),
@@ -291,7 +475,10 @@ export function useAnnualEvidence(workspaceId: string | undefined) {
   });
 }
 
-export function useAnnualCoverage(workspaceId: string | undefined, scope: AnnualScope | undefined) {
+export function useAnnualCoverage(
+  workspaceId: string | undefined,
+  scope: AnnualScope | undefined,
+) {
   return useQuery({
     queryKey: [...wsKey(workspaceId ?? ""), "annual-coverage", scope ?? null],
     queryFn: () => annualCoverage(workspaceId!, scope!),
@@ -319,7 +506,11 @@ export function useWorkspaceSEE(workspace: VerificationWorkspace | undefined) {
    changed readiness must refetch, not lag a cycle). `t` cannot be keyed — a
    function hashes to nothing — but locale switches never move ws/readiness, so
    this matches the old effect that keyed on [workspace, readiness] alone. */
-export function useReportContents(ws: VerificationWorkspace | undefined, readiness: WorkspaceReadiness | undefined, t: TFunction) {
+export function useReportContents(
+  ws: VerificationWorkspace | undefined,
+  readiness: WorkspaceReadiness | undefined,
+  t: TFunction,
+) {
   return useQuery({
     queryKey: [...wsKey(ws?.id ?? ""), "report-contents", ws, readiness],
     queryFn: () => reportContents(ws!, readiness!, t),
@@ -339,14 +530,19 @@ export function useCarbonPrice(workspaceId: string | undefined) {
   });
 }
 
-export const useSaveCarbonPrice = () => useWorkspaceWrite((record: CarbonPriceRecord) => saveCarbonPrice(record));
+export const useSaveCarbonPrice = () =>
+  useWorkspaceWrite((record: CarbonPriceRecord) => saveCarbonPrice(record));
 
 /* ── Pack sign-off (lib/pack-signoff.ts) ─────────────────────── */
 
 /* `complete` and `fingerprint` ARE keyed: the state is a function of them,
    and a fingerprint that moved must produce a fresh "stale" answer without
    waiting for an invalidation. */
-export function useSignOffState(workspaceId: string | undefined, complete: boolean, fingerprint: string) {
+export function useSignOffState(
+  workspaceId: string | undefined,
+  complete: boolean,
+  fingerprint: string,
+) {
   return useQuery({
     queryKey: [...wsKey(workspaceId ?? ""), "signoff", complete, fingerprint],
     queryFn: () => signOffState(workspaceId!, complete, fingerprint),
@@ -357,12 +553,25 @@ export function useSignOffState(workspaceId: string | undefined, complete: boole
 
 export const useSignOffPack = () =>
   useWorkspaceWrite(
-    ({ workspaceId, name, jobTitle, fingerprint }: { workspaceId: string; name: string; jobTitle: string; fingerprint: string }) =>
-      signOffPack(workspaceId, name, jobTitle, fingerprint),
+    ({
+      workspaceId,
+      name,
+      jobTitle,
+      fingerprint,
+    }: {
+      workspaceId: string;
+      name: string;
+      jobTitle: string;
+      fingerprint: string;
+    }) => signOffPack(workspaceId, name, jobTitle, fingerprint),
   );
 
 /* ── Smart links (lib/smart-links.ts) ────────────────────────── */
 
 export function useSmartLinks() {
-  return useQuery({ queryKey: SMART_LINKS_KEY, queryFn: () => buildSmartLinks(), staleTime: 0 });
+  return useQuery({
+    queryKey: SMART_LINKS_KEY,
+    queryFn: () => buildSmartLinks(),
+    staleTime: 0,
+  });
 }

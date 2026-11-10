@@ -25,6 +25,7 @@ test.describe("Exporter Dashboard & Navigation", () => {
             email: "wasawat@siamsteel.co.th",
             name: "Wasawat Kiakittiwong",
             onboarded: true,
+            ready: true,
           },
         }),
       );
@@ -33,12 +34,18 @@ test.describe("Exporter Dashboard & Navigation", () => {
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 15_000 });
   });
 
-  test("1. Renders executive summit & metrics band without errors", async ({ page }) => {
-    await expect(page.locator("body")).toContainText(/Siam Steel Export/i, { timeout: 15_000 });
+  test("1. Renders executive summit & metrics band without errors", async ({
+    page,
+  }) => {
+    await expect(page.locator("body")).toContainText(/Siam Steel Export/i, {
+      timeout: 15_000,
+    });
     // Free trial indicator
     await expect(page.locator("body")).toContainText(/trial/i);
     // Dashboard greeting & overview
-    await expect(page.locator("body")).toContainText(/Good (morning|afternoon|evening)|Overview|workspace/i);
+    await expect(page.locator("body")).toContainText(
+      /Good (morning|afternoon|evening)|Overview|workspace/i,
+    );
   });
 
   test("2. Navigates to Workspaces via sidebar link", async ({ page }) => {

@@ -1,3 +1,5 @@
+import { resolveEuPrecursorDefault } from "./eu-precursor-defaults";
+import { accountStorage } from "./account-storage";
 /* ════════════════════════════════════════════════════════════
    NESTED PRECURSOR SUPPLIERS — each with its own SEE and its own chain
 
@@ -25,7 +27,13 @@
    ════════════════════════════════════════════════════════════ */
 
 import { annualProductionFor } from "./monthly-data";
-import { aggregatedGoodsCategory, getCatalogProduct, isEuOrExempt } from "./config";
+import { fieldStatuses } from "./cbam/precursor-fields";
+import { cnProductByCode } from "./cbam/cn-catalogue";
+import {
+  aggregatedGoodsCategory,
+  getCatalogProduct,
+  isEuOrExempt,
+} from "./config";
 import type { VerificationWorkspace } from "./workspace";
 import { secureId } from "./secure-id";
 
@@ -33,9 +41,16 @@ import { secureId } from "./secure-id";
    Ordered strongest to weakest. The ordering is load-bearing: `weakestOrigin`
    and `defaultValueShare` both read it, and the 20% cap below is expressed
    against the weakest tier. */
-export type DataOrigin = "supplier_verified" | "supplier_unverified" | "default_value";
+export type DataOrigin =
+  | "supplier_verified"
+  | "supplier_unverified"
+  | "default_value";
 
-export const DATA_ORIGINS: DataOrigin[] = ["supplier_verified", "supplier_unverified", "default_value"];
+export const DATA_ORIGINS: DataOrigin[] = [
+  "supplier_verified",
+  "supplier_unverified",
+  "default_value",
+];
 
 export const DATA_ORIGIN_LABEL: Record<DataOrigin, string> = {
   supplier_verified: "Supplier — verified",
@@ -44,9 +59,12 @@ export const DATA_ORIGIN_LABEL: Record<DataOrigin, string> = {
 };
 
 export const DATA_ORIGIN_HINT: Record<DataOrigin, string> = {
-  supplier_verified: "The supplier's own figure, with an accredited verification statement behind it.",
-  supplier_unverified: "The supplier gave a figure but no verification statement. Usable, and a verifier will test it.",
-  default_value: "No supplier figure — a published default was used. Carries a markup, and is capped for complex goods.",
+  supplier_verified:
+    "The supplier's own figure, with an accredited verification statement behind it.",
+  supplier_unverified:
+    "The supplier gave a figure but no verification statement. Usable, and a verifier will test it.",
+  default_value:
+    "No supplier figure — a published default was used. Carries a markup, and is capped for complex goods.",
 };
 
 /** Weakest wins. Rank ascending: 0 is strongest. */
@@ -62,14 +80,22 @@ const ORIGIN_RANK: Record<DataOrigin, number> = {
    because a filing built on it would be rejected rather than queried. */
 export const DEFAULT_VALUE_SHARE_CAP = {
   value: 0.2,
-  source: "Build spec §4 — per-tab completion rules: 'complex good with a default_value share > 20%' blocks the Precursors tab",
+  source:
+    "Build spec §4 — per-tab completion rules: 'complex good with a default_value share > 20%' blocks the Precursors tab",
 };
 
 /** Real iron & steel chains are two to four tiers. Six is generous headroom;
     beyond it, something points back into the chain. */
 export const MAX_SUPPLIER_DEPTH = 6;
 
-export type MonthlyQuantity = { month: string; tonnes: number };
+export type MonthlyQuantity = {
+  // Retained backend fields for existing report and supplier integrations.
+  basis?: "used" | "received";
+  receivedTonnes?: number;
+  processId?: string;
+  month: string;
+  tonnes: number;
+};
 
 /** Where the precursor actually came from — the split that decides which
     field set applies and, downstream, whether a verification report is even
@@ -79,7 +105,10 @@ export type MonthlyQuantity = { month: string; tonnes: number };
     case ever needs the purchased-only fields below. */
 export type PrecursorOrigin = "same_installation" | "purchased";
 
-export const PRECURSOR_ORIGINS: PrecursorOrigin[] = ["purchased", "same_installation"];
+export const PRECURSOR_ORIGINS: PrecursorOrigin[] = [
+  "purchased",
+  "same_installation",
+];
 
 export const PRECURSOR_ORIGIN_LABEL: Record<PrecursorOrigin, string> = {
   purchased: "Purchased from another installation",
@@ -99,6 +128,26 @@ export type VerificationCheckResult = {
 };
 
 export type PrecursorSupplier = {
+  // Retained backend fields for existing report and supplier integrations.
+  consumingProcessIds?: string[];
+  consumingProductIds?: string[];
+  autofillProvenance?: {
+    field: string;
+    documentId?: string;
+    page: number;
+    excerpt: string;
+  }[];
+  emissionsInputPolicy?: "source_only";
+  supplierResponseReceived?: boolean;
+  /** The producer explicitly reported that no verified report is available. */
+  supplierReportUnavailable?: boolean;
+  defaultValueReference?: string;
+  defaultValueChecked?: boolean;
+  defaultValueSourceId?: string;
+  defaultValueYear?: number;
+  verificationCoverageStart?: string;
+  verificationCoverageEnd?: string;
+
   id: string;
   workspaceId: string;
   /** null = a direct input to our good */
@@ -297,6 +346,38 @@ export type PrecursorSupplier = {
      ordinary way — Enter Verified Data plus an attached document, same as
      any other precursor. */
   linkedWorkspaceId?: string;
+
+  /* ── Default or actual, per direct precursor ──────────────────
+     Annex II A.1(2) to Implementing Regulation (EU) 2025/2547 lets an operator
+     take actual values, default values, or a mix — precursor by precursor.
+     `valueBasis` is that choice. Undefined on every row saved before the
+     Precursors tab existed; those keep the behaviour they always had.
+
+     "default" — Annex IV item 22: CN code, name of the good, country of origin
+                 where known, and the default value from the EU tables (the
+                 highest default for the CN code when the country is unknown).
+     "actual"  — Annex IV item 23: the precursor's operator supplies a verified
+                 figure. Until it is complete AND admissible under Annex II
+                 A.1(4), the default value stands in — see
+                 lib/cbam/precursor-basis.ts. */
+  valueBasis?: "default" | "actual";
+  /** the country of production cannot be identified — Annex IV to the
+      Regulation: the highest country default for the CN code applies */
+  originUnknown?: boolean;
+  /** Annex IV item 23(d): the precursor's period is presumed to be the one of
+      the complex good unless the operator evidences the actual time of production */
+  reportingPeriodBasis?: "default_period" | "actual_time";
+  /** Annex IV item 25 — the same CN code also arrives from other installations */
+  alsoFromOtherInstallations?: boolean;
+  /** Annex IV item 35, keyed by the registry's sector-parameter keys */
+  sectorParams?: Record<string, string>;
+  /* The verification report template, point 2.5(b)(7) */
+  verifierAddress?: string;
+  verifierLeadAuditor?: string;
+  verifierAccreditationBody?: string;
+  /** the statement concludes with reasonable assurance and no material
+      misstatement or non-conformity — only `true` makes the figure usable */
+  verifierReasonableAssurance?: boolean;
 };
 
 /* ── Store ──────────────────────────────────────────────────────
@@ -312,7 +393,7 @@ export const uid = () => secureId("ps");
 function read(): Store {
   if (typeof window === "undefined") return {};
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = accountStorage.getItem(KEY);
     if (!raw) return {};
     const parsed = JSON.parse(raw) as Store;
     return parsed && typeof parsed === "object" ? parsed : {};
@@ -324,7 +405,7 @@ function read(): Store {
 function write(store: Store): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(store));
+    accountStorage.setItem(KEY, JSON.stringify(store));
   } catch {
     /* ignore quota */
   }
@@ -335,23 +416,30 @@ function write(store: Store): void {
    a row by its id (`getSupplier`) and the one that rewrites the whole bucket
    (`removeSupplier`) — a delete built on the filtered list would drop the root
    row on the floor as a side effect of removing an unrelated precursor. */
-const allRows = (workspaceId: string): PrecursorSupplier[] => read()[workspaceId] ?? [];
+const allRows = (workspaceId: string): PrecursorSupplier[] =>
+  read()[workspaceId] ?? [];
 
 /** The workspace's PRECURSORS. The chain-root row is not one of them — see
     `isChainRoot` — so it is filtered here, once, rather than in each of the
     twenty-odd readers that ask "what hangs under this product". */
-export const listSuppliers = (workspaceId: string): PrecursorSupplier[] => allRows(workspaceId).filter((s) => !s.isChainRoot);
+export const listSuppliers = (workspaceId: string): PrecursorSupplier[] =>
+  allRows(workspaceId).filter((s) => !s.isChainRoot);
 
 /** By id, chain-root row included: a row addressed by its own id is a row
     somebody already holds a reference to — a Smart Link token, an open
     dialog — and answering "no such row" for the top of the chain would break
     the link the supplier was handed. */
-export const getSupplier = (workspaceId: string, id: string): PrecursorSupplier | null =>
+export const getSupplier = (
+  workspaceId: string,
+  id: string,
+): PrecursorSupplier | null =>
   allRows(workspaceId).find((s) => s.id === id) ?? null;
 
 /** The chain-root row for this workspace, if it has been created yet.
     `ensureChainRootSupplier` (lib/chain-root-supplier.ts) is what creates it. */
-export const chainRootSupplier = (workspaceId: string): PrecursorSupplier | null =>
+export const chainRootSupplier = (
+  workspaceId: string,
+): PrecursorSupplier | null =>
   allRows(workspaceId).find((s) => s.isChainRoot) ?? null;
 
 /* ── Which workspaces exist because a precursor was tracked ─────
@@ -371,7 +459,9 @@ export const chainRootSupplier = (workspaceId: string): PrecursorSupplier | null
    once per workspace. The value is the precursor row itself rather than a
    bare `true`, because the useful label is not "tracked" but "tracked for
    Chonburi Foundry's pig iron", and only the row knows that. */
-export function trackedWorkspaceIndex(workspaces: Pick<VerificationWorkspace, "id">[]): Map<string, PrecursorSupplier> {
+export function trackedWorkspaceIndex(
+  workspaces: Pick<VerificationWorkspace, "id">[],
+): Map<string, PrecursorSupplier> {
   const out = new Map<string, PrecursorSupplier>();
   for (const w of workspaces) {
     for (const s of listSuppliers(w.id)) {
@@ -381,7 +471,10 @@ export function trackedWorkspaceIndex(workspaces: Pick<VerificationWorkspace, "i
   return out;
 }
 
-export type PrecursorSupplierRow = { supplier: PrecursorSupplier; workspace: VerificationWorkspace };
+export type PrecursorSupplierRow = {
+  supplier: PrecursorSupplier;
+  workspace: VerificationWorkspace;
+};
 
 /** Every precursor node across every workspace the account owns, each
     carrying the workspace it belongs to — the cross-workspace query the
@@ -391,11 +484,20 @@ export type PrecursorSupplierRow = { supplier: PrecursorSupplier; workspace: Ver
     to show on a page about supplier RESPONSIVENESS. Takes the workspace
     list as a parameter rather than calling listWorkspaces() itself, so this
     file never has to import lib/workspace.ts for anything but its type. */
-export function allPrecursorSuppliers(workspaces: VerificationWorkspace[]): PrecursorSupplierRow[] {
-  return workspaces.flatMap((workspace) => listSuppliers(workspace.id).filter((s) => !s.isScrap).map((supplier) => ({ supplier, workspace })));
+export function allPrecursorSuppliers(
+  workspaces: VerificationWorkspace[],
+): PrecursorSupplierRow[] {
+  return workspaces.flatMap((workspace) =>
+    listSuppliers(workspace.id)
+      .filter((s) => !s.isScrap)
+      .map((supplier) => ({ supplier, workspace })),
+  );
 }
 
-export const emptySupplier = (workspaceId: string, parentId: string | null = null): PrecursorSupplier => ({
+export const emptySupplier = (
+  workspaceId: string,
+  parentId: string | null = null,
+): PrecursorSupplier => ({
   id: uid(),
   workspaceId,
   parentId,
@@ -430,6 +532,14 @@ export const emptySupplier = (workspaceId: string, parentId: string | null = nul
 
     Pure — reads only what is stored on the row, writes nothing.
     `saveSupplier` is the only caller that acts on the result. */
+const SECTOR_WORDS: Record<string, string[]> = {
+  "Iron & Steel": ["iron", "steel"],
+  Aluminium: ["alumin"],
+  Cement: ["cement", "clinker", "clay"],
+  Fertilisers: ["fertili", "ammonia", "nitric", "urea", "nitrogen"],
+  Hydrogen: ["hydrogen"],
+};
+
 export function validateVerificationReport(
   s: Pick<
     PrecursorSupplier,
@@ -440,7 +550,7 @@ export function validateVerificationReport(
     | "verificationReportIssueDate"
     | "verificationSectoralScope"
     | "catalogProductId"
-  >,
+  > & { cnCode?: string },
 ): VerificationCheckResult {
   const failedReasons: string[] = [];
 
@@ -453,26 +563,70 @@ export function validateVerificationReport(
   // on whatever date somebody happens to be looking at this screen, which is
   // why both dates are required and compared to each other rather than
   // either being compared to "now".
-  const hasAccreditationDates = Boolean(s.verifierAccreditationExpiryDate && s.verificationReportIssueDate);
-  const accreditationValid = hasAccreditationDates && s.verificationReportIssueDate! <= s.verifierAccreditationExpiryDate!;
+  const hasAccreditationDates = Boolean(
+    s.verifierAccreditationExpiryDate && s.verificationReportIssueDate,
+  );
+  const accreditationValid =
+    hasAccreditationDates &&
+    s.verificationReportIssueDate! <= s.verifierAccreditationExpiryDate!;
 
   // Matched against the CBAM catalogue's own category for this precursor
   // when one is on file — a typed precursor with no catalogue link has
   // nothing to check the claim against, so a non-empty self-declaration is
   // taken as the claim rather than rejected outright.
-  const catalogProduct = s.catalogProductId ? getCatalogProduct(s.catalogProductId) : undefined;
-  const expectedScope = catalogProduct ? aggregatedGoodsCategory(catalogProduct) : null;
+  // The catalogue link when there is one; otherwise the CN code itself — a
+  // typed precursor still has a sector, and "Cement" does not cover steel.
+  const catalogProduct = s.catalogProductId
+    ? getCatalogProduct(s.catalogProductId)
+    : s.cnCode
+      ? cnProductByCode(s.cnCode)
+      : undefined;
+  const expectedScope = catalogProduct
+    ? aggregatedGoodsCategory(catalogProduct)
+    : null;
   const claimedScope = s.verificationSectoralScope?.trim();
-  const sectoralScopeMatch = Boolean(claimedScope) && (expectedScope == null || claimedScope!.toLowerCase().includes(expectedScope.toLowerCase()));
+  /* A verifier's accreditation is scoped to a SECTOR — "iron and steel",
+     "cement", "fertilisers" — not to the regulation's aggregated goods category.
+     Demanding the category's own name would reject “Iron and steel” on a
+     crude-steel precursor, which is exactly the scope that covers it. So the
+     claim matches on the category name OR on its sector's words. */
+  const sectorWords = catalogProduct
+    ? (SECTOR_WORDS[catalogProduct.category] ?? [])
+    : [];
+  const claimed = (claimedScope ?? "").toLowerCase();
+  const sectoralScopeMatch =
+    Boolean(claimedScope) &&
+    (expectedScope == null ||
+      claimed.includes(expectedScope.toLowerCase()) ||
+      sectorWords.some((w) => claimed.includes(w)));
 
   if (!hasFile) failedReasons.push("No verification report is attached.");
-  if (!hasAccreditationDates) failedReasons.push("The verifier's accreditation expiry date and the report's issue date are not both recorded.");
-  else if (!accreditationValid) failedReasons.push(`The accreditation expired ${s.verifierAccreditationExpiryDate}, before the report was issued on ${s.verificationReportIssueDate}.`);
-  if (!claimedScope) failedReasons.push("The verifier's sectoral scope is not recorded.");
-  else if (expectedScope != null && !sectoralScopeMatch) failedReasons.push(`The verifier's stated sectoral scope ("${claimedScope}") does not cover ${expectedScope}.`);
-  if (!hasPeriod) failedReasons.push("The producing installation's reporting period is not recorded, so the report's coverage cannot be checked.");
+  if (!hasAccreditationDates)
+    failedReasons.push(
+      "The verifier's accreditation expiry date and the report's issue date are not both recorded.",
+    );
+  else if (!accreditationValid)
+    failedReasons.push(
+      `The accreditation expired ${s.verifierAccreditationExpiryDate}, before the report was issued on ${s.verificationReportIssueDate}.`,
+    );
+  if (!claimedScope)
+    failedReasons.push("The verifier's sectoral scope is not recorded.");
+  else if (expectedScope != null && !sectoralScopeMatch)
+    failedReasons.push(
+      `The verifier's stated sectoral scope ("${claimedScope}") does not cover ${expectedScope}.`,
+    );
+  if (!hasPeriod)
+    failedReasons.push(
+      "The producing installation's reporting period is not recorded, so the report's coverage cannot be checked.",
+    );
 
-  return { accreditationValid, sectoralScopeMatch, periodCovered, fileIntact, failedReasons };
+  return {
+    accreditationValid,
+    sectoralScopeMatch,
+    periodCovered,
+    fileIntact,
+    failedReasons,
+  };
 }
 
 export function saveSupplier(s: PrecursorSupplier): PrecursorSupplier {
@@ -486,16 +640,26 @@ export function saveSupplier(s: PrecursorSupplier): PrecursorSupplier {
   // children alongside the real ones in the flat store. This is the one
   // place every write passes through, so it is the one place this is worth
   // guarding rather than trusting every caller to spread cleanly.
-  const { depth: _depth, children: _children, ...clean } = s as PrecursorSupplier & { depth?: number; children?: unknown };
+  const {
+    depth: _depth,
+    children: _children,
+    ...clean
+  } = s as PrecursorSupplier & { depth?: number; children?: unknown };
   let row: PrecursorSupplier = { ...clean };
 
   // Scrap forces SEE to 0 at the store layer, not in the UI, so no screen and
   // no import path can write a non-zero figure onto a scrap row.
   if (row.isScrap) {
-    row = { ...row, seeTco2ePerT: 0, specificEmbeddedDirectTco2PerT: 0, specificEmbeddedIndirectTco2PerT: 0 };
+    row = {
+      ...row,
+      seeTco2ePerT: 0,
+      specificEmbeddedDirectTco2PerT: 0,
+      specificEmbeddedIndirectTco2PerT: 0,
+    };
   } else if (
     row.dataOrigin !== "default_value" &&
-    (row.specificEmbeddedDirectTco2PerT != null || row.specificEmbeddedIndirectTco2PerT != null)
+    (row.specificEmbeddedDirectTco2PerT != null ||
+      row.specificEmbeddedIndirectTco2PerT != null)
   ) {
     // The direct/indirect split, when present, is the figure of record — the
     // combined seeTco2ePerT is kept as its sum so every existing reader of
@@ -503,7 +667,12 @@ export function saveSupplier(s: PrecursorSupplier): PrecursorSupplier {
     // Skipped for a default-value row: there the published table's total is
     // the figure of record, and a stale split left over from before the
     // switch must not silently override it.
-    row = { ...row, seeTco2ePerT: (row.specificEmbeddedDirectTco2PerT ?? 0) + (row.specificEmbeddedIndirectTco2PerT ?? 0) };
+    row = {
+      ...row,
+      seeTco2ePerT:
+        (row.specificEmbeddedDirectTco2PerT ?? 0) +
+        (row.specificEmbeddedIndirectTco2PerT ?? 0),
+    };
   }
 
   // EU / exempted-territory origin: SEE is 0 by construction, locked, no
@@ -518,14 +687,22 @@ export function saveSupplier(s: PrecursorSupplier): PrecursorSupplier {
       dataOrigin: "supplier_verified",
       verificationChecks: undefined,
     };
-  } else if (row.origin === "purchased" && !row.isScrap && row.dataOrigin === "supplier_verified") {
+  } else if (
+    row.origin === "purchased" &&
+    !row.isScrap &&
+    row.dataOrigin === "supplier_verified"
+  ) {
     // The 4-check gate is what "verified" means — it is the origin that
     // claims an accredited verification statement stands behind the figure
     // (see DATA_ORIGIN_HINT), so it is the only one the checks apply to. An
     // unverified figure makes no such claim and has nothing to fail.
     const checks = validateVerificationReport(row);
     row = { ...row, verificationChecks: checks };
-    const allPassed = checks.accreditationValid && checks.sectoralScopeMatch && checks.periodCovered && checks.fileIntact;
+    const allPassed =
+      checks.accreditationValid &&
+      checks.sectoralScopeMatch &&
+      checks.periodCovered &&
+      checks.fileIntact;
     // The mandatory fallback: any failed check drops the row to a default
     // value automatically, not as a warning beside a figure that stays put.
     if (!allPassed) row = { ...row, dataOrigin: "default_value" };
@@ -553,14 +730,20 @@ export function saveSupplier(s: PrecursorSupplier): PrecursorSupplier {
    nothing on the screen distinguishes a zero the operator meant from a zero
    the checkbox left there. `null` renders as an empty field that reads as a
    question, which is what an unanswered figure should look like. */
-export function setScrap(s: PrecursorSupplier, isScrap: boolean): PrecursorSupplier {
+export function setScrap(
+  s: PrecursorSupplier,
+  isScrap: boolean,
+): PrecursorSupplier {
   return saveSupplier({ ...s, isScrap, seeTco2ePerT: isScrap ? 0 : null });
 }
 
 /** Removing a supplier removes everything beneath it — a subtree is one claim
     about one chain, and orphaning its upstream tiers would leave rows that
     contribute to nothing and can never be found again. */
-export function removeSupplier(workspaceId: string, id: string): PrecursorSupplier[] {
+export function removeSupplier(
+  workspaceId: string,
+  id: string,
+): PrecursorSupplier[] {
   /* allRows, not listSuppliers: this rewrites the whole bucket from what it
      reads, so reading the filtered list would delete the chain-root row as a
      silent side effect of removing any precursor. */
@@ -608,7 +791,10 @@ export class PrecursorSupplierError extends Error {
    Assembled from flat rows. A row whose parentId points at a missing row is
    promoted to a root rather than dropped — a lost row is a visible orphan,
    never a silently vanished tonne. */
-export type SupplierNode = PrecursorSupplier & { children: SupplierNode[]; depth: number };
+export type SupplierNode = PrecursorSupplier & {
+  children: SupplierNode[];
+  depth: number;
+};
 
 export function treeFor(workspaceId: string): SupplierNode[] {
   const rows = listSuppliers(workspaceId);
@@ -622,7 +808,11 @@ export function treeFor(workspaceId: string): SupplierNode[] {
 
   const visited = new Set<string>();
 
-  const build = (parentId: string | null, depth: number, ancestry: Set<string>): SupplierNode[] => {
+  const build = (
+    parentId: string | null,
+    depth: number,
+    ancestry: Set<string>,
+  ): SupplierNode[] => {
     if (depth > MAX_SUPPLIER_DEPTH) {
       throw new PrecursorSupplierError(
         "DEPTH",
@@ -656,7 +846,9 @@ export function treeFor(workspaceId: string): SupplierNode[] {
      were already promoted to roots), and it raises. */
   const unreached = rows.filter((r) => !visited.has(r.id));
   if (unreached.length > 0) {
-    const names = unreached.map((r) => r.name || r.precursorName || "unnamed supplier");
+    const names = unreached.map(
+      (r) => r.name || r.precursorName || "unnamed supplier",
+    );
     throw new PrecursorSupplierError(
       "CYCLE",
       `${names.length === 1 ? `"${names[0]}" is` : `${names.map((n) => `"${n}"`).join(", ")} are`} inside a loop in the supply chain — each is reachable only from the other, so nothing connects to the finished good. A precursor cannot be made from itself; remove the loop before this can be calculated.`,
@@ -688,7 +880,10 @@ export function flatten(nodes: SupplierNode[]): SupplierNode[] {
     descending into a branch that loops back on itself rather than
     throwing — a supplier acting on their own submission can't fix a cycle
     elsewhere in the chain anyway. */
-export function descendantsOf(workspaceId: string, id: string): PrecursorSupplier[] {
+export function descendantsOf(
+  workspaceId: string,
+  id: string,
+): PrecursorSupplier[] {
   const byParent = new Map<string, PrecursorSupplier[]>();
   for (const r of listSuppliers(workspaceId)) {
     if (!r.parentId) continue;
@@ -714,12 +909,19 @@ export function descendantsOf(workspaceId: string, id: string): PrecursorSupplie
     direct children the old inline check covered. Never matched on company
     name alone — that's exactly the string collision this scheme exists to
     avoid. */
-export function matchesExistingInstallation(workspaceId: string, draft: Pick<PrecursorSupplier, "id" | "installationUniqueId" | "unlocode">): boolean {
+export function matchesExistingInstallation(
+  workspaceId: string,
+  draft: Pick<PrecursorSupplier, "id" | "installationUniqueId" | "unlocode">,
+): boolean {
   const others = listSuppliers(workspaceId).filter((s) => s.id !== draft.id);
-  const named = draft.installationUniqueId?.trim() || draft.unlocode?.trim() || "";
+  const named =
+    draft.installationUniqueId?.trim() || draft.unlocode?.trim() || "";
   if (!named) return false;
   return others.some(
-    (o) => (draft.installationUniqueId && o.installationUniqueId === draft.installationUniqueId) || (draft.unlocode && o.unlocode === draft.unlocode),
+    (o) =>
+      (draft.installationUniqueId &&
+        o.installationUniqueId === draft.installationUniqueId) ||
+      (draft.unlocode && o.unlocode === draft.unlocode),
   );
 }
 
@@ -728,16 +930,33 @@ export function matchesExistingInstallation(workspaceId: string, draft: Pick<Pre
    (M7). For an upstream tier it is Σ its tonnes ÷ Σ its PARENT's tonnes —
    tonnes of pig iron per tonne of billet — which is the same question one
    level up. */
-export const totalTonnes = (s: Pick<PrecursorSupplier, "monthlyQuantities">): number =>
-  s.monthlyQuantities.reduce((a, q) => a + (q.tonnes || 0), 0);
+export const totalTonnes = (
+  s: Pick<PrecursorSupplier, "monthlyQuantities"> & { quantityUsedT?: number },
+): number => {
+  const monthly = s.monthlyQuantities.reduce((a, q) => a + (q.tonnes || 0), 0);
+  /* The Precursors tab asks for ONE annual figure (Annex IV items 20/21), not
+     twelve. It counts only when no monthly readings exist, so a row that has
+     both never counts the same tonne twice. */
+  if (monthly > 0) return monthly;
+  return s.quantityUsedT != null &&
+    Number.isFinite(s.quantityUsedT) &&
+    s.quantityUsedT > 0
+    ? s.quantityUsedT
+    : 0;
+};
 
 /** Tonnes of this node per tonne of its parent's output (or of the finished
     good, for a direct input). Returns null when it cannot be established —
     never 0, because 0 would silently delete the tier from the calculation. */
-export function qtyPerTonne(node: SupplierNode, parentTonnes: number | null): number | null {
+export function qtyPerTonne(
+  node: SupplierNode,
+  parentTonnes: number | null,
+): number | null {
   const own = totalTonnes(node);
-  if (own > 0 && parentTonnes != null && parentTonnes > 0) return own / parentTonnes;
-  if (node.qtyPerTonneOverride != null && node.qtyPerTonneOverride > 0) return node.qtyPerTonneOverride;
+  if (own > 0 && parentTonnes != null && parentTonnes > 0)
+    return own / parentTonnes;
+  if (node.qtyPerTonneOverride != null && node.qtyPerTonneOverride > 0)
+    return node.qtyPerTonneOverride;
   return null;
 }
 
@@ -749,7 +968,11 @@ export function qtyPerTonne(node: SupplierNode, parentTonnes: number | null): nu
 export function effectiveSee(node: SupplierNode): number {
   if (node.isScrap) return 0;
 
-  if (node.children.length === 0) {
+  /* A direct precursor whose basis has been chosen is a leaf: its own figure —
+     default, or the operator's verified actual — IS its specific embedded
+     emissions. Any upstream tiers recorded before the Precursors tab existed
+     are kept, but they no longer feed the number. */
+  if (node.children.length === 0 || node.valueBasis) {
     const declared = node.seeTco2ePerT;
     return declared != null && Number.isFinite(declared) ? declared : 0;
   }
@@ -769,10 +992,13 @@ export function effectiveSee(node: SupplierNode): number {
    walk: a scrap tier has no emissions figure to be verified or not, and
    letting it drag the chain down would penalise the cleanest input there is. */
 export function weakestOrigin(node: SupplierNode): DataOrigin {
-  let weakest: DataOrigin = node.isScrap ? "supplier_verified" : node.dataOrigin;
+  let weakest: DataOrigin = node.isScrap
+    ? "supplier_verified"
+    : node.dataOrigin;
   for (const child of node.children) {
     const childWeakest = weakestOrigin(child);
-    if (ORIGIN_RANK[childWeakest] > ORIGIN_RANK[weakest]) weakest = childWeakest;
+    if (ORIGIN_RANK[childWeakest] > ORIGIN_RANK[weakest])
+      weakest = childWeakest;
   }
   return weakest;
 }
@@ -831,7 +1057,16 @@ const EMPTY_RESULT: PrecursorResult = {
 
 /** A node is complete when it names its installation, has a quantity or a
     ratio, and either declares a SEE, is scrap, or has children that do. */
-export function nodeComplete(node: SupplierNode, ratio: number | null): boolean {
+export function nodeComplete(
+  node: SupplierNode,
+  ratio: number | null,
+): boolean {
+  if (node.valueBasis === "default")
+    return (
+      ratio != null && Boolean(node.precursorName.trim() || node.cnCode.trim())
+    );
+  if (node.valueBasis === "actual" && node.dataOrigin === "default_value")
+    return false; // still waiting for an admissible actual value
   if (!node.name.trim() || !node.installationName.trim()) return false;
   if (ratio == null) return false;
   if (node.isScrap) return true;
@@ -839,12 +1074,17 @@ export function nodeComplete(node: SupplierNode, ratio: number | null): boolean 
   return node.seeTco2ePerT != null && Number.isFinite(node.seeTco2ePerT);
 }
 
-export function precursorContribution(workspace: Pick<VerificationWorkspace, "id" | "year">): PrecursorResult {
+export function precursorContribution(
+  workspace: Pick<VerificationWorkspace, "id" | "year">,
+): PrecursorResult {
   let roots: SupplierNode[];
   try {
     roots = treeFor(workspace.id);
   } catch (e) {
-    return { ...EMPTY_RESULT, error: e instanceof PrecursorSupplierError ? e : null };
+    return {
+      ...EMPTY_RESULT,
+      error: e instanceof PrecursorSupplierError ? e : null,
+    };
   }
   if (roots.length === 0) return EMPTY_RESULT;
 
@@ -853,18 +1093,32 @@ export function precursorContribution(workspace: Pick<VerificationWorkspace, "id
   let perTonne = 0;
   let defaultContribution = 0;
 
-  const walk = (node: SupplierNode, parentTonnes: number | null, ratioFromGoodOfParent: number | null) => {
+  const walk = (
+    node: SupplierNode,
+    parentTonnes: number | null,
+    ratioFromGoodOfParent: number | null,
+  ) => {
     const ratio = qtyPerTonne(node, parentTonnes);
-    const ratioFromGood = ratio != null && ratioFromGoodOfParent != null ? ratio * ratioFromGoodOfParent : ratio != null && node.depth === 1 ? ratio : null;
+    const ratioFromGood =
+      ratio != null && ratioFromGoodOfParent != null
+        ? ratio * ratioFromGoodOfParent
+        : ratio != null && node.depth === 1
+          ? ratio
+          : null;
     const see = effectiveSee(node);
 
     /* The node's OWN declared figure, isolated from its children. A tier that
        derives its SEE from upstream contributes through those children, so
        counting its derived figure here as well would attribute the same
        tonnes to two different data origins. */
-    const ownSee = node.isScrap ? 0 : node.children.length > 0 ? 0 : (node.seeTco2ePerT ?? 0);
+    const ownSee = node.isScrap
+      ? 0
+      : node.children.length > 0
+        ? 0
+        : (node.seeTco2ePerT ?? 0);
     const ownContribution = ratioFromGood != null ? ratioFromGood * ownSee : 0;
-    if (node.dataOrigin === "default_value" && !node.isScrap) defaultContribution += ownContribution;
+    if (node.dataOrigin === "default_value" && !node.isScrap)
+      defaultContribution += ownContribution;
 
     const row: NodeContribution = {
       id: node.id,
@@ -884,7 +1138,8 @@ export function precursorContribution(workspace: Pick<VerificationWorkspace, "id
     byNode.push(row);
 
     const own = totalTonnes(node);
-    for (const child of node.children) walk(child, own > 0 ? own : null, ratioFromGood);
+    for (const child of node.children)
+      walk(child, own > 0 ? own : null, ratioFromGood);
   };
 
   for (const root of roots) {
@@ -898,7 +1153,12 @@ export function precursorContribution(workspace: Pick<VerificationWorkspace, "id
     perTonne,
     byNode,
     defaultValueShare: share,
-    overDefaultCap: share > DEFAULT_VALUE_SHARE_CAP.value,
+    /* No longer a gate. Implementing Regulation (EU) 2025/2547 Article 15 and
+       Annex II A.1(2) allow default values for one, several or all precursors;
+       the 20 % ceiling came from the transitional-period rules and is not in
+       the definitive-period text. The share is still reported — it is what the
+       Precursors tab tells the exporter about — but it blocks nothing. */
+    overDefaultCap: false,
     incomplete: byNode.filter((n) => !n.complete),
     error: null,
   };
@@ -907,12 +1167,15 @@ export function precursorContribution(workspace: Pick<VerificationWorkspace, "id
 /** §4/§A6 — the fraction of precursor contribution coming from default_value
     nodes. Exposed on its own because the Precursors tab header shows it
     against the cap, and the readiness rules read it directly. */
-export const defaultValueShare = (workspace: Pick<VerificationWorkspace, "id" | "year">): number =>
-  precursorContribution(workspace).defaultValueShare;
+export const defaultValueShare = (
+  workspace: Pick<VerificationWorkspace, "id" | "year">,
+): number => precursorContribution(workspace).defaultValueShare;
 
 /** The weakest origin anywhere in the workspace's chains — what the Overview
     reports as the quality of the precursor data as a whole. */
-export function weakestOriginForWorkspace(workspaceId: string): DataOrigin | null {
+export function weakestOriginForWorkspace(
+  workspaceId: string,
+): DataOrigin | null {
   let roots: SupplierNode[];
   try {
     roots = treeFor(workspaceId);
@@ -920,14 +1183,19 @@ export function weakestOriginForWorkspace(workspaceId: string): DataOrigin | nul
     return null;
   }
   if (roots.length === 0) return null;
-  return roots.map(weakestOrigin).reduce((a, b) => (ORIGIN_RANK[b] > ORIGIN_RANK[a] ? b : a));
+  return roots
+    .map(weakestOrigin)
+    .reduce((a, b) => (ORIGIN_RANK[b] > ORIGIN_RANK[a] ? b : a));
 }
 
 /** A row that reads like scrap but is not flagged. Surfaced as a prompt in
     the editor, never applied — the difference between helping and silently
     rewriting somebody's declaration. */
-export const looksLikeScrap = (s: Pick<PrecursorSupplier, "precursorName" | "isScrap">): boolean =>
-  !s.isScrap && /\b(scrap|waste|swarf|turnings|offcut|เศษ)\b/i.test(s.precursorName);
+export const looksLikeScrap = (
+  s: Pick<PrecursorSupplier, "precursorName" | "isScrap">,
+): boolean =>
+  !s.isScrap &&
+  /\b(scrap|waste|swarf|turnings|offcut|เศษ)\b/i.test(s.precursorName);
 
 /* ── Smart Link status ─────────────────────────────────────────
    Six states, every one of them read off a timestamp rather than set by
@@ -951,16 +1219,31 @@ export const LINK_STATUS_LABEL: Record<LinkStatus, string> = {
 };
 
 export function linkStatus(
-  s: Partial<Pick<PrecursorSupplier, "smartLinkSentAt" | "smartLinkOpenedAt" | "smartLinkSubmittedAt" | "dataOrigin" | "verificationChecks">>,
+  s: Partial<
+    Pick<
+      PrecursorSupplier,
+      | "smartLinkSentAt"
+      | "smartLinkOpenedAt"
+      | "smartLinkSubmittedAt"
+      | "dataOrigin"
+      | "verificationChecks"
+    >
+  >,
 ): LinkStatus {
   if (!s.smartLinkSentAt) return "not_invited";
   if (!s.smartLinkOpenedAt) return "invited_not_opened";
   if (!s.smartLinkSubmittedAt) return "opened_in_progress";
   // Nothing to validate yet (an unverified claim, or a default value) —
   // submitted is not the same as checked.
-  if (s.dataOrigin !== "supplier_verified" || !s.verificationChecks) return "submitted_pending_validation";
+  if (s.dataOrigin !== "supplier_verified" || !s.verificationChecks)
+    return "submitted_pending_validation";
   const c = s.verificationChecks;
-  return c.accreditationValid && c.sectoralScopeMatch && c.periodCovered && c.fileIntact ? "submitted_verified" : "submitted_failed_validation";
+  return c.accreditationValid &&
+    c.sectoralScopeMatch &&
+    c.periodCovered &&
+    c.fileIntact
+    ? "submitted_verified"
+    : "submitted_failed_validation";
 }
 
 /** Whether a verification report's own renewal date has passed — a report
@@ -975,7 +1258,9 @@ export function linkStatus(
     Both LinkStatusChip (Precursors tab) and computeNodeStatus (Tree page,
     lib/supplier-tree.ts) call this — not two independent date comparisons —
     so the two screens can never quietly drift on what counts as expired. */
-export function isVerificationExpired(expiresAt: string | null | undefined): boolean {
+export function isVerificationExpired(
+  expiresAt: string | null | undefined,
+): boolean {
   if (!expiresAt) return false;
   return new Date() > new Date(expiresAt);
 }
@@ -985,18 +1270,28 @@ export function isVerificationExpired(expiresAt: string | null | undefined): boo
     because a claim without the checks behind it is not admissible as actual
     data under Annex II A.1(4). Never settable by hand; purely a read of
     `dataOrigin` and `verificationChecks`, both already governed elsewhere. */
-export function valueType(s: Pick<PrecursorSupplier, "dataOrigin" | "verificationChecks" | "isScrap">): "default" | "actual" {
+export function valueType(
+  s: Pick<PrecursorSupplier, "dataOrigin" | "verificationChecks" | "isScrap">,
+): "default" | "actual" {
   if (s.isScrap) return "actual"; // zero is the true figure, not an estimate standing in for one
   if (s.dataOrigin !== "supplier_verified") return "default";
   const c = s.verificationChecks;
   if (!c) return "default";
-  return c.accreditationValid && c.sectoralScopeMatch && c.periodCovered && c.fileIntact ? "actual" : "default";
+  return c.accreditationValid &&
+    c.sectoralScopeMatch &&
+    c.periodCovered &&
+    c.fileIntact
+    ? "actual"
+    : "default";
 }
 
 /** Marks a node's Smart Link as opened — idempotent, called on mount by
     app/p/[token]/page.tsx. Never overwrites an existing timestamp; the
     FIRST open is what "opened" means. */
-export function markLinkOpened(workspaceId: string, id: string): PrecursorSupplier | null {
+export function markLinkOpened(
+  workspaceId: string,
+  id: string,
+): PrecursorSupplier | null {
   const s = getSupplier(workspaceId, id);
   if (!s || s.smartLinkOpenedAt) return s;
   return saveSupplier({ ...s, smartLinkOpenedAt: new Date().toISOString() });
@@ -1005,7 +1300,10 @@ export function markLinkOpened(workspaceId: string, id: string): PrecursorSuppli
 /** Marks a node's Smart Link as submitted. Idempotent in the sense that a
     re-submission just re-stamps the time — a supplier correcting an earlier
     answer within the same period is still "submitted", not "re-invited". */
-export function markLinkSubmitted(workspaceId: string, id: string): PrecursorSupplier | null {
+export function markLinkSubmitted(
+  workspaceId: string,
+  id: string,
+): PrecursorSupplier | null {
   const s = getSupplier(workspaceId, id);
   if (!s) return null;
   return saveSupplier({ ...s, smartLinkSubmittedAt: new Date().toISOString() });
@@ -1059,32 +1357,91 @@ export type PrecursorRequirement = {
                       for. Not conditional on dataOrigin: a submission
                       through those forms is required to bring it, or to be
                       scrap / EU-exempt, which need none of it. */
-export function precursorRequirements(s: PrecursorSupplier, scope: RequirementScope = "row"): PrecursorRequirement[] {
+export function precursorRequirements(
+  s: PrecursorSupplier,
+  scope: RequirementScope = "row",
+): PrecursorRequirement[] {
+  /* A row whose basis has been chosen is asked exactly what the registry says
+     (lib/cbam/precursor-fields.ts) — Annex IV items 22/23/28/35 — and nothing
+     more. The older, longer list below stays for rows that predate it. */
+  if (s.valueBasis) {
+    const attached = { report: Boolean(s.verificationReportFileId) };
+    const reqs = fieldStatuses(s, attached)
+      .filter((x) => x.field.need === "required")
+      .map((x) => ({
+        key: x.field.key,
+        label: `${x.field.label} is required.`,
+        met: x.answered,
+      }));
+    if (s.valueBasis === "actual" && s.verifierReasonableAssurance === false) {
+      reqs.push({
+        key: "assurance",
+        label:
+          "The verification statement must conclude with reasonable assurance.",
+        met: false,
+      });
+    }
+    return reqs;
+  }
   const out: PrecursorRequirement[] = [];
-  const need = (key: string, label: string, met: boolean) => out.push({ key, label, met: Boolean(met) });
+  const need = (key: string, label: string, met: boolean) =>
+    out.push({ key, label, met: Boolean(met) });
 
   need("name", "Company name is required.", s.name.trim() !== "");
-  need("identity", "What this precursor is — a name or a CN code — is required.", s.precursorName.trim() !== "" || s.cnCode.trim() !== "");
-  need("route", "Production route is required.", s.productionRoute.trim() !== "");
+  need(
+    "identity",
+    "What this precursor is — a name or a CN code — is required.",
+    s.precursorName.trim() !== "" || s.cnCode.trim() !== "",
+  );
+  need(
+    "route",
+    "Production route is required.",
+    s.productionRoute.trim() !== "",
+  );
 
   if (s.origin === "same_installation") {
-    need("process", "Which of your own production processes made this is required.", Boolean(s.sourceProcessId?.trim()));
+    need(
+      "process",
+      "Which of your own production processes made this is required.",
+      Boolean(s.sourceProcessId?.trim()),
+    );
   } else {
-    need("installation", "The producing installation's name is required.", s.installationName.trim() !== "");
+    need(
+      "installation",
+      "The producing installation's name is required.",
+      s.installationName.trim() !== "",
+    );
     need("country", "Country of origin is required.", s.country.trim() !== "");
   }
 
   const exempt = s.origin === "purchased" && isEuOrExempt(s.country);
   if (!s.isScrap && !exempt) {
-    const hasSee = s.specificEmbeddedDirectTco2PerT != null || s.specificEmbeddedIndirectTco2PerT != null || s.seeTco2ePerT != null;
-    need("see", "Specific embedded emissions — direct and indirect — are required.", hasSee);
+    const hasSee =
+      s.specificEmbeddedDirectTco2PerT != null ||
+      s.specificEmbeddedIndirectTco2PerT != null ||
+      s.seeTco2ePerT != null;
+    need(
+      "see",
+      "Specific embedded emissions — direct and indirect — are required.",
+      hasSee,
+    );
     if (s.origin === "purchased") {
-      need("period", "The producing installation's reporting period is required.", Boolean(s.reportingPeriodStart && s.reportingPeriodEnd));
+      need(
+        "period",
+        "The producing installation's reporting period is required.",
+        Boolean(s.reportingPeriodStart && s.reportingPeriodEnd),
+      );
     }
   }
 
-  const hasQuantity = totalTonnes(s) > 0 || (s.qtyPerTonneOverride != null && s.qtyPerTonneOverride > 0);
-  need("quantity", "A quantity — monthly tonnage or a per-tonne ratio — is required.", hasQuantity);
+  const hasQuantity =
+    totalTonnes(s) > 0 ||
+    (s.qtyPerTonneOverride != null && s.qtyPerTonneOverride > 0);
+  need(
+    "quantity",
+    "A quantity — monthly tonnage or a per-tonne ratio — is required.",
+    hasQuantity,
+  );
 
   if (scope === "submission") {
     /* WHERE the installation is, not just what it is called. The row-level
@@ -1094,28 +1451,70 @@ export function precursorRequirements(s: PrecursorSupplier, scope: RequirementSc
        are the fields the supplier's own form marks required — same rules,
        one place, so the form and the gate cannot disagree. */
     if (s.origin === "purchased") {
-      need("installationRef", "The installation reference is required.", Boolean(s.installationUniqueId?.trim()));
+      need(
+        "installationRef",
+        "The installation reference is required.",
+        Boolean(s.installationUniqueId?.trim()),
+      );
       need("unlocode", "UN/LOCODE is required.", Boolean(s.unlocode?.trim()));
-      need("address", "The installation's full address is required.", Boolean(s.fullAddress?.trim()));
-      need("coordinates", "The installation's latitude and longitude are required.", s.latitude != null && s.longitude != null);
+      need(
+        "address",
+        "The installation's full address is required.",
+        Boolean(s.fullAddress?.trim()),
+      );
+      need(
+        "coordinates",
+        "The installation's latitude and longitude are required.",
+        s.latitude != null && s.longitude != null,
+      );
     }
 
-    const noVerificationNeeded = s.isScrap || (s.origin === "purchased" && isEuOrExempt(s.country));
+    const noVerificationNeeded =
+      s.isScrap || (s.origin === "purchased" && isEuOrExempt(s.country));
     if (!noVerificationNeeded) {
-      need("report", "The verification report (PDF) is required.", Boolean(s.verificationReportFileId));
-      need("verifier", "Verifier name is required.", Boolean(s.verifierName?.trim()));
-      need("accreditation", "Verifier accreditation number is required.", Boolean(s.verifierAccreditationNumber?.trim()));
-      need("accreditationCountry", "Accreditation issuing country is required.", Boolean(s.verifierAccreditationIssuingCountry?.trim()));
-      need("accreditationExpiry", "Accreditation expiry date is required.", Boolean(s.verifierAccreditationExpiryDate));
-      need("issueDate", "Report issue date is required.", Boolean(s.verificationReportIssueDate));
-      need("sectoralScope", "Sectoral scope is required.", Boolean(s.verificationSectoralScope?.trim()));
+      need(
+        "report",
+        "The verification report (PDF) is required.",
+        Boolean(s.verificationReportFileId),
+      );
+      need(
+        "verifier",
+        "Verifier name is required.",
+        Boolean(s.verifierName?.trim()),
+      );
+      need(
+        "accreditation",
+        "Verifier accreditation number is required.",
+        Boolean(s.verifierAccreditationNumber?.trim()),
+      );
+      need(
+        "accreditationCountry",
+        "Accreditation issuing country is required.",
+        Boolean(s.verifierAccreditationIssuingCountry?.trim()),
+      );
+      need(
+        "accreditationExpiry",
+        "Accreditation expiry date is required.",
+        Boolean(s.verifierAccreditationExpiryDate),
+      );
+      need(
+        "issueDate",
+        "Report issue date is required.",
+        Boolean(s.verificationReportIssueDate),
+      );
+      need(
+        "sectoralScope",
+        "Sectoral scope is required.",
+        Boolean(s.verificationSectoralScope?.trim()),
+      );
     }
   }
 
   return out;
 }
 
-const unmet = (reqs: PrecursorRequirement[]): string[] => reqs.filter((r) => !r.met).map((r) => r.label);
+const unmet = (reqs: PrecursorRequirement[]): string[] =>
+  reqs.filter((r) => !r.met).map((r) => r.label);
 
 /** The row-level gate — what the chain needs before this figure can be
     carried at all. Unchanged in behaviour and wording; it is now a filter
@@ -1145,7 +1544,10 @@ export type PrecursorCompleteness = {
   outstanding: string[];
 };
 
-export function precursorCompleteness(s: PrecursorSupplier, scope: RequirementScope = "submission"): PrecursorCompleteness {
+export function precursorCompleteness(
+  s: PrecursorSupplier,
+  scope: RequirementScope = "submission",
+): PrecursorCompleteness {
   const requirements = precursorRequirements(s, scope);
   const answered = requirements.filter((r) => r.met).length;
   const total = requirements.length;
@@ -1155,35 +1557,106 @@ export function precursorCompleteness(s: PrecursorSupplier, scope: RequirementSc
     // Never round 100% up from an unfinished row: 16/17 is 94.1, which
     // rounds to 94, but a scheme with more requirements could round a single
     // outstanding item away entirely and show a finished-looking 100.
-    percent: total === 0 ? 100 : answered === total ? 100 : Math.min(99, Math.round((answered / total) * 100)),
+    percent:
+      total === 0
+        ? 100
+        : answered === total
+          ? 100
+          : Math.min(99, Math.round((answered / total) * 100)),
     requirements,
     outstanding: unmet(requirements),
   };
 }
 
-/* ── The device-local "account" flag ──────────────────────────────
-   Set by app/p/[token]/page.tsx's "Save on this device" screen after a
-   precursor supplier submits — explicitly NOT a real account (no password,
-   no server session, see that page's own copy). Widget K's stickiness
-   metric ("X of Y precursor suppliers have a Certrace account") and the
-   conversion-funnel prompt both read this same flag, keyed the same way it
-   is written: by installationUniqueId, falling back to unlocode, so a
-   supplier is matched by their installation's stable identity rather than
-   by name. */
-const ACCOUNT_KEY = "certrace:precursor-supplier-account";
-
-function accountKeyFor(s: Pick<PrecursorSupplier, "installationUniqueId" | "unlocode" | "id">): string {
-  return s.installationUniqueId || s.unlocode || s.id;
+// Compatibility for retained document ingestion and historical report services.
+export function precursorValueUsable(node: PrecursorSupplier): boolean {
+  if (
+    node.isScrap ||
+    (node.origin === "purchased" && isEuOrExempt(node.country))
+  )
+    return true;
+  const intensity =
+    node.dataOrigin === "default_value"
+      ? node.seeTco2ePerT
+      : node.specificEmbeddedDirectTco2PerT != null ||
+          node.specificEmbeddedIndirectTco2PerT != null
+        ? (node.specificEmbeddedDirectTco2PerT ?? 0) +
+          (node.specificEmbeddedIndirectTco2PerT ?? 0)
+        : node.seeTco2ePerT;
+  if (intensity == null || !Number.isFinite(intensity) || intensity < 0)
+    return false;
+  if (node.origin === "same_installation") return true;
+  if (node.dataOrigin === "default_value") {
+    const selected = resolveEuPrecursorDefault(
+      node.cnCode,
+      node.country,
+      node.defaultValueYear ?? 0,
+    );
+    return Boolean(
+      selected &&
+        node.defaultValueSourceId === selected.id &&
+        node.defaultValueReference === selected.reference &&
+        node.seeTco2ePerT === selected.total,
+    );
+  }
+  if (node.dataOrigin !== "supplier_verified") return false;
+  const checks = validateVerificationReport(node);
+  if (
+    !(
+      checks.accreditationValid &&
+      checks.sectoralScopeMatch &&
+      checks.periodCovered &&
+      checks.fileIntact
+    )
+  )
+    return false;
+  if (
+    node.emissionsInputPolicy !== "source_only" ||
+    node.supplierResponseReceived
+  )
+    return true;
+  const hasSource = (field: string) =>
+    node.autofillProvenance?.some(
+      (record) =>
+        record.field === field &&
+        record.documentId === node.verificationReportFileId,
+    );
+  if (
+    node.specificEmbeddedDirectTco2PerT != null ||
+    node.specificEmbeddedIndirectTco2PerT != null
+  ) {
+    return (
+      (node.specificEmbeddedDirectTco2PerT == null ||
+        Boolean(hasSource("specificEmbeddedDirectTco2PerT"))) &&
+      (node.specificEmbeddedIndirectTco2PerT == null ||
+        Boolean(hasSource("specificEmbeddedIndirectTco2PerT")))
+    );
+  }
+  return Boolean(hasSource("seeTco2ePerT"));
 }
 
-export function hasCertraceAccount(s: Pick<PrecursorSupplier, "installationUniqueId" | "unlocode" | "id">): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    const raw = window.localStorage.getItem(ACCOUNT_KEY);
-    if (!raw) return false;
-    const list = JSON.parse(raw) as { installationId: string; createdAt: string }[];
-    return list.some((r) => r.installationId === accountKeyFor(s));
-  } catch {
-    return false;
+export function precursorProducerSubmissionGaps(
+  s: PrecursorSupplier,
+): string[] {
+  if (s.dataOrigin === "supplier_unverified") {
+    const sourceDetails = new Set([
+      "name",
+      "identity",
+      "route",
+      "installation",
+      "country",
+    ]);
+    return unmet(
+      precursorRequirements(s, "row").filter((r) => sourceDetails.has(r.key)),
+    );
   }
+  const withChecks = {
+    ...s,
+    verificationChecks: validateVerificationReport(s),
+  };
+  return unmet(
+    precursorRequirements(withChecks, "submission").filter(
+      (r) => r.key !== "quantity",
+    ),
+  );
 }

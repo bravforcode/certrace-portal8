@@ -29,9 +29,17 @@ import { useT } from "@/lib/i18n";
 import type { PrecursorResult } from "@/lib/precursor-suppliers";
 import type { VerificationWorkspace } from "@/lib/workspace";
 
-export function PrecursorBreakdown({ workspace, result }: { workspace: VerificationWorkspace; result: PrecursorResult }) {
+export function PrecursorBreakdown({
+  workspace,
+  result,
+}: {
+  workspace: VerificationWorkspace;
+  result: PrecursorResult;
+}) {
   const t = useT();
-  const roots = [...result.byNode.filter((n) => n.depth === 1)].sort((a, b) => b.contribution - a.contribution);
+  const roots = [...result.byNode.filter((n) => n.depth === 1)].sort(
+    (a, b) => b.contribution - a.contribution,
+  );
   const maxContribution = Math.max(...roots.map((n) => n.contribution), 0.0001);
   const incomplete = result.incomplete.length > 0;
 
@@ -47,7 +55,9 @@ export function PrecursorBreakdown({ workspace, result }: { workspace: Verificat
           <span className="rounded-full border border-[#f4d9a8] bg-[#fef3e2] px-2.5 py-1 text-[10.5px] uppercase tracking-[0.06em] text-[#92620d]">
             {result.incomplete.length === 1
               ? t("Incomplete — 1 row missing data")
-              : t("Incomplete — {count} rows missing data", { count: result.incomplete.length })}
+              : t("Incomplete — {count} rows missing data", {
+                  count: result.incomplete.length,
+                })}
           </span>
         ) : (
           <span className="text-[11px] uppercase tracking-[0.08em] text-black/35">
@@ -59,25 +69,43 @@ export function PrecursorBreakdown({ workspace, result }: { workspace: Verificat
       <div className="mt-4 space-y-2.5">
         {roots.map((n) => {
           const excluded = n.isScrap;
-          const width = excluded ? 0 : Math.max(2, (n.contribution / maxContribution) * 100);
+          const width = excluded
+            ? 0
+            : Math.max(2, (n.contribution / maxContribution) * 100);
           return (
             <div key={n.id}>
               <div className="flex items-baseline justify-between gap-3 text-[13px]">
-                <span className="min-w-0 truncate text-black/75">{n.name || n.precursorName || t("Unnamed precursor")}</span>
+                <span className="min-w-0 truncate text-black/75">
+                  {n.name || n.precursorName || t("Unnamed precursor")}
+                </span>
                 <span className="flex-none font-mono text-black/50">
-                  {excluded ? t("excluded (scrap — zero-rated)") : `${n.contribution.toFixed(4)} tCO₂e/t`}
+                  {excluded
+                    ? t("excluded (scrap — zero-rated)")
+                    : `${n.contribution.toFixed(4)} tCO₂e/t`}
                 </span>
               </div>
               <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-black/[0.06]">
-                {!excluded && <div className="h-full rounded-full bg-[#111]" style={{ width: `${width}%` }} />}
+                {!excluded && (
+                  <div
+                    className="h-full rounded-full bg-[#111]"
+                    style={{ width: `${width}%` }}
+                  />
+                )}
               </div>
               {!n.complete && (
-                <div className="mt-1 text-[11px] text-[#b45309]">{t("Missing a quantity, installation, or emissions figure.")}</div>
+                <div className="mt-1 text-[11px] text-[#b45309]">
+                  {t("Missing a quantity, installation, or emissions figure.")}
+                </div>
               )}
               {n.dataOrigin === "default_value" && !excluded && (
                 <div className="mt-1">
-                  <StateChip state="incomplete" className="px-1.5 py-0.5 text-[9.5px]" />
-                  <span className="ml-1.5 text-[11px] text-black/35">{t("on a default value, not yet verified")}</span>
+                  <StateChip
+                    state="incomplete"
+                    className="px-1.5 py-0.5 text-[9.5px]"
+                  />
+                  <span className="ml-1.5 text-[11px] text-black/35">
+                    {t("on a default value, not yet verified")}
+                  </span>
                 </div>
               )}
             </div>
@@ -88,9 +116,11 @@ export function PrecursorBreakdown({ workspace, result }: { workspace: Verificat
       {incomplete && (
         <p className="mt-4 border-t border-black/[0.06] pt-3 text-[11.5px] leading-relaxed text-[#92620d]">
           {result.incomplete.length === 1
-            ? t("The total above is not shown as final — 1 precursor row still needs a quantity, installation, or emissions figure before this figure is complete.")
+            ? t(
+                "Not final — 1 precursor still needs a quantity, site or emissions figure.",
+              )
             : t(
-                "The total above is not shown as final — {count} precursor rows still need a quantity, installation, or emissions figure before this figure is complete.",
+                "Not final — {count} precursors still need a quantity, site or emissions figure.",
                 { count: result.incomplete.length },
               )}
         </p>

@@ -49,11 +49,19 @@ export const ELECTRICITY_GRID_FACTORS: GridFactorRow[] = [
      Locked wherever it is shown: `isGridFactorLocked` in lib/monthly-data.ts
      already locks every grid_default row, so a grid supply in Thailand takes
      this figure and cannot be typed over. */
-  { country: "TH", value: 0.47, effectiveFrom: "2026-01-01", citation: "Thailand grid emission factor, 0.47 tCO2/MWh — default set by this deployment, not a Commission-published Annex II Point D.2.3 figure." },
+  {
+    country: "TH",
+    value: 0.47,
+    effectiveFrom: "2026-01-01",
+    citation:
+      "Thailand grid emission factor, 0.47 tCO2/MWh — default set by this deployment, not a Commission-published Annex II Point D.2.3 figure.",
+  },
 ];
 
 export function gridFactorFor(country: string): GridFactorRow | undefined {
-  return ELECTRICITY_GRID_FACTORS.find((r) => r.country === country.trim().toUpperCase());
+  return ELECTRICITY_GRID_FACTORS.find(
+    (r) => r.country === country.trim().toUpperCase(),
+  );
 }
 
 /** For a country this table has never even seen — same honesty, framed for

@@ -38,10 +38,19 @@ import { getSupplier } from "./precursor-suppliers";
 import { getWorkspace } from "./workspace";
 import type { TreeNode } from "@/types/supplier-tree";
 
-export type ChainStage = "not_started" | "tracking" | "in_progress" | "buyer_ready";
+export type ChainStage =
+  | "not_started"
+  | "tracking"
+  | "in_progress"
+  | "buyer_ready";
 
 /** In order. Rendered as a four-step meter, so the order is load-bearing. */
-export const CHAIN_STAGES: ChainStage[] = ["not_started", "tracking", "in_progress", "buyer_ready"];
+export const CHAIN_STAGES: ChainStage[] = [
+  "not_started",
+  "tracking",
+  "in_progress",
+  "buyer_ready",
+];
 
 export const STAGE_LABEL: Record<ChainStage, string> = {
   not_started: "Not started",
@@ -53,14 +62,19 @@ export const STAGE_LABEL: Record<ChainStage, string> = {
 /** What the step means, and what moves it on — shown on hover, because a
     four-word label cannot carry "and here is what happens next". */
 export const STAGE_HINT: Record<ChainStage, string> = {
-  not_started: "Nothing has been asked for and nothing entered. Track a report to start chasing this figure.",
-  tracking: "A report has been asked for — a Smart Link is out, or a report workspace is open for this entity.",
-  in_progress: "Being filled in — by the supplier on their link, or by you in the workspace.",
-  buyer_ready: "Verified and rolled into the chain. This figure is ready to hand to your buyer.",
+  not_started:
+    "Nothing has been asked for and nothing entered. Track a report to start chasing this figure.",
+  tracking:
+    "A report has been asked for — a Smart Link is out, or a product report is open for this entity.",
+  in_progress:
+    "Being filled in — by the supplier on their link, or by you in the product report.",
+  buyer_ready:
+    "Verified and rolled into the chain. This figure is ready to hand to your buyer.",
 };
 
 /** Step number, 1-4 — for the meter and for "step 2 of 4" on hover. */
-export const stageIndex = (s: ChainStage): number => CHAIN_STAGES.indexOf(s) + 1;
+export const stageIndex = (s: ChainStage): number =>
+  CHAIN_STAGES.indexOf(s) + 1;
 
 /** A report workspace exists for this row, even if nobody has typed into it
     yet. The seven-state enum cannot see this: `linkedWorkspaceId` is set by
@@ -127,7 +141,8 @@ export function chainScore(node: TreeNode): ChainScore | null {
       label: "Readiness",
       value: `${r.percentComplete}%`,
       percent: r.percentComplete,
-      title: "Share of this workspace's applicable readiness tabs that are complete. Descriptive only — never a gate to submission.",
+      title:
+        "Share of this product report's applicable readiness tabs that are complete. Descriptive only — never a gate to submission.",
     };
   }
 
@@ -138,12 +153,16 @@ export function chainScore(node: TreeNode): ChainScore | null {
       label: "Checks",
       value: "0/4",
       percent: 0,
-      title: "No verification has been attempted for this entity yet. The four checks run when a verified figure is recorded against it.",
+      title:
+        "No verification has been attempted for this entity yet. The four checks run when a verified figure is recorded against it.",
     };
   }
 
   const passed =
-    Number(checks.accreditationValid) + Number(checks.sectoralScopeMatch) + Number(checks.periodCovered) + Number(checks.fileIntact);
+    Number(checks.accreditationValid) +
+    Number(checks.sectoralScopeMatch) +
+    Number(checks.periodCovered) +
+    Number(checks.fileIntact);
   return {
     label: "Checks",
     value: `${passed}/4`,
