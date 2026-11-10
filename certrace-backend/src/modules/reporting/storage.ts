@@ -95,7 +95,7 @@ export function validateShape(
       bad(path, "invalid number");
     if (
       s.enum &&
-      value !== "" &&
+      (value !== "" || s.arrayElement) &&
       !s.enum.includes(value as string | number | boolean)
     )
       bad(path, "invalid option");
@@ -116,7 +116,7 @@ export function validateShape(
     if (
       typeof value === "string" &&
       s.pattern &&
-      value !== "" &&
+      (value !== "" || s.arrayElement) &&
       !compiledPattern(s.pattern).test(value)
     )
       bad(path, "invalid format");

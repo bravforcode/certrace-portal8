@@ -62,3 +62,11 @@ test("export markets are capped at 20 and must be unique", () => {
   expect(() => validateStore("certrace:profile", { ...ok, exportMarkets: ["EU", "JP", "KR", "CN", "IN", "US", "GB", "FR", "DE", "IT", "ES", "NL", "SE", "AU", "NZ", "CA", "MX", "BR", "AR", "ZA", "EG"] })).toThrow();
   expect(() => validateStore("certrace:profile", { ...ok, exportMarkets: ["EU", "EU"] })).toThrow();
 });
+// A blank top-level choice means "skipped"; a blank list item is a bad value and must not save.
+test("rejects blank list items for enum and pattern fields", () => {
+  expect(() => validateStore("certrace:profile", { ...ok, energySources: [""] })).toThrow();
+  expect(() => validateStore("certrace:profile", { ...ok, exportMarkets: [""] })).toThrow();
+});
+test("still accepts a blank top-level choice", () => {
+  expect(() => validateStore("certrace:profile", { ...ok, employeeBand: "" })).not.toThrow();
+});
