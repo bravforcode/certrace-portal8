@@ -1,6 +1,6 @@
 import { db } from "../../lib/db";
 import { fail } from "../../lib/errors";
-import { CELL_KEY, MAX_CHARS } from "./model";
+import { CELL_KEY, MAX_BYTES } from "./model";
 
 type Cells = Record<string, string>;
 type Editors = Record<string, { by: string; at: string }>;
@@ -57,7 +57,10 @@ async function mutate(
       FROM workbooks WHERE company_id = ${companyId}::uuid AND installation_id = ${installationId}
       AND year = ${year} FOR UPDATE`;
     const next = { ...row!, ...change(row!) };
-    if (JSON.stringify(next.cells).length + JSON.stringify(next.editors).length > MAX_CHARS)
+    if (
+      Buffer.byteLength(JSON.stringify(next.cells)) + Buffer.byteLength(JSON.stringify(next.editors)) >
+      MAX_BYTES
+    )
       fail(413, "WORKBOOK_TOO_LARGE", "This workbook is too large. Remove unused rows or split the year.");
     const saved = await tx.workbooks.update({
       where: where(companyId, installationId, year),

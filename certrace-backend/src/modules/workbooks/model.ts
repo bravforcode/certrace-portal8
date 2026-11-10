@@ -1,7 +1,7 @@
 import { t } from "elysia";
 
 export const CELL_KEY = /^[a-z0-9-]{1,32}:\d{1,5}:[a-z0-9_-]{1,40}$/;
-export const MAX_CHARS = 5_000_000;
+export const MAX_BYTES = 5_000_000;
 
 const installationId = t.String({ pattern: "^[A-Za-z0-9_-]{1,64}$" });
 export const listParams = t.Object({ installationId });
@@ -10,6 +10,7 @@ export const params = t.Object({
   year: t.Numeric({ minimum: 2000, maximum: 2100 }),
 });
 // Shape copied from certrace-portal/lib/workspace-store.ts (WorkspaceYear, WorkspaceFile).
+// Elysia silently strips keys not listed here (e.g. the store's `edits`) instead of rejecting them.
 export const meta = t.Object(
   {
     status: t.Optional(t.Union([t.Literal("syncing"), t.Literal("ready")])),
