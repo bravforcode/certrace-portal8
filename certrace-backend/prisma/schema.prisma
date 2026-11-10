@@ -300,7 +300,24 @@ model users {
   records              records[]
   workbooks            workbooks[]     @relation("workbook_company")
   workbooks_edited     workbooks[]     @relation("workbook_editor")
+  cookie_consents      cookie_consents[]
 
+  @@schema("public")
+}
+
+model cookie_consents {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  visitor_id     String   @db.Uuid
+  user_id        String?  @db.Uuid
+  necessary      Boolean  @default(true)
+  analytics      Boolean
+  marketing      Boolean
+  policy_version String
+  user_agent     String?
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+  users          users?   @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
+  @@index([visitor_id, created_at(sort: Desc)])
   @@schema("public")
 }
 

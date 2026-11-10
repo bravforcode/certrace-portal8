@@ -6818,4 +6818,12 @@ export const HI: Record<string, string> = {
     "यह टैब संयंत्र का रिकॉर्ड सीधे संपादित करता है। बदलाव Settings → Installations में भी दिखेंगे।",
   "Choose an installation above to fill in its details.": "पूरा विवरण भरने के लिए ऊपर एक संयंत्र चुनें।",
   "{n} missing fields": "{n} फ़ील्ड गायब हैं",
+  "Cookie consent": "कुकी सहमति",
+  "We use necessary cookies to keep you signed in. With your permission we also use analytics cookies to improve Certrace.":
+    "हम आपको साइन-इन रखने के लिए आवश्यक कुकीज़ का उपयोग करते हैं। आपकी अनुमति से हम Certrace को बेहतर बनाने के लिए एनालिटिक्स कुकीज़ भी इस्तेमाल करते हैं।",
+  "Reject optional": "वैकल्पिक को अस्वीकार करें",
+  "Accept all": "सभी स्वीकार करें",
+  Customise: "अनुकूलित करें",
+  "Could not save your cookie choice. Please try again.":
+    "आपकी कुकी पसंद सहेजी नहीं जा सकी। कृपया फिर कोशिश करें।",
 };

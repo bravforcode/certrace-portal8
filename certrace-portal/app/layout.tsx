@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { AccountDataProvider } from "@/components/account-data-provider";
+import { CookieBanner } from "@/components/cookie-banner";
 import { QueryProvider } from "@/components/query-provider";
 import { LanguageProvider } from "@/lib/i18n";
 import { ProfileProvider } from "@/lib/profile";
@@ -37,6 +38,7 @@ export default function RootLayout({
           <LanguageProvider>
             <AccountDataProvider>
               <ProfileProvider>{children}</ProfileProvider>
+              <CookieBanner />
             </AccountDataProvider>
           </LanguageProvider>
         </QueryProvider>

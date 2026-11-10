@@ -9165,4 +9165,12 @@ export const ZH: Record<string, string> = {
     "此标签页直接编辑设施记录。修改也会显示在 Settings → Installations 中。",
   "Choose an installation above to fill in its details.": "请在上方选择一个设施以填写详细信息。",
   "{n} missing fields": "缺少 {n} 项",
+  "Cookie consent": "Cookie 同意设置",
+  "We use necessary cookies to keep you signed in. With your permission we also use analytics cookies to improve Certrace.":
+    "我们使用必要的 Cookie 以保持您的登录状态。经您同意，我们还会使用分析 Cookie 来改进 Certrace。",
+  "Reject optional": "拒绝可选项",
+  "Accept all": "全部接受",
+  Customise: "自定义",
+  "Could not save your cookie choice. Please try again.":
+    "无法保存您的 Cookie 选择，请重试。",
 };
