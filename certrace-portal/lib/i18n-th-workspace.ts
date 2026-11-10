@@ -193,4 +193,8 @@ export const TH_WORKSPACE: Record<string, string> = {
   "Metrology lab": "ห้องปฏิบัติการสอบเทียบ",
   PEA: "กฟภ.",
   "Wire rod mill": "โรงรีดลวด",
+  "This tab edits the installation record. Changes also show in Settings → Installations.":
+    "แท็บนี้แก้ข้อมูล installation โดยตรง การแก้ไขจะแสดงใน Settings → Installations ด้วย",
+  "Choose an installation above to fill in its details.": "เลือก installation ด้านบนเพื่อกรอกรายละเอียด",
+  "{n} missing fields": "ขาด {n} ช่อง",
 };

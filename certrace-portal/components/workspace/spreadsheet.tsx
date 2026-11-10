@@ -22,7 +22,11 @@ import { Check, CircleMinus, Eye, FileText, Search, X } from "lucide-react";
 import { cn } from "@/components/ui";
 import { useLanguage, type TFunction } from "@/lib/i18n";
 import { TH_WORKSPACE } from "@/lib/i18n-th-workspace";
+import { InstallationSheet } from "@/components/workspace/installation-sheet";
+import type { Installation } from "@/lib/installations";
+import { STATUS_LABEL, installationGaps, installationSheetStatus, installationTabTone } from "@/lib/workbook/status";
 import {
+  INSTALLATION_SHEET_ID,
   NO_FILE,
   PRODUCTION_DIAGRAM_ID,
   issuesOf,
@@ -52,11 +56,16 @@ export function Spreadsheet({
   edits: saved = {},
   onEdit,
   empty = false,
+  installation = null,
+  onInstallationSave,
 }: {
   sheets: Sheet[];
   edits?: Record<string, string>;
   onEdit?: (cell: string, value: string) => void;
   empty?: boolean;
+  /** The site the Installation tab edits — the scoped installation's full record. */
+  installation?: Installation | null;
+  onInstallationSave?: (inst: Installation) => void;
 }) {
   const t = useSheetT();
   const [tab, setTab] = React.useState<string>("materials");
@@ -90,6 +99,8 @@ export function Spreadsheet({
 
   const sheet = sheets.find((s) => s.id === tab);
   const isDiagram = tab === PRODUCTION_DIAGRAM_ID;
+  const installStatus = installationSheetStatus(installation);
+  const installIssues = installation && installStatus === "missing" ? installationGaps(installation) : 0;
   const cols = sheet?.cols ?? [];
   const colCount = empty || !sheet ? 7 : cols.length;
 
@@ -225,6 +236,8 @@ export function Spreadsheet({
             <p className="mt-1 text-[12.5px] text-black/35">{t("Coming soon.")}</p>
           </div>
         </div>
+      ) : tab === INSTALLATION_SHEET_ID ? (
+        <InstallationSheet key={installation?.id ?? ""} installation={installation} onSave={onInstallationSave} />
       ) : (
         <div
           ref={gridRef}
@@ -351,7 +364,22 @@ export function Spreadsheet({
             >
               {s.code && <span>{s.code}</span>}
               {t(s.name)}
-              {n > 0 && (
+              {s.id === INSTALLATION_SHEET_ID && !empty ? (
+                installStatus !== "untouched" && (
+                  <span
+                    role="img"
+                    aria-label={
+                      installStatus === "missing"
+                        ? t("{n} missing fields", { n: installIssues })
+                        : t(STATUS_LABEL[installStatus])
+                    }
+                    style={{ backgroundColor: installationTabTone(installation) }}
+                    className="grid h-4 min-w-4 place-items-center rounded-full px-1 font-mono text-[10px] text-white"
+                  >
+                    {installStatus === "missing" ? installIssues : ""}
+                  </span>
+                )
+              ) : n > 0 && (
                 <span
                   className={cn(
                     "grid h-4 min-w-4 place-items-center rounded-full px-1 font-mono text-[10px]",
