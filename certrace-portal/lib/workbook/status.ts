@@ -1,4 +1,5 @@
 import type { Sheet, SheetRow } from "../workspace-sheets";
+import { missingFields, type Installation } from "../installations";
 
 export type SheetStatus = "untouched" | "missing" | "review" | "complete";
 
@@ -67,6 +68,19 @@ export function statusTooltip(sheet: Sheet, required = REQUIRED[sheet.id] ?? [])
   const shown = gaps.slice(0, 5).map((g) => `row ${g.row + 1}: ${g.cols.map(label).join(", ")}`);
   const more = gaps.length > 5 ? `; +${gaps.length - 5} more` : "";
   return `${STATUS_LABEL.missing} — ${shown.join("; ")}${more}`;
+}
+
+// Fields a blank record already carries (the record key, links, the seeded country and creation time);
+// filling only these does not start the site.
+const NOT_TEMPLATE = new Set(["id", "self", "supplierId", "role", "country", "createdAt"]);
+
+export function installationSheetStatus(inst: Installation | null): SheetStatus {
+  if (!inst) return "untouched";
+  const started = Object.entries(inst).some(
+    ([k, v]) => !NOT_TEMPLATE.has(k) && typeof v === "string" && v.trim() !== "",
+  );
+  if (!started) return "untouched";
+  return missingFields(inst).length ? "missing" : "complete";
 }
 
 // Tab order follows the material flow, like MEASUR's numbered baseline steps.

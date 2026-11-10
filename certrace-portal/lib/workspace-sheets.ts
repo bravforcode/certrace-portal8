@@ -56,6 +56,7 @@ const r = (cells: Record<string, string>, st: RowStatus, flags?: Record<string, 
 });
 
 export const PRODUCTION_DIAGRAM_ID = "diagram";
+export const INSTALLATION_SHEET_ID = "installation";
 
 /** Rows a workspace started from the beginning opens with, per sheet. */
 export const BLANK_ROWS = 20;
@@ -96,6 +97,13 @@ function sampleSheets(files: WorkspaceFile[]): Sheet[] {
           "confirmed",
         ),
       ),
+    },
+    {
+      id: INSTALLATION_SHEET_ID,
+      code: "00A",
+      name: "Installation",
+      cols: [],
+      rows: [],
     },
     {
       id: "products",

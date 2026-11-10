@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { missingCells, sheetStatus, SHEET_ORDER, statusTooltip } from "../status";
+import { installationSheetStatus, missingCells, sheetStatus, SHEET_ORDER, statusTooltip } from "../status";
+import { emptyInstallation, isInstallationComplete, type Installation } from "../../installations";
 import type { Sheet } from "../../workspace-sheets";
 
 const sheet = (rows: Sheet["rows"]): Sheet => ({
@@ -93,4 +94,30 @@ test("statusTooltip for a missing-flagged row with no gap columns still says why
 test("SHEET_ORDER follows the material flow", () => {
   assert.deepEqual(SHEET_ORDER.slice(0, 4), ["installation", "products", "steps", "materials"]);
   assert.equal(SHEET_ORDER.at(-1), "documents");
+});
+
+// The Installation tab reads the same record as Settings, so its colour must
+// agree with the "complete" badge shown there.
+test("installation tab: no record or a blank record is untouched", () => {
+  assert.equal(installationSheetStatus(null), "untouched");
+  assert.equal(installationSheetStatus(emptyInstallation()), "untouched");
+});
+test("installation tab: a started record with gaps is missing", () => {
+  const partial: Installation = { ...emptyInstallation(), name: "Rayong Rolling Mill 2" };
+  assert.equal(installationSheetStatus(partial), "missing");
+  assert.equal(isInstallationComplete(partial), false);
+});
+test("installation tab: a complete record is complete and matches Settings", () => {
+  const full: Installation = {
+    ...emptyInstallation(),
+    id: "TH-RAYONG-01",
+    name: "Rayong Rolling Mill 2",
+    street: "1 Moo 2",
+    city: "Rayong",
+    country: "TH",
+    lat: "12.7",
+    lng: "101.2",
+  };
+  assert.equal(installationSheetStatus(full), "complete");
+  assert.equal(isInstallationComplete(full), true);
 });

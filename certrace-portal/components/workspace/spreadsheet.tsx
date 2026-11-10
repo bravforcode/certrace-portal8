@@ -22,7 +22,11 @@ import { Check, CircleMinus, Eye, FileText, Search, X } from "lucide-react";
 import { cn } from "@/components/ui";
 import { useLanguage, type TFunction } from "@/lib/i18n";
 import { TH_WORKSPACE } from "@/lib/i18n-th-workspace";
+import { InstallationSheet } from "@/components/workspace/installation-sheet";
+import { missingFields, type Installation } from "@/lib/installations";
+import { installationSheetStatus } from "@/lib/workbook/status";
 import {
+  INSTALLATION_SHEET_ID,
   NO_FILE,
   PRODUCTION_DIAGRAM_ID,
   issuesOf,
@@ -52,11 +56,16 @@ export function Spreadsheet({
   edits: saved = {},
   onEdit,
   empty = false,
+  installation = null,
+  onInstallationSave,
 }: {
   sheets: Sheet[];
   edits?: Record<string, string>;
   onEdit?: (cell: string, value: string) => void;
   empty?: boolean;
+  /** The site the Installation tab edits — the scoped installation's full record. */
+  installation?: Installation | null;
+  onInstallationSave?: (inst: Installation) => void;
 }) {
   const t = useSheetT();
   const [tab, setTab] = React.useState<string>("materials");
@@ -90,6 +99,7 @@ export function Spreadsheet({
 
   const sheet = sheets.find((s) => s.id === tab);
   const isDiagram = tab === PRODUCTION_DIAGRAM_ID;
+  const installIssues = installationSheetStatus(installation) === "missing" ? missingFields(installation).length : 0;
   const cols = sheet?.cols ?? [];
   const colCount = empty || !sheet ? 7 : cols.length;
 
@@ -225,6 +235,8 @@ export function Spreadsheet({
             <p className="mt-1 text-[12.5px] text-black/35">{t("Coming soon.")}</p>
           </div>
         </div>
+      ) : tab === INSTALLATION_SHEET_ID ? (
+        <InstallationSheet key={installation?.id ?? ""} installation={installation} onSave={onInstallationSave} />
       ) : (
         <div
           ref={gridRef}
@@ -332,7 +344,7 @@ export function Spreadsheet({
         {[{ id: PRODUCTION_DIAGRAM_ID, code: "", name: "Production diagram" } as Pick<Sheet, "id" | "code" | "name">, ...sheets].map((s) => {
           const on = tab === s.id;
           const full = sheets.find((x) => x.id === s.id);
-          const n = !full || empty ? 0 : q ? matchCount(full) : issuesOf(full);
+          const n = !full || empty ? 0 : s.id === INSTALLATION_SHEET_ID ? installIssues : q ? matchCount(full) : issuesOf(full);
           return (
             <button
               key={s.id}

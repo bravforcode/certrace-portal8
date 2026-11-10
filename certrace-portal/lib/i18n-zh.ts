@@ -9159,4 +9159,7 @@ export const ZH: Record<string, string> = {
   "10,000–100,000 t": "10,000–100,000 吨",
   "Over 100,000 t": "高于 100,000 吨",
   "Enter a whole number from 0 to 999": "请输入 0 至 999 之间的整数",
+  "This tab edits the installation record. Changes also show in Settings → Installations.":
+    "此标签页直接编辑设施记录。修改也会显示在 Settings → Installations 中。",
+  "Choose an installation above to fill in its details.": "请在上方选择一个设施以填写详细信息。",
 };
