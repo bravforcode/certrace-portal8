@@ -282,6 +282,9 @@ model users {
   anonymised_at        DateTime?              @db.Timestamptz(6)
   plan_id              String                 @default("trial")
   trial_started_at     DateTime               @default(now()) @db.Timestamptz(6)
+  approved_at          DateTime?              @db.Timestamptz(6)
+  locale               String                 @default("en")
+  email_deliveries     email_deliveries[]
   account_members      account_members[]
   accounts             accounts?
   legal_acceptances    legal_acceptances[]
@@ -315,6 +318,17 @@ model cookie_consents {
   users          users?   @relation(fields: [user_id], references: [id], onDelete: SetNull)
 
   @@index([visitor_id, created_at(sort: Desc)])
+  @@schema("public")
+}
+
+model email_deliveries {
+  id      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id String   @db.Uuid
+  kind    String
+  sent_at DateTime @default(now()) @db.Timestamptz(6)
+  users   users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, kind])
   @@schema("public")
 }
 

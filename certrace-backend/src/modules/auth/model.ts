@@ -14,6 +14,7 @@ export const AuthModel = {
     firstName: t.Optional(t.String({ maxLength: 200 })),
     lastName: t.Optional(t.String({ maxLength: 200 })),
     companyName: t.Optional(t.String({ maxLength: 200 })),
+    locale: t.Optional(t.Union([t.Literal("en"), t.Literal("th")])),
   }),
   legal: t.Object({
     termsAccepted: t.Boolean(),

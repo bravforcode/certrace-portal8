@@ -4,6 +4,7 @@ import * as Auth from "./service";
 import { authenticated } from "./plugin";
 import { config, SESSION_COOKIE, SESSION_SECONDS } from "../../lib/config";
 import { db } from "../../lib/db";
+import { notify } from "../../lib/notify";
 import { fail } from "../../lib/errors";
 import {
   acceptanceContext,
@@ -175,14 +176,42 @@ export const auth = new Elysia({ prefix: "/api/auth" })
     { body: AuthModel.legal },
   )
   .post("/onboarded", async ({ account }) => {
-    return {
-      user: await Auth.publicUser(
-        await db.users.update({
-          where: { id: account.id },
-          data: { onboarded: true },
-        }),
-      ),
-    };
+    const vars = { company: account.company_name ?? "" };
+    // The customer's mail goes first: if delivery fails, onboarding is not marked
+    // done, so the step can be retried. The once guard means a retry sends nothing.
+    // Legacy accounts already onboarded get no new mail.
+    // Accepted trade-off: if the customer mail sends and the users update below
+    // then fails, the admins are not re-notified, because the retry's once guard
+    // returns false. The customer mail is not lost.
+    // Accepted trade-off: with concurrent onboarding requests, the winner of the
+    // once insert owns the admin fan-out. If that request then fails before the
+    // fan-out, the admins get no mail for this signup.
+    const first =
+      !account.onboarded &&
+      (await notify(account, "application_received", vars, true));
+    const user = await db.users.update({
+      where: { id: account.id },
+      data: { onboarded: true },
+    });
+    if (first) {
+      const name = [user.first_name, user.last_name].filter(Boolean).join(" ");
+      const admins = await db.users.findMany({
+        where: { is_admin: true, status: "ACTIVE" },
+      });
+      for (const admin of admins)
+        await notify(admin, "admin_new_signup", {
+          ...vars,
+          name,
+          email: user.email,
+        }).catch((e: unknown) =>
+          // Log only the error code: the message can carry the recipient address.
+          console.error(
+            "admin signup email failed",
+            (e as { code?: string } | undefined)?.code,
+          ),
+        );
+    }
+    return { user: await Auth.publicUser(user) };
   })
   .post(
     "/google/link",
