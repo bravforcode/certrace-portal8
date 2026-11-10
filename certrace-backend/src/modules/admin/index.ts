@@ -2,6 +2,7 @@ import { Elysia, t } from "elysia";
 import { db } from "../../lib/db";
 import { fail, missing } from "../../lib/errors";
 import { authenticated } from "../auth/plugin";
+import { notify } from "../../lib/notify";
 import { Prisma, type users } from "../../generated/prisma/client";
 
 const userSelect = {
@@ -83,6 +84,14 @@ export const admin = new Elysia({ prefix: "/api/admin" })
         });
         if (!previous) return missing();
         if (previous.ready === body.ready) return previous;
+        // The trial clock starts at the first approval only. The approved_at
+        // guard in the WHERE clause keeps a concurrent second approval from
+        // overwriting the start, and a revoke and re-approve keeps the original.
+        if (body.ready)
+          await tx.users.updateMany({
+            where: { id: params.id, approved_at: null },
+            data: { approved_at: new Date(), trial_started_at: new Date() },
+          });
         const updated = await tx.users.update({
           where: { id: params.id },
           data: { ready: body.ready, updated_at: new Date() },
@@ -101,6 +110,16 @@ export const admin = new Elysia({ prefix: "/api/admin" })
         });
         return updated;
       });
+      // Outside the transaction: a mail failure must not undo the approval.
+      // Sent on every approve, and the once guard dedupes: a failed send
+      // leaves no delivery row, so approving again retries it.
+      if (body.ready)
+        await notify(user, "account_approved", {}, true).catch((e: unknown) =>
+          console.error(
+            "approval email failed",
+            (e as { code?: string } | undefined)?.code,
+          ),
+        );
       return { user: view(user) };
     },
     {

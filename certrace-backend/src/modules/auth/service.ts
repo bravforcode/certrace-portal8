@@ -25,6 +25,8 @@ export const publicUser = async (u: users) => ({
   companyName: u.company_name ?? undefined,
   planId: u.plan_id,
   trialStartedAt: u.trial_started_at.toISOString(),
+  approvedAt: u.approved_at?.toISOString() ?? null,
+  locale: u.locale === "th" ? ("th" as const) : ("en" as const),
   googleLinked: Boolean(u.google_sub),
 });
 const normalize = (email: string) => email.trim().toLowerCase();
@@ -149,6 +151,7 @@ export async function register(
           first_name: input.firstName,
           last_name: input.lastName,
           company_name: input.companyName,
+          locale: input.locale ?? "en",
         },
       });
       await recordLegalAcceptance(tx, user.id, input, context, "registration");
