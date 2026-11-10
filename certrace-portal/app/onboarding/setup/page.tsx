@@ -36,7 +36,17 @@ import {
   BarChart3,
   FileCheck2,
 } from "lucide-react";
-import { Button, SaveButton, useSaveState, Eyebrow, cn } from "@/components/ui";
+import {
+  Button,
+  Field,
+  inputClass,
+  SaveButton,
+  useSaveState,
+  Eyebrow,
+  cn,
+} from "@/components/ui";
+import { Select } from "@/components/controls";
+import { factoryBasicsErrors } from "@/lib/profile-basics";
 import {
   OnboardingShell,
   BackButton,
@@ -62,6 +72,24 @@ const STEPS = [
   { key: "value", label: "What you get" },
   { key: "trial", label: "Free trial" },
 ] as const;
+
+/* Factory basics seed the factory profile so it is not empty on first visit.
+   Optional, but a typed count must be a whole number (see profile-basics.ts). */
+const ENERGY_SOURCE_OPTIONS = [
+  { value: "electricity", label: "Electricity" },
+  { value: "natural-gas", label: "Natural gas" },
+  { value: "oil", label: "Oil" },
+  { value: "lpg", label: "LPG" },
+  { value: "coal", label: "Coal" },
+  { value: "biomass", label: "Biomass" },
+  { value: "steam-purchased", label: "Purchased steam" },
+];
+const ANNUAL_PRODUCTION_OPTIONS = [
+  { value: "<1k", label: "Under 1,000 t" },
+  { value: "1k-10k", label: "1,000–10,000 t" },
+  { value: "10k-100k", label: "10,000–100,000 t" },
+  { value: ">100k", label: "Over 100,000 t" },
+];
 
 const WELCOME_POINTS = [
   {
@@ -149,13 +177,42 @@ export default function SignInSetupPage() {
   const { state: saveState, run: runSave } = useSaveState();
 
   const [saveError, setSaveError] = React.useState("");
+  const [energySources, setEnergySources] = React.useState<string[]>(
+    profile.energySources ?? [],
+  );
+  const [boilerCount, setBoilerCount] = React.useState(
+    profile.boilerCount ?? "",
+  );
+  const [furnaceCount, setFurnaceCount] = React.useState(
+    profile.furnaceCount ?? "",
+  );
+  const [annualProductionBand, setAnnualProductionBand] = React.useState(
+    profile.annualProductionBand ?? "",
+  );
+  const factoryErrors = factoryBasicsErrors({ boilerCount, furnaceCount });
+  const factoryValid = Object.keys(factoryErrors).length === 0;
+  React.useEffect(() => {
+    if (!loaded) return;
+    setEnergySources(profile.energySources ?? []);
+    setBoilerCount(profile.boilerCount ?? "");
+    setFurnaceCount(profile.furnaceCount ?? "");
+    setAnnualProductionBand(profile.annualProductionBand ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded]);
+  const toggleEnergySource = (value: string) =>
+    setEnergySources((current) =>
+      current.includes(value)
+        ? current.filter((v) => v !== value)
+        : [...current, value],
+    );
   const allowed = Boolean(loadSession()?.user.onboarded);
   const trial = trialState();
   React.useEffect(() => {
     if (!allowed) router.replace("/onboarding");
   }, [allowed, router]);
 
-  const setupValid = loaded && orgValid && profileValid && contactValid;
+  const setupValid =
+    loaded && orgValid && profileValid && contactValid && factoryValid;
 
   /* Committed when LEAVING the setup step, not at the very end. Someone who
      closes the tab on the tour has still told us everything Settings needs,
@@ -167,7 +224,13 @@ export default function SignInSetupPage() {
       try {
         // Only the displayed Settings fields change. Keep questionnaire answers,
         // access status and notification choices from the existing account.
-        update(toPatch());
+        update({
+          ...toPatch(),
+          energySources,
+          boilerCount,
+          furnaceCount,
+          annualProductionBand,
+        });
         await flushAccount();
         setStep(2);
       } catch (error) {
@@ -272,6 +335,91 @@ export default function SignInSetupPage() {
 
           <FieldGroup label={t("How we reach you")}>
             <ContactFields draft={draft} set={set} phoneValid={phoneValid} />
+          </FieldGroup>
+
+          <FieldGroup label={t("Factory basics")}>
+            <div className="space-y-5">
+              <div
+                role="group"
+                aria-label={t("Energy sources")}
+                className="flex flex-wrap gap-2"
+              >
+                {ENERGY_SOURCE_OPTIONS.map((option) => {
+                  const active = energySources.includes(option.value);
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="checkbox"
+                      aria-checked={active}
+                      onClick={() => toggleEnergySource(option.value)}
+                      className={cn(
+                        "rounded-full border px-3.5 py-1.5 text-[13px] transition-colors",
+                        active
+                          ? "border-black/25 bg-[#f0eee8] text-black/85"
+                          : "border-black/[0.08] text-black/65 hover:border-black/20",
+                      )}
+                    >
+                      {t(option.label)}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label={t("Boilers")}>
+                  <input
+                    className={cn(
+                      inputClass,
+                      factoryErrors.boilerCount &&
+                        "border-[#f87171]/60 focus:border-[#f87171]",
+                    )}
+                    value={boilerCount}
+                    inputMode="numeric"
+                    maxLength={3}
+                    onChange={(e) => setBoilerCount(e.target.value.trim())}
+                    aria-invalid={Boolean(factoryErrors.boilerCount)}
+                    aria-describedby={factoryErrors.boilerCount ? "boiler-count-error" : undefined}
+                  />
+                </Field>
+                {factoryErrors.boilerCount && (
+                  <p id="boiler-count-error" className="mt-1.5 text-[12px] text-[#dc2626]">
+                    {t(factoryErrors.boilerCount)}
+                  </p>
+                )}
+                <Field label={t("Furnaces")}>
+                  <input
+                    className={cn(
+                      inputClass,
+                      factoryErrors.furnaceCount &&
+                        "border-[#f87171]/60 focus:border-[#f87171]",
+                    )}
+                    value={furnaceCount}
+                    inputMode="numeric"
+                    maxLength={3}
+                    onChange={(e) => setFurnaceCount(e.target.value.trim())}
+                    aria-invalid={Boolean(factoryErrors.furnaceCount)}
+                    aria-describedby={factoryErrors.furnaceCount ? "furnace-count-error" : undefined}
+                  />
+                </Field>
+                {factoryErrors.furnaceCount && (
+                  <p id="furnace-count-error" className="mt-1.5 text-[12px] text-[#dc2626]">
+                    {t(factoryErrors.furnaceCount)}
+                  </p>
+                )}
+              </div>
+              <Field label={t("Annual production")}>
+                <Select
+                  value={annualProductionBand}
+                  onChange={setAnnualProductionBand}
+                  options={ANNUAL_PRODUCTION_OPTIONS.map((o) => ({
+                    value: o.value,
+                    label: t(o.label),
+                  }))}
+                  placeholder="Select annual production"
+                  ariaLabel={t("Annual production")}
+                />
+              </Field>
+            </div>
           </FieldGroup>
 
           {/* No running "still to answer" list here. Every field on this step

@@ -22,6 +22,7 @@ import {
   cn,
 } from "@/components/ui";
 import { Select } from "@/components/controls";
+import { Segmented } from "@/components/insight/kit";
 import { PhoneField } from "@/components/phone-field";
 import { LanguageSelect } from "@/components/language-select";
 import { CertraceLogo } from "@/components/logo";
@@ -38,6 +39,7 @@ import {
 } from "@/lib/job-titles";
 import { useT } from "@/lib/i18n";
 import { isValidPhone } from "@/lib/dial-codes";
+import { companyBasicsErrors } from "@/lib/profile-basics";
 
 const errInput = "border-[#f87171]/60 focus:border-[#f87171]";
 const OTHER = "Other";
@@ -48,6 +50,31 @@ const STEPS = [
   { key: "needs", label: "Your needs", icon: Target },
   { key: "business", label: "Your business", icon: BarChart3 },
 ] as const;
+
+/* Company basics. Optional, but a typed value must be well formed: the server
+   checks the same patterns (profile-contract.ts) and stays authoritative. */
+const COUNTRY_OPTIONS = [
+  { value: "TH", label: "Thailand" },
+  { value: "VN", label: "Vietnam" },
+  { value: "MY", label: "Malaysia" },
+  { value: "ID", label: "Indonesia" },
+  { value: "CN", label: "China" },
+  { value: "IN", label: "India" },
+  { value: "JP", label: "Japan" },
+  { value: "KR", label: "South Korea" },
+];
+const EMPLOYEE_BAND_OPTIONS = [
+  { value: "1-49", label: "1–49 people" },
+  { value: "50-199", label: "50–199 people" },
+  { value: "200-999", label: "200–999 people" },
+  { value: "1000+", label: "1,000 or more" },
+];
+const PRODUCTION_MODEL_OPTIONS = [
+  { value: "own", label: "We make it ourselves" },
+  { value: "oem", label: "An OEM makes it for us" },
+  { value: "both", label: "Both" },
+];
+const EXPORT_MARKET_OPTIONS = ["EU", "GB", "US", "JP", "CN", "IN", "KR", "VN"];
 
 const GOAL_ACHIEVE_OPTIONS = [
   "Simplify CBAM reporting",
@@ -332,6 +359,18 @@ export default function OnboardingPage() {
   const [hearAboutOther, setHearAboutOther] = React.useState("");
   const [phone, setPhone] = React.useState(profile.phone ?? "");
   const [lineId, setLineId] = React.useState(profile.lineId ?? "");
+  const [taxId, setTaxId] = React.useState(profile.taxId ?? "");
+  const [website, setWebsite] = React.useState(profile.website ?? "");
+  const [country, setCountry] = React.useState(profile.country ?? "TH");
+  const [employeeBand, setEmployeeBand] = React.useState(
+    profile.employeeBand ?? "",
+  );
+  const [exportMarkets, setExportMarkets] = React.useState<string[]>(
+    profile.exportMarkets ?? ["EU"],
+  );
+  const [productionModel, setProductionModel] = React.useState(
+    profile.productionModel ?? "",
+  );
 
   const { state: finishState, run: runFinish } = useSaveState();
   const [finishError, setFinishError] = React.useState("");
@@ -367,6 +406,12 @@ export default function OnboardingPage() {
     setJobTitleOther(jobTitleOtherFor(profile.jobTitle));
     setPhone(profile.phone ?? "");
     setLineId(profile.lineId ?? "");
+    setTaxId(profile.taxId ?? "");
+    setWebsite(profile.website ?? "");
+    setCountry(profile.country ?? "TH");
+    setEmployeeBand(profile.employeeBand ?? "");
+    setExportMarkets(profile.exportMarkets ?? ["EU"]);
+    setProductionModel(profile.productionModel ?? "");
     setGoalAchieve(profile.goalAchieve ?? []);
     setCurrentManagement(profile.currentManagement ?? []);
     setBiggestChallenge(profile.biggestChallenge ?? []);
@@ -386,7 +431,10 @@ export default function OnboardingPage() {
     value: s.id,
     label: s.name,
   }));
-  const step1Valid = companyName.trim().length > 0 && sectorId !== "";
+  const companyErrors = companyBasicsErrors({ taxId, website, country });
+  const companyValid = Object.keys(companyErrors).length === 0;
+  const step1Valid =
+    companyName.trim().length > 0 && sectorId !== "" && companyValid;
   const step2Valid =
     firstName.trim().length > 0 &&
     lastName.trim().length > 0 &&
@@ -457,6 +505,12 @@ export default function OnboardingPage() {
           hearAbout: hearAbout === OTHER ? hearAboutOther : hearAbout,
           phone,
           lineId,
+          taxId,
+          website,
+          country,
+          employeeBand,
+          exportMarkets,
+          productionModel,
         });
         await flushAccount();
         await markOnboarded();
@@ -553,6 +607,89 @@ export default function OnboardingPage() {
                   ariaLabel={t("Primary sector")}
                 />
               </Field>
+              <Field
+                label={t("Tax ID")}
+                hint={t("13 digits. Optional, but needed for CBAM invoicing.")}
+              >
+                <input
+                  className={cn(inputClass, companyErrors.taxId && errInput)}
+                  value={taxId}
+                  inputMode="numeric"
+                  maxLength={13}
+                  onChange={(e) => setTaxId(e.target.value.trim())}
+                  placeholder="0105561234567"
+                  aria-invalid={Boolean(companyErrors.taxId)}
+                  aria-describedby={companyErrors.taxId ? "tax-id-error" : undefined}
+                />
+              </Field>
+              {companyErrors.taxId && (
+                <p id="tax-id-error" className="mt-1.5 text-[12px] text-[#dc2626]">
+                  {t(companyErrors.taxId)}
+                </p>
+              )}
+              <Field label={t("Website")}>
+                <input
+                  className={cn(inputClass, companyErrors.website && errInput)}
+                  value={website}
+                  onChange={(e) => setWebsite(e.target.value.trim())}
+                  placeholder="https://"
+                  aria-invalid={Boolean(companyErrors.website)}
+                  aria-describedby={companyErrors.website ? "website-error" : undefined}
+                />
+              </Field>
+              {companyErrors.website && (
+                <p id="website-error" className="mt-1.5 text-[12px] text-[#dc2626]">
+                  {t(companyErrors.website)}
+                </p>
+              )}
+              <Field label={t("Country")}>
+                <Select
+                  value={country}
+                  onChange={setCountry}
+                  options={COUNTRY_OPTIONS.map((o) => ({
+                    value: o.value,
+                    label: t(o.label),
+                  }))}
+                  ariaLabel={t("Country")}
+                />
+              </Field>
+              <Field label={t("Company size")}>
+                <Segmented
+                  value={employeeBand}
+                  onChange={setEmployeeBand}
+                  options={EMPLOYEE_BAND_OPTIONS.map((o) => ({
+                    value: o.value,
+                    label: t(o.label),
+                  }))}
+                  ariaLabel={t("Company size")}
+                />
+              </Field>
+              <Question label={t("Which markets do you export to?")}>
+                <MultiSelectCards
+                  options={EXPORT_MARKET_OPTIONS}
+                  values={exportMarkets}
+                  onChange={setExportMarkets}
+                  ariaLabel={t("Export markets")}
+                />
+              </Question>
+              <Question label={t("Who makes your products?")}>
+                <div
+                  role="radiogroup"
+                  aria-label={t("Who makes your products?")}
+                  className="grid gap-2 sm:grid-cols-2"
+                >
+                  {PRODUCTION_MODEL_OPTIONS.map((option) => (
+                    <OptionCard
+                      key={option.value}
+                      role="radio"
+                      active={productionModel === option.value}
+                      onClick={() => setProductionModel(option.value)}
+                    >
+                      {t(option.label)}
+                    </OptionCard>
+                  ))}
+                </div>
+              </Question>
             </div>
           )}
 
