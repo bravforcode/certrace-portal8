@@ -409,7 +409,10 @@ export default function SignInSetupPage() {
                 <Select
                   value={annualProductionBand}
                   onChange={setAnnualProductionBand}
-                  options={ANNUAL_PRODUCTION_OPTIONS}
+                  options={ANNUAL_PRODUCTION_OPTIONS.map((o) => ({
+                    value: o.value,
+                    label: t(o.label),
+                  }))}
                   placeholder={t("Select annual production")}
                   ariaLabel={t("Annual production")}
                 />

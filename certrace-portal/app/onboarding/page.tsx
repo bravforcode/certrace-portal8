@@ -643,7 +643,10 @@ export default function OnboardingPage() {
                 <Select
                   value={country}
                   onChange={setCountry}
-                  options={COUNTRY_OPTIONS}
+                  options={COUNTRY_OPTIONS.map((o) => ({
+                    value: o.value,
+                    label: t(o.label),
+                  }))}
                   ariaLabel={t("Country")}
                 />
               </Field>
@@ -651,7 +654,10 @@ export default function OnboardingPage() {
                 <Select
                   value={employeeBand}
                   onChange={setEmployeeBand}
-                  options={EMPLOYEE_BAND_OPTIONS}
+                  options={EMPLOYEE_BAND_OPTIONS.map((o) => ({
+                    value: o.value,
+                    label: t(o.label),
+                  }))}
                   placeholder={t("Select company size")}
                   ariaLabel={t("Company size")}
                 />
