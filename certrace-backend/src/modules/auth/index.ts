@@ -180,6 +180,12 @@ export const auth = new Elysia({ prefix: "/api/auth" })
     // The customer's mail goes first: if delivery fails, onboarding is not marked
     // done, so the step can be retried. The once guard means a retry sends nothing.
     // Legacy accounts already onboarded get no new mail.
+    // Accepted trade-off: if the customer mail sends and the users update below
+    // then fails, the admins are not re-notified, because the retry's once guard
+    // returns false. The customer mail is not lost.
+    // Accepted trade-off: with concurrent onboarding requests, the winner of the
+    // once insert owns the admin fan-out. If that request then fails before the
+    // fan-out, the admins get no mail for this signup.
     const first =
       !account.onboarded &&
       (await notify(account, "application_received", vars, true));

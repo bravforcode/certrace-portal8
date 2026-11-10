@@ -86,7 +86,38 @@ describe("approval", () => {
     }
     expect(await db.email_deliveries.count({ where: { user_id: a.user.id, kind: "account_approved" } })).toBe(0);
     process.env.CERTRACE_EMAIL_DELIVERY = "console";
-    await call(`/api/admin/users/${a.user.id}/ready`, "PUT", { ready: true }, boss.cookie);
+    const logSpy = spyOn(console, "info").mockImplementation(() => {});
+    try {
+      await call(`/api/admin/users/${a.user.id}/ready`, "PUT", { ready: true }, boss.cookie);
+      const toCustomer = logSpy.mock.calls.filter(
+        ([m]) => (m as { to?: string }).to === a.email,
+      );
+      expect(toCustomer).toHaveLength(1);
+    } finally {
+      logSpy.mockRestore();
+    }
+    expect(await db.email_deliveries.count({ where: { user_id: a.user.id, kind: "account_approved" } })).toBe(1);
+  });
+
+  // Accounts approved before the lifecycle emails existed were backfilled with a
+  // delivery row (migration 202611110004). Re-saving one must not mail it again.
+  test("a legacy ready account with the backfilled row gets no approval mail on re-save", async () => {
+    const a = await account(true);
+    // Same statement as the backfill migration, scoped to this account.
+    await db.$executeRaw`INSERT INTO public.email_deliveries (user_id, kind) SELECT id, 'account_approved' FROM public.users WHERE id = ${a.user.id}::uuid AND ready ON CONFLICT DO NOTHING`;
+    const boss = await admin();
+    process.env.CERTRACE_EMAIL_DELIVERY = "console";
+    const logSpy = spyOn(console, "info").mockImplementation(() => {});
+    try {
+      const r = await call(`/api/admin/users/${a.user.id}/ready`, "PUT", { ready: true }, boss.cookie);
+      expect(r.status).toBe(200);
+      const toCustomer = logSpy.mock.calls.filter(
+        ([m]) => (m as { to?: string }).to === a.email,
+      );
+      expect(toCustomer).toHaveLength(0);
+    } finally {
+      logSpy.mockRestore();
+    }
     expect(await db.email_deliveries.count({ where: { user_id: a.user.id, kind: "account_approved" } })).toBe(1);
   });
 
@@ -151,8 +182,10 @@ describe("onboarding", () => {
   // onboarding step is retried.
   test("completing onboarding twice records one application email", async () => {
     const a = await account(false);
-    await call("/api/auth/onboarded", "POST", undefined, a.cookie);
-    await call("/api/auth/onboarded", "POST", undefined, a.cookie);
+    await Promise.all([
+      call("/api/auth/onboarded", "POST", undefined, a.cookie),
+      call("/api/auth/onboarded", "POST", undefined, a.cookie),
+    ]);
     const rows = await db.email_deliveries.findMany({
       where: { user_id: a.user.id, kind: "application_received" },
     });
@@ -166,8 +199,12 @@ describe("onboarding", () => {
     process.env.CERTRACE_EMAIL_DELIVERY = "console";
     const logSpy = spyOn(console, "info").mockImplementation(() => {});
     try {
-      await call("/api/auth/onboarded", "POST", undefined, a.cookie);
-      await call("/api/auth/onboarded", "POST", undefined, a.cookie);
+      // Concurrent on purpose: both requests can see onboarded=false, and only
+      // the once guard may let one of them mail the admins.
+      await Promise.all([
+        call("/api/auth/onboarded", "POST", undefined, a.cookie),
+        call("/api/auth/onboarded", "POST", undefined, a.cookie),
+      ]);
       const toAdmin = logSpy.mock.calls.filter(
         ([m]) => (m as { to?: string }).to === boss.email,
       );
