@@ -291,6 +291,7 @@ const browserOnly = new Set([
   "certrace:anthropic-key",
   "certrace:account-suspended",
   "certrace:cookie-prefs",
+  "certrace:visitor-id",
   "certrace:chain-view",
   "certrace:dashboard:detail",
   "certrace:sample-numbers",
