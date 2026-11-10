@@ -56,6 +56,7 @@ const r = (cells: Record<string, string>, st: RowStatus, flags?: Record<string, 
 });
 
 export const PRODUCTION_DIAGRAM_ID = "diagram";
+export const INSTALLATION_SHEET_ID = "installation";
 
 /** Rows a workspace started from the beginning opens with, per sheet. */
 export const BLANK_ROWS = 20;
@@ -74,6 +75,14 @@ export function buildSheets(files: WorkspaceFile[], blank = false): Sheet[] {
 function sampleSheets(files: WorkspaceFile[]): Sheet[] {
   const kb = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
   return [
+    // The first tab: the site the sheets are about, before its products and steps (MEASUR order).
+    {
+      id: INSTALLATION_SHEET_ID,
+      code: "00A",
+      name: "Installation",
+      cols: [],
+      rows: [],
+    },
     {
       id: "documents",
       code: "00",

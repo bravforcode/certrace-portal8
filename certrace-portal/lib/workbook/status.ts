@@ -1,4 +1,5 @@
 import type { Sheet, SheetRow } from "../workspace-sheets";
+import { coordinateError, missingFields, type Installation } from "../installations";
 
 export type SheetStatus = "untouched" | "missing" | "review" | "complete";
 
@@ -68,6 +69,32 @@ export function statusTooltip(sheet: Sheet, required = REQUIRED[sheet.id] ?? [])
   const more = gaps.length > 5 ? `; +${gaps.length - 5} more` : "";
   return `${STATUS_LABEL.missing} — ${shown.join("; ")}${more}`;
 }
+
+// Fields a blank record already carries (the record key, links, the seeded country and creation time);
+// filling only these does not start the site.
+const NOT_TEMPLATE = new Set(["id", "self", "supplierId", "role", "country", "createdAt"]);
+
+export function installationSheetStatus(inst: Installation | null): SheetStatus {
+  if (!inst) return "untouched";
+  const started = Object.entries(inst).some(
+    ([k, v]) => !NOT_TEMPLATE.has(k) && typeof v === "string" && v.trim() !== "",
+  );
+  if (!started) return "untouched";
+  // A half-entered or out-of-range coordinate pair is missing, the same as the tab's inline error.
+  if (missingFields(inst).length || coordinateError(inst.lat, inst.lng)) return "missing";
+  return "complete";
+}
+
+/** How many gaps the tab's badge reports. A bad coordinate pair with every other
+    field filled is one gap, so a missing tab never shows 0. */
+export function installationGaps(inst: Installation): number {
+  const gaps = missingFields(inst).length;
+  if (gaps) return gaps;
+  return coordinateError(inst.lat, inst.lng) ? 1 : 0;
+}
+
+export const installationTabTone = (inst: Installation | null): string =>
+  STATUS_TONE[installationSheetStatus(inst)];
 
 // Tab order follows the material flow, like MEASUR's numbered baseline steps.
 export const SHEET_ORDER = [

@@ -298,6 +298,8 @@ model users {
   migration_receipts   migration_receipts[]
   record_heads         record_heads[]
   records              records[]
+  workbooks            workbooks[]     @relation("workbook_company")
+  workbooks_edited     workbooks[]     @relation("workbook_editor")
 
   @@schema("public")
 }
@@ -310,6 +312,24 @@ model email_deliveries {
   users   users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@unique([user_id, kind])
+  @@schema("public")
+}
+
+model workbooks {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  company_id      String   @db.Uuid
+  installation_id String
+  year            Int
+  meta            Json     @default("{}")
+  cells           Json     @default("{}")
+  editors         Json     @default("{}")
+  revision        Int      @default(0)
+  updated_by      String?  @db.Uuid
+  updated_at      DateTime @default(now()) @db.Timestamptz(6)
+  company         users    @relation("workbook_company", fields: [company_id], references: [id], onDelete: Cascade)
+  editor          users?   @relation("workbook_editor", fields: [updated_by], references: [id], onDelete: SetNull)
+
+  @@unique([company_id, installation_id, year])
   @@schema("public")
 }
 

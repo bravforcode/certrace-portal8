@@ -32,6 +32,7 @@ import { UploadPanel } from "@/components/workspace/upload-panel";
 import { ScopedInstallationSwitcher } from "@/components/scoped-installation-switcher";
 import { useT } from "@/lib/i18n";
 import { useScopedInstallation } from "@/lib/scoped-installation";
+import { draftInstallation, getInstallation, saveInstallation } from "@/lib/installations";
 import { currentYear, yearRange } from "@/lib/year-range";
 import { buildSheets } from "@/lib/workspace-sheets";
 import { SETUP_MS, useWorkspaceYears } from "@/lib/workspace-store";
@@ -48,6 +49,12 @@ export default function WorkspacePage() {
 function WorkspaceInner() {
   const t = useT();
   const { scoped } = useScopedInstallation();
+  // Saving the Installation tab writes the store without re-rendering this page, so a counter re-reads it.
+  const [installTick, setInstallTick] = React.useState(0);
+  const installation = React.useMemo(
+    () => (scoped ? draftInstallation(scoped, getInstallation(scoped.id)) : null),
+    [scoped, installTick],
+  );
   const convertHref = scoped ? `/convert?installation=${encodeURIComponent(scoped.id)}` : "/convert";
   const [year, setYear] = React.useState(currentYear);
   const ws = useWorkspaceYears();
@@ -152,6 +159,11 @@ function WorkspaceInner() {
             sheets={sheets}
             edits={rec.edits}
             onEdit={(cell, value) => ws.saveEdit(year, cell, value)}
+            installation={installation}
+            onInstallationSave={(inst) => {
+              saveInstallation(inst);
+              setInstallTick((n) => n + 1);
+            }}
           />
           <ConvertBar href={convertHref} />
         </>

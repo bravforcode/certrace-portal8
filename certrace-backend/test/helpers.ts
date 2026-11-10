@@ -57,6 +57,22 @@ export async function admin() {
   return a;
 }
 
+/** Makes `member` an editor of `owner`'s company, the state team accept leaves. */
+export async function editorOf(
+  owner: { user: { id: string } },
+  member: { user: { id: string } },
+) {
+  await db.accounts.upsert({
+    where: { id: owner.user.id },
+    create: { id: owner.user.id },
+    update: {},
+  });
+  await db.account_members.create({
+    data: { account_id: owner.user.id, user_id: member.user.id, role: "editor" },
+  });
+  return { "X-Certrace-Company": owner.user.id };
+}
+
 export async function cleanup() {
   await db.users.deleteMany({ where: { id: { in: created } } });
   await db.$disconnect();
