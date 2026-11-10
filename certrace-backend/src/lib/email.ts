@@ -29,16 +29,18 @@ export async function sendEmail(
       : "");
   if (mode === "smtp") {
     const host = process.env.CERTRACE_SMTP_HOST;
-    const port = Number(process.env.CERTRACE_SMTP_PORT ?? 587);
+    const port = Number(process.env.CERTRACE_SMTP_PORT || 587);
+    const secure = port === 465;
     if (!host || !from)
       fail(503, "EMAIL_UNAVAILABLE", "Email delivery is not configured.");
-    // Never log text or the caught error: they can contain the recipient and codes.
     try {
       await nodemailer
         .createTransport({
           host,
           port,
-          secure: port === 465,
+          secure,
+          // Port 587 must upgrade with STARTTLS; never send credentials in clear text.
+          requireTLS: !secure,
           auth: {
             user: process.env.CERTRACE_SMTP_USER,
             pass: process.env.CERTRACE_SMTP_PASSWORD,
@@ -46,7 +48,9 @@ export async function sendEmail(
           connectionTimeout: 15000,
         })
         .sendMail({ from, to, subject, text, html });
-    } catch {
+    } catch (err) {
+      // Log only the error code: messages can carry the recipient, and text carries the body.
+      console.error("smtp delivery failed", (err as { code?: string }).code);
       fail(
         503,
         "EMAIL_UNAVAILABLE",
