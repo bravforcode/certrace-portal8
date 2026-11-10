@@ -296,6 +296,28 @@ function BackLink() {
   );
 }
 
+/* Keeps the installation picked on Convert when filling in a requirement by hand. */
+function FillInLink() {
+  return (
+    <React.Suspense fallback={null}>
+      <FillInLinkInner />
+    </React.Suspense>
+  );
+}
+
+function FillInLinkInner() {
+  const installation = useSearchParams().get("installation");
+  return (
+    <ButtonLink
+      href={installation ? `/workspaces?installation=${encodeURIComponent(installation)}` : "/workspaces"}
+      variant="secondary"
+      size="sm"
+    >
+      <PencilLine size={13} strokeWidth={1.5} /> Fill in
+    </ButtonLink>
+  );
+}
+
 function BackLinkInner() {
   const installation = useSearchParams().get("installation");
   return (
@@ -379,9 +401,7 @@ function RequirementRow({
             <ButtonLink href="/smart-links" variant="secondary" size="sm">
               <Link2 size={13} strokeWidth={1.5} /> Smart Link
             </ButtonLink>
-            <ButtonLink href="/workspaces" variant="secondary" size="sm">
-              <PencilLine size={13} strokeWidth={1.5} /> Fill in
-            </ButtonLink>
+            <FillInLink />
           </div>
         </div>
       )}
