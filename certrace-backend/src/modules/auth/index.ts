@@ -178,14 +178,16 @@ export const auth = new Elysia({ prefix: "/api/auth" })
   .post("/onboarded", async ({ account }) => {
     const vars = { company: account.company_name ?? "" };
     // The customer's mail goes first: if delivery fails, onboarding is not marked
-    // done, so the step can be retried and the mail still goes out once.
-    if (!account.onboarded)
-      await notify(account, "application_received", vars, true);
+    // done, so the step can be retried. The once guard means a retry sends nothing.
+    // Legacy accounts already onboarded get no new mail.
+    const first =
+      !account.onboarded &&
+      (await notify(account, "application_received", vars, true));
     const user = await db.users.update({
       where: { id: account.id },
       data: { onboarded: true },
     });
-    if (!account.onboarded) {
+    if (first) {
       const name = [user.first_name, user.last_name].filter(Boolean).join(" ");
       const admins = await db.users.findMany({
         where: { is_admin: true, status: "ACTIVE" },
@@ -195,9 +197,12 @@ export const auth = new Elysia({ prefix: "/api/auth" })
           ...vars,
           name,
           email: user.email,
-        }).catch((e: { code?: string }) =>
+        }).catch((e: unknown) =>
           // Log only the error code: the message can carry the recipient address.
-          console.error("admin signup email failed", e.code),
+          console.error(
+            "admin signup email failed",
+            (e as { code?: string } | undefined)?.code,
+          ),
         );
     }
     return { user: await Auth.publicUser(user) };

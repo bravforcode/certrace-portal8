@@ -18,11 +18,11 @@ const T: Record<EmailKind, Record<"en" | "th", Copy>> = {
   application_received: {
     en: {
       subject: "We received your Certrace application",
-      text: "Hi {name},\n\nThanks for registering {company}. Our team reviews every new account, usually within one business day. We will email you as soon as your account is approved, and your 30-day free trial starts then.",
+      text: "Hi {name},\n\nThanks for registering {company}. Our team reviews every new account. We will email you as soon as your account is approved, and your 30-day free trial starts then.",
     },
     th: {
       subject: "Certrace ได้รับใบสมัครของคุณแล้ว",
-      text: "สวัสดีคุณ {name}\n\nขอบคุณที่ลงทะเบียน {company} ทีมงานจะตรวจสอบบัญชีใหม่ทุกบัญชี โดยปกติภายใน 1 วันทำการ เราจะส่งอีเมลแจ้งทันทีเมื่อบัญชีได้รับการอนุมัติ และช่วงทดลองใช้ฟรี 30 วันจะเริ่มนับจากวันนั้น",
+      text: "สวัสดีคุณ {name}\n\nขอบคุณที่ลงทะเบียน {company} ทีมงานจะตรวจสอบบัญชีใหม่ทุกบัญชี เราจะส่งอีเมลแจ้งทันทีเมื่อบัญชีได้รับการอนุมัติ และช่วงทดลองใช้ฟรี 30 วันจะเริ่มนับจากวันนั้น",
     },
   },
   admin_new_signup: {
@@ -145,7 +145,8 @@ export function renderEmail(
 ) {
   const c = T[kind][locale];
   return {
-    subject: fill(c.subject, vars),
+    // A line break in a substituted value must not start a new mail header.
+    subject: fill(c.subject, vars).replace(/[\r\n]+/g, " "),
     text: fill(c.text, vars),
     ...(c.label && c.path
       ? { action: { label: c.label, url: config.appUrl.replace(/\/$/, "") + c.path } }

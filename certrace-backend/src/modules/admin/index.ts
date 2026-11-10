@@ -78,25 +78,23 @@ export const admin = new Elysia({ prefix: "/api/admin" })
     "/users/:id/ready",
     async ({ account, params, body }) => {
       requireAdmin(account);
-      const result = await db.$transaction(async (tx) => {
+      const user = await db.$transaction(async (tx) => {
         const previous = await tx.users.findUnique({
           where: { id: params.id },
         });
         if (!previous) return missing();
-        if (previous.ready === body.ready)
-          return { user: previous, approving: false };
-        // The trial clock starts at the first approval only; a revoke and
-        // re-approve keeps the original start.
-        const approving = body.ready && !previous.approved_at;
+        if (previous.ready === body.ready) return previous;
+        // The trial clock starts at the first approval only. The approved_at
+        // guard in the WHERE clause keeps a concurrent second approval from
+        // overwriting the start, and a revoke and re-approve keeps the original.
+        if (body.ready)
+          await tx.users.updateMany({
+            where: { id: params.id, approved_at: null },
+            data: { approved_at: new Date(), trial_started_at: new Date() },
+          });
         const updated = await tx.users.update({
           where: { id: params.id },
-          data: {
-            ready: body.ready,
-            updated_at: new Date(),
-            ...(approving
-              ? { approved_at: new Date(), trial_started_at: new Date() }
-              : {}),
-          },
+          data: { ready: body.ready, updated_at: new Date() },
         });
         await tx.account_audit_events.create({
           data: {
@@ -110,15 +108,19 @@ export const admin = new Elysia({ prefix: "/api/admin" })
             },
           },
         });
-        return { user: updated, approving };
+        return updated;
       });
       // Outside the transaction: a mail failure must not undo the approval.
-      if (result.approving)
-        await notify(result.user, "account_approved", {}, true).catch(
-          (e: { code?: string }) =>
-            console.error("approval email failed", e.code),
+      // Sent on every approve, and the once guard dedupes: a failed send
+      // leaves no delivery row, so approving again retries it.
+      if (body.ready)
+        await notify(user, "account_approved", {}, true).catch((e: unknown) =>
+          console.error(
+            "approval email failed",
+            (e as { code?: string } | undefined)?.code,
+          ),
         );
-      return { user: view(result.user) };
+      return { user: view(user) };
     },
     {
       params: t.Object({ id: t.String({ format: "uuid" }) }),

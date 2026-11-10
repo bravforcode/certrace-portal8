@@ -30,8 +30,17 @@ export async function notify(
   try {
     await sendEmail(user.email, m.subject, m.text, once ? `${kind}:${user.id}` : undefined, m.action);
   } catch (e) {
-    if (once)
-      await db.email_deliveries.deleteMany({ where: { user_id: user.id, kind } });
+    if (once) {
+      // Cleanup has its own catch so a failed delete never replaces the send error.
+      try {
+        await db.email_deliveries.deleteMany({ where: { user_id: user.id, kind } });
+      } catch (cleanupError) {
+        console.error(
+          "email delivery cleanup failed",
+          (cleanupError as { code?: string } | undefined)?.code,
+        );
+      }
+    }
     throw e;
   }
   return true;
