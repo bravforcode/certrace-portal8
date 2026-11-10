@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Certrace — Smart Links",
-    "description": "Flow ครบวงจรของ supplier smart links (docs/API-CONTRACT.md §3-§4)\n\nวิธีใช้:\n1. ตั้ง `baseUrl` ใน collection variables (default = http://localhost:8000)\n2. ยิง `1 Register` หรือ `2 Login` — jwt ถูกเก็บเข้า variable อัตโนมัติ\n3. ยิง `3 Create declaration` — สร้างเอกสารตัวอย่างที่มี request ของ supplier d1\n4. ยิง `4 Mint smart link` — token ถูกเก็บเข้า variable อัตโนมัติ\n5. ยิง `5 List minted links` — ดึง token ที่เคยออกกลับมา (ใบล่าสุดถูกเก็บเข้า variable)\n6. ยิง `6 Resolve link` — ไม่ใช้ auth เลย จำลองมุมมองซัพพลายเออร์\n7. ยิง `7 Save state` — ซัพพลายเออร์เซฟค้างระหว่างกรอก (ไม่ใช้ auth)\n8. ยิง `8 Submit` — ซัพพลายเออร์เซ็นส่ง server stamp version/เวลา/status ให้ (ไม่ใช้ auth)\n   ยิง `6 Resolve` ซ้ำเพื่อดูว่า state ที่เซฟ/ส่งถูกเก็บจริง\n\nคู่มือเต็ม: certrace-backend/docs/smart-links.md",
+    "description": "Flow ครบวงจรของ supplier smart links (Smart Links API)\n\nวิธีใช้:\n1. ตั้ง `baseUrl` ใน collection variables (default = http://localhost:8000)\n2. ยิง `1 Register` หรือ `2 Login` — jwt ถูกเก็บเข้า variable อัตโนมัติ\n3. ยิง `3 Create declaration` — สร้างเอกสารตัวอย่างที่มี request ของ supplier d1\n4. ยิง `4 Mint smart link` — token ถูกเก็บเข้า variable อัตโนมัติ\n5. ยิง `5 List minted links` — ดึง token ที่เคยออกกลับมา (ใบล่าสุดถูกเก็บเข้า variable)\n6. ยิง `6 Resolve link` — ไม่ใช้ auth เลย จำลองมุมมองซัพพลายเออร์\n7. ยิง `7 Save state` — ซัพพลายเออร์เซฟค้างระหว่างกรอก (ไม่ใช้ auth)\n8. ยิง `8 Submit` — ซัพพลายเออร์เซ็นส่ง server stamp version/เวลา/status ให้ (ไม่ใช้ auth)\n   ยิง `6 Resolve` ซ้ำเพื่อดูว่า state ที่เซฟ/ส่งถูกเก็บจริง\n\nAPI documentation: http://localhost:8000/docs",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -48,7 +48,11 @@
         "auth": { "type": "noauth" },
         "method": "POST",
         "header": [{ "key": "Content-Type", "value": "application/json" }],
-        "url": { "raw": "{{baseUrl}}/api/auth/register", "host": ["{{baseUrl}}"], "path": ["api", "auth", "register"] },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/register",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "register"]
+        },
         "body": {
           "mode": "raw",
           "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"a-good-password-1\",\n  \"companyName\": \"Siam Steel Export Co.\"\n}"
@@ -74,7 +78,11 @@
         "auth": { "type": "noauth" },
         "method": "POST",
         "header": [{ "key": "Content-Type", "value": "application/json" }],
-        "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "login"]
+        },
         "body": {
           "mode": "raw",
           "raw": "{\n  \"email\": \"แก้เป็นอีเมลของคุณ\",\n  \"password\": \"แก้เป็นรหัสของคุณ\"\n}"
@@ -95,7 +103,11 @@
       "request": {
         "method": "POST",
         "header": [{ "key": "Content-Type", "value": "application/json" }],
-        "url": { "raw": "{{baseUrl}}/api/v1/declarations", "host": ["{{baseUrl}}"], "path": ["api", "v1", "declarations"] },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/declarations",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "v1", "declarations"]
+        },
         "body": {
           "mode": "raw",
           "raw": "{\n  \"id\": \"{{declarationId}}\",\n  \"name\": \"Postman demo — Q2 2026 CBAM\",\n  \"period\": \"Q2 2026\",\n  \"step\": \"collect\",\n  \"suppliers\": [],\n  \"requests\": [\n    {\n      \"supplierId\": \"d1\",\n      \"products\": [\n        {\n          \"productId\": \"hrc\",\n          \"lots\": [\n            { \"qty\": 200, \"unit\": \"tonnes (t)\", \"from\": \"2026-04-01\", \"to\": \"2026-05-31\", \"notes\": \"\" }\n          ]\n        }\n      ]\n    }\n  ]\n}"

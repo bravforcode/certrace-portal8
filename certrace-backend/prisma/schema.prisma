@@ -1,0 +1,589 @@
+generator client {
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["masterdata", "public", "reporting"]
+}
+
+model account_audit_events {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String?  @db.Uuid
+  event      String
+  actor      String
+  reason     String?
+  details    Json     @default("{}")
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  users      users?   @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+
+  @@index([user_id, created_at(sort: Desc)])
+  @@schema("public")
+}
+
+model account_files {
+  user_id      String   @db.Uuid
+  id           String
+  filename     String
+  content_type String
+  data         Bytes?
+  object_key   String?
+  sha256       String   @db.VarChar(64)
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  users        users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([user_id, id])
+  @@schema("public")
+}
+
+model report_autofill_runs {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      String   @db.Uuid
+  workspace_id String
+  cache_key    String
+  file_id      String
+  status       String   @default("running")
+  payload      Json     @default("{}")
+  result       Json     @default("{}")
+  error        String?
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime @default(now()) @db.Timestamptz(6)
+  users        users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, cache_key])
+  @@index([user_id, workspace_id, created_at(sort: Desc)], map: "report_autofill_workspace")
+  @@schema("public")
+}
+
+model account_records {
+  user_id    String   @db.Uuid
+  key        String
+  value      Json
+  revision   Int      @default(1)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  users      users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([user_id, key])
+  @@schema("public")
+}
+
+model alembic_version {
+  version_num String @id(map: "alembic_version_pkc") @db.VarChar(32)
+
+  @@schema("public")
+}
+
+model calculation_runs {
+  id                      String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  declaration_id          String       @db.Uuid
+  trace_id                String
+  request_payload         Json
+  result_payload          Json
+  regulatory_data_version String
+  created_at              DateTime     @default(now()) @db.Timestamptz(6)
+  declarations            declarations @relation(fields: [declaration_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([declaration_id, created_at(sort: Desc)], map: "calculation_runs_declaration_idx")
+  @@schema("public")
+}
+
+model declaration_audit_events {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  declaration_id String       @db.Uuid
+  event_type     String
+  actor          String?
+  payload        Json         @default("{}")
+  created_at     DateTime     @default(now()) @db.Timestamptz(6)
+  declarations   declarations @relation(fields: [declaration_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model declarations {
+  id                       String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  declarant_name           String
+  cn_code                  String                     @db.VarChar(8)
+  reporting_year           Int
+  status                   String                     @default("DRAFT_CALCULATION_PREVIEW")
+  created_at               DateTime                   @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime                   @default(now()) @db.Timestamptz(6)
+  calculation_runs         calculation_runs[]
+  declaration_audit_events declaration_audit_events[]
+
+  @@index([reporting_year, cn_code, status], map: "declarations_reporting_idx")
+  @@schema("public")
+}
+
+model default_emission_factors {
+  id                          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cn_code                     String    @db.VarChar(8)
+  reporting_year              Int
+  sector                      String
+  route                       String?
+  specific_embedded_emissions Decimal   @db.Decimal(24, 12)
+  unit                        String    @default("TCO2E_PER_TNE")
+  source_reference            String
+  regulatory_data_version     String
+  effective_from              DateTime  @db.Date
+  effective_to                DateTime? @db.Date
+  created_at                  DateTime  @default(now()) @db.Timestamptz(6)
+  country_of_origin           String    @default("UNSPECIFIED")
+
+  @@unique([cn_code, reporting_year, route, country_of_origin], map: "default_factors_cn_year_route_country_key")
+  @@index([cn_code, reporting_year, country_of_origin], map: "default_emission_factors_lookup_idx")
+  @@schema("public")
+}
+
+model notification_deliveries {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  subject_id       String
+  occasion         String
+  notification_key String
+  recipient        String
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([subject_id, occasion], map: "notification_deliveries_subject_occasion_key")
+  @@schema("public")
+}
+
+model password_resets {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email      String
+  token      String
+  expires_at DateTime @db.Timestamptz(6)
+  used       Boolean  @default(false)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  attempts   Int      @default(0)
+
+  @@schema("public")
+}
+
+model portal_declarations {
+  user_id        String           @db.Uuid
+  id             String
+  name           String?
+  period         String?
+  step           String?
+  doc            Json
+  created_at     DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime         @default(now()) @db.Timestamptz(6)
+  users          users            @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  smart_links    smart_links[]
+  uploaded_files uploaded_files[]
+
+  @@id([user_id, id])
+  @@schema("public")
+}
+
+model rate_limits {
+  key        String   @id
+  count      Int      @default(1)
+  expires_at DateTime @db.Timestamptz(6)
+
+  @@schema("public")
+}
+
+model refresh_tokens {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String   @db.Uuid
+  token_hash String   @unique
+  expires_at DateTime @db.Timestamptz(6)
+  used       Boolean  @default(false)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  users      users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@schema("public")
+}
+
+model reminder_subjects {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id        String    @db.Uuid
+  subject_key    String
+  recipient      String
+  supplier_name  String
+  period_label   String
+  due_date       DateTime  @db.Date
+  link_url       String
+  locale         String?
+  account_locked Boolean   @default(false)
+  sent_at        DateTime? @db.Timestamptz(6)
+  resend_count   Int       @default(0)
+  answered_at    DateTime? @db.Timestamptz(6)
+  cancelled_at   DateTime? @db.Timestamptz(6)
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime  @default(now()) @db.Timestamptz(6)
+  users          users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, subject_key], map: "reminder_subjects_key_unique")
+  @@index([due_date], map: "reminder_subjects_open_idx", where: raw("((answered_at IS NULL) AND (cancelled_at IS NULL) AND (sent_at IS NOT NULL))"))
+  @@schema("public")
+}
+
+model smart_links {
+  token               String              @id
+  user_id             String              @db.Uuid
+  declaration_id      String
+  supplier_id         String
+  month               String?
+  expires_at          DateTime            @db.Timestamptz(6)
+  revoked_at          DateTime?           @db.Timestamptz(6)
+  state               Json?
+  status              String?             @default(dbgenerated("(state ->> 'status'::text)"))
+  created_at          DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime            @default(now()) @db.Timestamptz(6)
+  portal_declarations portal_declarations @relation(fields: [user_id, declaration_id], references: [user_id, id], onDelete: Cascade, onUpdate: NoAction)
+  uploaded_files      uploaded_files[]
+
+  @@index([user_id, declaration_id], map: "smart_links_declaration_idx")
+  @@schema("public")
+}
+
+model uploaded_files {
+  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id             String              @db.Uuid
+  declaration_id      String
+  doc_id              String?
+  uploaded_via_token  String?
+  filename            String
+  content_type        String
+  size_bytes          BigInt
+  sha256              String              @db.VarChar(64)
+  storage_key         String              @unique
+  object_key          String?
+  data                Bytes?
+  created_at          DateTime            @default(now()) @db.Timestamptz(6)
+  smart_links         smart_links?        @relation(fields: [uploaded_via_token], references: [token], onUpdate: NoAction)
+  portal_declarations portal_declarations @relation(fields: [user_id, declaration_id], references: [user_id, id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id, declaration_id], map: "uploaded_files_declaration_idx")
+  @@index([uploaded_via_token], map: "uploaded_files_token_idx", where: raw("(uploaded_via_token IS NOT NULL)"))
+  @@schema("public")
+}
+
+model users {
+  profile_sources      profile_sources[]
+  id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email                String
+  password_hash        String
+  created_at           DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime               @default(now()) @db.Timestamptz(6)
+  first_name           String?
+  last_name            String?
+  company_name         String?
+  onboarded            Boolean                @default(false)
+  ready                Boolean                @default(false)
+  is_admin             Boolean                @default(false)
+  google_sub           String?                @unique
+  status               String                 @default("ACTIVE")
+  suspended_at         DateTime?              @db.Timestamptz(6)
+  suspension_reason    String?
+  anonymised_at        DateTime?              @db.Timestamptz(6)
+  plan_id              String                 @default("trial")
+  trial_started_at     DateTime               @default(now()) @db.Timestamptz(6)
+  account_members      account_members[]
+  accounts             accounts?
+  legal_acceptances    legal_acceptances[]
+  account_audit_events account_audit_events[]
+  account_files        account_files[]
+  report_autofill_runs report_autofill_runs[]
+  account_records      account_records[]
+  portal_declarations  portal_declarations[]
+  refresh_tokens       refresh_tokens[]
+  reminder_subjects    reminder_subjects[]
+  migration_receipts   migration_receipts[]
+  record_heads         record_heads[]
+  records              records[]
+
+  @@schema("public")
+}
+
+model migration_receipts {
+  user_id         String   @db.Uuid
+  key             String
+  source_revision Int
+  source_sha256   String
+  migrated_at     DateTime @default(now()) @db.Timestamptz(6)
+  users           users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([user_id, key])
+  @@schema("reporting")
+}
+
+model record_heads {
+  user_id  String  @db.Uuid
+  key      String
+  revision Int
+  users    users   @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  records  records @relation(fields: [user_id, key, revision], references: [user_id, key, revision], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([user_id, key])
+  @@unique([user_id, key, revision])
+  @@schema("reporting")
+}
+
+model records {
+  actor_id      String?       @default(dbgenerated("(NULLIF(current_setting('certrace.actor_id'::text, true), ''::text))::uuid")) @db.Uuid
+  value        Json          @default("null")
+  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      String        @db.Uuid
+  key          String
+  revision     Int           @default(1)
+  is_null      Boolean       @default(false)
+  updated_at   DateTime      @default(now()) @db.Timestamptz(6)
+  sealed       Boolean       @default(false)
+  record_heads record_heads?
+  users        users         @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, key, revision])
+  @@schema("reporting")
+}
+
+model account_members {
+  account_id String   @db.Uuid
+  user_id    String   @db.Uuid
+  role       String
+  accounts   accounts @relation(fields: [account_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users      users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([account_id, user_id])
+  @@index([user_id], map: "account_members_user")
+  @@schema("masterdata")
+}
+
+model team_invitations {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  account_id String   @db.Uuid
+  email      String
+  token_hash String   @unique
+  expires_at DateTime @db.Timestamptz(6)
+  delivered  Boolean  @default(false)
+  accounts   accounts @relation(fields: [account_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([account_id, email])
+  @@schema("masterdata")
+}
+
+model accounts {
+  team_invitations team_invitations[]
+  id              String                     @id @db.Uuid
+  account_members account_members[]
+  users           users                      @relation(fields: [id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  installations   masterdata_installations[]
+  organizations   organizations[]
+  products        products[]
+
+  @@schema("masterdata")
+}
+
+model annual_reports {
+  id                   String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  installation_id      String                   @db.Uuid
+  reporting_year       Int
+  installations        masterdata_installations @relation(fields: [installation_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  workspace_identities workspace_identities[]
+
+  @@unique([installation_id, reporting_year])
+  @@schema("masterdata")
+}
+
+model installation_heads {
+  installation_id       String                   @id @db.Uuid
+  version_id            String                   @db.Uuid
+  installations         masterdata_installations @relation(fields: [installation_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  installation_versions installation_versions    @relation(fields: [installation_id, version_id], references: [installation_id, id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([installation_id, version_id])
+  @@schema("masterdata")
+}
+
+model installation_versions {
+  id                    String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  installation_id       String                   @db.Uuid
+  version_no            Int
+  fingerprint           String
+  name                  String?
+  name_local            String?
+  street                String?
+  economic_activity     String?
+  postcode              String?
+  po_box                String?
+  city                  String?
+  country               String?
+  unlocode              String?
+  latitude              String?
+  longitude             String?
+  contact_name          String?
+  contact_email         String?
+  contact_phone         String?
+  registry_id           String?
+  full_address          String?
+  operator_version_id   String?                  @db.Uuid
+  created_at            DateTime                 @default(now()) @db.Timestamptz(6)
+  installation_heads    installation_heads?
+  installations         masterdata_installations @relation(fields: [installation_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  organization_versions organization_versions?   @relation(fields: [operator_version_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([installation_id, fingerprint])
+  @@unique([installation_id, id])
+  @@unique([installation_id, version_no])
+  @@schema("masterdata")
+}
+
+model masterdata_installations {
+  id                    String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  account_id            String                  @db.Uuid
+  external_reference    String
+  annual_reports        annual_reports[]
+  installation_heads    installation_heads?
+  installation_versions installation_versions[]
+  accounts              accounts                @relation(fields: [account_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([account_id, external_reference])
+  @@map("installations")
+  @@schema("masterdata")
+}
+
+model organization_heads {
+  organization_id       String                @id @db.Uuid
+  version_id            String                @db.Uuid
+  organizations         organizations         @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  organization_versions organization_versions @relation(fields: [organization_id, version_id], references: [organization_id, id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([organization_id, version_id])
+  @@schema("masterdata")
+}
+
+model organization_versions {
+  id                    String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organization_id       String                  @db.Uuid
+  version_no            Int
+  fingerprint           String
+  name                  String?
+  registration          String?
+  address               String?
+  country               String?
+  contact_name          String?
+  contact_email         String?
+  contact_phone         String?
+  created_at            DateTime                @default(now()) @db.Timestamptz(6)
+  installation_versions installation_versions[]
+  organization_heads    organization_heads?
+  organizations         organizations           @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([organization_id, fingerprint])
+  @@unique([organization_id, id])
+  @@unique([organization_id, version_no])
+  @@schema("masterdata")
+}
+
+model organizations {
+  id                    String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  account_id            String                  @db.Uuid
+  external_reference    String
+  organization_heads    organization_heads?
+  organization_versions organization_versions[]
+  accounts              accounts                @relation(fields: [account_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([account_id, external_reference])
+  @@schema("masterdata")
+}
+
+model product_heads {
+  product_id       String           @id @db.Uuid
+  version_id       String           @db.Uuid
+  products         products         @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  product_versions product_versions @relation(fields: [product_id, version_id], references: [product_id, id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([product_id, version_id])
+  @@schema("masterdata")
+}
+
+model product_versions {
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  product_id    String         @db.Uuid
+  version_no    Int
+  fingerprint   String
+  name          String?
+  cn_code       String?
+  description   String?
+  unit          String?
+  benchmark     String?
+  created_at    DateTime       @default(now()) @db.Timestamptz(6)
+  product_heads product_heads?
+  products      products       @relation(fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([product_id, fingerprint])
+  @@unique([product_id, id])
+  @@unique([product_id, version_no])
+  @@schema("masterdata")
+}
+
+model products {
+  id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  account_id           String                 @db.Uuid
+  external_reference   String
+  product_heads        product_heads?
+  product_versions     product_versions[]
+  accounts             accounts               @relation(fields: [account_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  workspace_identities workspace_identities[]
+
+  @@unique([account_id, external_reference])
+  @@schema("masterdata")
+}
+
+model workspace_identities {
+  id                 String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  annual_report_id   String         @db.Uuid
+  product_id         String         @db.Uuid
+  external_reference String
+  annual_reports     annual_reports @relation(fields: [annual_report_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  products           products       @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([annual_report_id, external_reference])
+  @@schema("masterdata")
+}
+
+model legal_document_versions {
+  id           String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  kind         String
+  version      String
+  content      Json
+  published_at DateTime            @default(now()) @db.Timestamptz(6)
+  is_current   Boolean             @default(false)
+  acceptances  legal_acceptances[]
+
+  @@unique([kind, version])
+  @@unique([kind], map: "legal_document_current_kind", where: raw("is_current"))
+  @@schema("public")
+}
+
+model legal_acceptances {
+  id                  String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id             String                  @db.Uuid
+  document_version_id String                  @db.Uuid
+  accepted_at         DateTime                @default(now()) @db.Timestamptz(6)
+  ip_address          String?                 @db.Inet
+  user_agent          String?
+  source              String
+  users               users                   @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  document            legal_document_versions @relation(fields: [document_version_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([user_id, document_version_id])
+  @@schema("public")
+}
+
+/// Exact onboarding values retained from both legacy JSON and typed history.
+model profile_sources {
+  user_id    String   @db.Uuid
+  source     String
+  revision   Int
+  value      Json
+  updated_at DateTime @db.Timestamptz(6)
+  selected   Boolean
+  users      users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([user_id, source, revision])
+  @@schema("reporting")
+}

@@ -1,0 +1,1390 @@
+[
+  {
+    "name": "test_calculates_bf_bof_with_precursor_and_scrap",
+    "request": {
+      "trace_id": "fixture:bf-bof",
+      "sector": "IRON_STEEL",
+      "route": "BF_BOF",
+      "production": {
+        "value": "100",
+        "unit": "TNE"
+      },
+      "source_streams": [
+        {
+          "id": "coke",
+          "activity": {
+            "value": "50",
+            "unit": "TNE"
+          },
+          "emission_factor": {
+            "value": "2",
+            "unit": "TCO2E_PER_TNE"
+          },
+          "oxidation_factor": {
+            "value": "0.9",
+            "unit": "FRACTION"
+          }
+        }
+      ],
+      "precursors": [
+        {
+          "id": "dri-actual",
+          "method": "ACTUAL",
+          "quantity": {
+            "value": "10",
+            "unit": "TNE"
+          },
+          "actual_specific_embedded_emissions": {
+            "value": "1",
+            "unit": "TCO2E_PER_TNE"
+          }
+        },
+        {
+          "id": "scrap",
+          "method": "SCRAP",
+          "quantity": {
+            "value": "20",
+            "unit": "TNE"
+          }
+        }
+      ]
+    },
+    "response": {
+      "traceId": "fixture:bf-bof",
+      "sector": "IRON_STEEL",
+      "route": "BF_BOF",
+      "production": {
+        "value": "100",
+        "unit": "TNE"
+      },
+      "directEmissions": {
+        "value": "90",
+        "unit": "TCO2E"
+      },
+      "directEmissionsComponents": {
+        "fuelCombustion": {
+          "value": "90",
+          "unit": "TCO2E"
+        },
+        "processEmissions": {
+          "value": "0",
+          "unit": "TCO2E"
+        },
+        "aluminiumPfc": {
+          "value": "0",
+          "unit": "TCO2E"
+        },
+        "fuelEnergyContent": {
+          "value": "0",
+          "unit": "GJ"
+        }
+      },
+      "indirectEmissions": {
+        "value": "0",
+        "unit": "TCO2E"
+      },
+      "ownProcessSpecificEmissions": {
+        "value": "0.9",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "indirectSpecificEmissions": {
+        "value": "0",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "precursorSpecificEmissions": {
+        "value": "0.1",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "reportedSpecificEmbeddedEmissions": {
+        "value": "1",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "chargeableSpecificEmbeddedEmissions": {
+        "value": "1",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "specificEmbeddedEmissions": {
+        "value": "1",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "indirectEmissionsChargeable": false,
+      "materialMix": {
+        "totalInputMass": {
+          "value": "30",
+          "unit": "TNE"
+        },
+        "scrapInputMass": {
+          "value": "20",
+          "unit": "TNE"
+        },
+        "actualPrecursorMass": {
+          "value": "10",
+          "unit": "TNE"
+        },
+        "defaultPrecursorMass": {
+          "value": "0",
+          "unit": "TNE"
+        },
+        "scrapRatio": {
+          "value": "0.66666666666666666666666666666666666666666666666666666666666666666666666666666667",
+          "unit": "FRACTION"
+        },
+        "weightedAverageEmbeddedEmission": {
+          "value": "0.33333333333333333333333333333333333333333333333333333333333333333333333333333333",
+          "unit": "TCO2E_PER_TNE"
+        },
+        "formula": "weightedAverageEmbeddedEmission = sum(inputMass_i x specificEmbeddedEmission_i) / sum(inputMass_i); scrap specificEmbeddedEmission = 0",
+        "basis": "Top-level precursors only. Deeper tiers are ratios per tonne of their parent and are already inside each top-level SEE."
+      },
+      "regulatoryDataVersion": "EU-CBAM-2026.1",
+      "traces": [
+        {
+          "id": "coke",
+          "method": "STANDARD_CALCULATION",
+          "formula": "E = activityData x emissionFactor x oxidationFactor x conversionFactor",
+          "exactInputs": [
+            {
+              "name": "activityData",
+              "value": "50",
+              "unit": "TNE"
+            },
+            {
+              "name": "emissionFactor",
+              "value": "2",
+              "unit": "TCO2E_PER_TNE"
+            },
+            {
+              "name": "oxidationFactor",
+              "value": "0.9",
+              "unit": "FRACTION"
+            },
+            {
+              "name": "conversionFactor",
+              "value": "1",
+              "unit": "FRACTION"
+            }
+          ],
+          "output": {
+            "value": "90",
+            "unit": "TCO2E"
+          },
+          "evidenceReferences": [],
+          "regulatoryDataVersion": "EU-CBAM-2026.1",
+          "decimalContext": {
+            "significantDigits": 80,
+            "rounding": "ROUND_HALF_EVEN"
+          },
+          "authoritative": true,
+          "warnings": []
+        },
+        {
+          "id": "dri-actual",
+          "method": "ACTUAL_PRECURSOR",
+          "formula": "contribution = quantityConsumed x actualSpecificEmbeddedEmissions / goodsProduction",
+          "exactInputs": [
+            {
+              "name": "quantityConsumed",
+              "value": "10",
+              "unit": "TNE"
+            },
+            {
+              "name": "actualSpecificEmbeddedEmissions",
+              "value": "1",
+              "unit": "TCO2E_PER_TNE"
+            }
+          ],
+          "output": {
+            "value": "0.1",
+            "unit": "TCO2E_PER_TNE"
+          },
+          "evidenceReferences": [],
+          "regulatoryDataVersion": "EU-CBAM-2026.1",
+          "decimalContext": {
+            "significantDigits": 80,
+            "rounding": "ROUND_HALF_EVEN"
+          },
+          "authoritative": true,
+          "warnings": []
+        },
+        {
+          "id": "scrap",
+          "method": "SCRAP_ZERO_CARBON",
+          "formula": "scrapEmbeddedEmissions = 0 tCO2e/t; contribution = quantityConsumed x 0 / goodsProduction",
+          "exactInputs": [
+            {
+              "name": "quantityConsumed",
+              "value": "20",
+              "unit": "TNE"
+            }
+          ],
+          "output": {
+            "value": "0",
+            "unit": "TCO2E_PER_TNE"
+          },
+          "evidenceReferences": [],
+          "regulatoryDataVersion": "EU-CBAM-2026.1",
+          "decimalContext": {
+            "significantDigits": 80,
+            "rounding": "ROUND_HALF_EVEN"
+          },
+          "authoritative": true,
+          "warnings": []
+        }
+      ],
+      "warnings": [
+        {
+          "code": "SCRAP_ZERO_CARBON:scrap",
+          "severity": "INFO",
+          "message": "Scrap input was assigned zero embedded carbon under the configured mass-balance rule."
+        }
+      ]
+    }
+  },
+  {
+    "name": "test_uses_bundled_eu_default_factor_when_actual_precursor_is_absent",
+    "request": {
+      "trace_id": "fixture:downstream-aluminium",
+      "sector": "ALUMINIUM",
+      "route": "SECONDARY_ALUMINIUM_REMELT",
+      "production": {
+        "value": "100",
+        "unit": "TNE"
+      },
+      "precursors": [
+        {
+          "id": "unwrought-aluminium",
+          "method": "DEFAULT",
+          "quantity": {
+            "value": "50",
+            "unit": "TNE"
+          },
+          "cn_code": "76011090",
+          "default_year": 2026
+        }
+      ]
+    },
+    "response": {
+      "traceId": "fixture:downstream-aluminium",
+      "sector": "ALUMINIUM",
+      "route": "SECONDARY_ALUMINIUM_REMELT",
+      "production": {
+        "value": "100",
+        "unit": "TNE"
+      },
+      "directEmissions": {
+        "value": "0",
+        "unit": "TCO2E"
+      },
+      "directEmissionsComponents": {
+        "fuelCombustion": {
+          "value": "0",
+          "unit": "TCO2E"
+        },
+        "processEmissions": {
+          "value": "0",
+          "unit": "TCO2E"
+        },
+        "aluminiumPfc": {
+          "value": "0",
+          "unit": "TCO2E"
+        },
+        "fuelEnergyContent": {
+          "value": "0",
+          "unit": "GJ"
+        }
+      },
+      "indirectEmissions": {
+        "value": "0",
+        "unit": "TCO2E"
+      },
+      "ownProcessSpecificEmissions": {
+        "value": "0",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "indirectSpecificEmissions": {
+        "value": "0",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "precursorSpecificEmissions": {
+        "value": "4",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "reportedSpecificEmbeddedEmissions": {
+        "value": "4",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "chargeableSpecificEmbeddedEmissions": {
+        "value": "4",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "specificEmbeddedEmissions": {
+        "value": "4",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "indirectEmissionsChargeable": false,
+      "materialMix": {
+        "totalInputMass": {
+          "value": "50",
+          "unit": "TNE"
+        },
+        "scrapInputMass": {
+          "value": "0",
+          "unit": "TNE"
+        },
+        "actualPrecursorMass": {
+          "value": "0",
+          "unit": "TNE"
+        },
+        "defaultPrecursorMass": {
+          "value": "50",
+          "unit": "TNE"
+        },
+        "scrapRatio": {
+          "value": "0",
+          "unit": "FRACTION"
+        },
+        "weightedAverageEmbeddedEmission": {
+          "value": "8",
+          "unit": "TCO2E_PER_TNE"
+        },
+        "formula": "weightedAverageEmbeddedEmission = sum(inputMass_i x specificEmbeddedEmission_i) / sum(inputMass_i); scrap specificEmbeddedEmission = 0",
+        "basis": "Top-level precursors only. Deeper tiers are ratios per tonne of their parent and are already inside each top-level SEE."
+      },
+      "regulatoryDataVersion": "EU-CBAM-2026.1",
+      "traces": [
+        {
+          "id": "unwrought-aluminium",
+          "method": "EU_DEFAULT_PRECURSOR",
+          "formula": "contribution = quantityConsumed x euDefaultSpecificEmbeddedEmissions / goodsProduction",
+          "exactInputs": [
+            {
+              "name": "quantityConsumed",
+              "value": "50",
+              "unit": "TNE"
+            },
+            {
+              "name": "euDefaultSpecificEmbeddedEmissions",
+              "value": "8",
+              "unit": "TCO2E_PER_TNE",
+              "sourceReference": "EU_DEFAULT:76011090:UNSPECIFIED:2026"
+            }
+          ],
+          "output": {
+            "value": "4",
+            "unit": "TCO2E_PER_TNE"
+          },
+          "evidenceReferences": [
+            "EU_DEFAULT:76011090:UNSPECIFIED:2026"
+          ],
+          "regulatoryDataVersion": "EU-CBAM-2026.1",
+          "decimalContext": {
+            "significantDigits": 80,
+            "rounding": "ROUND_HALF_EVEN"
+          },
+          "authoritative": true,
+          "warnings": []
+        }
+      ],
+      "warnings": [
+        {
+          "code": "SECONDARY_ALUMINIUM_SCRAP_MISSING",
+          "severity": "BLOCKER",
+          "message": "Secondary aluminium remelt calculations require scrap input."
+        },
+        {
+          "code": "EU_DEFAULT_USED:unwrought-aluminium",
+          "severity": "WARNING",
+          "message": "Bundled EU default value was used because no actual precursor value was supplied."
+        }
+      ]
+    }
+  },
+  {
+    "name": "test_calculates_primary_aluminium_pfc_slope",
+    "request": {
+      "trace_id": "fixture:primary-aluminium",
+      "sector": "ALUMINIUM",
+      "route": "PRIMARY_HALL_HEROULT",
+      "production": {
+        "value": "1000",
+        "unit": "TNE"
+      },
+      "aluminium_pfc": {
+        "method": "SLOPE",
+        "primary_aluminium_production": {
+          "value": "1000",
+          "unit": "TNE"
+        },
+        "anode_effect_minutes_per_cell_day": {
+          "value": "0.1",
+          "unit": "AEM_MIN_PER_CELL_DAY"
+        },
+        "cf4_slope_emission_factor": {
+          "value": "0.104",
+          "unit": "KGM_CF4_PER_TNE_AL_PER_AEM"
+        },
+        "c2f6_to_cf4_weight_fraction": {
+          "value": "0.057",
+          "unit": "TNE_C2F6_PER_TNE_CF4"
+        },
+        "collection_efficiency": {
+          "value": "1",
+          "unit": "FRACTION"
+        }
+      }
+    },
+    "response": {
+      "traceId": "fixture:primary-aluminium",
+      "sector": "ALUMINIUM",
+      "route": "PRIMARY_HALL_HEROULT",
+      "production": {
+        "value": "1000",
+        "unit": "TNE"
+      },
+      "directEmissions": {
+        "value": "75.53208",
+        "unit": "TCO2E"
+      },
+      "directEmissionsComponents": {
+        "fuelCombustion": {
+          "value": "0",
+          "unit": "TCO2E"
+        },
+        "processEmissions": {
+          "value": "0",
+          "unit": "TCO2E"
+        },
+        "aluminiumPfc": {
+          "value": "75.53208",
+          "unit": "TCO2E"
+        },
+        "fuelEnergyContent": {
+          "value": "0",
+          "unit": "GJ"
+        }
+      },
+      "indirectEmissions": {
+        "value": "0",
+        "unit": "TCO2E"
+      },
+      "ownProcessSpecificEmissions": {
+        "value": "0.07553208",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "indirectSpecificEmissions": {
+        "value": "0",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "precursorSpecificEmissions": {
+        "value": "0",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "reportedSpecificEmbeddedEmissions": {
+        "value": "0.07553208",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "chargeableSpecificEmbeddedEmissions": {
+        "value": "0.07553208",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "specificEmbeddedEmissions": {
+        "value": "0.07553208",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "indirectEmissionsChargeable": false,
+      "materialMix": {
+        "totalInputMass": {
+          "value": "0",
+          "unit": "TNE"
+        },
+        "scrapInputMass": {
+          "value": "0",
+          "unit": "TNE"
+        },
+        "actualPrecursorMass": {
+          "value": "0",
+          "unit": "TNE"
+        },
+        "defaultPrecursorMass": {
+          "value": "0",
+          "unit": "TNE"
+        },
+        "scrapRatio": {
+          "value": "0",
+          "unit": "FRACTION"
+        },
+        "weightedAverageEmbeddedEmission": {
+          "value": "0",
+          "unit": "TCO2E_PER_TNE"
+        },
+        "formula": "weightedAverageEmbeddedEmission = sum(inputMass_i x specificEmbeddedEmission_i) / sum(inputMass_i); scrap specificEmbeddedEmission = 0",
+        "basis": "Top-level precursors only. Deeper tiers are ratios per tonne of their parent and are already inside each top-level SEE."
+      },
+      "regulatoryDataVersion": "EU-CBAM-2026.1",
+      "traces": [
+        {
+          "id": "aluminium-pfc",
+          "method": "ALUMINIUM_PFC_SLOPE",
+          "formula": "CF4_duct[t] = AEM x SEF_CF4[kg/t Al/AEM] x production[t] / 1000; PFC_CO2e = CF4_t x 6630 + C2F6_t x 11100",
+          "exactInputs": [
+            {
+              "name": "primaryAluminiumProduction",
+              "value": "1000",
+              "unit": "TNE"
+            },
+            {
+              "name": "anodeEffectMinutesPerCellDay",
+              "value": "0.1",
+              "unit": "AEM_MIN_PER_CELL_DAY"
+            },
+            {
+              "name": "cf4SlopeEmissionFactor",
+              "value": "0.104",
+              "unit": "KGM_CF4_PER_TNE_AL_PER_AEM"
+            },
+            {
+              "name": "c2f6ToCf4WeightFraction",
+              "value": "0.057",
+              "unit": "TNE_C2F6_PER_TNE_CF4"
+            },
+            {
+              "name": "collectionEfficiency",
+              "value": "1",
+              "unit": "FRACTION"
+            },
+            {
+              "name": "GWP_CF4",
+              "value": "6630",
+              "unit": "FRACTION"
+            },
+            {
+              "name": "GWP_C2F6",
+              "value": "11100",
+              "unit": "FRACTION"
+            }
+          ],
+          "output": {
+            "value": "75.53208",
+            "unit": "TCO2E"
+          },
+          "evidenceReferences": [],
+          "regulatoryDataVersion": "EU-CBAM-2026.1",
+          "decimalContext": {
+            "significantDigits": 80,
+            "rounding": "ROUND_HALF_EVEN"
+          },
+          "authoritative": true,
+          "warnings": [],
+          "cf4Tonnes": "0.0104",
+          "c2f6Tonnes": "0.0005928"
+        }
+      ],
+      "warnings": []
+    }
+  },
+  {
+    "name": "test_eaf_route_reports_missing_route_inputs_as_blockers",
+    "request": {
+      "trace_id": "fixture:eaf:missing-inputs",
+      "sector": "IRON_STEEL",
+      "route": "EAF",
+      "production": {
+        "value": "100",
+        "unit": "TNE"
+      }
+    },
+    "response": {
+      "traceId": "fixture:eaf:missing-inputs",
+      "sector": "IRON_STEEL",
+      "route": "EAF",
+      "production": {
+        "value": "100",
+        "unit": "TNE"
+      },
+      "directEmissions": {
+        "value": "0",
+        "unit": "TCO2E"
+      },
+      "directEmissionsComponents": {
+        "fuelCombustion": {
+          "value": "0",
+          "unit": "TCO2E"
+        },
+        "processEmissions": {
+          "value": "0",
+          "unit": "TCO2E"
+        },
+        "aluminiumPfc": {
+          "value": "0",
+          "unit": "TCO2E"
+        },
+        "fuelEnergyContent": {
+          "value": "0",
+          "unit": "GJ"
+        }
+      },
+      "indirectEmissions": {
+        "value": "0",
+        "unit": "TCO2E"
+      },
+      "ownProcessSpecificEmissions": {
+        "value": "0",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "indirectSpecificEmissions": {
+        "value": "0",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "precursorSpecificEmissions": {
+        "value": "0",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "reportedSpecificEmbeddedEmissions": {
+        "value": "0",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "chargeableSpecificEmbeddedEmissions": {
+        "value": "0",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "specificEmbeddedEmissions": {
+        "value": "0",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "indirectEmissionsChargeable": false,
+      "materialMix": {
+        "totalInputMass": {
+          "value": "0",
+          "unit": "TNE"
+        },
+        "scrapInputMass": {
+          "value": "0",
+          "unit": "TNE"
+        },
+        "actualPrecursorMass": {
+          "value": "0",
+          "unit": "TNE"
+        },
+        "defaultPrecursorMass": {
+          "value": "0",
+          "unit": "TNE"
+        },
+        "scrapRatio": {
+          "value": "0",
+          "unit": "FRACTION"
+        },
+        "weightedAverageEmbeddedEmission": {
+          "value": "0",
+          "unit": "TCO2E_PER_TNE"
+        },
+        "formula": "weightedAverageEmbeddedEmission = sum(inputMass_i x specificEmbeddedEmission_i) / sum(inputMass_i); scrap specificEmbeddedEmission = 0",
+        "basis": "Top-level precursors only. Deeper tiers are ratios per tonne of their parent and are already inside each top-level SEE."
+      },
+      "regulatoryDataVersion": "EU-CBAM-2026.1",
+      "traces": [],
+      "warnings": [
+        {
+          "code": "EAF_ELECTRICITY_MISSING",
+          "severity": "BLOCKER",
+          "message": "EAF calculations require electricity input for the furnace route."
+        },
+        {
+          "code": "EAF_METALLIC_INPUTS_MISSING",
+          "severity": "BLOCKER",
+          "message": "EAF calculations require scrap and/or metallic precursor inputs."
+        }
+      ]
+    }
+  },
+  {
+    "name": "test_dri_eaf_requires_dri_precursor_and_electricity",
+    "request": {
+      "trace_id": "fixture:dri-eaf:missing-inputs",
+      "sector": "IRON_STEEL",
+      "route": "DRI_EAF",
+      "production": {
+        "value": "100",
+        "unit": "TNE"
+      },
+      "precursors": [
+        {
+          "id": "scrap",
+          "method": "SCRAP",
+          "quantity": {
+            "value": "25",
+            "unit": "TNE"
+          }
+        }
+      ]
+    },
+    "response": {
+      "traceId": "fixture:dri-eaf:missing-inputs",
+      "sector": "IRON_STEEL",
+      "route": "DRI_EAF",
+      "production": {
+        "value": "100",
+        "unit": "TNE"
+      },
+      "directEmissions": {
+        "value": "0",
+        "unit": "TCO2E"
+      },
+      "directEmissionsComponents": {
+        "fuelCombustion": {
+          "value": "0",
+          "unit": "TCO2E"
+        },
+        "processEmissions": {
+          "value": "0",
+          "unit": "TCO2E"
+        },
+        "aluminiumPfc": {
+          "value": "0",
+          "unit": "TCO2E"
+        },
+        "fuelEnergyContent": {
+          "value": "0",
+          "unit": "GJ"
+        }
+      },
+      "indirectEmissions": {
+        "value": "0",
+        "unit": "TCO2E"
+      },
+      "ownProcessSpecificEmissions": {
+        "value": "0",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "indirectSpecificEmissions": {
+        "value": "0",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "precursorSpecificEmissions": {
+        "value": "0",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "reportedSpecificEmbeddedEmissions": {
+        "value": "0",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "chargeableSpecificEmbeddedEmissions": {
+        "value": "0",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "specificEmbeddedEmissions": {
+        "value": "0",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "indirectEmissionsChargeable": false,
+      "materialMix": {
+        "totalInputMass": {
+          "value": "25",
+          "unit": "TNE"
+        },
+        "scrapInputMass": {
+          "value": "25",
+          "unit": "TNE"
+        },
+        "actualPrecursorMass": {
+          "value": "0",
+          "unit": "TNE"
+        },
+        "defaultPrecursorMass": {
+          "value": "0",
+          "unit": "TNE"
+        },
+        "scrapRatio": {
+          "value": "1",
+          "unit": "FRACTION"
+        },
+        "weightedAverageEmbeddedEmission": {
+          "value": "0",
+          "unit": "TCO2E_PER_TNE"
+        },
+        "formula": "weightedAverageEmbeddedEmission = sum(inputMass_i x specificEmbeddedEmission_i) / sum(inputMass_i); scrap specificEmbeddedEmission = 0",
+        "basis": "Top-level precursors only. Deeper tiers are ratios per tonne of their parent and are already inside each top-level SEE."
+      },
+      "regulatoryDataVersion": "EU-CBAM-2026.1",
+      "traces": [
+        {
+          "id": "scrap",
+          "method": "SCRAP_ZERO_CARBON",
+          "formula": "scrapEmbeddedEmissions = 0 tCO2e/t; contribution = quantityConsumed x 0 / goodsProduction",
+          "exactInputs": [
+            {
+              "name": "quantityConsumed",
+              "value": "25",
+              "unit": "TNE"
+            }
+          ],
+          "output": {
+            "value": "0",
+            "unit": "TCO2E_PER_TNE"
+          },
+          "evidenceReferences": [],
+          "regulatoryDataVersion": "EU-CBAM-2026.1",
+          "decimalContext": {
+            "significantDigits": 80,
+            "rounding": "ROUND_HALF_EVEN"
+          },
+          "authoritative": true,
+          "warnings": []
+        }
+      ],
+      "warnings": [
+        {
+          "code": "DRI_EAF_ELECTRICITY_MISSING",
+          "severity": "BLOCKER",
+          "message": "DRI-EAF calculations require EAF electricity input."
+        },
+        {
+          "code": "DRI_EAF_DRI_PRECURSOR_MISSING",
+          "severity": "BLOCKER",
+          "message": "DRI-EAF calculations require an actual or default DRI/metallic precursor input."
+        },
+        {
+          "code": "SCRAP_ZERO_CARBON:scrap",
+          "severity": "INFO",
+          "message": "Scrap input was assigned zero embedded carbon under the configured mass-balance rule."
+        }
+      ]
+    }
+  },
+  {
+    "name": "test_secondary_aluminium_requires_scrap_input",
+    "request": {
+      "trace_id": "fixture:secondary-aluminium:missing-scrap",
+      "sector": "ALUMINIUM",
+      "route": "SECONDARY_ALUMINIUM_REMELT",
+      "production": {
+        "value": "100",
+        "unit": "TNE"
+      }
+    },
+    "response": {
+      "traceId": "fixture:secondary-aluminium:missing-scrap",
+      "sector": "ALUMINIUM",
+      "route": "SECONDARY_ALUMINIUM_REMELT",
+      "production": {
+        "value": "100",
+        "unit": "TNE"
+      },
+      "directEmissions": {
+        "value": "0",
+        "unit": "TCO2E"
+      },
+      "directEmissionsComponents": {
+        "fuelCombustion": {
+          "value": "0",
+          "unit": "TCO2E"
+        },
+        "processEmissions": {
+          "value": "0",
+          "unit": "TCO2E"
+        },
+        "aluminiumPfc": {
+          "value": "0",
+          "unit": "TCO2E"
+        },
+        "fuelEnergyContent": {
+          "value": "0",
+          "unit": "GJ"
+        }
+      },
+      "indirectEmissions": {
+        "value": "0",
+        "unit": "TCO2E"
+      },
+      "ownProcessSpecificEmissions": {
+        "value": "0",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "indirectSpecificEmissions": {
+        "value": "0",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "precursorSpecificEmissions": {
+        "value": "0",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "reportedSpecificEmbeddedEmissions": {
+        "value": "0",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "chargeableSpecificEmbeddedEmissions": {
+        "value": "0",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "specificEmbeddedEmissions": {
+        "value": "0",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "indirectEmissionsChargeable": false,
+      "materialMix": {
+        "totalInputMass": {
+          "value": "0",
+          "unit": "TNE"
+        },
+        "scrapInputMass": {
+          "value": "0",
+          "unit": "TNE"
+        },
+        "actualPrecursorMass": {
+          "value": "0",
+          "unit": "TNE"
+        },
+        "defaultPrecursorMass": {
+          "value": "0",
+          "unit": "TNE"
+        },
+        "scrapRatio": {
+          "value": "0",
+          "unit": "FRACTION"
+        },
+        "weightedAverageEmbeddedEmission": {
+          "value": "0",
+          "unit": "TCO2E_PER_TNE"
+        },
+        "formula": "weightedAverageEmbeddedEmission = sum(inputMass_i x specificEmbeddedEmission_i) / sum(inputMass_i); scrap specificEmbeddedEmission = 0",
+        "basis": "Top-level precursors only. Deeper tiers are ratios per tonne of their parent and are already inside each top-level SEE."
+      },
+      "regulatoryDataVersion": "EU-CBAM-2026.1",
+      "traces": [],
+      "warnings": [
+        {
+          "code": "SECONDARY_ALUMINIUM_SCRAP_MISSING",
+          "severity": "BLOCKER",
+          "message": "Secondary aluminium remelt calculations require scrap input."
+        }
+      ]
+    }
+  },
+  {
+    "name": "test_annex_ii_sectors_report_indirect_emissions_without_charging_for_them",
+    "request": {
+      "trace_id": "fixture:secondary-aluminium:electricity",
+      "sector": "ALUMINIUM",
+      "route": "SECONDARY_ALUMINIUM_REMELT",
+      "production": {
+        "value": "100",
+        "unit": "TNE"
+      },
+      "electricity": {
+        "electricity": {
+          "value": "50",
+          "unit": "MWH"
+        },
+        "emission_factor": {
+          "value": "0.5",
+          "unit": "TCO2E_PER_MWH"
+        }
+      },
+      "precursors": [
+        {
+          "id": "scrap",
+          "method": "SCRAP",
+          "quantity": {
+            "value": "40",
+            "unit": "TNE"
+          }
+        }
+      ]
+    },
+    "response": {
+      "traceId": "fixture:secondary-aluminium:electricity",
+      "sector": "ALUMINIUM",
+      "route": "SECONDARY_ALUMINIUM_REMELT",
+      "production": {
+        "value": "100",
+        "unit": "TNE"
+      },
+      "directEmissions": {
+        "value": "0",
+        "unit": "TCO2E"
+      },
+      "directEmissionsComponents": {
+        "fuelCombustion": {
+          "value": "0",
+          "unit": "TCO2E"
+        },
+        "processEmissions": {
+          "value": "0",
+          "unit": "TCO2E"
+        },
+        "aluminiumPfc": {
+          "value": "0",
+          "unit": "TCO2E"
+        },
+        "fuelEnergyContent": {
+          "value": "0",
+          "unit": "GJ"
+        }
+      },
+      "indirectEmissions": {
+        "value": "25",
+        "unit": "TCO2E"
+      },
+      "ownProcessSpecificEmissions": {
+        "value": "0",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "indirectSpecificEmissions": {
+        "value": "0.25",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "precursorSpecificEmissions": {
+        "value": "0",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "reportedSpecificEmbeddedEmissions": {
+        "value": "0.25",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "chargeableSpecificEmbeddedEmissions": {
+        "value": "0",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "specificEmbeddedEmissions": {
+        "value": "0",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "indirectEmissionsChargeable": false,
+      "materialMix": {
+        "totalInputMass": {
+          "value": "40",
+          "unit": "TNE"
+        },
+        "scrapInputMass": {
+          "value": "40",
+          "unit": "TNE"
+        },
+        "actualPrecursorMass": {
+          "value": "0",
+          "unit": "TNE"
+        },
+        "defaultPrecursorMass": {
+          "value": "0",
+          "unit": "TNE"
+        },
+        "scrapRatio": {
+          "value": "1",
+          "unit": "FRACTION"
+        },
+        "weightedAverageEmbeddedEmission": {
+          "value": "0",
+          "unit": "TCO2E_PER_TNE"
+        },
+        "formula": "weightedAverageEmbeddedEmission = sum(inputMass_i x specificEmbeddedEmission_i) / sum(inputMass_i); scrap specificEmbeddedEmission = 0",
+        "basis": "Top-level precursors only. Deeper tiers are ratios per tonne of their parent and are already inside each top-level SEE."
+      },
+      "regulatoryDataVersion": "EU-CBAM-2026.1",
+      "traces": [
+        {
+          "id": "electricity",
+          "method": "ELECTRICITY",
+          "formula": "E_indirect = electricityConsumed x applicableElectricityEmissionFactor",
+          "exactInputs": [
+            {
+              "name": "electricityConsumed",
+              "value": "50",
+              "unit": "MWH"
+            },
+            {
+              "name": "emissionFactor",
+              "value": "0.5",
+              "unit": "TCO2E_PER_MWH"
+            }
+          ],
+          "output": {
+            "value": "25",
+            "unit": "TCO2E"
+          },
+          "evidenceReferences": [],
+          "regulatoryDataVersion": "EU-CBAM-2026.1",
+          "decimalContext": {
+            "significantDigits": 80,
+            "rounding": "ROUND_HALF_EVEN"
+          },
+          "authoritative": true,
+          "warnings": []
+        },
+        {
+          "id": "scrap",
+          "method": "SCRAP_ZERO_CARBON",
+          "formula": "scrapEmbeddedEmissions = 0 tCO2e/t; contribution = quantityConsumed x 0 / goodsProduction",
+          "exactInputs": [
+            {
+              "name": "quantityConsumed",
+              "value": "40",
+              "unit": "TNE"
+            }
+          ],
+          "output": {
+            "value": "0",
+            "unit": "TCO2E_PER_TNE"
+          },
+          "evidenceReferences": [],
+          "regulatoryDataVersion": "EU-CBAM-2026.1",
+          "decimalContext": {
+            "significantDigits": 80,
+            "rounding": "ROUND_HALF_EVEN"
+          },
+          "authoritative": true,
+          "warnings": []
+        }
+      ],
+      "warnings": [
+        {
+          "code": "SCRAP_ZERO_CARBON:scrap",
+          "severity": "INFO",
+          "message": "Scrap input was assigned zero embedded carbon under the configured mass-balance rule."
+        },
+        {
+          "code": "INDIRECT_EMISSIONS_REPORTED_NOT_CHARGEABLE",
+          "severity": "INFO",
+          "message": "Indirect emissions are included in the reported embedded emissions and excluded from the chargeable figure, because this sector is listed in Annex II to Regulation (EU) 2023/956."
+        }
+      ]
+    }
+  },
+  {
+    "name": "test_iron_steel_applies_the_same_annex_ii_rule_as_aluminium",
+    "request": {
+      "trace_id": "fixture:eaf:reported-vs-chargeable",
+      "sector": "IRON_STEEL",
+      "route": "EAF",
+      "production": {
+        "value": "100",
+        "unit": "TNE"
+      },
+      "source_streams": [
+        {
+          "id": "electrode",
+          "activity": {
+            "value": "10",
+            "unit": "TNE"
+          },
+          "emission_factor": {
+            "value": "2",
+            "unit": "TCO2E_PER_TNE"
+          }
+        }
+      ],
+      "electricity": {
+        "electricity": {
+          "value": "50",
+          "unit": "MWH"
+        },
+        "emission_factor": {
+          "value": "0.5",
+          "unit": "TCO2E_PER_MWH"
+        }
+      },
+      "precursors": [
+        {
+          "id": "scrap",
+          "method": "SCRAP",
+          "quantity": {
+            "value": "105",
+            "unit": "TNE"
+          }
+        }
+      ]
+    },
+    "response": {
+      "traceId": "fixture:eaf:reported-vs-chargeable",
+      "sector": "IRON_STEEL",
+      "route": "EAF",
+      "production": {
+        "value": "100",
+        "unit": "TNE"
+      },
+      "directEmissions": {
+        "value": "20",
+        "unit": "TCO2E"
+      },
+      "directEmissionsComponents": {
+        "fuelCombustion": {
+          "value": "20",
+          "unit": "TCO2E"
+        },
+        "processEmissions": {
+          "value": "0",
+          "unit": "TCO2E"
+        },
+        "aluminiumPfc": {
+          "value": "0",
+          "unit": "TCO2E"
+        },
+        "fuelEnergyContent": {
+          "value": "0",
+          "unit": "GJ"
+        }
+      },
+      "indirectEmissions": {
+        "value": "25",
+        "unit": "TCO2E"
+      },
+      "ownProcessSpecificEmissions": {
+        "value": "0.2",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "indirectSpecificEmissions": {
+        "value": "0.25",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "precursorSpecificEmissions": {
+        "value": "0",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "reportedSpecificEmbeddedEmissions": {
+        "value": "0.45",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "chargeableSpecificEmbeddedEmissions": {
+        "value": "0.2",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "specificEmbeddedEmissions": {
+        "value": "0.2",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "indirectEmissionsChargeable": false,
+      "materialMix": {
+        "totalInputMass": {
+          "value": "105",
+          "unit": "TNE"
+        },
+        "scrapInputMass": {
+          "value": "105",
+          "unit": "TNE"
+        },
+        "actualPrecursorMass": {
+          "value": "0",
+          "unit": "TNE"
+        },
+        "defaultPrecursorMass": {
+          "value": "0",
+          "unit": "TNE"
+        },
+        "scrapRatio": {
+          "value": "1",
+          "unit": "FRACTION"
+        },
+        "weightedAverageEmbeddedEmission": {
+          "value": "0",
+          "unit": "TCO2E_PER_TNE"
+        },
+        "formula": "weightedAverageEmbeddedEmission = sum(inputMass_i x specificEmbeddedEmission_i) / sum(inputMass_i); scrap specificEmbeddedEmission = 0",
+        "basis": "Top-level precursors only. Deeper tiers are ratios per tonne of their parent and are already inside each top-level SEE."
+      },
+      "regulatoryDataVersion": "EU-CBAM-2026.1",
+      "traces": [
+        {
+          "id": "electrode",
+          "method": "STANDARD_CALCULATION",
+          "formula": "E = activityData x emissionFactor x oxidationFactor x conversionFactor",
+          "exactInputs": [
+            {
+              "name": "activityData",
+              "value": "10",
+              "unit": "TNE"
+            },
+            {
+              "name": "emissionFactor",
+              "value": "2",
+              "unit": "TCO2E_PER_TNE"
+            },
+            {
+              "name": "oxidationFactor",
+              "value": "1",
+              "unit": "FRACTION"
+            },
+            {
+              "name": "conversionFactor",
+              "value": "1",
+              "unit": "FRACTION"
+            }
+          ],
+          "output": {
+            "value": "20",
+            "unit": "TCO2E"
+          },
+          "evidenceReferences": [],
+          "regulatoryDataVersion": "EU-CBAM-2026.1",
+          "decimalContext": {
+            "significantDigits": 80,
+            "rounding": "ROUND_HALF_EVEN"
+          },
+          "authoritative": true,
+          "warnings": []
+        },
+        {
+          "id": "electricity",
+          "method": "ELECTRICITY",
+          "formula": "E_indirect = electricityConsumed x applicableElectricityEmissionFactor",
+          "exactInputs": [
+            {
+              "name": "electricityConsumed",
+              "value": "50",
+              "unit": "MWH"
+            },
+            {
+              "name": "emissionFactor",
+              "value": "0.5",
+              "unit": "TCO2E_PER_MWH"
+            }
+          ],
+          "output": {
+            "value": "25",
+            "unit": "TCO2E"
+          },
+          "evidenceReferences": [],
+          "regulatoryDataVersion": "EU-CBAM-2026.1",
+          "decimalContext": {
+            "significantDigits": 80,
+            "rounding": "ROUND_HALF_EVEN"
+          },
+          "authoritative": true,
+          "warnings": []
+        },
+        {
+          "id": "scrap",
+          "method": "SCRAP_ZERO_CARBON",
+          "formula": "scrapEmbeddedEmissions = 0 tCO2e/t; contribution = quantityConsumed x 0 / goodsProduction",
+          "exactInputs": [
+            {
+              "name": "quantityConsumed",
+              "value": "105",
+              "unit": "TNE"
+            }
+          ],
+          "output": {
+            "value": "0",
+            "unit": "TCO2E_PER_TNE"
+          },
+          "evidenceReferences": [],
+          "regulatoryDataVersion": "EU-CBAM-2026.1",
+          "decimalContext": {
+            "significantDigits": 80,
+            "rounding": "ROUND_HALF_EVEN"
+          },
+          "authoritative": true,
+          "warnings": []
+        }
+      ],
+      "warnings": [
+        {
+          "code": "SCRAP_ZERO_CARBON:scrap",
+          "severity": "INFO",
+          "message": "Scrap input was assigned zero embedded carbon under the configured mass-balance rule."
+        },
+        {
+          "code": "INDIRECT_EMISSIONS_REPORTED_NOT_CHARGEABLE",
+          "severity": "INFO",
+          "message": "Indirect emissions are included in the reported embedded emissions and excluded from the chargeable figure, because this sector is listed in Annex II to Regulation (EU) 2023/956."
+        }
+      ]
+    }
+  }
+]

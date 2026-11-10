@@ -1,0 +1,278 @@
+{
+  "traceId": "parity:golden-eaf-2026",
+  "sector": "IRON_STEEL",
+  "route": "EAF",
+  "production": {
+    "value": "10500",
+    "unit": "TNE"
+  },
+  "directEmissions": {
+    "value": "400.507344",
+    "unit": "TCO2E"
+  },
+  "directEmissionsComponents": {
+    "fuelCombustion": {
+      "value": "319.716144",
+      "unit": "TCO2E"
+    },
+    "processEmissions": {
+      "value": "80.7912",
+      "unit": "TCO2E"
+    },
+    "aluminiumPfc": {
+      "value": "0",
+      "unit": "TCO2E"
+    },
+    "fuelEnergyContent": {
+      "value": "5699.04",
+      "unit": "GJ"
+    }
+  },
+  "indirectEmissions": {
+    "value": "2362.0275",
+    "unit": "TCO2E"
+  },
+  "ownProcessSpecificEmissions": {
+    "value": "0.038143556571428571428571428571428571428571428571428571428571428571428571428571429",
+    "unit": "TCO2E_PER_TNE"
+  },
+  "indirectSpecificEmissions": {
+    "value": "0.224955",
+    "unit": "TCO2E_PER_TNE"
+  },
+  "precursorSpecificEmissions": {
+    "value": "0.095",
+    "unit": "TCO2E_PER_TNE"
+  },
+  "reportedSpecificEmbeddedEmissions": {
+    "value": "0.35809855657142857142857142857142857142857142857142857142857142857142857142857143",
+    "unit": "TCO2E_PER_TNE"
+  },
+  "chargeableSpecificEmbeddedEmissions": {
+    "value": "0.13314355657142857142857142857142857142857142857142857142857142857142857142857143",
+    "unit": "TCO2E_PER_TNE"
+  },
+  "specificEmbeddedEmissions": {
+    "value": "0.13314355657142857142857142857142857142857142857142857142857142857142857142857143",
+    "unit": "TCO2E_PER_TNE"
+  },
+  "indirectEmissionsChargeable": false,
+  "materialMix": {
+    "totalInputMass": {
+      "value": "11865",
+      "unit": "TNE"
+    },
+    "scrapInputMass": {
+      "value": "11340",
+      "unit": "TNE"
+    },
+    "actualPrecursorMass": {
+      "value": "525",
+      "unit": "TNE"
+    },
+    "defaultPrecursorMass": {
+      "value": "0",
+      "unit": "TNE"
+    },
+    "scrapRatio": {
+      "value": "0.95575221238938053097345132743362831858407079646017699115044247787610619469026549",
+      "unit": "FRACTION"
+    },
+    "weightedAverageEmbeddedEmission": {
+      "value": "0.084070796460176991150442477876106194690265486725663716814159292035398230088495575",
+      "unit": "TCO2E_PER_TNE"
+    },
+    "formula": "weightedAverageEmbeddedEmission = sum(inputMass_i x specificEmbeddedEmission_i) / sum(inputMass_i); scrap specificEmbeddedEmission = 0",
+    "basis": "Top-level precursors only. Deeper tiers are ratios per tonne of their parent and are already inside each top-level SEE."
+  },
+  "regulatoryDataVersion": "EU-CBAM-2026.1",
+  "traces": [
+    {
+      "id": "gas",
+      "method": "STANDARD_CALCULATION",
+      "formula": "E = activityData x netCalorificValue x emissionFactor x oxidationFactor x conversionFactor",
+      "exactInputs": [
+        {
+          "name": "activityData",
+          "value": "148800",
+          "unit": "MTQ",
+          "sourceReference": "12 monthly gas invoices 2026"
+        },
+        {
+          "name": "netCalorificValue",
+          "value": "0.0383",
+          "unit": "GJ_PER_MTQ",
+          "sourceReference": "12 monthly gas invoices 2026"
+        },
+        {
+          "name": "emissionFactor",
+          "value": "0.0561",
+          "unit": "TCO2E_PER_GJ",
+          "sourceReference": "12 monthly gas invoices 2026"
+        },
+        {
+          "name": "oxidationFactor",
+          "value": "1",
+          "unit": "FRACTION"
+        },
+        {
+          "name": "conversionFactor",
+          "value": "1",
+          "unit": "FRACTION"
+        }
+      ],
+      "output": {
+        "value": "319.716144",
+        "unit": "TCO2E"
+      },
+      "evidenceReferences": [
+        "12 monthly gas invoices 2026"
+      ],
+      "regulatoryDataVersion": "EU-CBAM-2026.1",
+      "decimalContext": {
+        "significantDigits": 80,
+        "rounding": "ROUND_HALF_EVEN"
+      },
+      "authoritative": true,
+      "warnings": []
+    },
+    {
+      "id": "electrode",
+      "method": "MASS_BALANCE",
+      "formula": "E = mass x carbonContent x CO2_PER_C",
+      "exactInputs": [
+        {
+          "name": "mass",
+          "value": "22.05",
+          "unit": "TNE",
+          "sourceReference": "Procurement records 2026"
+        },
+        {
+          "name": "carbonContent",
+          "value": "1",
+          "unit": "FRACTION",
+          "sourceReference": "Procurement records 2026"
+        },
+        {
+          "name": "CO2_PER_C",
+          "value": "3.664",
+          "unit": "TCO2E_PER_TNE",
+          "sourceReference": "EU MRR (EU) 2018/2066 - standard conversion factor tCO2 per tC, from molar masses 44.010 / 12.011"
+        }
+      ],
+      "output": {
+        "value": "80.7912",
+        "unit": "TCO2E"
+      },
+      "evidenceReferences": [
+        "EU MRR (EU) 2018/2066 - standard conversion factor tCO2 per tC, from molar masses 44.010 / 12.011",
+        "Procurement records 2026"
+      ],
+      "regulatoryDataVersion": "EU-CBAM-2026.1",
+      "decimalContext": {
+        "significantDigits": 80,
+        "rounding": "ROUND_HALF_EVEN"
+      },
+      "authoritative": true,
+      "warnings": []
+    },
+    {
+      "id": "electricity",
+      "method": "ELECTRICITY",
+      "formula": "E_indirect = electricityConsumed x applicableElectricityEmissionFactor",
+      "exactInputs": [
+        {
+          "name": "electricityConsumed",
+          "value": "4725",
+          "unit": "MWH",
+          "sourceReference": "12 monthly utility bills 2026"
+        },
+        {
+          "name": "emissionFactor",
+          "value": "0.4999",
+          "unit": "TCO2E_PER_MWH",
+          "sourceReference": "12 monthly utility bills 2026"
+        }
+      ],
+      "output": {
+        "value": "2362.0275",
+        "unit": "TCO2E"
+      },
+      "evidenceReferences": [
+        "12 monthly utility bills 2026"
+      ],
+      "regulatoryDataVersion": "EU-CBAM-2026.1",
+      "decimalContext": {
+        "significantDigits": 80,
+        "rounding": "ROUND_HALF_EVEN"
+      },
+      "authoritative": true,
+      "warnings": []
+    },
+    {
+      "id": "scrap",
+      "method": "SCRAP_ZERO_CARBON",
+      "formula": "scrapEmbeddedEmissions = 0 tCO2e/t; contribution = quantityConsumed x 0 / goodsProduction",
+      "exactInputs": [
+        {
+          "name": "quantityConsumed",
+          "value": "11340",
+          "unit": "TNE"
+        }
+      ],
+      "output": {
+        "value": "0",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "evidenceReferences": [],
+      "regulatoryDataVersion": "EU-CBAM-2026.1",
+      "decimalContext": {
+        "significantDigits": 80,
+        "rounding": "ROUND_HALF_EVEN"
+      },
+      "authoritative": true,
+      "warnings": []
+    },
+    {
+      "id": "pigiron",
+      "method": "ACTUAL_PRECURSOR",
+      "formula": "contribution = quantityConsumed x actualSpecificEmbeddedEmissions / goodsProduction",
+      "exactInputs": [
+        {
+          "name": "quantityConsumed",
+          "value": "525",
+          "unit": "TNE"
+        },
+        {
+          "name": "actualSpecificEmbeddedEmissions",
+          "value": "1.9",
+          "unit": "TCO2E_PER_TNE"
+        }
+      ],
+      "output": {
+        "value": "0.095",
+        "unit": "TCO2E_PER_TNE"
+      },
+      "evidenceReferences": [],
+      "regulatoryDataVersion": "EU-CBAM-2026.1",
+      "decimalContext": {
+        "significantDigits": 80,
+        "rounding": "ROUND_HALF_EVEN"
+      },
+      "authoritative": true,
+      "warnings": []
+    }
+  ],
+  "warnings": [
+    {
+      "code": "SCRAP_ZERO_CARBON:scrap",
+      "severity": "INFO",
+      "message": "Scrap input was assigned zero embedded carbon under the configured mass-balance rule."
+    },
+    {
+      "code": "INDIRECT_EMISSIONS_REPORTED_NOT_CHARGEABLE",
+      "severity": "INFO",
+      "message": "Indirect emissions are included in the reported embedded emissions and excluded from the chargeable figure, because this sector is listed in Annex II to Regulation (EU) 2023/956."
+    }
+  ]
+}
