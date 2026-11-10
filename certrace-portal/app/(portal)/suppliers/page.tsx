@@ -22,6 +22,7 @@
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   ArrowRight,
   Building2,
@@ -100,7 +101,7 @@ function buildPrecursorRows(): PrecursorSupplierRow[] {
 
 type View = "all" | "data" | "precursor";
 
-export default function SuppliersPage() {
+function SuppliersBody() {
   const t = useT();
   /* Page-shaped rows, but cached under the ["suppliers"] prefix so a
      directory add or workspace change elsewhere refetches them — the job the
@@ -125,6 +126,11 @@ export default function SuppliersPage() {
   });
   const [query, setQuery] = React.useState("");
   const [adding, setAdding] = React.useState(false);
+  // "Request data" → outside supplier lands here with the add form open.
+  const searchParams = useSearchParams();
+  React.useEffect(() => {
+    if (searchParams.get("add") === "1") setAdding(true);
+  }, [searchParams]);
   const [page, setPage] = React.useState(1);
   const [view, setView] = React.useState<View>("all");
 
@@ -461,5 +467,13 @@ export default function SuppliersPage() {
         }}
       />
     </div>
+  );
+}
+
+export default function SuppliersPage() {
+  return (
+    <React.Suspense fallback={null}>
+      <SuppliersBody />
+    </React.Suspense>
   );
 }

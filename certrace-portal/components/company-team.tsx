@@ -1,6 +1,7 @@
 "use client";
 import * as React from "react";
 import { api, result } from "@/lib/api/client";
+import { sendInvite } from "@/lib/api/team";
 import { loadSession } from "@/lib/api/session";
 import { selectCompany } from "@/lib/company-session";
 import { useCompanyDirectory } from "@/lib/team-query";
@@ -75,11 +76,7 @@ export function CompanyTeam({
             onSubmit={(e) => {
               e.preventDefault();
               void run(async () => {
-                const sent = await result(
-                  api().api.v1.team.invitations.post({
-                    email: email.trim().toLowerCase(),
-                  }),
-                );
+                const sent = await sendInvite(email);
                 setNotice(
                   sent.delivered
                     ? "Invitation sent to " + email + "."
