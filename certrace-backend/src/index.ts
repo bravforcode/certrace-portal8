@@ -1,3 +1,4 @@
+import "./lib/startup-check";
 import { app } from "./app";
 import { config } from "./lib/config";
 import { db } from "./lib/db";
