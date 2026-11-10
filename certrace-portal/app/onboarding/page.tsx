@@ -619,13 +619,14 @@ export default function OnboardingPage() {
                   onChange={(e) => setTaxId(e.target.value.trim())}
                   placeholder="0105561234567"
                   aria-invalid={Boolean(companyErrors.taxId)}
+                  aria-describedby={companyErrors.taxId ? "tax-id-error" : undefined}
                 />
-                {companyErrors.taxId && (
-                  <p className="mt-1.5 text-[12px] text-[#dc2626]">
-                    {t(companyErrors.taxId)}
-                  </p>
-                )}
               </Field>
+              {companyErrors.taxId && (
+                <p id="tax-id-error" className="mt-1.5 text-[12px] text-[#dc2626]">
+                  {t(companyErrors.taxId)}
+                </p>
+              )}
               <Field label={t("Website")}>
                 <input
                   className={cn(inputClass, companyErrors.website && errInput)}
@@ -633,13 +634,14 @@ export default function OnboardingPage() {
                   onChange={(e) => setWebsite(e.target.value.trim())}
                   placeholder="https://"
                   aria-invalid={Boolean(companyErrors.website)}
+                  aria-describedby={companyErrors.website ? "website-error" : undefined}
                 />
-                {companyErrors.website && (
-                  <p className="mt-1.5 text-[12px] text-[#dc2626]">
-                    {t(companyErrors.website)}
-                  </p>
-                )}
               </Field>
+              {companyErrors.website && (
+                <p id="website-error" className="mt-1.5 text-[12px] text-[#dc2626]">
+                  {t(companyErrors.website)}
+                </p>
+              )}
               <Field label={t("Country")}>
                 <Select
                   value={country}

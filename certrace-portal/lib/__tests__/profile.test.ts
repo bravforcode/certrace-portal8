@@ -30,6 +30,8 @@ test("website must be an https URL", () => {
   assert.ok(companyBasicsErrors({ website: "acme.example" }).website);
   assert.ok(companyBasicsErrors({ website: "http://acme.example" }).website);
   assert.ok(companyBasicsErrors({ website: "ftp://acme.example" }).website);
+  assert.ok(companyBasicsErrors({ website: "https://" }).website);
+  assert.ok(companyBasicsErrors({ website: "https://a b.example" }).website);
 });
 
 test("country is a two-letter uppercase ISO code", () => {

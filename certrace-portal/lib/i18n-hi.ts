@@ -6774,7 +6774,6 @@ export const HI: Record<string, string> = {
   "Website": "वेबसाइट",
   "Enter a web address starting with https://": "https:// से शुरू होने वाला वेब पता लिखें",
   "Company size": "कंपनी का आकार",
-  "Select company size": "कंपनी का आकार चुनें",
   "1–49 people": "1–49 लोग",
   "50–199 people": "50–199 लोग",
   "200–999 people": "200–999 लोग",

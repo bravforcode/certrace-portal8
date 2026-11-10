@@ -9121,7 +9121,6 @@ export const ZH: Record<string, string> = {
   "Website": "网站",
   "Enter a web address starting with https://": "请输入以 https:// 开头的网址",
   "Company size": "公司规模",
-  "Select company size": "选择公司规模",
   "1–49 people": "1–49 人",
   "50–199 people": "50–199 人",
   "200–999 people": "200–999 人",

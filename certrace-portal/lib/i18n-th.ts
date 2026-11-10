@@ -4213,7 +4213,6 @@ export const TH: Record<string, string> = {
   "Website": "เว็บไซต์",
   "Enter a web address starting with https://": "กรอกที่อยู่เว็บที่ขึ้นต้นด้วย https://",
   "Company size": "ขนาดบริษัท",
-  "Select company size": "เลือกขนาดบริษัท",
   "1–49 people": "1–49 คน",
   "50–199 people": "50–199 คน",
   "200–999 people": "200–999 คน",

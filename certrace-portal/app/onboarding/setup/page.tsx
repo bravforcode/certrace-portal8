@@ -378,13 +378,14 @@ export default function SignInSetupPage() {
                     maxLength={3}
                     onChange={(e) => setBoilerCount(e.target.value.trim())}
                     aria-invalid={Boolean(factoryErrors.boilerCount)}
+                    aria-describedby={factoryErrors.boilerCount ? "boiler-count-error" : undefined}
                   />
-                  {factoryErrors.boilerCount && (
-                    <p className="mt-1.5 text-[12px] text-[#dc2626]">
-                      {t(factoryErrors.boilerCount)}
-                    </p>
-                  )}
                 </Field>
+                {factoryErrors.boilerCount && (
+                  <p id="boiler-count-error" className="mt-1.5 text-[12px] text-[#dc2626]">
+                    {t(factoryErrors.boilerCount)}
+                  </p>
+                )}
                 <Field label={t("Furnaces")}>
                   <input
                     className={cn(
@@ -397,13 +398,14 @@ export default function SignInSetupPage() {
                     maxLength={3}
                     onChange={(e) => setFurnaceCount(e.target.value.trim())}
                     aria-invalid={Boolean(factoryErrors.furnaceCount)}
+                    aria-describedby={factoryErrors.furnaceCount ? "furnace-count-error" : undefined}
                   />
-                  {factoryErrors.furnaceCount && (
-                    <p className="mt-1.5 text-[12px] text-[#dc2626]">
-                      {t(factoryErrors.furnaceCount)}
-                    </p>
-                  )}
                 </Field>
+                {factoryErrors.furnaceCount && (
+                  <p id="furnace-count-error" className="mt-1.5 text-[12px] text-[#dc2626]">
+                    {t(factoryErrors.furnaceCount)}
+                  </p>
+                )}
               </div>
               <Field label={t("Annual production")}>
                 <Select
@@ -413,7 +415,7 @@ export default function SignInSetupPage() {
                     value: o.value,
                     label: t(o.label),
                   }))}
-                  placeholder={t("Select annual production")}
+                  placeholder="Select annual production"
                   ariaLabel={t("Annual production")}
                 />
               </Field>

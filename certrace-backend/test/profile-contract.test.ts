@@ -35,3 +35,30 @@ test("rejects malformed company basics and unknown list items", () => {
   expect(() => validateStore("certrace:profile", { ...ok, energySources: ["solar"] })).toThrow();
   expect(() => validateStore("certrace:profile", { ...ok, boilerCount: "1000" })).toThrow();
 });
+// Onboarding sends blank strings for optional choices the user skipped; those must save.
+test("accepts blank optional choices and empty lists", () => {
+  expect(() =>
+    validateStore("certrace:profile", {
+      ...ok,
+      employeeBand: "",
+      productionModel: "",
+      annualProductionBand: "",
+      energySources: [],
+    }),
+  ).not.toThrow();
+});
+test("still rejects a wrong value for a choice field", () => {
+  expect(() => validateStore("certrace:profile", { ...ok, employeeBand: "5000" })).toThrow();
+  expect(() => validateStore("certrace:profile", { ...ok, productionModel: "mixed" })).toThrow();
+  expect(() => validateStore("certrace:profile", { ...ok, annualProductionBand: "huge" })).toThrow();
+});
+test("website must be https with a host and no spaces", () => {
+  expect(() => validateStore("certrace:profile", { ...ok, website: "https://acme.example" })).not.toThrow();
+  expect(() => validateStore("certrace:profile", { ...ok, website: "https://" })).toThrow();
+  expect(() => validateStore("certrace:profile", { ...ok, website: "https://a b.example" })).toThrow();
+});
+test("export markets are capped at 20 and must be unique", () => {
+  expect(() => validateStore("certrace:profile", { ...ok, exportMarkets: ["EU", "JP", "KR", "CN", "IN", "US", "GB", "FR", "DE", "IT", "ES", "NL", "SE", "AU", "NZ", "CA", "MX", "BR", "AR", "ZA"] })).not.toThrow();
+  expect(() => validateStore("certrace:profile", { ...ok, exportMarkets: ["EU", "JP", "KR", "CN", "IN", "US", "GB", "FR", "DE", "IT", "ES", "NL", "SE", "AU", "NZ", "CA", "MX", "BR", "AR", "ZA", "EG"] })).toThrow();
+  expect(() => validateStore("certrace:profile", { ...ok, exportMarkets: ["EU", "EU"] })).toThrow();
+});
