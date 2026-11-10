@@ -4,6 +4,7 @@ import * as Auth from "./service";
 import { authenticated } from "./plugin";
 import { config, SESSION_COOKIE, SESSION_SECONDS } from "../../lib/config";
 import { db } from "../../lib/db";
+import { notify } from "../../lib/notify";
 import { fail } from "../../lib/errors";
 import {
   acceptanceContext,
@@ -175,14 +176,31 @@ export const auth = new Elysia({ prefix: "/api/auth" })
     { body: AuthModel.legal },
   )
   .post("/onboarded", async ({ account }) => {
-    return {
-      user: await Auth.publicUser(
-        await db.users.update({
-          where: { id: account.id },
-          data: { onboarded: true },
-        }),
-      ),
-    };
+    const vars = { company: account.company_name ?? "" };
+    // The customer's mail goes first: if delivery fails, onboarding is not marked
+    // done, so the step can be retried and the mail still goes out once.
+    if (!account.onboarded)
+      await notify(account, "application_received", vars, true);
+    const user = await db.users.update({
+      where: { id: account.id },
+      data: { onboarded: true },
+    });
+    if (!account.onboarded) {
+      const name = [user.first_name, user.last_name].filter(Boolean).join(" ");
+      const admins = await db.users.findMany({
+        where: { is_admin: true, status: "ACTIVE" },
+      });
+      for (const admin of admins)
+        await notify(admin, "admin_new_signup", {
+          ...vars,
+          name,
+          email: user.email,
+        }).catch((e: { code?: string }) =>
+          // Log only the error code: the message can carry the recipient address.
+          console.error("admin signup email failed", e.code),
+        );
+    }
+    return { user: await Auth.publicUser(user) };
   })
   .post(
     "/google/link",

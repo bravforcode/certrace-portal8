@@ -40,12 +40,21 @@ export async function account(ready = true, extra: Record<string, unknown> = {})
   const body = await r.json();
   created.push(body.user.id);
   if (ready)
-    await db.users.update({ where: { id: body.user.id }, data: { ready: true } });
+    await db.users.update({
+      where: { id: body.user.id },
+      data: { ready: true, approved_at: new Date() },
+    });
   return {
     cookie: r.headers.get("set-cookie")!.split(";")[0]!,
     email,
     ...body,
   };
+}
+
+export async function admin() {
+  const a = await account(true);
+  await db.users.update({ where: { id: a.user.id }, data: { is_admin: true } });
+  return a;
 }
 
 export async function cleanup() {

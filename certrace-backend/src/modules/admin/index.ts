@@ -2,6 +2,7 @@ import { Elysia, t } from "elysia";
 import { db } from "../../lib/db";
 import { fail, missing } from "../../lib/errors";
 import { authenticated } from "../auth/plugin";
+import { notify } from "../../lib/notify";
 import { Prisma, type users } from "../../generated/prisma/client";
 
 const userSelect = {
@@ -77,15 +78,25 @@ export const admin = new Elysia({ prefix: "/api/admin" })
     "/users/:id/ready",
     async ({ account, params, body }) => {
       requireAdmin(account);
-      const user = await db.$transaction(async (tx) => {
+      const result = await db.$transaction(async (tx) => {
         const previous = await tx.users.findUnique({
           where: { id: params.id },
         });
         if (!previous) return missing();
-        if (previous.ready === body.ready) return previous;
+        if (previous.ready === body.ready)
+          return { user: previous, approving: false };
+        // The trial clock starts at the first approval only; a revoke and
+        // re-approve keeps the original start.
+        const approving = body.ready && !previous.approved_at;
         const updated = await tx.users.update({
           where: { id: params.id },
-          data: { ready: body.ready, updated_at: new Date() },
+          data: {
+            ready: body.ready,
+            updated_at: new Date(),
+            ...(approving
+              ? { approved_at: new Date(), trial_started_at: new Date() }
+              : {}),
+          },
         });
         await tx.account_audit_events.create({
           data: {
@@ -99,9 +110,15 @@ export const admin = new Elysia({ prefix: "/api/admin" })
             },
           },
         });
-        return updated;
+        return { user: updated, approving };
       });
-      return { user: view(user) };
+      // Outside the transaction: a mail failure must not undo the approval.
+      if (result.approving)
+        await notify(result.user, "account_approved", {}, true).catch(
+          (e: { code?: string }) =>
+            console.error("approval email failed", e.code),
+        );
+      return { user: view(result.user) };
     },
     {
       params: t.Object({ id: t.String({ format: "uuid" }) }),
