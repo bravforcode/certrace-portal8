@@ -54,10 +54,8 @@ import {
   Users,
   X,
 } from "lucide-react";
-import {
-  setActiveInstallationId,
-  useActiveInstallation,
-} from "@/lib/active-installation";
+import { setActiveInstallationId } from "@/lib/active-installation";
+import { useScopedInstallation } from "@/lib/scoped-installation";
 import { Button, Card, Eyebrow, Field, HelpTip, cn } from "@/components/ui";
 import { Select } from "@/components/controls";
 import { toast } from "@/components/toast";
@@ -261,7 +259,7 @@ function NewWorkspaceFlow() {
      (lib/active-installation.ts) or filling in a new installation's details —
      nothing else. "" is the older flows (a resumed draft, a precursor, an
      installation's own page), which keep the full picker below. */
-  const { active: current } = useActiveInstallation();
+  const { scoped: current } = useScopedInstallation();
   const [pick, setPick] = React.useState<"" | "current" | "new">("");
   const fillNew = pick === "new";
 

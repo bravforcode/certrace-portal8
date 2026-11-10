@@ -23,6 +23,7 @@ import {
   inputClass,
 } from "@/components/ui";
 import { toast } from "@/components/toast";
+import { ScopedInstallationSwitcher } from "@/components/scoped-installation-switcher";
 import { StandardLogo } from "@/components/convert/standard-logo";
 import {
   REPORTS,
@@ -64,11 +65,14 @@ function ConvertInner() {
   );
   const [query, setQuery] = React.useState("");
 
+  const installation = params.get("installation");
   const go = (next: Tab) => {
     setTab(next);
-    router.replace(next === "all" ? "/convert" : `/convert?tab=${next}`, {
-      scroll: false,
-    });
+    const q = new URLSearchParams();
+    if (next !== "all") q.set("tab", next);
+    if (installation) q.set("installation", installation);
+    const qs = q.toString();
+    router.replace(qs ? `/convert?${qs}` : "/convert", { scroll: false });
   };
 
   const q = query.trim().toLowerCase();
@@ -89,6 +93,7 @@ function ConvertInner() {
       <PageHeader
         title="Convert"
         lead="Turn your workspace data into the report each standard asks for."
+        actions={<ScopedInstallationSwitcher />}
       />
 
       {/* The kit's filter pills and search field, as on Suppliers and Notifications.
@@ -174,6 +179,7 @@ function Section({
 }
 
 function StandardCard({ s }: { s: Standard }) {
+  const installation = useSearchParams().get("installation");
   const soon = s.status === "soon";
   const body = (
     <>
@@ -221,7 +227,7 @@ function StandardCard({ s }: { s: Standard }) {
     </div>
   ) : (
     <Link
-      href={`/convert/${s.id}`}
+      href={`/convert/${s.id}${installation ? `?installation=${encodeURIComponent(installation)}` : ""}`}
       className={cn(box, "border-black/[0.08] hover:border-black/25")}
     >
       {body}

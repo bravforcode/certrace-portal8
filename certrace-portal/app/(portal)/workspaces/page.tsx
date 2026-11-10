@@ -100,7 +100,8 @@ import { getCatalogProduct } from "@/lib/config";
 import {
   installationForWorkspace,
 } from "@/lib/installations";
-import { useActiveInstallation } from "@/lib/active-installation";
+import { ScopedInstallationSwitcher } from "@/components/scoped-installation-switcher";
+import { useScopedInstallation } from "@/lib/scoped-installation";
 import { profileStatus } from "@/lib/cbam/installation-profile";
 import type { TabState } from "@/lib/readiness";
 import {
@@ -140,7 +141,16 @@ const STATES: { id: TabState; label: string }[] = [
 const CARDS_PER_PAGE = 9;
 const ROWS_PER_PAGE = 15;
 
+/* useSearchParams() (read by the installation scope) needs a Suspense boundary above it. */
 export default function WorkspacesPage() {
+  return (
+    <React.Suspense fallback={null}>
+      <WorkspacesInner />
+    </React.Suspense>
+  );
+}
+
+function WorkspacesInner() {
   const t = useT();
   const router = useRouter();
   const { data: activeWorkspaces, isError, refetch } = useWorkspaces();
@@ -174,7 +184,7 @@ export default function WorkspacesPage() {
   /* ONE INSTALLATION AT A TIME. The page reads only the current installation
      (lib/active-installation.ts), switched from the profile menu or Settings →
      Installation — so the site filter that used to sit in the toolbar is gone. */
-  const { active: current } = useActiveInstallation();
+  const { scoped: current } = useScopedInstallation();
   const atCurrent = React.useCallback(
     (list: CardData[]) =>
       current
@@ -334,6 +344,7 @@ export default function WorkspacesPage() {
              wanting; a small secondary-looking control was reading as a
              utility next to the page title. */
           <div className="flex flex-wrap items-center gap-2">
+            <ScopedInstallationSwitcher />
             <Button
               variant="secondary"
               className="whitespace-nowrap"

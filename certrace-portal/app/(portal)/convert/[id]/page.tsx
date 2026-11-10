@@ -14,7 +14,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   ChevronDown,
@@ -287,10 +287,20 @@ export default function ConvertStandardPage() {
   );
 }
 
+/* Keeps the installation picked on Convert (`?installation=`) when going back. */
 function BackLink() {
   return (
+    <React.Suspense fallback={null}>
+      <BackLinkInner />
+    </React.Suspense>
+  );
+}
+
+function BackLinkInner() {
+  const installation = useSearchParams().get("installation");
+  return (
     <Link
-      href="/convert"
+      href={installation ? `/convert?installation=${encodeURIComponent(installation)}` : "/convert"}
       className="inline-flex items-center gap-1.5 text-[12px] uppercase tracking-[0.08em] text-black/40 hover:text-black"
     >
       <ArrowLeft size={14} strokeWidth={1.5} /> Convert

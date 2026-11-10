@@ -19,7 +19,6 @@ import {
   Lightbulb,
   PlayCircle,
   ExternalLink,
-  Factory,
   PanelLeft,
 } from "lucide-react";
 import { cn } from "./ui";
@@ -30,8 +29,6 @@ import { logout } from "@/lib/api";
 import { MENU_LANGUAGES, useLanguage, useT } from "@/lib/i18n";
 import { Flag } from "./flag";
 import { ProductMark, type ProductId } from "./product-marks";
-import { InstallationSwitcher } from "./installation-switcher";
-import { useActiveInstallation } from "@/lib/active-installation";
 import {
   FEATURE_REQUEST_URL,
   GUIDE_VIDEO_URL,
@@ -354,46 +351,6 @@ function Wordmark() {
   );
 }
 
-/* "Switch installation" in the account menu: a row that opens the list in place, so picking a site never leaves the page you are on. */
-function SwitchInstallationRow({ onPicked }: { onPicked: () => void }) {
-  const t = useT();
-  const { active } = useActiveInstallation();
-  const [open, setOpen] = React.useState(false);
-  return (
-    <div>
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] text-black/70 hover:bg-[#fafaf8]"
-      >
-        <Factory size={15} strokeWidth={1.5} className="text-black/40" />
-        <span className="min-w-0 flex-1">
-          <span className="block">{t("Switch installation")}</span>
-          {active && (
-            <span className="block truncate text-[11px] text-black/40">
-              {active.name}
-            </span>
-          )}
-        </span>
-        <ChevronDown
-          size={13}
-          strokeWidth={1.5}
-          className={cn(
-            "flex-none text-black/30 transition-transform",
-            open && "rotate-180",
-          )}
-        />
-      </button>
-      {open && (
-        <div className="mb-1 ml-[21px] border-l border-black/[0.09] pl-1.5">
-          <InstallationSwitcher compact onPicked={onPicked} />
-        </div>
-      )}
-    </div>
-  );
-}
-
 function AccountMenu() {
   const router = useRouter();
   const { t } = useLanguage();
@@ -473,7 +430,6 @@ function AccountMenu() {
               />{" "}
               {t("Profile & account")}
             </Link>
-            <SwitchInstallationRow onPicked={close} />
             <Link
               href="/settings?tab=notifications"
               onClick={close}
