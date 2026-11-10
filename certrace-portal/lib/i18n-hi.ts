@@ -347,6 +347,7 @@ export const HI: Record<string, string> = {
   "A dedicated line from a specific generating installation, outside the public grid.": "सार्वजनिक ग्रिड से बाहर, किसी विशिष्ट उत्पादक संयंत्र से समर्पित लाइन।",
   "Factor is that generator's own.": "गुणांक उसी जनरेटर का अपना है।",
   "Not started": "शुरू नहीं हुआ",
+  "Needs review": "समीक्षा की ज़रूरत है",
   "Material not named": "सामग्री का नाम नहीं दिया गया",
   "Carbon dioxide (CO₂)": "कार्बन डाइऑक्साइड (CO₂)",
   "Nitrous oxide (N₂O)": "नाइट्रस ऑक्साइड (N₂O)",

@@ -431,6 +431,7 @@ export const ZH: Record<string, string> = {
     "来自某一特定发电设施的专用线路，不经过公共电网。",
   "Factor is that generator's own.": "系数为该发电机自身的系数。",
   "Not started": "未开始",
+  "Needs review": "待复核",
   "Material not named": "未命名材料",
   "Carbon dioxide (CO₂)": "二氧化碳（CO₂）",
   "Nitrous oxide (N₂O)": "氧化亚氮（N₂O）",

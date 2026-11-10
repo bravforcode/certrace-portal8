@@ -91,6 +91,7 @@ export const TH_WORKSPACE: Record<string, string> = {
   Sheet: "ชีต",
   "To review": "ต้องตรวจ",
   "Missing data": "ขาดข้อมูล",
+  "Needs review": "รอตรวจ",
   Confirmed: "ยืนยันแล้ว",
   "No file": "ไม่มีไฟล์",
 
