@@ -398,21 +398,41 @@ export function emptyInstallation(self = false): Installation {
 
 /* The record the Installation tab edits for the scoped site. A site with no
    saved record yet (the exporter's own site, synthesised from the org profile)
-   is seeded with its identity, so it can be filled in; the first save creates
-   the record. A saved record is returned as stored. */
+   is seeded with its reference and link only. The name is NOT copied from the
+   org profile: a company name in the English-name field is the wrong answer a
+   verifier would quote, so the site starts with an empty name and reads as
+   untouched until the exporter enters it. A saved record is returned as stored. */
 export function draftInstallation(
-  choice: { id: string; name: string; self: boolean; supplierId?: string },
+  choice: { id: string; self: boolean; supplierId?: string },
   stored: Installation | null,
 ): Installation {
   if (stored) return stored;
   return {
     ...emptyInstallation(choice.self),
     id: choice.id,
-    name: choice.name,
     self: choice.self,
     supplierId: choice.self ? "" : (choice.supplierId ?? ""),
   };
 }
+
+/** The fields the workbook's Installation tab shows, in form order. `required`
+    marks what the tab colours red when empty; the field validators (Settings and
+    the tab's inline errors) decide what may be saved. */
+export const INSTALLATION_SHEET_FIELDS: {
+  key: keyof Installation;
+  label: string;
+  required: boolean;
+}[] = [
+  { key: "name", label: "Name of the installation (English)", required: true },
+  { key: "street", label: "Street, number", required: true },
+  { key: "postcode", label: "Post code", required: false },
+  { key: "poBox", label: "P.O. Box", required: false },
+  { key: "city", label: "City", required: true },
+  { key: "country", label: "Country", required: true },
+  { key: "unlocode", label: "UNLOCODE", required: false },
+  { key: "lat", label: "Latitude — main emission source", required: true },
+  { key: "lng", label: "Longitude — main emission source", required: true },
+];
 
 /** Records written before a field existed load as `undefined` and would render
     an uncontrolled input. Everything that reads a stored installation goes

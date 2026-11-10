@@ -9162,4 +9162,5 @@ export const ZH: Record<string, string> = {
   "This tab edits the installation record. Changes also show in Settings → Installations.":
     "此标签页直接编辑设施记录。修改也会显示在 Settings → Installations 中。",
   "Choose an installation above to fill in its details.": "请在上方选择一个设施以填写详细信息。",
+  "{n} missing fields": "缺少 {n} 项",
 };

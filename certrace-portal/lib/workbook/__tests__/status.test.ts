@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { installationSheetStatus, missingCells, sheetStatus, SHEET_ORDER, statusTooltip } from "../status";
 import { emptyInstallation, isInstallationComplete, type Installation } from "../../installations";
+import { installationTabTone, STATUS_TONE } from "../status";
 import type { Sheet } from "../../workspace-sheets";
 
 const sheet = (rows: Sheet["rows"]): Sheet => ({
@@ -120,4 +121,27 @@ test("installation tab: a complete record is complete and matches Settings", () 
   };
   assert.equal(installationSheetStatus(full), "complete");
   assert.equal(isInstallationComplete(full), true);
+});
+test("installation tab: a country alone does not start the site", () => {
+  assert.equal(installationSheetStatus({ ...emptyInstallation(), country: "TH" }), "untouched");
+});
+// A half-entered or out-of-range coordinate pair is not a complete site, even
+// though the form would accept the record's other fields.
+test("installation tab: an invalid coordinate pair is missing, the same as Settings", () => {
+  const base: Installation = {
+    ...emptyInstallation(),
+    id: "TH-RAYONG-01",
+    name: "Rayong Rolling Mill 2",
+    street: "1 Moo 2",
+    city: "Rayong",
+    country: "TH",
+    lat: "95",
+    lng: "101.2",
+  };
+  assert.equal(installationSheetStatus(base), "missing");
+  assert.equal(installationSheetStatus({ ...base, lat: "12.7", lng: "" }), "missing");
+});
+test("installation tab tone follows the status colour", () => {
+  assert.equal(installationTabTone(null), STATUS_TONE.untouched);
+  assert.equal(installationTabTone({ ...emptyInstallation(), name: "x" }), STATUS_TONE.missing);
 });

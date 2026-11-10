@@ -6815,4 +6815,5 @@ export const HI: Record<string, string> = {
   "This tab edits the installation record. Changes also show in Settings → Installations.":
     "यह टैब संयंत्र का रिकॉर्ड सीधे संपादित करता है। बदलाव Settings → Installations में भी दिखेंगे।",
   "Choose an installation above to fill in its details.": "पूरा विवरण भरने के लिए ऊपर एक संयंत्र चुनें।",
+  "{n} missing fields": "{n} फ़ील्ड गायब हैं",
 };

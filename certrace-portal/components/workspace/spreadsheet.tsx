@@ -24,7 +24,7 @@ import { useLanguage, type TFunction } from "@/lib/i18n";
 import { TH_WORKSPACE } from "@/lib/i18n-th-workspace";
 import { InstallationSheet } from "@/components/workspace/installation-sheet";
 import { missingFields, type Installation } from "@/lib/installations";
-import { installationSheetStatus } from "@/lib/workbook/status";
+import { STATUS_LABEL, installationSheetStatus, installationTabTone } from "@/lib/workbook/status";
 import {
   INSTALLATION_SHEET_ID,
   NO_FILE,
@@ -99,7 +99,8 @@ export function Spreadsheet({
 
   const sheet = sheets.find((s) => s.id === tab);
   const isDiagram = tab === PRODUCTION_DIAGRAM_ID;
-  const installIssues = installationSheetStatus(installation) === "missing" ? missingFields(installation).length : 0;
+  const installStatus = installationSheetStatus(installation);
+  const installIssues = installStatus === "missing" ? missingFields(installation).length : 0;
   const cols = sheet?.cols ?? [];
   const colCount = empty || !sheet ? 7 : cols.length;
 
@@ -344,7 +345,7 @@ export function Spreadsheet({
         {[{ id: PRODUCTION_DIAGRAM_ID, code: "", name: "Production diagram" } as Pick<Sheet, "id" | "code" | "name">, ...sheets].map((s) => {
           const on = tab === s.id;
           const full = sheets.find((x) => x.id === s.id);
-          const n = !full || empty ? 0 : s.id === INSTALLATION_SHEET_ID ? installIssues : q ? matchCount(full) : issuesOf(full);
+          const n = !full || empty ? 0 : q ? matchCount(full) : issuesOf(full);
           return (
             <button
               key={s.id}
@@ -363,7 +364,22 @@ export function Spreadsheet({
             >
               {s.code && <span>{s.code}</span>}
               {t(s.name)}
-              {n > 0 && (
+              {s.id === INSTALLATION_SHEET_ID && !empty ? (
+                installStatus !== "untouched" && (
+                  <span
+                    role="img"
+                    aria-label={
+                      installStatus === "missing"
+                        ? t("{n} missing fields", { n: installIssues })
+                        : t(STATUS_LABEL[installStatus])
+                    }
+                    style={{ backgroundColor: installationTabTone(installation) }}
+                    className="grid h-4 min-w-4 place-items-center rounded-full px-1 font-mono text-[10px] text-white"
+                  >
+                    {installStatus === "missing" ? installIssues : ""}
+                  </span>
+                )
+              ) : n > 0 && (
                 <span
                   className={cn(
                     "grid h-4 min-w-4 place-items-center rounded-full px-1 font-mono text-[10px]",
