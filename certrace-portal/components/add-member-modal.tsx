@@ -35,7 +35,8 @@ export function AddMemberModal({
   const [error, setError] = React.useState("");
   const [inviteToo, setInviteToo] = React.useState(false);
   const [inviteNotice, setInviteNotice] = React.useState("");
-  const isOwner = useCompanyDirectory()?.isOwner ?? false;
+  const directory = useCompanyDirectory();
+  const isOwner = directory?.isOwner ?? false;
 
   // reset the form each time the popup opens
   React.useEffect(() => {
@@ -68,17 +69,27 @@ export function AddMemberModal({
       await flushAccount();
       onAdded(member);
       if (inviteToo && isOwner) {
-        // Stays open so the invite result can be read; the contact is saved either way.
-        const sent = await sendInvite(email);
-        setInviteNotice(
-          sent.delivered
-            ? t("Invitation sent to {email}.", {
-                email: email.trim().toLowerCase(),
-              })
-            : t(
-                "Invitation saved. Check delivery before asking them to join.",
-              ),
-        );
+        // Stays open so the invite result can be read; the contact is saved
+        // either way. A failed invite must not look like a failed save: a retry
+        // would add the same person a second time.
+        try {
+          const sent = await sendInvite(email);
+          setInviteNotice(
+            sent.delivered
+              ? t("Invitation sent to {email}.", {
+                  email: email.trim().toLowerCase(),
+                })
+              : t(
+                  "Invitation saved. Check delivery before asking them to join.",
+                ),
+          );
+        } catch (cause) {
+          setInviteNotice(
+            t("Contact saved, but the invitation failed: {error}", {
+              error: cause instanceof Error ? cause.message : String(cause),
+            }),
+          );
+        }
         return;
       }
       onClose();
@@ -148,10 +159,11 @@ export function AddMemberModal({
                 onChange={(e) => setEmail(e.target.value)}
               />
             </Field>
-            {isOwner && !inviteNotice && (
+            {(directory === null || isOwner) && !inviteNotice && (
               <Checkbox
                 checked={inviteToo}
                 onChange={setInviteToo}
+                disabled={directory === null}
                 label={t("Also invite them to sign in and edit the workspace")}
               />
             )}

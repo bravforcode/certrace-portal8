@@ -9123,4 +9123,5 @@ export const ZH: Record<string, string> = {
   "Invitation saved. Check delivery before asking them to join.": "邀请已保存。请先确认送达，再请对方加入。",
   "Only the company owner can add team members. Ask them to invite this person from Team.": "只有公司所有者可以添加团队成员。请让其从“团队”页面邀请此人。",
   "Also invite them to sign in and edit the workspace": "同时邀请其登录并编辑工作区",
+  "Contact saved, but the invitation failed: {error}": "联系人已保存，但邀请发送失败：{error}",
 };

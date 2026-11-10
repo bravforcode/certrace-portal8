@@ -6776,4 +6776,5 @@ export const HI: Record<string, string> = {
   "Invitation saved. Check delivery before asking them to join.": "आमंत्रण सहेजा गया। उन्हें जुड़ने के लिए कहने से पहले डिलीवरी जाँच लें।",
   "Only the company owner can add team members. Ask them to invite this person from Team.": "केवल कंपनी के मालिक टीम सदस्य जोड़ सकते हैं। उनसे टीम पेज से इस व्यक्ति को आमंत्रित करने को कहें।",
   "Also invite them to sign in and edit the workspace": "उन्हें साइन इन करने और वर्कस्पेस संपादित करने के लिए भी आमंत्रित करें",
+  "Contact saved, but the invitation failed: {error}": "संपर्क सहेजा गया, पर आमंत्रण विफल रहा: {error}",
 };

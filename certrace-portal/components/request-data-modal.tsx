@@ -25,6 +25,7 @@ export function RequestDataModal({
   const router = useRouter();
   const directory = useCompanyDirectory();
   const isOwner = directory?.isOwner ?? false;
+  // Until the directory loads we cannot tell an owner from an editor, so Yes waits.
   const [route, setRoute] = React.useState<RequestRoute | null>(null);
   const [email, setEmail] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -94,8 +95,9 @@ export function RequestDataModal({
           <div className="grid gap-3">
             <button
               type="button"
+              disabled={directory === null}
               onClick={() => answer(true)}
-              className="rounded-xl border border-black/10 p-4 text-left transition-colors hover:border-black/25"
+              className="rounded-xl border border-black/10 p-4 text-left transition-colors hover:border-black/25 disabled:cursor-wait disabled:opacity-50"
             >
               <span className="block text-sm font-medium">{t("Yes")}</span>
               <span className="mt-1 block text-[12.5px] text-black/50">

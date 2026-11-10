@@ -4208,8 +4208,6 @@ export const TH: Record<string, string> = {
   "Confirm the phase-in rate": "ยืนยันอัตราการทยอยบังคับใช้",
   "Request data": "ขอข้อมูล",
   "Is this person in your company?": "บุคคลนี้เป็นคนในบริษัทของคุณหรือไม่?",
-  Yes: "ใช่",
-  No: "ไม่ใช่",
   "They get a portal login and edit the workspace with you": "จะได้รับบัญชีเข้าพอร์ทัลและแก้ไขพื้นที่ทำงานร่วมกับคุณ",
   "They get a secure form link; no login": "จะได้รับลิงก์แบบฟอร์มที่ปลอดภัย ไม่ต้องเข้าสู่ระบบ",
   "Send invitation": "ส่งคำเชิญ",
@@ -4217,4 +4215,5 @@ export const TH: Record<string, string> = {
   "Invitation saved. Check delivery before asking them to join.": "บันทึกคำเชิญแล้ว ตรวจสอบการส่งก่อนขอให้เขาเข้าร่วม",
   "Only the company owner can add team members. Ask them to invite this person from Team.": "มีเพียงเจ้าของบริษัทเท่านั้นที่เพิ่มสมาชิกทีมได้ โปรดขอให้เจ้าของเชิญบุคคลนี้จากหน้าทีม",
   "Also invite them to sign in and edit the workspace": "เชิญให้เข้าสู่ระบบและแก้ไขพื้นที่ทำงานด้วย",
+  "Contact saved, but the invitation failed: {error}": "บันทึกผู้ติดต่อแล้ว แต่การส่งคำเชิญล้มเหลว: {error}",
 };
