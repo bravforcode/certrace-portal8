@@ -16,6 +16,7 @@ const userSelect = {
   status: true,
   plan_id: true,
   created_at: true,
+  approved_at: true,
 } satisfies Prisma.usersSelect;
 type AdminUser = Prisma.usersGetPayload<{ select: typeof userSelect }>;
 
@@ -30,6 +31,7 @@ const view = (user: AdminUser) => ({
   status: user.status,
   planId: user.plan_id,
   registeredAt: user.created_at.toISOString(),
+  approvedAt: user.approved_at?.toISOString() ?? null,
 });
 
 function requireAdmin(account: users) {
@@ -125,6 +127,81 @@ export const admin = new Elysia({ prefix: "/api/admin" })
     {
       params: t.Object({ id: t.String({ format: "uuid" }) }),
       body: t.Object({ ready: t.Boolean() }),
+      detail: { hide: true },
+    },
+  )
+  .post(
+    "/users/:id/reject",
+    async ({ account, params, body }) => {
+      requireAdmin(account);
+      const user = await db.$transaction(async (tx) => {
+        const u = await tx.users
+          .update({
+            where: { id: params.id },
+            data: {
+              ready: false,
+              status: "SUSPENDED",
+              suspended_at: new Date(),
+              suspension_reason: body.reason,
+              updated_at: new Date(),
+            },
+          })
+          .catch(() => missing());
+        await tx.account_audit_events.create({
+          data: {
+            user_id: params.id,
+            event: "ADMIN_REJECTED",
+            actor: "ADMIN",
+            details: { adminUserId: account.id, reason: body.reason },
+          },
+        });
+        return u;
+      });
+      // Outside the transaction: a mail failure must not undo the rejection.
+      await notify(user, "account_rejected", { reason: body.reason }).catch((e: unknown) =>
+        console.error(
+          "rejection email failed",
+          (e as { code?: string } | undefined)?.code,
+        ),
+      );
+      return { user: view(user) };
+    },
+    {
+      params: t.Object({ id: t.String({ format: "uuid" }) }),
+      body: t.Object({ reason: t.String({ minLength: 3, maxLength: 500 }) }),
+      detail: { hide: true },
+    },
+  )
+  .post(
+    "/users/:id/extend-trial",
+    async ({ account, params, body }) => {
+      requireAdmin(account);
+      const user = await db.$transaction(async (tx) => {
+        const prev = (await tx.users.findUnique({ where: { id: params.id } })) ?? missing();
+        const u = await tx.users.update({
+          where: { id: params.id },
+          data: {
+            trial_started_at: new Date(
+              prev.trial_started_at.getTime() + body.days * 86_400_000,
+            ),
+            updated_at: new Date(),
+          },
+        });
+        await tx.account_audit_events.create({
+          data: {
+            user_id: params.id,
+            event: "ADMIN_TRIAL_EXTENDED",
+            actor: "ADMIN",
+            details: { adminUserId: account.id, days: body.days },
+          },
+        });
+        return u;
+      });
+      return { user: view(user) };
+    },
+    {
+      params: t.Object({ id: t.String({ format: "uuid" }) }),
+      body: t.Object({ days: t.Integer({ minimum: 1, maximum: 90 }) }),
       detail: { hide: true },
     },
   );

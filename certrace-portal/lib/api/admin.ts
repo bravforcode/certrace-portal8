@@ -15,3 +15,11 @@ export type AdminUser = Awaited<
 export async function setAdminUserReady(id: string, ready: boolean) {
   return result(api().api.admin.users({ id }).ready.put({ ready }));
 }
+
+export async function rejectAdminUser(id: string, reason: string) {
+  return result(api().api.admin.users({ id }).reject.post({ reason }));
+}
+
+export async function extendAdminTrial(id: string, days: number) {
+  return result(api().api.admin.users({ id })["extend-trial"].post({ days }));
+}
