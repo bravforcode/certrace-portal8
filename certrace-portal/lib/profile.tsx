@@ -50,6 +50,18 @@ export type Profile = {
    *  actually reach support, so it is asked for rather than hoped for. */
   phone?: string;
   lineId?: string;
+  // Company basics — identify the legal entity for CBAM and invoicing.
+  taxId?: string;
+  website?: string;
+  country?: string;
+  employeeBand?: string;
+  exportMarkets?: string[];
+  productionModel?: string;
+  // Factory basics — seed the factory profile so it is not empty on first visit.
+  energySources?: string[];
+  boilerCount?: string;
+  furnaceCount?: string;
+  annualProductionBand?: string;
 };
 
 export function splitName(name: string): {

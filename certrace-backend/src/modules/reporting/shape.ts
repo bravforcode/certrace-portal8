@@ -11,6 +11,8 @@ export type Shape = {
   min?: number;
   max?: number;
   format?: string;
+  maxLength?: number;
+  pattern?: string;
   fields?: Record<string, Shape>;
   item?: Shape;
 };

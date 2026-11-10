@@ -91,6 +91,19 @@ export function validateShape(
     if (typeof value === "string" && value.length > 1000000)
       bad(path, "text is too long");
     if (
+      typeof value === "string" &&
+      s.maxLength !== undefined &&
+      value.length > s.maxLength
+    )
+      bad(path, `must be at most ${s.maxLength} characters`);
+    if (
+      typeof value === "string" &&
+      s.pattern &&
+      value !== "" &&
+      !new RegExp(s.pattern).test(value)
+    )
+      bad(path, "invalid format");
+    if (
       s.format === "date" &&
       value !== "" &&
       (!/^\d{4}-\d{2}-\d{2}$/.test(value as string) ||
