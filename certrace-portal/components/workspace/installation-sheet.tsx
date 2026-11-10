@@ -7,28 +7,28 @@
    A row per field the installation form asks for; a required field left empty
    gets a red edge and a screen-reader "missing" note.
 
-   Typing is checked by the same validators the form uses. A value they reject
-   stays on screen with its message beside the field and is NOT saved; the
-   record keeps its last valid value. Valid edits save after a short pause,
-   through the parent's `onSave`, which writes the record and refreshes the tab.
+   The edit rules (what is saved, what is rejected) live in lib/installations.ts
+   as applySheetEdit, so they are tested as a sequence. A value the validator
+   rejects stays on screen with its message and is NOT saved. Valid edits save
+   after a short pause, through the parent's `onSave`.
    ════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
 import { useT } from "@/lib/i18n";
 import {
   INSTALLATION_SHEET_FIELDS,
-  installationErrors,
+  applySheetEdit,
+  normaliseReference,
+  startSheetEdit,
   type Installation,
-  type InstallationFieldErrors,
+  type SheetEditState,
 } from "@/lib/installations";
 
 const SAVE_DELAY_MS = 600;
 
-type FieldMessages = Partial<Record<keyof Installation, string>>;
-
-// A coordinate pair is validated as a pair; either box shows the pair's message.
-const fieldError = (errs: InstallationFieldErrors, key: keyof Installation): string | undefined =>
-  errs[key] ?? (key === "lat" || key === "lng" ? errs.coordinates : undefined);
+// The echo of our own save: the store trims the name and normalises the reference.
+const canonical = (i: Installation) =>
+  JSON.stringify({ ...i, id: normaliseReference(i.id), name: i.name.trim() });
 
 export function InstallationSheet({
   installation,
@@ -38,13 +38,13 @@ export function InstallationSheet({
   onSave?: (inst: Installation) => void;
 }) {
   const t = useT();
-  const [draft, setDraft] = React.useState<Installation | null>(installation);
-  const [messages, setMessages] = React.useState<FieldMessages>({});
-  // The last record that is saved or waiting to be saved. A rejected field reverts to it.
-  const known = React.useRef<Installation | null>(installation);
+  const [view, setView] = React.useState<SheetEditState | null>(() =>
+    installation ? startSheetEdit(installation) : null,
+  );
+  // The source of truth for edits; `view` only re-renders the tab.
+  const edit = React.useRef<SheetEditState | null>(view);
+  // The record waiting to be saved.
   const pending = React.useRef<Installation | null>(null);
-  // Raw values the validators rejected. They stay in the field and survive a refresh; they are never saved.
-  const rejected = React.useRef<Partial<Installation>>({});
   const timer = React.useRef<number | undefined>(undefined);
   const onSaveRef = React.useRef(onSave);
   onSaveRef.current = onSave;
@@ -58,32 +58,30 @@ export function InstallationSheet({
   }, []);
   React.useEffect(() => flush, [flush]);
 
-  // A saved record that arrives while nothing is pending replaces the draft; rejected raw values stay on screen.
+  // A record that arrives from outside replaces the draft, and rejected values
+  // with it. Our own save coming back is not outside: it is the same record.
   React.useEffect(() => {
-    if (pending.current || !installation) return;
-    known.current = installation;
-    setDraft({ ...installation, ...rejected.current });
+    if (!installation || pending.current) return;
+    if (edit.current && canonical(installation) === canonical(edit.current.known)) return;
+    edit.current = startSheetEdit(installation);
+    setView(edit.current);
   }, [installation]);
 
-  if (!draft) {
+  if (!view) {
     return <div className="grid min-h-[240px] place-items-center bg-[#fafaf8] px-6 text-center text-[14px] text-black/55">{t("Choose an installation above to fill in its details.")}</div>;
   }
 
   const change = (key: keyof Installation, value: string) => {
-    const next = { ...draft, [key]: value } as Installation;
-    const message = fieldError(installationErrors(next, draft.id), key);
-    const kept: Partial<Installation> = { ...rejected.current };
-    if (message) Object.assign(kept, { [key]: value });
-    else delete kept[key];
-    rejected.current = kept;
-    setDraft(next);
-    setMessages((prev) => ({ ...prev, [key]: message }));
-    const persisted = message ? ({ ...next, [key]: known.current?.[key] ?? "" } as Installation) : next;
-    known.current = persisted;
-    pending.current = persisted;
+    if (!edit.current) return;
+    const next = applySheetEdit(edit.current, key, value);
+    edit.current = next;
+    setView(next);
+    pending.current = next.known;
     window.clearTimeout(timer.current);
     timer.current = window.setTimeout(flush, SAVE_DELAY_MS);
   };
+
+  const draft = view.draft;
 
   return (
     <div className="bg-white">
@@ -96,7 +94,7 @@ export function InstallationSheet({
         {INSTALLATION_SHEET_FIELDS.map((f) => {
           const raw = String(draft[f.key] ?? "");
           const empty = f.required && !raw.trim();
-          const message = messages[f.key];
+          const message = view.messages[f.key];
           const invalid = empty || Boolean(message);
           const messageId = `installation-${String(f.key)}-message`;
           return (

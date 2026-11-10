@@ -114,8 +114,10 @@ test("installation tab: a complete record is complete and matches Settings", () 
     id: "TH-RAYONG-01",
     name: "Rayong Rolling Mill 2",
     street: "1 Moo 2",
+    postcode: "21150",
     city: "Rayong",
     country: "TH",
+    unlocode: "THRYG",
     lat: "12.7",
     lng: "101.2",
   };

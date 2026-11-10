@@ -85,6 +85,14 @@ export function installationSheetStatus(inst: Installation | null): SheetStatus 
   return "complete";
 }
 
+/** How many gaps the tab's badge reports. A bad coordinate pair with every other
+    field filled is one gap, so a missing tab never shows 0. */
+export function installationGaps(inst: Installation): number {
+  const gaps = missingFields(inst).length;
+  if (gaps) return gaps;
+  return coordinateError(inst.lat, inst.lng) ? 1 : 0;
+}
+
 export const installationTabTone = (inst: Installation | null): string =>
   STATUS_TONE[installationSheetStatus(inst)];
 

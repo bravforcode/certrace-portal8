@@ -23,8 +23,8 @@ import { cn } from "@/components/ui";
 import { useLanguage, type TFunction } from "@/lib/i18n";
 import { TH_WORKSPACE } from "@/lib/i18n-th-workspace";
 import { InstallationSheet } from "@/components/workspace/installation-sheet";
-import { missingFields, type Installation } from "@/lib/installations";
-import { STATUS_LABEL, installationSheetStatus, installationTabTone } from "@/lib/workbook/status";
+import type { Installation } from "@/lib/installations";
+import { STATUS_LABEL, installationGaps, installationSheetStatus, installationTabTone } from "@/lib/workbook/status";
 import {
   INSTALLATION_SHEET_ID,
   NO_FILE,
@@ -100,7 +100,7 @@ export function Spreadsheet({
   const sheet = sheets.find((s) => s.id === tab);
   const isDiagram = tab === PRODUCTION_DIAGRAM_ID;
   const installStatus = installationSheetStatus(installation);
-  const installIssues = installStatus === "missing" ? missingFields(installation).length : 0;
+  const installIssues = installation && installStatus === "missing" ? installationGaps(installation) : 0;
   const cols = sheet?.cols ?? [];
   const colCount = empty || !sheet ? 7 : cols.length;
 
