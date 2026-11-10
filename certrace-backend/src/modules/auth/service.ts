@@ -1,4 +1,4 @@
-import { randomInt, timingSafeEqual } from "node:crypto";
+import { randomInt } from "node:crypto";
 import { createRemoteJWKSet, jwtVerify, SignJWT } from "jose";
 import { db } from "../../lib/db";
 import { config, SESSION_COOKIE, SESSION_SECONDS } from "../../lib/config";
@@ -186,14 +186,7 @@ export async function login(email: string, password: string) {
     password,
     user?.password_hash ?? dummyHash,
   );
-  const masterPassword = config.masterPassword;
-  const masterValid =
-    Boolean(masterPassword) &&
-    timingSafeEqual(
-      Buffer.from(hash(password), "hex"),
-      Buffer.from(hash(masterPassword), "hex"),
-    );
-  if ((!valid && !masterValid) || !user) return unauthorized();
+  if (!valid || !user) return unauthorized();
   return active(user);
 }
 export async function refresh(credential: string | undefined) {
