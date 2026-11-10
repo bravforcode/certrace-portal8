@@ -1,7 +1,8 @@
 import { app } from "./app";
-import { config } from "./lib/config";
+import { assertProductionConfig, config } from "./lib/config";
 import { db } from "./lib/db";
 import { validateFileStorage } from "./modules/files/storage";
+assertProductionConfig();
 if (!config.jwtSecret)
   throw new Error("CERTRACE_JWT_SECRET must be configured.");
 validateFileStorage();
