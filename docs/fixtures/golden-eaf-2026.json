@@ -1,7 +1,7 @@
 {
   "id": "golden-eaf-2026",
   "title": "Scrap-fed EAF steel installation, CN 7213.10, calendar year 2026",
-  "purpose": "One set of inputs and one set of answers, read by both calculation engines. Neither engine owns it. See docs/fixtures/README.md.",
+  "purpose": "One set of inputs and one set of answers, read by both calculation engines. Neither engine owns it.",
   "specReference": "Certrace build spec 5.6",
   "regulatoryBasis": "Regulation (EU) 2023/956, Annex II - iron & steel is charged on direct emissions only",
   "sector": "IRON_STEEL",
