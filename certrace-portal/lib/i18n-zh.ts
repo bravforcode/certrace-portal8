@@ -9115,10 +9115,8 @@ export const ZH: Record<string, string> = {
   "Your workspace is ready when setup is saved.":
     "保存设置后即可使用您的工作区。",
   "Request data": "请求数据",
-  "Who should provide this data?": "谁应提供这些数据？",
-  "Someone in our company (factory, engineering, accounting)": "本公司内部人员（工厂、工程、会计）",
+  "Is this person in your company?": "此人是贵公司的员工吗？",
   "They get a portal login and edit the workspace with you": "他们将获得门户登录权限，并与您一起编辑工作区",
-  "An outside supplier of precursors or materials": "外部的前体或原材料供应商",
   "They get a secure form link; no login": "他们将获得安全表单链接，无需登录",
   "Send invitation": "发送邀请",
   "Invitation sent to {email}.": "已发送邀请至 {email}。",
