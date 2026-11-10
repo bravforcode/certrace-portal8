@@ -7,10 +7,12 @@
 
 import * as React from "react";
 import { X, UserPlus } from "lucide-react";
-import { Card, Button, Eyebrow, Field, inputClass } from "./ui";
+import { Card, Button, Checkbox, Eyebrow, Field, inputClass } from "./ui";
 import { Portal } from "./controls";
 import { addTeamMember, type TeamMember } from "@/lib/team-store";
 import { flushAccount } from "@/lib/account-storage";
+import { sendInvite } from "@/lib/api/team";
+import { useCompanyDirectory } from "@/lib/team-query";
 import { useT } from "@/lib/i18n";
 
 export function AddMemberModal({
@@ -31,6 +33,9 @@ export function AddMemberModal({
   const [email, setEmail] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
+  const [inviteToo, setInviteToo] = React.useState(false);
+  const [inviteNotice, setInviteNotice] = React.useState("");
+  const isOwner = useCompanyDirectory()?.isOwner ?? false;
 
   // reset the form each time the popup opens
   React.useEffect(() => {
@@ -38,6 +43,8 @@ export function AddMemberModal({
       setName("");
       setEmail("");
       setError("");
+      setInviteToo(false);
+      setInviteNotice("");
     }
   }, [open]);
 
@@ -60,6 +67,20 @@ export function AddMemberModal({
       const member = addTeamMember({ name, email });
       await flushAccount();
       onAdded(member);
+      if (inviteToo && isOwner) {
+        // Stays open so the invite result can be read; the contact is saved either way.
+        const sent = await sendInvite(email);
+        setInviteNotice(
+          sent.delivered
+            ? t("Invitation sent to {email}.", {
+                email: email.trim().toLowerCase(),
+              })
+            : t(
+                "Invitation saved. Check delivery before asking them to join.",
+              ),
+        );
+        return;
+      }
       onClose();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -127,19 +148,45 @@ export function AddMemberModal({
                 onChange={(e) => setEmail(e.target.value)}
               />
             </Field>
+            {isOwner && !inviteNotice && (
+              <Checkbox
+                checked={inviteToo}
+                onChange={setInviteToo}
+                label={t("Also invite them to sign in and edit the workspace")}
+              />
+            )}
           </fieldset>
 
+          {inviteNotice && (
+            <p role="status" className="mt-3 text-sm">
+              {inviteNotice}
+            </p>
+          )}
+
           <div className="mt-5 flex items-center justify-end gap-2 border-t border-black/[0.06] pt-4">
-            <Button variant="ghost" size="sm" disabled={busy} onClick={onClose}>
-              {t("Cancel")}
-            </Button>
-            <Button
-              size="sm"
-              disabled={!valid || busy}
-              onClick={() => void submit()}
-            >
-              <UserPlus size={14} strokeWidth={1.5} /> {t("Add contact")}
-            </Button>
+            {inviteNotice ? (
+              <Button size="sm" onClick={onClose}>
+                {t("Close")}
+              </Button>
+            ) : (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={busy}
+                  onClick={onClose}
+                >
+                  {t("Cancel")}
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={!valid || busy}
+                  onClick={() => void submit()}
+                >
+                  <UserPlus size={14} strokeWidth={1.5} /> {t("Add contact")}
+                </Button>
+              </>
+            )}
           </div>
         </Card>
       </div>

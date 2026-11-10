@@ -9114,4 +9114,15 @@ export const ZH: Record<string, string> = {
   "Your plan": "您的套餐",
   "Your workspace is ready when setup is saved.":
     "保存设置后即可使用您的工作区。",
+  "Request data": "请求数据",
+  "Who should provide this data?": "谁应提供这些数据？",
+  "Someone in our company (factory, engineering, accounting)": "本公司内部人员（工厂、工程、会计）",
+  "They get a portal login and edit the workspace with you": "他们将获得门户登录权限，并与您一起编辑工作区",
+  "An outside supplier of precursors or materials": "外部的前体或原材料供应商",
+  "They get a secure form link; no login": "他们将获得安全表单链接，无需登录",
+  "Send invitation": "发送邀请",
+  "Invitation sent to {email}.": "已发送邀请至 {email}。",
+  "Invitation saved. Check delivery before asking them to join.": "邀请已保存。请先确认送达，再请对方加入。",
+  "Only the company owner can add team members. Ask them to invite this person from Team.": "只有公司所有者可以添加团队成员。请让其从“团队”页面邀请此人。",
+  "Also invite them to sign in and edit the workspace": "同时邀请其登录并编辑工作区",
 };
