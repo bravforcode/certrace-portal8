@@ -12,7 +12,6 @@ export const config = {
     .map((s) => s.trim())
     .filter(Boolean),
   jwtSecret: process.env.CERTRACE_JWT_SECRET ?? "",
-  masterPassword: process.env.CERTRACE_MASTER_PASSWORD ?? "",
   secureCookie: process.env.COOKIE_SECURE === "true",
   googleClientId: process.env.CERTRACE_GOOGLE_CLIENT_ID ?? "",
   registrationSheetWebhookUrl: process.env.CERTRACE_SHEET_WEBHOOK_URL ?? "",
