@@ -21,7 +21,7 @@ import { Button, Card, Eyebrow, Modal, cn, inputClass } from "@/components/ui";
 import { Select } from "@/components/controls";
 import { useT } from "@/lib/i18n";
 import { yearRange } from "@/lib/year-range";
-import type { WorkspaceFile } from "@/lib/workspace-store";
+import type { WorkspaceFile } from "@/lib/workspace-sheets";
 
 type Draft = { id: string; name: string; size: number; type: string; description: string };
 type Mode = "upload" | "blank" | "copy";

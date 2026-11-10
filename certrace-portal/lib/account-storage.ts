@@ -301,7 +301,6 @@ const browserOnly = new Set([
   "certrace:sidebar-collapsed",
   "certrace:active-installation",
   "certrace:trace-profile",
-  "certrace:workspace-years",
 ]);
 export function legacyRecords() {
   if (typeof window === "undefined") return [];

@@ -24,7 +24,17 @@ import { useLanguage, type TFunction } from "@/lib/i18n";
 import { TH_WORKSPACE } from "@/lib/i18n-th-workspace";
 import { InstallationSheet } from "@/components/workspace/installation-sheet";
 import type { Installation } from "@/lib/installations";
-import { STATUS_LABEL, installationGaps, installationSheetStatus, installationTabTone } from "@/lib/workbook/status";
+import {
+  SHEET_ORDER,
+  STATUS_LABEL,
+  STATUS_TONE,
+  installationGaps,
+  installationSheetStatus,
+  installationTabTone,
+  sheetStatus,
+  statusTooltip,
+} from "@/lib/workbook/status";
+import { useTeam } from "@/lib/team-query";
 import {
   INSTALLATION_SHEET_ID,
   NO_FILE,
@@ -38,6 +48,15 @@ import {
 
 const MIN_ROWS = 20;
 
+/* "3 min ago" style, for the editor note on a cell. */
+function timeAgo(at: string, t: TFunction) {
+  const s = Math.max(0, (Date.now() - Date.parse(at)) / 1000);
+  if (s < 60) return t("just now");
+  if (s < 3600) return t("{n} min ago", { n: Math.floor(s / 60) });
+  if (s < 86400) return t("{n} h ago", { n: Math.floor(s / 3600) });
+  return t("{n} days ago", { n: Math.floor(s / 86400) });
+}
+
 /* Inside the sheet the workspace's own Thai wins (แหล่งที่มา, วิธีได้ค่า, ผลิตภัณฑ์) over the
    portal-wide words for the same English (แหล่ง, วิธีการ, สินค้า), without changing them elsewhere. */
 function useSheetT(): TFunction {
@@ -46,57 +65,44 @@ function useSheetT(): TFunction {
 }
 const ROW_NO = "44px";
 
-type SaveState = "saved" | "saving";
-
 const RAW_KEYS = new Set(["description", "cn", "size", "type", "valid"]);
 const isRaw = (c: SheetCol) => c.kind === "number" || c.kind === "file" || RAW_KEYS.has(c.key);
 
 export function Spreadsheet({
   sheets,
-  edits: saved = {},
   onEdit,
+  saving = false,
+  editors = {},
   empty = false,
   installation = null,
   onInstallationSave,
 }: {
+  /** Rows come from the server workbook (useWorkbook), already with unsaved edits on top. */
   sheets: Sheet[];
-  edits?: Record<string, string>;
   onEdit?: (cell: string, value: string) => void;
+  /** Typed edits not yet confirmed by the server. */
+  saving?: boolean;
+  /** Who last changed each cell ("sheet:row:col" → account id and time). */
+  editors?: Record<string, { by: string; at: string }>;
   empty?: boolean;
   /** The site the Installation tab edits — the scoped installation's full record. */
   installation?: Installation | null;
   onInstallationSave?: (inst: Installation) => void;
 }) {
   const t = useSheetT();
+  const team = useTeam().data;
   const [tab, setTab] = React.useState<string>("materials");
   const [sel, setSel] = React.useState<{ r: number; c: number }>({ r: 0, c: 2 });
   const [editing, setEditing] = React.useState<string | null>(null);
   const [query, setQuery] = React.useState("");
-  const [save, setSave] = React.useState<SaveState>("saved");
   const gridRef = React.useRef<HTMLDivElement>(null);
 
-  /* Kept edits show at once, before they are written: `pending` sits over the
-     saved edits, and one timer writes everything pending together — so two
-     quick edits cannot have the first one's timer report "saved" while the
-     second is still on its way. Anything still pending is written on unmount. */
-  const [pending, setPending] = React.useState<Record<string, string>>({});
-  const pendingRef = React.useRef<Record<string, string>>({});
-  const timer = React.useRef<number | undefined>(undefined);
-  const onEditRef = React.useRef(onEdit);
-  onEditRef.current = onEdit;
-  const flush = React.useCallback(() => {
-    window.clearTimeout(timer.current);
-    const out = pendingRef.current;
-    pendingRef.current = {};
-    for (const [k, v] of Object.entries(out)) onEditRef.current?.(k, v);
-    setPending({});
-    setSave("saved");
-  }, []);
-  React.useEffect(() => () => {
-    if (Object.keys(pendingRef.current).length) flush();
-  }, [flush]);
-  const edits = React.useMemo(() => ({ ...saved, ...pending }), [saved, pending]);
-
+  const editorName = (by: string) => team?.find((m) => m.id === by)?.name ?? t("a teammate");
+  // Tabs follow the material flow; a sheet not in SHEET_ORDER goes after the ones that are.
+  const orderOf = (id: string) => {
+    const i = SHEET_ORDER.indexOf(id);
+    return i < 0 ? SHEET_ORDER.length : i;
+  };
   const sheet = sheets.find((s) => s.id === tab);
   const isDiagram = tab === PRODUCTION_DIAGRAM_ID;
   const installStatus = installationSheetStatus(installation);
@@ -105,24 +111,20 @@ export function Spreadsheet({
   const colCount = empty || !sheet ? 7 : cols.length;
 
   const keyOf = (r: number, c: number) => `${tab}:${r}:${cols[c]?.key}`;
-  const valueOf = (row: SheetRow, r: number, c: number) => {
-    const k = keyOf(r, c);
-    return k in edits ? edits[k]! : (row.cells[cols[c]!.key] ?? "");
-  };
+  const valueOf = (row: SheetRow, _r: number, c: number) => row.cells[cols[c]!.key] ?? "";
   const shown = (col: SheetCol, v: string) => (v && !isRaw(col) ? t(v) : v);
 
   // Search: rows of this sheet with a cell that matches; counts per sheet for the tabs.
   const q = query.trim().toLowerCase();
-  const rowMatches = (s: Sheet, row: SheetRow, r: number) =>
+  const rowMatches = (s: Sheet, row: SheetRow) =>
     !q ||
     s.cols.some((c) => {
       if (c.kind === "status") return false;
-      const k = `${s.id}:${r}:${c.key}`;
-      const v = k in edits ? edits[k]! : (row.cells[c.key] ?? "");
+      const v = row.cells[c.key] ?? "";
       return v.toLowerCase().includes(q) || shown(c, v).toLowerCase().includes(q);
     });
-  const visible = sheet && !empty ? sheet.rows.map((row, r) => ({ row, r })).filter(({ row, r }) => rowMatches(sheet, row, r)) : [];
-  const matchCount = (s: Sheet) => s.rows.filter((row, r) => rowMatches(s, row, r)).length;
+  const visible = sheet && !empty ? sheet.rows.map((row, r) => ({ row, r })).filter(({ row }) => rowMatches(sheet, row)) : [];
+  const matchCount = (s: Sheet) => s.rows.filter((row) => rowMatches(s, row)).length;
   const firstVisible = visible[0]?.r;
   const selHidden = !!q && !visible.some((v) => v.r === sel.r);
   React.useEffect(() => {
@@ -143,12 +145,7 @@ export function Spreadsheet({
     const row = sheet?.rows[r];
     if (!row || !onEdit) return;
     if (value === valueOf(row, r, c)) return;
-    const k = keyOf(r, c);
-    pendingRef.current = { ...pendingRef.current, [k]: value };
-    setPending(pendingRef.current);
-    setSave("saving");
-    window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(flush, 700);
+    onEdit(keyOf(r, c), value);
   };
 
   const editable = (c: number) => !empty && !!onEdit && cols[c]?.kind !== "status";
@@ -188,10 +185,10 @@ export function Spreadsheet({
               aria-live="polite"
               className={cn(
                 "hidden items-center gap-1.5 whitespace-nowrap text-[11.5px] sm:inline-flex",
-                save === "saving" ? "text-black/45" : "text-black/40",
+                saving ? "text-black/45" : "text-black/40",
               )}
             >
-              {save === "saving" ? (
+              {saving ? (
                 <>
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-500" />
                   {t("Saving…")}
@@ -277,12 +274,14 @@ export function Spreadsheet({
                 {cols.map((col, c) => {
                   const k = keyOf(r, c);
                   const v = valueOf(row, r, c);
-                  const flag = k in edits && v ? undefined : row.flags?.[col.key];
+                  const flag = row.flags?.[col.key];
+                  const editor = editors[`${tab}:${r}:${col.key}`];
                   const selected = sel.r === r && sel.c === c;
                   return (
                     <div
                       key={col.key}
                       role="gridcell"
+                      title={editor ? t("Edited by {name} · {time}", { name: editorName(editor.by), time: timeAgo(editor.at, t) }) : undefined}
                       tabIndex={-1}
                       aria-selected={selected}
                       onClick={() => {
@@ -342,14 +341,19 @@ export function Spreadsheet({
 
       {/* ── Sheet tabs ──────────────────────────────── */}
       <div className="flex items-stretch overflow-x-auto border-t border-black/[0.08] bg-[#f0efea] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {[{ id: PRODUCTION_DIAGRAM_ID, code: "", name: "Production diagram" } as Pick<Sheet, "id" | "code" | "name">, ...sheets].map((s) => {
+        {[
+          ...[...sheets].sort((a, b) => orderOf(a.id) - orderOf(b.id)),
+          { id: PRODUCTION_DIAGRAM_ID, code: "", name: "Production diagram", cols: [], rows: [] } as Sheet,
+        ].map((s) => {
           const on = tab === s.id;
           const full = sheets.find((x) => x.id === s.id);
           const n = !full || empty ? 0 : q ? matchCount(full) : issuesOf(full);
+          const dot = full && !empty && s.id !== INSTALLATION_SHEET_ID && s.id !== PRODUCTION_DIAGRAM_ID ? sheetStatus(full) : null;
           return (
             <button
               key={s.id}
               type="button"
+              title={dot && full ? statusTooltip(full) : undefined}
               onClick={() => {
                 setTab(s.id);
                 setSel({ r: 0, c: 0 });
@@ -362,6 +366,14 @@ export function Spreadsheet({
                   : "text-black/55 hover:text-black",
               )}
             >
+              {dot && (
+                <span
+                  role="img"
+                  aria-label={t(STATUS_LABEL[dot])}
+                  style={{ backgroundColor: STATUS_TONE[dot] }}
+                  className="inline-block h-2 w-2 flex-none rounded-full"
+                />
+              )}
               {s.code && <span>{s.code}</span>}
               {t(s.name)}
               {s.id === INSTALLATION_SHEET_ID && !empty ? (

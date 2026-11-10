@@ -17,8 +17,8 @@
                 pressed just now, or finished while the reader was away
      ready      the sheets, Excel-style, then the way on to Convert
 
-   Mock storage (lib/workspace-store.ts); the sheet data is sample data
-   (lib/workspace-sheets.ts) until the set-up runs for real.
+   Stored on the server, per installation and year (lib/workbook/use-workbook.ts):
+   the sheets are built from the year's cells, so a new year is empty.
    ════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
@@ -35,7 +35,7 @@ import { useScopedInstallation } from "@/lib/scoped-installation";
 import { draftInstallation, getInstallation, saveInstallation } from "@/lib/installations";
 import { currentYear, yearRange } from "@/lib/year-range";
 import { buildSheets } from "@/lib/workspace-sheets";
-import { SETUP_MS, useWorkspaceYears } from "@/lib/workspace-store";
+import { SETUP_MS, useWorkbook, useWorkbookYears } from "@/lib/workbook/use-workbook";
 
 /* useSearchParams() (read by the installation scope) needs a Suspense boundary above it. */
 export default function WorkspacePage() {
@@ -57,8 +57,10 @@ function WorkspaceInner() {
   );
   const convertHref = scoped ? `/convert?installation=${encodeURIComponent(scoped.id)}` : "/convert";
   const [year, setYear] = React.useState(currentYear);
-  const ws = useWorkspaceYears();
+  const installationId = scoped?.id ?? null;
+  const ws = useWorkbookYears(installationId);
   const rec = ws.get(year);
+  const wb = useWorkbook(installationId, year);
 
   /* The mock set-up finishes SETUP_MS after Confirm, whether or not anybody is watching. A year that finished
      unseen is ready but not yet revealed: its card plays the walk-in the next time it is opened (or at once,
@@ -67,7 +69,7 @@ function WorkspaceInner() {
   const syncKey = syncing.map((y) => `${y}:${ws.get(y)!.confirmedAt}`).join(",");
   React.useEffect(() => {
     if (!syncKey) return;
-    const due = syncing.map((y) => ({ y, at: Date.parse(ws.get(y)!.confirmedAt) + SETUP_MS }));
+    const due = syncing.map((y) => ({ y, at: Date.parse(ws.get(y)!.confirmedAt ?? "") + SETUP_MS }));
     const now = Date.now();
     for (const d of due) if (d.at <= now) ws.markReady(d.y);
     const next = due.filter((d) => d.at > now).map((d) => d.at - now);
@@ -81,7 +83,6 @@ function WorkspaceInner() {
   }, [syncKey]);
 
   const withData = yearRange().filter((y) => ws.get(y)?.status === "ready");
-  const sheets = React.useMemo(() => buildSheets(rec?.files ?? [], rec?.blank), [rec?.files, rec?.blank]);
 
   return (
     <div className="space-y-6">
@@ -156,9 +157,10 @@ function WorkspaceInner() {
           </div>
           <Spreadsheet
             key={year}
-            sheets={sheets}
-            edits={rec.edits}
-            onEdit={(cell, value) => ws.saveEdit(year, cell, value)}
+            sheets={wb.sheets}
+            editors={wb.editors}
+            saving={wb.pending > 0}
+            onEdit={wb.saveEdit}
             installation={installation}
             onInstallationSave={(inst) => {
               saveInstallation(inst);
