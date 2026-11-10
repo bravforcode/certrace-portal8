@@ -1,6 +1,6 @@
 import { Elysia } from "elysia";
 import { authenticatedUser } from "../auth/plugin";
-import { trialEnded } from "../auth/trial";
+import { trialEnded, trialWriteOpen } from "../auth/trial";
 import { db } from "../../lib/db";
 import { fail } from "../../lib/errors";
 
@@ -17,7 +17,11 @@ export const companySession = new Elysia({ name: "team.company" }).resolve(
   async ({ request }) => {
     const account = await authenticatedUser(request);
     const company = await companyFor(account, request);
-    if (!["GET", "HEAD"].includes(request.method) && trialEnded(company))
+    if (
+      !["GET", "HEAD"].includes(request.method) &&
+      trialEnded(company) &&
+      !trialWriteOpen(request.method, request.url)
+    )
       fail(403, "TRIAL_ENDED", "Your free trial has ended. Choose a plan to keep editing.");
     return { account, company };
   },

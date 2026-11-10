@@ -70,6 +70,7 @@ export function markTrialEnded() {
 }
 
 export function onTrialEnded(listener: () => void) {
+  if (typeof window === "undefined") return () => {};
   window.addEventListener(TRIAL_EVENT, listener);
   return () => window.removeEventListener(TRIAL_EVENT, listener);
 }
