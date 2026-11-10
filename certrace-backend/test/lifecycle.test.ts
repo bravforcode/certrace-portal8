@@ -214,3 +214,33 @@ describe("onboarding", () => {
     }
   });
 });
+
+describe("password reset", () => {
+  // A reset is a takeover signal; the owner must hear about it.
+  test("successful reset sends password_changed", async () => {
+    const a = await account(true);
+    process.env.CERTRACE_EMAIL_DELIVERY = "console";
+    const logSpy = spyOn(console, "info").mockImplementation(() => {});
+    try {
+      await call("/api/auth/forgot-password", "POST", { email: a.email });
+      const sent = logSpy.mock.calls.map(
+        ([m]) => m as { to?: string; subject: string; text: string },
+      );
+      const code = sent.filter((m) => m.to === a.email).at(-1)!.text.match(/\d{6}/)![0];
+      const r = await call("/api/auth/reset-password", "POST", {
+        email: a.email,
+        reset_token: code,
+        new_password: "another-password-456",
+      });
+      expect(r.status).toBe(200);
+      const changed = logSpy.mock.calls.some(
+        ([m]) =>
+          (m as { to?: string; subject: string }).to === a.email &&
+          /password was changed/i.test((m as { subject: string }).subject),
+      );
+      expect(changed).toBe(true);
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+});

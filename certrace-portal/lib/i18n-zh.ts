@@ -3419,6 +3419,8 @@ export const ZH: Record<string, string> = {
     "以上内容整月全部包含。我们不会替您申报，在您发送之前，任何内容都不会离开您的工作区。",
   "Finish setup": "完成设置",
   "Follow Certrace": "关注 Certrace",
+  "We'll email you at": "我们会将通知邮件发送至",
+  "when your account is approved.": "您的账户获批后。",
   "Free trial active": "免费试用已开始",
   "Get news and offers, and ask our CBAM specialists anything — this is the fastest way to reach us.":
     "获取资讯和优惠，也可以向我们的 CBAM 专家随时提问 — 这是联系我们最快的方式。",
