@@ -60,3 +60,16 @@ export function markAccountNotReady() {
   if (session?.user.ready)
     saveSession({ ...session, user: { ...session.user, ready: false } });
 }
+
+const TRIAL_EVENT = "certrace:trial-ended";
+
+/** The server refused a write because the trial is over (D4). */
+export function markTrialEnded() {
+  if (typeof window !== "undefined")
+    window.dispatchEvent(new CustomEvent(TRIAL_EVENT));
+}
+
+export function onTrialEnded(listener: () => void) {
+  window.addEventListener(TRIAL_EVENT, listener);
+  return () => window.removeEventListener(TRIAL_EVENT, listener);
+}

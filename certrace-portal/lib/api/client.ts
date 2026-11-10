@@ -7,6 +7,7 @@ import {
   clearSession,
   markLegalConsentRequired,
   markAccountNotReady,
+  markTrialEnded,
   loadSession,
   sessionEpoch,
   assertSessionUnchanged,
@@ -91,6 +92,7 @@ export async function result<T>(
       markLegalConsentRequired();
     if (scope?.auth && failure.code === "ACCOUNT_NOT_READY")
       markAccountNotReady();
+    if (scope?.auth && failure.code === "TRIAL_ENDED") markTrialEnded();
     if (scope?.auth && failure.code === "ACCOUNT_SUSPENDED")
       markAccountSuspended(failure.message);
     throw failure;
