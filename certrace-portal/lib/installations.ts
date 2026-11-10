@@ -396,6 +396,24 @@ export function emptyInstallation(self = false): Installation {
   };
 }
 
+/* The record the Installation tab edits for the scoped site. A site with no
+   saved record yet (the exporter's own site, synthesised from the org profile)
+   is seeded with its identity, so it can be filled in; the first save creates
+   the record. A saved record is returned as stored. */
+export function draftInstallation(
+  choice: { id: string; name: string; self: boolean; supplierId?: string },
+  stored: Installation | null,
+): Installation {
+  if (stored) return stored;
+  return {
+    ...emptyInstallation(choice.self),
+    id: choice.id,
+    name: choice.name,
+    self: choice.self,
+    supplierId: choice.self ? "" : (choice.supplierId ?? ""),
+  };
+}
+
 /** Records written before a field existed load as `undefined` and would render
     an uncontrolled input. Everything that reads a stored installation goes
     through here so a missing field is an empty string, never a crash. */

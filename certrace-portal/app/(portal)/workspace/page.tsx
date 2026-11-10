@@ -32,7 +32,7 @@ import { UploadPanel } from "@/components/workspace/upload-panel";
 import { ScopedInstallationSwitcher } from "@/components/scoped-installation-switcher";
 import { useT } from "@/lib/i18n";
 import { useScopedInstallation } from "@/lib/scoped-installation";
-import { getInstallation, saveInstallation } from "@/lib/installations";
+import { draftInstallation, getInstallation, saveInstallation } from "@/lib/installations";
 import { currentYear, yearRange } from "@/lib/year-range";
 import { buildSheets } from "@/lib/workspace-sheets";
 import { SETUP_MS, useWorkspaceYears } from "@/lib/workspace-store";
@@ -52,7 +52,7 @@ function WorkspaceInner() {
   // Saving the Installation tab writes the store without re-rendering this page, so a counter re-reads it.
   const [installTick, setInstallTick] = React.useState(0);
   const installation = React.useMemo(
-    () => (scoped ? getInstallation(scoped.id) : null),
+    () => (scoped ? draftInstallation(scoped, getInstallation(scoped.id)) : null),
     [scoped, installTick],
   );
   const convertHref = scoped ? `/convert?installation=${encodeURIComponent(scoped.id)}` : "/convert";

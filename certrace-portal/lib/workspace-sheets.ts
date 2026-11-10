@@ -75,6 +75,14 @@ export function buildSheets(files: WorkspaceFile[], blank = false): Sheet[] {
 function sampleSheets(files: WorkspaceFile[]): Sheet[] {
   const kb = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
   return [
+    // The first tab: the site the sheets are about, before its products and steps (MEASUR order).
+    {
+      id: INSTALLATION_SHEET_ID,
+      code: "00A",
+      name: "Installation",
+      cols: [],
+      rows: [],
+    },
     {
       id: "documents",
       code: "00",
@@ -97,13 +105,6 @@ function sampleSheets(files: WorkspaceFile[]): Sheet[] {
           "confirmed",
         ),
       ),
-    },
-    {
-      id: INSTALLATION_SHEET_ID,
-      code: "00A",
-      name: "Installation",
-      cols: [],
-      rows: [],
     },
     {
       id: "products",
