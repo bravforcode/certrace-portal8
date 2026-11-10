@@ -125,6 +125,7 @@ export const TH_POLISH: Record<string, string> = {
   "Choose a supplier": "เลือกซัพพลายเออร์",
   "No suppliers yet": "ยังไม่มีซัพพลายเออร์",
   "Choose an installation": "เลือกโรงงาน",
+  "your site": "โรงงานของคุณ",
   "No installations for this supplier yet": "ซัพพลายเออร์รายนี้ยังไม่มีโรงงาน",
   "Standard name": "ชื่อมาตรฐาน",
   "Precursors this implies": "วัตถุดิบตั้งต้นที่เกี่ยวข้อง",

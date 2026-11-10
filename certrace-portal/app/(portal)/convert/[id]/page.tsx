@@ -14,7 +14,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   ChevronDown,
@@ -287,10 +287,42 @@ export default function ConvertStandardPage() {
   );
 }
 
+/* Keeps the installation picked on Convert (`?installation=`) when going back. */
 function BackLink() {
   return (
+    <React.Suspense fallback={null}>
+      <BackLinkInner />
+    </React.Suspense>
+  );
+}
+
+/* Keeps the installation picked on Convert when filling in a requirement by hand. */
+function FillInLink() {
+  return (
+    <React.Suspense fallback={null}>
+      <FillInLinkInner />
+    </React.Suspense>
+  );
+}
+
+function FillInLinkInner() {
+  const installation = useSearchParams().get("installation");
+  return (
+    <ButtonLink
+      href={installation ? `/workspaces?installation=${encodeURIComponent(installation)}` : "/workspaces"}
+      variant="secondary"
+      size="sm"
+    >
+      <PencilLine size={13} strokeWidth={1.5} /> Fill in
+    </ButtonLink>
+  );
+}
+
+function BackLinkInner() {
+  const installation = useSearchParams().get("installation");
+  return (
     <Link
-      href="/convert"
+      href={installation ? `/convert?installation=${encodeURIComponent(installation)}` : "/convert"}
       className="inline-flex items-center gap-1.5 text-[12px] uppercase tracking-[0.08em] text-black/40 hover:text-black"
     >
       <ArrowLeft size={14} strokeWidth={1.5} /> Convert
@@ -369,9 +401,7 @@ function RequirementRow({
             <ButtonLink href="/smart-links" variant="secondary" size="sm">
               <Link2 size={13} strokeWidth={1.5} /> Smart Link
             </ButtonLink>
-            <ButtonLink href="/workspaces" variant="secondary" size="sm">
-              <PencilLine size={13} strokeWidth={1.5} /> Fill in
-            </ButtonLink>
+            <FillInLink />
           </div>
         </div>
       )}

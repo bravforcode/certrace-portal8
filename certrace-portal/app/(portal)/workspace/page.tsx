@@ -29,13 +29,26 @@ import { Spreadsheet } from "@/components/workspace/spreadsheet";
 import { SettingUpStage } from "@/components/workspace/setting-up";
 import { WorkspaceReveal } from "@/components/workspace/reveal";
 import { UploadPanel } from "@/components/workspace/upload-panel";
+import { ScopedInstallationSwitcher } from "@/components/scoped-installation-switcher";
 import { useT } from "@/lib/i18n";
+import { useScopedInstallation } from "@/lib/scoped-installation";
 import { currentYear, yearRange } from "@/lib/year-range";
 import { buildSheets } from "@/lib/workspace-sheets";
 import { SETUP_MS, useWorkspaceYears } from "@/lib/workspace-store";
 
+/* useSearchParams() (read by the installation scope) needs a Suspense boundary above it. */
 export default function WorkspacePage() {
+  return (
+    <React.Suspense fallback={null}>
+      <WorkspaceInner />
+    </React.Suspense>
+  );
+}
+
+function WorkspaceInner() {
   const t = useT();
+  const { scoped } = useScopedInstallation();
+  const convertHref = scoped ? `/convert?installation=${encodeURIComponent(scoped.id)}` : "/convert";
   const [year, setYear] = React.useState(currentYear);
   const ws = useWorkspaceYears();
   const rec = ws.get(year);
@@ -68,6 +81,7 @@ export default function WorkspacePage() {
       <PageHeader
         title={t("Workspace")}
         lead={t("Everything you upload for a year, sorted into sheets you can check and edit.")}
+        actions={<ScopedInstallationSwitcher />}
       />
 
       <YearBar
@@ -139,7 +153,7 @@ export default function WorkspacePage() {
             edits={rec.edits}
             onEdit={(cell, value) => ws.saveEdit(year, cell, value)}
           />
-          <ConvertBar />
+          <ConvertBar href={convertHref} />
         </>
       )}
     </div>
@@ -147,7 +161,7 @@ export default function WorkspacePage() {
 }
 
 /* The way on: what is in the workspace serves every standard, chosen on Convert. */
-function ConvertBar() {
+function ConvertBar({ href }: { href: string }) {
   const t = useT();
   return (
     <Card className="flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
@@ -157,7 +171,7 @@ function ConvertBar() {
           {t("Pick CBAM, ISO 14064-1, ISO 14067 or TGO on the Convert page — no need to upload again.")}
         </p>
       </div>
-      <ButtonLink href="/convert" className="flex-none self-start sm:self-auto">
+      <ButtonLink href={href} className="flex-none self-start sm:self-auto">
         {t("Go to Convert")} <ArrowRight size={14} strokeWidth={1.5} />
       </ButtonLink>
     </Card>

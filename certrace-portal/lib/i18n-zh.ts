@@ -4622,6 +4622,7 @@ export const ZH: Record<string, string> = {
     "选择复核方式，并写明复核人及频次。",
   "Choose a supplier": "选择供应商",
   "Choose an installation": "选择设施",
+  "your site": "您的设施",
   "Choose dates": "选择日期",
   "Choose default or actual. For actual, copy the link and send it.":
     "选择默认值或实际值。选择实际值时，请复制链接并发送。",

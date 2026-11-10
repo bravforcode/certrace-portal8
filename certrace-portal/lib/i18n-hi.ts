@@ -3440,6 +3440,7 @@ export const HI: Record<string, string> = {
   "Choose a review method and name the reviewer and how often.": "समीक्षा विधि चुनें और समीक्षक तथा आवृत्ति लिखें।",
   "Choose a supplier": "आपूर्तिकर्ता चुनें",
   "Choose an installation": "संयंत्र चुनें",
+  "your site": "आपका संयंत्र",
   "Choose dates": "तारीखें चुनें",
   "Choose default or actual. For actual, copy the link and send it.": "डिफ़ॉल्ट या वास्तविक चुनें। वास्तविक के लिए लिंक कॉपी करके भेजें।",
   "Choose one — the official CBAM filing, or a specific buyer's data request. Each has its own qualification checklist, so keep the two separate.": "एक चुनें — आधिकारिक CBAM फ़ाइलिंग, या किसी खास खरीदार का डेटा अनुरोध। दोनों की अपनी पात्रता चेकलिस्ट है, इसलिए दोनों को अलग रखें।",
