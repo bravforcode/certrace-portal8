@@ -2537,6 +2537,8 @@ export const HI: Record<string, string> = {
   "Everything above is included for the full month. Nothing is filed on your behalf and nothing leaves your workspace until you send it.": "ऊपर का सब कुछ पूरे महीने के लिए शामिल है। आपकी ओर से कुछ दर्ज नहीं होता और आपके भेजने तक कुछ भी आपके कार्यक्षेत्र से बाहर नहीं जाता।",
   "Finish setup": "सेटअप पूरा करें",
   "Follow Certrace": "Certrace को फ़ॉलो करें",
+  "We'll email you at": "हम आपको इस पते पर ईमेल भेजेंगे:",
+  "when your account is approved.": "जब आपका खाता स्वीकृत हो जाएगा।",
   "Free trial active": "निःशुल्क परीक्षण चालू",
   "Get news and offers, and ask our CBAM specialists anything — this is the fastest way to reach us.": "समाचार और ऑफ़र पाएँ, और हमारे CBAM विशेषज्ञों से कुछ भी पूछें — हम तक पहुँचने का यह सबसे तेज़ तरीक़ा है।",
   "Get started": "शुरू करें",
