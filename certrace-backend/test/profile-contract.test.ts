@@ -29,6 +29,7 @@ test("accepts the company and factory basics", () => {
 });
 test("rejects malformed company basics and unknown list items", () => {
   expect(() => validateStore("certrace:profile", { ...ok, website: "ftp://acme" })).toThrow();
+  expect(() => validateStore("certrace:profile", { ...ok, website: "http://acme.example" })).toThrow();
   expect(() => validateStore("certrace:profile", { ...ok, country: "tha" })).toThrow();
   expect(() => validateStore("certrace:profile", { ...ok, exportMarkets: ["Europe"] })).toThrow();
   expect(() => validateStore("certrace:profile", { ...ok, energySources: ["solar"] })).toThrow();

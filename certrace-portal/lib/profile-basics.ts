@@ -12,7 +12,7 @@ export function companyBasicsErrors(
   const errors: Partial<Record<keyof CompanyBasics, string>> = {};
   if (values.taxId && !/^\d{13}$/.test(values.taxId))
     errors.taxId = "Tax ID is 13 digits";
-  if (values.website && !/^https?:\/\/\S+$/.test(values.website))
+  if (values.website && !/^https:\/\/\S+$/.test(values.website))
     errors.website = "Enter a web address starting with https://";
   if (values.country && !/^[A-Z]{2}$/.test(values.country))
     errors.country = "Choose a country";

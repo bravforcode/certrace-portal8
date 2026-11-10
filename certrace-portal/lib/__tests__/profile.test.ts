@@ -22,12 +22,13 @@ test("a tax ID must be exactly 13 digits", () => {
   );
 });
 
-test("website must be an http or https URL", () => {
+test("website must be an https URL", () => {
   assert.equal(
     companyBasicsErrors({ website: "https://acme.example" }).website,
     undefined,
   );
   assert.ok(companyBasicsErrors({ website: "acme.example" }).website);
+  assert.ok(companyBasicsErrors({ website: "http://acme.example" }).website);
   assert.ok(companyBasicsErrors({ website: "ftp://acme.example" }).website);
 });
 

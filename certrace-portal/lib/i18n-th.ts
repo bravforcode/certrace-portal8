@@ -4240,4 +4240,9 @@ export const TH: Record<string, string> = {
   "10,000–100,000 t": "10,000–100,000 ตัน",
   "Over 100,000 t": "มากกว่า 100,000 ตัน",
   "Enter a whole number from 0 to 999": "กรอกจำนวนเต็มตั้งแต่ 0 ถึง 999",
+  "Choose a country": "เลือกประเทศ",
+  "Natural gas": "ก๊าซธรรมชาติ",
+  "LPG": "LPG",
+  "Coal": "ถ่านหิน",
+  "Biomass": "ชีวมวล",
 };

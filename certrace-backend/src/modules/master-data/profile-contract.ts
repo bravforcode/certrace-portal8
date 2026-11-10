@@ -58,7 +58,7 @@ const fields: Record<string, Shape> = {
   phone: str(32, "^\\+?[0-9 ()-]{6,32}$"),
   lineId: str(40),
   taxId: str(13, "^\\d{13}$"),
-  website: str(200, "^https?://"),
+  website: str(200, "^https://"),
   country: str(2, "^[A-Z]{2}$"),
   boilerCount: str(3, "^\\d{1,3}$"),
   furnaceCount: str(3, "^\\d{1,3}$"),

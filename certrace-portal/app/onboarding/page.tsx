@@ -22,6 +22,7 @@ import {
   cn,
 } from "@/components/ui";
 import { Select } from "@/components/controls";
+import { Segmented } from "@/components/insight/kit";
 import { PhoneField } from "@/components/phone-field";
 import { LanguageSelect } from "@/components/language-select";
 import { CertraceLogo } from "@/components/logo";
@@ -651,14 +652,13 @@ export default function OnboardingPage() {
                 />
               </Field>
               <Field label={t("Company size")}>
-                <Select
+                <Segmented
                   value={employeeBand}
                   onChange={setEmployeeBand}
                   options={EMPLOYEE_BAND_OPTIONS.map((o) => ({
                     value: o.value,
                     label: t(o.label),
                   }))}
-                  placeholder={t("Select company size")}
                   ariaLabel={t("Company size")}
                 />
               </Field>
