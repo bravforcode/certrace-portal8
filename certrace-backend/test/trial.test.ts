@@ -1,5 +1,10 @@
-import { expect, test } from "bun:test";
+import { afterAll, afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { trialEnded, trialEndsAt, trialWriteOpen } from "../src/modules/auth/trial";
+import { runTrialEmails } from "../src/modules/reminders/trial-emails";
+import { db } from "../src/lib/db";
+import { account, cleanup } from "./helpers";
+
+afterAll(cleanup);
 
 const start = new Date("2026-11-01T00:00:00Z");
 
@@ -28,4 +33,140 @@ test("the post-trial allowlist opens only exact method and route pairs", () => {
   expect(trialWriteOpen("POST", `${b}/team/invitations`)).toBe(true);
   expect(trialWriteOpen("GET", `${b}/team/invitations`)).toBe(false);
   expect(trialWriteOpen("PATCH", `${b}/workbooks/inst/2026/cells`)).toBe(false);
+});
+
+// Reminder tests share the DB with other suites, so assertions read email_deliveries
+// for the users created here and never the global counts.
+const DAY = 86_400_000;
+const savedMode = process.env.CERTRACE_EMAIL_DELIVERY;
+const setMode = (m: string | undefined) => {
+  if (m === undefined) delete process.env.CERTRACE_EMAIL_DELIVERY;
+  else process.env.CERTRACE_EMAIL_DELIVERY = m;
+};
+
+// Trial started `ago` days before `now`, approved and ready.
+async function trialUser(now: Date, ago: number) {
+  const a = await account(true);
+  await db.users.update({
+    where: { id: a.user.id },
+    data: { trial_started_at: new Date(now.getTime() - ago * DAY) },
+  });
+  return a.user.id as string;
+}
+
+// Kinds recorded for a user, without the trial-end date suffix.
+async function kindsOf(userId: string) {
+  const rows = await db.email_deliveries.findMany({
+    where: { user_id: userId },
+    select: { kind: true },
+  });
+  return rows.map((r) => r.kind.split(":")[0]).sort();
+}
+
+describe("trial reminder emails", () => {
+  beforeEach(() => setMode("console"));
+  afterEach(() => setMode(savedMode));
+
+  test("5 days left sends only the 7-day reminder", async () => {
+    const now = new Date();
+    const id = await trialUser(now, 25);
+    const first = await runTrialEmails(now);
+    expect(first.sent).toBeGreaterThanOrEqual(1);
+    expect(await kindsOf(id)).toEqual(["trial_ending_7"]);
+  });
+
+  test("half a day left with no earlier reminder sends only the 1-day reminder", async () => {
+    const now = new Date();
+    const id = await trialUser(now, 29.5);
+    await runTrialEmails(now);
+    expect(await kindsOf(id)).toEqual(["trial_ending_1"]);
+  });
+
+  test("each reminder is sent once when the daily job runs twice", async () => {
+    const now = new Date();
+    const id = await trialUser(now, 25);
+    await runTrialEmails(now);
+    const again = await runTrialEmails(now);
+    expect(again.skipped).toBeGreaterThanOrEqual(1);
+    expect(await kindsOf(id)).toEqual(["trial_ending_7"]);
+  });
+
+  test("the ended notice goes out once after the 30-day end", async () => {
+    const now = new Date();
+    const id = await trialUser(now, 31);
+    await runTrialEmails(now);
+    await runTrialEmails(now);
+    expect(await kindsOf(id)).toEqual(["trial_ended"]);
+  });
+
+  // The job only reaches 7 days past the end, so a trial that ended long ago is not mailed.
+  test("a trial that ended 60 days ago gets nothing", async () => {
+    const now = new Date();
+    const id = await trialUser(now, 60);
+    await runTrialEmails(now);
+    expect(await kindsOf(id)).toEqual([]);
+  });
+
+  // An admin extension moves trial_started_at, which moves the end date, so reminders resend.
+  test("after an extension the next run sends the reminder for the new end date", async () => {
+    const now = new Date();
+    const id = await trialUser(now, 29.5);
+    await runTrialEmails(now);
+    expect(await kindsOf(id)).toEqual(["trial_ending_1"]);
+    await db.users.update({
+      where: { id },
+      data: { trial_started_at: new Date(now.getTime() - 24 * DAY) },
+    });
+    await runTrialEmails(now);
+    expect(await kindsOf(id)).toEqual(["trial_ending_1", "trial_ending_7"]);
+  });
+
+  // A failed send must release its claim so the next run can deliver it.
+  test("a failed send releases the claim and a later run delivers", async () => {
+    const now = new Date();
+    const id = await trialUser(now, 25);
+    setMode("smtp");
+    delete process.env.CERTRACE_SMTP_HOST;
+    const failing = await runTrialEmails(now);
+    expect(failing.failed).toBeGreaterThanOrEqual(1);
+    expect(await kindsOf(id)).toEqual([]);
+    setMode("console");
+    await runTrialEmails(now);
+    expect(await kindsOf(id)).toEqual(["trial_ending_7"]);
+  });
+
+  test("dry run reports would-send counts and writes no delivery rows", async () => {
+    const now = new Date();
+    const id = await trialUser(now, 25);
+    const r = await runTrialEmails(now, true);
+    expect(r.dryRun).toBe(true);
+    expect(r.sent).toBeGreaterThanOrEqual(1);
+    expect(await kindsOf(id)).toEqual([]);
+  });
+
+  // With delivery off nothing can be sent, so the job behaves like a dry run.
+  test("delivery mode off behaves like a dry run", async () => {
+    const now = new Date();
+    const id = await trialUser(now, 25);
+    setMode(undefined);
+    const r = await runTrialEmails(now);
+    expect(r.dryRun).toBe(true);
+    expect(await kindsOf(id)).toEqual([]);
+  });
+
+  test("only ready, approved, active trial users on the trial plan are reminded", async () => {
+    const now = new Date();
+    const cases = [
+      { plan_id: "standard" },
+      { ready: false },
+      { status: "SUSPENDED", suspended_at: new Date() },
+      { approved_at: null },
+    ];
+    for (const data of cases) {
+      const id = await trialUser(now, 25);
+      await db.users.update({ where: { id }, data });
+      await runTrialEmails(now);
+      expect(await kindsOf(id)).toEqual([]);
+    }
+  });
 });
