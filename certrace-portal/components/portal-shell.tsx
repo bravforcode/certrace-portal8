@@ -193,6 +193,12 @@ function useNav(): NavEntry[] {
     },
     {
       kind: "link",
+      href: "/opportunities",
+      label: t("Opportunities"),
+      icon: Lightbulb,
+    },
+    {
+      kind: "link",
       href: "/workspaces",
       label: t("Verification"),
       icon: ClipboardCheck,
@@ -648,7 +654,7 @@ function ShellFrameInner({ children }: { children: React.ReactNode }) {
           notifications. See components/account-lock.tsx. */}
       <header
         data-lock="chrome"
-        className="sticky top-0 z-50 border-b border-black/[0.06] bg-[rgba(245,244,240,0.8)] backdrop-blur-md"
+        className="sticky top-0 z-50 border-b border-black/[0.06] bg-[rgba(245,244,240,0.8)] backdrop-blur-md print:hidden"
       >
         <div className="flex h-16 items-center gap-4 px-4 md:px-6">
           <button
@@ -692,6 +698,7 @@ function ShellFrameInner({ children }: { children: React.ReactNode }) {
         <aside
           data-lock="chrome"
           className={cn(
+            "print:hidden",
             // Fixed-height + self-start keeps `sticky` working: without an explicit
             // height the flex row stretches the sidebar to the full content height,
             // which is taller than the viewport and silently breaks sticky so it

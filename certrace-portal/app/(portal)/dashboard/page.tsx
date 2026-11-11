@@ -49,6 +49,7 @@ import { InstallationDirectory } from "@/components/factory/installation-directo
 import { FactoryMap } from "@/components/factory/factory-map";
 import { useActiveInstallation } from "@/lib/active-installation";
 import { currentYear } from "@/lib/year-range";
+import { OpportunitySummary } from "@/components/factory/opportunity-summary";
 
 export default function DashboardPage() {
   const t = useT();
@@ -146,6 +147,8 @@ export default function DashboardPage() {
             <ChainPanel d={data} live />
             <ActivityPanel events={data.activity} d={data} live />
           </div>
+
+          <OpportunitySummary />
         </>
       )}
     </div>
