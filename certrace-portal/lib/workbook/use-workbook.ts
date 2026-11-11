@@ -19,6 +19,7 @@ import {
   listWorkbooks,
   patchWorkbookCells,
   putWorkbookMeta,
+  resetWorkbookLeftovers,
   type Workbook,
   type WorkbookMeta,
 } from "../api/workbooks";
@@ -53,11 +54,9 @@ async function clearCells(iid: string, year: number, keys: string[]) {
   }
 }
 
-/** A year with cells but no meta (left by a failed copy) must not show old cells under a new start. */
-async function clearLeftovers(iid: string, year: number) {
-  const existing = await getWorkbook(iid, year).catch(() => null);
-  if (existing?.changed && !existing.meta?.status) await clearCells(iid, year, Object.keys(existing.cells));
-}
+/** A year with cells but no meta (left by a failed copy) must not show old cells under a new start.
+ *  The server clears them under its row lock, so a copy running at the same time is not wiped. Throws on failure. */
+const clearLeftovers = (iid: string, year: number) => resetWorkbookLeftovers(iid, year);
 
 /* ── save runner: one per browser tab, shared by every year and installation ── */
 
@@ -171,9 +170,15 @@ export function useWorkbookYears(installationId: string | null) {
   };
 
   /** Start from the beginning: no files, empty sheets, open at once. */
+  const notSaved = (e: unknown) => toast({ message: "Your change was not saved", tone: "err", detail: (e as Error).message });
+
   const startBlank = async (year: number) => {
     if (!installationId) return;
-    await clearLeftovers(installationId, year);
+    try {
+      await clearLeftovers(installationId, year);
+    } catch (e) {
+      return notSaved(e);
+    }
     await write(year, { status: "ready", files: [], blank: true, confirmedAt: nowIso() });
   };
 

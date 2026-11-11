@@ -40,3 +40,7 @@ export const patchWorkbookCells = (iid: string, year: number, cells: Record<stri
 
 export const putWorkbookMeta = (iid: string, year: number, meta: WorkbookMeta) =>
   result(wb(iid)({ year }).meta.put({ meta })) as Promise<Workbook>;
+
+/** Clears the cells of a year with no meta status, under the server's row lock. */
+export const resetWorkbookLeftovers = (iid: string, year: number) =>
+  result(wb(iid)({ year })["reset-leftovers"].post()) as Promise<Workbook>;
