@@ -190,15 +190,21 @@ async function newSession(browser: Browser): Promise<BrowserContext> {
   const context = await browser.newContext();
   await context.addInitScript(
     ([key, version]: [string, string]) => {
-      localStorage.setItem(
-        key,
-        JSON.stringify({
-          analytics: false,
-          marketing: false,
-          decidedAt: new Date().toISOString(),
-          policyVersion: version,
-        }),
-      );
+      // Init scripts also run in cross-origin iframes, where localStorage access throws.
+      if (window.top !== window.self) return;
+      try {
+        localStorage.setItem(
+          key,
+          JSON.stringify({
+            analytics: false,
+            marketing: false,
+            decidedAt: new Date().toISOString(),
+            policyVersion: version,
+          }),
+        );
+      } catch {
+        /* storage blocked: the banner shows instead */
+      }
     },
     [COOKIE_KEY, COOKIE_POLICY_VERSION] as [string, string],
   );
@@ -287,10 +293,18 @@ test("1. register, onboard, wait for approval, and start the 30-day trial", asyn
     .click();
   await page.getByRole("button", { name: "Continue" }).click();
 
-  // Step 4: sizes and contact.
+  // Step 4: sizes and contact. Every question here is required.
+  await page
+    .getByRole("radiogroup", { name: "How many of your products fall under CBAM?" })
+    .getByRole("radio", { name: "1–5", exact: true })
+    .click();
   await page
     .getByRole("radiogroup", { name: /Approximately how many suppliers/ })
     .getByRole("radio", { name: "1–10", exact: true })
+    .click();
+  await page
+    .getByRole("radiogroup", { name: "How many production installations do you have?" })
+    .getByRole("radio", { name: "1", exact: true })
     .click();
   await page
     .getByRole("radiogroup", { name: "How many customers do you have?" })
@@ -367,7 +381,7 @@ test("2. reset a forgotten password from the mail code and sign in with the new 
   // The new password works, and the owner is told the password changed.
   await signInUi(page, account.email, NEW_PASSWORD);
   await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
-  await waitForMail(account.email, /password was changed/);
+  await waitForMail(account.email, /password for .* was just changed/);
   await context.close();
 });
 
@@ -466,8 +480,8 @@ test("5. edits on the Installation tab are saved to the installation record", as
   await tab(page, /Installation/).click();
   await page.getByLabel("City", { exact: true }).fill("Chonburi");
   await page.getByLabel("Post code", { exact: true }).fill("20000");
-  await page.getByRole("button", { name: /Save/ }).first().click();
 
+  // The installation form autosaves after a short pause; there is no Save button.
   await expect
     .poll(
       async () => {
