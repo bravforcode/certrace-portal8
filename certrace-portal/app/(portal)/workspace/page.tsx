@@ -187,6 +187,7 @@ function WorkspaceInner() {
             saving={wb.pending > 0}
             onEdit={wb.saveEdit}
             installation={installation}
+            year={year}
             onInstallationSave={(inst) => {
               saveInstallation(inst);
               setInstallTick((n) => n + 1);
