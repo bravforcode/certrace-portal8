@@ -35,6 +35,7 @@ import {
   statusTooltip,
 } from "@/lib/workbook/status";
 import { useTeam } from "@/lib/team-query";
+import { CELL_MAX } from "@/lib/workbook/save-queue";
 import {
   INSTALLATION_SHEET_ID,
   NO_FILE,
@@ -102,6 +103,16 @@ export function Spreadsheet({
   const orderOf = (id: string) => {
     const i = SHEET_ORDER.indexOf(id);
     return i < 0 ? SHEET_ORDER.length : i;
+  };
+  // Installation first, then the production diagram, then the sheets in material-flow order.
+  const tabOrder = (list: Sheet[]): Sheet[] => {
+    const sorted = [...list].sort((a, b) => orderOf(a.id) - orderOf(b.id));
+    const diagram = { id: PRODUCTION_DIAGRAM_ID, code: "", name: "Production diagram", cols: [], rows: [] } as Sheet;
+    return [
+      ...sorted.filter((s) => s.id === INSTALLATION_SHEET_ID),
+      diagram,
+      ...sorted.filter((s) => s.id !== INSTALLATION_SHEET_ID),
+    ];
   };
   const sheet = sheets.find((s) => s.id === tab);
   const isDiagram = tab === PRODUCTION_DIAGRAM_ID;
@@ -341,10 +352,7 @@ export function Spreadsheet({
 
       {/* ── Sheet tabs ──────────────────────────────── */}
       <div className="flex items-stretch overflow-x-auto border-t border-black/[0.08] bg-[#f0efea] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {[
-          ...[...sheets].sort((a, b) => orderOf(a.id) - orderOf(b.id)),
-          { id: PRODUCTION_DIAGRAM_ID, code: "", name: "Production diagram", cols: [], rows: [] } as Sheet,
-        ].map((s) => {
+        {tabOrder(sheets).map((s) => {
           const on = tab === s.id;
           const full = sheets.find((x) => x.id === s.id);
           const n = !full || empty ? 0 : q ? matchCount(full) : issuesOf(full);
@@ -449,6 +457,7 @@ function CellEditor({
       onChange={(e) => setV(e.target.value)}
       onFocus={(e) => e.currentTarget.select()}
       onBlur={() => finish(true)}
+      maxLength={CELL_MAX}
       onKeyDown={(e) => {
         e.stopPropagation();
         if (e.key === "Enter") finish(true);

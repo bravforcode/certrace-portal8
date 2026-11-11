@@ -35,7 +35,7 @@ import { useScopedInstallation } from "@/lib/scoped-installation";
 import { draftInstallation, getInstallation, saveInstallation } from "@/lib/installations";
 import { currentYear, yearRange } from "@/lib/year-range";
 import { buildSheets } from "@/lib/workspace-sheets";
-import { SETUP_MS, useWorkbook, useWorkbookYears } from "@/lib/workbook/use-workbook";
+import { SETUP_MS, useWorkbook, useWorkbookYears, walkinPending } from "@/lib/workbook/use-workbook";
 
 /* useSearchParams() (read by the installation scope) needs a Suspense boundary above it. */
 export default function WorkspacePage() {
@@ -48,7 +48,7 @@ export default function WorkspacePage() {
 
 function WorkspaceInner() {
   const t = useT();
-  const { scoped } = useScopedInstallation();
+  const { scoped, loading } = useScopedInstallation();
   // Saving the Installation tab writes the store without re-rendering this page, so a counter re-reads it.
   const [installTick, setInstallTick] = React.useState(0);
   const installation = React.useMemo(
@@ -61,6 +61,8 @@ function WorkspaceInner() {
   const ws = useWorkbookYears(installationId);
   const rec = ws.get(year);
   const wb = useWorkbook(installationId, year);
+  // Bumped when this browser has seen a walk-in, so the card re-reads the per-browser record.
+  const [, setWalkinTick] = React.useState(0);
 
   /* The mock set-up finishes SETUP_MS after Confirm, whether or not anybody is watching. A year that finished
      unseen is ready but not yet revealed: its card plays the walk-in the next time it is opened (or at once,
@@ -101,7 +103,21 @@ function WorkspaceInner() {
         }}
       />
 
-      {!ws.loaded ? null : !rec ? (
+      {!installationId ? (
+        loading ? null : (
+          <Card className="p-6 text-center md:p-8">
+            <h2 className="font-[family-name:var(--font-plex)] text-xl font-light text-[#111]">
+              {t("Choose an installation to start your workspace")}
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-black/45">
+              {t("The workspace belongs to one installation. Set one up first, then come back here.")}
+            </p>
+            <ButtonLink href="/workspaces/new" className="mt-4">
+              {t("Set up an installation")} <ArrowRight size={14} strokeWidth={1.5} />
+            </ButtonLink>
+          </Card>
+        )
+      ) : !ws.loaded ? null : !rec ? (
         <>
           <UploadPanel
             year={year}
@@ -114,10 +130,16 @@ function WorkspaceInner() {
           {/* Until a start is chosen, only the current year shows a plain sheet under the upload. */}
           {year === currentYear() && <Spreadsheet sheets={buildSheets([])} empty />}
         </>
-      ) : rec.status === "ready" && rec.revealed === false ? (
-        /* Set up and not yet shown: the card shows it is ready, and Get started opens the sheet. */
+      ) : walkinPending(installationId, year, rec) ? (
+        /* Set up and not yet shown in this browser: the card shows it is ready, and Get started opens the sheet. */
         <Card className="overflow-hidden p-0">
-          <WorkspaceReveal key={year} onDone={() => ws.markRevealed(year)} />
+          <WorkspaceReveal
+            key={year}
+            onDone={() => {
+              ws.markRevealed(year);
+              setWalkinTick((n) => n + 1);
+            }}
+          />
         </Card>
       ) : rec.status === "syncing" ? (
         <Card className="p-6 md:p-8">
@@ -133,9 +155,12 @@ function WorkspaceInner() {
                     n: rec.files.length,
                   })}
             </p>
-            <Button variant="ghost" size="sm" className="mt-4" onClick={() => ws.markReady(year)}>
-              {t("Show the set-up workspace")} <ArrowRight size={13} strokeWidth={1.5} />
-            </Button>
+            {/* A copy in progress has no confirmedAt yet; only a confirmed upload can be shown early. */}
+            {rec.confirmedAt && (
+              <Button variant="ghost" size="sm" className="mt-4" onClick={() => ws.markReady(year)}>
+                {t("Show the set-up workspace")} <ArrowRight size={13} strokeWidth={1.5} />
+              </Button>
+            )}
           </div>
         </Card>
       ) : (

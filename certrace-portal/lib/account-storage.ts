@@ -302,18 +302,19 @@ const browserOnly = new Set([
   "certrace:sidebar-collapsed",
   "certrace:active-installation",
   "certrace:trace-profile",
+  // The workspace now lives on the server workbook; this browser copy is stale.
+  "certrace:workspace-years",
 ]);
+/** Whether a localStorage key may be offered for import into the account. */
+export function isImportableLegacyKey(key: string | null): key is string {
+  return Boolean(key?.startsWith("certrace:")) && !key!.startsWith("certrace:company:") && !browserOnly.has(key!);
+}
 export function legacyRecords() {
   if (typeof window === "undefined") return [];
   const records: { key: string; value: Json }[] = [];
   for (let i = 0; i < window.localStorage.length; i++) {
     const key = window.localStorage.key(i);
-    if (
-      !key?.startsWith("certrace:") ||
-      key.startsWith("certrace:company:") ||
-      browserOnly.has(key)
-    )
-      continue;
+    if (!isImportableLegacyKey(key)) continue;
     const value = window.localStorage.getItem(key);
     if (value) {
       try {

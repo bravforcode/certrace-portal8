@@ -197,4 +197,13 @@ export const TH_WORKSPACE: Record<string, string> = {
     "แท็บนี้แก้ข้อมูล installation โดยตรง การแก้ไขจะแสดงใน Settings → Installations ด้วย",
   "Choose an installation above to fill in its details.": "เลือก installation ด้านบนเพื่อกรอกรายละเอียด",
   "{n} missing fields": "ขาด {n} ช่อง",
+  "Choose an installation to start your workspace": "เลือก installation เพื่อเริ่มเวิร์กสเปซ",
+  "The workspace belongs to one installation. Set one up first, then come back here.":
+    "เวิร์กสเปซเป็นของ installation หนึ่งรายการ ตั้งค่า installation ก่อน แล้วกลับมาที่นี่",
+  "Set up an installation": "ตั้งค่า installation",
+  "Upload at most {n} files at a time.": "อัปโหลดได้ครั้งละไม่เกิน {n} ไฟล์",
+  "The file name of {file} is longer than {n} characters.": "ชื่อไฟล์ {file} ยาวเกิน {n} ตัวอักษร",
+  "The file type of {file} is longer than {n} characters.": "ประเภทไฟล์ {file} ยาวเกิน {n} ตัวอักษร",
+  "The description of {file} is longer than {n} characters.": "คำอธิบายของ {file} ยาวเกิน {n} ตัวอักษร",
+  "Some changes were refused and not saved": "บางการเปลี่ยนแปลงถูกปฏิเสธและไม่ได้บันทึก",
 };

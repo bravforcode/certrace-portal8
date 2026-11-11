@@ -22,6 +22,7 @@ import { Select } from "@/components/controls";
 import { useT } from "@/lib/i18n";
 import { yearRange } from "@/lib/year-range";
 import type { WorkspaceFile } from "@/lib/workspace-sheets";
+import { UPLOAD_LIMITS, uploadProblem, type UploadProblem } from "@/lib/workbook/limits";
 
 type Draft = { id: string; name: string; size: number; type: string; description: string };
 type Mode = "upload" | "blank" | "copy";
@@ -52,6 +53,7 @@ export function UploadPanel({
   const [tried, setTried] = React.useState(false);
   const [asking, setAsking] = React.useState(false);
   const [source, setSource] = React.useState("");
+  const [limitNote, setLimitNote] = React.useState<UploadProblem | null>(null);
   const input = React.useRef<HTMLInputElement>(null);
 
   // A different year starts with nothing chosen.
@@ -61,6 +63,7 @@ export function UploadPanel({
     setTried(false);
     setSource("");
     setAsking(false);
+    setLimitNote(null);
   }, [year]);
 
   const add = (list: FileList | File[]) => {
@@ -107,8 +110,19 @@ export function UploadPanel({
 
   const onConfirmClick = () => {
     setTried(true);
-    if (canConfirm) setAsking(true);
+    const problem = mode === "upload" ? uploadProblem(drafts) : null;
+    setLimitNote(problem);
+    if (canConfirm && !problem) setAsking(true);
   };
+
+  const limitText = (p: UploadProblem) =>
+    p.field === "files"
+      ? t("Upload at most {n} files at a time.", { n: p.max })
+      : p.field === "name"
+        ? t("The file name of {file} is longer than {n} characters.", { file: p.file, n: p.max })
+        : p.field === "type"
+          ? t("The file type of {file} is longer than {n} characters.", { file: p.file, n: p.max })
+          : t("The description of {file} is longer than {n} characters.", { file: p.file, n: p.max });
 
   const finish = () => {
     setAsking(false);
@@ -197,6 +211,7 @@ export function UploadPanel({
                 <span>
                   <input
                     value={d.description}
+                    maxLength={UPLOAD_LIMITS.description}
                     onChange={(e) =>
                       setDrafts((list) => list.map((x) => (x.id === d.id ? { ...x, description: e.target.value } : x)))
                     }
@@ -264,7 +279,7 @@ export function UploadPanel({
 
       {/* one Confirm for all three */}
       <div className="mt-6 flex flex-col gap-3 border-t border-black/[0.06] pt-5 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-[12.5px] text-black/45">{status}</p>
+        <p className="text-[12.5px] text-black/45">{limitNote ? limitText(limitNote) : status}</p>
         <Button onClick={onConfirmClick} disabled={mode === null} className="self-start sm:self-auto">
           {t("Confirm")}
         </Button>

@@ -12,6 +12,7 @@ import {
   retryAccountSave,
   exportPendingRecords,
   refreshAccountRecords,
+  isImportableLegacyKey,
 } from "../account-storage";
 
 const browser = {
@@ -339,4 +340,11 @@ test("a late refresh cannot repopulate a signed-out account and public pages nev
   const reads = remote.reads();
   assert.equal(await refreshAccountRecords(), false);
   assert.equal(remote.reads(), reads);
+});
+
+test("the server-backed workspace years are never offered as legacy account records", () => {
+  assert.equal(isImportableLegacyKey("certrace:workspace-years"), false);
+  assert.equal(isImportableLegacyKey("certrace:company:x"), false);
+  assert.equal(isImportableLegacyKey("other:key"), false);
+  assert.equal(isImportableLegacyKey("certrace:some-real-record"), true);
 });

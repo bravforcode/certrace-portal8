@@ -30,6 +30,8 @@ export type SheetCol = { key: string; label: string; kind: ColKind; width: strin
 export type SheetRow = {
   cells: Record<string, string>;
   status: RowStatus;
+  /* Reserved: nothing sets flags yet (sheetsFromCells never produces them), so the
+     warn/missing highlight in the spreadsheet is inert until a checker fills this in. */
   flags?: Record<string, CellFlag>;
 };
 export type Sheet = { id: string; code: string; name: string; cols: SheetCol[]; rows: SheetRow[] };
