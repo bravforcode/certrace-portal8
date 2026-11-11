@@ -37,7 +37,7 @@ import { currentYear, yearRange } from "@/lib/year-range";
 import { buildSheets } from "@/lib/workspace-sheets";
 import { parseYearParam, withQueryParams } from "@/lib/workbook/url-state";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { SETUP_MS, useWorkbook, useWorkbookYears, walkinPending } from "@/lib/workbook/use-workbook";
+import { COPY_MS, SETUP_MS, useWorkbook, useWorkbookYears, walkinPending } from "@/lib/workbook/use-workbook";
 
 /* useSearchParams() (read by the installation scope) needs a Suspense boundary above it. */
 export default function WorkspacePage() {
@@ -87,7 +87,12 @@ function WorkspaceInner() {
   const syncKey = syncing.map((y) => `${y}:${ws.get(y)!.confirmedAt}`).join(",");
   React.useEffect(() => {
     if (!syncKey) return;
-    const due = syncing.map((y) => ({ y, at: Date.parse(ws.get(y)!.confirmedAt ?? "") + SETUP_MS }));
+    // A copy writes its own "ready" when it finishes; the timer only rescues a copy left behind by a closed tab,
+    // so it waits COPY_MS rather than SETUP_MS and never marks a still-running copy ready.
+    const due = syncing.map((y) => {
+      const m = ws.get(y)!;
+      return { y, at: Date.parse(m.confirmedAt ?? "") + (m.copiedFrom ? COPY_MS : SETUP_MS) };
+    });
     const now = Date.now();
     for (const d of due) if (d.at <= now) ws.markReady(d.y);
     const next = due.filter((d) => d.at > now).map((d) => d.at - now);

@@ -33,6 +33,8 @@ import type { Sheet, WorkspaceFile } from "../workspace-sheets";
 
 /** How long the set-up takes after Confirm. */
 export const SETUP_MS = 60_000;
+/** A copy marks itself ready when done; the workspace timer only rescues one abandoned for this long. */
+export const COPY_MS = 10 * 60_000;
 const POLL_MS = 10_000;
 const YEARS_POLL_MS = 30_000;
 /** The server takes at most 2000 cells in one patch. */
