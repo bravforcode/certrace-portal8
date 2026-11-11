@@ -20,11 +20,14 @@
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Check, CircleMinus, Eye, FileText, Search, X } from "lucide-react";
-import { cn } from "@/components/ui";
+import { Button, cn } from "@/components/ui";
 import { useLanguage, type TFunction } from "@/lib/i18n";
 import { TH_WORKSPACE } from "@/lib/i18n-th-workspace";
 import { InstallationSheet } from "@/components/workspace/installation-sheet";
 import { FlowDiagram } from "@/components/workspace/flow-diagram";
+import { ImportWizard } from "@/components/workspace/import-wizard";
+import { FactoryProfileView } from "@/components/factory/factory-profile";
+import { stepNames } from "@/lib/workbook/flow-edit";
 import type { SyncResult } from "@/lib/workbook/sync-queue";
 import { LivePanel } from "@/components/workspace/live-panel";
 import type { Installation } from "@/lib/installations";
@@ -106,15 +109,18 @@ export function Spreadsheet({
   const t = useSheetT();
   const team = useTeam().data;
   const [tab, setTab] = React.useState<string>("materials");
-  // "Table" or "Flow", kept in ?view=flow so a reload or a shared link opens the same view.
+  // "Table", "Flow" or "Factory", kept in ?view= so a reload or a shared link opens the same view.
+  // Factory needs an installation; without one the link falls back to the table.
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
-  const view: "table" | "flow" = params.get("view") === "flow" ? "flow" : "table";
-  const setView = (v: "table" | "flow") => {
+  const requested = params.get("view");
+  const view: "table" | "flow" | "factory" =
+    requested === "flow" ? "flow" : requested === "factory" && installation ? "factory" : "table";
+  const setView = (v: "table" | "flow" | "factory") => {
     const next = new URLSearchParams(params.toString());
-    if (v === "flow") next.set("view", "flow");
-    else next.delete("view");
+    if (v === "table") next.delete("view");
+    else next.set("view", v);
     const qs = next.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
@@ -136,6 +142,10 @@ export function Spreadsheet({
   };
   const sheet = sheets.find((s) => s.id === tab);
   const isFlow = view === "flow" && !empty;
+  const isFactory = view === "factory" && !empty && !!installation;
+  const [importing, setImporting] = React.useState(false);
+  // Import writes rows into a sheet of cells; the Installation and Documents tabs are not row sheets.
+  const canImport = !!sheet && !!onEdit && !!savePatch && tab !== INSTALLATION_SHEET_ID && tab !== "documents";
   const installStatus = installationSheetStatus(installation);
   const installIssues = installation && installStatus === "missing" ? installationGaps(installation) : 0;
   const cols = sheet?.cols ?? [];
@@ -200,7 +210,7 @@ export function Spreadsheet({
   };
 
   const showLive = (id: string) => {
-    if (view === "flow") setView("table");
+    if (view !== "table") setView("table");
     setTab(id);
     setSel({ r: 0, c: 0 });
     setEditing(null);
@@ -220,7 +230,7 @@ export function Spreadsheet({
           </div>
           {!empty && (
             <div role="group" aria-label={t("View")} className="my-1 ml-2 flex flex-none items-center self-center rounded-md bg-[#f0efea] p-0.5 text-[12px]">
-              {(["table", "flow"] as const).map((v) => (
+              {(installation ? (["table", "flow", "factory"] as const) : (["table", "flow"] as const)).map((v) => (
                 <button
                   key={v}
                   type="button"
@@ -231,13 +241,18 @@ export function Spreadsheet({
                     view === v ? "bg-white font-medium text-[#111] shadow-[0_1px_2px_rgba(0,0,0,0.06)]" : "text-black/55 hover:text-black",
                   )}
                 >
-                  {v === "table" ? t("Table") : t("Flow")}
+                  {v === "table" ? t("Table") : v === "flow" ? t("Flow") : t("Factory")}
                 </button>
               ))}
             </div>
           )}
-          {!empty && !isFlow && (
+          {!empty && !isFlow && !isFactory && (
             <div className="flex items-center gap-3 border-l border-black/[0.08] px-2.5 py-1">
+              {canImport && (
+                <Button variant="secondary" size="sm" onClick={() => setImporting(true)}>
+                  {t("Import from file")}
+                </Button>
+              )}
               <span
                 aria-live="polite"
                 className={cn(
@@ -283,7 +298,11 @@ export function Spreadsheet({
         </div>
 
         {/* ── Grid ────────────────────────────────────── */}
-        {isFlow ? (
+        {isFactory && installation ? (
+          <div className="p-4">
+            <FactoryProfileView installationId={installation.id} stepNames={stepNames(cells ?? {})} year={year} />
+          </div>
+        ) : isFlow ? (
           <FlowDiagram
             sheets={sheets}
             cells={cells}
@@ -411,7 +430,7 @@ export function Spreadsheet({
                 type="button"
                 title={dot && full ? statusTooltip(full) : undefined}
                 onClick={() => {
-                  if (view === "flow") setView("table");
+                  if (view !== "table") setView("table");
                   setTab(s.id);
                   setSel({ r: 0, c: 0 });
                   setEditing(null);
@@ -465,6 +484,9 @@ export function Spreadsheet({
       </div>
       {!empty && (
         <LivePanel sheets={sheets} installation={installation} country={installation?.country ?? ""} year={year} onOpenSheet={showLive} />
+      )}
+      {importing && sheet && canImport && savePatch && (
+        <ImportWizard sheet={sheet} cells={cells ?? {}} savePatch={savePatch} onClose={() => setImporting(false)} t={t} />
       )}
     </div>
   );
