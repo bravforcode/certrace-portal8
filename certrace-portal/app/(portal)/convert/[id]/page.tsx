@@ -32,6 +32,7 @@ import { YearBar } from "@/components/year-bar";
 import { currentYear } from "@/lib/year-range";
 import { StandardLogo } from "@/components/convert/standard-logo";
 import { DeclarationRows } from "@/components/convert/declaration-rows";
+import { ScopedInstallationSwitcher } from "@/components/scoped-installation-switcher";
 import { useDeclarations } from "@/lib/declarations-query";
 import { useT } from "@/lib/i18n";
 import { getStandard, type RequirementState } from "@/lib/convert-standards";
@@ -42,6 +43,7 @@ import {
 } from "@/lib/convert/requirements";
 import { useConvertContext } from "@/lib/convert/use-convert-context";
 import { installationRole } from "@/lib/installations";
+import type { Declaration } from "@/lib/data";
 
 const STATE: Record<
   RequirementState,
@@ -99,9 +101,10 @@ function ConvertStandardInner() {
   const rows = requirements.filter(
     (r) => !q || r.title.toLowerCase().includes(q),
   );
-  const yearHistory = declarations.filter(
-    (d) => d.periodStart?.slice(0, 4) === String(year),
-  );
+  // A declaration names its period; without one, the year it was created (or last changed) stands in.
+  const yearOf = (d: Declaration) =>
+    (d.periodStart ?? d.createdAt ?? d.updatedAt)?.slice(0, 4);
+  const yearHistory = declarations.filter((d) => yearOf(d) === String(year));
 
   const convert = () => {
     if (!canConvert) return;
@@ -110,7 +113,10 @@ function ConvertStandardInner() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-10">
-      <BackLink />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <BackLink />
+        <ScopedInstallationSwitcher />
+      </div>
 
       <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
         <div className="flex min-w-0 gap-4">
@@ -146,17 +152,16 @@ function ConvertStandardInner() {
           <Button
             onClick={convert}
             disabled={!canConvert}
-            title={
-              canConvert
-                ? undefined
-                : `${t("Complete first")}: ${incomplete.map((r) => r.title).join(", ")}`
-            }
+            aria-describedby={canConvert ? undefined : "convert-incomplete"}
             className="self-start"
           >
             {t("Convert to report")}
           </Button>
           {!canConvert && (
-            <p className="max-w-xs text-[12px] leading-relaxed text-black/50 md:text-right">
+            <p
+              id="convert-incomplete"
+              className="max-w-xs text-[12px] leading-relaxed text-black/50 md:text-right"
+            >
               {t("Complete first")}:{" "}
               {incomplete.map((r, i) => (
                 <React.Fragment key={r.id}>
@@ -242,9 +247,14 @@ function ConvertStandardInner() {
       </section>
 
       <section className="space-y-4">
-        <h2 className="font-[family-name:var(--font-plex)] text-xl font-light tracking-tight text-[#111]">
-          Report history
-        </h2>
+        <div>
+          <h2 className="font-[family-name:var(--font-plex)] text-xl font-light tracking-tight text-[#111]">
+            Report history
+          </h2>
+          <p className="mt-1 text-[12px] text-black/40">
+            {t("History covers all installations.")}
+          </p>
+        </div>
         {yearHistory.length === 0 ? (
           <EmptyState title={t("No reports generated for {year} yet.", { year })} />
         ) : (

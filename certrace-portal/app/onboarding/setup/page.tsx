@@ -65,6 +65,16 @@ import { flushAccount } from "@/lib/account-storage";
 import { useProfile } from "@/lib/profile";
 import { useFormat, useT } from "@/lib/i18n";
 import { trialState, currentPlan } from "@/lib/plan";
+import { RoleRadios } from "@/components/workspace/installation-form";
+import { ownInstallation, saveInstallation, type InstallationRole } from "@/lib/installations";
+
+/* Who runs the plant: the same choice Settings offers, limited to the two that
+   a sign-in onboarding can answer. "both" from the onboarding question stays
+   "both" unless the user changes it here. */
+const PLANT_ROLE_OPTIONS: { value: "own" | "oem"; label: string }[] = [
+  { value: "own", label: "We run this plant" },
+  { value: "oem", label: "An OEM runs it for us — we enter its data" },
+];
 
 const STEPS = [
   { key: "welcome", label: "Welcome" },
@@ -189,6 +199,9 @@ export default function SignInSetupPage() {
   const [annualProductionBand, setAnnualProductionBand] = React.useState(
     profile.annualProductionBand ?? "",
   );
+  const [plantRole, setPlantRole] = React.useState<"own" | "oem">(
+    profile.productionModel === "oem" ? "oem" : "own",
+  );
   const factoryErrors = factoryBasicsErrors({ boilerCount, furnaceCount });
   const factoryValid = Object.keys(factoryErrors).length === 0;
   React.useEffect(() => {
@@ -197,6 +210,7 @@ export default function SignInSetupPage() {
     setBoilerCount(profile.boilerCount ?? "");
     setFurnaceCount(profile.furnaceCount ?? "");
     setAnnualProductionBand(profile.annualProductionBand ?? "");
+    setPlantRole(profile.productionModel === "oem" ? "oem" : "own");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded]);
   const toggleEnergySource = (value: string) =>
@@ -224,12 +238,22 @@ export default function SignInSetupPage() {
       try {
         // Only the displayed Settings fields change. Keep questionnaire answers,
         // access status and notification choices from the existing account.
+        // The role is saved with the exporter's own installation when there is one,
+        // and mirrored on the profile so a new site starts with the same answer.
+        const own = ownInstallation();
+        if (own) saveInstallation({ ...own, role: plantRole as InstallationRole });
         update({
           ...toPatch(),
           energySources,
           boilerCount,
           furnaceCount,
           annualProductionBand,
+          productionModel:
+            plantRole === "oem"
+              ? "oem"
+              : profile.productionModel === "both"
+                ? "both"
+                : "own",
         });
         await flushAccount();
         setStep(2);
@@ -324,6 +348,17 @@ export default function SignInSetupPage() {
               "These are your Settings — what your filings, supplier requests and emission figures are built from. Anything we already know is filled in; change whatever has moved on.",
             )}
           />
+
+          <FieldGroup label={t("Who runs your plant")}>
+            <RoleRadios
+              name="plant-role"
+              legend="Who runs this plant?"
+              options={PLANT_ROLE_OPTIONS}
+              value={plantRole}
+              onChange={setPlantRole}
+              disabled={saveState === "saving"}
+            />
+          </FieldGroup>
 
           <FieldGroup label={t("Your organisation")}>
             <OrganisationFields draft={draft} set={set} />

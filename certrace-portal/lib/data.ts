@@ -107,6 +107,9 @@ export type Declaration = {
   /** ISO reporting-period bounds, e.g. 2026-01-01 / 2026-12-31 */
   periodStart?: string;
   periodEnd?: string;
+  /** ISO timestamps, when the store records them */
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 /* The company's saved supplier directory. New suppliers invited during a

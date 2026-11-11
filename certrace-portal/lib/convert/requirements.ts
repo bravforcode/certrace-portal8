@@ -51,13 +51,13 @@ export function liveRequirements(
     // D9: an OEM plant's data is typed in by the account; a supplier's comes from its own form.
     const fix: Fix =
       role === "oem" ? "fill-in" : role === "supplier" ? "smart-link" : src.fix;
-    const iid = ctx.installation?.id;
+    const iid = ctx.installation?.id ? encodeURIComponent(ctx.installation.id) : null;
     const sheet = src.installation ? "installation" : src.sheets[0];
     const href = !iid
       ? null
       : fix === "fill-in"
         ? `/workspace?installation=${iid}&sheet=${sheet}`
-        : `/smart-links?installation=${iid}&request=${req.id}`;
+        : `/smart-links?installation=${iid}&request=${encodeURIComponent(req.id)}`;
     return { ...req, ...stateOf(statuses), fix, href };
   });
 }

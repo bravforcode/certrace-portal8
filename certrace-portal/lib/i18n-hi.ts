@@ -6844,4 +6844,7 @@ export const HI: Record<string, string> = {
   "We run this plant": "हम इस संयंत्र को स्वयं चलाते हैं",
   "An OEM runs it for us — we enter its data": "OEM हमारे लिए चलाता है — हम उसका डेटा दर्ज करते हैं",
   "A supplier — they fill in a form": "आपूर्तिकर्ता — वे फ़ॉर्म भरते हैं",
+  "Who runs your plant": "आपका संयंत्र कौन चलाता है",
+  "History covers all installations.": "इतिहास में सभी संयंत्र शामिल हैं।",
+  "Generated": "बनाया गया",
 };

@@ -9191,4 +9191,7 @@ export const ZH: Record<string, string> = {
   "We run this plant": "由我们自行运营",
   "An OEM runs it for us — we enter its data": "OEM 代为运营，我们录入其数据",
   "A supplier — they fill in a form": "供应商，由其填写表格",
+  "Who runs your plant": "由谁运营您的工厂",
+  "History covers all installations.": "历史记录涵盖所有装置。",
+  "Generated": "生成于",
 };

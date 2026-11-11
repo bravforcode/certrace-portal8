@@ -4275,4 +4275,7 @@ export const TH: Record<string, string> = {
   "We run this plant": "เราดำเนินการโรงงานนี้เอง",
   "An OEM runs it for us — we enter its data": "OEM ดำเนินการให้เรา — เราป้อนข้อมูลของ OEM",
   "A supplier — they fill in a form": "ซัพพลายเออร์ — ให้ซัพพลายเออร์กรอกแบบฟอร์ม",
+  "Who runs your plant": "ใครเป็นผู้ดำเนินการโรงงานของคุณ",
+  "History covers all installations.": "ประวัติครอบคลุมทุกโรงงาน",
+  "Generated": "สร้างเมื่อ",
 };

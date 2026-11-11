@@ -16,7 +16,11 @@ export function useConvertContext(): {
   const { scoped } = useScopedInstallation();
   const iid = scoped?.id ?? null;
   const { years } = useWorkbookYears(iid);
-  const year = years[0]?.year ?? currentYear();
+  // Newest year first, whatever order the store returns them in.
+  const latest = years
+    .map((y: { year: number }) => y.year)
+    .sort((a: number, b: number) => b - a)[0];
+  const year = latest ?? currentYear();
   const { sheets } = useWorkbook(iid, year);
   const installation = React.useMemo(() => (iid ? getInstallation(iid) : null), [iid]);
   return { scoped, installation, sheets };

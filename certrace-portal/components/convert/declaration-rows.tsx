@@ -1,8 +1,9 @@
 "use client";
 
 import { Chip, cn } from "@/components/ui";
-import { useT } from "@/lib/i18n";
+import { useFormat, useT } from "@/lib/i18n";
 import type { Declaration, DeclarationStep } from "@/lib/data";
+import { getStandard } from "@/lib/convert-standards";
 
 const STEP_LABEL: Record<DeclarationStep, string> = {
   collect: "Collecting data",
@@ -18,6 +19,7 @@ const STEP_LABEL: Record<DeclarationStep, string> = {
    declaration has no file to download, so the row carries only what it knows. */
 export function DeclarationRows({ items }: { items: Declaration[] }) {
   const t = useT();
+  const { date } = useFormat();
   return (
     <div className="overflow-hidden rounded-xl border border-black/[0.08] bg-white">
       {items.map((d, i) => (
@@ -30,7 +32,16 @@ export function DeclarationRows({ items }: { items: Declaration[] }) {
         >
           <div className="min-w-0 flex-1">
             <div className="truncate text-[14px] text-black/85">{d.title ?? d.name}</div>
-            <div className="mt-0.5 text-[12px] text-black/40">{d.period}</div>
+            <div className="mt-0.5 text-[12px] text-black/40">
+              {[
+                getStandard(d.regulation)?.name,
+                d.period,
+                (d.createdAt ?? d.updatedAt) &&
+                  `${t("Generated")} ${date(d.createdAt ?? d.updatedAt!)}`,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </div>
           </div>
           <Chip tone={d.step === "done" || d.step === "submit" ? "ok" : "warn"}>
             {t(STEP_LABEL[d.step])}

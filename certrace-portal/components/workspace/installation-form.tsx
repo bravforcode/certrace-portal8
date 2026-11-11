@@ -202,6 +202,47 @@ const ROLE_OPTIONS: { value: InstallationRole; label: string }[] = [
   { value: "supplier", label: "A supplier — they fill in a form" },
 ];
 
+/* One choice among a few roles, as a radio group. Shared by the installation
+   form and the onboarding setup step so both read and save the same way. */
+export function RoleRadios<T extends string>({
+  name,
+  legend,
+  options,
+  value,
+  onChange,
+  disabled = false,
+}: {
+  name: string;
+  legend: string;
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (next: T) => void;
+  disabled?: boolean;
+}) {
+  const t = useT();
+  return (
+    <fieldset className="space-y-2" disabled={disabled}>
+      <legend className="mb-1 text-[13px] text-black/75">{t(legend)}</legend>
+      {options.map((o) => (
+        <label
+          key={o.value}
+          className="flex cursor-pointer items-start gap-3 rounded-xl border border-black/[0.08] bg-[#faf9f7] px-4 py-3"
+        >
+          <input
+            type="radio"
+            name={name}
+            value={o.value}
+            checked={value === o.value}
+            onChange={() => onChange(o.value)}
+            className="mt-0.5 h-4 w-4 flex-none accent-[#111]"
+          />
+          <span className="text-[13px] text-black/75">{t(o.label)}</span>
+        </label>
+      ))}
+    </fieldset>
+  );
+}
+
 export function InstallationFields({
   value,
   onChange,
@@ -309,25 +350,14 @@ export function InstallationFields({
       )}
 
       {showRole && (
-        <fieldset className="space-y-2" disabled={disabled}>
-          <legend className="mb-1 text-[13px] text-black/75">{t("Who runs this plant?")}</legend>
-          {ROLE_OPTIONS.map((o) => (
-            <label
-              key={o.value}
-              className="flex cursor-pointer items-start gap-3 rounded-xl border border-black/[0.08] bg-[#faf9f7] px-4 py-3"
-            >
-              <input
-                type="radio"
-                name={roleName}
-                value={o.value}
-                checked={installationRole(value) === o.value}
-                onChange={() => set({ role: o.value })}
-                className="mt-0.5 h-4 w-4 flex-none accent-[#111]"
-              />
-              <span className="text-[13px] text-black/75">{t(o.label)}</span>
-            </label>
-          ))}
-        </fieldset>
+        <RoleRadios
+          name={roleName}
+          legend="Who runs this plant?"
+          options={ROLE_OPTIONS}
+          value={installationRole(value)}
+          onChange={(role) => set({ role })}
+          disabled={disabled}
+        />
       )}
 
       {/* The name leads; the reference is Certrace's own key for the record and

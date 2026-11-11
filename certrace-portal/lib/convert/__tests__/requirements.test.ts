@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { liveRequirements, readiness, REQUIREMENT_SOURCES } from "../requirements";
 import { STANDARDS, getStandard } from "../../convert-standards";
 import type { Sheet } from "../../workspace-sheets";
-import { emptyInstallation, type Installation } from "../../installations";
+import { emptyInstallation, installationRole, type Installation } from "../../installations";
 
 const sheet = (id: string, rows: Record<string, string>[]): Sheet => ({
   id, code: "", name: id, cols: [],
@@ -48,4 +48,29 @@ test("readiness is 100 only when every requirement is complete", () => {
   ] as Parameters<typeof readiness>[0];
   assert.ok(readiness(reqs) < 100);
   assert.equal(readiness(reqs.slice(0, 1)), 100);
+});
+
+test("a requirement with one complete and one untouched source is in progress at 50%", () => {
+  const r = liveRequirements(eu, {
+    installation: null,
+    sheets: [sheet("materials", [{ step: "1", item: "Coil", qty: "2", unit: "t" }])],
+  }).find((x) => x.id === "direct")!;
+  assert.equal(r.state, "in-progress");
+  assert.equal(r.progress, 50);
+});
+test("installation requirement links to the installation sheet with the id encoded", () => {
+  const oem = { ...emptyInstallation(false), id: "p 2", name: "OEM", role: "oem" } as Installation;
+  const r = liveRequirements(eu, { installation: oem, sheets: [] }).find((x) => x.id === "installation")!;
+  assert.equal(r.href, "/workspace?installation=p%202&sheet=installation");
+});
+test("installationRole defaults to own, supplier when a supplierId is set, and honours an explicit role", () => {
+  assert.equal(installationRole({ supplierId: "" }), "own");
+  assert.equal(installationRole({ supplierId: "s1" }), "supplier");
+  assert.equal(installationRole({ role: "oem", supplierId: "" }), "oem");
+});
+test("supplier installations keep smart-link requirements on the Smart Link route", () => {
+  const sup = { ...emptyInstallation(false), id: "p3", name: "Mill", supplierId: "s1" } as Installation;
+  const r = liveRequirements(eu, { installation: sup, sheets: [] }).find((x) => x.id === "precursors")!;
+  assert.equal(r.fix, "smart-link");
+  assert.equal(r.href, "/smart-links?installation=p3&request=precursors");
 });

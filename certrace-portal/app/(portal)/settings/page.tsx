@@ -398,6 +398,15 @@ function PlanCard() {
 function OwnInstallationCard() {
   const t = useT();
   const { profile } = useProfile();
+  /* A stable draft for "add a site": a new object on every render would reset
+     the installation form each time the page re-renders. */
+  const newSiteDraft = React.useMemo(
+    () => ({
+      ...emptyInstallation(true),
+      role: profile.productionModel === "oem" ? ("oem" as const) : ("own" as const),
+    }),
+    [profile.productionModel],
+  );
   const own = useOwnInstallations().data;
   /** null = closed · "new" = adding · an Installation = editing that one */
   const [editing, setEditing] = React.useState<Installation | "new" | null>(
@@ -572,7 +581,7 @@ function OwnInstallationCard() {
           editing && editing !== "new"
             ? editing
             : // An OEM answer in onboarding preselects the OEM role for the next site.
-              { ...emptyInstallation(true), role: profile.productionModel === "oem" ? "oem" : "own" }
+              newSiteDraft
         }
         allowSelfToggle={false}
         showRole
