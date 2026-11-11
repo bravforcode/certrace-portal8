@@ -193,7 +193,6 @@ Source: ORNL-AMO/MEASUR-Tools-Suite (UT-Battelle permissive licence, not MIT). R
 - Opportunities use `exportedT = productionT`.
 - zh and hi fall back to English for new keys.
 - Thai wording needs native review.
-- `?year=` is not written back to the URL.
 - Seat roles are not exposed in the portal.
 - Ferro-alloys `DIRECT_ONLY` is keyed by category, but Annex II of Regulation (EU) 2023/956 is CN-level (7202 1x/4x/60 are direct-only; other 7202 codes are indirect). Not verified against the official text.
 - G14 (cross-package import of team-seat-limits) is closed: the backend has its own copy, drift-checked by a test.
