@@ -35,8 +35,8 @@ import { useScopedInstallation } from "@/lib/scoped-installation";
 import { draftInstallation, getInstallation, saveInstallation } from "@/lib/installations";
 import { currentYear, yearRange } from "@/lib/year-range";
 import { buildSheets } from "@/lib/workspace-sheets";
-import { parseYearParam } from "@/lib/workbook/url-state";
-import { useSearchParams } from "next/navigation";
+import { parseYearParam, withQueryParams } from "@/lib/workbook/url-state";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { SETUP_MS, useWorkbook, useWorkbookYears, walkinPending } from "@/lib/workbook/use-workbook";
 
 /* useSearchParams() (read by the installation scope) needs a Suspense boundary above it. */
@@ -59,12 +59,20 @@ function WorkspaceInner() {
   );
   const convertHref = scoped ? `/convert?installation=${encodeURIComponent(scoped.id)}` : "/convert";
   // ?year= opens that reporting year when the year bar offers it; anything else opens the current year.
-  const yearParam = useSearchParams().get("year");
+  const params = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const yearParam = params.get("year");
   const [year, setYear] = React.useState(() => parseYearParam(yearParam, yearRange()) ?? currentYear());
   React.useEffect(() => {
     const requested = parseYearParam(yearParam, yearRange());
     if (requested !== null) setYear(requested);
   }, [yearParam]);
+  // Writes the chosen year back to ?year= with replace (no history entry per click), keeping ?installation= and the rest.
+  const chooseYear = (next: number) => {
+    setYear(next);
+    router.replace(`${pathname}?${withQueryParams(params.toString(), { year: String(next) })}`, { scroll: false });
+  };
   const installationId = scoped?.id ?? null;
   const ws = useWorkbookYears(installationId);
   const rec = ws.get(year);
@@ -104,7 +112,7 @@ function WorkspaceInner() {
 
       <YearBar
         value={year}
-        onChange={setYear}
+        onChange={chooseYear}
         mark={(y) => {
           const s = ws.get(y)?.status;
           return s === "ready" ? "data" : s === "syncing" ? "pending" : undefined;

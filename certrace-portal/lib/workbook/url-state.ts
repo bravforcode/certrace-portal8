@@ -12,3 +12,13 @@ export function parseYearParam(raw: string | null, years: readonly number[]): nu
   const year = Number(raw);
   return years.includes(year) ? year : null;
 }
+
+/** The query string after setting or deleting (null) some params; the other params keep their place. */
+export function withQueryParams(search: string, changes: Record<string, string | null>): string {
+  const next = new URLSearchParams(search);
+  for (const [key, value] of Object.entries(changes)) {
+    if (value === null) next.delete(key);
+    else next.set(key, value);
+  }
+  return next.toString();
+}
