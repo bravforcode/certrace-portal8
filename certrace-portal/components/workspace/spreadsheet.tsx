@@ -25,7 +25,9 @@ import { useLanguage, type TFunction } from "@/lib/i18n";
 import { TH_WORKSPACE } from "@/lib/i18n-th-workspace";
 import { InstallationSheet } from "@/components/workspace/installation-sheet";
 import { FlowDiagram } from "@/components/workspace/flow-diagram";
+import { LivePanel } from "@/components/workspace/live-panel";
 import type { Installation } from "@/lib/installations";
+import { currentYear } from "@/lib/year-range";
 import {
   SHEET_ORDER,
   STATUS_LABEL,
@@ -78,6 +80,7 @@ export function Spreadsheet({
   empty = false,
   installation = null,
   onInstallationSave,
+  year = currentYear(),
 }: {
   /** Rows come from the server workbook (useWorkbook), already with unsaved edits on top. */
   sheets: Sheet[];
@@ -90,6 +93,8 @@ export function Spreadsheet({
   /** The site the Installation tab edits — the scoped installation's full record. */
   installation?: Installation | null;
   onInstallationSave?: (inst: Installation) => void;
+  /** The reporting year the workbook is open on; the live check's estimate uses its factor year. */
+  year?: number;
 }) {
   const t = useSheetT();
   const team = useTeam().data;
@@ -187,263 +192,270 @@ export function Spreadsheet({
     }
   };
 
+  const showLive = (id: string) => {
+    if (view === "flow") setView("table");
+    setTab(id);
+    setSel({ r: 0, c: 0 });
+    setEditing(null);
+  };
+
   return (
-    <div className="overflow-hidden rounded-2xl border border-black/[0.08] bg-white">
-      {/* ── Formula bar ─────────────────────────────── */}
-      <div className="flex min-h-[36px] flex-wrap items-stretch border-b border-black/[0.08]">
-        <div className="flex w-[76px] flex-none items-center justify-center border-r border-black/[0.08] font-mono text-[12px] text-black/75">
-          {empty || isFlow ? "" : ref}
-        </div>
-        <div className="flex min-w-0 flex-1 items-center gap-2.5 px-3">
-          <span className="font-serif text-[12px] italic text-black/35">fx</span>
-          <span className="truncate text-[12.5px] text-black/80">{selValue}</span>
-        </div>
-        {!empty && (
-          <div role="group" aria-label={t("View")} className="my-1 ml-2 flex flex-none items-center self-center rounded-md bg-[#f0efea] p-0.5 text-[12px]">
-            {(["table", "flow"] as const).map((v) => (
-              <button
-                key={v}
-                type="button"
-                aria-pressed={view === v}
-                onClick={() => setView(v)}
-                className={cn(
-                  "rounded px-2.5 py-1 transition-colors",
-                  view === v ? "bg-white font-medium text-[#111] shadow-[0_1px_2px_rgba(0,0,0,0.06)]" : "text-black/55 hover:text-black",
-                )}
-              >
-                {v === "table" ? t("Table") : t("Flow")}
-              </button>
-            ))}
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+      <div className="min-w-0 overflow-hidden rounded-2xl border border-black/[0.08] bg-white">
+        {/* ── Formula bar ─────────────────────────────── */}
+        <div className="flex min-h-[36px] flex-wrap items-stretch border-b border-black/[0.08]">
+          <div className="flex w-[76px] flex-none items-center justify-center border-r border-black/[0.08] font-mono text-[12px] text-black/75">
+            {empty || isFlow ? "" : ref}
           </div>
-        )}
-        {!empty && !isFlow && (
-          <div className="flex items-center gap-3 border-l border-black/[0.08] px-2.5 py-1">
-            <span
-              aria-live="polite"
-              className={cn(
-                "hidden items-center gap-1.5 whitespace-nowrap text-[11.5px] sm:inline-flex",
-                saving ? "text-black/45" : "text-black/40",
-              )}
-            >
-              {saving ? (
-                <>
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-500" />
-                  {t("Saving…")}
-                </>
-              ) : (
-                <>
-                  <Check size={12} strokeWidth={2} className="text-emerald-600" />
-                  {t("All changes saved")}
-                </>
-              )}
-            </span>
-            <label className="relative flex items-center">
-              <Search size={12} strokeWidth={1.5} className="pointer-events-none absolute left-2 text-black/30" />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={t("Search sheets…")}
-                aria-label={t("Search sheets")}
-                data-lock="allow"
-                className="no-focus-ring h-7 w-44 rounded-md border border-black/10 bg-white pl-7 pr-6 text-[12px] text-black/70 placeholder:text-black/30 focus:border-black/25 focus:outline-none"
-              />
-              {query && (
+          <div className="flex min-w-0 flex-1 items-center gap-2.5 px-3">
+            <span className="font-serif text-[12px] italic text-black/35">fx</span>
+            <span className="truncate text-[12.5px] text-black/80">{selValue}</span>
+          </div>
+          {!empty && (
+            <div role="group" aria-label={t("View")} className="my-1 ml-2 flex flex-none items-center self-center rounded-md bg-[#f0efea] p-0.5 text-[12px]">
+              {(["table", "flow"] as const).map((v) => (
                 <button
+                  key={v}
                   type="button"
-                  aria-label={t("Clear search")}
-                  onClick={() => setQuery("")}
-                  className="absolute right-1.5 grid h-5 w-5 place-items-center rounded text-black/35 hover:text-black"
-                >
-                  <X size={11} strokeWidth={2} />
-                </button>
-              )}
-            </label>
-          </div>
-        )}
-      </div>
-
-      {/* ── Grid ────────────────────────────────────── */}
-      {isFlow ? (
-        <FlowDiagram
-          sheets={sheets}
-          t={t}
-          onOpenSheet={(id) => {
-            setView("table");
-            setTab(id);
-            setSel({ r: 0, c: 0 });
-            setEditing(null);
-          }}
-        />
-      ) : tab === INSTALLATION_SHEET_ID ? (
-        <InstallationSheet key={installation?.id ?? ""} installation={installation} onSave={onInstallationSave} />
-      ) : (
-        <div
-          ref={gridRef}
-          role="grid"
-          aria-label={sheet ? `${sheet.code} ${t(sheet.name)}` : t("Sheet")}
-          tabIndex={0}
-          onKeyDown={onKeyDown}
-          className="no-focus-ring overflow-x-auto focus:outline-none"
-        >
-          <div className="grid min-w-max text-[12.5px]" style={{ gridTemplateColumns: template }}>
-            {/* column letters */}
-            <div className="sticky left-0 z-10 h-6 border-b border-r border-black/[0.08] bg-[#f0efea]" />
-            {Array.from({ length: colCount }, (_, c) => (
-              <div
-                key={c}
-                className={cn(
-                  "flex h-6 items-center justify-center border-b border-r border-black/[0.08] text-[11px] text-black/45",
-                  !empty && sel.c === c ? "bg-[#e3e2dc] font-medium text-black/70" : "bg-[#f0efea]",
-                )}
-              >
-                {letter(c)}
-              </div>
-            ))}
-
-            {/* header row */}
-            <RowNo n={1} />
-            {Array.from({ length: colCount }, (_, c) => (
-              <div key={c} className="flex h-8 items-center border-b border-r border-black/[0.08] bg-[#f7f6f2] px-2.5 font-semibold text-[#111]">
-                {!empty && cols[c] ? t(cols[c]!.label) : ""}
-              </div>
-            ))}
-
-            {/* data rows */}
-            {visible.map(({ row, r }) => (
-              <div key={r} role="row" className="contents">
-                <RowNo n={r + 2} on={sel.r === r} />
-                {cols.map((col, c) => {
-                  const k = keyOf(r, c);
-                  const v = valueOf(row, r, c);
-                  const flag = row.flags?.[col.key];
-                  const editor = editors[`${tab}:${r}:${col.key}`];
-                  const selected = sel.r === r && sel.c === c;
-                  return (
-                    <div
-                      key={col.key}
-                      role="gridcell"
-                      title={editor ? t("Edited by {name} · {time}", { name: editorName(editor.by), time: timeAgo(editor.at, t) }) : undefined}
-                      tabIndex={-1}
-                      aria-selected={selected}
-                      onClick={() => {
-                        setSel({ r, c });
-                        gridRef.current?.focus();
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && editable(c) && !editing) setEditing(k);
-                      }}
-                      onDoubleClick={() => editable(c) && setEditing(k)}
-                      className={cn(
-                        "relative flex h-8 min-w-0 items-center border-b border-r border-black/[0.08] px-2.5",
-                        col.kind === "number" && "justify-end",
-                        flag && "bg-[#fffbeb]",
-                        selected && "z-[1] outline outline-2 -outline-offset-1 outline-[#111]",
-                      )}
-                    >
-                      {editing === k ? (
-                        <CellEditor
-                          initial={v}
-                          align={col.kind === "number" ? "right" : "left"}
-                          onCommit={(val) => commit(r, c, val)}
-                          onCancel={() => {
-                            setEditing(null);
-                            gridRef.current?.focus();
-                          }}
-                        />
-                      ) : (
-                        <CellView col={col} value={v} flag={flag} status={row.status} selected={selected} query={q} text={shown(col, v)} />
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
-
-            {/* empty rows to the fold, like a fresh sheet */}
-            {Array.from({ length: Math.max(0, MIN_ROWS - 1 - visible.length) }, (_, i) => {
-              const n = (empty ? 2 : (sheet?.rows.length ?? 0) + 2) + i;
-              return (
-                <React.Fragment key={`e${i}`}>
-                  <RowNo n={empty ? 2 + i : n} />
-                  {Array.from({ length: colCount }, (_, c) => (
-                    <div key={c} className="h-8 border-b border-r border-black/[0.08]" />
-                  ))}
-                </React.Fragment>
-              );
-            })}
-          </div>
-          {q && visible.length === 0 && (
-            <p className="border-b border-black/[0.08] px-3 py-2 text-[12px] text-black/40">
-              {t("No rows in this sheet match “{query}”.", { query })}
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* ── Sheet tabs ──────────────────────────────── */}
-      <div className="flex items-stretch overflow-x-auto border-t border-black/[0.08] bg-[#f0efea] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {tabOrder(sheets).map((s) => {
-          const on = tab === s.id;
-          const full = sheets.find((x) => x.id === s.id);
-          const n = !full || empty ? 0 : q ? matchCount(full) : issuesOf(full);
-          const dot = full && !empty && s.id !== INSTALLATION_SHEET_ID ? sheetStatus(full) : null;
-          return (
-            <button
-              key={s.id}
-              type="button"
-              title={dot && full ? statusTooltip(full) : undefined}
-              onClick={() => {
-                if (view === "flow") setView("table");
-                setTab(s.id);
-                setSel({ r: 0, c: 0 });
-                setEditing(null);
-              }}
-              className={cn(
-                "flex flex-none items-center gap-1.5 whitespace-nowrap px-3.5 py-1.5 text-[12.5px] transition-colors",
-                on
-                  ? "rounded-b-xl bg-white font-medium text-[#111] shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
-                  : "text-black/55 hover:text-black",
-              )}
-            >
-              {dot && (
-                <span
-                  role="img"
-                  aria-label={t(STATUS_LABEL[dot])}
-                  style={{ backgroundColor: STATUS_TONE[dot] }}
-                  className="inline-block h-2 w-2 flex-none rounded-full"
-                />
-              )}
-              {s.code && <span>{s.code}</span>}
-              {t(s.name)}
-              {s.id === INSTALLATION_SHEET_ID && !empty ? (
-                installStatus !== "untouched" && (
-                  <span
-                    role="img"
-                    aria-label={
-                      installStatus === "missing"
-                        ? t("{n} missing fields", { n: installIssues })
-                        : t(STATUS_LABEL[installStatus])
-                    }
-                    style={{ backgroundColor: installationTabTone(installation) }}
-                    className="grid h-4 min-w-4 place-items-center rounded-full px-1 font-mono text-[10px] text-white"
-                  >
-                    {installStatus === "missing" ? installIssues : ""}
-                  </span>
-                )
-              ) : n > 0 && (
-                <span
+                  aria-pressed={view === v}
+                  onClick={() => setView(v)}
                   className={cn(
-                    "grid h-4 min-w-4 place-items-center rounded-full px-1 font-mono text-[10px]",
-                    q ? "bg-black/[0.07] text-black/55" : "bg-[#fdecc8] text-[#b45309]",
+                    "rounded px-2.5 py-1 transition-colors",
+                    view === v ? "bg-white font-medium text-[#111] shadow-[0_1px_2px_rgba(0,0,0,0.06)]" : "text-black/55 hover:text-black",
                   )}
                 >
-                  {n}
-                </span>
-              )}
-            </button>
-          );
-        })}
+                  {v === "table" ? t("Table") : t("Flow")}
+                </button>
+              ))}
+            </div>
+          )}
+          {!empty && !isFlow && (
+            <div className="flex items-center gap-3 border-l border-black/[0.08] px-2.5 py-1">
+              <span
+                aria-live="polite"
+                className={cn(
+                  "hidden items-center gap-1.5 whitespace-nowrap text-[11.5px] sm:inline-flex",
+                  saving ? "text-black/45" : "text-black/40",
+                )}
+              >
+                {saving ? (
+                  <>
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-500" />
+                    {t("Saving…")}
+                  </>
+                ) : (
+                  <>
+                    <Check size={12} strokeWidth={2} className="text-emerald-600" />
+                    {t("All changes saved")}
+                  </>
+                )}
+              </span>
+              <label className="relative flex items-center">
+                <Search size={12} strokeWidth={1.5} className="pointer-events-none absolute left-2 text-black/30" />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder={t("Search sheets…")}
+                  aria-label={t("Search sheets")}
+                  data-lock="allow"
+                  className="no-focus-ring h-7 w-44 rounded-md border border-black/10 bg-white pl-7 pr-6 text-[12px] text-black/70 placeholder:text-black/30 focus:border-black/25 focus:outline-none"
+                />
+                {query && (
+                  <button
+                    type="button"
+                    aria-label={t("Clear search")}
+                    onClick={() => setQuery("")}
+                    className="absolute right-1.5 grid h-5 w-5 place-items-center rounded text-black/35 hover:text-black"
+                  >
+                    <X size={11} strokeWidth={2} />
+                  </button>
+                )}
+              </label>
+            </div>
+          )}
+        </div>
+
+        {/* ── Grid ────────────────────────────────────── */}
+        {isFlow ? (
+          <FlowDiagram
+            sheets={sheets}
+            t={t}
+            onOpenSheet={showLive}
+          />
+        ) : tab === INSTALLATION_SHEET_ID ? (
+          <InstallationSheet key={installation?.id ?? ""} installation={installation} onSave={onInstallationSave} />
+        ) : (
+          <div
+            ref={gridRef}
+            role="grid"
+            aria-label={sheet ? `${sheet.code} ${t(sheet.name)}` : t("Sheet")}
+            tabIndex={0}
+            onKeyDown={onKeyDown}
+            className="no-focus-ring overflow-x-auto focus:outline-none"
+          >
+            <div className="grid min-w-max text-[12.5px]" style={{ gridTemplateColumns: template }}>
+              {/* column letters */}
+              <div className="sticky left-0 z-10 h-6 border-b border-r border-black/[0.08] bg-[#f0efea]" />
+              {Array.from({ length: colCount }, (_, c) => (
+                <div
+                  key={c}
+                  className={cn(
+                    "flex h-6 items-center justify-center border-b border-r border-black/[0.08] text-[11px] text-black/45",
+                    !empty && sel.c === c ? "bg-[#e3e2dc] font-medium text-black/70" : "bg-[#f0efea]",
+                  )}
+                >
+                  {letter(c)}
+                </div>
+              ))}
+
+              {/* header row */}
+              <RowNo n={1} />
+              {Array.from({ length: colCount }, (_, c) => (
+                <div key={c} className="flex h-8 items-center border-b border-r border-black/[0.08] bg-[#f7f6f2] px-2.5 font-semibold text-[#111]">
+                  {!empty && cols[c] ? t(cols[c]!.label) : ""}
+                </div>
+              ))}
+
+              {/* data rows */}
+              {visible.map(({ row, r }) => (
+                <div key={r} role="row" className="contents">
+                  <RowNo n={r + 2} on={sel.r === r} />
+                  {cols.map((col, c) => {
+                    const k = keyOf(r, c);
+                    const v = valueOf(row, r, c);
+                    const flag = row.flags?.[col.key];
+                    const editor = editors[`${tab}:${r}:${col.key}`];
+                    const selected = sel.r === r && sel.c === c;
+                    return (
+                      <div
+                        key={col.key}
+                        role="gridcell"
+                        title={editor ? t("Edited by {name} · {time}", { name: editorName(editor.by), time: timeAgo(editor.at, t) }) : undefined}
+                        tabIndex={-1}
+                        aria-selected={selected}
+                        onClick={() => {
+                          setSel({ r, c });
+                          gridRef.current?.focus();
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && editable(c) && !editing) setEditing(k);
+                        }}
+                        onDoubleClick={() => editable(c) && setEditing(k)}
+                        className={cn(
+                          "relative flex h-8 min-w-0 items-center border-b border-r border-black/[0.08] px-2.5",
+                          col.kind === "number" && "justify-end",
+                          flag && "bg-[#fffbeb]",
+                          selected && "z-[1] outline outline-2 -outline-offset-1 outline-[#111]",
+                        )}
+                      >
+                        {editing === k ? (
+                          <CellEditor
+                            initial={v}
+                            align={col.kind === "number" ? "right" : "left"}
+                            onCommit={(val) => commit(r, c, val)}
+                            onCancel={() => {
+                              setEditing(null);
+                              gridRef.current?.focus();
+                            }}
+                          />
+                        ) : (
+                          <CellView col={col} value={v} flag={flag} status={row.status} selected={selected} query={q} text={shown(col, v)} />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+
+              {/* empty rows to the fold, like a fresh sheet */}
+              {Array.from({ length: Math.max(0, MIN_ROWS - 1 - visible.length) }, (_, i) => {
+                const n = (empty ? 2 : (sheet?.rows.length ?? 0) + 2) + i;
+                return (
+                  <React.Fragment key={`e${i}`}>
+                    <RowNo n={empty ? 2 + i : n} />
+                    {Array.from({ length: colCount }, (_, c) => (
+                      <div key={c} className="h-8 border-b border-r border-black/[0.08]" />
+                    ))}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+            {q && visible.length === 0 && (
+              <p className="border-b border-black/[0.08] px-3 py-2 text-[12px] text-black/40">
+                {t("No rows in this sheet match “{query}”.", { query })}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* ── Sheet tabs ──────────────────────────────── */}
+        <div className="flex items-stretch overflow-x-auto border-t border-black/[0.08] bg-[#f0efea] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {tabOrder(sheets).map((s) => {
+            const on = tab === s.id;
+            const full = sheets.find((x) => x.id === s.id);
+            const n = !full || empty ? 0 : q ? matchCount(full) : issuesOf(full);
+            const dot = full && !empty && s.id !== INSTALLATION_SHEET_ID ? sheetStatus(full) : null;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                title={dot && full ? statusTooltip(full) : undefined}
+                onClick={() => {
+                  if (view === "flow") setView("table");
+                  setTab(s.id);
+                  setSel({ r: 0, c: 0 });
+                  setEditing(null);
+                }}
+                className={cn(
+                  "flex flex-none items-center gap-1.5 whitespace-nowrap px-3.5 py-1.5 text-[12.5px] transition-colors",
+                  on
+                    ? "rounded-b-xl bg-white font-medium text-[#111] shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
+                    : "text-black/55 hover:text-black",
+                )}
+              >
+                {dot && (
+                  <span
+                    role="img"
+                    aria-label={t(STATUS_LABEL[dot])}
+                    style={{ backgroundColor: STATUS_TONE[dot] }}
+                    className="inline-block h-2 w-2 flex-none rounded-full"
+                  />
+                )}
+                {s.code && <span>{s.code}</span>}
+                {t(s.name)}
+                {s.id === INSTALLATION_SHEET_ID && !empty ? (
+                  installStatus !== "untouched" && (
+                    <span
+                      role="img"
+                      aria-label={
+                        installStatus === "missing"
+                          ? t("{n} missing fields", { n: installIssues })
+                          : t(STATUS_LABEL[installStatus])
+                      }
+                      style={{ backgroundColor: installationTabTone(installation) }}
+                      className="grid h-4 min-w-4 place-items-center rounded-full px-1 font-mono text-[10px] text-white"
+                    >
+                      {installStatus === "missing" ? installIssues : ""}
+                    </span>
+                  )
+                ) : n > 0 && (
+                  <span
+                    className={cn(
+                      "grid h-4 min-w-4 place-items-center rounded-full px-1 font-mono text-[10px]",
+                      q ? "bg-black/[0.07] text-black/55" : "bg-[#fdecc8] text-[#b45309]",
+                    )}
+                  >
+                    {n}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
+      {!empty && (
+        <LivePanel sheets={sheets} installation={installation} country={installation?.country ?? ""} year={year} onOpenSheet={showLive} />
+      )}
     </div>
   );
 }
