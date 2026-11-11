@@ -1,5 +1,10 @@
-import { expect, test } from "bun:test";
+import { afterAll, expect, test } from "bun:test";
 import { trialEnded, trialEndsAt, trialWriteOpen } from "../src/modules/auth/trial";
+import { runTrialEmails } from "../src/modules/reminders/trial-emails";
+import { db } from "../src/lib/db";
+import { account, cleanup } from "./helpers";
+
+afterAll(cleanup);
 
 const start = new Date("2026-11-01T00:00:00Z");
 
@@ -28,4 +33,24 @@ test("the post-trial allowlist opens only exact method and route pairs", () => {
   expect(trialWriteOpen("POST", `${b}/team/invitations`)).toBe(true);
   expect(trialWriteOpen("GET", `${b}/team/invitations`)).toBe(false);
   expect(trialWriteOpen("PATCH", `${b}/workbooks/inst/2026/cells`)).toBe(false);
+});
+
+// Each reminder goes out once per trial end date, even when the daily job runs twice.
+test("sends the 7-day reminder once, then the ended notice after the end", async () => {
+  const a = await account(true);
+  const now = new Date();
+  await db.users.update({
+    where: { id: a.user.id },
+    data: { trial_started_at: new Date(now.getTime() - 23.5 * 86_400_000) },
+  });
+  const first = await runTrialEmails(now);
+  expect(first.sent).toContainEqual({ userId: a.user.id, kind: "trial_ending_7" });
+  const second = await runTrialEmails(now);
+  expect(second.sent.find((s) => s.userId === a.user.id)).toBeUndefined();
+  await db.users.update({
+    where: { id: a.user.id },
+    data: { trial_started_at: new Date(now.getTime() - 31 * 86_400_000) },
+  });
+  const ended = await runTrialEmails(now);
+  expect(ended.sent).toContainEqual({ userId: a.user.id, kind: "trial_ended" });
 });
