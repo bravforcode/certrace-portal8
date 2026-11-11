@@ -52,3 +52,46 @@ test("an unresolvable product id fails conservatively — indirect emissions sta
     true,
   );
 });
+
+/* Annex II is CN-level for heading 7202: ferro-manganese (7202 1),
+   ferro-chromium (7202 4) and ferro-nickel (7202 6) are direct-only; the
+   subheadings the Annex lists after "Except:" count indirect. */
+const { indirectCounts } = await import("../product-category-rules");
+const { aggregatedGoodsCategory } = await import("../../config");
+
+const counts = (
+  cnCode: string,
+  category: "Iron & Steel" | "Aluminium" | "Cement" = "Iron & Steel",
+) => indirectCounts(aggregatedGoodsCategory({ cnCode, category }), cnCode);
+
+test("ferro-manganese (7202 11) is direct-only", () => {
+  assert.equal(counts("72021100"), false);
+});
+
+test("ferro-silicon (7202 2) counts indirect emissions", () => {
+  assert.equal(counts("72022100"), true);
+});
+
+test("ferro-chromium (7202 41) is direct-only", () => {
+  assert.equal(counts("72024100"), false);
+});
+
+test("ferro-nickel (7202 60) is direct-only", () => {
+  assert.equal(counts("72026000"), false);
+});
+
+test("sintered ore (2601 12 00) counts indirect emissions", () => {
+  assert.equal(counts("26011200"), true);
+});
+
+test("cement counts indirect emissions", () => {
+  assert.equal(counts("25232900", "Cement"), true);
+});
+
+test("unwrought aluminium is direct-only", () => {
+  assert.equal(counts("76011000", "Aluminium"), false);
+});
+
+test("a ferro-alloy with no usable CN fails conservatively", () => {
+  assert.equal(indirectCounts("Ferro-alloys", ""), true);
+});

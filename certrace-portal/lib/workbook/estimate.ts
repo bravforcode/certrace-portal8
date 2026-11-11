@@ -2,7 +2,7 @@ import type { Sheet } from "../workspace-sheets";
 import { euStandardFor } from "../cbam/fuel-defaults";
 import { gridFactorFor } from "../cbam/electricity-grid-factors";
 import { defaultFor } from "../cbam/precursor-basis";
-import { categoryRequiresIndirect } from "../cbam/product-category-rules";
+import { indirectCounts } from "../cbam/product-category-rules";
 import { aggregatedGoodsCategory } from "../config";
 import { MONTHLY_FUEL_UNITS, type MonthlyFuelUnit } from "../monthly-data";
 import { MASS_TO_TONNES, parseQuantity, stepKey, toTonnes } from "./balance";
@@ -41,7 +41,7 @@ function indirectGate(cn: string): boolean | null {
   if (!cn.replace(/\D/g, "")) return null;
   const asAluminium = aggregatedGoodsCategory({ cnCode: cn, category: "Aluminium" });
   const asSteel = aggregatedGoodsCategory({ cnCode: cn, category: "Iron & Steel" });
-  return asAluminium === asSteel ? categoryRequiresIndirect(asSteel) : null;
+  return asAluminium === asSteel ? indirectCounts(asSteel, cn) : null;
 }
 
 export type PrecursorLine = { key: string; item: string; cn: string; tonnes: number; defaultSee: number; step: string };

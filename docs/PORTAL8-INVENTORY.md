@@ -95,7 +95,7 @@ Legend: **REAL** = server-backed; **MOCK** = static/sample data; **LOCAL** = bro
 | `admin` | `GET /api/admin/users`, approve, reject, trial extension | `requireAdmin` = `users.is_admin`; first admin via `bun scripts/grant-admin.ts <email>` (Task 4) |
 | `records` | `GET/PUT /api/v1/account/records/:key`, `POST /import` | `save(userId,key,value,revision,actorId,prefix)` |
 | `reporting` | report batch save, sealed revisions | |
-| `team` | invite (owner, trial block, seat caps imported from `certrace-portal/lib/team-seat-limits`), accept (role `editor`), remove | `records.ts`: shared keys, personal prefix `member:<companyId>:` |
+| `team` | invite (owner, trial block, seat caps from the backend copy `seat-limits.ts`, drift-checked against the portal), accept (role `editor`), remove | `records.ts`: shared keys, personal prefix `member:<companyId>:` |
 | `links` | smart links create/resolve/submit/revoke | table `smart_links` |
 | `files`, `evidence` | DB or R2 storage | |
 | `calculations`, `cera`, `declarations`, `master-data`, `reminders` | calc engine, assistant, declarations, catalogues, reminder jobs | |
@@ -162,7 +162,7 @@ Backend `profile-contract.ts` checks format and length: for example tax ID is 13
 | G11 | No factory (equipment/energy) data; no simulator | feature | Closed by Tasks 22, 23, 24 |
 | G12 | No flow diagram of the workspace | feature | Closed by Tasks 15, 16 |
 | G13 | Team vs smart-link routing not explained in UI; `add-member-modal` local only | medium | Closed by Task 21 |
-| G14 | Cross-package import of team-seat-limits | low | Open: still imported from `certrace-portal/lib/team-seat-limits` in `certrace-backend/src/modules/team/service.ts`; no task covered it |
+| G14 | Cross-package import of team-seat-limits | low | Closed: backend keeps its own copy at `certrace-backend/src/modules/team/seat-limits.ts`; `test/team-seat-limits.test.ts` fails on drift from `certrace-portal/lib/team-seat-limits.ts`; Dockerfile no longer copies the portal file |
 | G15 | compose fallback secrets | security, high | Closed by Task 1 (`compose.yaml` uses `:?` for the database password and JWT secret) |
 
 ## 10. MEASUR reference (process models to port)
@@ -193,7 +193,6 @@ Source: ORNL-AMO/MEASUR-Tools-Suite (UT-Battelle permissive licence, not MIT). R
 - Opportunities use `exportedT = productionT`.
 - zh and hi fall back to English for new keys.
 - Thai wording needs native review.
-- `?year=` is not written back to the URL.
 - Seat roles are not exposed in the portal.
-- Ferro-alloys `DIRECT_ONLY` is keyed by category, but Annex II of Regulation (EU) 2023/956 is CN-level (7202 1x/4x/60 are direct-only; other 7202 codes are indirect). Not verified against the official text.
-- G14 (cross-package import of team-seat-limits) is still open.
+- Ferro-alloys indirect rule is CN-level (closed). Annex II of Regulation (EU) 2023/956 (https://eur-lex.europa.eu/eli/reg/2023/956/oj/eng): "72 – Iron and steel Except: 7202 2 – Ferro-silicon … 7202 99 80 – Other", so only 7202 1x, 4x and 60 are direct-only; `indirectCounts()` in `lib/cbam/product-category-rules.ts` applies this. `lib/cbam/engine.ts` `INDIRECT_CHARGEABLE` remains category-level and is no longer used for the workspace SEE.
+- G14 (cross-package import of team-seat-limits) is closed: the backend has its own copy, drift-checked by a test.
