@@ -65,3 +65,25 @@ test("an empty patch saves without a request", async () => {
   assert.equal(await q.enqueue({}), "saved");
   assert.equal(calls, 0);
 });
+
+// The queue is shared by every installation and year. A failure on one target must not
+// skip a patch that was queued for a different target.
+test("after a failure, only waiting jobs for the same target are skipped", async () => {
+  type J = { target: string; patch: Record<string, string> };
+  const sent: string[] = [];
+  const q = createSyncQueue<J>(
+    async (job) => {
+      sent.push(job.patch.k!);
+      if (job.patch.k === "a1") throw new Error("network");
+    },
+    (job) => Object.keys(job.patch).length === 0,
+    (x, y) => x.target === y.target,
+  );
+  const results = await Promise.all([
+    q.enqueue({ target: "inst-1:2026", patch: { k: "a1" } }),
+    q.enqueue({ target: "inst-1:2026", patch: { k: "a2" } }),
+    q.enqueue({ target: "inst-2:2026", patch: { k: "b1" } }),
+  ]);
+  assert.deepEqual(results, ["failed", "skipped", "saved"]);
+  assert.deepEqual(sent, ["a1", "b1"]);
+});

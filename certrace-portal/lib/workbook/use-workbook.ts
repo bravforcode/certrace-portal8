@@ -88,6 +88,9 @@ const diagram = createSyncQueue<DiagramJob>(
     if (!r.ok) throw new Error("not saved");
   },
   (job) => Object.keys(job.patch).length === 0,
+  // One queue serves every installation and year: a failure only skips patches for its own target.
+  (a, b) =>
+    a.target.accountId === b.target.accountId && a.target.iid === b.target.iid && a.target.year === b.target.year,
 );
 
 const subscribeQueue = (fn: () => void) => runner.subscribe(fn);
