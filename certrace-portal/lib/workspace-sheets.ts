@@ -116,7 +116,16 @@ export function buildSheets(files: WorkspaceFile[]): Sheet[] {
       id: "materials",
       code: "03",
       name: "Raw materials",
-      cols: [col("step", "Step", "text", W.step), col("item", "Item", "text", W.item), qty, unit, method, source, status],
+      cols: [
+        col("step", "Step", "text", W.step),
+        col("item", "Item", "text", W.item),
+        col("cn", "CN code (precursor)", "text", W.step),
+        qty,
+        unit,
+        method,
+        source,
+        status,
+      ],
       rows: [],
     },
     {
