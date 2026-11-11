@@ -100,8 +100,6 @@ import { getCatalogProduct } from "@/lib/config";
 import {
   installationForWorkspace,
 } from "@/lib/installations";
-import { ScopedInstallationSwitcher } from "@/components/scoped-installation-switcher";
-import { useScopedInstallation } from "@/lib/scoped-installation";
 import { profileStatus } from "@/lib/cbam/installation-profile";
 import type { TabState } from "@/lib/readiness";
 import {
@@ -181,25 +179,11 @@ function WorkspacesInner() {
   const [scope, setScope] = React.useState<Scope>("active");
   const [page, setPage] = React.useState(1);
 
-  /* ONE INSTALLATION AT A TIME. The page reads only the current installation
-     (lib/active-installation.ts), switched from the profile menu or Settings →
-     Installation — so the site filter that used to sit in the toolbar is gone. */
-  const { scoped: current } = useScopedInstallation();
-  const atCurrent = React.useCallback(
-    (list: CardData[]) =>
-      current
-        ? list.filter((c) => c.workspace.installationId === current.id)
-        : list,
-    [current],
-  );
-  const active = React.useMemo(
-    () => atCurrent(cards ?? []),
-    [cards, atCurrent],
-  );
-  const archived = React.useMemo(
-    () => atCurrent(archivedCards ?? []),
-    [archivedCards, atCurrent],
-  );
+  /* ALL INSTALLATIONS. Every page except /workspace and /convert aggregates
+     across installations (spec D8), so this list is not scoped: each card
+     carries its installation, and the groups below are per installation. */
+  const active = React.useMemo(() => cards ?? [], [cards]);
+  const archived = React.useMemo(() => archivedCards ?? [], [archivedCards]);
   /* Everything below this line — filters, grouping, paging, the empty states —
      is written against `all` and never asks which scope it is in. That is the
      point of a scope: the archive is the same screen, reading a different
@@ -331,27 +315,13 @@ function WorkspacesInner() {
     <div className="space-y-8">
       <PageHeader
         title={t("Verification")}
-        lead={
-          current
-            ? t("{site} — the product reports you file at this installation.", {
-                site: current.name,
-              })
-            : t("Your sites, and the product reports you file at each one.")
-        }
+        lead={t("Your sites, and the product reports you file at each one.")}
         actions={
           /* Deliberately the full-size button rather than size="sm". This is
              the only action on the screen and the one an exporter arrives
              wanting; a small secondary-looking control was reading as a
              utility next to the page title. */
           <div className="flex flex-wrap items-center gap-2">
-            <ScopedInstallationSwitcher />
-            <Button
-              variant="secondary"
-              className="whitespace-nowrap"
-              onClick={() => router.push("/settings?tab=installation")}
-            >
-              {t("Switch installation")}
-            </Button>
             <Button
               className="whitespace-nowrap"
               onClick={() => router.push("/workspaces/new")}
