@@ -2,6 +2,7 @@ import { afterAll, afterEach, describe, expect, spyOn, test } from "bun:test";
 import { account, admin, call, cleanup, editorOf } from "./helpers";
 import { db } from "../src/lib/db";
 import { notify } from "../src/lib/notify";
+import { hash } from "../src/lib/security";
 
 afterAll(cleanup);
 
@@ -276,6 +277,37 @@ describe("trial enforcement", () => {
 });
 
 describe("notify", () => {
+  // A failed "password changed" mail must not fail the reset, and the log line
+  // carries only the error code, like the other mail paths.
+  test("a failed password-changed mail is logged by code only and the reset still succeeds", async () => {
+    const a = await account();
+    const code = "654321";
+    await db.password_resets.create({
+      data: {
+        email: a.user.email,
+        token: hash(code),
+        expires_at: new Date(Date.now() + 900_000),
+      },
+    });
+    failingMail();
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const r = await call("/api/auth/reset-password", "POST", {
+        email: a.user.email,
+        reset_token: code,
+        new_password: "reset-local-password-2",
+      });
+      expect(r.status).toBe(200);
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      const [message, detail] = errorSpy.mock.calls[0] ?? [];
+      expect(message).toBe("password_changed email failed");
+      expect(detail).not.toBeInstanceOf(Error);
+      expect(errorSpy.mock.calls[0]).toHaveLength(2);
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
   test("a once-only email is recorded and a second call sends nothing", async () => {
     const a = await account(false);
     process.env.CERTRACE_EMAIL_DELIVERY = "console";

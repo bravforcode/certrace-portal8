@@ -327,7 +327,12 @@ export async function resetPassword(
       "That verification code is invalid or expired.",
     );
   // A reset is a takeover signal; the owner must hear about it.
-  await notify(ok, "password_changed").catch((e) => console.error(e));
+  await notify(ok, "password_changed").catch((e) =>
+    console.error(
+      "password_changed email failed",
+      (e as { code?: string } | undefined)?.code,
+    ),
+  );
   return { success: true, message: "Password reset. Please sign in." };
 }
 const googleKeys = createRemoteJWKSet(
