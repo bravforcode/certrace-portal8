@@ -12,6 +12,8 @@ export type FlowNode = {
   label: string;
   fallback?: FlowFallback;
   detail?: string;
+  /** The step a material, energy or output row landed on; "" when it landed on Unassigned. */
+  step?: string;
   x: number;
   y: number;
 };
@@ -39,16 +41,24 @@ const detail = (c: Cells) => [c.qty, c.unit].filter(Boolean).join(" ") || undefi
 
 const UNASSIGNED = "\u0000unassigned";
 
+/** The step names the Steps sheet declares, in order, without duplicates. */
+export const stepNamesOf = (sheets: Sheet[]): string[] => [...new Set(rowsOf(sheets, "steps").map((c) => c.step).filter(Boolean))];
+
+/** The declared step a raw cell value names (trimmed, exact match), or undefined when none does. */
+export function namedStep(step: string | undefined, stepNames: readonly string[]): string | undefined {
+  const s = clean(step);
+  return s && stepNames.includes(s) ? s : undefined;
+}
+
 export function buildFlow(sheets: Sheet[]) {
-  const stepNames = [...new Set(rowsOf(sheets, "steps").map((c) => c.step).filter(Boolean))];
+  const stepNames = stepNamesOf(sheets);
   const materials = rowsOf(sheets, "materials");
   const energy = rowsOf(sheets, "energy");
   const outputs = rowsOf(sheets, "output");
   const products = rowsOf(sheets, "products");
   const flows = rowsOf(sheets, "flow");
 
-  const known = new Set(stepNames);
-  const named = (name: string) => (known.has(name) ? name : undefined);
+  const named = (name: string) => namedStep(name, stepNames);
   const lastStep = stepNames[stepNames.length - 1];
   // Where a material, energy row or Flow end lands; an output lands on the last step when unnamed.
   const keyOf = (c: Cells) => named(c.step ?? "") ?? UNASSIGNED;
@@ -62,6 +72,7 @@ export function buildFlow(sheets: Sheet[]) {
   const order = needUnassigned ? [...stepNames, UNASSIGNED] : stepNames;
 
   const stepId = (key: string) => (key === UNASSIGNED ? UNASSIGNED_ID : `step:${stepNames.indexOf(key)}`);
+  const stepOf = (key: string) => (key === UNASSIGNED ? "" : key);
   const stacks = order.map((key) => ({
     key,
     above: materials.filter((c) => keyOf(c) === key),
@@ -85,14 +96,14 @@ export function buildFlow(sheets: Sheet[]) {
       const id = `material:${i}:${k}`;
       const x = x0 + Math.floor(k / PER_COL) * COL;
       const y = baseY - ((k % PER_COL) + 1) * ROW;
-      nodes.push({ id, kind: "material", label: c.item ?? "", fallback: c.item ? undefined : "material", detail: detail(c), x, y });
+      nodes.push({ id, kind: "material", label: c.item ?? "", fallback: c.item ? undefined : "material", detail: detail(c), step: stepOf(key), x, y });
       edges.push({ from: id, to: sid });
     });
     below.forEach((c, k) => {
       const id = `energy:${i}:${k}`;
       const x = x0 + Math.floor(k / PER_COL) * COL;
       const y = baseY + ((k % PER_COL) + 1) * ROW;
-      nodes.push({ id, kind: "energy", label: c.item ?? "", fallback: c.item ? undefined : "energy", detail: detail(c), x, y });
+      nodes.push({ id, kind: "energy", label: c.item ?? "", fallback: c.item ? undefined : "energy", detail: detail(c), step: stepOf(key), x, y });
       edges.push({ from: id, to: sid });
     });
     x0 += Math.max(subs(above.length), subs(below.length)) * COL;
@@ -108,7 +119,7 @@ export function buildFlow(sheets: Sheet[]) {
   const outX = x0;
   outputs.forEach((c, k) => {
     const id = `output:${k}`;
-    nodes.push({ id, kind: "output", label: c.item ?? "", fallback: c.item ? undefined : "output", detail: detail(c), x: outX + Math.floor(k / PER_COL) * COL, y: baseY + ((k % PER_COL)) * ROW });
+    nodes.push({ id, kind: "output", label: c.item ?? "", fallback: c.item ? undefined : "output", detail: detail(c), step: stepOf(outKey(c)), x: outX + Math.floor(k / PER_COL) * COL, y: baseY + ((k % PER_COL)) * ROW });
     edges.push({ from: stepId(outKey(c)), to: id });
   });
   const prodX = outX + subs(outputs.length) * COL;

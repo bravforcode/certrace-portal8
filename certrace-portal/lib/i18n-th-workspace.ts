@@ -3,6 +3,32 @@
    so where a word is already translated elsewhere, that translation stands. */
 
 export const TH_WORKSPACE: Record<string, string> = {
+  // installation directory and factory map (dashboard)
+  "{n} installations · {m} with factory checks complete": "{n} ไซต์ · {m} ไซต์ที่ตรวจโรงงานครบแล้ว",
+  "OEM / supplier site": "ไซต์ OEM / ซัพพลายเออร์",
+  "{done} of {total} checks": "ตรวจแล้ว {done} จาก {total} รายการ",
+  "No workbook for {year} yet": "ยังไม่มีเวิร์กบุ๊กปี {year}",
+  "Add your first installation": "เพิ่มไซต์แรกของคุณ",
+  "No installations yet": "ยังไม่มีไซต์",
+  "Show on map": "แสดงบนแผนผัง",
+  "Factory map": "แผนผังโรงงาน",
+  "Fix in workspace": "ไปแก้ในเวิร์กสเปซ",
+  Gaps: "ช่องข้อมูลที่ขาด",
+  Sites: "ไซต์",
+  Site: "ไซต์",
+  "Could not load": "โหลดไม่สำเร็จ",
+  "Workbook years": "ปีของเวิร์กบุ๊ก",
+  "{y}: {status}": "{y}: {status}",
+  "{n} gaps · {t} t CO₂e": "{n} ช่องขาด · {t} t CO₂e",
+  "{n} gaps": "{n} ช่องขาด",
+  "{t} t CO₂e": "{t} t CO₂e",
+  "Choose a step or item on the map to see its gaps.": "เลือกขั้นตอนหรือรายการบนแผนผังเพื่อดูช่องข้อมูลที่ขาด",
+  "{pct} % of total": "{pct} % ของทั้งหมด",
+  "{n} steps, {m} with gaps": "{n} ขั้นตอน มี {m} ขั้นตอนที่มีช่องข้อมูลขาด",
+  "{name}: {status}": "{name}: {status}",
+  "Inputs and outputs differ by {pct} %": "อินพุตและเอาต์พุตต่างกัน {pct} %",
+  "{sheet} row {row}: {cols} missing": "{sheet} แถว {row}: ขาด {cols}",
+  "{sheet} row {row} is marked missing": "{sheet} แถว {row}: ถูกทำเครื่องหมายว่าขาด",
   // year bar
   "Earlier years": "ปีก่อนหน้า",
   "Later years": "ปีถัดไป",
