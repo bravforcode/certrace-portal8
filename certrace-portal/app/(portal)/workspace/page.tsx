@@ -183,6 +183,8 @@ function WorkspaceInner() {
           <Spreadsheet
             key={year}
             sheets={wb.sheets}
+            cells={wb.cells}
+            savePatch={wb.savePatch}
             editors={wb.editors}
             saving={wb.pending > 0}
             onEdit={wb.saveEdit}

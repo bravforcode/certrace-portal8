@@ -25,6 +25,7 @@ import { useLanguage, type TFunction } from "@/lib/i18n";
 import { TH_WORKSPACE } from "@/lib/i18n-th-workspace";
 import { InstallationSheet } from "@/components/workspace/installation-sheet";
 import { FlowDiagram } from "@/components/workspace/flow-diagram";
+import type { SyncResult } from "@/lib/workbook/sync-queue";
 import { LivePanel } from "@/components/workspace/live-panel";
 import type { Installation } from "@/lib/installations";
 import { currentYear } from "@/lib/year-range";
@@ -81,7 +82,13 @@ export function Spreadsheet({
   installation = null,
   onInstallationSave,
   year = currentYear(),
+  cells,
+  savePatch,
 }: {
+  /** The year's cells with unsaved edits on top (the Flow view is drawn from them). */
+  cells?: Record<string, string>;
+  /** Sends a diagram patch through the save runner; resolves how it went. */
+  savePatch?: (patch: Record<string, string | null>) => Promise<SyncResult>;
   /** Rows come from the server workbook (useWorkbook), already with unsaved edits on top. */
   sheets: Sheet[];
   onEdit?: (cell: string, value: string) => void;
@@ -279,8 +286,11 @@ export function Spreadsheet({
         {isFlow ? (
           <FlowDiagram
             sheets={sheets}
+            cells={cells}
             t={t}
             onOpenSheet={showLive}
+            editable={!empty && !!onEdit}
+            savePatch={savePatch}
           />
         ) : tab === INSTALLATION_SHEET_ID ? (
           <InstallationSheet key={installation?.id ?? ""} installation={installation} onSave={onInstallationSave} />
