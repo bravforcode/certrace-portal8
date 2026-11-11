@@ -38,7 +38,7 @@
    discrepancy that turns a half-day review into a week.
    ════════════════════════════════════════════════════════════ */
 
-import { indirectIsChargeable } from "./cbam/engine";
+import { workspaceRequiresIndirectEmissions } from "./cbam/product-category-rules";
 import {
   annualProductionFor,
   monthResult,
@@ -253,7 +253,7 @@ export function workspaceSEE(workspace: VerificationWorkspace): WorkspaceSEE {
 
   const seeTotal = seeDirect + seeIndirect + seePrecursor; // M9
 
-  const indirectCounted = indirectIsChargeable(goodsCategory(workspace));
+  const indirectCounted = workspaceRequiresIndirectEmissions(workspace.productId);
   const seeChargeable =
     (seeDirect + seePrecursor + (indirectCounted ? seeIndirect : 0)) *
     (1 + NO_MARKUP); // M10

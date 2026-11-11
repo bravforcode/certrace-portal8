@@ -36,8 +36,9 @@ import {
 
 /** Annex II to Regulation (EU) 2023/956, as amended by 2025/2083: the goods
     for which ONLY direct emissions are taken into account — iron and steel
-    (everything in chapters 72 and 73 except agglomerated iron ore, 2601 12 00),
-    aluminium, hydrogen, and, since 2083, electricity. Every other good in
+    (heading 72 except the ferro-alloy subheadings listed after "Except:", and
+    the chapter 73 articles; sintered ore, 2601, is not listed), aluminium,
+    hydrogen, and, since 2083, electricity. Every other good in
     scope — cement, calcined clay, ammonia, nitric acid, urea, mixed
     fertilisers and sintered ore — also reports indirect emissions.
 
@@ -50,7 +51,8 @@ import {
 const DIRECT_ONLY: Record<AggregatedGoodsCategory, boolean> = {
   "Sintered ore": false,
   "Pig iron": true,
-  "Ferro-alloys": true,
+  // Annex II is CN-level here; see indirectCounts.
+  "Ferro-alloys": false,
   "Direct reduced iron": true,
   "Crude steel": true,
   "Iron or steel products": true,
@@ -75,8 +77,25 @@ export const categoryRequiresIndirect = (
   category: AggregatedGoodsCategory,
 ): boolean => !DIRECT_ONLY[category];
 
+/** Annex II lists heading 7202 (ferro-alloys) as direct-only except the
+    subheadings after its "Except:" clause. Only ferro-manganese (7202 1),
+    ferro-chromium (7202 4) and ferro-nickel (7202 6) remain direct-only; every
+    other ferro-alloy, including ferro-silicon, counts indirect. Without a CN the
+    answer stays conservative (indirect counts). */
+const FERRO_DIRECT_ONLY_CN = /^(72021|72024|72026)/;
+
+/** Whether indirect emissions count for a good, deciding ferro-alloys by CN. */
+export function indirectCounts(
+  category: AggregatedGoodsCategory,
+  cn: string | null | undefined,
+): boolean {
+  if (category === "Ferro-alloys")
+    return !FERRO_DIRECT_ONLY_CN.test((cn ?? "").replace(/\D/g, ""));
+  return categoryRequiresIndirect(category);
+}
+
 export function workspaceRequiresIndirectEmissions(productId: string): boolean {
   const product = getCatalogProduct(productId);
   if (!product) return true;
-  return !DIRECT_ONLY[aggregatedGoodsCategory(product)];
+  return indirectCounts(aggregatedGoodsCategory(product), product.cnCode);
 }

@@ -195,5 +195,5 @@ Source: ORNL-AMO/MEASUR-Tools-Suite (UT-Battelle permissive licence, not MIT). R
 - Thai wording needs native review.
 - `?year=` is not written back to the URL.
 - Seat roles are not exposed in the portal.
-- Ferro-alloys `DIRECT_ONLY` is keyed by category, but Annex II of Regulation (EU) 2023/956 is CN-level (7202 1x/4x/60 are direct-only; other 7202 codes are indirect). Not verified against the official text.
+- Ferro-alloys indirect rule is CN-level (closed). Annex II of Regulation (EU) 2023/956 (https://eur-lex.europa.eu/eli/reg/2023/956/oj/eng): "72 – Iron and steel Except: 7202 2 – Ferro-silicon … 7202 99 80 – Other", so only 7202 1x, 4x and 60 are direct-only; `indirectCounts()` in `lib/cbam/product-category-rules.ts` applies this. `lib/cbam/engine.ts` `INDIRECT_CHARGEABLE` remains category-level and is no longer used for the workspace SEE.
 - G14 (cross-package import of team-seat-limits) is still open.
