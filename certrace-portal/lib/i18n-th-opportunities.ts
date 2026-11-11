@@ -34,4 +34,11 @@ export const TH_OPPORTUNITIES: Record<string, string> = {
   "Filter by source": "กรองตามที่มา",
   "Filter by assignee": "กรองตามผู้รับผิดชอบ",
   "Open the item": "เปิดรายการ",
+  "Open card": "การ์ดที่เปิด",
+  "Read-only. This account or seat cannot change opportunities.": "อ่านอย่างเดียว บัญชีหรือบทบาทนี้ไม่สามารถแก้ไขโอกาสปรับปรุงได้",
+  "{count} new items did not fit the list limit.": "มี {count} รายการใหม่เกินจำนวนสูงสุดของรายการ จึงไม่ได้เพิ่ม",
+  "Opportunities report for {company}": "รายงานโอกาสปรับปรุงของ {company}",
+  "Printed on {date}": "พิมพ์เมื่อ {date}",
+  "Your changes could not be saved.": "บันทึกการเปลี่ยนแปลงไม่สำเร็จ",
+  "The opportunity list is full. Close or remove cards first.": "รายการโอกาสปรับปรุงเต็มแล้ว ปิดหรือลบการ์ดก่อน",
 };

@@ -7,6 +7,7 @@ import { useT } from "@/lib/i18n";
 import { subscribeAccount } from "@/lib/account-storage";
 import { summarize, type Opportunity } from "@/lib/factory/opportunities";
 import { readOpportunities } from "@/lib/factory/opportunity-store";
+import { cardText } from "@/lib/factory/opportunity-text";
 
 /** Dashboard card: the open opportunity count, the impact and the three largest open cards.
     It shows what the Opportunities page last saved; opening that page refreshes it. */
@@ -40,7 +41,7 @@ export function OpportunitySummary() {
           <p className="text-xs text-black/50">{t("Top open items")}</p>
           <ul className="mt-1 space-y-1 text-sm text-black/75">
             {top.map((o) => (
-              <li key={o.id} className="truncate">{t(o.title)}</li>
+              <li key={o.id} className="truncate">{cardText(t, o)}</li>
             ))}
           </ul>
         </div>
