@@ -1,5 +1,10 @@
 export const TRIAL_DAYS = 30;
 
+/* Reminders reach at most this many days before the end and after it. A trial
+   that ended longer ago is never mailed, so the first job run cannot email
+   every expired account in the database. */
+export const POST_END_DAYS = 7;
+
 export const trialEndsAt = (u: { trial_started_at: Date }) =>
   new Date(u.trial_started_at.getTime() + TRIAL_DAYS * 86_400_000);
 
