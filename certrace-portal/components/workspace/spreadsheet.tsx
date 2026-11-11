@@ -28,6 +28,7 @@ import { FlowDiagram } from "@/components/workspace/flow-diagram";
 import { ImportWizard } from "@/components/workspace/import-wizard";
 import { FactoryProfileView } from "@/components/factory/factory-profile";
 import { stepNames } from "@/lib/workbook/flow-edit";
+import { parseSheetParam } from "@/lib/workbook/url-state";
 import type { SyncResult } from "@/lib/workbook/sync-queue";
 import { LivePanel } from "@/components/workspace/live-panel";
 import type { Installation } from "@/lib/installations";
@@ -55,6 +56,7 @@ import {
 } from "@/lib/workspace-sheets";
 
 const MIN_ROWS = 20;
+const DEFAULT_SHEET = "materials";
 
 /* "3 min ago" style, for the editor note on a cell. */
 function timeAgo(at: string, t: TFunction) {
@@ -108,25 +110,34 @@ export function Spreadsheet({
 }) {
   const t = useSheetT();
   const team = useTeam().data;
-  const [tab, setTab] = React.useState<string>("materials");
-  // "Table", "Flow" or "Factory", kept in ?view= so a reload or a shared link opens the same view.
-  // Factory needs an installation; without one the link falls back to the table.
+  // The view and the open sheet live in the URL (?view=, ?sheet=), so a reload or a shared link opens the same place.
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
+  const tab = parseSheetParam(params.get("sheet"), sheets.map((s) => s.id), DEFAULT_SHEET);
+  // "Table", "Flow" or "Factory". Factory needs an installation; without one the link falls back to the table.
   const requested = params.get("view");
   const view: "table" | "flow" | "factory" =
     requested === "flow" ? "flow" : requested === "factory" && installation ? "factory" : "table";
-  const setView = (v: "table" | "flow" | "factory") => {
+  const updateParams = (changes: Record<string, string | null>) => {
     const next = new URLSearchParams(params.toString());
-    if (v === "table") next.delete("view");
-    else next.set("view", v);
+    for (const [key, value] of Object.entries(changes)) {
+      if (value === null) next.delete(key);
+      else next.set(key, value);
+    }
     const qs = next.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
+  const setView = (v: "table" | "flow" | "factory") => updateParams({ view: v === "table" ? null : v });
   const [sel, setSel] = React.useState<{ r: number; c: number }>({ r: 0, c: 2 });
   const [editing, setEditing] = React.useState<string | null>(null);
   const [query, setQuery] = React.useState("");
+  // Opening a sheet always leaves the Flow and Factory views, as the sheet tabs did before.
+  const openTab = (id: string) => {
+    setSel({ r: 0, c: 0 });
+    setEditing(null);
+    updateParams({ sheet: id === DEFAULT_SHEET ? null : id, view: null });
+  };
   const gridRef = React.useRef<HTMLDivElement>(null);
 
   const editorName = (by: string) => team?.find((m) => m.id === by)?.name ?? t("a teammate");
@@ -209,12 +220,7 @@ export function Spreadsheet({
     }
   };
 
-  const showLive = (id: string) => {
-    if (view !== "table") setView("table");
-    setTab(id);
-    setSel({ r: 0, c: 0 });
-    setEditing(null);
-  };
+  const showLive = (id: string) => openTab(id);
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
@@ -429,12 +435,7 @@ export function Spreadsheet({
                 key={s.id}
                 type="button"
                 title={dot && full ? statusTooltip(full) : undefined}
-                onClick={() => {
-                  if (view !== "table") setView("table");
-                  setTab(s.id);
-                  setSel({ r: 0, c: 0 });
-                  setEditing(null);
-                }}
+                onClick={() => openTab(s.id)}
                 className={cn(
                   "flex flex-none items-center gap-1.5 whitespace-nowrap px-3.5 py-1.5 text-[12.5px] transition-colors",
                   on

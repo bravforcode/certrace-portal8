@@ -35,6 +35,8 @@ import { useScopedInstallation } from "@/lib/scoped-installation";
 import { draftInstallation, getInstallation, saveInstallation } from "@/lib/installations";
 import { currentYear, yearRange } from "@/lib/year-range";
 import { buildSheets } from "@/lib/workspace-sheets";
+import { parseYearParam } from "@/lib/workbook/url-state";
+import { useSearchParams } from "next/navigation";
 import { SETUP_MS, useWorkbook, useWorkbookYears, walkinPending } from "@/lib/workbook/use-workbook";
 
 /* useSearchParams() (read by the installation scope) needs a Suspense boundary above it. */
@@ -56,7 +58,13 @@ function WorkspaceInner() {
     [scoped, installTick],
   );
   const convertHref = scoped ? `/convert?installation=${encodeURIComponent(scoped.id)}` : "/convert";
-  const [year, setYear] = React.useState(currentYear);
+  // ?year= opens that reporting year when the year bar offers it; anything else opens the current year.
+  const yearParam = useSearchParams().get("year");
+  const [year, setYear] = React.useState(() => parseYearParam(yearParam, yearRange()) ?? currentYear());
+  React.useEffect(() => {
+    const requested = parseYearParam(yearParam, yearRange());
+    if (requested !== null) setYear(requested);
+  }, [yearParam]);
   const installationId = scoped?.id ?? null;
   const ws = useWorkbookYears(installationId);
   const rec = ws.get(year);
