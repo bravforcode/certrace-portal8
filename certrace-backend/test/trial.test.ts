@@ -2,7 +2,9 @@ import { afterAll, afterEach, beforeEach, describe, expect, test } from "bun:tes
 import { trialEnded, trialEndsAt, trialWriteOpen } from "../src/modules/auth/trial";
 import { runTrialEmails } from "../src/modules/reminders/trial-emails";
 import { db } from "../src/lib/db";
-import { account, cleanup } from "./helpers";
+import { account, call, cleanup } from "./helpers";
+import { app } from "../src/app";
+import { hash, token as randomToken } from "../src/lib/security";
 
 afterAll(cleanup);
 
@@ -170,3 +172,113 @@ describe("trial reminder emails", () => {
     }
   });
 });
+
+// Public smart-link writes are customer data writes: once the owner's trial has
+// ended they return TRIAL_ENDED, while the public read stays open (D4).
+describe("public link writes after the trial", () => {
+  const EXPIRED = () => new Date(Date.now() - 31 * DAY);
+
+  async function publicLink() {
+    const a = await account();
+    const id = crypto.randomUUID();
+    const decl = await call(
+      `/api/v1/declarations/${id}`,
+      "PUT",
+      { id, name: "Annual", suppliers: [{ id: "one", name: "Mine" }], requests: [] },
+      a.cookie,
+    );
+    expect(decl.status).toBe(200);
+    const minted = await call(
+      `/api/v1/declarations/${id}/links`,
+      "POST",
+      { supplierId: "one" },
+      a.cookie,
+    );
+    expect(minted.status).toBe(201);
+    const { token } = await minted.json();
+    return { owner: a, token };
+  }
+
+  test("link save and submit return TRIAL_ENDED after the trial, the GET stays open", async () => {
+    const { owner, token } = await publicLink();
+    const state = { values: { a: "original" } };
+    const before = await call(`/api/v1/links/${token}/state`, "PUT", { state });
+    expect(before.status).toBe(200);
+    await db.users.update({
+      where: { id: owner.user.id },
+      data: { trial_started_at: EXPIRED() },
+    });
+    const save = await call(`/api/v1/links/${token}/state`, "PUT", {
+      state: { values: { a: "changed" } },
+    });
+    expect(save.status).toBe(403);
+    expect((await save.json()).detail.code).toBe("TRIAL_ENDED");
+    const submit = await call(`/api/v1/links/${token}/submit`, "POST", {
+      state,
+      attestation: { signatoryName: "Tester", signatoryRole: "Owner" },
+    });
+    expect(submit.status).toBe(403);
+    expect((await submit.json()).detail.code).toBe("TRIAL_ENDED");
+    const get = await call(`/api/v1/links/${token}`);
+    expect(get.status).toBe(200);
+  }, 60_000);
+
+  test("public file upload and evidence extraction return TRIAL_ENDED after the trial", async () => {
+    const { owner, token } = await publicLink();
+    await db.users.update({
+      where: { id: owner.user.id },
+      data: { trial_started_at: EXPIRED() },
+    });
+    const bytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]);
+    const upload = await app.handle(
+      new Request(`http://localhost/api/v1/links/${token}/files?filename=a.pdf`, {
+        method: "POST",
+        headers: { "content-type": "application/pdf" },
+        body: bytes,
+      }),
+    );
+    expect(upload.status).toBe(403);
+    expect((await upload.json()).detail.code).toBe("TRIAL_ENDED");
+    const extract = await app.handle(
+      new Request(`http://localhost/api/v1/links/${token}/evidence/extract`, {
+        method: "POST",
+        headers: { "content-type": "application/pdf" },
+        body: bytes,
+      }),
+    );
+    expect(extract.status).toBe(403);
+    expect((await extract.json()).detail.code).toBe("TRIAL_ENDED");
+  }, 60_000);
+});
+
+// Accepting an invite joins the owner's company, so it is refused once that
+// owner's trial has ended, the same as inviting a teammate is.
+test("accepting a team invite into a company whose trial ended returns TRIAL_ENDED", async () => {
+  const owner = await account();
+  const member = await account();
+  await db.accounts.upsert({
+    where: { id: owner.user.id },
+    create: { id: owner.user.id },
+    update: {},
+  });
+  const secret = randomToken();
+  await db.team_invitations.create({
+    data: {
+      account_id: owner.user.id,
+      email: member.email.toLowerCase(),
+      token_hash: hash(secret),
+      expires_at: new Date(Date.now() + 7 * DAY),
+    },
+  });
+  await db.users.update({
+    where: { id: owner.user.id },
+    data: { trial_started_at: new Date(Date.now() - 31 * DAY) },
+  });
+  const r = await call("/api/v1/team/accept", "POST", { token: secret }, member.cookie);
+  expect(r.status).toBe(403);
+  expect((await r.json()).detail.code).toBe("TRIAL_ENDED");
+  const seat = await db.account_members.findFirst({
+    where: { account_id: owner.user.id, user_id: member.user.id },
+  });
+  expect(seat).toBeNull();
+}, 60_000);

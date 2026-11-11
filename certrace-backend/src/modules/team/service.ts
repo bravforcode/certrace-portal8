@@ -237,6 +237,12 @@ export async function acceptInvitation(actor: users, secret: string) {
       row.accounts.users.status !== "ACTIVE"
     )
       return unusable();
+    if (trialEnded(row.accounts.users))
+      fail(
+        403,
+        "TRIAL_ENDED",
+        "The company’s trial has ended. Ask the owner to update the plan before joining.",
+      );
     if (row.email !== actor.email.trim().toLowerCase())
       fail(403, "INVITE_EMAIL", "Sign in with the invited email address.");
     await tx.account_members.create({

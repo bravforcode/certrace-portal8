@@ -2,6 +2,7 @@ import { afterAll, afterEach, describe, expect, spyOn, test } from "bun:test";
 import { account, admin, call, cleanup, editorOf } from "./helpers";
 import { db } from "../src/lib/db";
 import { notify } from "../src/lib/notify";
+import { hash } from "../src/lib/security";
 
 afterAll(cleanup);
 
@@ -69,6 +70,31 @@ describe("approval", () => {
       where: { user_id: a.user.id, kind: "account_approved" },
     });
     expect(rows).toHaveLength(1);
+  });
+
+  // A rejected (suspended) account must not be re-approved: that would start a
+  // trial and mail "approved" to an account the admin just suspended.
+  test("approving a suspended account is refused and starts nothing", async () => {
+    const a = await account(false);
+    const boss = await admin();
+    await db.users.update({
+      where: { id: a.user.id },
+      data: { status: "SUSPENDED", suspended_at: new Date(), ready: false, approved_at: null },
+    });
+    const before = await db.users.findUniqueOrThrow({ where: { id: a.user.id } });
+    const r = await call(`/api/admin/users/${a.user.id}/ready`, "PUT", { ready: true }, boss.cookie);
+    expect(r.status).toBe(409);
+    expect((await r.json()).detail.code).toBe("ACCOUNT_SUSPENDED");
+    const after = await db.users.findUniqueOrThrow({ where: { id: a.user.id } });
+    expect(after.ready).toBe(false);
+    expect(after.approved_at).toBeNull();
+    expect(after.trial_started_at.toISOString()).toBe(before.trial_started_at.toISOString());
+    const mails = await db.email_deliveries.findMany({
+      where: { user_id: a.user.id, kind: "account_approved" },
+    });
+    expect(mails).toHaveLength(0);
+    const off = await call(`/api/admin/users/${a.user.id}/ready`, "PUT", { ready: false }, boss.cookie);
+    expect(off.status).toBe(200);
   });
 
   // A failed approval mail must not undo the approval, and approving again
@@ -251,6 +277,37 @@ describe("trial enforcement", () => {
 });
 
 describe("notify", () => {
+  // A failed "password changed" mail must not fail the reset, and the log line
+  // carries only the error code, like the other mail paths.
+  test("a failed password-changed mail is logged by code only and the reset still succeeds", async () => {
+    const a = await account();
+    const code = "654321";
+    await db.password_resets.create({
+      data: {
+        email: a.user.email,
+        token: hash(code),
+        expires_at: new Date(Date.now() + 900_000),
+      },
+    });
+    failingMail();
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const r = await call("/api/auth/reset-password", "POST", {
+        email: a.user.email,
+        reset_token: code,
+        new_password: "reset-local-password-2",
+      });
+      expect(r.status).toBe(200);
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      const [message, detail] = errorSpy.mock.calls[0] ?? [];
+      expect(message).toBe("password_changed email failed");
+      expect(detail).not.toBeInstanceOf(Error);
+      expect(errorSpy.mock.calls[0]).toHaveLength(2);
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
   test("a once-only email is recorded and a second call sends nothing", async () => {
     const a = await account(false);
     process.env.CERTRACE_EMAIL_DELIVERY = "console";

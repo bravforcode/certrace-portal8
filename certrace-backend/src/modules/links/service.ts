@@ -16,6 +16,7 @@ import {
   persistExchange,
 } from "../reporting/exchanges";
 import { assumeOwner, readRecord } from "../reporting/service";
+import { trialEnded } from "../auth/trial";
 export const emptyState = (token: string): JsonObject => ({
   token,
   status: "new",
@@ -47,6 +48,22 @@ export async function liveLink(
     fail(410, "TOKEN_REVOKED", "This link was revoked.");
   if (link.expires_at <= new Date())
     fail(410, "TOKEN_EXPIRED", "This link has expired.");
+  return link;
+}
+
+// Public writes add customer data to the owner's workspace, so they stop when
+// the owner's trial has ended. Reads keep using liveLink.
+export async function liveWritableLink(
+  token: string,
+  tx: Prisma.TransactionClient = db,
+) {
+  const link = await liveLink(token, tx);
+  if (trialEnded(link.portal_declarations.users))
+    fail(
+      403,
+      "TRIAL_ENDED",
+      "Your free trial has ended. Choose a plan to keep editing.",
+    );
   return link;
 }
 export async function ownedLink(
@@ -246,7 +263,7 @@ export async function save(
   return db.$transaction(
     async (tx) => {
       await tx.$queryRaw`SELECT token FROM smart_links WHERE token=${token} FOR UPDATE`;
-      const link = await liveLink(token, tx),
+      const link = await liveWritableLink(token, tx),
         workspace = object(link.portal_declarations.doc).kind === "workspace";
       const stored = await readState(link, tx);
       const invitation = object(

@@ -85,6 +85,10 @@ export const admin = new Elysia({ prefix: "/api/admin" })
           where: { id: params.id },
         });
         if (!previous) return missing();
+        // A suspended account stays out until its record is restored; approving
+        // it would start a trial and send the approval mail.
+        if (body.ready && previous.status !== "ACTIVE")
+          fail(409, "ACCOUNT_SUSPENDED", "This account is suspended and cannot be approved.");
         if (previous.ready === body.ready) return previous;
         // The trial clock starts at the first approval only. The approved_at
         // guard in the WHERE clause keeps a concurrent second approval from
