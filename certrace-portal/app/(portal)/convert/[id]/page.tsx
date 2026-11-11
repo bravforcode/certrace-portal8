@@ -44,6 +44,13 @@ import {
 import { useConvertContext } from "@/lib/convert/use-convert-context";
 import { installationRole } from "@/lib/installations";
 import { declarationYear } from "@/lib/convert/declaration-year";
+import { useWorkbook } from "@/lib/workbook/use-workbook";
+import { listWorkspaces } from "@/lib/workspace";
+import { listSuppliers } from "@/lib/precursor-suppliers";
+import { listEvidence } from "@/lib/workspace-evidence";
+import { getCarbonPrice } from "@/lib/carbon-price";
+import { buildVerificationExport } from "@/lib/export/verification-export";
+import { buildXlsx } from "@/lib/xlsx-write";
 
 const STATE: Record<
   RequirementState,
@@ -68,13 +75,14 @@ function ConvertStandardInner() {
   const { id } = useParams<{ id: string }>();
   const s = getStandard(id);
   const t = useT();
-  const { installation, sheets } = useConvertContext();
+  const { installation } = useConvertContext();
   const { data: declarations = [] } = useDeclarations();
   const [more, setMore] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const [open, setOpen] = React.useState<string | null>(null);
   const thisYear = currentYear();
   const [year, setYear] = React.useState(thisYear);
+  const { sheets: yearSheets } = useWorkbook(installation?.id ?? null, year);
 
   if (!s || s.status === "soon")
     return (
@@ -88,7 +96,8 @@ function ConvertStandardInner() {
 
   // Only the current year has data so far: any other year shows every requirement missing.
   const locked = year !== thisYear;
-  const live = liveRequirements(s, { installation, sheets });
+  // Readiness and the export read the same year, so the gate cannot pass on one year and export another.
+  const live = liveRequirements(s, { installation, sheets: yearSheets });
   const requirements: LiveRequirement[] = locked
     ? live.map((r) => ({ ...r, state: "missing", progress: 0 }))
     : live;
@@ -104,9 +113,41 @@ function ConvertStandardInner() {
   // A declaration names its period; without one, the year it was created (or last changed) stands in.
   const yearHistory = declarations.filter((d) => declarationYear(d) === year);
 
-  const convert = () => {
-    if (!canConvert) return;
-    toast(`${s.name} report for ${year} is ready. (Mock)`);
+  /* The verification file: only the allowlisted scope, built from the year's workbook and the
+     installation's verification workspaces (lib/export/verifier-scope.ts). */
+  const exportVerification = () => {
+    if (!canConvert || !installation) return;
+    try {
+      const wss = listWorkspaces().filter((w) => w.installationId === installation.id && w.year === year);
+      const out = buildVerificationExport({
+        installation,
+        year,
+        sheets: yearSheets,
+        suppliers: wss.flatMap((w) => listSuppliers(w.id)),
+        evidence: wss.flatMap((w) => listEvidence(w.id)),
+        carbonPrices: wss
+          .map((w) => ({ label: w.productName, record: getCarbonPrice(w.id) }))
+          .filter((c) => c.record.recorded),
+        generatedAt: new Date(),
+        t: (en) => t(en),
+      });
+      const blob = new Blob([buildXlsx(out.sheets) as BlobPart], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = out.fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ message: t("Verification file downloaded"), detail: out.fileName });
+    } catch (err) {
+      toast({
+        message: t("Could not build the verification file"),
+        tone: "err",
+        detail: err instanceof Error ? err.message : undefined,
+      });
+    }
   };
 
   return (
@@ -148,8 +189,8 @@ function ConvertStandardInner() {
 
         <div className="flex flex-none flex-col items-start gap-2 md:items-end">
           <Button
-            onClick={convert}
-            disabled={!canConvert}
+            onClick={exportVerification}
+            disabled={!canConvert || !installation}
             title={
               canConvert
                 ? undefined
@@ -158,7 +199,7 @@ function ConvertStandardInner() {
             aria-describedby={canConvert ? undefined : "convert-incomplete"}
             className="self-start"
           >
-            {t("Convert to report")}
+            {t("Export for verification")}
           </Button>
           {!canConvert && (
             <p
