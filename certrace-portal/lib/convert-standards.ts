@@ -1,11 +1,11 @@
 /* ════════════════════════════════════════════════════════════
-   CONVERT — MOCK DATA
+   CONVERT — STANDARDS CATALOGUE
 
-   Everything on the Convert screens is placeholder data for now: the six
-   standards a workspace's data can be converted into, the readiness of each
-   requirement, and the reports already produced. Only EU CBAM is live; the
-   other five are listed as coming soon (the same set and order as the public
-   site's lib/nav-menu.ts REGULATIONS).
+   The six standards a workspace's data can be converted into and the
+   requirements each one asks for. Readiness is not stored here: it is worked
+   out from the installation and workbook data (lib/convert/requirements.ts).
+   Only EU CBAM is live; the other five are listed as coming soon (the same
+   set and order as the public site's lib/nav-menu.ts REGULATIONS).
    ════════════════════════════════════════════════════════════ */
 
 export type StandardStatus = "in-progress" | "ready" | "soon";
@@ -15,11 +15,8 @@ export type RequirementState = "complete" | "in-progress" | "missing";
 export type Requirement = {
   id: string;
   title: string;
-  state: RequirementState;
-  /** e.g. "8 of 12 months" — shown beside the state. */
-  progress?: string;
   detail: string;
-  /** What fixes it: a supplier gap is chased through a Smart Link, an own gap is filled in. */
+  /** Catalogue default fix: a supplier gap is chased through a Smart Link, an own gap is filled in. */
   fix?: "smart-link" | "fill-in";
 };
 
@@ -37,45 +34,37 @@ const EU_CBAM_REQUIREMENTS: Requirement[] = [
   {
     id: "installation",
     title: "Installation details",
-    state: "complete",
     detail:
       "Name, address, coordinates of the main emission source and the authorised representative — section 2 of the CBAM communication template.",
   },
   {
     id: "goods",
     title: "Goods, CN codes and production routes",
-    state: "complete",
     detail:
       "Each good is matched to its CN code and the production route the EU names for it.",
   },
   {
     id: "direct",
     title: "Direct emissions — fuels and materials",
-    state: "in-progress",
-    progress: "8 of 12 months",
     detail:
-      "Monthly fuel and process-material quantities with their emission factors. Four months are still open.",
+      "Monthly fuel and process-material quantities with their emission factors.",
     fix: "fill-in",
   },
   {
     id: "indirect",
     title: "Indirect emissions — electricity",
-    state: "complete",
     detail: "Electricity consumed per month and the grid emission factor used.",
   },
   {
     id: "precursors",
     title: "Precursors — embedded emissions",
-    state: "missing",
-    progress: "2 suppliers to chase",
     detail:
-      "Embedded emissions of the precursors bought in. Two suppliers have not sent their verified figures yet.",
+      "Embedded emissions of the precursors bought in. Each supplier's verified figures are needed.",
     fix: "smart-link",
   },
   {
     id: "carbon-price",
     title: "Carbon price paid",
-    state: "missing",
     detail:
       "Any carbon price effectively paid in the country of production, with evidence. Leave empty if none applies.",
     fix: "fill-in",
@@ -83,8 +72,6 @@ const EU_CBAM_REQUIREMENTS: Requirement[] = [
   {
     id: "monitoring",
     title: "Monitoring methodology document",
-    state: "in-progress",
-    progress: "3 of 5 sections",
     detail:
       "How the installation's emissions are monitored — Annex IV of Implementing Regulation (EU) 2025/2547.",
     fix: "fill-in",
@@ -92,8 +79,6 @@ const EU_CBAM_REQUIREMENTS: Requirement[] = [
   {
     id: "communication",
     title: "Supplier communication sheets",
-    state: "in-progress",
-    progress: "3 of 5 received",
     detail:
       "The communication template each supplier returns for the goods they deliver.",
     fix: "smart-link",
@@ -101,7 +86,6 @@ const EU_CBAM_REQUIREMENTS: Requirement[] = [
   {
     id: "verification",
     title: "Verification statement",
-    state: "missing",
     detail:
       "The accredited verifier's statement on the emissions report. Needed for actual values from 2026.",
     fix: "fill-in",
@@ -168,47 +152,3 @@ export const STANDARDS: Standard[] = [
 
 export const getStandard = (id: string) =>
   STANDARDS.find((s) => s.id === id) ?? null;
-
-/** Share of requirements complete, 0–100. */
-export const readiness = (s: Standard) =>
-  s.requirements.length === 0
-    ? 0
-    : Math.round(
-        (s.requirements.filter((r) => r.state === "complete").length /
-          s.requirements.length) *
-          100,
-      );
-
-export type ConvertedReport = {
-  id: string;
-  standardId: string;
-  title: string;
-  /** Reporting year — the EU CBAM page shows the history one year at a time. */
-  year: number;
-  period: string;
-  createdAt: string;
-  format: string;
-};
-
-/* The reporting years themselves come from lib/year-range.ts (the shared year bar). */
-
-export const REPORTS: ConvertedReport[] = [
-  {
-    id: "r-2026-q2",
-    standardId: "eu-cbam",
-    title: "EU CBAM report package — Hot-rolled coil",
-    year: 2026,
-    period: "Q2 2026",
-    createdAt: "2026-07-14",
-    format: "ZIP",
-  },
-  {
-    id: "r-2026-q1",
-    standardId: "eu-cbam",
-    title: "EU CBAM communication template — Hot-rolled coil",
-    year: 2026,
-    period: "Q1 2026",
-    createdAt: "2026-04-11",
-    format: "XLSX",
-  },
-];

@@ -106,6 +106,13 @@ export const emptyMonitoring = (): InstallationMonitoring => ({
   electricityToEu: "",
 });
 
+/** own: the exporter runs the plant. oem: an OEM runs it and the exporter enters its data.
+    supplier: the supplier runs it and fills in a form. */
+export type InstallationRole = "own" | "oem" | "supplier";
+
+export const installationRole = (i: Pick<Installation, "role" | "supplierId">): InstallationRole =>
+  i.role ?? (i.supplierId ? "supplier" : "own");
+
 export type Installation = {
   /** operator reference — the id a verifier and the buyer both quote. Not a
       template field; it is how Certrace keys the record and groups workspaces. */
@@ -124,6 +131,8 @@ export type Installation = {
       company, and pointing at a supplier record for yourself would put your
       own plant on the Suppliers page. */
   supplierId: string;
+  /** Who keys in this plant's data. Absent on records saved before roles existed; read it through `installationRole`. */
+  role?: InstallationRole;
   /** (iii) Street, Number */
   street: string;
   /** (iv) Economic activity */

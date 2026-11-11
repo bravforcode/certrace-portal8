@@ -2,7 +2,7 @@
    language flags, so it reads the same on every machine. */
 
 import * as React from "react";
-import type { Standard } from "@/lib/convert-mock";
+import type { Standard } from "@/lib/convert-standards";
 import { cn } from "@/components/ui";
 
 function stars(cx: number, cy: number, r: number) {

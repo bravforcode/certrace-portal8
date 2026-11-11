@@ -6,15 +6,15 @@
    Laid out like an app directory: status tabs on the left with their counts,
    search on the right, then a grid of standards. The last tab, Report, is
    where finished reports are collected. Only EU CBAM opens; the rest are
-   coming soon. All data is mock (lib/convert-mock.ts).
+   coming soon. Readiness is worked out live from the installation the page is
+   scoped to and its workbook (lib/convert/requirements.ts).
    ════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Download, FileArchive, FileSpreadsheet, Plus, Search } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import {
-  Button,
   Chip,
   EmptyState,
   FilterChip,
@@ -22,16 +22,15 @@ import {
   cn,
   inputClass,
 } from "@/components/ui";
-import { toast } from "@/components/toast";
 import { ScopedInstallationSwitcher } from "@/components/scoped-installation-switcher";
 import { StandardLogo } from "@/components/convert/standard-logo";
-import {
-  REPORTS,
-  STANDARDS,
-  getStandard,
-  readiness,
-  type Standard,
-} from "@/lib/convert-mock";
+import { DeclarationRows } from "@/components/convert/declaration-rows";
+import { useDeclarations } from "@/lib/declarations-query";
+import { useT } from "@/lib/i18n";
+import { STANDARDS, type Standard } from "@/lib/convert-standards";
+import { liveRequirements, readiness } from "@/lib/convert/requirements";
+import { useConvertContext } from "@/lib/convert/use-convert-context";
+import { installationRole } from "@/lib/installations";
 
 type Tab = "all" | "in-progress" | "ready" | "report";
 const TABS: { key: Tab; label: string }[] = [
@@ -41,12 +40,14 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "report", label: "Report" },
 ];
 
-const countFor = (tab: Tab) =>
+const countFor = (tab: Tab, reports: number) =>
   tab === "all"
     ? STANDARDS.length
     : tab === "report"
-      ? REPORTS.length
+      ? reports
       : STANDARDS.filter((s) => s.status === tab).length;
+
+const ROLE_LABEL = { own: "Own plant", oem: "OEM plant", supplier: "Supplier plant" } as const;
 
 export default function ConvertPage() {
   return (
@@ -65,15 +66,22 @@ function ConvertInner() {
   );
   const [query, setQuery] = React.useState("");
 
-  const installation = params.get("installation");
+  const installationParam = params.get("installation");
   const go = (next: Tab) => {
     setTab(next);
     const q = new URLSearchParams();
     if (next !== "all") q.set("tab", next);
-    if (installation) q.set("installation", installation);
+    if (installationParam) q.set("installation", installationParam);
     const qs = q.toString();
     router.replace(qs ? `/convert?${qs}` : "/convert", { scroll: false });
   };
+
+  const t = useT();
+  const { installation, sheets } = useConvertContext();
+  const { data: declarations = [] } = useDeclarations();
+  const role = installation ? installationRole(installation) : null;
+  const pctOf = (s: Standard) =>
+    readiness(liveRequirements(s, { installation, sheets }));
 
   const q = query.trim().toLowerCase();
   const matches = (s: Standard) =>
@@ -83,9 +91,9 @@ function ConvertInner() {
   );
   const live = shown.filter((s) => s.status !== "soon");
   const soon = shown.filter((s) => s.status === "soon");
-  const reports = REPORTS.filter(
-    (r) =>
-      !q || `${r.title} ${r.period}`.toLowerCase().includes(q),
+  const reports = declarations.filter(
+    (d) =>
+      !q || `${d.title ?? d.name} ${d.period}`.toLowerCase().includes(q),
   );
 
   return (
@@ -93,7 +101,12 @@ function ConvertInner() {
       <PageHeader
         title="Convert"
         lead="Turn your workspace data into the report each standard asks for."
-        actions={<ScopedInstallationSwitcher />}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            {role && <Chip tone="muted">{t(ROLE_LABEL[role])}</Chip>}
+            <ScopedInstallationSwitcher />
+          </div>
+        }
       />
 
       {/* The kit's filter pills and search field, as on Suppliers and Notifications.
@@ -106,7 +119,7 @@ function ConvertInner() {
         >
           {TABS.map(({ key, label }) => (
             <FilterChip key={key} active={tab === key} onClick={() => go(key)}>
-              {label} ({countFor(key)})
+              {label} ({countFor(key, declarations.length)})
             </FilterChip>
           ))}
         </div>
@@ -128,7 +141,14 @@ function ConvertInner() {
       </div>
 
       {tab === "report" ? (
-        <ReportList reports={reports} />
+        reports.length === 0 ? (
+          <EmptyState
+            title={t("No reports yet.")}
+            body={t("Open a standard and convert it to get one.")}
+          />
+        ) : (
+          <DeclarationRows items={reports} />
+        )
       ) : shown.length === 0 ? (
         <EmptyState
           title={q ? `Nothing matches “${query}”.` : `No standard is ${TABS.find((x) => x.key === tab)?.label.toLowerCase()} yet.`}
@@ -139,14 +159,14 @@ function ConvertInner() {
           {live.length > 0 && (
             <Section title="Available">
               {live.map((s) => (
-                <StandardCard key={s.id} s={s} />
+                <StandardCard key={s.id} s={s} pct={pctOf(s)} />
               ))}
             </Section>
           )}
           {soon.length > 0 && (
             <Section title="Coming soon">
               {soon.map((s) => (
-                <StandardCard key={s.id} s={s} />
+                <StandardCard key={s.id} s={s} pct={0} />
               ))}
               {!q && (
                 <div className="flex min-h-[104px] items-center gap-3 rounded-xl border border-dashed border-black/15 px-5 text-[13px] text-black/40">
@@ -178,7 +198,7 @@ function Section({
   );
 }
 
-function StandardCard({ s }: { s: Standard }) {
+function StandardCard({ s, pct }: { s: Standard; pct: number }) {
   const installation = useSearchParams().get("installation");
   const soon = s.status === "soon";
   const body = (
@@ -205,8 +225,8 @@ function StandardCard({ s }: { s: Standard }) {
         </div>
         {!soon && (
           <div className="mt-2.5 flex flex-wrap items-center gap-2 whitespace-nowrap">
-            <Chip tone={readiness(s) === 100 ? "ok" : "warn"}>
-              {readiness(s)}% ready
+            <Chip tone={pct === 100 ? "ok" : "warn"}>
+              {pct}% ready
             </Chip>
             <span className="text-[11.5px] text-black/40">
               {s.requirements.length} requirements
@@ -232,52 +252,5 @@ function StandardCard({ s }: { s: Standard }) {
     >
       {body}
     </Link>
-  );
-}
-
-function ReportList({ reports }: { reports: typeof REPORTS }) {
-  if (reports.length === 0)
-    return (
-      <EmptyState
-        title="No reports yet."
-        body="Open a standard and convert it to get one."
-      />
-    );
-  return (
-    <div className="overflow-hidden rounded-xl border border-black/[0.08] bg-white">
-      {reports.map((r, i) => (
-        <div
-          key={r.id}
-          className={cn(
-            "flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center",
-            i > 0 && "border-t border-black/[0.06]",
-          )}
-        >
-          {r.format === "ZIP" ? (
-            <FileArchive size={18} strokeWidth={1.5} className="hidden flex-none text-black/35 sm:block" />
-          ) : (
-            <FileSpreadsheet size={18} strokeWidth={1.5} className="hidden flex-none text-black/35 sm:block" />
-          )}
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-[14px] text-black/85">{r.title}</div>
-            <div className="mt-0.5 text-[12px] text-black/40">
-              {getStandard(r.standardId)?.name} · {r.period} · Created{" "}
-              {r.createdAt}
-            </div>
-          </div>
-          <Button
-            variant="secondary"
-            size="sm"
-            aria-label={`Download ${r.title} (${r.format})`}
-            onClick={() =>
-              toast(`${r.title} (${r.format}) — download is a mock for now.`)
-            }
-            className="flex-none self-start sm:self-auto"
-          >
-            <Download size={13} strokeWidth={1.5} /> Download
-          </Button>
-        </div>
-      ))}
-    </div>
   );
 }
