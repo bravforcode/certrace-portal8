@@ -101,7 +101,7 @@ import { admissibility, defaultFor } from "./precursor-basis";
 import { categoryOf, sectorParamsFor } from "./precursor-fields";
 import { rateSheet } from "./eu-rates";
 import { letterOfRoute } from "./routes";
-import { categoryRequiresIndirect } from "./product-category-rules";
+import { indirectCounts } from "./product-category-rules";
 import { MONITORING_QUESTIONS, profileGaps } from "./installation-profile";
 import { guideFor, hrefFor, type Where } from "./report-guidance";
 
@@ -265,7 +265,7 @@ function factsOf(ws: VerificationWorkspace): Facts {
     routeLetter: letterOfRoute(ws.productionRoute),
     agg,
     indirectCounts: product
-      ? categoryRequiresIndirect(aggregatedGoodsCategory(product))
+      ? indirectCounts(aggregatedGoodsCategory(product), product.cnCode)
       : true,
     precursors: listSuppliers(ws.id).filter((s) => !s.parentId && !s.isScrap),
     mmd: final ? final.content : loadDraft(ws.id, ws.periodStart, ws.periodEnd),
