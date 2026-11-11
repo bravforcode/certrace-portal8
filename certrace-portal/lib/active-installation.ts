@@ -46,7 +46,7 @@ export function setActiveInstallationId(id: string) {
 
 /** Every installation the account knows, own sites first, and the current one. */
 export function useActiveInstallation() {
-  const { data, isLoading } = useKnownInstallations();
+  const { data, isLoading, isError, refetch } = useKnownInstallations();
   const options = React.useMemo<InstallationChoice[]>(
     () =>
       (data ?? [])
@@ -86,6 +86,8 @@ export function useActiveInstallation() {
     options,
     active,
     loading: isLoading,
+    error: isError,
+    retry: () => void refetch(),
     setActive: setActiveInstallationId,
   };
 }

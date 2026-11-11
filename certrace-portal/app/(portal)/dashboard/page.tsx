@@ -114,7 +114,7 @@ export default function DashboardPage() {
 
       <InstallationDirectory year={year} selectedId={mapId} onShowOnMap={setPicked} />
       {mapId && (
-        <FactoryMap installationId={mapId} year={year} onInstallationChange={setPicked} onYearChange={setYear} />
+        <FactoryMap key={`${mapId}:${year}`} installationId={mapId} year={year} onInstallationChange={setPicked} onYearChange={setYear} />
       )}
 
       {empty ? (

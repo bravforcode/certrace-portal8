@@ -200,9 +200,9 @@ export function FlowDiagram({
     refs.current.get(next.id)?.focus();
   };
 
-  // In edit mode a click selects; otherwise it opens the node's sheet, as before.
+  // In edit mode, or where a parent listens for selection, a click selects; otherwise it opens the node's sheet, as before.
   const activate = (n: FlowNode) => {
-    if (!canEdit) return open(n);
+    if (!canEdit && !onSelect) return open(n);
     const next = sel === n.id ? null : n;
     setSel(next?.id ?? null);
     onSelect?.(next);

@@ -188,6 +188,7 @@ export function useWorkbookYears(installationId: string | null) {
 
   return {
     loaded: Boolean(installationId) && query.isSuccess,
+    error: query.isError,
     years,
     get,
     confirm,
@@ -322,6 +323,8 @@ export function useWorkbook(installationId: string | null, year: number) {
 
   return {
     loaded: Boolean(installationId) && query.isSuccess,
+    error: query.isError,
+    retry: () => void query.refetch(),
     sheets,
     cells,
     editors: data?.editors ?? {},

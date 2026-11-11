@@ -6,11 +6,13 @@
    The installation's workbook drawn as the factory floor (FlowDiagram), each
    node coloured by its data status and annotated with its estimated tCO2e.
    Selecting a node shows its gaps and links to the row to fix. Read-only.
+   An installation the picker does not know falls back to the active one.
    ════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ButtonLink, Card, Chip, inputClass } from "@/components/ui";
+import { Button, ButtonLink, Card, Chip, inputClass } from "@/components/ui";
+import { ErrorState, LoadingState } from "@/components/query-state";
 import { FlowDiagram } from "@/components/workspace/flow-diagram";
 import { useT } from "@/lib/i18n";
 import { useActiveInstallation } from "@/lib/active-installation";
@@ -53,20 +55,34 @@ export function FactoryMap({
 }) {
   const t = useT();
   const router = useRouter();
-  const { options } = useActiveInstallation();
-  const { sheets, cells, loaded } = useWorkbook(installationId, year);
-  const country = getInstallation(installationId)?.country ?? "";
+  const list = useActiveInstallation();
+  // A picked installation the account no longer has falls back to the active one.
+  const current = list.options.find((o) => o.id === installationId) ?? list.active;
+  const iid = current?.id ?? null;
+  const wb = useWorkbook(iid, year);
+  const { sheets, cells, loaded } = wb;
+  const country = iid ? (getInstallation(iid)?.country ?? "") : "";
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
 
   const estimate = React.useMemo(() => estimateEmissions(sheets, { country, year }), [sheets, country, year]);
   const balance = React.useMemo(() => massBalance(sheets), [sheets]);
   const map = React.useMemo(() => buildFactoryMap(sheets, estimate, balance), [sheets, estimate, balance]);
+  const badges = React.useMemo(
+    () => Object.fromEntries(Object.entries(map.badge).map(([id, b]) => [id, t(b.key, b.params)])),
+    [map, t],
+  );
+
+  if (list.loading || (iid && !loaded && !wb.error && !list.error)) return <LoadingState />;
+  if (list.error) return <ErrorState onRetry={list.retry} />;
+  if (wb.error) return <ErrorState onRetry={wb.retry} />;
+  if (!iid) return null;
+
   const selected: MapNode | null = map.nodes.find((n) => n.id === selectedId) ?? null;
-  const empty = loaded && sheets.every((s) => sheetStatus(s) === "untouched");
+  const empty = sheets.every((s) => sheetStatus(s) === "untouched");
   const total = estimate.totalT;
   const steps = map.nodes.filter((n) => n.kind === "step" && n.label);
   const withGaps = steps.filter((n) => n.gaps.length > 0 || n.status === "err").length;
-  const openSheet = (sheet: string) => router.push(`/workspace?installation=${installationId}&year=${year}&sheet=${sheet}`);
+  const openSheet = (sheet: string) => router.push(`/workspace?installation=${iid}&year=${year}&sheet=${sheet}`);
 
   return (
     <Card as="section" className="space-y-4" aria-labelledby="factory-map-title">
@@ -76,9 +92,9 @@ export function FactoryMap({
         </h2>
         <div className="flex flex-wrap items-end gap-2">
           <label className="space-y-1 text-[12px] text-black/55">
-            <span className="block">{t("Installation")}</span>
-            <select className={inputClass} value={installationId} onChange={(e) => onInstallationChange(e.target.value)}>
-              {options.map((o) => (
+            <span className="block">{t("Site")}</span>
+            <select className={inputClass} value={iid} onChange={(e) => onInstallationChange(e.target.value)}>
+              {list.options.map((o) => (
                 <option key={o.id} value={o.id}>
                   {o.name}
                 </option>
@@ -116,7 +132,7 @@ export function FactoryMap({
       {empty ? (
         <div className="space-y-2 py-6 text-center">
           <p className="text-[14px] text-black/65">{t("No workbook for {year} yet", { year })}</p>
-          <ButtonLink href={`/workspace?installation=${installationId}&year=${year}`} variant="secondary">
+          <ButtonLink href={`/workspace?installation=${iid}&year=${year}`} variant="secondary">
             {t("Open workspace")}
           </ButtonLink>
         </div>
@@ -129,22 +145,22 @@ export function FactoryMap({
               t={t}
               onOpenSheet={openSheet}
               nodeTone={map.tone}
-              nodeBadge={map.badge}
+              nodeBadge={badges}
               onSelect={(n) => setSelectedId(n?.id ?? null)}
             />
             {/* Text equivalent of the drawing for screen readers. */}
             <div className="sr-only">
               <p>{t("{n} steps, {m} with gaps", { n: steps.length, m: withGaps })}</p>
               <ul>
-                {map.nodes.map((n) => (
-                  <li key={n.id}>
-                    {t("{name}: {status}", {
-                      name: n.label || t(KIND_LABEL[n.kind]),
-                      status: t(STATUS_LABEL[MAP_LABEL[n.status]]),
-                    })}
-                    {n.tCO2e !== null ? ` · ${n.tCO2e.toFixed(1)} t CO₂e` : ""}
-                  </li>
-                ))}
+                {map.nodes.map((n) => {
+                  const name = n.fallback === "unassigned" ? t("Unassigned") : n.label || t(KIND_LABEL[n.kind]);
+                  const status = t("{name}: {status}", { name, status: t(STATUS_LABEL[MAP_LABEL[n.status]]) });
+                  return (
+                    <li key={n.id}>
+                      {[status, badges[n.id], ...n.gaps.map((g) => t(g.key, g.params))].filter(Boolean).join(". ")}
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           </div>
@@ -175,9 +191,14 @@ export function FactoryMap({
                     </ul>
                   </div>
                 )}
-                <ButtonLink href={`/workspace?installation=${installationId}&sheet=${SHEET_OF[selected.kind]}`} variant="secondary" size="sm">
-                  {t("Fix in workspace")}
-                </ButtonLink>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="secondary" size="sm" onClick={() => openSheet(SHEET_OF[selected.kind])}>
+                    {t("Open sheet")}
+                  </Button>
+                  <ButtonLink href={`/workspace?installation=${iid}&year=${year}&sheet=${SHEET_OF[selected.kind]}`} variant="ghost" size="sm">
+                    {t("Fix in workspace")}
+                  </ButtonLink>
+                </div>
               </>
             ) : (
               <p className="text-black/55">{t("Choose a step or item on the map to see its gaps.")}</p>
