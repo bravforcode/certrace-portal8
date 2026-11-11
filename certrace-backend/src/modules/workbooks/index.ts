@@ -25,4 +25,10 @@ export const workbooks = new Elysia({ prefix: "/api/v1/workbooks" })
     ({ company, account, params, body }) =>
       S.putMeta(company.id, params.installationId, params.year, account.id, body.meta),
     { params: M.params, body: t.Object({ meta: M.meta }) },
+  )
+  .post(
+    "/:installationId/:year/reset-leftovers",
+    ({ company, account, params }) =>
+      S.resetLeftovers(company.id, params.installationId, params.year, account.id),
+    { params: M.params },
   );

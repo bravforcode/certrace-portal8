@@ -110,3 +110,9 @@ export const putMeta = (
   actorId: string,
   meta: Record<string, unknown>,
 ) => mutate(companyId, installationId, year, actorId, () => ({ meta }));
+
+/** Clears cells left by a failed copy or reset. A year with a status is in use (set up or copied), so its cells stay. */
+export const resetLeftovers = (companyId: string, installationId: string, year: number, actorId: string) =>
+  mutate(companyId, installationId, year, actorId, (row) =>
+    (row.meta as { status?: unknown }).status ? {} : { cells: {}, editors: {} },
+  );

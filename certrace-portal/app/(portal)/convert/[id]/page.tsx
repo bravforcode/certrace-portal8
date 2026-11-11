@@ -150,6 +150,11 @@ function ConvertStandardInner() {
           <Button
             onClick={convert}
             disabled={!canConvert}
+            title={
+              canConvert
+                ? undefined
+                : `${t("Complete first")}: ${incomplete.map((r) => r.title).join(", ")}`
+            }
             aria-describedby={canConvert ? undefined : "convert-incomplete"}
             className="self-start"
           >

@@ -132,4 +132,40 @@ describe("workbooks", () => {
     expect(r.years[0]).toMatchObject({ year: 2026, meta: { status: "ready" } });
     expect(r.years[0].cells).toBeUndefined();
   });
+
+  // Leftover cells (no meta status) are cleared server-side, under the row lock, so a
+  // copy running at the same time cannot have its freshly written cells wiped by the client.
+  describe("reset-leftovers", () => {
+    const reset = (cookie: string, h = {}) => call(base + "/reset-leftovers", "POST", undefined, cookie, h);
+
+    test("clears cells of a year with no meta status and bumps the revision", async () => {
+      const a = await account();
+      await patch(a.cookie, { "steps:0:step": "Left over" });
+      const r = await reset(a.cookie);
+      expect(r.status).toBe(200);
+      const body = await r.json();
+      expect(body.cells).toEqual({});
+      expect(body.revision).toBe(2);
+    });
+
+    // A year being set up or copied has a status; its cells are its work and must survive.
+    test("keeps the cells of a year that has a status", async () => {
+      const a = await account();
+      await call(base + "/meta", "PUT", { meta: { status: "syncing" } }, a.cookie);
+      await patch(a.cookie, { "steps:0:step": "Kept" });
+      const r = await reset(a.cookie);
+      expect(r.status).toBe(200);
+      expect((await r.json()).cells).toEqual({ "steps:0:step": "Kept" });
+    });
+
+    test("another company cannot reset the workbook", async () => {
+      const a = await account();
+      const b = await account();
+      await patch(a.cookie, { "steps:0:step": "Owned" });
+      const r = await reset(b.cookie, { "X-Certrace-Company": a.user.id });
+      expect(r.status).toBe(403);
+      const wb = await (await call(base, "GET", undefined, a.cookie)).json();
+      expect(wb.cells).toEqual({ "steps:0:step": "Owned" });
+    });
+  });
 });

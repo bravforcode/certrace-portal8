@@ -30,6 +30,21 @@ describe("login", () => {
     });
     expect(r.status).toBe(401);
   });
+
+  // A suspended account must not sign in even with its correct password.
+  test("a SUSPENDED account gets 403 on login with the correct password", async () => {
+    const a = await account();
+    await db.users.update({
+      where: { id: a.user.id },
+      data: { status: "SUSPENDED", suspended_at: new Date(), ready: false },
+    });
+    const r = await call("/api/auth/login", "POST", {
+      email: a.email,
+      password: "test-password-123",
+    });
+    expect(r.status).toBe(403);
+    expect((await r.json()).detail.code).toBe("ACCOUNT_SUSPENDED");
+  });
 });
 
 describe("approval", () => {

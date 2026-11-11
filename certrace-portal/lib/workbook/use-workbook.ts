@@ -19,10 +19,12 @@ import {
   listWorkbooks,
   patchWorkbookCells,
   putWorkbookMeta,
+  resetWorkbookLeftovers,
   type Workbook,
   type WorkbookMeta,
 } from "../api/workbooks";
 import { sheetsFromCells } from "./cells";
+import { copyingMeta } from "./copy-meta";
 import { clearBatches, pendingFor, type Target } from "./save-queue";
 import { SaveRunner } from "./save-runner";
 import { createSyncQueue, type SyncResult } from "./sync-queue";
@@ -53,11 +55,9 @@ async function clearCells(iid: string, year: number, keys: string[]) {
   }
 }
 
-/** A year with cells but no meta (left by a failed copy) must not show old cells under a new start. */
-async function clearLeftovers(iid: string, year: number) {
-  const existing = await getWorkbook(iid, year).catch(() => null);
-  if (existing?.changed && !existing.meta?.status) await clearCells(iid, year, Object.keys(existing.cells));
-}
+/** A year with cells but no meta (left by a failed copy) must not show old cells under a new start.
+ *  The server clears them under its row lock, so a copy running at the same time is not wiped. Throws on failure. */
+const clearLeftovers = (iid: string, year: number) => resetWorkbookLeftovers(iid, year);
 
 /* ── save runner: one per browser tab, shared by every year and installation ── */
 
@@ -88,6 +88,9 @@ const diagram = createSyncQueue<DiagramJob>(
     if (!r.ok) throw new Error("not saved");
   },
   (job) => Object.keys(job.patch).length === 0,
+  // One queue serves every installation and year: a failure only skips patches for its own target.
+  (a, b) =>
+    a.target.accountId === b.target.accountId && a.target.iid === b.target.iid && a.target.year === b.target.year,
 );
 
 const subscribeQueue = (fn: () => void) => runner.subscribe(fn);
@@ -123,14 +126,23 @@ export function useWorkbookYears(installationId: string | null) {
     }
   };
 
+  const notSaved = (e: unknown) => toast({ message: "Your change was not saved", tone: "err", detail: (e as Error).message });
+
   /** Confirm the upload: the year is set up from these files and closed to more. */
-  const confirm = (year: number, files: WorkspaceFile[]) =>
-    write(year, { status: "syncing", files, confirmedAt: nowIso() });
+  const confirm = async (year: number, files: WorkspaceFile[]) => {
+    if (!installationId) return;
+    try {
+      await clearLeftovers(installationId, year);
+    } catch (e) {
+      return notSaved(e);
+    }
+    await write(year, { status: "syncing", files, confirmedAt: nowIso() });
+  };
 
   /**
-   * Start a year from an earlier one. The year is first marked syncing with no
-   * confirmedAt, so the auto-ready timer never fires during the copy. If the copy
-   * fails, the year's meta is cleared so it disappears and copying can run again.
+   * Start a year from an earlier one. The year is first marked syncing with a
+   * confirmedAt (see copyingMeta), so an interrupted copy is still finished by the
+   * set-up timer. If the copy fails, the year's meta is cleared so it disappears and copying can run again.
    */
   const copy = async (year: number, from: number) => {
     if (!installationId) return;
@@ -140,7 +152,7 @@ export function useWorkbookYears(installationId: string | null) {
       if (!src.changed) return;
       const files = src.meta.files ?? [];
       await clearLeftovers(installationId, year);
-      await putWorkbookMeta(installationId, year, { status: "syncing", files, blank: src.meta.blank, copiedFrom: from });
+      await putWorkbookMeta(installationId, year, copyingMeta(from, src.meta, nowIso()));
       const entries = Object.entries(src.cells);
       written.push(...entries.map(([k]) => k));
       for (let i = 0; i < entries.length; i += CHUNK)
@@ -170,8 +182,25 @@ export function useWorkbookYears(installationId: string | null) {
   /** Start from the beginning: no files, empty sheets, open at once. */
   const startBlank = async (year: number) => {
     if (!installationId) return;
-    await clearLeftovers(installationId, year);
+    try {
+      await clearLeftovers(installationId, year);
+    } catch (e) {
+      return notSaved(e);
+    }
     await write(year, { status: "ready", files: [], blank: true, confirmedAt: nowIso() });
+  };
+
+  /** Start over a year stuck syncing with no confirmedAt (set up before copies were timestamped): clear its meta, then its cells. */
+  const restart = async (year: number) => {
+    if (!installationId) return;
+    try {
+      await putWorkbookMeta(installationId, year, {});
+      await clearLeftovers(installationId, year);
+    } catch (e) {
+      notSaved(e);
+    }
+    await qc.invalidateQueries({ queryKey: ["workbook-years", installationId] });
+    await qc.invalidateQueries({ queryKey: ["workbook", installationId, year] });
   };
 
   /** The set-up has finished. The walk-in for this year is per browser (see walkinPending). */
@@ -194,6 +223,7 @@ export function useWorkbookYears(installationId: string | null) {
     confirm,
     copy,
     startBlank,
+    restart,
     markReady,
     markRevealed,
   };
