@@ -126,8 +126,15 @@ export function useWorkbookYears(installationId: string | null) {
   };
 
   /** Confirm the upload: the year is set up from these files and closed to more. */
-  const confirm = (year: number, files: WorkspaceFile[]) =>
-    write(year, { status: "syncing", files, confirmedAt: nowIso() });
+  const confirm = async (year: number, files: WorkspaceFile[]) => {
+    if (!installationId) return;
+    try {
+      await clearLeftovers(installationId, year);
+    } catch (e) {
+      return notSaved(e);
+    }
+    await write(year, { status: "syncing", files, confirmedAt: nowIso() });
+  };
 
   /**
    * Start a year from an earlier one. The year is first marked syncing with no
