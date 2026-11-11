@@ -6,7 +6,7 @@ import { sendEmail } from "../../lib/email";
 import { config } from "../../lib/config";
 import type { users, Prisma } from "../../generated/prisma/client";
 import { lockOwner } from "../reporting/service";
-import { teamSeatLimits } from "../../../../certrace-portal/lib/team-seat-limits";
+import { teamSeatLimits } from "./seat-limits";
 import { requireOwner } from "./workspace";
 import { trialEnded } from "../auth/trial";
 
