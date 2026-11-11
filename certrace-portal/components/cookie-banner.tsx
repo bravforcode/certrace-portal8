@@ -46,16 +46,16 @@ export function CookieBanner() {
       {open && (
         <section
           aria-labelledby="cookie-banner-title"
-          className="fixed inset-x-0 bottom-0 z-[80] flex justify-center p-4"
+          className="fixed bottom-4 right-4 left-4 z-[80] sm:left-auto"
         >
-          <Card className="w-full max-w-[640px] p-5">
+          <Card className="w-full p-4 shadow-lg sm:max-w-[380px]">
             <h2
               id="cookie-banner-title"
-              className="text-[15px] font-medium text-[#111]"
+              className="text-[13px] font-medium text-[#111]"
             >
               {t("Cookie consent")}
             </h2>
-            <p className="mt-2 text-[13px] leading-relaxed text-black/65">
+            <p className="mt-1.5 text-[12px] leading-relaxed text-black/65">
               {t(
                 "We use necessary cookies to keep you signed in. With your permission we also use analytics cookies to improve Certrace.",
               )}{" "}
@@ -68,22 +68,22 @@ export function CookieBanner() {
                 {t("Could not save your cookie choice. Please try again.")}
               </p>
             )}
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Button
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              <Button size="sm"
                 variant="primary"
                 disabled={busy}
                 onClick={() => decide(false, false)}
               >
                 {t("Reject optional")}
               </Button>
-              <Button
+              <Button size="sm"
                 variant="primary"
                 disabled={busy}
                 onClick={() => decide(true, true)}
               >
                 {t("Accept all")}
               </Button>
-              <Button
+              <Button size="sm"
                 variant="ghost"
                 disabled={busy}
                 onClick={() => setCustomising(true)}
