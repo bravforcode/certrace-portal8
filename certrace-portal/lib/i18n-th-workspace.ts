@@ -206,4 +206,9 @@ export const TH_WORKSPACE: Record<string, string> = {
   "The file type of {file} is longer than {n} characters.": "ประเภทไฟล์ {file} ยาวเกิน {n} ตัวอักษร",
   "The description of {file} is longer than {n} characters.": "คำอธิบายของ {file} ยาวเกิน {n} ตัวอักษร",
   "Some changes were refused and not saved": "บางการเปลี่ยนแปลงถูกปฏิเสธและไม่ได้บันทึก",
+  "{n} min ago": "{n} นาทีที่แล้ว",
+  "{n} h ago": "{n} ชม. ที่แล้ว",
+  "a teammate": "สมาชิกในทีม",
+  "Edited by {name} · {time}": "แก้ไขโดย {name} · {time}",
+  "Your change was not saved": "การเปลี่ยนแปลงของคุณยังไม่ได้บันทึก",
 };

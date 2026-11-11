@@ -24,8 +24,10 @@ test("a type longer than 120 characters is refused", () => {
   assert.equal(p?.field, "type");
 });
 
-test("a description longer than 1000 characters is refused, but surrounding spaces do not count", () => {
-  assert.equal(uploadProblem([{ ...ok, description: " ".repeat(20) + "d".repeat(1000) + " " }]), null);
+test("a description longer than 1000 characters is refused, counted untrimmed as the server counts it", () => {
+  assert.equal(uploadProblem([{ ...ok, description: "d".repeat(1000) }]), null);
   const p = uploadProblem([{ ...ok, description: "d".repeat(1001) }]);
   assert.deepEqual(p, { field: "description", max: 1000, file: "a.pdf" });
+  // Surrounding spaces count: 990 letters plus 11 spaces is over the limit.
+  assert.equal(uploadProblem([{ ...ok, description: " ".repeat(11) + "d".repeat(990) }])?.field, "description");
 });

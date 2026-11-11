@@ -5,13 +5,15 @@
 
    - useWorkbookYears(installationId): which years exist and their set-up meta
      (syncing / ready, files, copy source).
-   - useWorkbook(installationId, year): the cells of one year. Typed values wait in
-     a queue (lib/workbook/save-queue.ts) that is kept per installation and year,
-     sent one batch at a time, and shown on screen until the server has them. */
+   - useWorkbook(installationId, year): the cells of one year. Typed values go
+     through the save runner (save-runner.ts), which keeps them per account,
+     installation and year, sends one batch at a time, and shows them on screen
+     until the server has them. */
 
 import * as React from "react";
 import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { toast } from "@/components/toast";
+import { loadSession, onSessionChange } from "../api/session";
 import {
   getWorkbook,
   listWorkbooks,
@@ -21,25 +23,14 @@ import {
   type WorkbookMeta,
 } from "../api/workbooks";
 import { sheetsFromCells } from "./cells";
-import {
-  acknowledge,
-  dropKeys,
-  enqueue,
-  isRetryable,
-  nextBatch,
-  pendingFor,
-  retryDelay,
-  targetsWithPending,
-  type Queue,
-  type Target,
-} from "./save-queue";
+import { pendingFor } from "./save-queue";
+import { SaveRunner } from "./save-runner";
 import type { Sheet, WorkspaceFile } from "../workspace-sheets";
 
 /** How long the set-up takes after Confirm. */
 export const SETUP_MS = 60_000;
 const POLL_MS = 10_000;
 const YEARS_POLL_MS = 30_000;
-const SAVE_DELAY_MS = 600;
 /** The server takes at most 2000 cells in one patch. */
 const CHUNK = 2000;
 
@@ -47,6 +38,31 @@ const CHUNK = 2000;
 export type WorkbookYear = WorkbookMeta & { status: "syncing" | "ready"; files: WorkspaceFile[] };
 
 const nowIso = () => new Date().toISOString();
+const currentAccount = () => loadSession()?.user.id ?? null;
+
+/* ── save runner: one per browser tab, shared by every year and installation ── */
+
+let queryClient: QueryClient | null = null;
+
+const runner = new SaveRunner<Workbook>({
+  patch: (t, cells) => patchWorkbookCells(t.iid, t.year, cells),
+  onSaved: (t, saved) => {
+    // Only the account that typed the edit may update the cache it reads.
+    if (queryClient && t.accountId === currentAccount()) queryClient.setQueryData(["workbook", t.iid, t.year], saved);
+  },
+  notify: (message, detail) => toast({ message, tone: "err", detail }),
+  account: currentAccount,
+  now: () => Date.now(),
+  setTimer: (fn, ms) => window.setTimeout(fn, ms),
+  clearTimer: (h) => window.clearTimeout(h as number),
+});
+
+if (typeof window !== "undefined") {
+  onSessionChange((s) => runner.onAccountChange(s?.user.id ?? null));
+}
+
+const subscribeQueue = (fn: () => void) => runner.subscribe(fn);
+const queueSnapshot = () => runner.snapshot();
 
 export function useWorkbookYears(installationId: string | null) {
   const qc = useQueryClient();
@@ -59,6 +75,7 @@ export function useWorkbookYears(installationId: string | null) {
     refetchIntervalInBackground: false,
   });
   const years = query.data?.years ?? [];
+  if (installationId && query.data) seedWalkin(installationId, years);
 
   const get = (year: number): WorkbookYear | undefined => {
     const meta = years.find((y) => y.year === year)?.meta as WorkbookMeta | undefined;
@@ -83,8 +100,8 @@ export function useWorkbookYears(installationId: string | null) {
 
   /**
    * Start a year from an earlier one. The year is first marked syncing with no
-   * confirmedAt, so the auto-ready timer never fires during the copy and an
-   * interrupted copy is retried by copying again. Then the cells, then ready.
+   * confirmedAt, so the auto-ready timer never fires during the copy. If the copy
+   * fails, the year's meta is cleared so it disappears and copying can run again.
    */
   const copy = async (year: number, from: number) => {
     if (!installationId) return;
@@ -93,7 +110,6 @@ export function useWorkbookYears(installationId: string | null) {
       if (!src.changed) return;
       const files = src.meta.files ?? [];
       await putWorkbookMeta(installationId, year, { status: "syncing", files, blank: src.meta.blank, copiedFrom: from });
-      await qc.invalidateQueries({ queryKey: ["workbook-years", installationId] });
       const entries = Object.entries(src.cells);
       for (let i = 0; i < entries.length; i += CHUNK)
         await patchWorkbookCells(installationId, year, Object.fromEntries(entries.slice(i, i + CHUNK)));
@@ -107,6 +123,13 @@ export function useWorkbookYears(installationId: string | null) {
       await qc.invalidateQueries({ queryKey: ["workbook-years", installationId] });
       await qc.invalidateQueries({ queryKey: ["workbook", installationId, year] });
     } catch (e) {
+      try {
+        // Best effort: the year without meta disappears from the list and can be copied again.
+        await putWorkbookMeta(installationId, year, {});
+      } catch {
+        // The reset itself failed; the year stays syncing until a retry overwrites it.
+      }
+      await qc.invalidateQueries({ queryKey: ["workbook-years", installationId] });
       toast({ message: "Your change was not saved", tone: "err", detail: (e as Error).message });
     }
   };
@@ -141,6 +164,7 @@ export function useWorkbookYears(installationId: string | null) {
 /* ── walk-in, per browser ──────────────────────────────────────────────── */
 
 const WALKIN_KEY = "certrace:workbook-walkin-seen";
+const walkinId = (iid: string, year: number, confirmedAt: string | undefined) => `${iid}:${year}:${confirmedAt ?? ""}`;
 
 function readSeen(): string[] {
   try {
@@ -154,10 +178,25 @@ function readSeen(): string[] {
 function rememberWalkin(iid: string, year: number, confirmedAt: string | undefined) {
   try {
     const seen = readSeen();
-    const k = `${iid}:${year}:${confirmedAt ?? ""}`;
+    const k = walkinId(iid, year, confirmedAt);
     if (!seen.includes(k)) window.localStorage.setItem(WALKIN_KEY, JSON.stringify([...seen, k].slice(-200)));
   } catch {
     // Storage blocked: the walk-in simply shows again next time.
+  }
+}
+
+/** First load in a browser: every year that is already ready counts as seen, so only years set up from now on play the walk-in. */
+function seedWalkin(iid: string, years: { year: number; meta: unknown }[]) {
+  if (typeof window === "undefined") return;
+  try {
+    if (window.localStorage.getItem(WALKIN_KEY) !== null) return;
+    const seen = years
+      .map((y) => y.meta as WorkbookMeta | undefined)
+      .map((m, i) => (m?.status === "ready" ? walkinId(iid, years[i].year, m.confirmedAt) : null))
+      .filter((x): x is string => x !== null);
+    window.localStorage.setItem(WALKIN_KEY, JSON.stringify(seen));
+  } catch {
+    // Storage blocked: the walk-in may show once for existing years.
   }
 }
 
@@ -165,92 +204,18 @@ function rememberWalkin(iid: string, year: number, confirmedAt: string | undefin
 export function walkinPending(iid: string | null, year: number, rec: WorkbookYear | undefined): boolean {
   if (!iid || !rec || rec.status !== "ready" || rec.blank || rec.copiedFrom) return false;
   if (typeof window === "undefined") return false;
-  return !readSeen().includes(`${iid}:${year}:${rec.confirmedAt ?? ""}`);
-}
-
-/* ── save runner: one batch in flight, shared by every year and installation ── */
-
-type Runner = {
-  queue: Queue;
-  sending: boolean;
-  attempt: number;
-  debounce?: ReturnType<typeof setTimeout>;
-  retry?: ReturnType<typeof setTimeout>;
-  listeners: Set<() => void>;
-};
-
-const runner: Runner = { queue: {}, sending: false, attempt: 0, listeners: new Set() };
-
-function setQueue(q: Queue) {
-  runner.queue = q;
-  runner.listeners.forEach((l) => l());
-}
-
-function subscribe(l: () => void) {
-  runner.listeners.add(l);
-  return () => runner.listeners.delete(l);
-}
-
-/** Send the next batch, if none is in flight. Targets are served in the order they were first typed into. */
-function pump(qc: QueryClient) {
-  if (runner.sending || runner.retry) return;
-  const t: Target | undefined = targetsWithPending(runner.queue)[0];
-  if (!t) return;
-  const cells = nextBatch(runner.queue, t);
-  runner.sending = true;
-  patchWorkbookCells(t.iid, t.year, cells).then(
-    (saved: Workbook) => {
-      runner.sending = false;
-      runner.attempt = 0;
-      setQueue(acknowledge(runner.queue, t, cells));
-      qc.setQueryData(["workbook", t.iid, t.year], saved);
-      pump(qc);
-    },
-    (e: { status?: number; message?: string }) => {
-      runner.sending = false;
-      const status = e.status ?? 0;
-      if (isRetryable({ status })) {
-        // Network or 5xx: keep the cells queued and try again with backoff.
-        runner.retry = setTimeout(() => {
-          runner.retry = undefined;
-          pump(qc);
-        }, retryDelay(runner.attempt++));
-        return;
-      }
-      // A refusal (4xx): these cells are dropped and never retried; one notice for the batch.
-      setQueue(dropKeys(runner.queue, t, Object.keys(cells)));
-      toast({ message: "Some changes were refused and not saved", tone: "err", detail: e.message });
-      pump(qc);
-    },
-  );
-}
-
-/** Wait for the typing to settle, then send. */
-function schedule(qc: QueryClient) {
-  if (runner.debounce) clearTimeout(runner.debounce);
-  runner.debounce = setTimeout(() => {
-    runner.debounce = undefined;
-    pump(qc);
-  }, SAVE_DELAY_MS);
-}
-
-/** Send now (poll, page leave). */
-function flush(qc: QueryClient) {
-  if (runner.debounce) {
-    clearTimeout(runner.debounce);
-    runner.debounce = undefined;
-  }
-  pump(qc);
+  return !readSeen().includes(walkinId(iid, year, rec.confirmedAt));
 }
 
 /** The cells of one installation and year. `saveEdit` takes a "sheet:row:col" key; an empty value deletes it. */
 export function useWorkbook(installationId: string | null, year: number) {
   const qc = useQueryClient();
+  queryClient = qc;
   const key = ["workbook", installationId, year] as const;
 
-  const queue = React.useSyncExternalStore(subscribe, () => runner.queue, () => runner.queue);
+  const queue = React.useSyncExternalStore(subscribeQueue, queueSnapshot, queueSnapshot);
   const pending = React.useMemo(
-    () => (installationId ? pendingFor(queue, { iid: installationId, year }) : {}),
+    () => (installationId ? pendingFor(queue, { accountId: currentAccount(), iid: installationId, year }) : {}),
     [queue, installationId, year],
   );
   const pendingN = Object.keys(pending).length;
@@ -258,11 +223,11 @@ export function useWorkbook(installationId: string | null, year: number) {
   const query = useQuery({
     queryKey: key,
     queryFn: async () => {
-      flush(qc); // a refused or failed save is retried on each poll
+      runner.flush(); // a refused or failed save is retried on each poll
       const cached = qc.getQueryData<Workbook>(key);
       const next = await getWorkbook(installationId!, year, cached?.revision);
       // An answer older than what is already cached (a poll that raced a save) must not undo it.
-      if (!next.changed || (cached && next.revision < cached.revision)) return cached!;
+      if (!next.changed || (cached && next.revision < cached.revision)) return qc.getQueryData<Workbook>(key) ?? cached!;
       return next;
     },
     enabled: Boolean(installationId),
@@ -272,15 +237,15 @@ export function useWorkbook(installationId: string | null, year: number) {
 
   const saveEdit = React.useCallback(
     (cellKey: string, value: string) => {
-      if (!installationId) return;
-      setQueue(enqueue(runner.queue, { iid: installationId, year }, cellKey, value));
-      schedule(qc);
+      const accountId = currentAccount();
+      if (!installationId || !accountId) return;
+      runner.enqueue({ accountId, iid: installationId, year }, cellKey, value);
     },
-    [installationId, year, qc],
+    [installationId, year],
   );
 
   // Anything still typed is sent when the page is left.
-  React.useEffect(() => () => flush(qc), [qc]);
+  React.useEffect(() => () => runner.flush(), []);
 
   const data = query.data;
   const cells = React.useMemo(() => {

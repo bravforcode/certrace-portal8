@@ -1,0 +1,164 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { SaveRunner } from "../save-runner";
+import { pendingFor, type Target } from "../save-queue";
+
+/* A fake clock: timers run when advance() passes their time. The patch is a
+   scripted function, so each test decides what the server answers. */
+function harness(account: string | null = "acct-a") {
+  let now = 0;
+  let seq = 0;
+  const timers: { id: number; at: number; fn: () => void }[] = [];
+  const calls: { t: Target; cells: Record<string, string | null> }[] = [];
+  const notes: string[] = [];
+  let answer: (t: Target, cells: Record<string, string | null>) => Promise<unknown> = async () => ({ ok: true });
+  let who = account;
+  const runner = new SaveRunner<unknown>({
+    patch: (t, cells) => {
+      calls.push({ t, cells });
+      return answer(t, cells);
+    },
+    onSaved: () => {},
+    notify: (m) => notes.push(m),
+    account: () => who,
+    now: () => now,
+    setTimer: (fn, ms) => {
+      const id = ++seq;
+      timers.push({ id, at: now + ms, fn });
+      return id;
+    },
+    clearTimer: (h) => {
+      const i = timers.findIndex((x) => x.id === h);
+      if (i >= 0) timers.splice(i, 1);
+    },
+    delayMs: 0,
+  });
+  return {
+    runner,
+    calls,
+    notes,
+    timers,
+    setAnswer: (fn: typeof answer) => (answer = fn),
+    setWho: (w: string | null) => (who = w),
+    advance(ms: number) {
+      now += ms;
+      for (;;) {
+        const due = timers.filter((x) => x.at <= now).sort((a, b) => a.at - b.at)[0];
+        if (!due) break;
+        timers.splice(timers.indexOf(due), 1);
+        due.fn();
+      }
+    },
+  };
+}
+
+/** Let promise callbacks run. */
+const settle = () => new Promise((r) => setImmediate(r));
+const T: Target = { accountId: "acct-a", iid: "inst", year: 2026 };
+const T2: Target = { accountId: "acct-a", iid: "inst", year: 2025 };
+
+test("single in-flight: a second flush while a batch is out sends nothing new", async () => {
+  const h = harness();
+  let release!: () => void;
+  h.setAnswer(() => new Promise((r) => (release = () => r({ ok: true }))));
+  h.runner.enqueue(T, "a:1:b", "one");
+  h.runner.enqueue(T2, "a:1:b", "two");
+  h.runner.flush();
+  h.runner.flush();
+  assert.equal(h.calls.length, 1);
+  release();
+  await settle();
+  assert.equal(h.calls.length, 2, "the next target goes out only after the first answer");
+});
+
+test("a network or 5xx failure is retried with backoff, not dropped", async () => {
+  const h = harness();
+  let fails = 2;
+  h.setAnswer(async () => {
+    if (fails-- > 0) throw { status: 503, message: "down" };
+    return { ok: true };
+  });
+  h.runner.enqueue(T, "a:1:b", "keep me");
+  h.runner.flush();
+  await settle();
+  assert.equal(h.calls.length, 1);
+  h.advance(999);
+  assert.equal(h.calls.length, 1, "first retry waits 1 s");
+  h.advance(1);
+  await settle();
+  assert.equal(h.calls.length, 2);
+  h.advance(2_000);
+  await settle();
+  assert.equal(h.calls.length, 3, "second retry waits 2 s");
+  assert.deepEqual(pendingFor(h.runner.snapshot(), T), {}, "the cell is acknowledged once the server takes it");
+  assert.equal(h.notes.length, 0);
+});
+
+test("401 holds the queue without dropping it, and resumes when the same account is back", async () => {
+  const h = harness();
+  h.setAnswer(async () => {
+    throw { status: 401, message: "session ended" };
+  });
+  h.runner.enqueue(T, "a:1:b", "typed");
+  h.runner.flush();
+  await settle();
+  assert.equal(h.calls.length, 1);
+  h.advance(60_000);
+  await settle();
+  assert.equal(h.calls.length >= 1, true);
+  const sentBefore = h.calls.length;
+  assert.deepEqual(pendingFor(h.runner.snapshot(), T), { "a:1:b": "typed" }, "the edit is still queued");
+  h.setAnswer(async () => ({ ok: true }));
+  h.runner.onAccountChange("acct-a");
+  await settle();
+  assert.equal(h.calls.length > sentBefore, true, "resumes on sign-in again");
+  assert.deepEqual(pendingFor(h.runner.snapshot(), T), {});
+});
+
+test("422 splits the batch and drops only the cell that fails alone, with one notice", async () => {
+  const h = harness();
+  h.setAnswer(async (_t, cells) => {
+    if ("a:2:b" in cells) throw { status: 422, message: "bad value" };
+    return { ok: true };
+  });
+  h.runner.enqueue(T, "a:1:b", "fine");
+  h.runner.enqueue(T, "a:2:b", "bad");
+  h.runner.enqueue(T, "a:3:b", "fine too");
+  h.runner.enqueue(T, "a:4:b", "fine four");
+  h.runner.flush();
+  for (let i = 0; i < 20; i++) await settle();
+  assert.deepEqual(pendingFor(h.runner.snapshot(), T), {}, "every good cell was saved, the bad one dropped");
+  assert.equal(h.notes.length, 1, "one notice for the whole batch");
+  assert.ok(h.calls.every((c) => Object.keys(c.cells).length >= 1));
+});
+
+test("a failing target does not starve the other target", async () => {
+  const h = harness();
+  h.setAnswer(async (t) => {
+    if (t.year === 2026) throw { status: 503, message: "down" };
+    return { ok: true };
+  });
+  h.runner.enqueue(T, "a:1:b", "stuck");
+  h.runner.enqueue(T2, "a:1:b", "free");
+  h.runner.flush();
+  for (let i = 0; i < 5; i++) await settle();
+  assert.deepEqual(pendingFor(h.runner.snapshot(), T2), {}, "the other year was saved while this one waits");
+  assert.deepEqual(pendingFor(h.runner.snapshot(), T), { "a:1:b": "stuck" });
+});
+
+test("changing account drops the previous account's edits and tells the reader once", () => {
+  const h = harness();
+  h.runner.enqueue(T, "a:1:b", "mine");
+  h.runner.onAccountChange("acct-b");
+  assert.deepEqual(h.runner.snapshot(), {});
+  assert.equal(h.notes.length, 1);
+});
+
+test("an edit is never sent under another account", async () => {
+  const h = harness("acct-b");
+  h.runner.enqueue(T, "a:1:b", "mine");
+  h.runner.flush();
+  await settle();
+  assert.equal(h.calls.length, 0);
+  assert.deepEqual(pendingFor(h.runner.snapshot(), T), { "a:1:b": "mine" });
+});
