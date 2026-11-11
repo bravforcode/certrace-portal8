@@ -143,12 +143,15 @@ export async function register(
   await rateLimit(`register:${normalize(input.email)}`, 5, 3600);
   if (await byEmail(input.email))
     fail(409, "EMAIL_TAKEN", "An account with this email already exists.");
+  // Hashing is slow by design; keep it out of the interactive transaction, whose
+  // 5 s timeout otherwise expires under load and the request fails with a 500.
+  const passwordHash = await Bun.password.hash(input.password);
   try {
     const user = await db.$transaction(async (tx) => {
       const user = await tx.users.create({
         data: {
           email: normalize(input.email),
-          password_hash: await Bun.password.hash(input.password),
+          password_hash: passwordHash,
           first_name: input.firstName,
           last_name: input.lastName,
           company_name: input.companyName,
@@ -429,12 +432,14 @@ export async function accountForVerifiedGoogleIdentity(
       "Review both legal documents before creating an account.",
     );
   const googleEmail = identity.email;
+  // Unusable placeholder password; hashed outside the transaction for the same reason as register.
+  const placeholderHash = await Bun.password.hash(token());
   const user = await db.$transaction(async (tx) => {
     const user = await tx.users.create({
       data: {
         email: normalize(googleEmail),
         google_sub: identity.sub,
-        password_hash: await Bun.password.hash(token()),
+        password_hash: placeholderHash,
         first_name:
           typeof identity.given_name === "string"
             ? identity.given_name
