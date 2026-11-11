@@ -40,7 +40,7 @@ export function InstallationDirectory({
   const t = useT();
   const { options, loading, error, retry } = useActiveInstallation();
   const complete = React.useMemo(
-    () => countComplete(options.map((o) => factoryProgress(readFactory(o.id), year))),
+    () => countComplete(options.map((o) => factoryProgress(readFactory(o.id).profile, year))),
     [options, year],
   );
 
@@ -110,7 +110,7 @@ function InstallationCard({
   const failed = years.error || wb.error;
   const pending = !failed && !(years.loaded && wb.loaded);
   const yearStatus = wb.loaded && wb.sheets.length ? worstOf(wb.sheets.map((s) => sheetStatus(s))) : null;
-  const progress = factoryProgress(readFactory(id), year);
+  const progress = factoryProgress(readFactory(id).profile, year);
   const yearList = [...years.years.map((y) => y.year)].sort((a, b) => b - a);
 
   return (
