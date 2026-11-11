@@ -83,6 +83,9 @@
       },
     },
   },
+  "patchedDependencies": {
+    "next@15.5.28": "patches/next@15.5.28.patch",
+  },
   "packages": {
     "@ai-sdk/deepseek": ["@ai-sdk/deepseek@3.0.75", "", { "dependencies": { "@ai-sdk/provider": "4.0.34", "@ai-sdk/provider-utils": "5.0.70" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-cWhJomtEUP4ksJf8a93pDJ7CShU481LAaVHtaa15aH2TDqjy/dmpGKJP55SLyKuzleQKDpBhy9RXEeeI0DC99w=="],
 

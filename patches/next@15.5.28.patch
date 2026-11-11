@@ -1,0 +1,26 @@
+diff --git a/dist/build/webpack/plugins/flight-client-entry-plugin.js b/dist/build/webpack/plugins/flight-client-entry-plugin.js
+index 43437e5559e1e0ffb8ab4a849246359573d5527a..f150acca8d77034ea74c202e877616d88222e07b 100644
+--- a/dist/build/webpack/plugins/flight-client-entry-plugin.js
++++ b/dist/build/webpack/plugins/flight-client-entry-plugin.js
+@@ -154,7 +154,7 @@ class FlightClientEntryPlugin {
+                         async: compilation.moduleGraph.isAsync(mod)
+                     };
+                     if (this.isEdgeServer) {
+-                        pluginState.edgeSsrModules[ssrNamedModuleId.replace(/\/next\/dist\/esm\//, '/next/dist/')] = moduleInfo;
++                        pluginState.edgeSsrModules[ssrNamedModuleId.replace(/([\\/])next\1dist\1esm\1/, '$1next$1dist$1')] = moduleInfo;
+                     } else {
+                         pluginState.ssrModules[ssrNamedModuleId] = moduleInfo;
+                     }
+diff --git a/dist/esm/build/webpack/plugins/flight-client-entry-plugin.js b/dist/esm/build/webpack/plugins/flight-client-entry-plugin.js
+index 3d633aca60c9bac4d23f30b3a0728eff67447e32..cbd1380f704d7b2dee316c59d776191d595531f3 100644
+--- a/dist/esm/build/webpack/plugins/flight-client-entry-plugin.js
++++ b/dist/esm/build/webpack/plugins/flight-client-entry-plugin.js
+@@ -140,7 +140,7 @@ export class FlightClientEntryPlugin {
+                         async: compilation.moduleGraph.isAsync(mod)
+                     };
+                     if (this.isEdgeServer) {
+-                        pluginState.edgeSsrModules[ssrNamedModuleId.replace(/\/next\/dist\/esm\//, '/next/dist/')] = moduleInfo;
++                        pluginState.edgeSsrModules[ssrNamedModuleId.replace(/([\\/])next\1dist\1esm\1/, '$1next$1dist$1')] = moduleInfo;
+                     } else {
+                         pluginState.ssrModules[ssrNamedModuleId] = moduleInfo;
+                     }
