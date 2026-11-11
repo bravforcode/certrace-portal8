@@ -5,6 +5,7 @@ import { config, SESSION_COOKIE, SESSION_SECONDS } from "../../lib/config";
 import { fail } from "../../lib/errors";
 import { hash, token, verifyPassword, rateLimit } from "../../lib/security";
 import { sendEmail } from "../../lib/email";
+import { notify } from "../../lib/notify";
 import { syncRegistrationSheet } from "../../lib/registration-sheet";
 import type { users } from "../../generated/prisma/client";
 import type { RegisterInput } from "./model";
@@ -317,7 +318,7 @@ export async function resetPassword(
       where: { user_id: user.id },
       data: { used: true },
     });
-    return true;
+    return user;
   });
   if (!ok)
     fail(
@@ -325,6 +326,8 @@ export async function resetPassword(
       "INVALID_RESET_TOKEN",
       "That verification code is invalid or expired.",
     );
+  // A reset is a takeover signal; the owner must hear about it.
+  await notify(ok, "password_changed").catch((e) => console.error(e));
   return { success: true, message: "Password reset. Please sign in." };
 }
 const googleKeys = createRemoteJWKSet(

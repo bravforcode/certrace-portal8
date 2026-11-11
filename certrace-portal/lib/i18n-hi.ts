@@ -2537,6 +2537,8 @@ export const HI: Record<string, string> = {
   "Everything above is included for the full month. Nothing is filed on your behalf and nothing leaves your workspace until you send it.": "ऊपर का सब कुछ पूरे महीने के लिए शामिल है। आपकी ओर से कुछ दर्ज नहीं होता और आपके भेजने तक कुछ भी आपके कार्यक्षेत्र से बाहर नहीं जाता।",
   "Finish setup": "सेटअप पूरा करें",
   "Follow Certrace": "Certrace को फ़ॉलो करें",
+  "We'll email you at": "हम आपको इस पते पर ईमेल भेजेंगे:",
+  "when your account is approved.": "जब आपका खाता स्वीकृत हो जाएगा।",
   "Free trial active": "निःशुल्क परीक्षण चालू",
   "Get news and offers, and ask our CBAM specialists anything — this is the fastest way to reach us.": "समाचार और ऑफ़र पाएँ, और हमारे CBAM विशेषज्ञों से कुछ भी पूछें — हम तक पहुँचने का यह सबसे तेज़ तरीक़ा है।",
   "Get started": "शुरू करें",
@@ -6816,4 +6818,12 @@ export const HI: Record<string, string> = {
     "यह टैब संयंत्र का रिकॉर्ड सीधे संपादित करता है। बदलाव Settings → Installations में भी दिखेंगे।",
   "Choose an installation above to fill in its details.": "पूरा विवरण भरने के लिए ऊपर एक संयंत्र चुनें।",
   "{n} missing fields": "{n} फ़ील्ड गायब हैं",
+  "Cookie consent": "कुकी सहमति",
+  "We use necessary cookies to keep you signed in. With your permission we also use analytics cookies to improve Certrace.":
+    "हम आपको साइन-इन रखने के लिए आवश्यक कुकीज़ का उपयोग करते हैं। आपकी अनुमति से हम Certrace को बेहतर बनाने के लिए एनालिटिक्स कुकीज़ भी इस्तेमाल करते हैं।",
+  "Reject optional": "वैकल्पिक को अस्वीकार करें",
+  "Accept all": "सभी स्वीकार करें",
+  Customise: "अनुकूलित करें",
+  "Could not save your cookie choice. Please try again.":
+    "आपकी कुकी पसंद सहेजी नहीं जा सकी। कृपया फिर कोशिश करें।",
 };

@@ -1,5 +1,5 @@
 import { afterAll, afterEach, describe, expect, spyOn, test } from "bun:test";
-import { account, admin, call, cleanup } from "./helpers";
+import { account, admin, call, cleanup, editorOf } from "./helpers";
 import { db } from "../src/lib/db";
 import { notify } from "../src/lib/notify";
 
@@ -147,6 +147,109 @@ describe("approval", () => {
   });
 });
 
+describe("trial enforcement", () => {
+  const EXPIRED = () => new Date(Date.now() - 31 * 86_400_000);
+  const T = 60_000;
+
+  // Customer data is refused after day 30, but reads and settings stay open (D4).
+  test("after 30 days data writes return TRIAL_ENDED but reads and settings still work", async () => {
+    const a = await account();
+    await db.users.update({ where: { id: a.user.id }, data: { trial_started_at: EXPIRED() } });
+    const data = await call(
+      "/api/v1/account/records/certrace%3Aprofile",
+      "PUT",
+      { value: { name: "x" }, revision: 0 },
+      a.cookie,
+    );
+    expect(data.status).toBe(403);
+    expect((await data.json()).detail.code).toBe("TRIAL_ENDED");
+    const cells = await call(
+      "/api/v1/workbooks/inst-1/2026/cells",
+      "PATCH",
+      { cells: { "products:0:item": "Steel" } },
+      a.cookie,
+    );
+    expect(cells.status).toBe(403);
+    expect((await cells.json()).detail.code).toBe("TRIAL_ENDED");
+    const get = await call("/api/v1/account/records", "GET", undefined, a.cookie);
+    expect(get.status).toBe(200);
+    const prefs = await call(
+      "/api/v1/account/records/certrace%3Anotification-prefs",
+      "PUT",
+      { value: { product: true }, revision: 0 },
+      a.cookie,
+    );
+    expect(prefs.status).toBe(200);
+  }, T);
+
+  test("an editor whose own trial ended can write when the owner is on a paid plan", async () => {
+    const owner = await account();
+    const member = await account();
+    await db.users.update({ where: { id: owner.user.id }, data: { plan_id: "standard" } });
+    await db.users.update({ where: { id: member.user.id }, data: { trial_started_at: EXPIRED() } });
+    const h = await editorOf(owner, member);
+    const r = await call(
+      "/api/v1/workbooks/inst-1/2026/cells",
+      "PATCH",
+      { cells: { "products:0:item": "Steel" } },
+      member.cookie,
+      h,
+    );
+    expect(r.status).toBe(200);
+  }, T);
+
+  test("a paid owner whose trial_started_at is 31 days old can write", async () => {
+    const a = await account();
+    await db.users.update({
+      where: { id: a.user.id },
+      data: { plan_id: "standard", trial_started_at: EXPIRED() },
+    });
+    const r = await call(
+      "/api/v1/workbooks/inst-1/2026/cells",
+      "PATCH",
+      { cells: { "products:0:item": "Steel" } },
+      a.cookie,
+    );
+    expect(r.status).toBe(200);
+  }, T);
+
+  // Auth is outside companySession, so it can never be refused by the trial.
+  test("auth routes stay open after the trial ends", async () => {
+    const a = await account();
+    await db.users.update({ where: { id: a.user.id }, data: { trial_started_at: EXPIRED() } });
+    const r = await call("/api/auth/onboarded", "POST", undefined, a.cookie);
+    expect((await r.clone().json().catch(() => ({}))).detail?.code).not.toBe("TRIAL_ENDED");
+    expect(r.status).not.toBe(403);
+  }, T);
+
+  test("after the trial, team removal and organization edits stay open but product edits do not", async () => {
+    const owner = await account();
+    await db.users.update({ where: { id: owner.user.id }, data: { trial_started_at: EXPIRED() } });
+    const member = await call(
+      `/api/v1/team/members/${crypto.randomUUID()}`,
+      "DELETE",
+      undefined,
+      owner.cookie,
+    );
+    expect((await member.clone().json().catch(() => ({}))).detail?.code).not.toBe("TRIAL_ENDED");
+    const org = await call(
+      `/api/v1/master-data/organizations/${crypto.randomUUID()}`,
+      "PATCH",
+      { revision: 1, fields: { name: "Org", registration: "R", address: "A", country: "TH", contact_name: "C", contact_email: "c@example.invalid", contact_phone: "0" } },
+      owner.cookie,
+    );
+    expect((await org.clone().json().catch(() => ({}))).detail?.code).not.toBe("TRIAL_ENDED");
+    const product = await call(
+      `/api/v1/master-data/products/${crypto.randomUUID()}`,
+      "PATCH",
+      { revision: 1, fields: { name: "P", cn_code: "1", description: "d", unit: "kg", benchmark: "b" } },
+      owner.cookie,
+    );
+    expect(product.status).toBe(403);
+    expect((await product.json()).detail.code).toBe("TRIAL_ENDED");
+  }, T);
+});
+
 describe("notify", () => {
   test("a once-only email is recorded and a second call sends nothing", async () => {
     const a = await account(false);
@@ -241,5 +344,35 @@ describe("admin actions", () => {
     const b = await account(true);
     const r = await call(`/api/admin/users/${a.user.id}/reject`, "POST", { reason: "nope" }, b.cookie);
     expect(r.status).toBe(403);
+  });
+});
+
+describe("password reset", () => {
+  // A reset is a takeover signal; the owner must hear about it.
+  test("successful reset sends password_changed", async () => {
+    const a = await account(true);
+    process.env.CERTRACE_EMAIL_DELIVERY = "console";
+    const logSpy = spyOn(console, "info").mockImplementation(() => {});
+    try {
+      await call("/api/auth/forgot-password", "POST", { email: a.email });
+      const sent = logSpy.mock.calls.map(
+        ([m]) => m as { to?: string; subject: string; text: string },
+      );
+      const code = sent.filter((m) => m.to === a.email).at(-1)!.text.match(/\d{6}/)![0];
+      const r = await call("/api/auth/reset-password", "POST", {
+        email: a.email,
+        reset_token: code,
+        new_password: "another-password-456",
+      });
+      expect(r.status).toBe(200);
+      const changed = logSpy.mock.calls.some(
+        ([m]) =>
+          (m as { to?: string; subject: string }).to === a.email &&
+          /password was changed/i.test((m as { subject: string }).subject),
+      );
+      expect(changed).toBe(true);
+    } finally {
+      logSpy.mockRestore();
+    }
   });
 });

@@ -8,6 +8,7 @@ import type { users, Prisma } from "../../generated/prisma/client";
 import { lockOwner } from "../reporting/service";
 import { teamSeatLimits } from "../../../../certrace-portal/lib/team-seat-limits";
 import { requireOwner } from "./workspace";
+import { trialEnded } from "../auth/trial";
 
 const valid = () => ({ expires_at: { gt: new Date() } });
 const unusable = () =>
@@ -97,10 +98,7 @@ export async function invite(
   resendId?: string,
 ) {
   requireOwner(actor.id, company.id);
-  if (
-    company.plan_id === "trial" &&
-    Date.now() >= company.trial_started_at.getTime() + 30 * 86400_000
-  )
+  if (trialEnded(company))
     fail(
       403,
       "TRIAL_ENDED",

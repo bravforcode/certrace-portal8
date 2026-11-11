@@ -20,6 +20,7 @@ import { evidence, publicEvidence } from "./modules/evidence";
 import { reportAutofill } from "./modules/evidence/autofill";
 import { cera } from "./modules/cera";
 import { workbooks } from "./modules/workbooks";
+import { consent } from "./modules/consent";
 export const app = new Elysia({
   serve: { maxRequestBodySize: 20 * 1024 * 1024 },
 })
@@ -119,6 +120,7 @@ export const app = new Elysia({
   .use(declarations)
   .use(links)
   .use(publicLinks)
+  .use(consent)
   .use(files)
   .use(workbooks)
   .use(publicFiles)
