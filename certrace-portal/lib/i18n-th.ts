@@ -1409,6 +1409,8 @@ export const TH: Record<string, string> = {
   "Get news and offers, and ask our CBAM specialists anything — this is the fastest way to reach us.":
     "รับข่าวสารและข้อเสนอ พร้อมสอบถามผู้เชี่ยวชาญ CBAM ของเราได้ทุกเรื่อง ช่องทางนี้ติดต่อเราได้เร็วที่สุด",
   "Follow Certrace": "ติดตาม Certrace",
+  "We'll email you at": "เราจะส่งอีเมลแจ้งไปที่",
+  "when your account is approved.": "เมื่อบัญชีได้รับการอนุมัติ",
 
   /* ── Sign-in onboarding (/onboarding/setup) ─────────────────
      The flow every sign-in takes. It carries the EN/ไทย toggle, so unlike the

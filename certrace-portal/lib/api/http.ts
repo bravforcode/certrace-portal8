@@ -6,6 +6,7 @@ import {
   clearSession,
   markLegalConsentRequired,
   markAccountNotReady,
+  markTrialEnded,
   loadSession,
   sessionEpoch,
   assertSessionUnchanged,
@@ -106,6 +107,8 @@ export async function request<T>(
       markLegalConsentRequired();
     if (auth && cause instanceof ApiError && cause.code === "ACCOUNT_NOT_READY")
       markAccountNotReady();
+    if (auth && cause instanceof ApiError && cause.code === "TRIAL_ENDED")
+      markTrialEnded();
     if (!auth || !isUnauthorized(cause)) throw cause;
     clearSession();
     throw cause;
