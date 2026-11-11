@@ -4,6 +4,7 @@ import {
   CELL_MAX,
   CHUNK,
   acknowledge,
+  clearBatches,
   dropKeys,
   enqueue,
   isRetryable,
@@ -100,6 +101,16 @@ test("400, 413 and 422 are validation refusals; 401 and 403 are not", () => {
   assert.equal(isValidationRefusal({ status: 400 }), true);
   assert.equal(isValidationRefusal({ status: 401 }), false);
   assert.equal(isValidationRefusal({ status: 403 }), false);
+});
+
+test("clearBatches turns keys into deletes, at most 2,000 per patch", () => {
+  const keys = Array.from({ length: CHUNK + 3 }, (_, i) => `a:${i}:b`);
+  const batches = clearBatches(keys);
+  assert.equal(batches.length, 2);
+  assert.equal(Object.keys(batches[0]).length, CHUNK);
+  assert.equal(Object.keys(batches[1]).length, 3);
+  assert.ok(Object.values(batches[0]).every((v) => v === null));
+  assert.deepEqual(clearBatches([]), []);
 });
 
 test("retry backoff doubles and stops at 30 seconds", () => {

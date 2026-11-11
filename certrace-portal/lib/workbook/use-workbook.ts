@@ -23,7 +23,7 @@ import {
   type WorkbookMeta,
 } from "../api/workbooks";
 import { sheetsFromCells } from "./cells";
-import { pendingFor } from "./save-queue";
+import { clearBatches, pendingFor } from "./save-queue";
 import { SaveRunner } from "./save-runner";
 import type { Sheet, WorkspaceFile } from "../workspace-sheets";
 
@@ -39,6 +39,23 @@ export type WorkbookYear = WorkbookMeta & { status: "syncing" | "ready"; files: 
 
 const nowIso = () => new Date().toISOString();
 const currentAccount = () => loadSession()?.user.id ?? null;
+
+/** Best effort: delete cells by patching them to null, in chunks. A failed chunk is skipped. */
+async function clearCells(iid: string, year: number, keys: string[]) {
+  for (const batch of clearBatches(keys)) {
+    try {
+      await patchWorkbookCells(iid, year, batch);
+    } catch {
+      // Leftover cells are overwritten by the next copy or stay hidden under a reset meta.
+    }
+  }
+}
+
+/** A year with cells but no meta (left by a failed copy) must not show old cells under a new start. */
+async function clearLeftovers(iid: string, year: number) {
+  const existing = await getWorkbook(iid, year).catch(() => null);
+  if (existing?.changed && !existing.meta?.status) await clearCells(iid, year, Object.keys(existing.cells));
+}
 
 /* ── save runner: one per browser tab, shared by every year and installation ── */
 
@@ -105,12 +122,15 @@ export function useWorkbookYears(installationId: string | null) {
    */
   const copy = async (year: number, from: number) => {
     if (!installationId) return;
+    const written: string[] = [];
     try {
       const src = await getWorkbook(installationId, from);
       if (!src.changed) return;
       const files = src.meta.files ?? [];
+      await clearLeftovers(installationId, year);
       await putWorkbookMeta(installationId, year, { status: "syncing", files, blank: src.meta.blank, copiedFrom: from });
       const entries = Object.entries(src.cells);
+      written.push(...entries.map(([k]) => k));
       for (let i = 0; i < entries.length; i += CHUNK)
         await patchWorkbookCells(installationId, year, Object.fromEntries(entries.slice(i, i + CHUNK)));
       await putWorkbookMeta(installationId, year, {
@@ -123,8 +143,9 @@ export function useWorkbookYears(installationId: string | null) {
       await qc.invalidateQueries({ queryKey: ["workbook-years", installationId] });
       await qc.invalidateQueries({ queryKey: ["workbook", installationId, year] });
     } catch (e) {
+      // Remove the cells already written, then reset meta so the year disappears and can be copied again.
+      await clearCells(installationId, year, written);
       try {
-        // Best effort: the year without meta disappears from the list and can be copied again.
         await putWorkbookMeta(installationId, year, {});
       } catch {
         // The reset itself failed; the year stays syncing until a retry overwrites it.
@@ -135,7 +156,11 @@ export function useWorkbookYears(installationId: string | null) {
   };
 
   /** Start from the beginning: no files, empty sheets, open at once. */
-  const startBlank = (year: number) => write(year, { status: "ready", files: [], blank: true, confirmedAt: nowIso() });
+  const startBlank = async (year: number) => {
+    if (!installationId) return;
+    await clearLeftovers(installationId, year);
+    await write(year, { status: "ready", files: [], blank: true, confirmedAt: nowIso() });
+  };
 
   /** The set-up has finished. The walk-in for this year is per browser (see walkinPending). */
   const markReady = (year: number) => {
@@ -246,6 +271,18 @@ export function useWorkbook(installationId: string | null, year: number) {
 
   // Anything still typed is sent when the page is left.
   React.useEffect(() => () => runner.flush(), []);
+
+  // Warn before closing the tab while edits are waiting or in flight.
+  const hasQueued = Object.keys(queue).length > 0;
+  React.useEffect(() => {
+    if (!hasQueued) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [hasQueued]);
 
   const data = query.data;
   const cells = React.useMemo(() => {

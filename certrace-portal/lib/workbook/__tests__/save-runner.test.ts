@@ -162,3 +162,69 @@ test("an edit is never sent under another account", async () => {
   assert.equal(h.calls.length, 0);
   assert.deepEqual(pendingFor(h.runner.snapshot(), T), { "a:1:b": "mine" });
 });
+
+test("429 is retried with backoff, not dropped", async () => {
+  const h = harness();
+  let calls = 0;
+  h.setAnswer(async () => {
+    if (calls++ === 0) throw { status: 429, message: "slow down" };
+    return { ok: true };
+  });
+  h.runner.enqueue(T, "a:1:b", "keep");
+  h.runner.flush();
+  await settle();
+  h.advance(999);
+  assert.equal(h.calls.length, 1);
+  h.advance(1);
+  await settle();
+  assert.equal(h.calls.length, 2);
+  assert.deepEqual(pendingFor(h.runner.snapshot(), T), {});
+  assert.equal(h.notes.length, 0);
+});
+
+test("a Retry-After in seconds is honoured instead of the default backoff", async () => {
+  const h = harness();
+  let calls = 0;
+  h.setAnswer(async () => {
+    if (calls++ === 0) throw { status: 429, message: "slow down", retryAfter: 5 };
+    return { ok: true };
+  });
+  h.runner.enqueue(T, "a:1:b", "keep");
+  h.runner.flush();
+  await settle();
+  h.advance(4_999);
+  assert.equal(h.calls.length, 1);
+  h.advance(1);
+  await settle();
+  assert.equal(h.calls.length, 2);
+});
+
+test("a 404 on one target does not stop the other target", async () => {
+  const h = harness();
+  h.setAnswer(async (t) => {
+    if (t.year === 2026) throw { status: 404, message: "gone" };
+    return { ok: true };
+  });
+  h.runner.enqueue(T, "a:1:b", "missing");
+  h.runner.enqueue(T2, "a:1:b", "fine");
+  h.runner.flush();
+  for (let i = 0; i < 5; i++) await settle();
+  assert.deepEqual(pendingFor(h.runner.snapshot(), T2), {}, "the other year was saved");
+  assert.deepEqual(pendingFor(h.runner.snapshot(), T), { "a:1:b": "missing" }, "the failing target waits");
+});
+
+test("a target refused with another 4xx is dropped after the attempt cap, with one notice", async () => {
+  const h = harness();
+  h.setAnswer(async () => {
+    throw { status: 409, message: "conflict" };
+  });
+  h.runner.enqueue(T, "a:1:b", "conflict");
+  h.runner.flush();
+  for (let i = 0; i < 12; i++) {
+    await settle();
+    h.advance(30_000);
+  }
+  await settle();
+  assert.deepEqual(pendingFor(h.runner.snapshot(), T), {});
+  assert.equal(h.notes.length, 1);
+});

@@ -63,6 +63,15 @@ export function dropKeys(q: Queue, t: Target, keys: string[]): Queue {
   return withTarget(q, t, rest);
 }
 
+/** Patches that delete `keys` (null on the wire), each at most CHUNK cells. */
+export function clearBatches(keys: string[]): Cells[] {
+  const out: Cells[] = [];
+  for (let i = 0; i < keys.length; i += CHUNK) {
+    out.push(Object.fromEntries(keys.slice(i, i + CHUNK).map((k) => [k, null])));
+  }
+  return out;
+}
+
 /** Keep only the targets that belong to `accountId`. Edits of any other account are discarded. */
 export function keepAccount(q: Queue, accountId: string | null): Queue {
   const out: Queue = {};

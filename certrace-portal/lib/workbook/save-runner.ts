@@ -15,10 +15,10 @@ import {
   acknowledge,
   dropKeys,
   enqueue,
-  isRetryable,
   isValidationRefusal,
   keepAccount,
   nextBatch,
+  pendingFor,
   retryDelay,
   type Cells,
   type Queue,
@@ -26,6 +26,8 @@ import {
 } from "./save-queue";
 
 const HOLD_MS = 30_000;
+/** A target refused with a non-transient 4xx this many times in a row is dropped. */
+const MAX_REFUSALS = 5;
 
 export type RunnerDeps<S> = {
   patch: (t: Target, cells: Cells) => Promise<S>;
@@ -170,15 +172,39 @@ export class SaveRunner<S> {
     );
   }
 
-  private failed(t: Target, cells: Cells, key: string, e: { status?: number; message?: string }): void {
+  private failed(t: Target, cells: Cells, key: string, e: { status?: number; message?: string; retryAfter?: number }): void {
     this.sending = false;
     const status = e.status ?? 0;
     const keys = Object.keys(cells);
 
-    if (isRetryable({ status })) {
+    // Session-wide: the session or trial handling shows the reason. Hold everything and try again later.
+    if (status === 401 || status === 403) {
+      this.held = true;
+      this.arm("hold", this.d.now() + HOLD_MS, () => {
+        this.held = false;
+        this.pump();
+      });
+      this.listeners.forEach((l) => l());
+      return;
+    }
+
+    if (!isValidationRefusal({ status })) {
+      // Network, 5xx, 429 and other 4xx each back off per target; the other targets keep going.
       const attempt = this.retries.get(key)?.attempt ?? 0;
-      this.retries.set(key, { attempt: attempt + 1, at: this.d.now() + retryDelay(attempt) });
+      const transient = status === 0 || status === 429 || status >= 500;
       this.splits = this.splits.filter((s) => s.key !== key);
+      if (!transient && attempt + 1 >= MAX_REFUSALS) {
+        this.retries.delete(key);
+        this.setQueue(dropKeys(this.q, t, Object.keys(pendingFor(this.q, t))));
+        if (!this.noticed) {
+          this.noticed = true;
+          this.d.notify("Some changes were refused and not saved", e.message);
+        }
+        this.pump();
+        return;
+      }
+      const wait = e.retryAfter && e.retryAfter > 0 ? e.retryAfter * 1000 : retryDelay(attempt);
+      this.retries.set(key, { attempt: attempt + 1, at: this.d.now() + wait });
       this.pump();
       return;
     }
@@ -198,13 +224,5 @@ export class SaveRunner<S> {
       this.pump();
       return;
     }
-
-    // 401, 403 and anything else: the session or trial handling shows the reason. Hold, keep every edit, try again later.
-    this.held = true;
-    this.arm("hold", this.d.now() + HOLD_MS, () => {
-      this.held = false;
-      this.pump();
-    });
-    this.listeners.forEach((l) => l());
   }
 }
