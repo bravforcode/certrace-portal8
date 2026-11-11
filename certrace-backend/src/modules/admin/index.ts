@@ -148,7 +148,7 @@ export const admin = new Elysia({ prefix: "/api/admin" })
         // The status guard makes the claim atomic: a concurrent second reject
         // updates zero rows, so it writes no audit row and sends no email.
         const claimed = await tx.users.updateMany({
-          where: { id: params.id, status: { not: "SUSPENDED" } },
+          where: { id: params.id, status: "ACTIVE" },
           data: {
             ready: false,
             status: "SUSPENDED",
@@ -157,8 +157,11 @@ export const admin = new Elysia({ prefix: "/api/admin" })
             updated_at: new Date(),
           },
         });
-        if (claimed.count === 0)
-          fail(409, "ALREADY_SUSPENDED", "This account is already suspended.");
+        if (claimed.count === 0) {
+          if (previous.status === "SUSPENDED")
+            fail(409, "ALREADY_SUSPENDED", "This account is already suspended.");
+          fail(409, "NOT_ACTIVE", "Only active accounts can be rejected.");
+        }
         const u = await tx.users.findUniqueOrThrow({ where: { id: params.id } });
         await tx.account_audit_events.create({
           data: {
@@ -190,21 +193,21 @@ export const admin = new Elysia({ prefix: "/api/admin" })
     async ({ account, params, body }) => {
       requireAdmin(account);
       const user = await db.$transaction(async (tx) => {
-        const prev = await tx.users.findUnique({ where: { id: params.id } });
-        if (!prev) return missing();
-        if (prev.approved_at === null)
-          fail(409, "NOT_APPROVED", "Approve the account before extending its trial.");
-        if (prev.plan_id !== "trial")
+        // One guarded UPDATE: the row lock serialises concurrent extensions and
+        // the WHERE clause is the state check, so no stale read is written back.
+        const moved = await tx.$executeRaw`
+          UPDATE users
+          SET trial_started_at = trial_started_at + make_interval(days => ${body.days}::int),
+              updated_at = now()
+          WHERE id = ${params.id}::uuid AND plan_id = 'trial' AND approved_at IS NOT NULL`;
+        if (moved === 0) {
+          const current = await tx.users.findUnique({ where: { id: params.id } });
+          if (!current) return missing();
+          if (current.approved_at === null)
+            fail(409, "NOT_APPROVED", "Approve the account before extending its trial.");
           fail(409, "NOT_TRIAL", "Only accounts on the trial plan can be extended.");
-        const u = await tx.users.update({
-          where: { id: params.id },
-          data: {
-            trial_started_at: new Date(
-              prev.trial_started_at.getTime() + body.days * 86_400_000,
-            ),
-            updated_at: new Date(),
-          },
-        });
+        }
+        const u = await tx.users.findUniqueOrThrow({ where: { id: params.id } });
         await tx.account_audit_events.create({
           data: {
             user_id: params.id,

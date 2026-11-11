@@ -14,13 +14,13 @@ const granted = await db.$transaction(async (tx) => {
   const now = new Date();
   await tx.users.update({
     where: { id: user.id },
-    data: { is_admin: true, updated_at: now },
+    data: { is_admin: true, ready: true, updated_at: now },
   });
   // Same guard as the admin approval: the trial clock starts once, at the first approval.
   if (user.approved_at === null)
     await tx.users.updateMany({
       where: { id: user.id, approved_at: null },
-      data: { ready: true, approved_at: now, trial_started_at: now, updated_at: now },
+      data: { approved_at: now, trial_started_at: now, updated_at: now },
     });
   return true;
 });

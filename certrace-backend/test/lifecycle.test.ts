@@ -480,6 +480,34 @@ describe("admin actions", () => {
     const extend = await call(`/api/admin/users/${ghost}/extend-trial`, "POST", { days: 7 }, boss.cookie);
     expect(extend.status).toBe(404);
   });
+
+  test("two concurrent 14-day extensions move the trial by exactly 28 days", async () => {
+    const a = await account(true);
+    const boss = await admin();
+    const before = (await db.users.findUniqueOrThrow({ where: { id: a.user.id } })).trial_started_at;
+    await Promise.all([
+      call(`/api/admin/users/${a.user.id}/extend-trial`, "POST", { days: 14 }, boss.cookie),
+      call(`/api/admin/users/${a.user.id}/extend-trial`, "POST", { days: 14 }, boss.cookie),
+    ]);
+    const after = (await db.users.findUniqueOrThrow({ where: { id: a.user.id } })).trial_started_at;
+    expect(after.getTime() - before.getTime()).toBe(28 * 86_400_000);
+  });
+
+  test("an anonymised account cannot be rejected and keeps its status", async () => {
+    const a = await account(false);
+    // The status check constraint requires anonymised_at alongside ANONYMISED.
+    await db.users.update({
+      where: { id: a.user.id },
+      data: { status: "ANONYMISED", anonymised_at: new Date() },
+    });
+    const boss = await admin();
+    const r = await call(`/api/admin/users/${a.user.id}/reject`, "POST", { reason: "Duplicate company" }, boss.cookie);
+    expect(r.status).toBe(409);
+    expect((await r.json()).detail.code).toBe("NOT_ACTIVE");
+    const u = await db.users.findUniqueOrThrow({ where: { id: a.user.id } });
+    expect(u.status).toBe("ANONYMISED");
+    expect(await db.account_audit_events.count({ where: { user_id: a.user.id, event: "ADMIN_REJECTED" } })).toBe(0);
+  });
 });
 
 describe("password reset", () => {
