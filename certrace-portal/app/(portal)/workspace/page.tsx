@@ -171,10 +171,14 @@ function WorkspaceInner() {
                     n: rec.files.length,
                   })}
             </p>
-            {/* A copy in progress has no confirmedAt yet; only a confirmed upload can be shown early. */}
-            {rec.confirmedAt && (
+            {/* Only a year with confirmedAt can be shown early. One without it (set up before copies were timestamped) can never finish on its own, so it can be started over. */}
+            {rec.confirmedAt ? (
               <Button variant="ghost" size="sm" className="mt-4" onClick={() => ws.markReady(year)}>
                 {t("Show the set-up workspace")} <ArrowRight size={13} strokeWidth={1.5} />
+              </Button>
+            ) : (
+              <Button variant="ghost" size="sm" className="mt-4" onClick={() => ws.restart(year)}>
+                {t("Start over")}
               </Button>
             )}
           </div>
