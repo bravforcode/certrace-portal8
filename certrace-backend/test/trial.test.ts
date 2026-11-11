@@ -4,6 +4,7 @@ import { runTrialEmails } from "../src/modules/reminders/trial-emails";
 import { db } from "../src/lib/db";
 import { account, call, cleanup } from "./helpers";
 import { app } from "../src/app";
+import { hash, token as randomToken } from "../src/lib/security";
 
 afterAll(cleanup);
 
@@ -249,3 +250,35 @@ describe("public link writes after the trial", () => {
     expect((await extract.json()).detail.code).toBe("TRIAL_ENDED");
   }, 60_000);
 });
+
+// Accepting an invite joins the owner's company, so it is refused once that
+// owner's trial has ended, the same as inviting a teammate is.
+test("accepting a team invite into a company whose trial ended returns TRIAL_ENDED", async () => {
+  const owner = await account();
+  const member = await account();
+  await db.accounts.upsert({
+    where: { id: owner.user.id },
+    create: { id: owner.user.id },
+    update: {},
+  });
+  const secret = randomToken();
+  await db.team_invitations.create({
+    data: {
+      account_id: owner.user.id,
+      email: member.email.toLowerCase(),
+      token_hash: hash(secret),
+      expires_at: new Date(Date.now() + 7 * DAY),
+    },
+  });
+  await db.users.update({
+    where: { id: owner.user.id },
+    data: { trial_started_at: new Date(Date.now() - 31 * DAY) },
+  });
+  const r = await call("/api/v1/team/accept", "POST", { token: secret }, member.cookie);
+  expect(r.status).toBe(403);
+  expect((await r.json()).detail.code).toBe("TRIAL_ENDED");
+  const seat = await db.account_members.findFirst({
+    where: { account_id: owner.user.id, user_id: member.user.id },
+  });
+  expect(seat).toBeNull();
+}, 60_000);
