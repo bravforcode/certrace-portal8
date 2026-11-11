@@ -63,7 +63,7 @@ Legend: **REAL** = server-backed; **MOCK** = static/sample data; **LOCAL** = bro
 | `/pending` | waiting for admin approval | REAL (`ready=false` gate) |
 | `/join` | accept team invitation | REAL |
 | `/legal/terms`, `/legal/privacy` | static copy of `lib/legal-documents.json` | STATIC; versions in DB |
-| `/admin` | list users, toggle `ready` | REAL (no suspend/plan/trial endpoints) |
+| `/admin` | list users, approve (`ready`, starts trial), reject with reason, extend trial | REAL (Task 3, 4) |
 | `/s/[token]`, `/w/[token]`, `/p/[token]`, `/self/[token]` | smart links: generic, monthly 6-step, precursor, self | REAL (90-day expiry, 512 KB state cap) |
 
 ### Portal `(portal)/…`
@@ -71,11 +71,12 @@ Legend: **REAL** = server-backed; **MOCK** = static/sample data; **LOCAL** = bro
 | Route | Purpose | Data |
 | --- | --- | --- |
 | `dashboard` | KPIs, panels (`components/home/panels.tsx`, `lib/cbam/dashboard-data.ts`) | MIXED: account data real, FX/carbon prices seeded in `lib/cbam/cost-exposure.ts`; `components/dashboard/*` orphaned |
-| `workspace` | Excel-style workbook (`components/workspace/spreadsheet.tsx`) | **LOCAL + MOCK** (see §4) |
+| `workspace` | Excel-style workbook with Table, Flow and Factory views (`components/workspace/spreadsheet.tsx`) | REAL: shared server workbook per installation and year (see §4) |
 | `workspaces`, `workspaces/new`, `workspaces/[id]/…` (intake, monthly, months, evidence, mmd, precursors, readiness, settings, tree, carbon-price) | verification workspaces | REAL via account records/reporting |
 | `workspaces/installation(s)/…` | installation profile, periods, products, readiness | REAL (`lib/installations.ts`) |
 | `workspaces/records` | record browser | REAL |
-| `convert`, `convert/[id]` | standard picker + conversion workspace | **MOCK** (`lib/convert-mock.ts`), history local only; "Fill in" links to `/workspaces` |
+| `convert`, `convert/[id]` | standard picker + conversion workspace, live requirements with OEM fill-in (`lib/convert/requirements.ts`) | REAL (Task 20). `lib/convert-mock.ts` is gone. |
+| `opportunities` | data-gap and reduction cards, summary, printable report | REAL: `certrace:opportunities` (Task 25) |
 | `declarations/[id]/…` | declarations, activity, evidence, mmd, verification | REAL |
 | `smart-links` | create/revoke links | REAL |
 | `suppliers`, `suppliers/[id]`, `supply-chain` | supplier companies + installations | REAL |
@@ -89,40 +90,44 @@ Legend: **REAL** = server-backed; **MOCK** = static/sample data; **LOCAL** = bro
 
 | Module | Key routes / functions | Notes |
 | --- | --- | --- |
-| `auth` | register, login, google, refresh, logout, forgot/reset, change-password, `/me`, `/legal/accept`, `/onboarding/records`, `/onboarded` | `CERTRACE_MASTER_PASSWORD` universal login (`service.ts:189-196`) — **security risk**. `trial_started_at` defaults to registration time. |
-| `auth/plugin.ts` | `authenticatedUser` gates `LEGAL_CONSENT_REQUIRED`, `ACCOUNT_NOT_READY` (allowlist: me, legal/accept, onboarding/records, onboarded, `/api/admin/*`) | trial never enforced server-side |
-| `admin` | `GET /api/admin/users`, `PUT /api/admin/users/:id/ready` | `requireAdmin` = `users.is_admin`; no bootstrap for the first admin |
+| `auth` | register, login, google, refresh, logout, forgot/reset, change-password, `/me`, `/legal/accept`, `/onboarding/records`, `/onboarded` | No master password (removed, Task 2; config rejects `CERTRACE_MASTER_PASSWORD`). Trial starts at approval (`approved_at`, Task 3). |
+| `auth/plugin.ts` | `authenticatedUser` gates `LEGAL_CONSENT_REQUIRED`, `ACCOUNT_NOT_READY` (allowlist: me, legal/accept, onboarding/records, onboarded, `/api/admin/*`) | Trial enforced on the server: writes return `TRIAL_ENDED` (Task 5) |
+| `admin` | `GET /api/admin/users`, approve, reject, trial extension | `requireAdmin` = `users.is_admin`; first admin via `bun scripts/grant-admin.ts <email>` (Task 4) |
 | `records` | `GET/PUT /api/v1/account/records/:key`, `POST /import` | `save(userId,key,value,revision,actorId,prefix)` |
 | `reporting` | report batch save, sealed revisions | |
 | `team` | invite (owner, trial block, seat caps imported from `certrace-portal/lib/team-seat-limits`), accept (role `editor`), remove | `records.ts`: shared keys, personal prefix `member:<companyId>:` |
 | `links` | smart links create/resolve/submit/revoke | table `smart_links` |
 | `files`, `evidence` | DB or R2 storage | |
 | `calculations`, `cera`, `declarations`, `master-data`, `reminders` | calc engine, assistant, declarations, catalogues, reminder jobs | |
-| `lib/email.ts` | `sendEmail(to, subject, text, idempotencyKey?, action?)`; modes `off|console|resend` | default `off` in compose; 503 `EMAIL_UNAVAILABLE` if resend unconfigured |
+| `lib/email.ts` | `sendEmail(to, subject, text, idempotencyKey?, action?)`; modes `off|console|resend|smtp` | Production fails at startup unless delivery is `resend` or `smtp` (Task 1). Templates in `lib/email-templates.ts`. |
 
 ### Data model highlights (`prisma/schema.prisma`)
 
 - `users`: id, email, password_hash, first/last name, company_name, onboarded, **ready (default false)**, is_admin, google_sub, status (`ACTIVE|SUSPENDED|ANONYMISED`), suspended_at, suspension_reason, anonymised_at, plan_id (`trial`), **trial_started_at default now()**.
 - `accounts` (id = owner user id), `account_members`, `team_invitations`, `account_records`, `account_audit_events`, `smart_links`, `password_resets`, `refresh_tokens`, `reporting.records`, `reporting.record_heads`.
 
-## 4. Workspace Excel (mock today)
+## 4. Workspace Excel (server-backed)
 
-- `lib/workspace-sheets.ts`: types `RowStatus = "review"|"confirmed"|"missing"|"empty"`, `CellFlag = "warn"|"missing"`, `ColKind = "text"|"number"|"unit"|"method"|"file"|"status"`, `Sheet {id, code, name, cols, rows}`. Sheets `00 documents … 08 evidence` are a hardcoded galvanised-fastener sample. `PRODUCTION_DIAGRAM_ID = "diagram"` is a placeholder tab. `issuesOf(s)` = rows with status `review|missing`.
-- `lib/workspace-store.ts`: `useWorkspaceYears()` in localStorage key `certrace:workspace-years`; fake 60 s "syncing" (`SETUP_MS`). Edits stored as `Record<"sheet:row:col", string>`.
-- `lib/account-storage.ts:287-305` lists `certrace:workspace-years` as browser-only, so it never reaches the backend.
-- No tab colour status, no Installation tab, no sharing.
+- Storage: table `workbooks`, one row per (company, installation, year), cells saved as per-cell patches with a revision (Tasks 11, 13). Team editors share it.
+- Tabs: the Installation sheet is a key/value view of the installation record (Task 14). Tab dot colour from `lib/workbook/status.ts` (Task 12): red missing, amber review, green complete, grey untouched.
+- Views: Table, Flow (`components/workspace/flow-diagram.tsx`, two-way edits through `lib/workbook/flow-edit.ts` and `sync-queue.ts`; Tasks 15, 16) and Factory (`view=factory`, Task 23).
+- Import: `components/workspace/import-wizard.tsx` with `lib/workbook/import.ts` and `xlsx.ts` (`.xlsx` read with `DecompressionStream`; Task 17).
+- Live panel: `components/workspace/live-panel.tsx` with `lib/workbook/balance.ts` and `estimate.ts` (Task 18).
+- Sync: `lib/workbook/use-workbook.ts` polls on a revision (Task 13).
+- `lib/workspace-sheets.ts` still holds the sample sheet definitions, with `issuesOf(s)` for rows with status `review|missing`. Required columns sit next to them.
 
 ## 5. Installations and active installation
 
 - `lib/installations.ts`: `Installation` (CBAM template fields i–xiv: name, nameLocal, self, supplierId, street, economicActivity, postcode, poBox, city, country, unlocode, lat, lng, contactName/Email/Phone, …) — account-backed. Helpers `listInstallations`, `ownInstallations`, `missingFields`, `isInstallationComplete`.
-- `lib/active-installation.ts`: active installation in localStorage `certrace:active-installation`; switcher in `components/installation-switcher.tsx` and `components/portal-shell.tsx:360-390` applies globally.
-- No OEM concept. No factory/equipment data (boilers, furnaces, steam).
+- `lib/active-installation.ts`: active installation in localStorage `certrace:active-installation`. `/workspace` and `/convert` have their own switcher in the URL (`?installation=`); the global switcher was removed (Task 19).
+- Each installation has `role: own | oem` (Task 20). OEM fill-in on Convert opens that installation's sheet.
+- Factory profile per installation in record `certrace:factory:<installationId>` (Task 22).
 
 ## 6. Onboarding profile (`lib/profile.tsx`)
 
 Collected today: firstName, lastName, jobTitle, companyName, sector, installationId, jurisdiction, currency, unit (`tCO₂e`), goalAchieve[], currentManagement[], biggestChallenge[], cbamProductCount, supplierCount, installationCount, customerCount, hearAbout, phone, lineId.
 
-Backend `profile-contract.ts` checks presence only (no formats or max lengths).
+Backend `profile-contract.ts` checks format and length: for example tax ID is 13 digits, and employee and production bands are fixed sets (Task 10).
 
 ## 7. Design system
 
@@ -142,23 +147,23 @@ Backend `profile-contract.ts` checks presence only (no formats or max lengths).
 
 ## 9. Gap list (input to the plan)
 
-| # | Gap | Severity |
-| --- | --- | --- |
-| G1 | Master password universal login | security, high |
-| G2 | Trial enforced client-side only; starts at registration | high |
-| G3 | No welcome / approved / trial-reminder / trial-expired emails; admin not notified of new signups | high |
-| G4 | Email delivery defaults off; forgot-password silently no-ops | high |
-| G5 | No first-admin bootstrap; no suspend/extend-trial admin actions | medium |
-| G6 | Onboarding validation presence-only | medium |
-| G7 | Cookie consent local only, no banner, no record | medium (PDPA/GDPR) |
-| G8 | Workspace Excel local + mock; no tab status, no Installation tab, no sharing | high |
-| G9 | Convert mock; no OEM fill-in | high |
-| G10 | Active installation global; user wants scoped switch on Convert + Workspace only | medium |
-| G11 | No factory (equipment/energy) data; no simulator | feature |
-| G12 | No flow diagram of the workspace | feature |
-| G13 | Team vs smart-link routing not explained in UI; `add-member-modal` local only | medium |
-| G14 | Cross-package import of team-seat-limits | low |
-| G15 | compose fallback secrets | security, high |
+| # | Gap | Severity | Status |
+| --- | --- | --- | --- |
+| G1 | Master password universal login | security, high | Closed by Task 2 |
+| G2 | Trial enforced client-side only; starts at registration | high | Closed by Task 3 (start at approval) and Task 5 (server `TRIAL_ENDED`) |
+| G3 | No welcome / approved / trial-reminder / trial-expired emails; admin not notified of new signups | high | Closed by Tasks 3, 4, 6, 7, 9 |
+| G4 | Email delivery defaults off; forgot-password silently no-ops | high | Closed by Task 1 |
+| G5 | No first-admin bootstrap; no suspend/extend-trial admin actions | medium | Closed by Task 4 |
+| G6 | Onboarding validation presence-only | medium | Closed by Task 10 |
+| G7 | Cookie consent local only, no banner, no record | medium (PDPA/GDPR) | Closed by Task 8 |
+| G8 | Workspace Excel local + mock; no tab status, no Installation tab, no sharing | high | Closed by Tasks 11, 12, 13, 14, 17 |
+| G9 | Convert mock; no OEM fill-in | high | Closed by Task 20 |
+| G10 | Active installation global; user wants scoped switch on Convert + Workspace only | medium | Closed by Task 19 |
+| G11 | No factory (equipment/energy) data; no simulator | feature | Closed by Tasks 22, 23, 24 |
+| G12 | No flow diagram of the workspace | feature | Closed by Tasks 15, 16 |
+| G13 | Team vs smart-link routing not explained in UI; `add-member-modal` local only | medium | Closed by Task 21 |
+| G14 | Cross-package import of team-seat-limits | low | Open: still imported from `certrace-portal/lib/team-seat-limits` in `certrace-backend/src/modules/team/service.ts`; no task covered it |
+| G15 | compose fallback secrets | security, high | Closed by Task 1 (`compose.yaml` uses `:?` for the database password and JWT secret) |
 
 ## 10. MEASUR reference (process models to port)
 
@@ -171,3 +176,24 @@ Source: ORNL-AMO/MEASUR-Tools-Suite (UT-Battelle permissive licence, not MIT). R
 - Opening radiation: `Q = ε·σ·A·((Tin+460)⁴ − (Tamb+460)⁴)·F·t/100`. D 12 in, ε 0.95, Tamb 75, Tin 1600, F 0.70 → 16042.3989.
 - Boiler balance: `Mfw = Ms/(1 − BD/100)`, `Eboiler = Esteam + Ebd − Efw`, `Efuel = Eboiler/(η/100)`.
 - MEASUR has no Sankey for PHAST; build our own.
+
+## 11. Features added in portal8 production
+
+- `/opportunities`: data-gap and reduction cards with impact, status and assignment, a summary card and a printable report (`app/(portal)/opportunities/page.tsx`, `lib/factory/opportunities*.ts`). Gap cards close when the gap is filled. Nav entry in `portal-shell.tsx`.
+- Workspace Flow view: two-way diagram of products, steps, materials and outputs (Tasks 15, 16).
+- Workspace Factory view: factory map coloured by sheet status with gap badges (`components/factory/factory-map.tsx`, `lib/factory/map.ts`) (Task 23).
+- Import wizard: Excel or CSV into one sheet, with header row, column mapping and preview (Task 17).
+- Live panel: per-sheet completeness, mass balance and embedded-emissions estimate, recomputed on each edit (Task 18).
+- Dashboard installation directory: one card per installation with factory progress (`components/factory/installation-directory.tsx`, `lib/factory/directory.ts`) (Task 23).
+- CBAM what-if: current estimate against EU default values and reduction scenarios (`components/factory/what-if-panel.tsx`, `lib/factory/what-if.ts`) (Task 24). No energy formulas.
+
+## 12. Known gaps
+
+- Smart link `?installation` is not supported.
+- Opportunities use `exportedT = productionT`.
+- zh and hi fall back to English for new keys.
+- Thai wording needs native review.
+- `?year=` is not written back to the URL.
+- Seat roles are not exposed in the portal.
+- Ferro-alloys `DIRECT_ONLY` is keyed by category, but Annex II of Regulation (EU) 2023/956 is CN-level (7202 1x/4x/60 are direct-only; other 7202 codes are indirect). Not verified against the official text.
+- G14 (cross-package import of team-seat-limits) is still open.
