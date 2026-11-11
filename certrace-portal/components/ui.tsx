@@ -689,6 +689,7 @@ export function NumberInput({
   className,
   inputClassName,
   ariaLabel,
+  ariaDescribedBy,
 }: {
   value: number | undefined | null;
   /** undefined when the field is cleared, so "not answered" stays different from 0 */
@@ -704,6 +705,8 @@ export function NumberInput({
   /** classes for the input box itself (className styles the wrapper) */
   inputClassName?: string;
   ariaLabel?: string;
+  /** id of the element that explains the error, so a screen reader reads it with the field */
+  ariaDescribedBy?: string;
 }) {
   const external = value == null || Number.isNaN(value) ? "" : String(value);
   const [draft, setDraft] = React.useState(external);
@@ -768,6 +771,8 @@ export function NumberInput({
           inputMode="decimal"
           autoComplete="off"
           aria-label={ariaLabel}
+          aria-invalid={invalid || undefined}
+          aria-describedby={ariaDescribedBy}
           disabled={disabled}
           value={draft}
           placeholder={placeholder}

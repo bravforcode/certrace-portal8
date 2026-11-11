@@ -1,14 +1,17 @@
 "use client";
 
 import * as React from "react";
-import { Button, Card, EmptyState, Progress, StatusDot, inputClass, useFlash } from "@/components/ui";
+import { Button, Card, Checkbox, EmptyState, NumberInput, Progress, StatusDot, inputClass, useFlash } from "@/components/ui";
 import { PROCESS_STEPS, PROCESS_STEP_HINT, PROCESS_STEP_LABEL, type ProcessStep } from "@/lib/cbam/boundary";
 import { useT, type TFunction } from "@/lib/i18n";
 import {
-  emptyProfile, factoryGaps, factoryProgress, processesFromSteps, productionMismatch, validateProfile,
-  type FactoryGap, type FactoryProfile, type MeterFrequency, type ProcessRow, type SourceKind,
+  PROFILE_LIMITS, clearFieldError, emptyProfile, factoryGaps, factoryProgress, monthRowsToAdd, newId, nextMissingMonth,
+  processesFromSteps, productionMismatch, validateProfile,
+  type FactoryGap, type FactoryProfile, type MeterFrequency, type MeterRow, type ProcessRow, type ProductionRow,
+  type SourceKind, type SourceRow,
 } from "@/lib/factory/profile";
 import { readFactory, saveFactory } from "@/lib/factory/store";
+import { FactorySaveError } from "@/lib/factory/stored";
 
 type Group = "processes" | "sources" | "meters" | "production";
 const GROUPS: Group[] = ["processes", "sources", "meters", "production"];
@@ -34,8 +37,8 @@ const FREQUENCY_LABEL: Record<MeterFrequency, string> = {
   "per-delivery": "Per delivery",
   annual: "Annual",
 };
-const id = () => crypto.randomUUID();
 const monthKey = (year: number, i: number) => `${year}-${String(i + 1).padStart(2, "0")}`;
+const errId = (path: string) => `factory-err-${path.replace(/\./g, "-")}`;
 
 // Field errors arrive as "path: message". The message is English from the
 // validator, so it is translated here; anything with a number is matched by shape.
@@ -45,6 +48,19 @@ function errorText(t: TFunction, message: string) {
   const rows = /^at most (\d+) rows$/.exec(message);
   if (rows) return t("at most {n} rows", { n: rows[1]! });
   return t(message);
+}
+
+// "processes.1.name" -> "Processes row 2", so a summary line says which row it is about.
+function rowLabel(t: TFunction, path: string) {
+  const m = /^(processes|sources|meters|production)\.(\d+)(?=[.:])/.exec(path);
+  return m ? t("{group} row {n}", { group: t(GROUP_LABEL[m[1] as Group]), n: Number(m[2]) + 1 }) : null;
+}
+
+function saveMessage(t: TFunction, e: unknown) {
+  const reason = e instanceof FactorySaveError ? e.reason : "other";
+  if (reason === "conflict") return t("Someone else changed this profile. Reload to see their changes.");
+  if (reason === "trial") return t("Your trial has ended, so this profile cannot be saved.");
+  return t("Could not save the factory profile. Your edits are still here.");
 }
 
 function gapText(t: TFunction, gap: FactoryGap, p: FactoryProfile): string {
@@ -78,18 +94,24 @@ export function FactoryProfileView({
 }) {
   const t = useT();
   const [profile, setProfile] = React.useState<FactoryProfile>(emptyProfile);
+  const [unreadable, setUnreadable] = React.useState(false);
   const [tab, setTab] = React.useState<Group>("processes");
   const [focusId, setFocusId] = React.useState<string | null>(null);
   const [errors, setErrors] = React.useState<string[]>([]);
   const [saveError, setSaveError] = React.useState("");
+  const [notice, setNotice] = React.useState("");
   const [saving, setSaving] = React.useState(false);
   const [saved, flashSaved] = useFlash();
+  const tabRefs = React.useRef<Record<Group, HTMLButtonElement | null>>({ processes: null, sources: null, meters: null, production: null });
 
   // Storage is browser-side, so the profile is read after mount, not during render.
   React.useEffect(() => {
-    setProfile(readFactory(installationId));
+    const r = readFactory(installationId);
+    setProfile(r.profile);
+    setUnreadable(r.unreadable);
     setErrors([]);
     setSaveError("");
+    setNotice("");
   }, [installationId]);
 
   React.useEffect(() => {
@@ -103,29 +125,51 @@ export function FactoryProfileView({
   const progress = React.useMemo(() => factoryProgress(profile, year), [profile, year]);
   const groupGaps = (g: Group) => gaps.filter((x) => x.group === g);
   const mismatch = workbookTonnes ? productionMismatch(profile, year, workbookTonnes) : null;
+  const nextMonth = nextMissingMonth(profile, year);
+  const missingMonths = monthRowsToAdd(profile, year);
 
   const fieldError = (path: string) => {
     const hit = errors.find((e) => e.startsWith(path + ":"));
     return hit ? errorText(t, hit.slice(path.length + 2)) : null;
   };
-
-  const update = <K extends keyof FactoryProfile>(key: K, rows: FactoryProfile[K]) =>
-    setProfile((p) => ({ ...p, [key]: rows }));
-
-  const importSteps = () => setProfile((p) => processesFromSteps(p, stepNames));
-
-  const addMissingMonths = () => {
-    const have = new Set(profile.production.map((r) => r.month));
-    const added = Array.from({ length: 12 }, (_, i) => monthKey(year, i))
-      .filter((m) => !have.has(m))
-      .map((month) => ({ month, product: profile.production.at(-1)?.product ?? "", tonnes: 0 }));
-    update("production", [...profile.production, ...added]);
+  // Error text sits under its field and is linked to it, so a screen reader reads both together.
+  const meta = (path?: string) => {
+    const message = path ? fieldError(path) : null;
+    return {
+      invalid: message ? true : undefined,
+      describedBy: path && message ? errId(path) : undefined,
+      node: path && message ? <span id={errId(path)} className="mt-1 block text-xs text-err-text">{message}</span> : null,
+    };
+  };
+  const clearFor = (path?: string) => {
+    if (path) setErrors((prev) => clearFieldError(prev, path));
   };
 
+  const patchProcess = (rowId: string, p: Partial<ProcessRow>) =>
+    setProfile((prof) => ({ ...prof, processes: prof.processes.map((x) => (x.id === rowId ? { ...x, ...p } : x)) }));
+  const patchSource = (rowId: string, p: Partial<SourceRow>) =>
+    setProfile((prof) => ({ ...prof, sources: prof.sources.map((x) => (x.id === rowId ? { ...x, ...p } : x)) }));
+  const patchMeter = (rowId: string, p: Partial<MeterRow>) =>
+    setProfile((prof) => ({ ...prof, meters: prof.meters.map((x) => (x.id === rowId ? { ...x, ...p } : x)) }));
+  const patchProduction = (rowId: string, p: Partial<ProductionRow>) =>
+    setProfile((prof) => ({ ...prof, production: prof.production.map((x) => (x.id === rowId ? { ...x, ...p } : x)) }));
+
+  const importSteps = () => {
+    const r = processesFromSteps(profile, stepNames);
+    setProfile(r.profile);
+    setNotice(
+      r.skipped
+        ? t("Added {added} processes. {skipped} did not fit the limit of {limit} processes.", { added: r.added, skipped: r.skipped, limit: PROFILE_LIMITS.processes })
+        : t("Added {added} processes.", { added: r.added }),
+    );
+  };
+
+  const addMissingMonths = () => setProfile((p) => ({ ...p, production: [...p.production, ...monthRowsToAdd(p, year)] }));
+
   const removeProcess = (proc: ProcessRow) => {
-    const sources = profile.sources.filter((s) => s.processId === proc.id);
-    if (sources.length && !window.confirm(t("Delete {name} and its {n} sources?", { name: proc.name, n: sources.length }))) return;
-    const sourceIds = new Set(sources.map((s) => s.id));
+    const sourceIds = new Set(profile.sources.filter((s) => s.processId === proc.id).map((s) => s.id));
+    const meters = profile.meters.filter((m) => sourceIds.has(m.sourceId)).length;
+    if ((sourceIds.size || meters) && !window.confirm(t("Delete {name}, its {n} sources and {m} meters?", { name: proc.name, n: sourceIds.size, m: meters }))) return;
     setProfile((p) => ({
       ...p,
       processes: p.processes.filter((x) => x.id !== proc.id),
@@ -147,6 +191,7 @@ export function FactoryProfileView({
   const save = async () => {
     const checked = validateProfile(profile);
     setSaveError("");
+    setNotice("");
     if (!checked.ok) {
       setErrors(checked.errors);
       setSaveError(t("Fix the highlighted fields before saving."));
@@ -155,10 +200,10 @@ export function FactoryProfileView({
     setErrors([]);
     setSaving(true);
     try {
-      await saveFactory(installationId, profile);
+      await saveFactory(installationId, checked.data);
       flashSaved();
-    } catch {
-      setSaveError(t("Could not save the factory profile. Your edits are still here."));
+    } catch (e) {
+      setSaveError(saveMessage(t, e));
     } finally {
       setSaving(false);
     }
@@ -169,33 +214,57 @@ export function FactoryProfileView({
     if (gap.refId) setFocusId(gap.refId);
   };
 
+  // Roving tabindex: arrows move between tabs, Home and End jump to the ends.
+  const onTabKey = (e: React.KeyboardEvent, g: Group) => {
+    const i = GROUPS.indexOf(g);
+    const next =
+      e.key === "ArrowRight" ? (i + 1) % GROUPS.length
+      : e.key === "ArrowLeft" ? (i - 1 + GROUPS.length) % GROUPS.length
+      : e.key === "Home" ? 0
+      : e.key === "End" ? GROUPS.length - 1
+      : -1;
+    if (next < 0) return;
+    e.preventDefault();
+    const to = GROUPS[next]!;
+    setTab(to);
+    tabRefs.current[to]?.focus();
+  };
+
   const text = (label: string, value: string, onChange: (v: string) => void, path?: string, placeholder?: string) => {
-    const e = path ? fieldError(path) : null;
+    const m = meta(path);
     return (
       <div>
         <input
           aria-label={label}
-          aria-invalid={e ? true : undefined}
+          aria-invalid={m.invalid}
+          aria-describedby={m.describedBy}
           className={inputClass}
           value={value}
           placeholder={placeholder}
-          onChange={(ev) => onChange(ev.target.value)}
+          onChange={(ev) => {
+            clearFor(path);
+            onChange(ev.target.value);
+          }}
         />
-        {e && <span className="mt-1 block text-xs text-[#dc2626]">{e}</span>}
+        {m.node}
       </div>
     );
   };
 
-  const select = <V extends string>(label: string, value: V, options: { value: V; label: string; title?: string }[], onChange: (v: V) => void, path?: string) => {
-    const e = path ? fieldError(path) : null;
+  const select = (label: string, value: string, options: { value: string; label: string; title?: string }[], onChange: (v: string) => void, path?: string) => {
+    const m = meta(path);
     return (
       <div>
         <select
           aria-label={label}
-          aria-invalid={e ? true : undefined}
+          aria-invalid={m.invalid}
+          aria-describedby={m.describedBy}
           className={inputClass}
           value={value}
-          onChange={(ev) => onChange(ev.target.value as V)}
+          onChange={(ev) => {
+            clearFor(path);
+            onChange(ev.target.value);
+          }}
         >
           {options.map((o) => (
             <option key={o.value} value={o.value} title={o.title}>
@@ -203,7 +272,7 @@ export function FactoryProfileView({
             </option>
           ))}
         </select>
-        {e && <span className="mt-1 block text-xs text-[#dc2626]">{e}</span>}
+        {m.node}
       </div>
     );
   };
@@ -219,9 +288,11 @@ export function FactoryProfileView({
   const processOptions = profile.processes.map((p) => ({ value: p.id, label: p.name || t("(no name)") }));
   const sourceOptions = profile.sources.map((s) => ({ value: s.id, label: s.name || t("(no name)") }));
   const stepOptions = [
-    { value: "other", label: t("Other"), title: undefined as string | undefined },
+    { value: "other", label: t("Other") },
     ...PROCESS_STEPS.map((s: ProcessStep) => ({ value: s, label: t(PROCESS_STEP_LABEL[s]), title: t(PROCESS_STEP_HINT[s]) })),
   ];
+  const tabId = (g: Group) => `factory-tab-${g}`;
+  const panelId = `factory-panel-${tab}`;
 
   return (
     <Card className="space-y-6">
@@ -237,7 +308,7 @@ export function FactoryProfileView({
           <ul className="space-y-1" aria-label={t("Open gaps")}>
             {gaps.map((g) => (
               <li key={g.key}>
-                <button type="button" className="text-left text-sm text-[#b45309] underline-offset-2 hover:underline" onClick={() => goto(g)}>
+                <button type="button" className="text-left text-sm text-warn-text underline-offset-2 hover:underline" onClick={() => goto(g)}>
                   {gapText(t, g, profile)}
                 </button>
               </li>
@@ -246,41 +317,59 @@ export function FactoryProfileView({
         )}
       </header>
 
+      {unreadable && (
+        <p role="alert" className="rounded-xl border border-err-text/30 px-4 py-3 text-sm text-err-text">
+          {t("The saved factory profile could not be read. Saving is paused so the stored copy is not overwritten.")}
+        </p>
+      )}
+
       <div role="tablist" aria-label={t("Factory profile")} className="flex flex-wrap gap-2">
         {GROUPS.map((g) => {
-          const open = groupGaps(g).length > 0;
+          const open = groupGaps(g).length;
           const selected = tab === g;
           return (
             <button
               key={g}
+              ref={(el) => {
+                tabRefs.current[g] = el;
+              }}
               type="button"
               role="tab"
-              id={`factory-tab-${g}`}
+              id={tabId(g)}
               aria-selected={selected}
-              aria-controls={`factory-panel-${g}`}
+              aria-controls={selected ? panelId : undefined}
+              tabIndex={selected ? 0 : -1}
               onClick={() => setTab(g)}
+              onKeyDown={(e) => onTabKey(e, g)}
               className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm transition-colors ${
                 selected ? "border-black/25 text-black" : "border-black/10 text-black/55 hover:text-black"
               }`}
             >
               <StatusDot tone={open ? "warn" : "ok"} />
               {t(GROUP_LABEL[g])}
+              <span className="sr-only">{open ? t("{n} open gaps", { n: open }) : t("No open gaps")}</span>
             </button>
           );
         })}
       </div>
 
-      <div role="tabpanel" id={`factory-panel-${tab}`} aria-labelledby={`factory-tab-${tab}`} className="space-y-4">
+      <div role="tabpanel" id={panelId} aria-labelledby={tabId(tab)} className="space-y-4">
         {tab === "processes" && (
           <>
             <div className="flex flex-wrap items-center gap-2">
               <Button variant="secondary" size="sm" onClick={importSteps} disabled={!stepNames.length}>
                 {t("Import steps from workbook")}
               </Button>
-              <Button variant="secondary" size="sm" onClick={() => update("processes", [...profile.processes, { id: id(), name: "", step: "other", route: "", inBoundary: true, note: "" }])}>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={profile.processes.length >= PROFILE_LIMITS.processes}
+                onClick={() => setProfile((p) => ({ ...p, processes: [...p.processes, { id: newId(), name: "", step: "other", route: "", inBoundary: true, note: "" }] }))}
+              >
                 {t("Add process")}
               </Button>
             </div>
+            {notice && <p role="status" className="text-sm text-black/55">{notice}</p>}
             {profile.processes.length === 0
               ? empty("No processes yet", "List every process inside the installation boundary, from raw material to finished product.")
               : (
@@ -299,22 +388,19 @@ export function FactoryProfileView({
                     <tbody>
                       {profile.processes.map((p, i) => (
                         <tr key={p.id} id={`factory-row-${p.id}`} className="align-top">
-                          <td className="py-1 pr-3">{text(t("Name"), p.name, (v) => update("processes", profile.processes.map((x) => (x.id === p.id ? { ...x, name: v } : x))), `processes.${i}.name`)}</td>
+                          <td className="py-1 pr-3">{text(t("Name"), p.name, (v) => patchProcess(p.id, { name: v }), `processes.${i}.name`)}</td>
                           <td className="py-1 pr-3">
-                            {select(t("Process step"), p.step, stepOptions as { value: string; label: string; title?: string }[], (v) =>
-                              update("processes", profile.processes.map((x) => (x.id === p.id ? { ...x, step: v as ProcessRow["step"] } : x))), `processes.${i}.step`)}
+                            {select(t("Process step"), p.step, stepOptions, (v) => patchProcess(p.id, { step: v as ProcessRow["step"] }), `processes.${i}.step`)}
                           </td>
-                          <td className="py-1 pr-3">{text(t("Route"), p.route, (v) => update("processes", profile.processes.map((x) => (x.id === p.id ? { ...x, route: v } : x))), `processes.${i}.route`)}</td>
+                          <td className="py-1 pr-3">{text(t("Route"), p.route, (v) => patchProcess(p.id, { route: v }), `processes.${i}.route`)}</td>
                           <td className="py-1 pr-3">
-                            <input
-                              type="checkbox"
-                              aria-label={t("Inside the boundary")}
-                              className="h-5 w-5 accent-[#111]"
+                            <Checkbox
                               checked={p.inBoundary}
-                              onChange={(ev) => update("processes", profile.processes.map((x) => (x.id === p.id ? { ...x, inBoundary: ev.target.checked } : x)))}
+                              onChange={(v) => patchProcess(p.id, { inBoundary: v })}
+                              label={<span className="sr-only">{t("Inside the boundary")}: {p.name || t("(no name)")}</span>}
                             />
                           </td>
-                          <td className="py-1 pr-3">{text(t("Note"), p.note, (v) => update("processes", profile.processes.map((x) => (x.id === p.id ? { ...x, note: v } : x))), `processes.${i}.note`)}</td>
+                          <td className="py-1 pr-3">{text(t("Note"), p.note, (v) => patchProcess(p.id, { note: v }), `processes.${i}.note`)}</td>
                           <td className="py-1">{removeButton(t("Remove process {name}", { name: p.name || t("(no name)") }), () => removeProcess(p))}</td>
                         </tr>
                       ))}
@@ -327,7 +413,12 @@ export function FactoryProfileView({
 
         {tab === "sources" && (
           <>
-            <Button variant="secondary" size="sm" disabled={!profile.processes.length} onClick={() => update("sources", [...profile.sources, { id: id(), name: "", kind: "combustion", processId: profile.processes[0]?.id ?? "", fuel: "", tag: "" }])}>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={!profile.processes.length || profile.sources.length >= PROFILE_LIMITS.sources}
+              onClick={() => setProfile((p) => ({ ...p, sources: [...p.sources, { id: newId(), name: "", kind: "combustion", processId: p.processes[0]?.id ?? "", fuel: "", tag: "" }] }))}
+            >
               {t("Add source")}
             </Button>
             {profile.sources.length === 0
@@ -348,17 +439,15 @@ export function FactoryProfileView({
                     <tbody>
                       {profile.sources.map((s, i) => (
                         <tr key={s.id} id={`factory-row-${s.id}`} className="align-top">
-                          <td className="py-1 pr-3">{text(t("Name"), s.name, (v) => update("sources", profile.sources.map((x) => (x.id === s.id ? { ...x, name: v } : x))), `sources.${i}.name`)}</td>
+                          <td className="py-1 pr-3">{text(t("Name"), s.name, (v) => patchSource(s.id, { name: v }), `sources.${i}.name`)}</td>
                           <td className="py-1 pr-3">
-                            {select(t("Type"), s.kind, KINDS.map((k) => ({ value: k, label: t(KIND_LABEL[k]) })), (v) =>
-                              update("sources", profile.sources.map((x) => (x.id === s.id ? { ...x, kind: v } : x))), `sources.${i}.kind`)}
+                            {select(t("Type"), s.kind, KINDS.map((k) => ({ value: k, label: t(KIND_LABEL[k]) })), (v) => patchSource(s.id, { kind: v as SourceKind }), `sources.${i}.kind`)}
                           </td>
                           <td className="py-1 pr-3">
-                            {select(t("Process"), s.processId, processOptions, (v) =>
-                              update("sources", profile.sources.map((x) => (x.id === s.id ? { ...x, processId: v } : x))), `sources.${i}.processId`)}
+                            {select(t("Process"), s.processId, processOptions, (v) => patchSource(s.id, { processId: v }), `sources.${i}.processId`)}
                           </td>
-                          <td className="py-1 pr-3">{text(t("Fuel or material"), s.fuel, (v) => update("sources", profile.sources.map((x) => (x.id === s.id ? { ...x, fuel: v } : x))), `sources.${i}.fuel`)}</td>
-                          <td className="py-1 pr-3">{text(t("Tag"), s.tag, (v) => update("sources", profile.sources.map((x) => (x.id === s.id ? { ...x, tag: v } : x))), `sources.${i}.tag`)}</td>
+                          <td className="py-1 pr-3">{text(t("Fuel or material"), s.fuel, (v) => patchSource(s.id, { fuel: v }), `sources.${i}.fuel`)}</td>
+                          <td className="py-1 pr-3">{text(t("Tag"), s.tag, (v) => patchSource(s.id, { tag: v }), `sources.${i}.tag`)}</td>
                           <td className="py-1">{removeButton(t("Remove source {name}", { name: s.name || t("(no name)") }), () => removeSource(s.id, s.name))}</td>
                         </tr>
                       ))}
@@ -371,7 +460,12 @@ export function FactoryProfileView({
 
         {tab === "meters" && (
           <>
-            <Button variant="secondary" size="sm" disabled={!profile.sources.length} onClick={() => update("meters", [...profile.meters, { id: id(), name: "", measures: "", sourceId: profile.sources[0]?.id ?? "", owner: "", frequency: "monthly", evidence: "", calibratedUntil: "" }])}>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={!profile.sources.length || profile.meters.length >= PROFILE_LIMITS.meters}
+              onClick={() => setProfile((p) => ({ ...p, meters: [...p.meters, { id: newId(), name: "", measures: "", sourceId: p.sources[0]?.id ?? "", owner: "", frequency: "monthly", evidence: "", calibratedUntil: "" }] }))}
+            >
               {t("Add meter or data source")}
             </Button>
             {profile.meters.length === 0
@@ -393,26 +487,33 @@ export function FactoryProfileView({
                     </thead>
                     <tbody>
                       {profile.meters.map((m, i) => {
-                        const patch = (p: Partial<typeof m>) => update("meters", profile.meters.map((x) => (x.id === m.id ? { ...x, ...p } : x)));
+                        const calibration = meta(`meters.${i}.calibratedUntil`);
                         return (
                           <tr key={m.id} id={`factory-row-${m.id}`} className="align-top">
-                            <td className="py-1 pr-3">{text(t("Name"), m.name, (v) => patch({ name: v }), `meters.${i}.name`)}</td>
-                            <td className="py-1 pr-3">{text(t("What it measures"), m.measures, (v) => patch({ measures: v }), `meters.${i}.measures`)}</td>
-                            <td className="py-1 pr-3">{select(t("Source"), m.sourceId, sourceOptions, (v) => patch({ sourceId: v }), `meters.${i}.sourceId`)}</td>
-                            <td className="py-1 pr-3">{text(t("Who reads it"), m.owner, (v) => patch({ owner: v }), `meters.${i}.owner`)}</td>
-                            <td className="py-1 pr-3">{select(t("Frequency"), m.frequency, FREQUENCIES.map((f) => ({ value: f, label: t(FREQUENCY_LABEL[f]) })), (v) => patch({ frequency: v }), `meters.${i}.frequency`)}</td>
-                            <td className="py-1 pr-3">{text(t("Evidence"), m.evidence, (v) => patch({ evidence: v }), `meters.${i}.evidence`)}</td>
+                            <td className="py-1 pr-3">{text(t("Name"), m.name, (v) => patchMeter(m.id, { name: v }), `meters.${i}.name`)}</td>
+                            <td className="py-1 pr-3">{text(t("What it measures"), m.measures, (v) => patchMeter(m.id, { measures: v }), `meters.${i}.measures`)}</td>
+                            <td className="py-1 pr-3">{select(t("Source"), m.sourceId, sourceOptions, (v) => patchMeter(m.id, { sourceId: v }), `meters.${i}.sourceId`)}</td>
+                            <td className="py-1 pr-3">{text(t("Who reads it"), m.owner, (v) => patchMeter(m.id, { owner: v }), `meters.${i}.owner`)}</td>
+                            <td className="py-1 pr-3">
+                              {select(t("Frequency"), m.frequency, FREQUENCIES.map((f) => ({ value: f, label: t(FREQUENCY_LABEL[f]) })), (v) => patchMeter(m.id, { frequency: v as MeterFrequency }), `meters.${i}.frequency`)}
+                            </td>
+                            <td className="py-1 pr-3">{text(t("Evidence"), m.evidence, (v) => patchMeter(m.id, { evidence: v }), `meters.${i}.evidence`)}</td>
                             <td className="py-1 pr-3">
                               <input
                                 type="date"
                                 aria-label={t("Calibrated until")}
+                                aria-invalid={calibration.invalid}
+                                aria-describedby={calibration.describedBy}
                                 className={inputClass}
                                 value={m.calibratedUntil}
-                                onChange={(ev) => patch({ calibratedUntil: ev.target.value })}
+                                onChange={(ev) => {
+                                  clearFor(`meters.${i}.calibratedUntil`);
+                                  patchMeter(m.id, { calibratedUntil: ev.target.value });
+                                }}
                               />
-                              {fieldError(`meters.${i}.calibratedUntil`) && <span className="mt-1 block text-xs text-[#dc2626]">{fieldError(`meters.${i}.calibratedUntil`)}</span>}
+                              {calibration.node}
                             </td>
-                            <td className="py-1">{removeButton(t("Remove meter {name}", { name: m.name || t("(no name)") }), () => update("meters", profile.meters.filter((x) => x.id !== m.id)))}</td>
+                            <td className="py-1">{removeButton(t("Remove meter {name}", { name: m.name || t("(no name)") }), () => setProfile((p) => ({ ...p, meters: p.meters.filter((x) => x.id !== m.id) })))}</td>
                           </tr>
                         );
                       })}
@@ -426,10 +527,15 @@ export function FactoryProfileView({
         {tab === "production" && (
           <>
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="secondary" size="sm" onClick={addMissingMonths}>
+              <Button variant="secondary" size="sm" disabled={!missingMonths.length || profile.production.length + missingMonths.length > PROFILE_LIMITS.production} onClick={addMissingMonths}>
                 {t("Add the 12 months of {year}", { year })}
               </Button>
-              <Button variant="secondary" size="sm" onClick={() => update("production", [...profile.production, { month: monthKey(year, 0), product: "", tonnes: 0 }])}>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={nextMonth === null || profile.production.length >= PROFILE_LIMITS.production}
+                onClick={() => setProfile((p) => ({ ...p, production: [...p.production, { id: newId(), month: nextMonth ?? monthKey(year, 0), product: "", tonnes: 0 }] }))}
+              >
                 {t("Add row")}
               </Button>
             </div>
@@ -447,43 +553,53 @@ export function FactoryProfileView({
                       </tr>
                     </thead>
                     <tbody>
-                      {profile.production.map((r, i) => (
-                        <tr key={`${r.month}-${i}`} className="align-top">
-                          <td className="py-1 pr-3">
-                            <input
-                              type="month"
-                              aria-label={t("Month")}
-                              aria-invalid={fieldError(`production.${i}.month`) ? true : undefined}
-                              className={inputClass}
-                              value={r.month}
-                              onChange={(ev) => update("production", profile.production.map((x, j) => (j === i ? { ...x, month: ev.target.value } : x)))}
-                            />
-                          </td>
-                          <td className="py-1 pr-3">
-                            {text(t("Product"), r.product, (v) => update("production", profile.production.map((x, j) => (j === i ? { ...x, product: v } : x))), `production.${i}.product`)}
-                          </td>
-                          <td className="py-1 pr-3">
-                            <input
-                              type="number"
-                              min={0}
-                              step="any"
-                              aria-label={t("Tonnes")}
-                              aria-invalid={fieldError(`production.${i}.tonnes`) ? true : undefined}
-                              className={inputClass}
-                              value={r.tonnes}
-                              onChange={(ev) => update("production", profile.production.map((x, j) => (j === i ? { ...x, tonnes: ev.target.valueAsNumber } : x)))}
-                            />
-                            {fieldError(`production.${i}.tonnes`) && <span className="mt-1 block text-xs text-[#dc2626]">{fieldError(`production.${i}.tonnes`)}</span>}
-                          </td>
-                          <td className="py-1">{removeButton(t("Remove month {month}", { month: r.month }), () => update("production", profile.production.filter((_, j) => j !== i)))}</td>
-                        </tr>
-                      ))}
+                      {profile.production.map((r, i) => {
+                        const month = meta(`production.${i}.month`);
+                        const tonnes = meta(`production.${i}.tonnes`);
+                        return (
+                          <tr key={r.id} className="align-top">
+                            <td className="py-1 pr-3">
+                              <input
+                                type="month"
+                                aria-label={t("Month")}
+                                aria-invalid={month.invalid}
+                                aria-describedby={month.describedBy}
+                                className={inputClass}
+                                value={r.month}
+                                onChange={(ev) => {
+                                  clearFor(`production.${i}.month`);
+                                  patchProduction(r.id, { month: ev.target.value });
+                                }}
+                              />
+                              {month.node}
+                            </td>
+                            <td className="py-1 pr-3">
+                              {text(t("Product"), r.product, (v) => patchProduction(r.id, { product: v }), `production.${i}.product`)}
+                            </td>
+                            <td className="py-1 pr-3">
+                              <NumberInput
+                                ariaLabel={t("Tonnes")}
+                                min={0}
+                                value={r.tonnes}
+                                invalid={tonnes.invalid === true}
+                                ariaDescribedBy={tonnes.describedBy}
+                                onChange={(v) => {
+                                  clearFor(`production.${i}.tonnes`);
+                                  patchProduction(r.id, { tonnes: v ?? 0 });
+                                }}
+                              />
+                              {tonnes.node}
+                            </td>
+                            <td className="py-1">{removeButton(t("Remove month {month}", { month: r.month }), () => setProfile((p) => ({ ...p, production: p.production.filter((x) => x.id !== r.id) })))}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
               )}
             {mismatch !== null && mismatch > 0.05 && (
-              <p className="text-sm text-[#b45309]">
+              <p className="text-sm text-warn-text">
                 {t("Production here differs from the Products sheet by {pct} %.", { pct: Math.round(mismatch * 100) })}
               </p>
             )}
@@ -492,19 +608,21 @@ export function FactoryProfileView({
       </div>
 
       <div className="flex flex-wrap items-center gap-3 border-t border-black/[0.07] pt-4">
-        <Button onClick={save} disabled={saving}>
+        <Button onClick={save} disabled={saving || unreadable}>
           {saving ? t("Saving…") : t("Save factory profile")}
         </Button>
-        {saved && <span role="status" className="text-sm text-[#16a34a]">{t("Factory profile saved")}</span>}
-        {saveError && <span role="alert" className="text-sm text-[#dc2626]">{saveError}</span>}
+        {saved && <span role="status" className="text-sm text-ok-text">{t("Factory profile saved")}</span>}
+        {saveError && <span role="alert" className="text-sm text-err-text">{saveError}</span>}
       </div>
       {/* Every validator error, including those with no field to sit under (for example a
           row that is not an object), so nothing that blocks the save is silent. */}
       {errors.length > 0 && (
-        <ul role="alert" className="list-disc space-y-1 pl-5 text-sm text-[#dc2626]">
-          {errors.map((e) => (
-            <li key={e}>{errorText(t, e.slice(e.indexOf(": ") + 2))}</li>
-          ))}
+        <ul role="alert" className="list-disc space-y-1 pl-5 text-sm text-err-text">
+          {errors.map((e) => {
+            const message = errorText(t, e.slice(e.indexOf(": ") + 2));
+            const row = rowLabel(t, e);
+            return <li key={e}>{row ? t("{row}: {message}", { row, message }) : message}</li>;
+          })}
         </ul>
       )}
     </Card>
