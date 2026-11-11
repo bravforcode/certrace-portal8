@@ -134,31 +134,44 @@ export const admin = new Elysia({ prefix: "/api/admin" })
     "/users/:id/reject",
     async ({ account, params, body }) => {
       requireAdmin(account);
+      if (params.id === account.id)
+        fail(409, "SELF_REJECT", "You cannot reject your own account.");
+      // Trimmed here, not in the schema: "   ab  " passes a raw length check.
+      const reason = body.reason.trim();
+      if (reason.length < 3)
+        fail(422, "REASON_TOO_SHORT", "The reason must be at least 3 characters.");
       const user = await db.$transaction(async (tx) => {
-        const u = await tx.users
-          .update({
-            where: { id: params.id },
-            data: {
-              ready: false,
-              status: "SUSPENDED",
-              suspended_at: new Date(),
-              suspension_reason: body.reason,
-              updated_at: new Date(),
-            },
-          })
-          .catch(() => missing());
+        const previous = await tx.users.findUnique({ where: { id: params.id } });
+        if (!previous) return missing();
+        if (previous.is_admin)
+          fail(409, "ADMIN_TARGET", "Admin accounts cannot be rejected.");
+        // The status guard makes the claim atomic: a concurrent second reject
+        // updates zero rows, so it writes no audit row and sends no email.
+        const claimed = await tx.users.updateMany({
+          where: { id: params.id, status: { not: "SUSPENDED" } },
+          data: {
+            ready: false,
+            status: "SUSPENDED",
+            suspended_at: new Date(),
+            suspension_reason: reason,
+            updated_at: new Date(),
+          },
+        });
+        if (claimed.count === 0)
+          fail(409, "ALREADY_SUSPENDED", "This account is already suspended.");
+        const u = await tx.users.findUniqueOrThrow({ where: { id: params.id } });
         await tx.account_audit_events.create({
           data: {
             user_id: params.id,
             event: "ADMIN_REJECTED",
             actor: "ADMIN",
-            details: { adminUserId: account.id, reason: body.reason },
+            details: { adminUserId: account.id, reason },
           },
         });
         return u;
       });
       // Outside the transaction: a mail failure must not undo the rejection.
-      await notify(user, "account_rejected", { reason: body.reason }).catch((e: unknown) =>
+      await notify(user, "account_rejected", { reason }).catch((e: unknown) =>
         console.error(
           "rejection email failed",
           (e as { code?: string } | undefined)?.code,
@@ -168,7 +181,7 @@ export const admin = new Elysia({ prefix: "/api/admin" })
     },
     {
       params: t.Object({ id: t.String({ format: "uuid" }) }),
-      body: t.Object({ reason: t.String({ minLength: 3, maxLength: 500 }) }),
+      body: t.Object({ reason: t.String({ maxLength: 500 }) }),
       detail: { hide: true },
     },
   )
@@ -177,7 +190,12 @@ export const admin = new Elysia({ prefix: "/api/admin" })
     async ({ account, params, body }) => {
       requireAdmin(account);
       const user = await db.$transaction(async (tx) => {
-        const prev = (await tx.users.findUnique({ where: { id: params.id } })) ?? missing();
+        const prev = await tx.users.findUnique({ where: { id: params.id } });
+        if (!prev) return missing();
+        if (prev.approved_at === null)
+          fail(409, "NOT_APPROVED", "Approve the account before extending its trial.");
+        if (prev.plan_id !== "trial")
+          fail(409, "NOT_TRIAL", "Only accounts on the trial plan can be extended.");
         const u = await tx.users.update({
           where: { id: params.id },
           data: {

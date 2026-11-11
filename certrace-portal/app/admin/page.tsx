@@ -27,6 +27,7 @@ export default function AdminPage() {
   const [rejecting, setRejecting] = React.useState<AdminUser | null>(null);
   const [rejectReason, setRejectReason] = React.useState("");
   const [rejectError, setRejectError] = React.useState("");
+  const rejectTrigger = React.useRef<HTMLButtonElement | null>(null);
 
   const load = React.useCallback(
     async (query: string, after?: string) => {
@@ -73,6 +74,12 @@ export default function AdminPage() {
     }
   }
 
+  // Closing the dialog returns focus to the row button that opened it.
+  function closeReject() {
+    setRejecting(null);
+    rejectTrigger.current?.focus();
+  }
+
   async function extendTrial(user: AdminUser, days: number) {
     setSavingId(user.id);
     setError("");
@@ -104,8 +111,8 @@ export default function AdminPage() {
       setUsers((current) =>
         current.map((item) => (item.id === rejecting.id ? result.user : item)),
       );
-      setRejecting(null);
       setRejectReason("");
+      closeReject();
     } catch (cause) {
       setRejectError(
         cause instanceof Error ? cause.message : "Could not reject this user.",
@@ -238,7 +245,6 @@ export default function AdminPage() {
                             variant="secondary"
                             className="ml-2"
                             disabled={savingId === user.id}
-                            aria-label={`Extend trial for ${user.email} by 14 days`}
                             onClick={() => void extendTrial(user, 14)}
                           >
                             +14 days
@@ -250,7 +256,8 @@ export default function AdminPage() {
                             className="ml-2"
                             disabled={savingId === user.id || user.status === "SUSPENDED"}
                             aria-label={`Reject ${user.email}`}
-                            onClick={() => {
+                            onClick={(event) => {
+                              rejectTrigger.current = event.currentTarget;
                               setRejectError("");
                               setRejectReason("");
                               setRejecting(user);
@@ -287,7 +294,7 @@ export default function AdminPage() {
       </div>
       <Modal
         open={rejecting !== null}
-        onClose={() => setRejecting(null)}
+        onClose={closeReject}
         title="Reject account"
         lead={rejecting?.email}
         footer={
@@ -295,12 +302,14 @@ export default function AdminPage() {
             <Button
               type="button"
               variant="secondary"
-              onClick={() => setRejecting(null)}
+              disabled={savingId !== null}
+              onClick={closeReject}
             >
               Cancel
             </Button>
             <Button
               type="button"
+              variant="danger"
               disabled={savingId !== null}
               onClick={() => void submitReject()}
             >
@@ -314,6 +323,7 @@ export default function AdminPage() {
             className={inputClass}
             rows={3}
             maxLength={500}
+            autoFocus
             value={rejectReason}
             onChange={(event) => setRejectReason(event.target.value)}
           />
