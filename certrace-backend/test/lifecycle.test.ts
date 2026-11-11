@@ -71,6 +71,31 @@ describe("approval", () => {
     expect(rows).toHaveLength(1);
   });
 
+  // A rejected (suspended) account must not be re-approved: that would start a
+  // trial and mail "approved" to an account the admin just suspended.
+  test("approving a suspended account is refused and starts nothing", async () => {
+    const a = await account(false);
+    const boss = await admin();
+    await db.users.update({
+      where: { id: a.user.id },
+      data: { status: "SUSPENDED", suspended_at: new Date(), ready: false, approved_at: null },
+    });
+    const before = await db.users.findUniqueOrThrow({ where: { id: a.user.id } });
+    const r = await call(`/api/admin/users/${a.user.id}/ready`, "PUT", { ready: true }, boss.cookie);
+    expect(r.status).toBe(409);
+    expect((await r.json()).detail.code).toBe("ACCOUNT_SUSPENDED");
+    const after = await db.users.findUniqueOrThrow({ where: { id: a.user.id } });
+    expect(after.ready).toBe(false);
+    expect(after.approved_at).toBeNull();
+    expect(after.trial_started_at.toISOString()).toBe(before.trial_started_at.toISOString());
+    const mails = await db.email_deliveries.findMany({
+      where: { user_id: a.user.id, kind: "account_approved" },
+    });
+    expect(mails).toHaveLength(0);
+    const off = await call(`/api/admin/users/${a.user.id}/ready`, "PUT", { ready: false }, boss.cookie);
+    expect(off.status).toBe(200);
+  });
+
   // A failed approval mail must not undo the approval, and approving again
   // must retry the mail (the failed delivery row was removed).
   test("a failed approval mail is retried by approving again", async () => {
