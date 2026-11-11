@@ -4,17 +4,16 @@
    The maths lives in lib/factory/what-if.ts; this panel only holds the inputs and shows the results. */
 
 import * as React from "react";
-import { Button, Card, NumberInput, useFlash } from "@/components/ui";
+import { Button, Card, Field, NumberInput } from "@/components/ui";
 import { ErrorState, LoadingState } from "@/components/query-state";
 import { useT, useFormat } from "@/lib/i18n";
 import { getInstallation } from "@/lib/installations";
 import { useWorkbook } from "@/lib/workbook/use-workbook";
 import { estimateEmissions, type EmissionEstimate } from "@/lib/workbook/estimate";
-import { indirectIsChargeable } from "@/lib/cbam/engine";
 import type { Currency, CostEnv } from "@/lib/cbam/carbon-cost-model";
 import { useMoney } from "@/components/carbon-cost/money";
-import { compareWhatIf, goodsCategoryOfCn, scenarioOpportunity, type WhatIfInput } from "@/lib/factory/what-if";
-import { saveOpportunity, SAVE_FAILED } from "@/lib/factory/opportunity-store";
+import { compareWhatIf, scenarioOpportunity, type WhatIfInput } from "@/lib/factory/what-if";
+import { LIST_FULL, SAVE_FAILED, saveOpportunity } from "@/lib/factory/opportunity-store";
 
 /** The price used when the cost page has none for this year. */
 const FALLBACK_PRICE_EUR = 80;
@@ -79,53 +78,51 @@ function WhatIfForm({
   const { number } = useFormat();
   const money = useMoney(currency, env.rates);
   const eurMoney = useMoney("EUR", env.rates);
-  const category = goodsCategoryOfCn(productCn);
-  const [flashOn, flash] = useFlash(3000);
-  const [saveMsg, setSaveMsg] = React.useState<{ ok: boolean; text: string } | null>(null);
+  const [saveMsg, setSaveMsg] = React.useState<{ ok: boolean; key: string } | null>(null);
 
-  const [production, setProduction] = React.useState<number | undefined>(e.productionT);
+  // Undefined means the field was cleared. It is kept apart from 0 so a blank field is never priced as zero.
   const [exported, setExported] = React.useState<number | undefined>(e.productionT);
   const [price, setPrice] = React.useState<number | undefined>(publishedPrice ?? FALLBACK_PRICE_EUR);
   const [actuals, setActuals] = React.useState<Record<string, number | undefined>>({});
 
   // Today: the estimate as it stands, exporting all of its production at the published price.
   const base: WhatIfInput = {
-    productionT: e.productionT, exportedT: e.productionT, priceEur: publishedPrice ?? FALLBACK_PRICE_EUR,
-    category, productCn, year, precursorActual: {},
+    exportedT: e.productionT, priceEur: publishedPrice ?? FALLBACK_PRICE_EUR, productCn, year, precursorActual: {},
   };
-  const precursorActual = Object.fromEntries(
-    Object.entries(actuals).filter((entry): entry is [string, number] => entry[1] !== undefined),
-  );
   const next: WhatIfInput = {
-    productionT: production ?? 0,
-    exportedT: exported ?? 0,
-    priceEur: price ?? 0,
-    category, productCn, year, precursorActual,
+    exportedT: exported ?? null, priceEur: price ?? null, productCn, year, precursorActual: actuals,
   };
   const { base: today, next: scen, deltaEur, deltaT } = compareWhatIf(e, base, next);
-  const saving = -deltaEur;
-  const exportOver = (exported ?? 0) > (production ?? 0);
+  const saving = deltaEur === null ? null : -deltaEur;
+  const exportOver = exported !== undefined && Number.isFinite(exported) && exported > e.productionT;
+  const missing = exported === undefined || !Number.isFinite(exported) || price === undefined || !Number.isFinite(price);
   const noEstimate = e.productionT <= 0;
-  const indirectExcluded = category !== null && !indirectIsChargeable(category);
+  const saveDisabled = noEstimate || missing || exportOver || saving === null || saving <= 0;
 
   const onSave = async () => {
+    if (saving === null || deltaT === null) return;
     try {
       await saveOpportunity(
-        scenarioOpportunity({ installationId, year, input: next, savingEur: saving, savingT: -deltaT }),
+        scenarioOpportunity({ installationId, year, e, base, next, savingEur: saving, savingT: -deltaT }),
       );
-      setSaveMsg({ ok: true, text: "Saved to Opportunities." });
+      setSaveMsg({ ok: true, key: "Saved as opportunity." });
     } catch (err) {
-      setSaveMsg({ ok: false, text: err instanceof Error ? err.message : SAVE_FAILED });
+      setSaveMsg({ ok: false, key: err instanceof Error && err.message === LIST_FULL ? LIST_FULL : SAVE_FAILED });
     }
-    flash();
   };
+
+  const deltaText =
+    deltaEur === null ? "—" : `${deltaEur > 0 ? "+" : deltaEur < 0 ? "−" : "±"}${money.full(Math.abs(deltaEur))}`;
+  const deltaTone = deltaEur === null || deltaEur === 0 ? "text-black/60" : deltaEur < 0 ? "text-ok-text" : "text-err-text";
 
   return (
     <Card className="space-y-4">
       <div className="space-y-1">
         <h2 className="text-lg font-light text-black/80">{t("Simulate CBAM cost")}</h2>
         {productCn && <p className="text-xs text-black/50">{t("Product CN {cn}", { cn: productCn })}</p>}
-        {indirectExcluded && <p className="text-xs text-black/50">{t("Indirect emissions do not count for this good.")}</p>}
+        {e.indirectExcludedT > 0 && (
+          <p className="text-xs text-black/50">{t("Indirect emissions do not count for this good.")}</p>
+        )}
       </div>
 
       {noEstimate ? (
@@ -140,6 +137,8 @@ function WhatIfForm({
                 certificates={today.certificatesT}
                 cost={money.full(today.costEur)}
                 costEur={eurMoney.full(today.costEur)}
+                vsDefault={today.savingVsDefaultEur}
+                money={money}
                 t={t}
                 number={number}
               />
@@ -147,33 +146,31 @@ function WhatIfForm({
 
             <section aria-labelledby="whatif-scenario" className="space-y-3 rounded-md border border-black/10 p-3">
               <h3 id="whatif-scenario" className="text-sm font-medium text-black/70">{t("Scenario")}</h3>
-              <Field label={t("Production (t/year)")}>
-                <NumberInput value={production} onChange={setProduction} min={0} unit="t" ariaLabel={t("Production (t/year)")} />
-              </Field>
-              <Field label={t("Exported to the EU (t/year)")}>
-                <NumberInput
-                  value={exported}
-                  onChange={setExported}
-                  min={0}
-                  unit="t"
-                  invalid={exportOver}
-                  ariaLabel={t("Exported to the EU (t/year)")}
-                  ariaDescribedBy={exportOver ? "whatif-exported-error" : undefined}
-                />
+              <div>
+                <Field label={t("Exported to the EU (t/year)")} hint={t("Production is {n} t a year; exports cannot exceed it.", { n: number(e.productionT) })}>
+                  <NumberInput
+                    value={exported}
+                    onChange={setExported}
+                    min={0}
+                    unit="t"
+                    invalid={exportOver}
+                    ariaDescribedBy={exportOver ? "whatif-exported-error" : undefined}
+                  />
+                </Field>
                 {exportOver && (
-                  <p id="whatif-exported-error" className="text-xs text-err-text">
+                  <p id="whatif-exported-error" className="mt-1 text-xs text-err-text">
                     {t("Exported tonnes cannot exceed production.")}
                   </p>
                 )}
-              </Field>
+              </div>
               <Field
                 label={t("Certificate price (EUR/t CO₂)")}
                 hint={publishedPrice === null ? t("Typical EU ETS price; replace with your own") : undefined}
               >
-                <NumberInput value={price} onChange={setPrice} min={0} unit="€" ariaLabel={t("Certificate price (EUR/t CO₂)")} />
+                <NumberInput value={price} onChange={setPrice} min={0} unit="€" />
               </Field>
               {e.precursors.length > 0 && (
-                <fieldset className="space-y-2">
+                <fieldset className="space-y-3">
                   <legend className="text-xs text-black/60">{t("Supplier actual (t CO₂e/t)")}</legend>
                   <p className="text-xs text-black/50">{t("Blank uses the default.")}</p>
                   {e.precursors.map((p) => (
@@ -185,39 +182,35 @@ function WhatIfForm({
                         value={actuals[p.key]}
                         onChange={(v) => setActuals((a) => ({ ...a, [p.key]: v }))}
                         min={0}
-                        ariaLabel={`${p.item || p.cn}: ${t("Supplier actual (t CO₂e/t)")}`}
                       />
                     </Field>
                   ))}
                 </fieldset>
               )}
+              {missing && <p className="text-xs text-warn-text">{t("Fill in the exported tonnes and price to see the cost.")}</p>}
               <Result
                 perTonne={scen.chargeablePerTonne}
                 certificates={scen.certificatesT}
                 cost={money.full(scen.costEur)}
                 costEur={eurMoney.full(scen.costEur)}
+                vsDefault={scen.savingVsDefaultEur}
+                money={money}
                 t={t}
                 number={number}
               />
-              <p className="text-sm" role="status">
-                {deltaEur === 0 ? (
-                  t("Scenario leaves cost unchanged")
-                ) : deltaEur < 0 ? (
-                  <span className="text-ok-text">{t("Scenario lowers cost by {amount}", { amount: money.full(-deltaEur) })}</span>
-                ) : (
-                  <span className="text-err-text">{t("Scenario raises cost by {amount}", { amount: money.full(deltaEur) })}</span>
-                )}
+              <p className={`text-sm ${deltaTone}`} role="status">
+                {t("Scenario changes cost by {amount}", { amount: deltaText })}
               </p>
             </section>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <Button onClick={() => void onSave()} disabled={saving <= 0 || exportOver}>
-              {t("Save to Opportunities")}
+            <Button onClick={() => void onSave()} disabled={saveDisabled}>
+              {t("Save as opportunity")}
             </Button>
-            {flashOn && saveMsg && (
+            {saveMsg && (
               <p role={saveMsg.ok ? "status" : "alert"} className={saveMsg.ok ? "text-sm text-ok-text" : "text-sm text-err-text"}>
-                {saveMsg.ok ? t(saveMsg.text) : saveMsg.text}
+                {t(saveMsg.key)}
               </p>
             )}
           </div>
@@ -232,32 +225,32 @@ function WhatIfForm({
   );
 }
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-1">
-      <span className="block text-xs text-black/60">{label}</span>
-      {children}
-      {hint && <p className="text-xs text-black/50">{hint}</p>}
-    </div>
-  );
-}
-
 function Result({
   perTonne,
   certificates,
   cost,
   costEur,
+  vsDefault,
+  money,
   t,
   number,
 }: {
   perTonne: number;
-  certificates: number;
+  certificates: number | null;
   cost: string;
   costEur: string;
+  vsDefault: number | null;
+  money: ReturnType<typeof useMoney>;
   t: ReturnType<typeof useT>;
   number: ReturnType<typeof useFormat>["number"];
 }) {
-  const fmt = (v: number) => number(v, { maximumFractionDigits: 2 });
+  const fmt = (v: number | null) => (v === null ? "—" : number(v, { maximumFractionDigits: 2 }));
+  const vs =
+    vsDefault === null
+      ? "—"
+      : vsDefault >= 0
+        ? t("Saves {amount} against default values", { amount: money.full(vsDefault) })
+        : t("Costs {amount} more than default values", { amount: money.full(-vsDefault) });
   return (
     <dl className="grid grid-cols-2 gap-2 text-sm">
       <dt className="text-black/60">{t("Chargeable (t CO₂e per t)")}</dt>
@@ -269,6 +262,8 @@ function Result({
         {cost}
         <span className="block text-xs font-normal text-black/50">{costEur}</span>
       </dd>
+      <dt className="text-black/60">{t("vs default values")}</dt>
+      <dd className="text-right">{vs}</dd>
     </dl>
   );
 }

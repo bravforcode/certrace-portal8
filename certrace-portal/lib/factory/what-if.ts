@@ -1,19 +1,24 @@
-import { aggregatedGoodsCategory, type AggregatedGoodsCategory } from "../config";
-import { indirectIsChargeable, type GoodsCategory } from "../cbam/engine";
 import { defaultFor } from "../cbam/precursor-basis";
 import type { EmissionEstimate } from "../workbook/estimate";
 import type { Derived } from "./opportunities";
 
+/* A null value means the input is missing or not a number yet. It is never coerced to 0: a cleared field shows as "—". */
 export type WhatIfInput = {
-  productionT: number; exportedT: number; priceEur: number;
-  /** null when no product CN is entered yet: indirect emissions then count, as the estimate does */
-  category: GoodsCategory | null; productCn: string; year: number;
+  exportedT: number | null;
+  priceEur: number | null;
+  productCn: string;
+  year: number;
   /** precursorActual[line.key] = the supplier's actual SEE in tCO₂e/t */
-  precursorActual: Record<string, number>;
+  precursorActual: Record<string, number | null | undefined>;
 };
 export type WhatIfResult = {
-  perTonne: number; chargeablePerTonne: number; certificatesT: number; costEur: number;
-  defaultPerTonne: number | null; defaultCostEur: number | null; savingVsDefaultEur: number | null;
+  perTonne: number;
+  chargeablePerTonne: number;
+  certificatesT: number | null;
+  costEur: number | null;
+  defaultPerTonne: number | null;
+  defaultCostEur: number | null;
+  savingVsDefaultEur: number | null;
 };
 
 const ZERO: WhatIfResult = {
@@ -21,86 +26,74 @@ const ZERO: WhatIfResult = {
   defaultPerTonne: null, defaultCostEur: null, savingVsDefaultEur: null,
 };
 
+const finite = (v: number | null | undefined): v is number => v !== null && v !== undefined && Number.isFinite(v);
+
+/* Direct and indirect intensities come from the estimate. Indirect is already gated there (indirectT is 0 for direct-only goods). */
 export function whatIf(e: EmissionEstimate, input: WhatIfInput): WhatIfResult {
   if (e.productionT <= 0) return ZERO;
-  const price = Number.isFinite(input.priceEur) ? input.priceEur : 0;
   const direct = e.directT / e.productionT;
   const indirect = e.indirectT / e.productionT;
-  const precursor = e.precursors.reduce(
-    (sum, p) => sum + (p.tonnes / e.productionT) * (input.precursorActual[p.key] ?? p.defaultSee),
-    0,
-  );
-  const indirectCounts = input.category === null || indirectIsChargeable(input.category);
-  const chargeablePerTonne = direct + precursor + (indirectCounts ? indirect : 0);
-  const exportedT = Math.max(0, Math.min(input.exportedT, input.productionT));
-  const certificatesT = chargeablePerTonne * exportedT;
-  const costEur = certificatesT * price;
+  const precursor = e.precursors.reduce((sum, p) => {
+    const actual = input.precursorActual[p.key];
+    const see = finite(actual) ? Math.max(0, actual) : p.defaultSee;
+    return sum + (p.tonnes / e.productionT) * see;
+  }, 0);
+  const chargeablePerTonne = direct + precursor + indirect;
+  const perTonne = direct + indirect + precursor;
   const d = input.productCn ? defaultFor(input.productCn, undefined, input.year) : null;
-  const defaultCostEur = d ? d.total * exportedT * price : null;
+
+  const exportedT = finite(input.exportedT) ? Math.max(0, Math.min(input.exportedT, e.productionT)) : null;
+  const certificatesT = exportedT === null ? null : chargeablePerTonne * exportedT;
+  const price = finite(input.priceEur) ? Math.max(0, input.priceEur) : null;
+  const costEur = certificatesT === null || price === null ? null : certificatesT * price;
+
+  const defaultCostEur = d && exportedT !== null && price !== null ? d.total * exportedT * price : null;
   return {
-    perTonne: direct + indirect + precursor,
-    chargeablePerTonne, certificatesT, costEur,
+    perTonne,
+    chargeablePerTonne,
+    certificatesT,
+    costEur,
     defaultPerTonne: d?.total ?? null,
     defaultCostEur,
-    savingVsDefaultEur: defaultCostEur === null ? null : defaultCostEur - costEur,
+    savingVsDefaultEur: defaultCostEur === null || costEur === null ? null : defaultCostEur - costEur,
   };
 }
 
 export function compareWhatIf(e: EmissionEstimate, base: WhatIfInput, next: WhatIfInput) {
   const a = whatIf(e, base), b = whatIf(e, next);
-  return { base: a, next: b, deltaEur: b.costEur - a.costEur, deltaT: b.certificatesT - a.certificatesT };
+  const deltaEur = a.costEur === null || b.costEur === null ? null : b.costEur - a.costEur;
+  const deltaT = a.certificatesT === null || b.certificatesT === null ? null : b.certificatesT - a.certificatesT;
+  return { base: a, next: b, deltaEur, deltaT };
 }
 
-/* Goods category of a catalogue group. Aluminium and steel groups map to the engine's coarse categories. */
-const GOODS_OF: Record<AggregatedGoodsCategory, GoodsCategory> = {
-  "Sintered ore": "Iron & Steel",
-  "Pig iron": "Iron & Steel",
-  "Ferro-alloys": "Iron & Steel",
-  "Direct reduced iron": "Iron & Steel",
-  "Crude steel": "Iron & Steel",
-  "Iron or steel products": "Iron & Steel",
-  "Unwrought aluminium": "Aluminium",
-  "Aluminium products": "Aluminium",
-  "Calcined clay": "Cement",
-  "Cement clinker": "Cement",
-  Cement: "Cement",
-  "Aluminous cement": "Cement",
-  Hydrogen: "Hydrogen",
-  Ammonia: "Fertilisers",
-  "Nitric acid": "Fertilisers",
-  Urea: "Fertilisers",
-  "Mixed fertilisers": "Fertilisers",
-};
+/* The card's key is per installation and year: saving again overwrites the card with the latest scenario. */
+export const scenarioKey = (installationId: string, year: number) => `what-if:${installationId}:${year}`;
 
-/* Null when the CN is not on the goods list, or when the steel and aluminium fallbacks disagree: the
-   same rule the estimate uses, so an unknown CN is treated as unknown rather than guessed. */
-export function goodsCategoryOfCn(cn: string): GoodsCategory | null {
-  if (!cn.replace(/\D/g, "")) return null;
-  const asAluminium = aggregatedGoodsCategory({ cnCode: cn, category: "Aluminium" });
-  const asSteel = aggregatedGoodsCategory({ cnCode: cn, category: "Iron & Steel" });
-  if (asAluminium !== asSteel) return null;
-  return GOODS_OF[asSteel] ?? null;
-}
-
-/* A stable id for a scenario: the same inputs always give the same id, so saving it again updates its card. */
-export function scenarioId(input: WhatIfInput): string {
-  const overrides = Object.entries(input.precursorActual).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-  return [input.productionT, input.exportedT, input.priceEur, ...overrides.map(([k, v]) => `${k}=${v}`)].join("|");
+/* Short English list of the inputs that differ from today, stored as the card's detail. */
+export function changedInputs(e: EmissionEstimate, base: WhatIfInput, next: WhatIfInput): string {
+  const parts: string[] = [];
+  if (base.exportedT !== next.exportedT) parts.push(`exported ${base.exportedT ?? "—"} → ${next.exportedT ?? "—"} t`);
+  if (base.priceEur !== next.priceEur) parts.push(`price ${base.priceEur ?? "—"} → ${next.priceEur ?? "—"} EUR/t`);
+  for (const p of e.precursors) {
+    const actual = next.precursorActual[p.key];
+    if (finite(actual)) parts.push(`${p.item || p.cn} actual ${actual} (default ${p.defaultSee})`);
+  }
+  return parts.length > 0 ? parts.join("; ") : "No inputs changed";
 }
 
 /* The opportunity card for a saved scenario. The saving is against today's inputs, so a positive number means money saved. */
 export function scenarioOpportunity(a: {
-  installationId: string; year: number; input: WhatIfInput; savingEur: number; savingT: number;
+  installationId: string; year: number; e: EmissionEstimate; base: WhatIfInput; next: WhatIfInput; savingEur: number; savingT: number;
 }): Derived {
   const eur = Math.round(a.savingEur);
   return {
-    key: `what-if:${a.installationId}:${a.year}:${scenarioId(a.input)}`,
+    key: scenarioKey(a.installationId, a.year),
     installationId: a.installationId,
     year: a.year,
     source: "what-if",
     title: `Scenario saves €${eur} a year`,
     text: { key: "Scenario saves €{eur} a year", params: { eur: String(eur) } },
-    detail: "What-if scenario",
+    detail: changedInputs(a.e, a.base, a.next),
     impactEur: a.savingEur,
     impactT: a.savingT,
     href: "/dashboard",
