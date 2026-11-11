@@ -25,6 +25,8 @@ import {
 import { sheetsFromCells } from "./cells";
 import { clearBatches, pendingFor } from "./save-queue";
 import { SaveRunner } from "./save-runner";
+import { createSyncQueue, type SyncResult } from "./sync-queue";
+import type { CellPatch } from "./flow-edit";
 import type { Sheet, WorkspaceFile } from "../workspace-sheets";
 
 /** How long the set-up takes after Confirm. */
@@ -269,6 +271,24 @@ export function useWorkbook(installationId: string | null, year: number) {
     [installationId, year],
   );
 
+  // Diagram patches for this installation and year, one at a time. Keyed on the target so a
+  // queue never sends a patch to a year or installation other than the one it was built for.
+  const patches = React.useMemo(
+    () =>
+      installationId
+        ? createSyncQueue(async (patch: CellPatch) => {
+            runner.flush(); // typed edits first, so a diagram patch never overtakes them
+            const next = await patchWorkbookCells(installationId, year, patch);
+            queryClient?.setQueryData(["workbook", installationId, year], next);
+          })
+        : null,
+    [installationId, year],
+  );
+  const savePatch = React.useCallback(
+    (patch: CellPatch): Promise<SyncResult> => (patches ? patches.enqueue(patch) : Promise.resolve("failed")),
+    [patches],
+  );
+
   // Anything still typed is sent when the page is left.
   React.useEffect(() => () => runner.flush(), []);
 
@@ -303,6 +323,7 @@ export function useWorkbook(installationId: string | null, year: number) {
     editors: data?.editors ?? {},
     revision: data?.revision,
     saveEdit,
+    savePatch,
     pending: pendingN,
   };
 }
