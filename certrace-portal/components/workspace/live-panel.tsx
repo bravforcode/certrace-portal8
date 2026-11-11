@@ -17,10 +17,20 @@
 import * as React from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Card, Progress, cn } from "@/components/ui";
+import { TONE_HEX } from "@/components/insight/kit";
 import { useLanguage } from "@/lib/i18n";
-import { SHEET_ORDER, STATUS_LABEL, missingCells, sheetStatus, type SheetStatus } from "@/lib/workbook/status";
+import {
+  SHEET_ORDER,
+  STATUS_LABEL,
+  installationGaps,
+  installationSheetStatus,
+  missingCells,
+  sheetStatus,
+  type SheetStatus,
+} from "@/lib/workbook/status";
 import { massBalance } from "@/lib/workbook/balance";
-import { estimateEmissions } from "@/lib/workbook/estimate";
+import { estimateEmissions, type Note } from "@/lib/workbook/estimate";
+import type { Installation } from "@/lib/installations";
 import type { Sheet } from "@/lib/workspace-sheets";
 
 const PANEL_KEY = "certrace:live-panel";
@@ -54,11 +64,13 @@ const fmt = (n: number, digits = 1) => n.toLocaleString("en-US", { maximumFracti
 
 export function LivePanel({
   sheets,
+  installation,
   country,
   year,
   onOpenSheet,
 }: {
   sheets: Sheet[];
+  installation: Installation | null;
   country: string;
   year: number;
   onOpenSheet: (id: string) => void;
@@ -75,20 +87,27 @@ export function LivePanel({
   }, []);
 
   const toggle = () => {
-    setOpen((o) => {
-      writeStored(PANEL_KEY, o ? "closed" : "open");
-      return !o;
-    });
+    const next = !open;
+    setOpen(next);
+    writeStored(PANEL_KEY, next ? "open" : "closed");
   };
 
-  const completeness = React.useMemo(
-    () =>
-      SHEET_ORDER.filter((id) => id !== "installation")
-        .map((id) => sheets.find((s) => s.id === id))
-        .filter((s): s is Sheet => !!s)
-        .map((sheet) => ({ sheet, status: sheetStatus(sheet), gaps: missingCells(sheet).length })),
-    [sheets],
-  );
+  const completeness = React.useMemo(() => {
+    const rows = [
+      {
+        id: "installation",
+        name: "Installation",
+        status: installationSheetStatus(installation),
+        gaps: installation ? installationGaps(installation) : 0,
+      },
+    ];
+    for (const id of SHEET_ORDER) {
+      if (id === "installation") continue;
+      const sheet = sheets.find((s) => s.id === id);
+      if (sheet) rows.push({ id, name: sheet.name, status: sheetStatus(sheet), gaps: missingCells(sheet).length });
+    }
+    return rows;
+  }, [sheets, installation]);
   const doneCount = completeness.filter((l) => l.status === "complete").length;
 
   const balance = React.useMemo(() => massBalance(sheets, tolerance), [sheets, tolerance]);
@@ -96,6 +115,7 @@ export function LivePanel({
 
   const est = React.useMemo(() => estimateEmissions(sheets, { country, year }), [sheets, country, year]);
   const shares = est.totalT > 0 ? { direct: est.directT / est.totalT, indirect: est.indirectT / est.totalT, precursor: est.precursorT / est.totalT } : null;
+  const translate = (n: Note) => t(n.key, n.params);
 
   return (
     <aside aria-label={t("Live check")} className="flex min-w-0 flex-col gap-3">
@@ -124,17 +144,21 @@ export function LivePanel({
             <Progress value={completeness.length ? (doneCount / completeness.length) * 100 : 0} tone="ok" />
           </div>
           <ul className="mt-3 flex flex-col gap-1">
-            {completeness.map(({ sheet, status, gaps }) => (
-              <li key={sheet.id}>
+            {completeness.map(({ id, name, status, gaps }) => (
+              <li key={id}>
                 <button
                   type="button"
-                  onClick={() => onOpenSheet(sheet.id)}
+                  onClick={() => onOpenSheet(id)}
                   className="flex w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-[12.5px] text-black/75 hover:bg-black/[0.03]"
                 >
                   <span aria-hidden className={cn("inline-block h-2 w-2 flex-none rounded-full", DOT[status])} />
-                  <span className="flex-1 truncate">{t(sheet.name)}</span>
+                  <span className="flex-1 truncate">{t(name)}</span>
                   <span className={cn("whitespace-nowrap text-[11.5px]", status === "missing" ? "text-err-text" : "text-black/45")}>
-                    {status === "missing" ? t("{n} rows missing data", { n: gaps }) : t(STATUS_LABEL[status])}
+                    {status === "missing"
+                      ? id === "installation"
+                        ? t("{n} missing fields", { n: gaps })
+                        : t("{n} rows missing data", { n: gaps })
+                      : t(STATUS_LABEL[status])}
                   </span>
                 </button>
               </li>
@@ -202,7 +226,7 @@ export function LivePanel({
           )}
           {ignored > 0 && (
             <p className="mt-2 text-[11.5px] text-black/45">
-              {t("{n} rows use non-mass units and are not counted.", { n: ignored })}
+              {t("{n} rows not counted (unit or number)", { n: ignored })}
             </p>
           )}
         </Card>
@@ -218,37 +242,37 @@ export function LivePanel({
           </p>
           <p className="text-[12px] text-black/50">
             {est.perTonne !== null
-              ? `${fmt(est.perTonne, 3)} ${t("tCO₂e per tonne of product")}`
+              ? t("{value} tCO₂e per tonne of product", { value: fmt(est.perTonne, 3) })
               : t("Add product quantities to see per tonne")}
           </p>
 
-          <div className="mt-3 flex h-2 w-full overflow-hidden rounded-full bg-black/[0.07]" role="img" aria-label={t("Embedded emissions (estimate)")}>
+          <div aria-hidden className="mt-3 flex h-2 w-full overflow-hidden rounded-full bg-black/[0.07]">
             {shares && (
               <>
-                <span className="h-full bg-ok-accent" style={{ width: `${shares.direct * 100}%` }} />
-                <span className="h-full bg-info" style={{ width: `${shares.indirect * 100}%` }} />
-                <span className="h-full bg-warn" style={{ width: `${shares.precursor * 100}%` }} />
+                <span className="h-full" style={{ width: `${shares.direct * 100}%`, background: TONE_HEX.ok }} />
+                <span className="h-full" style={{ width: `${shares.indirect * 100}%`, background: TONE_HEX.info }} />
+                <span className="h-full" style={{ width: `${shares.precursor * 100}%`, background: TONE_HEX.warn }} />
               </>
             )}
           </div>
           <dl className="mt-2 grid grid-cols-3 gap-2 text-[11.5px] text-black/60">
             <div>
               <dt className="flex items-center gap-1">
-                <span aria-hidden className="inline-block h-2 w-2 rounded-full bg-ok-accent" />
+                <span aria-hidden className="inline-block h-2 w-2 rounded-full" style={{ background: TONE_HEX.ok }} />
                 {t("Direct")}
               </dt>
               <dd className="tabular-nums text-black/85">{fmt(est.directT)}</dd>
             </div>
             <div>
               <dt className="flex items-center gap-1">
-                <span aria-hidden className="inline-block h-2 w-2 rounded-full bg-info" />
+                <span aria-hidden className="inline-block h-2 w-2 rounded-full" style={{ background: TONE_HEX.info }} />
                 {t("Indirect")}
               </dt>
               <dd className="tabular-nums text-black/85">{fmt(est.indirectT)}</dd>
             </div>
             <div>
               <dt className="flex items-center gap-1">
-                <span aria-hidden className="inline-block h-2 w-2 rounded-full bg-warn" />
+                <span aria-hidden className="inline-block h-2 w-2 rounded-full" style={{ background: TONE_HEX.warn }} />
                 {t("Precursors")}
               </dt>
               <dd className="tabular-nums text-black/85">{fmt(est.precursorT)}</dd>
@@ -260,8 +284,15 @@ export function LivePanel({
               {t("Precursors use the EU default for unknown origin")}
             </p>
           )}
+          {est.notes.map((n) => (
+            <p key={n.key + JSON.stringify(n.params)} className="mt-2 text-[11.5px] text-black/55">
+              {translate(n)}
+            </p>
+          ))}
           {est.unmatched.length > 0 && (
-            <p className="mt-2 text-[11.5px] text-warn-text">{t("Not counted: {items}", { items: est.unmatched.join(", ") })}</p>
+            <p className="mt-2 text-[11.5px] text-warn-text">
+              {t("Not counted: {items}", { items: est.unmatched.map(translate).join(", ") })}
+            </p>
           )}
           <p className="mt-3 border-t border-black/[0.06] pt-2 text-[11px] text-black/45">
             {t("EU default factors. Not a declaration figure.")} {t("Process emissions not included.")}

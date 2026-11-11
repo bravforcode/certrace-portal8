@@ -454,7 +454,7 @@ export function Spreadsheet({
         </div>
       </div>
       {!empty && (
-        <LivePanel sheets={sheets} country={installation?.country ?? ""} year={year} onOpenSheet={showLive} />
+        <LivePanel sheets={sheets} installation={installation} country={installation?.country ?? ""} year={year} onOpenSheet={showLive} />
       )}
     </div>
   );
