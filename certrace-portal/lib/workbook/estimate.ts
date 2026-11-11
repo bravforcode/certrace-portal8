@@ -37,7 +37,7 @@ function fuelUnit(unit: string): MonthlyFuelUnit | null {
 /* Whether a product's CN counts indirect (electricity) emissions. Null when the CN is not on the CBAM
    goods list: aggregatedGoodsCategory falls back to a sector default for those, so the two category
    fallbacks disagree and the CN is treated as unknown rather than guessed. */
-function indirectGate(cn: string): boolean | null {
+export function indirectGate(cn: string): boolean | null {
   if (!cn.replace(/\D/g, "")) return null;
   const asAluminium = aggregatedGoodsCategory({ cnCode: cn, category: "Aluminium" });
   const asSteel = aggregatedGoodsCategory({ cnCode: cn, category: "Iron & Steel" });
