@@ -4,7 +4,7 @@ import { config } from "../../lib/config";
 import { missing, fail } from "../../lib/errors";
 import { companySession } from "../team/workspace";
 import { ownedDeclaration } from "../declarations/service";
-import { liveLink } from "../links/service";
+import { liveLink, liveWritableLink } from "../links/service";
 import { allowed, safeName, readUpload, metadata, download } from "./service";
 import { cleanupFileObject, saveFileContent } from "./storage";
 const query = t.Object({
@@ -23,7 +23,7 @@ export const publicFiles = new Elysia({ prefix: "/api/v1" })
     "/links/:token/files",
     async ({ params, request, query, set }) => {
       const upload = await readUpload(request);
-      const owner = await liveLink(params.token);
+      const owner = await liveWritableLink(params.token);
       const row = await saveFileContent(
         owner.user_id,
         upload.data,
@@ -31,7 +31,7 @@ export const publicFiles = new Elysia({ prefix: "/api/v1" })
         (content) =>
           db.$transaction(async (tx) => {
             await tx.$queryRaw`SELECT token FROM smart_links WHERE token=${params.token} FOR UPDATE`;
-            const link = await liveLink(params.token, tx);
+            const link = await liveWritableLink(params.token, tx);
             const usage = await tx.uploaded_files.aggregate({
               where: { uploaded_via_token: link.token },
               _count: true,

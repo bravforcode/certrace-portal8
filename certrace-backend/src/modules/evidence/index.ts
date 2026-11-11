@@ -4,7 +4,7 @@ import { companySession } from "../team/workspace";
 import { fail } from "../../lib/errors";
 import { rateLimit } from "../../lib/security";
 import { readUpload } from "../files/service";
-import { liveLink } from "../links/service";
+import { liveLink, liveWritableLink } from "../links/service";
 
 const extractionStatus = () => ({
   available: Boolean(process.env.ANTHROPIC_API_KEY?.trim()),
@@ -91,7 +91,7 @@ export const publicEvidence = new Elysia({
   .post(
     "/extract",
     async ({ params, request }) => {
-      const link = await liveLink(params.token);
+      const link = await liveWritableLink(params.token);
       return extractDocument(link.user_id, request);
     },
     { parse: "none", response: t.Object({ text: t.String() }) },
