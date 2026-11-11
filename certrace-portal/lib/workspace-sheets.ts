@@ -2,7 +2,8 @@
    WORKSPACE SHEETS — the sheet definitions of a reporting year
 
    The tabs along the bottom of the workspace: the installation, the documents
-   the exporter uploaded, then 01–08 and a production diagram. Each sheet is
+   the exporter uploaded, then 01–08. The production flow is a view of these
+   sheets (Table | Flow in the workspace), not a sheet of its own. Each sheet is
    columns and rows; a row carries a status (to review, confirmed, missing
    data) and may flag single cells. The rows come from the shared server
    workbook (lib/workbook/cells.ts), never from sample data: a new year is
@@ -56,7 +57,6 @@ const method = col("method", "Method", "method", W.method);
 const qty = col("qty", "Quantity", "number", W.qty);
 const unit = col("unit", "Unit", "unit", W.unit);
 
-export const PRODUCTION_DIAGRAM_ID = "diagram";
 export const INSTALLATION_SHEET_ID = "installation";
 
 /** Rows a sheet starts with; cells.ts pads every sheet to at least this many. */

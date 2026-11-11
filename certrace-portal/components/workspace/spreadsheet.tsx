@@ -18,11 +18,13 @@
    ════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Check, CircleMinus, Eye, FileText, Search, X } from "lucide-react";
 import { cn } from "@/components/ui";
 import { useLanguage, type TFunction } from "@/lib/i18n";
 import { TH_WORKSPACE } from "@/lib/i18n-th-workspace";
 import { InstallationSheet } from "@/components/workspace/installation-sheet";
+import { FlowDiagram } from "@/components/workspace/flow-diagram";
 import type { Installation } from "@/lib/installations";
 import {
   SHEET_ORDER,
@@ -39,7 +41,6 @@ import { CELL_MAX } from "@/lib/workbook/save-queue";
 import {
   INSTALLATION_SHEET_ID,
   NO_FILE,
-  PRODUCTION_DIAGRAM_ID,
   issuesOf,
   letter,
   type Sheet,
@@ -93,6 +94,18 @@ export function Spreadsheet({
   const t = useSheetT();
   const team = useTeam().data;
   const [tab, setTab] = React.useState<string>("materials");
+  // "Table" or "Flow", kept in ?view=flow so a reload or a shared link opens the same view.
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const view: "table" | "flow" = params.get("view") === "flow" ? "flow" : "table";
+  const setView = (v: "table" | "flow") => {
+    const next = new URLSearchParams(params.toString());
+    if (v === "flow") next.set("view", "flow");
+    else next.delete("view");
+    const qs = next.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  };
   const [sel, setSel] = React.useState<{ r: number; c: number }>({ r: 0, c: 2 });
   const [editing, setEditing] = React.useState<string | null>(null);
   const [query, setQuery] = React.useState("");
@@ -104,18 +117,13 @@ export function Spreadsheet({
     const i = SHEET_ORDER.indexOf(id);
     return i < 0 ? SHEET_ORDER.length : i;
   };
-  // Installation first, then the production diagram, then the sheets in material-flow order.
+  // Installation first, then the sheets in material-flow order.
   const tabOrder = (list: Sheet[]): Sheet[] => {
     const sorted = [...list].sort((a, b) => orderOf(a.id) - orderOf(b.id));
-    const diagram = { id: PRODUCTION_DIAGRAM_ID, code: "", name: "Production diagram", cols: [], rows: [] } as Sheet;
-    return [
-      ...sorted.filter((s) => s.id === INSTALLATION_SHEET_ID),
-      diagram,
-      ...sorted.filter((s) => s.id !== INSTALLATION_SHEET_ID),
-    ];
+    return [...sorted.filter((s) => s.id === INSTALLATION_SHEET_ID), ...sorted.filter((s) => s.id !== INSTALLATION_SHEET_ID)];
   };
   const sheet = sheets.find((s) => s.id === tab);
-  const isDiagram = tab === PRODUCTION_DIAGRAM_ID;
+  const isFlow = view === "flow" && !empty;
   const installStatus = installationSheetStatus(installation);
   const installIssues = installation && installStatus === "missing" ? installationGaps(installation) : 0;
   const cols = sheet?.cols ?? [];
@@ -184,13 +192,31 @@ export function Spreadsheet({
       {/* ── Formula bar ─────────────────────────────── */}
       <div className="flex min-h-[36px] flex-wrap items-stretch border-b border-black/[0.08]">
         <div className="flex w-[76px] flex-none items-center justify-center border-r border-black/[0.08] font-mono text-[12px] text-black/75">
-          {empty || isDiagram ? "" : ref}
+          {empty || isFlow ? "" : ref}
         </div>
         <div className="flex min-w-0 flex-1 items-center gap-2.5 px-3">
           <span className="font-serif text-[12px] italic text-black/35">fx</span>
           <span className="truncate text-[12.5px] text-black/80">{selValue}</span>
         </div>
-        {!empty && !isDiagram && (
+        {!empty && (
+          <div role="group" aria-label={t("View")} className="my-1 ml-2 flex flex-none items-center self-center rounded-md bg-[#f0efea] p-0.5 text-[12px]">
+            {(["table", "flow"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                aria-pressed={view === v}
+                onClick={() => setView(v)}
+                className={cn(
+                  "rounded px-2.5 py-1 transition-colors",
+                  view === v ? "bg-white font-medium text-[#111] shadow-[0_1px_2px_rgba(0,0,0,0.06)]" : "text-black/55 hover:text-black",
+                )}
+              >
+                {v === "table" ? t("Table") : t("Flow")}
+              </button>
+            ))}
+          </div>
+        )}
+        {!empty && !isFlow && (
           <div className="flex items-center gap-3 border-l border-black/[0.08] px-2.5 py-1">
             <span
               aria-live="polite"
@@ -237,13 +263,17 @@ export function Spreadsheet({
       </div>
 
       {/* ── Grid ────────────────────────────────────── */}
-      {isDiagram ? (
-        <div className="grid min-h-[420px] place-items-center bg-[#fafaf8] px-6 text-center">
-          <div>
-            <p className="text-[14px] text-black/55">{t("Production diagram")}</p>
-            <p className="mt-1 text-[12.5px] text-black/35">{t("Coming soon.")}</p>
-          </div>
-        </div>
+      {isFlow ? (
+        <FlowDiagram
+          sheets={sheets}
+          t={t}
+          onOpenSheet={(id) => {
+            setView("table");
+            setTab(id);
+            setSel({ r: 0, c: 0 });
+            setEditing(null);
+          }}
+        />
       ) : tab === INSTALLATION_SHEET_ID ? (
         <InstallationSheet key={installation?.id ?? ""} installation={installation} onSave={onInstallationSave} />
       ) : (
@@ -356,13 +386,14 @@ export function Spreadsheet({
           const on = tab === s.id;
           const full = sheets.find((x) => x.id === s.id);
           const n = !full || empty ? 0 : q ? matchCount(full) : issuesOf(full);
-          const dot = full && !empty && s.id !== INSTALLATION_SHEET_ID && s.id !== PRODUCTION_DIAGRAM_ID ? sheetStatus(full) : null;
+          const dot = full && !empty && s.id !== INSTALLATION_SHEET_ID ? sheetStatus(full) : null;
           return (
             <button
               key={s.id}
               type="button"
               title={dot && full ? statusTooltip(full) : undefined}
               onClick={() => {
+                setView("table");
                 setTab(s.id);
                 setSel({ r: 0, c: 0 });
                 setEditing(null);

@@ -211,4 +211,13 @@ export const TH_WORKSPACE: Record<string, string> = {
   "a teammate": "สมาชิกในทีม",
   "Edited by {name} · {time}": "แก้ไขโดย {name} · {time}",
   "Your change was not saved": "การเปลี่ยนแปลงของคุณยังไม่ได้บันทึก",
+  "View": "มุมมอง",
+  "Table": "ตาราง",
+  "Flow": "ผังการไหล",
+  "Legend": "คำอธิบายสัญลักษณ์",
+  "Process step": "ขั้นตอนการผลิต",
+  "Raw material": "วัตถุดิบ",
+  "Production flow diagram": "ผังการไหลของการผลิต",
+  "Open process steps": "เปิดขั้นตอนการผลิต",
+  "Add steps in sheet 02 to see your production flow.": "เพิ่มขั้นตอนการผลิตในแผ่นที่ 02 เพื่อดูผังการไหลของการผลิต",
 };
