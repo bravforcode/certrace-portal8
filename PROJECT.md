@@ -68,7 +68,7 @@ The route tree in `certrace-portal/app/` has four main areas:
 | Supplier link forms | `/s/[token]`, `/w/[token]`, `/p/[token]` | General supplier, monthly, and precursor data requests |
 | Self-supply | `/self/[token]` | The exporter enters data for its own installation |
 
-`components/` holds reusable screens and controls. `lib/api/client.ts` infers API types from the backend `App`; `lib/account-storage.ts` hydrates a working copy from PostgreSQL and queues revision-checked saves. `lib/cbam/` contains the portal's calculation, validation, and report-output code. `next.config.ts` defines the `/backend` rewrite.
+`components/` holds reusable screens and controls. `lib/api/client.ts` infers API types from the backend `App`; `lib/account-storage.ts` hydrates a working copy from PostgreSQL and queues revision-checked saves. `lib/cbam/` contains the portal's calculation, validation, and report-output code. `next.config.ts` defines the `/backend` rewrite. `lib/export/` builds the verification file on Convert: `verifier-scope.ts` is the per-sheet allowlist and the check that decides whether a row is verified, `verification-export.ts` builds the sheets (Summary first, unverified rows by name and reason with no values), and `lib/xlsx-write.ts` writes the .xlsx in the browser.
 
 Company/report inputs and Cera history persist through the backend; their browser
 working copy is in memory. Public supplier and precursor forms require server-issued
