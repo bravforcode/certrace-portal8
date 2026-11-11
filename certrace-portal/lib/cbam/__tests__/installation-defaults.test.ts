@@ -34,6 +34,24 @@ test("the installation record fills the A_InstData installation fields", () => {
   assert.deepEqual(cbamProgress(withInstallationDefaults({}, site, 2026), "installation"), { filled: 15, total: 19 });
 });
 
+// With the operator address entered in parts on the site wizard, the whole installation sheet is answered.
+test("the split operator address fills I38–I41, completing the installation sheet", () => {
+  const withAddress = {
+    ...site,
+    operatorStreet: "99 Sukhumvit Rd",
+    operatorCity: "Bangkok",
+    operatorPostcode: "10110",
+    operatorCountry: "TH",
+  } as Installation;
+  const cells = installationCbamCells(withAddress, 2026);
+  assert.equal(cells["cbam:0:a-i38"], "99 Sukhumvit Rd");
+  assert.equal(cells["cbam:0:a-i41"], "TH");
+  assert.deepEqual(cbamProgress(withInstallationDefaults({}, withAddress, 2026), "installation"), {
+    filled: 19,
+    total: 19,
+  });
+});
+
 // An answer typed on Fill in or sent through a Smart Link wins over the site record.
 test("defaults never overwrite an answer and skip empty record fields", () => {
   const merged = withInstallationDefaults({ "cbam:0:a-i20": "Typed name" }, site, 2026);

@@ -7,7 +7,7 @@
    "optional" and does not block the report. A whitespace-only answer is empty.
    ════════════════════════════════════════════════════════════ */
 
-import { CBAM_FIELDS, cbamCellKey, type CbamField } from "./template-fields";
+import { CBAM_FIELDS, cbamCellKey, declaredBlocks, visibleBlocks, type CbamField } from "./template-fields";
 
 /** The workbook tab's id, used as `?sheet=cbam`. Not a sheet of buildSheets, so it feeds no sheet status. */
 export const CBAM_TAB_ID = "cbam";
@@ -32,6 +32,8 @@ export function summariseCbam(cells: Record<string, string>, fields: readonly Cb
   const items = new Map<string, CbamItemCount>();
   let total = 0;
   let filled = 0;
+  // Empty repeated processes and precursors stay off the checklist; they are optional, so counts are unchanged.
+  const listed = new Set(visibleBlocks(fields, (f) => (cells[cbamCellKey(f)] ?? "").trim() !== "", declaredBlocks(cells)));
 
   for (const field of fields) {
     const value = (cells[cbamCellKey(field)] ?? "").trim();
@@ -49,6 +51,7 @@ export function summariseCbam(cells: Record<string, string>, fields: readonly Cb
       }
     }
 
+    if (!listed.has(field)) continue;
     const section = sections.get(field.section) ?? { section: field.section, rows: [] };
     sections.set(field.section, section);
     section.rows.push({ field, value, state });

@@ -15,6 +15,10 @@ export type ItemLinkField = {
   options?: string[];
   optionLabels?: Record<string, string>;
   optional?: boolean;
+  /** Repeated process or precursor block (see visibleBlocks). */
+  block?: number;
+  group?: "process" | "precursor";
+  declares?: true;
   value: string;
 };
 
@@ -25,6 +29,8 @@ export type ItemLinkResolution = {
   year: number;
   expiresAt: number;
   fields: ItemLinkField[];
+  /** Processes and precursors the installation lists in A_InstData, e.g. "process:2". */
+  declared?: string[];
 };
 
 export async function createItemLink(input: {

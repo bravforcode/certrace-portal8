@@ -107,6 +107,17 @@ test("builds this supplier's request straight from the resolve payload", () => {
   assert.equal(req.month, "2026-04");
 });
 
+/* A supplier must never see a quantity the exporter did not enter: invented
+   lots would be signed and submitted as if they were the exporter's ask. */
+test("a link with no recorded product spec asks for the good with no invented lots", () => {
+  const req = buildFromPayload(TOKEN, resolution({ request: { products: [] } }));
+  assert.ok(req);
+  assert.equal(req.products.length, 1);
+  assert.equal(req.products[0].product.id, "hrc");
+  assert.deepEqual(req.products[0].lots, []);
+  assert.equal(req.products[0].totalTonnes, 0);
+});
+
 test("a payload with no declaration slice is treated as an unopenable link", () => {
   assert.equal(
     buildFromPayload(TOKEN, resolution({ declaration: undefined as never })),

@@ -17,7 +17,7 @@ import { Button, PageHeader, cn, inputClass } from "@/components/ui";
 import { ScopedInstallationSwitcher } from "@/components/scoped-installation-switcher";
 import { useConvertContext } from "@/lib/convert/use-convert-context";
 import { getFillItem, type FillField, type FillItem } from "@/lib/convert/fill-items";
-import { cbamOptionLabel, cbamProgress } from "@/lib/cbam/template-fields";
+import { cbamOptionLabel, cbamProgress, declaredBlocks, visibleBlocks } from "@/lib/cbam/template-fields";
 import { withInstallationDefaults } from "@/lib/cbam/installation-defaults";
 import { getStandard } from "@/lib/convert-standards";
 import { useWorkbook } from "@/lib/workbook/use-workbook";
@@ -72,7 +72,8 @@ function FillForm({ id, def }: { id: string; def: FillItem }) {
   const progress = cbamProgress(cells, id);
 
   const groups = new Map<string, FillField[]>();
-  for (const f of def.fields) groups.set(f.section ?? "", [...(groups.get(f.section ?? "") ?? []), f]);
+  const declared = React.useMemo(() => declaredBlocks(prefilled), [prefilled]);
+  for (const f of visibleBlocks(def.fields, (f) => shown(f).trim() !== "", declared)) groups.set(f.section ?? "", [...(groups.get(f.section ?? "") ?? []), f]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();

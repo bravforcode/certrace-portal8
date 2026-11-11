@@ -34,7 +34,7 @@ const MAX_VALUE_LENGTH = 2000;
 
 const CBAM_IDS: ReadonlySet<string> = new Set(CBAM_FIELDS.map((f) => f.id));
 const CBAM_LABELS: ReadonlyMap<string, string> = new Map(
-  CBAM_FIELDS.map((f) => [f.id, f.label]),
+  CBAM_FIELDS.map((f) => [f.id, f.section && f.section !== f.label ? `${f.section} · ${f.label}` : f.label]),
 );
 /** Template cell ids are `<sheet letter>-<cell>`, e.g. "a-i20". The set above is the real check; the shape check keeps an odd key out early. */
 const CBAM_ID_SHAPE = /^[a-e]-[a-z]+\d+$/;
@@ -58,6 +58,10 @@ const INSTALLATION_KEYS = [
   "operatorName",
   "operatorRegistrationNumber",
   "operatorAddress",
+  "operatorStreet",
+  "operatorCity",
+  "operatorPostcode",
+  "operatorCountry",
 ] as const satisfies readonly (keyof Installation)[];
 const INSTALLATION_SET: ReadonlySet<string> = new Set(INSTALLATION_KEYS);
 

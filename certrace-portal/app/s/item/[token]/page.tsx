@@ -14,6 +14,7 @@ import { CertraceLogo } from "@/components/logo";
 import { Button, cn, inputClass } from "@/components/ui";
 import { isDeadLink } from "@/lib/api/errors";
 import { resolveItemLink, submitItemLink, type ItemLinkField } from "@/lib/api/item-links";
+import { visibleBlocks } from "@/lib/cbam/template-fields";
 
 export default function ItemLinkPage() {
   const token = decodeURIComponent(useParams<{ token: string }>().token);
@@ -28,7 +29,10 @@ export default function ItemLinkPage() {
       </p>
     );
   else if (q.data.fields.length === 0) body = <p className="text-sm text-black/55">This form has no fields yet.</p>;
-  else body = <ItemForm token={token} title={q.data.label} year={q.data.year} fields={q.data.fields} />;
+  else
+    body = (
+      <ItemForm token={token} title={q.data.label} year={q.data.year} fields={q.data.fields} declared={q.data.declared ?? []} />
+    );
 
   return (
     <div className="min-h-screen bg-[#f5f4f0]">
@@ -42,7 +46,19 @@ export default function ItemLinkPage() {
   );
 }
 
-function ItemForm({ token, title, year, fields }: { token: string; title: string; year: number; fields: ItemLinkField[] }) {
+function ItemForm({
+  token,
+  title,
+  year,
+  fields,
+  declared,
+}: {
+  token: string;
+  title: string;
+  year: number;
+  fields: ItemLinkField[];
+  declared: string[];
+}) {
   const initial = React.useMemo(() => Object.fromEntries(fields.map((f) => [f.key, f.value])), [fields]);
   const [values, setValues] = React.useState<Record<string, string>>(initial);
   const save = useMutation({
@@ -51,9 +67,10 @@ function ItemForm({ token, title, year, fields }: { token: string; title: string
 
   const sections = React.useMemo(() => {
     const out = new Map<string, ItemLinkField[]>();
-    for (const f of fields) out.set(f.section, [...(out.get(f.section) ?? []), f]);
+    for (const f of visibleBlocks(fields, (f) => (values[f.key] ?? "").trim() !== "", declared))
+      out.set(f.section, [...(out.get(f.section) ?? []), f]);
     return [...out];
-  }, [fields]);
+  }, [fields, values, declared]);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();

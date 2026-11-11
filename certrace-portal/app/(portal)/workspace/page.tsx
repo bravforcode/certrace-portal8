@@ -9,9 +9,8 @@
      no data    the three ways to start (upload · from the beginning · from an
                 earlier year) and one Confirm; only the current year shows a
                 plain sheet under them
-     syncing    the set-up stage — files are being sorted into the sheets
-                (the mock takes SETUP_MS; "Show the set-up workspace" finishes
-                it now)
+     syncing    a copy from an earlier year is still running
+                ("Show the set-up workspace" finishes it now)
      ready, not yet shown
                 the year's card plays the walk-in, in the upload's space —
                 pressed just now, or finished while the reader was away
@@ -40,7 +39,7 @@ import { currentYear, yearRange } from "@/lib/year-range";
 import { buildSheets } from "@/lib/workspace-sheets";
 import { parseYearParam, withQueryParams } from "@/lib/workbook/url-state";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { COPY_MS, SETUP_MS, useWorkbook, useWorkbookYears, walkinPending } from "@/lib/workbook/use-workbook";
+import { COPY_MS, useWorkbook, useWorkbookYears, walkinPending } from "@/lib/workbook/use-workbook";
 
 /* useSearchParams() (read by the installation scope) needs a Suspense boundary above it. */
 export default function WorkspacePage() {
@@ -83,18 +82,18 @@ function WorkspaceInner() {
   // Bumped when this browser has seen a walk-in, so the card re-reads the per-browser record.
   const [, setWalkinTick] = React.useState(0);
 
-  /* The mock set-up finishes SETUP_MS after Confirm, whether or not anybody is watching. A year that finished
-     unseen is ready but not yet revealed: its card plays the walk-in the next time it is opened (or at once,
-     if it is open now). */
+  /* Only a copy from an earlier year runs as "syncing". A year that finished unseen is ready but not yet
+     revealed: its card plays the walk-in the next time it is opened (or at once, if it is open now). A year
+     left syncing by an upload from before Confirm opened years at once is finished straight away. */
   const syncing = yearRange().filter((y) => ws.get(y)?.status === "syncing");
   const syncKey = syncing.map((y) => `${y}:${ws.get(y)!.confirmedAt}`).join(",");
   React.useEffect(() => {
     if (!syncKey) return;
     // A copy writes its own "ready" when it finishes; the timer only rescues a copy left behind by a closed tab,
-    // so it waits COPY_MS rather than SETUP_MS and never marks a still-running copy ready.
+    // so it waits COPY_MS and never marks a still-running copy ready.
     const due = syncing.map((y) => {
       const m = ws.get(y)!;
-      return { y, at: Date.parse(m.confirmedAt ?? "") + (m.copiedFrom ? COPY_MS : SETUP_MS) };
+      return { y, at: Date.parse(m.confirmedAt ?? "") + (m.copiedFrom ? COPY_MS : 0) };
     });
     const now = Date.now();
     for (const d of due) if (d.at <= now) ws.markReady(d.y);

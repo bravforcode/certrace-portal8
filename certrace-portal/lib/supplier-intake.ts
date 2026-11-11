@@ -7,8 +7,8 @@
    asked this supplier for (`req.documents` — CBAM communication sheet, mill
    test certificate, certificate of origin, verification statement).
 
-   Detection is the SAME mock (`detect()` in lib/smart-intake.ts), so the
-   sample PDFs, confidence floor and filename guesses behave identically.
+   Detection is the SAME reader (`detect()` in lib/smart-intake.ts), so text
+   PDFs, the confidence floor and filename guesses behave identically.
    Filing goes through the portal's own `uploadFiles`, so the trail event, the
    inline-bytes cap and the revision locks all apply exactly as they do to a
    file attached by hand. Extracted values are shown as context only — this

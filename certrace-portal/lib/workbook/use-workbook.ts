@@ -31,8 +31,6 @@ import { createSyncQueue, type SyncResult } from "./sync-queue";
 import type { CellPatch } from "./flow-edit";
 import type { Sheet, WorkspaceFile } from "../workspace-sheets";
 
-/** How long the set-up takes after Confirm. */
-export const SETUP_MS = 60_000;
 /** A copy marks itself ready when done; the workspace timer only rescues one abandoned for this long. */
 export const COPY_MS = 10 * 60_000;
 const POLL_MS = 10_000;
@@ -130,7 +128,8 @@ export function useWorkbookYears(installationId: string | null) {
 
   const notSaved = (e: unknown) => toast({ message: "Your change was not saved", tone: "err", detail: (e as Error).message });
 
-  /** Confirm the upload: the year is set up from these files and closed to more. */
+  /** Confirm the upload: the year opens at once with these files attached. Nothing sorts them in the
+      background, so the year never pretends to be "setting up". */
   const confirm = async (year: number, files: WorkspaceFile[]) => {
     if (!installationId) return;
     try {
@@ -138,7 +137,7 @@ export function useWorkbookYears(installationId: string | null) {
     } catch (e) {
       return notSaved(e);
     }
-    await write(year, { status: "syncing", files, confirmedAt: nowIso() });
+    await write(year, { status: "ready", files, confirmedAt: nowIso() });
   };
 
   /**

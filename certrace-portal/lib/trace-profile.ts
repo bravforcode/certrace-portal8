@@ -15,9 +15,9 @@
    Trace page edits the same profile whichever site is current, and lists every
    own installation under it — the public page then shows "2 factories".
 
-   Stored per browser for now (localStorage), like the rest of the mock
-   screens; the verified products are sample rows until verification data is
-   wired through.
+   Stored per browser for now (localStorage). Verified products stay empty
+   until verification records reach the portal; the profile never lists
+   a product nobody verified.
    ════════════════════════════════════════════════════════════ */
 
 export type TraceSector =
@@ -36,12 +36,6 @@ export const TRACE_SECTORS: TraceSector[] = [
   "Hydrogen",
   "Electricity",
 ];
-
-export type TraceProductChoice = {
-  cn: string;
-  name: string;
-  verificationId: string;
-};
 
 export type TraceFactory = {
   installationId: string;
@@ -120,26 +114,3 @@ export const initialsOf = (name: string) =>
     .slice(0, 2)
     .map((w) => w[0]!.toUpperCase())
     .join("") || "—";
-
-/** Sample verified products per industry — what a factory could list until
-    real verification results are wired in. CN codes are real CBAM goods. */
-export const SAMPLE_PRODUCTS: Record<TraceSector, TraceProductChoice[]> = {
-  "Iron & Steel": [
-    { cn: "7318 15 88", name: "Hexagon screws and bolts, iron or steel", verificationId: "TRC-2025-0418-01" },
-    { cn: "7318 16 92", name: "Nuts, iron or steel, ≤ 12 mm", verificationId: "TRC-2025-0418-02" },
-    { cn: "7217 10 10", name: "Wire of non-alloy steel, not plated", verificationId: "TRC-2025-0506-01" },
-  ],
-  Aluminium: [
-    { cn: "7604 29 10", name: "Hollow profiles of aluminium alloys", verificationId: "TRC-2025-0330-01" },
-    { cn: "7606 12 92", name: "Sheet of aluminium alloys, < 3 mm", verificationId: "TRC-2025-0414-02" },
-  ],
-  Cement: [
-    { cn: "2523 10 00", name: "Cement clinker", verificationId: "TRC-2025-0512-01" },
-    { cn: "2523 29 00", name: "Portland cement, other than white", verificationId: "TRC-2025-0512-02" },
-  ],
-  Fertilisers: [
-    { cn: "3102 10 10", name: "Urea, > 45 % nitrogen", verificationId: "TRC-2025-0602-01" },
-  ],
-  Hydrogen: [{ cn: "2804 10 00", name: "Hydrogen", verificationId: "TRC-2025-0602-02" }],
-  Electricity: [{ cn: "2716 00 00", name: "Electrical energy", verificationId: "TRC-2025-0610-01" }],
-};

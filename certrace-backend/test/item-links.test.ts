@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { db } from "../src/lib/db";
-import type { ItemField } from "../src/modules/links/item-fields";
+import { declaredBlocks, type ItemField } from "../src/modules/links/item-fields";
 import { itemCellPatch, submitItemLink } from "../src/modules/links/item-service";
 import { account, call, cleanup, editorOf } from "./helpers";
 afterAll(cleanup);
@@ -25,6 +25,17 @@ async function mint(cookie: string, itemKey: string, h = {}) {
   expect(r.status).toBe(201);
   return (await r.json()).token as string;
 }
+
+describe("declared processes", () => {
+  // A Smart Link for sheet D must show the processes the installation listed in A_InstData,
+  // so the holder does not have to discover process 2 by first filling process 1.
+  test("reads the A_InstData process and precursor lists from the workbook cells", () => {
+    expect(
+      declaredBlocks({ "cbam:0:a-e83": "Crude steel", "cbam:0:a-l84": "Rolling", "cbam:0:a-e103": "  ", "cbam:0:a-l102": "Coke" }),
+    ).toEqual(["process:1", "process:2", "precursor:1"]);
+    expect(declaredBlocks({ "cbam:0:d-l16": "100" })).toEqual([]);
+  });
+});
 
 describe("item link mapping", () => {
   test("maps item field keys to their workbook cells", () => {

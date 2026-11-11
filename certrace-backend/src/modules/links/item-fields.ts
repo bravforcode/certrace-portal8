@@ -12,6 +12,11 @@ export type ItemField = {
   /** Display text for coded option values (TrueFalse stores "1"/"0"). */
   optionLabels?: Record<string, string>;
   optional?: boolean;
+  /** Repeated production process or purchased precursor number. */
+  block?: number;
+  group?: "process" | "precursor";
+  /** A row of the A_InstData process or precursor list; an answer opens that block. */
+  declares?: boolean;
 };
 
 type CatalogueField = ItemField & { item: string };
@@ -27,6 +32,14 @@ export function getItemFields(itemKey: string): ItemField[] {
 
 export function getItemLabel(itemKey: string): string {
   return ITEMS[itemKey] ?? itemKey;
+}
+
+/** `process:n` / `precursor:m` for each process and precursor the A_InstData lists declare in `cells`. */
+export function declaredBlocks(cells: Record<string, unknown>): string[] {
+  const declared = FIELDS.filter(
+    (f) => f.declares && typeof cells[f.cell] === "string" && (cells[f.cell] as string).trim() !== "",
+  ).map((f) => `${f.group}:${f.block}`);
+  return [...new Set(declared)];
 }
 
 /** A link can only be made for an item that has fields to fill. */

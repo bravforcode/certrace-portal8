@@ -11,14 +11,13 @@
    installation does not change this page.
 
    Left, the form in kit cards; right, a live preview of the directory card
-   the public page draws. Mock storage (lib/trace-profile.ts).
+   the public page draws. Storage: lib/trace-profile.ts.
    ════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
 import { Factory, ImagePlus, Plus, Trash2, X } from "lucide-react";
 import {
   Card,
-  Checkbox,
   Eyebrow,
   Field,
   PageHeader,
@@ -35,7 +34,6 @@ import { useActiveInstallation } from "@/lib/active-installation";
 import { getInstallation } from "@/lib/installations";
 import {
   MAX_PHOTOS,
-  SAMPLE_PRODUCTS,
   TAGLINE_MAX,
   TRACE_SECTORS,
   initialsOf,
@@ -63,14 +61,7 @@ const COUNTRY_OPTIONS: Option[] = COUNTRIES.map((c) => ({
   ),
 }));
 
-type Site = { id: string; name: string; city: string; country: string; sample?: boolean };
-
-/* With no own installation yet, two sample factories show how a company
-   with more than one plant reads — clearly tagged, never published. */
-const SAMPLE_SITES: Site[] = [
-  { id: "SAMPLE-01", name: "Chonburi plant", city: "Chonburi", country: "TH", sample: true },
-  { id: "SAMPLE-02", name: "Rayong plant", city: "Rayong", country: "TH", sample: true },
-];
+type Site = { id: string; name: string; city: string; country: string };
 
 const readFile = (file: File) =>
   new Promise<string>((resolve, reject) => {
@@ -85,7 +76,7 @@ const newFactory = (id: string): TraceFactory => ({
   shown: true,
   sector: "Iron & Steel",
   activity: "",
-  products: SAMPLE_PRODUCTS["Iron & Steel"].map((p) => p.cn),
+  products: [],
 });
 
 export default function TracePage() {
@@ -96,8 +87,9 @@ export default function TracePage() {
   React.useEffect(() => setP(readProfile()), []);
 
   // Every own installation, whichever one is current.
-  const sites = React.useMemo<Site[]>(() => {
-    const own = options
+  const sites = React.useMemo<Site[]>(
+    () =>
+      options
       .filter((o) => o.self)
       .map((o) => {
         const rec = getInstallation(o.id);
@@ -107,9 +99,9 @@ export default function TracePage() {
           city: rec?.city ?? "",
           country: rec?.country ?? "",
         };
-      });
-    return own.length > 0 ? own : SAMPLE_SITES;
-  }, [options]);
+      }),
+    [options],
+  );
 
   if (!p || loading) return <PageHeader eyebrow="Trace" title="Company profile" />;
 
@@ -321,6 +313,11 @@ export default function TracePage() {
               Every installation of your company. Each one shows on the profile with its industry and the products verified there.
             </p>
             <div className="mt-5 space-y-3">
+              {sites.length === 0 && (
+                <p className="rounded-xl border border-dashed border-black/10 px-4 py-6 text-sm text-black/45">
+                  No installation yet. Add one under Installations and it appears here.
+                </p>
+              )}
               {sites.map((s, i) => (
                 <FactoryEditor
                   key={s.id}
@@ -474,7 +471,6 @@ function FactoryEditor({
   f: TraceFactory;
   onChange: (patch: Partial<TraceFactory>) => void;
 }) {
-  const products = SAMPLE_PRODUCTS[f.sector];
   return (
     <div className={cn("rounded-xl border transition-colors", f.shown ? "border-black/[0.08]" : "border-dashed border-black/10 bg-black/[0.015]")}>
       <div className="flex items-center gap-3 px-4 py-3.5">
@@ -509,7 +505,7 @@ function FactoryEditor({
                     type="button"
                     role="radio"
                     aria-checked={on}
-                    onClick={() => onChange({ sector: x, products: SAMPLE_PRODUCTS[x].map((p) => p.cn) })}
+                    onClick={() => onChange({ sector: x })}
                     className={cn(
                       "inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-[12px] transition-colors",
                       on
@@ -530,29 +526,9 @@ function FactoryEditor({
           </Field>
 
           <div>
-            <span className="mb-2 block text-[11px] uppercase tracking-[0.1em] text-black/55">Verified products to list</span>
-            <div className="space-y-2.5">
-              {products.map((p) => (
-                <Checkbox
-                  key={p.cn}
-                  checked={f.products.includes(p.cn)}
-                  onChange={(v) =>
-                    onChange({
-                      products: v ? [...f.products, p.cn] : f.products.filter((c) => c !== p.cn),
-                    })
-                  }
-                  label={
-                    <span>
-                      <span className="font-mono text-[12.5px] text-black/80">{p.cn}</span>{" "}
-                      <span className="text-black/60">{p.name}</span>
-                    </span>
-                  }
-                  hint={`Verification ${p.verificationId}`}
-                />
-              ))}
-            </div>
-            <p className="mt-3 text-xs text-black/35">
-              Only badges are public. The figures are shared when a buyer asks and you approve.
+            <span className="mb-2 block text-[11px] uppercase tracking-[0.1em] text-black/55">Verified products</span>
+            <p className="text-sm text-black/45">
+              None yet. A product is listed here once a verifier has verified its emissions for this site.
             </p>
           </div>
         </div>
@@ -596,19 +572,8 @@ function toPublic(p: TraceProfile, sites: Site[], factoryOf: (id: string) => Tra
         country: s.country,
         sector: f.sector,
         activity: f.activity,
-        products: SAMPLE_PRODUCTS[f.sector]
-          .filter((x) => f.products.includes(x.cn))
-          .map((x) => ({
-            cn: x.cn,
-            name: x.name,
-            period: "2025",
-            verifier: "Sample Verification GmbH",
-            verifiedOn: "2026-04-28",
-            validUntil: "2027-04-30",
-            verificationId: x.verificationId,
-            actualData: true,
-            belowDefault: false,
-          })),
+        // No verification records reach the portal yet, so the profile claims none.
+        products: [],
       };
     }),
   };

@@ -123,37 +123,3 @@ export function buyerEoriError(raw: string): string | null {
 export const canSaveBuyer = (b: Buyer): boolean =>
   Boolean(b.name.trim()) && buyerEoriError(b.eori) === null;
 
-/* ── Seeding from the shipment log ──────────────────────────────
-   The log ships with demo rows carrying buyer names and EORIs as loose
-   strings, and an exporter opening the buyer picker for the first time on a
-   seeded account would find it empty next to a log full of buyers. So the
-   distinct (name, EORI) pairs already in the log become buyer records the
-   first time the picker is opened. Idempotent — a name that already exists is
-   left alone, so this never overwrites an edited record. */
-export function seedBuyersFromShipments(
-  rows: { buyer: string; buyerEori?: string }[],
-): Buyer[] {
-  const existing = read();
-  const known = new Set(existing.map((b) => b.name.trim().toLowerCase()));
-  const additions: Buyer[] = [];
-
-  for (const row of rows) {
-    const name = row.buyer?.trim();
-    if (!name) continue;
-    const key = name.toLowerCase();
-    if (known.has(key)) continue;
-    known.add(key);
-    additions.push({
-      ...emptyBuyer(),
-      name,
-      eori: (row.buyerEori ?? "").trim().toUpperCase(),
-      // The importing country is derivable from the EORI's prefix, which is
-      // exactly what it encodes. Left blank rather than guessed when absent.
-      country: (row.buyerEori ?? "").trim().slice(0, 2).toUpperCase() || "",
-    });
-  }
-
-  if (additions.length === 0) return listBuyers();
-  write([...existing, ...additions]);
-  return listBuyers();
-}

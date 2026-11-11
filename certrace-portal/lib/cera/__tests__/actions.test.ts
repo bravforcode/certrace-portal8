@@ -220,3 +220,15 @@ test("describeAction shows old values only when the caller supplied them", () =>
   assert.equal(withOld.rows[0]!.to, "2026-02-01");
   assert.equal(withOld.rows[1]!.from, "(empty)");
 });
+
+test("the confirm card names the section, so a precursor field never reads like a process field", () => {
+  // A live turn proposed a-l102 for "process P1"; a card reading only "Name" hid the mistake from the user.
+  const card = describeAction({
+    tool: "set_cbam_fields",
+    installationId: "TH-A",
+    year: 2026,
+    values: { "a-l83": "Hot rolling", "a-l102": "Pig iron" },
+  });
+  assert.equal(card.rows[0]!.label, "Production process 1 · Name");
+  assert.equal(card.rows[1]!.label, "Purchased precursor 1 · Name");
+});

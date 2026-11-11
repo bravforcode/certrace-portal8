@@ -85,3 +85,33 @@ export function companyContext(
 export const ceraKnowledge = [...CBAM_KNOWLEDGE, ...PLATFORM_KNOWLEDGE].map(
   ({ title, answer }) => ({ title, answer }),
 );
+
+/** Knowledge entries most related to the query that fit in maxChars; all of it when it fits. */
+export function relevantKnowledge(query: string, maxChars = Infinity) {
+  const total = JSON.stringify(ceraKnowledge).length;
+  if (total <= maxChars) return ceraKnowledge;
+  const terms = [...new Set(query.toLowerCase().match(/[\p{L}\p{N}_-]{3,}/gu))];
+  const scored = ceraKnowledge
+    .map((entry) => {
+      const title = entry.title.toLowerCase();
+      const answer = entry.answer.toLowerCase();
+      return {
+        entry,
+        score: terms.reduce(
+          (s, t) => s + (title.includes(t) ? 2 : 0) + (answer.includes(t) ? 1 : 0),
+          0,
+        ),
+      };
+    })
+    .filter((s) => s.score > 0)
+    .sort((a, b) => b.score - a.score);
+  const picked: typeof ceraKnowledge = [];
+  let size = 0;
+  for (const { entry } of scored) {
+    const length = JSON.stringify(entry).length + 1;
+    if (size + length > maxChars) continue;
+    picked.push(entry);
+    size += length;
+  }
+  return picked;
+}

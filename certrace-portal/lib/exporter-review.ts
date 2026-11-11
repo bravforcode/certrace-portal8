@@ -60,7 +60,7 @@ export type ReviewDecision = "pending" | "approved" | "changes_requested";
 export type SupplierReview = {
   decision: ReviewDecision;
   decidedVersion: number; // the version the decision was made against
-  reviewers: string[]; // assigned internal reviewer ids (see REVIEWERS)
+  reviewers: string[]; // assigned team member ids (lib/team-store.ts)
   comment: string; // revision note sent to the supplier
   unlockedFields: string[]; // value-keys reopened for the supplier
   unlockedDocs: string[]; // doc ids reopened for the supplier
@@ -183,36 +183,6 @@ export function saveExporterState(state: ExporterDeclState): void {
     /* ignore quota */
   }
 }
-
-/* ── Internal reviewers the exporter can assign (step 6) ───── */
-export type Reviewer = { id: string; name: string; role: string; dept: string };
-export const REVIEWERS: Reviewer[] = [
-  {
-    id: "esg",
-    name: "Ananya P.",
-    role: "ESG / Sustainability",
-    dept: "Sustainability",
-  },
-  {
-    id: "compliance",
-    name: "Wasawat K.",
-    role: "Compliance lead",
-    dept: "Compliance",
-  },
-  {
-    id: "legal",
-    name: "Krit Legal Partners",
-    role: "Legal counsel",
-    dept: "Legal",
-  },
-  {
-    id: "verifier",
-    name: "TÜV SÜD",
-    role: "Accredited verifier",
-    dept: "Assurance",
-  },
-];
-export const getReviewer = (id: string) => REVIEWERS.find((r) => r.id === id);
 
 /* ── Lifecycle of a single submission ──────────────────────── */
 export type Lifecycle =

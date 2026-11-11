@@ -173,6 +173,12 @@ export type Installation = {
   operatorRegistrationNumber: string;
   /** 1(c) full address of the operator, in English */
   operatorAddress: string;
+  /** The operator address split as the CBAM template asks for it (A_InstData
+      I38–I41). Optional: records saved before these fields existed lack them. */
+  operatorStreet?: string;
+  operatorCity?: string;
+  operatorPostcode?: string;
+  operatorCountry?: string;
   /** 1(d) unique installation identifier in the CBAM Registry, once issued */
   registryId: string;
   /** items 2–6 */
@@ -465,6 +471,10 @@ export function emptyInstallation(self = false): Installation {
     operatorName: "",
     operatorRegistrationNumber: "",
     operatorAddress: "",
+    operatorStreet: "",
+    operatorCity: "",
+    operatorPostcode: "",
+    operatorCountry: "",
     registryId: "",
     monitoring: emptyMonitoring(),
     createdAt: new Date().toISOString(),

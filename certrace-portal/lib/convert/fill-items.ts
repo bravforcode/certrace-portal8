@@ -4,7 +4,7 @@
    template field id (lib/cbam/template-fields.ts). `cell` is that column key; the page
    picks the row when it saves. A requirement with no template input (carbon price) has no fields. */
 
-import { CBAM_SHEET_ID, cbamFieldsFor, type CbamItemId } from "../cbam/template-fields";
+import { CBAM_SHEET_ID, cbamFieldsFor, type CbamBlockGroup, type CbamItemId } from "../cbam/template-fields";
 
 export type FillField = {
   key: string;
@@ -18,6 +18,10 @@ export type FillField = {
   options?: readonly string[];
   optionLabels?: Readonly<Record<string, string>>;
   optional?: true;
+  /** Repeated process or precursor block (see visibleBlocks). */
+  block?: number;
+  group?: CbamBlockGroup;
+  declares?: true;
 };
 
 export type FillItem = { title: string; sheet: string; fields: FillField[] };
@@ -39,6 +43,9 @@ const cbamItem = (title: string, item: CbamItemId): FillItem => ({
     options: f.options,
     optionLabels: f.optionLabels,
     optional: f.optional,
+    block: f.block,
+    group: f.group,
+    declares: f.declares,
   })),
 });
 

@@ -98,9 +98,6 @@ export const productForMaterial = (material: string): CatalogProduct =>
   getCatalogProduct(MATERIAL_TO_PRODUCT[material] ?? "hrc") ??
   getCatalogProduct("hrc")!;
 
-/* Deterministic mock lots from the supplier ref so the same link always shows
-   the same quantities. Quantity is real-looking; emissions stay for the supplier
-   to report. */
 export type RequestLot = {
   id: string;
   qty: number;
@@ -108,28 +105,6 @@ export type RequestLot = {
   from: string;
   to: string;
 };
-function lotsForSupplier(row: SupplierRow): RequestLot[] {
-  const seed = parseInt(row.ref.replace(/\D/g, "") || "100", 10);
-  const base = 200 + (seed % 9) * 140;
-  const lots: RequestLot[] = [
-    {
-      id: `${row.id}-l1`,
-      qty: base,
-      unit: "tonnes (t)",
-      from: "2026-04-01",
-      to: "2026-05-31",
-    },
-  ];
-  if (seed % 2 === 0)
-    lots.push({
-      id: `${row.id}-l2`,
-      qty: Math.round(base * 0.6),
-      unit: "tonnes (t)",
-      from: "2026-06-01",
-      to: "2026-06-30",
-    });
-  return lots;
-}
 
 export type RequestProduct = {
   product: CatalogProduct;
@@ -370,17 +345,10 @@ function assembleRequest(
   const origin = getJurisdiction(decl.origin);
   const dest = getDestination(decl.market);
 
-  // Real spec when the wizard recorded one; material-based synthesis for fixtures.
-  let products = productsFromSpec(decl, row);
-  if (!products) {
-    const product = productForMaterial(row.material);
-    const lots = lotsForSupplier(row);
-    const totalTonnes = lots.reduce(
-      (a, l) => a + (l.unit === "tonnes (t)" ? l.qty : 0),
-      0,
-    );
-    products = [{ product, lots, totalTonnes }];
-  }
+  // The wizard's spec when it recorded one; otherwise the good from the material, with no quantities invented.
+  const products = productsFromSpec(decl, row) ?? [
+    { product: productForMaterial(row.material), lots: [], totalTonnes: 0 },
+  ];
 
   // Scope the checklist to THIS supplier's goods, then honor the exporter's
   // Classification choices: a CBAM run always keeps the legally-required set;

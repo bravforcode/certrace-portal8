@@ -23,9 +23,16 @@ export type CeraAction =
 export const MAX_CERA_ACTIONS = 5;
 const MAX_VALUE_LENGTH = 2000;
 
-const CBAM_KEYS: readonly string[] = (
-  catalogue.fields as { key: string }[]
-).map((f) => f.key);
+const CBAM_FIELDS = catalogue.fields as { key: string; label: string; section: string; block?: number }[];
+const CBAM_KEYS: readonly string[] = CBAM_FIELDS.map((f) => f.key);
+// Processes 2-10 and precursors 2-20 repeat block 1 at a fixed row stride; naming all
+// 457 keys would spend most of a free-tier token budget, so the model is told the rule.
+const PROMPT_FIELDS = CBAM_FIELDS.filter((f) => !f.block || f.block === 1);
+// A bare "Name" fits process P1, precursor PP1 and the verifier contact alike, so a repeated label carries its section.
+const labelCount = new Map<string, number>();
+for (const f of PROMPT_FIELDS) labelCount.set(f.label, (labelCount.get(f.label) ?? 0) + 1);
+const promptLabel = (f: (typeof PROMPT_FIELDS)[number]) =>
+  labelCount.get(f.label)! > 1 ? `${f.section}: ${f.label}` : f.label;
 
 // Every key must exist on the Installation type in certrace-portal/lib/installations.ts.
 const INSTALLATION_KEYS: readonly string[] = [
@@ -46,6 +53,10 @@ const INSTALLATION_KEYS: readonly string[] = [
   "operatorName",
   "operatorRegistrationNumber",
   "operatorAddress",
+  "operatorStreet",
+  "operatorCity",
+  "operatorPostcode",
+  "operatorCountry",
 ];
 
 const PAGES: readonly string[] = [
@@ -86,11 +97,17 @@ function safePath(p: unknown): string | undefined {
 }
 
 function setCbamFields(input: Record<string, unknown>): CeraAction | undefined {
-  const { installationId, year, values } = input;
+  const { installationId, year } = input;
   if (!validInstallationId(installationId) || !validYear(year)) return undefined;
-  if (!isRecord(values)) return undefined;
+  // The tool sends `fields` as [{key, value}]; a `values` map is the older shape.
+  const raw = input.fields ?? input.values;
+  const entries: [string, unknown][] = Array.isArray(raw)
+    ? raw.filter(isRecord).map((e) => [String(e.key), e.value])
+    : isRecord(raw)
+      ? Object.entries(raw)
+      : [];
   const kept: Record<string, string | null> = {};
-  for (const [key, value] of Object.entries(values)) {
+  for (const [key, value] of entries) {
     if (!CBAM_SET.has(key)) continue;
     if (value === null || validValue(value)) kept[key] = value as string | null;
   }
@@ -164,20 +181,29 @@ export const ceraTools = {
     inputSchema: schema<{
       installationId: string;
       year: number;
-      values: Record<string, string | null>;
+      fields: { key: string; value: string | null }[];
     }>({
       type: "object",
       properties: {
         installationId: { type: "string", maxLength: 64 },
         year: { type: "integer", minimum: 2020, maximum: 2035 },
-        values: {
-          type: "object",
-          properties: Object.fromEntries(
-            CBAM_KEYS.map((k) => [k, { type: ["string", "null"] }]),
-          ),
+        fields: {
+          type: "array",
+          minItems: 1,
+          maxItems: 40,
+          description: `One entry per field to set. key is the CBAM field key; the fields are ${PROMPT_FIELDS.map((f) => `${f.key} = ${promptLabel(f)}`).join("; ")}. Keys d-* are production process 1; process n (2-10) uses the same column with row + 65*(n-1), e.g. d-l16 becomes d-l81 for process 2. Keys e-* are purchased precursor 1; precursor n (2-20) uses row + 44*(n-1). In A_InstData, keys a-*83 are process P1 (P n uses row 82+n) and keys a-*102 are purchased precursor PP1 (PP n uses row 101+n).`,
+          items: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              key: { type: "string", pattern: "^[a-e]-[a-z]{1,2}[0-9]{1,4}$" },
+              value: { type: ["string", "null"] },
+            },
+            required: ["key", "value"],
+          },
         },
       },
-      required: ["installationId", "year", "values"],
+      required: ["installationId", "year", "fields"],
     }),
   }),
   update_installation: tool({

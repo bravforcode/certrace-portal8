@@ -30,6 +30,28 @@ describe("Cera proposed actions", () => {
     });
   });
 
+  test("reads the tool's [{key, value}] fields list, the shape free models fill reliably", () => {
+    const [action] = validateCeraActions([
+      {
+        toolName: "set_cbam_fields",
+        input: {
+          installationId: "TH-1",
+          year: 2026,
+          fields: [
+            { key: "a-i22", value: "Manufacture of basic iron and steel" },
+            { key: "not-a-field", value: "x" },
+          ],
+        },
+      },
+    ]);
+    expect(action).toEqual({
+      tool: "set_cbam_fields",
+      installationId: "TH-1",
+      year: 2026,
+      values: { "a-i22": "Manufacture of basic iron and steel" },
+    });
+  });
+
   test("drops a CBAM proposal whose keys are all outside the catalogue", () => {
     expect(
       validateCeraActions([
@@ -125,6 +147,27 @@ describe("Cera proposed actions", () => {
   test("non-array input yields no actions", () => {
     expect(validateCeraActions({ toolName: "open_page" })).toEqual([]);
     expect(validateCeraActions(undefined)).toEqual([]);
+  });
+
+  test("the field list stays small for free-tier token limits yet a later process key is still accepted", () => {
+    // 457 catalogue keys would blow the Groq free-tier TPM budget on every turn, so the
+    // schema names only process/precursor 1 and states the row stride for the rest.
+    const text = JSON.stringify(ceraTools.set_cbam_fields.inputSchema);
+    expect(text).toContain("d-l16");
+    expect(text).not.toContain("d-l146"); // process 3
+    expect(text).not.toContain("e-l61"); // precursor 2
+    expect(text.length).toBeLessThan(12000);
+    const [action] = validateCeraActions([
+      { toolName: "set_cbam_fields", input: { installationId: "TH-1", year: 2026, values: { "d-l81": "5" } } },
+    ]);
+    expect(action).toEqual({ tool: "set_cbam_fields", installationId: "TH-1", year: 2026, values: { "d-l81": "5" } });
+  });
+
+  test("same-named fields in different blocks carry their section, so the model can tell process P1 from precursor PP1", () => {
+    // Live run: "set the name of process P1" picked a-l102 (precursor PP1) because both read only "Name".
+    const text = JSON.stringify(ceraTools.set_cbam_fields.inputSchema);
+    expect(text).toContain("a-l83 = Production process 1: Name");
+    expect(text).toContain("a-l102 = Purchased precursor 1: Name");
   });
 
   test("tool definitions carry no execute function", () => {

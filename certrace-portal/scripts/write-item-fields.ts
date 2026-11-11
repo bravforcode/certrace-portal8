@@ -23,6 +23,8 @@ const fields = CBAM_FIELDS.map((f) => ({
   ...(f.options ? { options: [...f.options] } : {}),
   ...(f.optionLabels ? { optionLabels: { ...f.optionLabels } } : {}),
   ...(f.optional ? { optional: true } : {}),
+  ...(f.block ? { block: f.block, group: f.group } : {}),
+  ...(f.declares ? { declares: true } : {}),
 }));
 writeFileSync(destination, `${JSON.stringify({ items, fields }, null, 1)}\n`);
 console.log(`${fields.length} fields, ${Object.keys(items).length} items -> ${destination}`);

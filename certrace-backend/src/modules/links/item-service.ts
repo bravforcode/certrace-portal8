@@ -4,7 +4,7 @@ import { object, string } from "../../lib/json";
 import { token as newToken } from "../../lib/security";
 import { trialEnded } from "../auth/trial";
 import { patchCells } from "../workbooks/service";
-import { getItemFields, getItemLabel, isKnownItem, type ItemField } from "./item-fields";
+import { declaredBlocks, getItemFields, getItemLabel, isKnownItem, type ItemField } from "./item-fields";
 
 const ITEM_LINK_DAYS = 90;
 
@@ -64,6 +64,7 @@ export async function resolveItemLink(token: string, fieldsFor: FieldsFor = getI
       ...f,
       value: string(cells[cell], ""),
     })),
+    declared: declaredBlocks(cells),
   };
 }
 

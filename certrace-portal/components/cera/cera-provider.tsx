@@ -40,10 +40,10 @@ import { conversationalReply } from "@/lib/cera/ai-reply";
 import { loadSession, onSessionChange } from "@/lib/api/session";
 import { isApiError } from "@/lib/api/errors";
 import { request } from "@/lib/api";
-import { chunks, pick, type CeraLang } from "@/lib/cera/lang";
+import { chunks, langOf, pick, type CeraLang } from "@/lib/cera/lang";
 import { focusHash, requestFocus } from "@/lib/cera/focus";
 import { localQuestion } from "@/lib/cera/knowledge-local";
-import { useLanguage } from "@/lib/i18n";
+import { loadLocale, useLanguage } from "@/lib/i18n";
 import {
   deleteConversation,
   getConversation,
@@ -775,6 +775,8 @@ export function CeraProvider({
           attachments: attachments.length ? attachments : undefined,
         },
       ]);
+      // Cera answers in the language typed, which may not be the screen's; its dictionary loads on demand.
+      await loadLocale(langOf(prompt, uiLangRef.current)).catch(() => {});
       /* A DESCRIPTION IS NOT A QUESTION. When Cera has just asked what a file holds, the next thing typed is the answer: read it together with the
          file and carry on from there. It comes before everything else, including a supplier's link, which otherwise would turn it away. */
       const psess = precursorSession.current;

@@ -45,7 +45,14 @@ export type CbamField = {
   optionLabels?: Readonly<Record<string, string>>;
   /** The template asks for it but marks it optional (e.g. P.O. Box, Fax). */
   optional?: true;
+  /** Which production process (1-10) or purchased precursor (1-20) a repeated field belongs to. */
+  block?: number;
+  group?: CbamBlockGroup;
+  /** A row of the A_InstData lists that declares the process or precursor; an answer opens its block. */
+  declares?: true;
 };
+
+export type CbamBlockGroup = "process" | "precursor";
 
 /** The label shown for a stored option value. Stored values keep the template's spelling
     (trailing space included); only what the reader sees is tidied. */
@@ -117,6 +124,95 @@ const GOODS = [
   "Electricity (export to EU)",
 ] as const; // CONST_LIST_Goods
 
+// A_InstData lists production processes P1-P10 on rows 83-92 (part b) and purchased precursors
+// PP1-PP20 on rows 102-121. Sheet D repeats its block every 65 rows per process, and sheet E
+// every 44 rows per precursor (checked against the v2.1.1 file). Each list below is block 1;
+// `blocks` derives the rest. Only block 1 is required: most installations have one.
+const PROCESSES = 10;
+const PRECURSORS = 20;
+const D_STRIDE = 65;
+const E_STRIDE = 44;
+
+type BlockField = [cell: string, label: string, kind: CbamField["kind"], opts?: FieldOpts];
+type BlockSpec = { group: CbamBlockGroup; count: number; stride: number; declares?: true };
+
+const PROCESS_LIST: BlockSpec = { group: "process", count: PROCESSES, stride: 1, declares: true };
+const PRECURSOR_LIST: BlockSpec = { group: "precursor", count: PRECURSORS, stride: 1, declares: true };
+const PROCESS_SHEET: BlockSpec = { group: "process", count: PROCESSES, stride: D_STRIDE };
+const PRECURSOR_SHEET: BlockSpec = { group: "precursor", count: PRECURSORS, stride: E_STRIDE };
+
+const blocks = (
+  sheet: CbamTemplateSheet,
+  base: string,
+  item: CbamItemId,
+  { group, count, stride, declares }: BlockSpec,
+  list: readonly BlockField[],
+): CbamField[] =>
+  Array.from({ length: count }, (_, i) =>
+    list.map(([cell, label, kind, opts = {}]) => {
+      const [, col, row] = /^([A-Z]+)(\d+)$/.exec(cell)!;
+      return {
+        ...field(sheet, `${col}${Number(row) + stride * i}`, label, `${base} ${i + 1}`, item, kind, opts),
+        block: i + 1,
+        group,
+        ...(declares ? { declares } : {}),
+        ...(i > 0 ? { optional: true as const } : {}),
+      };
+    }),
+  ).flat();
+
+const A_PROCESS: readonly BlockField[] = [
+  ["E83", "Aggregated goods category", "select", { options: GOODS }],
+  ["F83", "Included goods category", "select", { options: GOODS, optional: true }],
+  ["L83", "Name", "text"],
+];
+
+const A_PRECURSOR: readonly BlockField[] = [
+  ["E102", "Production process", "select", { options: GOODS }],
+  ["F102", "Country code", "text"],
+  ["G102", "Route 1", "text"],
+  ["L102", "Name", "text"],
+];
+
+const D_INDIRECT: readonly BlockField[] = [
+  ["L65", "Electricity consumption", "number", { unit: "MWh" }],
+  ["L66", "Emission factor of the electricity", "number", { unit: "tCO2/MWh" }],
+  ["L67", "Source of the emission factor", "select", { options: ELEC_SOURCE }],
+  ["L71", "Amounts exported", "number", { unit: "MWh" }],
+  ["L72", "Emission factor of the exported electricity", "number", { unit: "tCO2/MWh" }],
+];
+
+const D_COMMUNICATION: readonly BlockField[] = [
+  ["L16", "Amounts, route no. 1", "number"],
+  ["L27", "Produced for the market", "number"],
+  ["L32", "Consumed in other production processes, item 1", "number"],
+  ["L41", "Consumed for non-CBAM goods within the installation", "number"],
+  ["K50", "Measurable heat applicable", "select", { options: TRUE_FALSE, optionLabels: TRUE_FALSE_LABELS }],
+  ["L50", "Waste gases applicable", "select", { options: TRUE_FALSE, optionLabels: TRUE_FALSE_LABELS }],
+  ["L54", "Directly attributable emissions (DirEm*)", "number", { unit: "tCO2e" }],
+  ["L57", "Net measurable heat, imported", "number", { unit: "TJ" }],
+  ["M57", "Net measurable heat, exported", "number", { unit: "TJ" }],
+  ["L58", "Emission factor for net measurable heat, imported", "number", { unit: "tCO2/TJ" }],
+  ["M58", "Emission factor for net measurable heat, exported", "number", { unit: "tCO2/TJ" }],
+  ["L61", "Waste gas, imported", "number", { unit: "TJ" }],
+  ["M61", "Waste gas, exported", "number", { unit: "TJ" }],
+  ["L62", "Emission factor for waste gas, imported", "number", { unit: "tCO2/TJ" }],
+  ["M62", "Emission factor for waste gas, exported", "number", { unit: "tCO2/TJ" }],
+];
+
+const E_PRECURSOR: readonly BlockField[] = [
+  ["L17", "Total purchased levels, route no. 1", "number"],
+  ["L28", "Consumed in production processes, item 1", "number"],
+  ["L38", "Consumed for other purposes (sold or non-CBAM goods)", "number"],
+  ["L49", "Specific embedded direct emissions (SEE direct), value", "number"],
+  ["M49", "Specific embedded direct emissions (SEE direct), source", "select", { options: MEAS_DEFAULT_UNKNOWN }],
+  ["L50", "Specific electricity consumption (SEE indirect), value", "number"],
+  ["M50", "Specific electricity consumption (SEE indirect), source", "select", { options: MEAS_DEFAULT_UNKNOWN }],
+  ["L51", "Electricity emission factor (SEE indirect), value", "number"],
+  ["M51", "Electricity emission factor (SEE indirect), source", "select", { options: ELEC_SOURCE }],
+  ["K54", "Justification for use of default values", "select", { options: DATA_JUSTIFICATION }],
+];
+
 export const CBAM_FIELDS: readonly CbamField[] = [
   // Installation: reporting period, installation, authorised representative, operator
   field("A_InstData", "I9", "Reporting period start", "Reporting period", "installation", "date"),
@@ -150,13 +246,13 @@ export const CBAM_FIELDS: readonly CbamField[] = [
   field("A_InstData", "I52", "Name of the national accreditation body", "Verifier", "verification", "text"),
   field("A_InstData", "I53", "Registration number issued by the accreditation body", "Verifier", "verification", "text"),
 
-  // Goods: first aggregated goods row, routes 1-2; first precursor row
+  // Goods: first aggregated goods row, routes 1-2; the production processes and purchased
+  // precursors the installation declares
   field("A_InstData", "E62", "Aggregated goods category", "Goods", "goods", "select", { options: GOODS }),
   field("A_InstData", "I62", "Route 1", "Goods", "goods", "text"),
   field("A_InstData", "J62", "Route 2", "Goods", "goods", "text"),
-  field("A_InstData", "E102", "Production process", "Precursor routes", "goods", "select", { options: GOODS }),
-  field("A_InstData", "F102", "Country code", "Precursor routes", "goods", "text"),
-  field("A_InstData", "G102", "Route 1", "Precursor routes", "goods", "text"),
+  ...blocks("A_InstData", "Production process", "goods", PROCESS_LIST, A_PROCESS),
+  ...blocks("A_InstData", "Purchased precursor", "goods", PRECURSOR_LIST, A_PRECURSOR),
 
   // Direct emissions: first source stream (row 17) and the fuel and GHG balance
   field("B_EmInst", "D17", "Method", "Source streams", "direct", "select", { options: MONITORING }),
@@ -185,45 +281,48 @@ export const CBAM_FIELDS: readonly CbamField[] = [
   field("C_Emissions&Energy", "H41", "Justification for use of default values (if relevant)", "Data quality", "monitoring", "select", { options: DATA_JUSTIFICATION }),
   field("C_Emissions&Energy", "H42", "Information on quality assurance", "Data quality", "monitoring", "select", { options: DATA_VERIFICATION }),
 
-  // Indirect emissions: electricity, first production process
-  field("D_Processes", "L65", "Electricity consumption", "Production process 1", "indirect", "number", { unit: "MWh" }),
-  field("D_Processes", "L66", "Emission factor of the electricity", "Production process 1", "indirect", "number", { unit: "tCO2/MWh" }),
-  field("D_Processes", "L67", "Source of the emission factor", "Production process 1", "indirect", "select", { options: ELEC_SOURCE }),
-  field("D_Processes", "L71", "Amounts exported", "Production process 1", "indirect", "number", { unit: "MWh" }),
-  field("D_Processes", "L72", "Emission factor of the exported electricity", "Production process 1", "indirect", "number", { unit: "tCO2/MWh" }),
+  // Indirect emissions (electricity) and communication: production processes 1-10
+  ...blocks("D_Processes", "Production process", "indirect", PROCESS_SHEET, D_INDIRECT),
+  ...blocks("D_Processes", "Production process", "communication", PROCESS_SHEET, D_COMMUNICATION),
 
-  // Communication: first production process
-  field("D_Processes", "L16", "Amounts, route no. 1", "Production process 1", "communication", "number"),
-  field("D_Processes", "L27", "Produced for the market", "Production process 1", "communication", "number"),
-  field("D_Processes", "L32", "Consumed in other production processes, item 1", "Production process 1", "communication", "number"),
-  field("D_Processes", "L41", "Consumed for non-CBAM goods within the installation", "Production process 1", "communication", "number"),
-  field("D_Processes", "K50", "Measurable heat applicable", "Production process 1", "communication", "select", { options: TRUE_FALSE, optionLabels: TRUE_FALSE_LABELS }),
-  field("D_Processes", "L50", "Waste gases applicable", "Production process 1", "communication", "select", { options: TRUE_FALSE, optionLabels: TRUE_FALSE_LABELS }),
-  field("D_Processes", "L54", "Directly attributable emissions (DirEm*)", "Production process 1", "communication", "number", { unit: "tCO2e" }),
-  field("D_Processes", "L57", "Net measurable heat, imported", "Production process 1", "communication", "number", { unit: "TJ" }),
-  field("D_Processes", "M57", "Net measurable heat, exported", "Production process 1", "communication", "number", { unit: "TJ" }),
-  field("D_Processes", "L58", "Emission factor for net measurable heat, imported", "Production process 1", "communication", "number", { unit: "tCO2/TJ" }),
-  field("D_Processes", "M58", "Emission factor for net measurable heat, exported", "Production process 1", "communication", "number", { unit: "tCO2/TJ" }),
-  field("D_Processes", "L61", "Waste gas, imported", "Production process 1", "communication", "number", { unit: "TJ" }),
-  field("D_Processes", "M61", "Waste gas, exported", "Production process 1", "communication", "number", { unit: "TJ" }),
-  field("D_Processes", "L62", "Emission factor for waste gas, imported", "Production process 1", "communication", "number", { unit: "tCO2/TJ" }),
-  field("D_Processes", "M62", "Emission factor for waste gas, exported", "Production process 1", "communication", "number", { unit: "tCO2/TJ" }),
-
-  // Precursors: first purchased precursor
-  field("E_PurchPrec", "L17", "Total purchased levels, route no. 1", "Purchased precursor 1", "precursors", "number"),
-  field("E_PurchPrec", "L28", "Consumed in production processes, item 1", "Purchased precursor 1", "precursors", "number"),
-  field("E_PurchPrec", "L38", "Consumed for other purposes (sold or non-CBAM goods)", "Purchased precursor 1", "precursors", "number"),
-  field("E_PurchPrec", "L49", "Specific embedded direct emissions (SEE direct), value", "Purchased precursor 1", "precursors", "number"),
-  field("E_PurchPrec", "M49", "Specific embedded direct emissions (SEE direct), source", "Purchased precursor 1", "precursors", "select", { options: MEAS_DEFAULT_UNKNOWN }),
-  field("E_PurchPrec", "L50", "Specific electricity consumption (SEE indirect), value", "Purchased precursor 1", "precursors", "number"),
-  field("E_PurchPrec", "M50", "Specific electricity consumption (SEE indirect), source", "Purchased precursor 1", "precursors", "select", { options: MEAS_DEFAULT_UNKNOWN }),
-  field("E_PurchPrec", "L51", "Electricity emission factor (SEE indirect), value", "Purchased precursor 1", "precursors", "number"),
-  field("E_PurchPrec", "M51", "Electricity emission factor (SEE indirect), source", "Purchased precursor 1", "precursors", "select", { options: ELEC_SOURCE }),
-  field("E_PurchPrec", "K54", "Justification for use of default values", "Purchased precursor 1", "precursors", "select", { options: DATA_JUSTIFICATION }),
+  // Precursors: purchased precursors 1-20
+  ...blocks("E_PurchPrec", "Purchased precursor", "precursors", PRECURSOR_SHEET, E_PRECURSOR),
 ];
 
 export const cbamFieldsFor = (item: string): CbamField[] =>
   CBAM_FIELDS.filter((f) => f.item === item);
+
+type BlockRef = { block?: number; group?: CbamBlockGroup; declares?: true };
+const blockKey = (group: CbamBlockGroup | undefined, block: number) => `${group}:${block}`;
+
+/** `process:n` / `precursor:m` for each process and precursor the A_InstData lists declare in `cells`. */
+export function declaredBlocks(cells: Record<string, string>): string[] {
+  return [
+    ...new Set(
+      CBAM_FIELDS.filter((f) => f.declares && (cells[cbamCellKey(f)] ?? "").trim() !== "").map((f) =>
+        blockKey(f.group, f.block!),
+      ),
+    ),
+  ];
+}
+
+/** The fields a form shows. Block 1 always, and any block that already holds an answer.
+    In sheets D and E, once A_InstData declares processes (or precursors), exactly the declared
+    ones; before that, and in the A_InstData lists themselves, the next empty block after one
+    with an answer, so a single-process installation never scrolls past nine empty processes. */
+export function visibleBlocks<F extends BlockRef>(
+  fields: readonly F[],
+  answered: (f: F) => boolean,
+  declared: readonly string[] = [],
+): F[] {
+  const open = new Set([...declared, ...fields.filter((f) => f.block && answered(f)).map((f) => blockKey(f.group, f.block!))]);
+  const listed = new Set(declared.map((k) => k.split(":")[0]));
+  return fields.filter((f) => {
+    if (!f.block || f.block === 1 || open.has(blockKey(f.group, f.block))) return true;
+    const followsDeclarations = !f.declares && listed.has(f.group!);
+    return !followsDeclarations && open.has(blockKey(f.group, f.block - 1));
+  });
+}
 
 /** Required fields filled / required fields, for one item or for all of them. */
 export function cbamProgress(cells: Record<string, string>, item?: string) {
