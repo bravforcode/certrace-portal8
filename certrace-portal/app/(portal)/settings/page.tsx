@@ -397,6 +397,7 @@ function PlanCard() {
    ══════════════════════════════════════════════════════════════ */
 function OwnInstallationCard() {
   const t = useT();
+  const { profile } = useProfile();
   const own = useOwnInstallations().data;
   /** null = closed · "new" = adding · an Installation = editing that one */
   const [editing, setEditing] = React.useState<Installation | "new" | null>(
@@ -568,9 +569,13 @@ function OwnInstallationCard() {
         open={editing !== null && !(editing === "new" && cap.atCap)}
         onClose={() => setEditing(null)}
         initial={
-          editing && editing !== "new" ? editing : emptyInstallation(true)
+          editing && editing !== "new"
+            ? editing
+            : // An OEM answer in onboarding preselects the OEM role for the next site.
+              { ...emptyInstallation(true), role: profile.productionModel === "oem" ? "oem" : "own" }
         }
         allowSelfToggle={false}
+        showRole
         self
         title={editing === "new" ? t("Add a site") : t("Your installation")}
         lead={t(

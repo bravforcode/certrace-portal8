@@ -42,7 +42,9 @@ import {
   normaliseReference,
   referenceError,
   saveInstallation,
+  installationRole,
   type Installation,
+  type InstallationRole,
 } from "@/lib/installations";
 
 const countryOptions = COUNTRIES.map((c) => ({
@@ -194,6 +196,12 @@ function AField({
   );
 }
 
+const ROLE_OPTIONS: { value: InstallationRole; label: string }[] = [
+  { value: "own", label: "We run this plant" },
+  { value: "oem", label: "An OEM runs it for us — we enter its data" },
+  { value: "supplier", label: "A supplier — they fill in a form" },
+];
+
 export function InstallationFields({
   value,
   onChange,
@@ -205,10 +213,13 @@ export function InstallationFields({
   showAllErrors = false,
   annexTags = false,
   onReferenceBlur,
+  showRole = false,
 }: {
   value: Installation;
   onChange: (next: Installation) => void;
   showSelfToggle?: boolean;
+  /** Ask who keys in this plant's data (own, OEM or supplier). Off where the role is already settled. */
+  showRole?: boolean;
   /* The reference this record already had, when editing. Passed so the
      uniqueness check does not report a site's own reference as taken —
      without it, opening an existing installation and pressing save would
@@ -251,6 +262,7 @@ export function InstallationFields({
   onReferenceBlur?: () => void;
 }) {
   const t = useT();
+  const roleName = React.useId();
   const set = (p: Partial<Installation>) => onChange({ ...value, ...p });
   const a = (tag: string, need: "required" | "optional" = "required"): Annex =>
     annexTags ? { tag, need } : undefined;
@@ -294,6 +306,28 @@ export function InstallationFields({
             </span>
           </span>
         </label>
+      )}
+
+      {showRole && (
+        <fieldset className="space-y-2" disabled={disabled}>
+          <legend className="mb-1 text-[13px] text-black/75">{t("Who runs this plant?")}</legend>
+          {ROLE_OPTIONS.map((o) => (
+            <label
+              key={o.value}
+              className="flex cursor-pointer items-start gap-3 rounded-xl border border-black/[0.08] bg-[#faf9f7] px-4 py-3"
+            >
+              <input
+                type="radio"
+                name={roleName}
+                value={o.value}
+                checked={installationRole(value) === o.value}
+                onChange={() => set({ role: o.value })}
+                className="mt-0.5 h-4 w-4 flex-none accent-[#111]"
+              />
+              <span className="text-[13px] text-black/75">{t(o.label)}</span>
+            </label>
+          ))}
+        </fieldset>
       )}
 
       {/* The name leads; the reference is Certrace's own key for the record and
@@ -584,6 +618,7 @@ export function InstallationModal({
   allowSelfToggle = true,
   supplierId,
   self,
+  showRole = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -592,6 +627,8 @@ export function InstallationModal({
   title?: string;
   lead?: string;
   allowSelfToggle?: boolean;
+  /** Ask who runs the plant (own, OEM or supplier). */
+  showRole?: boolean;
   /** The supplier this plant belongs to. Set by the flows that already know —
       "add an installation" pressed on a supplier's own page has no business
       asking which supplier it is for. */
@@ -733,6 +770,7 @@ export function InstallationModal({
         existingId={existingId}
         disabled={saving || saved}
         annexTags
+        showRole={showRole}
       />
     </Modal>
   );

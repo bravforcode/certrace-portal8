@@ -6,25 +6,17 @@
    Logo, name and description on top, with the one primary action: convert
    the workspace data into the standard's report. Under it, the reporting
    year (only the current one is open; later years are locked), then each
-   requirement with its readiness and two ways to work on it — send a Smart
-   Link or fill it in — which stay available even once it is complete, so
-   a figure can still be corrected. Last, the reports already generated for
-   that year. Mock data (lib/convert-mock.ts).
+   requirement with its readiness and the one way to work on it — fill it in,
+   or request it through a Smart Link, depending on whose data it is. The
+   report stays locked until every requirement is complete (D21). Last, the
+   reports already generated for that year. Readiness is live
+   (lib/convert/requirements.ts).
    ════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import {
-  ArrowLeft,
-  ChevronDown,
-  Download,
-  FileArchive,
-  FileSpreadsheet,
-  Link2,
-  PencilLine,
-  Search,
-} from "lucide-react";
+import { ArrowLeft, ChevronDown, Link2, PencilLine, Search } from "lucide-react";
 import {
   Button,
   ButtonLink,
@@ -39,14 +31,17 @@ import { toast } from "@/components/toast";
 import { YearBar } from "@/components/year-bar";
 import { currentYear } from "@/lib/year-range";
 import { StandardLogo } from "@/components/convert/standard-logo";
+import { DeclarationRows } from "@/components/convert/declaration-rows";
+import { useDeclarations } from "@/lib/declarations-query";
+import { useT } from "@/lib/i18n";
+import { getStandard, type RequirementState } from "@/lib/convert-standards";
 import {
-  REPORTS,
-  getStandard,
+  liveRequirements,
   readiness,
-  type ConvertedReport,
-  type Requirement,
-  type RequirementState,
-} from "@/lib/convert-mock";
+  type LiveRequirement,
+} from "@/lib/convert/requirements";
+import { useConvertContext } from "@/lib/convert/use-convert-context";
+import { installationRole } from "@/lib/installations";
 
 const STATE: Record<
   RequirementState,
@@ -57,26 +52,27 @@ const STATE: Record<
   missing: { label: "Missing", tone: "err" },
 };
 
+const ROLE_LABEL = { own: "Own plant", oem: "OEM plant", supplier: "Supplier plant" } as const;
+
 export default function ConvertStandardPage() {
+  return (
+    <React.Suspense fallback={null}>
+      <ConvertStandardInner />
+    </React.Suspense>
+  );
+}
+
+function ConvertStandardInner() {
   const { id } = useParams<{ id: string }>();
   const s = getStandard(id);
+  const t = useT();
+  const { installation, sheets } = useConvertContext();
+  const { data: declarations = [] } = useDeclarations();
   const [more, setMore] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const [open, setOpen] = React.useState<string | null>(null);
   const thisYear = currentYear();
   const [year, setYear] = React.useState(thisYear);
-  // Set when Convert is pressed too early: the unfinished requirements light up.
-  const [flagged, setFlagged] = React.useState(false);
-  const listRef = React.useRef<HTMLDivElement>(null);
-  // The highlight is a pointer, not a state: it fades out on its own.
-  React.useEffect(() => {
-    if (!flagged) return;
-    const id = window.setTimeout(() => setFlagged(false), 2600);
-    return () => window.clearTimeout(id);
-  }, [flagged]);
-  const [history, setHistory] = React.useState<ConvertedReport[]>(() =>
-    REPORTS.filter((r) => r.standardId === id),
-  );
 
   if (!s || s.status === "soon")
     return (
@@ -90,39 +86,25 @@ export default function ConvertStandardPage() {
 
   // Only the current year has data so far: any other year shows every requirement missing.
   const locked = year !== thisYear;
-  const requirements: Requirement[] = locked
-    ? s.requirements.map((r) => ({ ...r, state: "missing", progress: undefined }))
-    : s.requirements;
-  const pct = readiness({ ...s, requirements });
-  const open_ = requirements.filter((r) => r.state !== "complete").length;
-  // Converting needs every requirement complete.
-  const canConvert = open_ === 0;
+  const live = liveRequirements(s, { installation, sheets });
+  const requirements: LiveRequirement[] = locked
+    ? live.map((r) => ({ ...r, state: "missing", progress: 0 }))
+    : live;
+  const pct = readiness(requirements);
+  const incomplete = requirements.filter((r) => r.state !== "complete");
+  // Export stays locked until every requirement is complete, but Convert itself stays open to browse (D21).
+  const canConvert = incomplete.length === 0;
+  const role = installation ? installationRole(installation) : null;
   const q = query.trim().toLowerCase();
   const rows = requirements.filter(
     (r) => !q || r.title.toLowerCase().includes(q),
   );
-  const yearHistory = history.filter((r) => r.year === year);
+  const yearHistory = declarations.filter(
+    (d) => d.periodStart?.slice(0, 4) === String(year),
+  );
 
   const convert = () => {
-    if (!canConvert) {
-      setQuery("");
-      setFlagged(true);
-      listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      return;
-    }
-    const today = new Date().toISOString().slice(0, 10);
-    setHistory((h) => [
-      {
-        id: `r-${Date.now()}`,
-        standardId: s.id,
-        title: `${s.name} report package — ${year}`,
-        year,
-        period: `${year} to date`,
-        createdAt: today,
-        format: "ZIP",
-      },
-      ...h,
-    ]);
+    if (!canConvert) return;
     toast(`${s.name} report for ${year} is ready. (Mock)`);
   };
 
@@ -137,6 +119,11 @@ export default function ConvertStandardPage() {
             <h1 className="font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111]">
               {s.name}
             </h1>
+            {role && (
+              <div className="mt-2">
+                <Chip tone="muted">{t(ROLE_LABEL[role])}</Chip>
+              </div>
+            )}
             <p
               className={cn(
                 "mt-2 max-w-xl text-[14px] leading-relaxed text-black/55",
@@ -155,18 +142,37 @@ export default function ConvertStandardPage() {
           </div>
         </div>
 
-        {/* Looks inactive until every requirement is complete, but still answers a
-            click: it points at what is left instead of doing nothing. */}
-        <Button
-          onClick={convert}
-          aria-disabled={!canConvert}
-          className={cn(
-            "flex-none self-start",
-            !canConvert && "bg-black/[0.08] text-black/35 hover:bg-black/[0.08]",
+        <div className="flex flex-none flex-col items-start gap-2 md:items-end">
+          <Button
+            onClick={convert}
+            disabled={!canConvert}
+            title={
+              canConvert
+                ? undefined
+                : `${t("Complete first")}: ${incomplete.map((r) => r.title).join(", ")}`
+            }
+            className="self-start"
+          >
+            {t("Convert to report")}
+          </Button>
+          {!canConvert && (
+            <p className="max-w-xs text-[12px] leading-relaxed text-black/50 md:text-right">
+              {t("Complete first")}:{" "}
+              {incomplete.map((r, i) => (
+                <React.Fragment key={r.id}>
+                  {i > 0 && ", "}
+                  {r.href ? (
+                    <Link href={r.href} className="underline underline-offset-2 hover:text-black">
+                      {r.title}
+                    </Link>
+                  ) : (
+                    r.title
+                  )}
+                </React.Fragment>
+              ))}
+            </p>
           )}
-        >
-          Convert to report
-        </Button>
+        </div>
       </div>
 
       {/* Reporting year: the shared bar (2020 → five years ahead, opening on
@@ -174,10 +180,7 @@ export default function ConvertStandardPage() {
           show every requirement as missing, as does any earlier year. */}
       <YearBar
         value={year}
-        onChange={(y) => {
-          setYear(y);
-          setFlagged(false);
-        }}
+        onChange={(y) => setYear(y)}
         mark={(y) => (y > thisYear ? "locked" : undefined)}
       />
 
@@ -196,8 +199,10 @@ export default function ConvertStandardPage() {
               </span>
             </div>
             <p className="mt-1.5 text-[12px] text-black/40">
-              {s.requirements.length - open_} of {s.requirements.length}{" "}
-              requirements complete
+              {t("{done} of {total} requirements complete", {
+                done: requirements.length - incomplete.length,
+                total: requirements.length,
+              })}
             </p>
           </div>
           <div className="relative w-full sm:w-72">
@@ -217,7 +222,6 @@ export default function ConvertStandardPage() {
           </div>
         </div>
 
-        <div ref={listRef} className="scroll-mt-24" />
         <Card className="overflow-hidden p-0">
           {rows.length === 0 ? (
             <p className="px-5 py-6 text-[13px] text-black/40">
@@ -229,7 +233,6 @@ export default function ConvertStandardPage() {
                 key={r.id}
                 r={r}
                 first={i === 0}
-                flagged={flagged && r.state !== "complete"}
                 open={open === r.id}
                 onToggle={() => setOpen((v) => (v === r.id ? null : r.id))}
               />
@@ -243,44 +246,9 @@ export default function ConvertStandardPage() {
           Report history
         </h2>
         {yearHistory.length === 0 ? (
-          <EmptyState title={`No reports generated for ${year} yet.`} />
+          <EmptyState title={t("No reports generated for {year} yet.", { year })} />
         ) : (
-          <div className="overflow-hidden rounded-xl border border-black/[0.08] bg-white">
-            {yearHistory.map((r, i) => (
-              <div
-                key={r.id}
-                className={cn(
-                  "flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center",
-                  i > 0 && "border-t border-black/[0.06]",
-                )}
-              >
-                {r.format === "ZIP" ? (
-                  <FileArchive size={18} strokeWidth={1.5} className="hidden flex-none text-black/35 sm:block" />
-                ) : (
-                  <FileSpreadsheet size={18} strokeWidth={1.5} className="hidden flex-none text-black/35 sm:block" />
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[14px] text-black/85">
-                    {r.title}
-                  </div>
-                  <div className="mt-0.5 text-[12px] text-black/40">
-                    {r.period} · Generated {r.createdAt}
-                  </div>
-                </div>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  aria-label={`Download ${r.title} (${r.format})`}
-                  onClick={() =>
-                    toast(`${r.title} (${r.format}) — download is a mock for now.`)
-                  }
-                  className="flex-none self-start sm:self-auto"
-                >
-                  <Download size={13} strokeWidth={1.5} /> Download
-                </Button>
-              </div>
-            ))}
-          </div>
+          <DeclarationRows items={yearHistory} />
         )}
       </section>
     </div>
@@ -293,28 +261,6 @@ function BackLink() {
     <React.Suspense fallback={null}>
       <BackLinkInner />
     </React.Suspense>
-  );
-}
-
-/* Keeps the installation picked on Convert when filling in a requirement by hand. */
-function FillInLink() {
-  return (
-    <React.Suspense fallback={null}>
-      <FillInLinkInner />
-    </React.Suspense>
-  );
-}
-
-function FillInLinkInner() {
-  const installation = useSearchParams().get("installation");
-  return (
-    <ButtonLink
-      href={installation ? `/workspaces?installation=${encodeURIComponent(installation)}` : "/workspaces"}
-      variant="secondary"
-      size="sm"
-    >
-      <PencilLine size={13} strokeWidth={1.5} /> Fill in
-    </ButtonLink>
   );
 }
 
@@ -333,32 +279,29 @@ function BackLinkInner() {
 function RequirementRow({
   r,
   first,
-  flagged,
   open,
   onToggle,
 }: {
-  r: Requirement;
+  r: LiveRequirement;
   first: boolean;
-  /** Still to do, and Convert was pressed: tinted so it stands out. */
-  flagged: boolean;
   open: boolean;
   onToggle: () => void;
 }) {
+  const t = useT();
   const st = STATE[r.state];
+  // One way to work on it, by whose data it is: an own gap is filled in, a supplier's is requested through a Smart Link.
+  const action =
+    r.fix === "fill-in"
+      ? { label: t("Fill in"), icon: <PencilLine size={13} strokeWidth={1.5} /> }
+      : { label: t("Request via Smart Link"), icon: <Link2 size={13} strokeWidth={1.5} /> };
   return (
     <div
       className={cn(
-        "border-l-2 transition-colors duration-700 ease-out",
+        "border-l-2 border-l-transparent transition-colors duration-700 ease-out",
         !first && "border-t border-t-black/[0.06]",
-        flagged ? "border-l-[#dc2626] bg-[#fef2f2]" : "border-l-transparent",
       )}
     >
-      <div
-        className={cn(
-          "px-5 py-3 transition-colors",
-          flagged ? "hover:bg-[#fde8e8]" : "hover:bg-[#fafaf8]",
-        )}
-      >
+      <div className="px-5 py-3 transition-colors hover:bg-[#fafaf8]">
         <button
           type="button"
           aria-expanded={open}
@@ -376,11 +319,9 @@ function RequirementRow({
           <span className="min-w-0 flex-1 text-[14px] text-black/80">
             {r.title}
           </span>
-          {r.progress && (
-            <span className="hidden text-[12px] text-black/40 md:inline">
-              {r.progress}
-            </span>
-          )}
+          <span className="hidden text-[12px] tabular-nums text-black/40 md:inline">
+            {r.progress}%
+          </span>
           <Chip tone={st.tone} filled>
             {st.label}
           </Chip>
@@ -391,17 +332,19 @@ function RequirementRow({
           <p className="max-w-2xl text-[13px] leading-relaxed text-black/55">
             {r.detail}
           </p>
-          {r.progress && (
-            <p className="mt-1 text-[12px] text-black/40 md:hidden">
-              {r.progress}
-            </p>
-          )}
-          {/* Both stay available whatever the state — a complete figure can still be corrected. */}
-          <div className="mt-3 flex flex-wrap gap-2">
-            <ButtonLink href="/smart-links" variant="secondary" size="sm">
-              <Link2 size={13} strokeWidth={1.5} /> Smart Link
-            </ButtonLink>
-            <FillInLink />
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {r.href ? (
+              <ButtonLink href={r.href} variant="secondary" size="sm">
+                {action.icon} {action.label}
+              </ButtonLink>
+            ) : (
+              <>
+                <Button variant="secondary" size="sm" disabled>
+                  {action.icon} {action.label}
+                </Button>
+                <span className="text-[12px] text-black/40">{t("Choose an installation")}</span>
+              </>
+            )}
           </div>
         </div>
       )}
