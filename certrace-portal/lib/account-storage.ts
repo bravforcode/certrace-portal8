@@ -240,6 +240,13 @@ export const retryAccountSave = () => {
   failure = null;
   return flushAccount();
 };
+/** Drops one unsaved edit the server refused (for example a revision conflict), so its key
+    stops retrying the same stale write. The next server refresh restores the newer copy. */
+export function discardPendingRecord(key: string) {
+  pending.delete(key);
+  failure = null;
+  announce();
+}
 function enqueue(key: string, value: string | null) {
   if (!accountId || !ready) throw new Error("Account data is still loading.");
   if (team && !team.isOwner && key === "certrace:profile")

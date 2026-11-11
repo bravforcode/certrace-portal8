@@ -1,19 +1,30 @@
-import { accountStorage, flushAccount } from "../account-storage";
-import { emptyProfile, factoryKey, validateProfile, type FactoryProfile } from "./profile";
+import { accountStorage, discardPendingRecord, flushAccount, refreshAccountRecords } from "../account-storage";
+import { factoryKey, validateProfile, type FactoryProfile } from "./profile";
+import { classifySaveError, FactorySaveError, parseStoredFactory } from "./stored";
 
-export function readFactory(installationId: string): FactoryProfile {
+export function readFactory(installationId: string): { profile: FactoryProfile; unreadable: boolean } {
   try {
-    const raw = accountStorage.getItem(factoryKey(installationId));
-    const parsed = raw ? validateProfile(JSON.parse(raw)) : null;
-    return parsed?.ok ? parsed.data : emptyProfile();
+    return parseStoredFactory(accountStorage.getItem(factoryKey(installationId)));
   } catch {
-    return emptyProfile();
+    return parseStoredFactory(null);
   }
 }
 
 export async function saveFactory(installationId: string, p: FactoryProfile) {
   const checked = validateProfile(p);
   if (!checked.ok) throw new Error(checked.errors.join("; "));
-  accountStorage.setItem(factoryKey(installationId), JSON.stringify({ ...checked.data, updatedAt: new Date().toISOString() }));
-  await flushAccount();
+  const key = factoryKey(installationId);
+  accountStorage.setItem(key, JSON.stringify({ ...checked.data, updatedAt: new Date().toISOString() }));
+  try {
+    await flushAccount();
+  } catch (e) {
+    const reason = classifySaveError(e);
+    if (reason === "conflict") {
+      // The server refused this revision. Keeping it pending would retry the same stale write forever,
+      // so drop it and pull the newer copy before the user edits again.
+      discardPendingRecord(key);
+      await refreshAccountRecords().catch(() => false);
+    }
+    throw new FactorySaveError(reason, reason);
+  }
 }
