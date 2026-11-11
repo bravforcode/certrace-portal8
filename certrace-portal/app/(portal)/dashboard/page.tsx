@@ -45,6 +45,10 @@ import {
   SitesPanel,
 } from "@/components/home/panels";
 import { CURRENCIES, type Currency } from "@/lib/cbam/carbon-cost-model";
+import { InstallationDirectory } from "@/components/factory/installation-directory";
+import { FactoryMap } from "@/components/factory/factory-map";
+import { useActiveInstallation } from "@/lib/active-installation";
+import { currentYear } from "@/lib/year-range";
 
 export default function DashboardPage() {
   const t = useT();
@@ -74,6 +78,11 @@ export default function DashboardPage() {
     data?.carbon.env.rates ?? { THB: 38, EUR: 1, CNY: 7.8, INR: 95 },
   );
 
+  const { active } = useActiveInstallation();
+  const [year, setYear] = React.useState(currentYear);
+  const [picked, setPicked] = React.useState<string | null>(null);
+  const mapId = picked ?? active?.id ?? null;
+
   if (isError) return <ErrorState onRetry={() => void refetch()} />;
   if (!data) return <LoadingState />;
 
@@ -102,6 +111,11 @@ export default function DashboardPage() {
           </Button>
         </Link>
       </div>
+
+      <InstallationDirectory year={year} selectedId={mapId} onShowOnMap={setPicked} />
+      {mapId && (
+        <FactoryMap installationId={mapId} year={year} onInstallationChange={setPicked} onYearChange={setYear} />
+      )}
 
       {empty ? (
         <EmptyState
