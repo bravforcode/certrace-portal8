@@ -31,7 +31,7 @@
    ════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   accountSuspension,
   isSignedIn,
@@ -50,7 +50,6 @@ export function RequireSession({
   requireReady?: boolean;
 }) {
   const router = useRouter();
-  const pathname = usePathname();
   const [allowed, setAllowed] = React.useState(false);
   /* Read in an effect so the first client render matches the server render. */
   const [suspended, setSuspended] = React.useState<SuspensionNotice | null>(
@@ -62,6 +61,8 @@ export function RequireSession({
     return onAccountSuspensionChange(setSuspended);
   }, []);
 
+  /* Keyed on the gate's inputs, not the pathname: the session lives in memory and every change to it
+     reaches onSessionChange below, so moving between portal pages cannot change the answer. */
   React.useEffect(() => {
     const check = () => {
       if (isSignedIn()) {
@@ -86,7 +87,7 @@ export function RequireSession({
        every request is failing, which reads as the product being broken rather
        than as being signed out. */
     return onSessionChange(check);
-  }, [pathname, requireReady, router]);
+  }, [requireReady, router]);
 
   if (!allowed) return <GuardBlank />;
   /* After the session check, not before: somebody who is not signed in at all

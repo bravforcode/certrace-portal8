@@ -646,7 +646,11 @@
    "options": [
     "1",
     "0"
-   ]
+   ],
+   "optionLabels": {
+    "0": "No",
+    "1": "Yes"
+   }
   },
   {
    "item": "communication",
@@ -658,7 +662,11 @@
    "options": [
     "1",
     "0"
-   ]
+   ],
+   "optionLabels": {
+    "0": "No",
+    "1": "Yes"
+   }
   },
   {
    "item": "communication",

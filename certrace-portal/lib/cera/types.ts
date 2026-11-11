@@ -1,4 +1,5 @@
 import type { CeraLang } from "./lang";
+import type { CeraAction } from "./actions";
 /* ════════════════════════════════════════════════════════════
    CERA — the shapes a conversation is made of
 
@@ -191,6 +192,16 @@ export type CeraCard =
       asOf: string;
       inForce: UpdateItem[];
       upcoming: UpdateItem[];
+    }
+  | {
+      /** changes Cera proposes; nothing is written until the reader confirms */
+      kind: "action";
+      id: string;
+      actions: CeraAction[];
+      status: "pending" | "applied" | "discarded" | "failed";
+      /** true while Confirm is running */
+      applying?: boolean;
+      error?: string;
     }
   | {
       kind: "links";

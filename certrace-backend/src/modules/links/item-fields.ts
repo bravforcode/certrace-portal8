@@ -9,6 +9,8 @@ export type ItemField = {
   kind: "text" | "number" | "date" | "select";
   unit?: string;
   options?: string[];
+  /** Display text for coded option values (TrueFalse stores "1"/"0"). */
+  optionLabels?: Record<string, string>;
   optional?: boolean;
 };
 

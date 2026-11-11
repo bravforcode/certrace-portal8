@@ -1,5 +1,6 @@
 import { api, result } from "@/lib/api/client";
 import { isApiError } from "@/lib/api/errors";
+import { parseCeraActions } from "./actions";
 import { checkQuestion } from "./guard";
 import { pick } from "./lang";
 import type { CeraMessage, CeraReply } from "./types";
@@ -54,7 +55,25 @@ export async function conversationalReply(
     if (signal.aborted) throw signal.reason;
     if (response.mode === "rules")
       return response.reason === "unconfigured" ? fallback : unavailable();
-    return { ...fallback, text: response.text, lang };
+    const actions = parseCeraActions(response.actions);
+    return {
+      ...fallback,
+      text: response.text,
+      lang,
+      cards: [
+        ...(fallback.cards ?? []),
+        ...(actions.length > 0
+          ? [
+              {
+                kind: "action" as const,
+                id: `act-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+                actions,
+                status: "pending" as const,
+              },
+            ]
+          : []),
+      ],
+    };
   } catch (error) {
     if (
       signal.aborted ||

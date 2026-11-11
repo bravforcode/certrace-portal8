@@ -11,13 +11,15 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { Button, PageHeader, cn, inputClass } from "@/components/ui";
 import { ScopedInstallationSwitcher } from "@/components/scoped-installation-switcher";
 import { useConvertContext } from "@/lib/convert/use-convert-context";
 import { getFillItem, type FillField, type FillItem } from "@/lib/convert/fill-items";
-import { cbamProgress } from "@/lib/cbam/template-fields";
+import { cbamOptionLabel, cbamProgress } from "@/lib/cbam/template-fields";
+import { withInstallationDefaults } from "@/lib/cbam/installation-defaults";
+import { getStandard } from "@/lib/convert-standards";
 import { useWorkbook } from "@/lib/workbook/use-workbook";
 import { cellKey } from "@/lib/workbook/cells";
 import { CELL_MAX } from "@/lib/workbook/save-queue";
@@ -55,9 +57,17 @@ function FillForm({ id, def }: { id: string; def: FillItem }) {
   const [values, setValues] = React.useState<Record<string, string>>({});
   const [busy, setBusy] = React.useState(false);
   const [notice, setNotice] = React.useState<{ tone: "ok" | "err"; text: string } | null>(null);
+  // Fill in was opened from a regulation page; going back returns there, not to the Convert list.
+  const from = useSearchParams().get("from");
+  const standard = from ? getStandard(from) : undefined;
 
+  // The site wizard's answers prefill the form; a first Save writes them into the workbook.
+  const prefilled = React.useMemo(
+    () => withInstallationDefaults(cells, installation, year),
+    [cells, installation, year],
+  );
   const saved = (f: FillField) => cells[cellKey(def.sheet, ROW, f.cell)] ?? "";
-  const shown = (f: FillField) => values[f.key] ?? saved(f);
+  const shown = (f: FillField) => values[f.key] ?? prefilled[cellKey(def.sheet, ROW, f.cell)] ?? "";
   const setValue = (key: string, value: string) => setValues((v) => ({ ...v, [key]: value }));
   const progress = cbamProgress(cells, id);
 
@@ -67,16 +77,17 @@ function FillForm({ id, def }: { id: string; def: FillItem }) {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!installation || !loaded) return;
-    // Only fields the user changed are written; an untouched prefilled value is left alone.
-    const changed = def.fields.filter((f) => f.key in values && values[f.key].trim() !== saved(f).trim());
+    // Only fields whose shown value differs from the stored one are written: edits, and
+    // site-record defaults that were never saved.
+    const changed = def.fields.filter((f) => shown(f).trim() !== saved(f).trim());
     if (changed.length === 0) return setNotice({ tone: "err", text: "Nothing changed." });
     const badNumber = changed.find(
-      (f) => f.kind === "number" && values[f.key].trim() !== "" && !Number.isFinite(Number(values[f.key])),
+      (f) => f.kind === "number" && shown(f).trim() !== "" && !Number.isFinite(Number(shown(f))),
     );
     if (badNumber) return setNotice({ tone: "err", text: `${badNumber.label} must be a number.` });
 
     const patch: CellPatch = {};
-    for (const f of changed) patch[cellKey(def.sheet, ROW, f.cell)] = values[f.key].trim().slice(0, CELL_MAX);
+    for (const f of changed) patch[cellKey(def.sheet, ROW, f.cell)] = shown(f).trim().slice(0, CELL_MAX);
 
     setBusy(true);
     const result = await savePatch(patch);
@@ -91,12 +102,16 @@ function FillForm({ id, def }: { id: string; def: FillItem }) {
     }
   };
 
+  const backHref =
+    (standard ? `/convert/${encodeURIComponent(standard.id)}` : "/convert") +
+    (installation ? `?installation=${encodeURIComponent(installation.id)}` : "");
+  const backLabel = standard ? standard.name : "Convert";
   const back = (
     <Link
-      href={installation ? `/convert?installation=${encodeURIComponent(installation.id)}` : "/convert"}
+      href={backHref}
       className="inline-flex items-center gap-1.5 text-[12px] uppercase tracking-[0.08em] text-black/40 hover:text-black"
     >
-      <ArrowLeft size={14} strokeWidth={1.5} /> Convert
+      <ArrowLeft size={14} strokeWidth={1.5} /> {backLabel}
     </Link>
   );
 
@@ -133,6 +148,11 @@ function FillForm({ id, def }: { id: string; def: FillItem }) {
               {notice.text}
             </span>
           )}
+          {notice?.tone === "ok" && (
+            <Link href={backHref} className="text-[13px] text-black/60 underline-offset-4 hover:text-black hover:underline">
+              Back to {backLabel}
+            </Link>
+          )}
         </div>
       </form>
     );
@@ -156,7 +176,7 @@ function FillInput({ field, value, onChange }: { field: FillField; value: string
         <option value="">—</option>
         {(field.options ?? []).map((o) => (
           <option key={o} value={o}>
-            {o}
+            {cbamOptionLabel(field, o)}
           </option>
         ))}
       </select>

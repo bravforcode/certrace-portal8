@@ -16,6 +16,7 @@ export type FillField = {
   /** Heading the field is grouped under in the form. */
   section?: string;
   options?: readonly string[];
+  optionLabels?: Readonly<Record<string, string>>;
   optional?: true;
 };
 
@@ -36,6 +37,7 @@ const cbamItem = (title: string, item: CbamItemId): FillItem => ({
     unit: f.unit,
     section: f.section,
     options: f.options,
+    optionLabels: f.optionLabels,
     optional: f.optional,
   })),
 });

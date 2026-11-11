@@ -68,9 +68,6 @@ export default function DashboardPage() {
   const { data, isError, refetch } = useQuery({
     queryKey: ["dashboard", "v2"],
     queryFn: () => readDashboard(),
-    staleTime: 0,
-    refetchOnMount: "always",
-    refetchInterval: 5000,
   });
   useStoreSync(() => void refetch());
 

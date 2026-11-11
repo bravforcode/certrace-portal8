@@ -73,7 +73,7 @@ export function Card({
   return (
     <Tag
       className={cn(
-        "rounded-2xl border bg-white",
+        "rounded-2xl border bg-white transition-[border-color,box-shadow,transform] duration-200 motion-reduce:transition-none",
         highlight && "border-black/20 !bg-[#f0eee8]",
         warm && "!bg-[#faf9f7]",
         !highlight && "border-black/[0.07]",
@@ -93,7 +93,7 @@ type BtnProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 /* Shared with ButtonLink below, so a button and a link that sit side by side
    are the same control at the same size — see its header. */
 const btnBase =
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl uppercase tracking-[0.1em] transition-colors disabled:opacity-40 disabled:pointer-events-none";
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl uppercase tracking-[0.1em] transition-[transform,box-shadow,background-color,color,border-color] duration-150 active:scale-[0.98] motion-reduce:transform-none disabled:opacity-40 disabled:pointer-events-none";
 const btnSizing = (size: "md" | "sm") =>
   size === "sm" ? "px-4 py-2 text-[11px]" : "px-6 py-3 text-[13px]";
 const btnVariants: Record<"primary" | "secondary" | "ghost" | "danger", string> = {

@@ -41,9 +41,16 @@ export type CbamField = {
   kind: "text" | "number" | "date" | "select";
   unit?: string;
   options?: readonly string[];
+  /** What the form shows for an option whose stored value is a code (TrueFalse stores "1"/"0"). */
+  optionLabels?: Readonly<Record<string, string>>;
   /** The template asks for it but marks it optional (e.g. P.O. Box, Fax). */
   optional?: true;
 };
+
+/** The label shown for a stored option value. Stored values keep the template's spelling
+    (trailing space included); only what the reader sees is tidied. */
+export const cbamOptionLabel = (field: Pick<CbamField, "optionLabels">, value: string) =>
+  field.optionLabels?.[value] ?? value.trim();
 
 const LETTER: Record<CbamTemplateSheet, string> = {
   A_InstData: "a",
@@ -59,7 +66,7 @@ export const cbamFieldId = (sheet: CbamTemplateSheet, cell: string) =>
 /** Workbook cell key of a field's answer. */
 export const cbamCellKey = (field: Pick<CbamField, "id">) => `${CBAM_SHEET_ID}:0:${field.id}`;
 
-type FieldOpts = { unit?: string; options?: readonly string[]; optional?: true };
+type FieldOpts = Pick<CbamField, "unit" | "options" | "optionLabels" | "optional">;
 
 const field = (
   sheet: CbamTemplateSheet,
@@ -74,6 +81,7 @@ const field = (
 // Option lists, copied from the template's named ranges (Parameters_Constants). Values are kept
 // exactly as the workbook validation stores them, including the trailing space in "Calcined clays ".
 const TRUE_FALSE = ["1", "0"] as const; // CONST_TrueFalse: the template stores 1 and 0
+const TRUE_FALSE_LABELS = { "1": "Yes", "0": "No" } as const;
 const AD_UNIT = ["t", "1000Nm3"] as const; // CONST_torkNm3
 const EF_UNIT = ["tCO2/TJ", "tCO2/t", "tCO2/1000Nm3"] as const; // CONST_tCO2pTJOrtCO2pt
 const MONITORING = ["Combustion", "Process emissions", "Mass Balance"] as const; // CONST_MonitoringApproach
@@ -189,8 +197,8 @@ export const CBAM_FIELDS: readonly CbamField[] = [
   field("D_Processes", "L27", "Produced for the market", "Production process 1", "communication", "number"),
   field("D_Processes", "L32", "Consumed in other production processes, item 1", "Production process 1", "communication", "number"),
   field("D_Processes", "L41", "Consumed for non-CBAM goods within the installation", "Production process 1", "communication", "number"),
-  field("D_Processes", "K50", "Measurable heat applicable", "Production process 1", "communication", "select", { options: TRUE_FALSE }),
-  field("D_Processes", "L50", "Waste gases applicable", "Production process 1", "communication", "select", { options: TRUE_FALSE }),
+  field("D_Processes", "K50", "Measurable heat applicable", "Production process 1", "communication", "select", { options: TRUE_FALSE, optionLabels: TRUE_FALSE_LABELS }),
+  field("D_Processes", "L50", "Waste gases applicable", "Production process 1", "communication", "select", { options: TRUE_FALSE, optionLabels: TRUE_FALSE_LABELS }),
   field("D_Processes", "L54", "Directly attributable emissions (DirEm*)", "Production process 1", "communication", "number", { unit: "tCO2e" }),
   field("D_Processes", "L57", "Net measurable heat, imported", "Production process 1", "communication", "number", { unit: "TJ" }),
   field("D_Processes", "M57", "Net measurable heat, exported", "Production process 1", "communication", "number", { unit: "TJ" }),

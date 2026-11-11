@@ -2,6 +2,7 @@ import { installationRole, type Installation } from "../installations";
 import type { Requirement, RequirementState, Standard } from "../convert-standards";
 import type { Sheet } from "../workspace-sheets";
 import { installationSheetStatus, sheetStatus, type SheetStatus } from "../workbook/status";
+import { cbamProgress } from "../cbam/template-fields";
 
 type Fix = "fill-in" | "smart-link";
 
@@ -33,9 +34,19 @@ function stateOf(statuses: SheetStatus[]): { state: RequirementState; progress: 
   return { state: "in-progress", progress };
 }
 
+/** With CBAM answers loaded, the template fields decide: the report is built from them. */
+function withCbam(legacy: { state: RequirementState; progress: number }, item: string, cells: Record<string, string>) {
+  const { filled, total } = cbamProgress(cells, item);
+  if (!total) return legacy;
+  const progress = Math.round((filled / total) * 100);
+  if (filled === total) return { state: "complete" as const, progress };
+  if (filled === 0 && legacy.state === "missing") return { state: "missing" as const, progress };
+  return { state: "in-progress" as const, progress };
+}
+
 export function liveRequirements(
   std: Standard,
-  ctx: { installation: Installation | null; sheets: Sheet[] },
+  ctx: { installation: Installation | null; sheets: Sheet[]; cells?: Record<string, string> },
 ): LiveRequirement[] {
   const role = ctx.installation ? installationRole(ctx.installation) : "own";
   const byId = new Map(ctx.sheets.map((s) => [s.id, s]));
@@ -54,8 +65,11 @@ export function liveRequirements(
     // Fill in and Smart Link open the same form: the account types it here, a Smart Link
     // hands that form to someone outside. `fix` only picks which button leads.
     const iid = ctx.installation?.id ? encodeURIComponent(ctx.installation.id) : null;
-    const href = iid ? `/convert/fill/${encodeURIComponent(req.id)}?installation=${iid}` : null;
-    return { ...req, ...stateOf(statuses), fix, href };
+    const href = iid
+      ? `/convert/fill/${encodeURIComponent(req.id)}?installation=${iid}&from=${encodeURIComponent(std.id)}`
+      : null;
+    const legacy = stateOf(statuses);
+    return { ...req, ...(ctx.cells ? withCbam(legacy, req.id, ctx.cells) : legacy), fix, href };
   });
 }
 

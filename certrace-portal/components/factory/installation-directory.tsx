@@ -10,7 +10,10 @@
    ════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
-import { ButtonLink, Button, Card, Chip, EmptyState, Progress } from "@/components/ui";
+import Link from "next/link";
+import { Factory, MapPin } from "lucide-react";
+import { ButtonLink, Card, Chip, cn, EmptyState, Progress } from "@/components/ui";
+import { PressScale, Stagger, StaggerItem } from "@/components/motion";
 import { ErrorState, LoadingState } from "@/components/query-state";
 import { useT } from "@/lib/i18n";
 import { useActiveInstallation } from "@/lib/active-installation";
@@ -70,19 +73,22 @@ export function InstallationDirectory({
           }
         />
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <Stagger className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {options.map((o) => (
-            <InstallationCard
-              key={o.id}
-              id={o.id}
-              name={o.name}
-              self={o.self}
-              year={year}
-              selected={o.id === selectedId}
-              onShowOnMap={onShowOnMap}
-            />
+            <StaggerItem key={o.id} className="h-full">
+              <PressScale className="h-full">
+                <InstallationCard
+                  id={o.id}
+                  name={o.name}
+                  self={o.self}
+                  year={year}
+                  selected={o.id === selectedId}
+                  onShowOnMap={onShowOnMap}
+                />
+              </PressScale>
+            </StaggerItem>
           ))}
-        </div>
+        </Stagger>
       )}
     </section>
   );
@@ -114,13 +120,22 @@ function InstallationCard({
   const yearList = [...years.years.map((y) => y.year)].sort((a, b) => b - a);
 
   return (
-    <Card className={selected ? "space-y-3 ring-2 ring-black/20" : "space-y-3"}>
-      <div className="space-y-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <h3 className="text-[15px] font-medium text-black/85">{name}</h3>
-          <Chip tone="muted">{t(self ? "Own site" : "OEM / supplier site")}</Chip>
-        </div>
-        {country && <p className="text-[13px] text-black/55">{country}</p>}
+    <Card
+      className={cn(
+        "flex h-full flex-col gap-4 p-5 hover:border-black/15 hover:shadow-[0_6px_20px_rgba(0,0,0,0.05)]",
+        selected && "ring-2 ring-black/20",
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <h3 className="min-w-0 truncate text-[15px] font-medium text-black/85">{name}</h3>
+        <Chip tone="muted" className="flex-none">
+          {t(self ? "Own site" : "OEM / supplier site")}
+        </Chip>
+      </div>
+
+      <div className="flex min-w-0 items-baseline justify-between gap-3">
+        <p className="min-w-0 truncate text-[13px] text-black/55">{country}</p>
+        <span className="min-w-0 truncate font-mono text-[11px] text-black/40">{id}</span>
       </div>
 
       <ul className="flex flex-wrap gap-1.5" aria-label={t("Workbook years")}>
@@ -150,21 +165,42 @@ function InstallationCard({
         )}
       </ul>
 
-      <div className="space-y-1">
+      <div className="space-y-2">
         <Progress value={progress.pct} tone={progress.done === progress.total ? "ok" : "warn"} />
-        <p className="text-[13px] text-black/55">{t("{done} of {total} checks", { done: progress.done, total: progress.total })}</p>
+        <div className="flex items-center justify-between text-[12px] tabular-nums text-black/55">
+          <span>{t("{done} of {total} checks", { done: progress.done, total: progress.total })}</span>
+          <span className="text-black/40">{Math.round(progress.pct)}%</span>
+        </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <ButtonLink href={`/workspace?installation=${id}`} variant="secondary" size="sm">
+      <div className="mt-auto flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-black/[0.06] pt-4">
+        <ButtonLink
+          href={`/workspace?installation=${id}`}
+          variant="primary"
+          size="sm"
+          className="!normal-case !tracking-normal !text-[13px]"
+        >
           {t("Open workspace")}
         </ButtonLink>
-        <ButtonLink href={`/workspace?installation=${id}&view=factory`} variant="ghost" size="sm">
+        <Link
+          href={`/workspace?installation=${id}&view=factory`}
+          className="inline-flex items-center gap-1.5 text-[13px] text-black/55 transition-colors hover:text-black"
+        >
+          <Factory size={14} strokeWidth={1.5} aria-hidden />
           {t("Factory profile")}
-        </ButtonLink>
-        <Button variant="ghost" size="sm" aria-pressed={selected} onClick={() => onShowOnMap(id)}>
+        </Link>
+        <button
+          type="button"
+          aria-pressed={selected}
+          onClick={() => onShowOnMap(id)}
+          className={cn(
+            "inline-flex items-center gap-1.5 text-[13px] transition-colors hover:text-black",
+            selected ? "text-black" : "text-black/55",
+          )}
+        >
+          <MapPin size={14} strokeWidth={1.5} aria-hidden />
           {t("Show on map")}
-        </Button>
+        </button>
       </div>
     </Card>
   );

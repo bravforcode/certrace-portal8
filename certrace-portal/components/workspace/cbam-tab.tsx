@@ -13,7 +13,7 @@
 import * as React from "react";
 import { Card, Chip, Progress, cn } from "@/components/ui";
 import { useT } from "@/lib/i18n";
-import { CBAM_FIELDS, type CbamItemId } from "@/lib/cbam/template-fields";
+import { CBAM_FIELDS, cbamOptionLabel, type CbamItemId } from "@/lib/cbam/template-fields";
 import { summariseCbam, type CbamRowState } from "@/lib/cbam/cbam-tab";
 
 const ITEM_LABEL: Record<CbamItemId, string> = {
@@ -88,7 +88,9 @@ export function CbamTab({ cells }: { cells: Record<string, string> }) {
                   <div className="font-mono text-[11px] text-black/40">{`${field.sheet}!${field.cell}`}</div>
                 </div>
                 <div className={cn("min-w-0 break-words", state === "filled" ? "text-black/80" : "text-black/40")}>
-                  {state === "filled" ? value : state === "optional" ? t("Not required") : t("Missing")}
+                  {state === "filled"
+                    ? field.kind === "select" ? cbamOptionLabel(field, value) : value
+                    : state === "optional" ? t("Not required") : t("Missing")}
                   {state === "filled" && field.unit && <span className="ml-1 text-black/40">{field.unit}</span>}
                 </div>
                 <div>

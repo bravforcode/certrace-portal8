@@ -13,6 +13,7 @@ export type ItemLinkField = {
   kind: "text" | "number" | "date" | "select";
   unit?: string;
   options?: string[];
+  optionLabels?: Record<string, string>;
   optional?: boolean;
   value: string;
 };

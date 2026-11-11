@@ -45,6 +45,7 @@ import { useConvertContext } from "@/lib/convert/use-convert-context";
 import { installationRole } from "@/lib/installations";
 import { declarationYear } from "@/lib/convert/declaration-year";
 import { useWorkbook } from "@/lib/workbook/use-workbook";
+import { withInstallationDefaults } from "@/lib/cbam/installation-defaults";
 import { listWorkspaces } from "@/lib/workspace";
 import { listSuppliers } from "@/lib/precursor-suppliers";
 import { listEvidence } from "@/lib/workspace-evidence";
@@ -83,7 +84,11 @@ function ConvertStandardInner() {
   const [open, setOpen] = React.useState<string | null>(null);
   const thisYear = currentYear();
   const [year, setYear] = React.useState(thisYear);
-  const { sheets: yearSheets } = useWorkbook(installation?.id ?? null, year);
+  const { sheets: yearSheets, cells: yearCells } = useWorkbook(installation?.id ?? null, year);
+  const cells = React.useMemo(
+    () => withInstallationDefaults(yearCells ?? {}, installation, year),
+    [yearCells, installation, year],
+  );
 
   if (!s || s.status === "soon")
     return (
@@ -98,7 +103,7 @@ function ConvertStandardInner() {
   // Only the current year has data so far: any other year shows every requirement missing.
   const locked = year !== thisYear;
   // Readiness and the export read the same year, so the gate cannot pass on one year and export another.
-  const live = liveRequirements(s, { installation, sheets: yearSheets });
+  const live = liveRequirements(s, { installation, sheets: yearSheets, cells });
   const requirements: LiveRequirement[] = locked
     ? live.map((r) => ({ ...r, state: "missing", progress: 0 }))
     : live;

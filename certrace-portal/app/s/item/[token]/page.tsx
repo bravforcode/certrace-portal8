@@ -85,7 +85,7 @@ function ItemForm({ token, title, year, fields }: { token: string; title: string
                 <select className={inputClass} value={values[f.key] ?? ""} onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))}>
                   <option value="">—</option>
                   {f.options.map((o) => (
-                    <option key={o} value={o}>{o}</option>
+                    <option key={o} value={o}>{f.optionLabels?.[o] ?? o.trim()}</option>
                   ))}
                 </select>
               ) : (

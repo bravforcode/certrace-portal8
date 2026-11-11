@@ -77,11 +77,11 @@ function ConvertInner() {
   };
 
   const t = useT();
-  const { installation, sheets } = useConvertContext();
+  const { installation, sheets, cells } = useConvertContext();
   const { data: declarations = [] } = useDeclarations();
   const role = installation ? installationRole(installation) : null;
   const pctOf = (s: Standard) =>
-    readiness(liveRequirements(s, { installation, sheets }));
+    readiness(liveRequirements(s, { installation, sheets, cells }));
 
   const q = query.trim().toLowerCase();
   const matches = (s: Standard) =>

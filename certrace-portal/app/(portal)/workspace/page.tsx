@@ -28,6 +28,7 @@ import { YearBar } from "@/components/year-bar";
 import { Spreadsheet } from "@/components/workspace/spreadsheet";
 import { CbamTab } from "@/components/workspace/cbam-tab";
 import { CBAM_TAB_ID } from "@/lib/cbam/cbam-tab";
+import { withInstallationDefaults } from "@/lib/cbam/installation-defaults";
 import { SettingUpStage } from "@/components/workspace/setting-up";
 import { WorkspaceReveal } from "@/components/workspace/reveal";
 import { UploadPanel } from "@/components/workspace/upload-panel";
@@ -109,7 +110,12 @@ function WorkspaceInner() {
 
   const withData = yearRange().filter((y) => ws.get(y)?.status === "ready");
   // Fill in and Smart Link write CBAM answers before a year is started, so the tab shows on both sheets.
-  const cbamTab = [{ id: CBAM_TAB_ID, label: "CBAM", content: <CbamTab cells={wb.cells ?? {}} /> }];
+  // The installation record answers the A_InstData fields the site wizard already asked for.
+  const cbamCells = React.useMemo(
+    () => withInstallationDefaults(wb.cells ?? {}, installation, year),
+    [wb.cells, installation, year],
+  );
+  const cbamTab = [{ id: CBAM_TAB_ID, label: "CBAM", content: <CbamTab cells={cbamCells} /> }];
 
   return (
     <div className="space-y-6">
