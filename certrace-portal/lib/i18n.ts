@@ -29,6 +29,7 @@ import { TH_POLISH } from "./i18n-th-polish";
 import { TH_ROUTES } from "./i18n-th-routes";
 import { TH_SECTOR } from "./i18n-th-sector";
 import { TH_WORKSPACE } from "./i18n-th-workspace";
+import { TH_OPPORTUNITIES } from "./i18n-th-opportunities";
 import { HI } from "./i18n-hi";
 import { ZH } from "./i18n-zh";
 
@@ -145,6 +146,7 @@ const DICTS: Record<LangCode, Record<string, string>> = {
   en: {},
   th: withoutGloss({
     ...TH_WORKSPACE,
+    ...TH_OPPORTUNITIES,
     ...TH_LINK,
     ...TH_CN,
     ...TH_ROUTES,

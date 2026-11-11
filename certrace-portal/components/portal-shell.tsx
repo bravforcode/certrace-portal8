@@ -193,6 +193,12 @@ function useNav(): NavEntry[] {
     },
     {
       kind: "link",
+      href: "/opportunities",
+      label: t("Opportunities"),
+      icon: Lightbulb,
+    },
+    {
+      kind: "link",
       href: "/workspaces",
       label: t("Verification"),
       icon: ClipboardCheck,

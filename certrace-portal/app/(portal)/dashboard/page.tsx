@@ -45,6 +45,7 @@ import {
   SitesPanel,
 } from "@/components/home/panels";
 import { CURRENCIES, type Currency } from "@/lib/cbam/carbon-cost-model";
+import { OpportunitySummary } from "@/components/factory/opportunity-summary";
 
 export default function DashboardPage() {
   const t = useT();
@@ -132,6 +133,8 @@ export default function DashboardPage() {
             <ChainPanel d={data} live />
             <ActivityPanel events={data.activity} d={data} live />
           </div>
+
+          <OpportunitySummary />
         </>
       )}
     </div>
