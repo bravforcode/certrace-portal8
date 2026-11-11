@@ -4,6 +4,7 @@ import { Chip, cn } from "@/components/ui";
 import { useFormat, useT } from "@/lib/i18n";
 import type { Declaration, DeclarationStep } from "@/lib/data";
 import { getStandard } from "@/lib/convert-standards";
+import { generatedDate } from "@/lib/convert/declaration-year";
 
 const STEP_LABEL: Record<DeclarationStep, string> = {
   collect: "Collecting data",
@@ -36,8 +37,7 @@ export function DeclarationRows({ items }: { items: Declaration[] }) {
               {[
                 getStandard(d.regulation)?.name,
                 d.period,
-                (d.createdAt ?? d.updatedAt) &&
-                  `${t("Generated")} ${date(d.createdAt ?? d.updatedAt!)}`,
+                generatedDate(d) && `${t("Generated")} ${date(generatedDate(d)!)}`,
               ]
                 .filter(Boolean)
                 .join(" · ")}

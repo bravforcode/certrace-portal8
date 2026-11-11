@@ -43,7 +43,7 @@ import {
 } from "@/lib/convert/requirements";
 import { useConvertContext } from "@/lib/convert/use-convert-context";
 import { installationRole } from "@/lib/installations";
-import type { Declaration } from "@/lib/data";
+import { declarationYear } from "@/lib/convert/declaration-year";
 
 const STATE: Record<
   RequirementState,
@@ -102,9 +102,7 @@ function ConvertStandardInner() {
     (r) => !q || r.title.toLowerCase().includes(q),
   );
   // A declaration names its period; without one, the year it was created (or last changed) stands in.
-  const yearOf = (d: Declaration) =>
-    (d.periodStart ?? d.createdAt ?? d.updatedAt)?.slice(0, 4);
-  const yearHistory = declarations.filter((d) => yearOf(d) === String(year));
+  const yearHistory = declarations.filter((d) => declarationYear(d) === year);
 
   const convert = () => {
     if (!canConvert) return;
