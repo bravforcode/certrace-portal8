@@ -8,6 +8,7 @@
    the products to the right. Every node opens the sheet it came from.
    Inline SVG only; the colours are tokens in app/globals.css (--flow-*).
    One tab stop for the whole diagram; the arrow keys move between nodes.
+   Edges are drawn, not focusable: links are changed from the toolbar dialogs.
 
    Edit mode (editable + savePatch): the toolbar and dialogs turn each edit into
    a cell patch (lib/workbook/flow-edit.ts) and send it through savePatch. The
@@ -18,9 +19,17 @@ import * as React from "react";
 import { Button, Field, Modal } from "@/components/ui";
 import { toast } from "@/components/toast";
 import type { TFunction } from "@/lib/i18n";
-import { rowsUsed } from "@/lib/workbook/cells";
-import { FLOW_NODE, buildFlow, type FlowEdge, type FlowFallback, type FlowKind, type FlowNode } from "@/lib/workbook/flow";
-import { flowActionToCells, missingSteps, stepNames, type CellPatch, type FlowAction } from "@/lib/workbook/flow-edit";
+import { FLOW_NODE, buildFlow, type FlowFallback, type FlowKind, type FlowNode } from "@/lib/workbook/flow";
+import {
+  FLOW_ERROR_TEMPLATE,
+  FlowEditError,
+  explicitEdges,
+  flowActionToCells,
+  missingSteps,
+  stepNames,
+  type CellPatch,
+  type FlowAction,
+} from "@/lib/workbook/flow-edit";
 import type { SyncResult } from "@/lib/workbook/sync-queue";
 import type { Sheet } from "@/lib/workspace-sheets";
 
@@ -53,17 +62,20 @@ const FALLBACK_LABEL: Record<FlowFallback, string> = {
   output: "Output",
   product: "Product",
 };
+const FAILED_MSG = "Not saved. Nothing changed; try again.";
+const SKIPPED_MSG = "{count} skipped because an earlier change did not save.";
 const MAX_LABEL = 22;
 const clip = (s: string) => (s.length > MAX_LABEL ? `${s.slice(0, MAX_LABEL - 1)}…` : s);
 const stacked = (n: FlowNode) => n.kind === "material" || n.kind === "energy";
-const edgeKey = (e: FlowEdge) => `${e.from}|${e.to}`;
 const NO_CELLS: Record<string, string> = {};
+const FORM_ID = "flow-dialog-form";
 
 type Dialog =
   | { kind: "add-step" }
   | { kind: "add-input"; sheet: "materials" | "energy" | "output" }
   | { kind: "link" }
-  | { kind: "rename"; from: string };
+  | { kind: "rename"; from: string }
+  | { kind: "unlink" };
 
 const titleOf = (d: Dialog) =>
   d.kind === "add-step"
@@ -72,13 +84,15 @@ const titleOf = (d: Dialog) =>
       ? "Link steps"
       : d.kind === "rename"
         ? "Rename step"
-        : d.sheet === "materials"
-          ? "Add material"
-          : d.sheet === "energy"
-            ? "Add energy"
-            : "Add output";
+        : d.kind === "unlink"
+          ? "Unlink"
+          : d.sheet === "materials"
+            ? "Add material"
+            : d.sheet === "energy"
+              ? "Add energy"
+              : "Add output";
 
-/** The action a dialog submits, from its form values. */
+/** The action a dialog submits, from its form values. Validation happens in flowActionToCells. */
 function actionOf(d: Dialog, v: Record<string, string>): FlowAction {
   switch (d.kind) {
     case "add-step":
@@ -91,23 +105,8 @@ function actionOf(d: Dialog, v: Record<string, string>): FlowAction {
       return { kind: "connect", from: v.from ?? "", to: v.to ?? "", item: v.item };
     case "rename":
       return { kind: "rename-step", from: d.from, to: v.name ?? "" };
-  }
-}
-
-/** True when the action is missing a field the form must have before it can be built. */
-function incomplete(a: FlowAction) {
-  switch (a.kind) {
-    case "add-step":
-      return !a.name.trim();
-    case "add-input":
-    case "add-output":
-      return !a.step.trim() || !a.item.trim();
-    case "connect":
-      return !a.from.trim() || !a.to.trim();
-    case "rename-step":
-      return !a.to.trim();
-    default:
-      return false;
+    case "unlink":
+      return { kind: "disconnect", from: "", to: "" }; // replaced by the chosen edge in submit()
   }
 }
 
@@ -149,25 +148,32 @@ export function FlowDiagram({
   const ordered = React.useMemo(() => [...f.nodes].sort((a, b) => a.x - b.x || a.y - b.y), [f.nodes]);
   const byId = React.useMemo(() => new Map(f.nodes.map((n) => [n.id, n])), [f.nodes]);
   const missing = React.useMemo(() => missingSteps(cells), [cells]);
+  // Explicit edges between two real steps: the only links the Unlink dialog offers.
+  const links = React.useMemo(() => {
+    const known = new Set(stepNames(cells).map((s) => s.toLowerCase()));
+    return explicitEdges(cells).filter((e) => known.has(e.from.toLowerCase()) && known.has(e.to.toLowerCase()));
+  }, [cells]);
   const [stop, setStop] = React.useState<string | null>(null);
   const [focused, setFocused] = React.useState<string | null>(null);
   const [sel, setSel] = React.useState<string | null>(null);
-  const [selEdge, setSelEdge] = React.useState<string | null>(null);
   const [dialog, setDialog] = React.useState<Dialog | null>(null);
   const [form, setForm] = React.useState<Record<string, string>>({});
   const [formError, setFormError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
   const refs = React.useRef(new Map<string, SVGGElement>());
+  const opener = React.useRef<HTMLElement | null>(null);
   const tabStop = ordered.some((n) => n.id === stop) ? stop : ordered[0]?.id;
+
+  // Closing a dialog hands focus back to the control that opened it.
+  React.useEffect(() => {
+    if (dialog) return;
+    opener.current?.focus();
+    opener.current = null;
+  }, [dialog]);
 
   const canEdit = Boolean(editable && savePatch);
   const selected = sel ? (byId.get(sel) ?? null) : null;
   const selStep = selected?.kind === "step" ? selected.label : "";
-  const edge = selEdge ? f.edges.find((e) => edgeKey(e) === selEdge) : undefined;
-  const edgeFrom = edge ? byId.get(edge.from) : undefined;
-  const edgeTo = edge ? byId.get(edge.to) : undefined;
-  // Only an explicit Flow row can be unlinked; while the Flow sheet is empty the chain is implied.
-  const unlinkable = edgeFrom?.kind === "step" && edgeTo?.kind === "step" && rowsUsed(cells, "flow") > 0;
 
   if (!f.nodes.length)
     return (
@@ -199,69 +205,71 @@ export function FlowDiagram({
     if (!canEdit) return open(n);
     const next = sel === n.id ? null : n;
     setSel(next?.id ?? null);
-    setSelEdge(null);
     onSelect?.(next);
   };
-  const pickEdge = (k: string) => {
-    setSelEdge((cur) => (cur === k ? null : k));
-    setSel(null);
-    onSelect?.(null);
-  };
 
-  const notify = (r: SyncResult) => {
-    if (r === "saved") return;
+  /** Show the result of one or more patches as a single notice: how many failed and how many were skipped. */
+  const notifyResults = (results: SyncResult[]) => {
+    const failed = results.filter((r) => r === "failed").length;
+    const skipped = results.filter((r) => r === "skipped").length;
+    if (!failed && !skipped) return;
     toast({
-      message: t(r === "failed" ? "Not saved. Nothing changed; try again." : "Skipped because an earlier change did not save."),
+      message: failed ? t(FAILED_MSG) : t(SKIPPED_MSG, { count: String(skipped) }),
+      detail: failed && skipped ? t(SKIPPED_MSG, { count: String(skipped) }) : undefined,
       tone: "err",
     });
   };
 
   const openDialog = (d: Dialog) => {
+    opener.current = document.activeElement as HTMLElement | null;
     const initial: Record<string, string> =
-      d.kind === "add-input" ? { step: selStep || (stepNames(cells)[0] ?? "") } : d.kind === "link" ? { from: selStep } : {};
+      d.kind === "add-input"
+        ? { step: selStep || (stepNames(cells)[0] ?? "") }
+        : d.kind === "link"
+          ? { from: selStep }
+          : d.kind === "unlink"
+            ? { edge: "0" }
+            : {};
     if (d.kind === "rename") initial.name = d.from;
     setForm(initial);
     setFormError(null);
     setDialog(d);
   };
+  // Blocked while a save is in flight, so Escape and Cancel cannot drop an unfinished change.
   const closeDialog = () => {
+    if (busy) return;
     setDialog(null);
     setFormError(null);
   };
 
   const submit = async () => {
-    if (!dialog || !savePatch) return;
-    const action = actionOf(dialog, form);
-    if (incomplete(action)) {
-      setFormError(t("Fill in the required fields."));
-      return;
-    }
+    if (!dialog || !savePatch || busy) return;
     let patch: CellPatch;
     try {
-      patch = flowActionToCells(action, cells);
+      if (dialog.kind === "unlink") {
+        const link = links[Number(form.edge)];
+        if (!link) throw new FlowEditError("blank");
+        patch = flowActionToCells({ kind: "disconnect", from: link.from, to: link.to }, cells);
+      } else {
+        patch = flowActionToCells(actionOf(dialog, form), cells);
+      }
     } catch (e) {
-      setFormError(t((e as Error).message));
-      return;
+      if (e instanceof FlowEditError) {
+        setFormError(t(FLOW_ERROR_TEMPLATE[e.code], e.params));
+        return;
+      }
+      throw e;
     }
     setBusy(true);
     const result = await savePatch(patch);
     setBusy(false);
     if (result === "saved") closeDialog();
-    else notify(result);
-  };
-
-  const unlink = async () => {
-    if (!savePatch || !edgeFrom || !edgeTo) return;
-    setBusy(true);
-    const result = await savePatch(flowActionToCells({ kind: "disconnect", from: edgeFrom.label, to: edgeTo.label }, cells));
-    setBusy(false);
-    if (result === "saved") setSelEdge(null);
-    else notify(result);
+    else notifyResults([result]);
   };
 
   // One add-step patch per missing name, each built on the cells the previous one leaves behind.
   const addMissing = async () => {
-    if (!savePatch) return;
+    if (!savePatch || busy) return;
     const patches: CellPatch[] = [];
     let acc = cells;
     for (const name of missing) {
@@ -269,9 +277,10 @@ export function FlowDiagram({
       patches.push(patch);
       acc = applyPatch(acc, patch);
     }
+    setBusy(true);
     const results = await Promise.all(patches.map((p) => savePatch(p)));
-    const bad = results.find((r) => r !== "saved");
-    if (bad) notify(bad);
+    setBusy(false);
+    notifyResults(results);
   };
 
   const field = (key: string) => ({
@@ -335,6 +344,18 @@ export function FlowDiagram({
             <input {...field("name")} className={inputCls} autoFocus />
           </Field>
         );
+      case "unlink":
+        return (
+          <Field label={t("Flow")}>
+            <select {...field("edge")} className={inputCls}>
+              {links.map((e, i) => (
+                <option key={e.row} value={String(i)}>
+                  {t("Flow: {from} to {to}", { from: e.from, to: e.to })}
+                </option>
+              ))}
+            </select>
+          </Field>
+        );
     }
   };
 
@@ -370,19 +391,20 @@ export function FlowDiagram({
       {canEdit && missing.length > 0 && (
         <div
           role="status"
-          className="mx-4 mt-3 flex flex-wrap items-center gap-3 rounded-md border border-[var(--color-warn)] bg-amber-50 px-3 py-2 text-[12.5px] text-[var(--color-warn-text)]"
+          className="mx-4 mt-3 flex flex-wrap items-center gap-3 rounded-md border border-[var(--color-warn)] px-3 py-2 text-[12.5px] text-[var(--color-warn-text)]"
+          style={{ backgroundColor: "var(--flow-warn-bg)" }}
         >
           <span>
             {t("Rows name steps that are not in the Steps sheet:")} {missing.join(", ")}
           </span>
-          <Button variant="secondary" size="sm" onClick={addMissing}>
+          <Button variant="secondary" size="sm" onClick={addMissing} disabled={busy}>
             {t("Add these steps")}
           </Button>
         </div>
       )}
 
       {canEdit && (
-        <div role="toolbar" aria-label={t("Edit the flow")} className="flex flex-wrap gap-2 px-4 pt-3">
+        <div role="group" aria-label={t("Edit the flow")} className="flex flex-wrap gap-2 px-4 pt-3">
           <Button variant="secondary" size="sm" onClick={() => openDialog({ kind: "add-step" })}>
             {t("Add step")}
           </Button>
@@ -408,8 +430,8 @@ export function FlowDiagram({
               </Button>
             </>
           )}
-          {unlinkable && (
-            <Button variant="secondary" size="sm" onClick={unlink} disabled={busy}>
+          {links.length > 0 && (
+            <Button variant="secondary" size="sm" onClick={() => openDialog({ kind: "unlink" })}>
               {t("Unlink")}
             </Button>
           )}
@@ -437,16 +459,14 @@ export function FlowDiagram({
             const b = byId.get(e.to);
             if (!a || !b) return null;
             const p = path(a, b);
-            const k = edgeKey(e);
-            const isSel = selEdge === k;
-            const line = (
-              <>
-                {canEdit && <path d={p.d} fill="none" strokeWidth={12} stroke="transparent" />}
+            return (
+              <g key={`e${i}`}>
+                <title>{t("Flow: {from} to {to}", { from: nameOf(a), to: nameOf(b) })}</title>
                 <path
                   d={p.d}
                   fill="none"
-                  strokeWidth={isSel ? 2.5 : 1.5}
-                  style={{ stroke: isSel ? "var(--flow-ink)" : focused === k ? "var(--flow-focus)" : "var(--flow-edge)" }}
+                  strokeWidth={1.5}
+                  style={{ stroke: "var(--flow-edge)" }}
                   markerEnd={`url(#${arrowId})`}
                 />
                 {e.label && (
@@ -454,28 +474,6 @@ export function FlowDiagram({
                     {clip(e.label)}
                   </text>
                 )}
-              </>
-            );
-            if (!canEdit) return <g key={`e${i}`}>{line}</g>;
-            return (
-              <g
-                key={`e${i}`}
-                role="button"
-                tabIndex={0}
-                aria-label={`${t("Link steps")}: ${nameOf(a)} → ${nameOf(b)}`}
-                aria-pressed={isSel}
-                onClick={() => pickEdge(k)}
-                onFocus={() => setFocused(k)}
-                onBlur={() => setFocused((cur) => (cur === k ? null : cur))}
-                onKeyDown={(ev) => {
-                  if (ev.key === "Enter" || ev.key === " ") {
-                    ev.preventDefault();
-                    pickEdge(k);
-                  }
-                }}
-                className="cursor-pointer focus:outline-none"
-              >
-                {line}
               </g>
             );
           })}
@@ -580,23 +578,30 @@ export function FlowDiagram({
           title={dialog ? t(titleOf(dialog)) : ""}
           footer={
             <div className="flex justify-end gap-2">
-              <Button variant="secondary" onClick={closeDialog}>
+              <Button variant="secondary" onClick={closeDialog} disabled={busy}>
                 {t("Cancel")}
               </Button>
-              <Button onClick={submit} disabled={busy}>
+              <Button type="submit" form={FORM_ID} disabled={busy}>
                 {t("Save")}
               </Button>
             </div>
           }
         >
-          <div className="grid gap-4">
+          <form
+            id={FORM_ID}
+            className="grid gap-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void submit();
+            }}
+          >
             {dialog && dialogFields(dialog)}
             {formError && (
               <p role="alert" className="text-[12.5px] text-[var(--color-err-text)]">
                 {formError}
               </p>
             )}
-          </div>
+          </form>
         </Modal>
       )}
     </div>

@@ -9,18 +9,40 @@ export type FlowAction =
   | { kind: "disconnect"; from: string; to: string }
   | { kind: "rename-step"; from: string; to: string };
 
+/** Message templates for each error code. The UI runs them through t(template, params). */
+export const FLOW_ERROR_TEMPLATE = {
+  blank: "Fill in the required fields.",
+  "missing-step": 'Add the step "{name}" first.',
+  "duplicate-step": 'A step named "{name}" already exists.',
+  "same-step": "Connect two different steps.",
+} as const;
+
+export type FlowErrorCode = keyof typeof FLOW_ERROR_TEMPLATE;
+
+/** A refused edit. `params` fill the template; `message` is the English text for logs. */
+export class FlowEditError extends Error {
+  readonly code: FlowErrorCode;
+  readonly params: Record<string, string>;
+  constructor(code: FlowErrorCode, params: Record<string, string> = {}) {
+    super(FLOW_ERROR_TEMPLATE[code].replace(/\{(\w+)\}/g, (_, k: string) => params[k] ?? ""));
+    this.name = "FlowEditError";
+    this.code = code;
+    this.params = params;
+  }
+}
+
 const norm = (s: string | undefined) => (s ?? "").trim().toLowerCase();
 const same = (a: string | undefined, b: string | undefined) => norm(a) !== "" && norm(a) === norm(b);
 
-// Every cell that names a step, by sheet and column.
-const STEP_REFS: [string, string][] = [
-  ["steps", "step"],
+// Cells that name a step, outside the Steps sheet itself.
+const REFERENCES: [string, string][] = [
   ["materials", "step"],
   ["energy", "step"],
   ["output", "step"],
   ["flow", "from"],
   ["flow", "to"],
 ];
+const STEP_REFS: [string, string][] = [["steps", "step"], ...REFERENCES];
 
 function column(cells: Record<string, string>, sheet: string, col: string) {
   const out: { row: number; value: string }[] = [];
@@ -33,13 +55,24 @@ function column(cells: Record<string, string>, sheet: string, col: string) {
 
 export const stepNames = (cells: Record<string, string>) => column(cells, "steps", "step").map((c) => c.value.trim());
 
+/** Names used by rows (materials, energy, output, flow) that the Steps sheet does not have. */
 export function missingSteps(cells: Record<string, string>) {
   const known = new Set(stepNames(cells).map(norm));
   const seen = new Map<string, string>();
-  for (const [sheet, col] of STEP_REFS.slice(1))
+  for (const [sheet, col] of REFERENCES)
     for (const { value } of column(cells, sheet, col))
       if (!known.has(norm(value)) && !seen.has(norm(value))) seen.set(norm(value), value.trim());
   return [...seen.values()];
+}
+
+/** Flow rows that name both ends: the explicit edges. Rows with one end only are not edges. */
+export function explicitEdges(cells: Record<string, string>) {
+  const out: { row: number; from: string; to: string; item?: string }[] = [];
+  for (const { row, value } of column(cells, "flow", "from")) {
+    const to = cells[cellKey("flow", row, "to")]?.trim();
+    if (to) out.push({ row, from: value.trim(), to, item: cells[cellKey("flow", row, "item")] });
+  }
+  return out;
 }
 
 function row(sheet: string, index: number, values: Record<string, string | undefined>): CellPatch {
@@ -48,43 +81,61 @@ function row(sheet: string, index: number, values: Record<string, string | undef
   return patch;
 }
 
+function need(v: string | undefined) {
+  if (!v?.trim()) throw new FlowEditError("blank");
+  return v.trim();
+}
 function requireStep(cells: Record<string, string>, step: string) {
-  if (!stepNames(cells).some((s) => same(s, step))) throw new Error(`Add the step "${step.trim()}" first.`);
+  if (!stepNames(cells).some((s) => same(s, step))) throw new FlowEditError("missing-step", { name: step.trim() });
 }
 function refuseDuplicate(cells: Record<string, string>, name: string) {
-  if (stepNames(cells).some((s) => same(s, name))) throw new Error(`A step named "${name.trim()}" already exists.`);
+  if (stepNames(cells).some((s) => same(s, name)))
+    throw new FlowEditError("duplicate-step", { name: name.trim() });
 }
 
 export function flowActionToCells(action: FlowAction, cells: Record<string, string>): CellPatch {
   switch (action.kind) {
-    case "add-step":
-      refuseDuplicate(cells, action.name);
-      return row("steps", rowsUsed(cells, "steps"), { step: action.name, what: action.what });
+    case "add-step": {
+      const name = need(action.name);
+      refuseDuplicate(cells, name);
+      return row("steps", rowsUsed(cells, "steps"), { step: name, what: action.what });
+    }
     case "add-input":
     case "add-output": {
-      requireStep(cells, action.step);
+      const step = need(action.step);
+      const item = need(action.item);
+      requireStep(cells, step);
       const sheet = action.kind === "add-output" ? "output" : action.sheet;
-      const { step, item, qty, unit } = action;
-      return row(sheet, rowsUsed(cells, sheet), { step, item, qty, unit, status: "review" });
+      return row(sheet, rowsUsed(cells, sheet), {
+        step,
+        item,
+        qty: action.qty,
+        unit: action.unit,
+        status: "review",
+      });
     }
     case "connect": {
-      requireStep(cells, action.from);
-      requireStep(cells, action.to);
-      const edges = column(cells, "flow", "from").map(({ row: r, value }) => ({
-        from: value,
-        to: cells[cellKey("flow", r, "to")],
-      }));
-      if (edges.some((e) => same(e.from, action.from) && same(e.to, action.to))) return {};
+      const from = need(action.from);
+      const to = need(action.to);
+      if (same(from, to)) throw new FlowEditError("same-step");
+      requireStep(cells, from);
+      requireStep(cells, to);
+      const edges = explicitEdges(cells);
+      if (edges.some((e) => same(e.from, from) && same(e.to, to))) return {};
+
       const patch: CellPatch = {};
       let next = rowsUsed(cells, "flow");
-      if (!edges.length) {
+      if (edges.length === 0) {
+        // The first explicit link replaces the implied chain (Task 15 rule), so write the chain out first.
         const order = stepNames(cells);
-        for (let i = 0; i + 1 < order.length; i++)
-          Object.assign(patch, row("flow", next++, { from: order[i], to: order[i + 1] }));
-        if (edges.length === 0 && order.some((s, i) => same(s, action.from) && same(order[i + 1], action.to)))
-          return patch;
+        const pairs = order.slice(0, -1).map((s, i) => ({ from: s, to: order[i + 1] }));
+        const base = next;
+        pairs.forEach((p, i) => Object.assign(patch, row("flow", base + i, p)));
+        const hit = pairs.findIndex((p) => same(p.from, from) && same(p.to, to));
+        if (hit >= 0) return Object.assign(patch, row("flow", base + hit, { item: action.item }));
+        next = base + pairs.length;
       }
-      return Object.assign(patch, row("flow", next, { from: action.from, to: action.to, item: action.item }));
+      return Object.assign(patch, row("flow", next, { from, to, item: action.item }));
     }
     case "disconnect": {
       const patch: CellPatch = {};
@@ -94,12 +145,14 @@ export function flowActionToCells(action: FlowAction, cells: Record<string, stri
       return patch;
     }
     case "rename-step": {
-      requireStep(cells, action.from);
-      if (!same(action.from, action.to)) refuseDuplicate(cells, action.to);
+      const from = need(action.from);
+      const to = need(action.to);
+      requireStep(cells, from);
+      if (!same(from, to)) refuseDuplicate(cells, to);
       const patch: CellPatch = {};
       for (const [sheet, col] of STEP_REFS)
         for (const { row: r, value } of column(cells, sheet, col))
-          if (same(value, action.from)) patch[cellKey(sheet, r, col)] = action.to.trim();
+          if (same(value, from)) patch[cellKey(sheet, r, col)] = to;
       return patch;
     }
   }

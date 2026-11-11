@@ -22,6 +22,14 @@ export function enqueue(q: Queue, t: Target, cellKey: string, value: string): Qu
   return { ...q, [k]: { target: t, cells: { ...pendingFor(q, t), [cellKey]: v } } };
 }
 
+/** Queue several cells at once (a diagram patch). Same clamping as a typed edit; null deletes. */
+export function enqueueMany(q: Queue, t: Target, cells: Record<string, string | null>): Queue {
+  if (!Object.keys(cells).length) return q;
+  const next: Cells = { ...pendingFor(q, t) };
+  for (const [k, v] of Object.entries(cells)) next[k] = v === null || v === "" ? null : v.slice(0, CELL_MAX);
+  return { ...q, [targetKey(t)]: { target: t, cells: next } };
+}
+
 export function pendingFor(q: Queue, t: Target): Cells {
   return q[targetKey(t)]?.cells ?? {};
 }
