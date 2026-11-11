@@ -63,7 +63,7 @@ export function RiskDeadlineOverview({ stats }: { stats: RiskDeadlineStats }) {
         value={stats.workspacesBlocked}
         label={t("Product reports blocked")}
         sub={t("arithmetic that cannot run")}
-        href="/workspaces"
+        href="/convert"
         tone={stats.workspacesBlocked > 0 ? "err" : "muted"}
       />
       <StatTile

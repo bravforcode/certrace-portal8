@@ -4,7 +4,6 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  ClipboardCheck,
   Users,
   Settings,
   CreditCard,
@@ -180,8 +179,8 @@ function mark(product: ProductId): NavIcon {
 
 /* THE SIDEBAR FOLLOWS THE PRODUCT FAMILY on the public site (certrace-landing
    lib/nav-menu.ts): Prove and its five parts, Trace, the three lines still to
-   come, and Cera — with the same marks, and no descriptions. Dashboard and
-   Verification stay on top as the screens the day starts on. */
+   come, and Cera — with the same marks, and no descriptions. Dashboard stays on
+   top as the screen the day starts on. */
 function useNav(): NavEntry[] {
   const { t } = useLanguage();
   return [
@@ -196,12 +195,6 @@ function useNav(): NavEntry[] {
       href: "/opportunities",
       label: t("Opportunities"),
       icon: Lightbulb,
-    },
-    {
-      kind: "link",
-      href: "/workspaces",
-      label: t("Verification"),
-      icon: ClipboardCheck,
     },
     { kind: "group", label: "Prove", icon: mark("prove") },
     {

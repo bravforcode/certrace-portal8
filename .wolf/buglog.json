@@ -32,6 +32,166 @@
       "related_bugs": [],
       "occurrences": 1,
       "last_seen": "2026-11-10T20:58:17.843Z"
+    },
+    {
+      "id": "bug-003",
+      "timestamp": "2026-11-11T09:28:33.477Z",
+      "error_message": "Wrong reference: createdAt should be nonCbamProcesses",
+      "file": ".claude/worktrees/agent-a9f6167f9fc866974/certrace-portal/e2e/zz-debug.spec.ts",
+      "root_cause": "Used \"createdAt\" instead of \"nonCbamProcesses\"",
+      "fix": "Changed createdAt → nonCbamProcesses",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T09:28:33.477Z"
+    },
+    {
+      "id": "bug-004",
+      "timestamp": "2026-11-11T09:45:03.990Z",
+      "error_message": "Type error",
+      "file": ".claude/worktrees/agent-a9f6167f9fc866974/certrace-backend/src/modules/auth/service.ts",
+      "root_cause": "Missing or incorrect type annotation",
+      "fix": "Added type assertion/annotation",
+      "tags": [
+        "auto-detected",
+        "type-fix",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T09:45:03.990Z"
+    },
+    {
+      "id": "bug-005",
+      "timestamp": "2026-11-11T10:19:03.272Z",
+      "error_message": "Missing error handling in unknown",
+      "file": ".claude/worktrees/agent-a9f6167f9fc866974/certrace-portal/e2e/production-flows.spec.ts",
+      "root_cause": "Code path had no error handling — exceptions would propagate uncaught",
+      "fix": "Added try/catch block",
+      "tags": [
+        "auto-detected",
+        "error-handling",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T10:19:03.272Z"
+    },
+    {
+      "id": "bug-006",
+      "timestamp": "2026-11-11T13:15:37.125Z",
+      "error_message": "Wrong reference: ClipboardCheck should be Users",
+      "file": "certrace-portal/components/portal-shell.tsx",
+      "root_cause": "Used \"ClipboardCheck\" instead of \"Users\"",
+      "fix": "Changed ClipboardCheck → Users",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T13:15:37.125Z"
+    },
+    {
+      "id": "bug-007",
+      "timestamp": "2026-11-11T13:43:59.650Z",
+      "error_message": "Incorrect value in code",
+      "file": "certrace-portal/.claude/launch.json",
+      "root_cause": "Had \"npm\"",
+      "fix": "Changed to \"cmd\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "json"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T13:43:59.650Z"
+    },
+    {
+      "id": "bug-008",
+      "timestamp": "2026-11-11T13:51:18.402Z",
+      "error_message": "Incorrect value in code",
+      "file": "certrace-portal/.claude/launch.json",
+      "root_cause": "Had \"cmd\"",
+      "fix": "Changed to \"npm\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "json"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T13:51:18.402Z"
+    },
+    {
+      "id": "bug-009",
+      "timestamp": "2026-11-11T13:53:22.297Z",
+      "error_message": "Incorrect value in code",
+      "file": "certrace-portal/lib/notifications/feed.ts",
+      "root_cause": "Had \"/workspaces\"",
+      "fix": "Changed to \"/convert\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T13:53:22.297Z"
+    },
+    {
+      "id": "bug-010",
+      "timestamp": "2026-11-11T13:53:28.627Z",
+      "error_message": "Incorrect value in code",
+      "file": "certrace-portal/components/home/panels.tsx",
+      "root_cause": "Had \"/workspaces\"",
+      "fix": "Changed to \"/convert\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T13:53:28.627Z"
+    },
+    {
+      "id": "bug-011",
+      "timestamp": "2026-11-11T13:53:39.867Z",
+      "error_message": "Incorrect value in code",
+      "file": "certrace-portal/components/dashboard/risk-deadline.tsx",
+      "root_cause": "Had \"/workspaces\"",
+      "fix": "Changed to \"/convert\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T13:53:39.867Z"
+    },
+    {
+      "id": "bug-012",
+      "timestamp": "2026-11-11T13:53:51.581Z",
+      "error_message": "Incorrect value in code",
+      "file": "certrace-portal/app/(portal)/declarations/page.tsx",
+      "root_cause": "Had \"/workspaces\"",
+      "fix": "Changed to \"/convert\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T13:53:51.581Z"
     }
   ]
 }
