@@ -1,20 +1,25 @@
 /* ════════════════════════════════════════════════════════════
-   WORKSPACE SHEETS — what the uploaded files become
+   WORKSPACE SHEETS — the sheet definitions of a reporting year
 
-   The tabs along the bottom of the workspace: a production diagram (empty
-   for now — it comes later), then 00–08. Each sheet is columns and rows;
-   a row carries a status (to review, confirmed, missing data) and may flag
-   single cells — "warn" for a value that needs a look, "missing" for one
-   that is not there. The issue count on each tab is its rows that are not
-   confirmed.
+   The tabs along the bottom of the workspace: the installation, the documents
+   the exporter uploaded, then 01–08 and a production diagram. Each sheet is
+   columns and rows; a row carries a status (to review, confirmed, missing
+   data) and may flag single cells. The rows come from the shared server
+   workbook (lib/workbook/cells.ts), never from sample data: a new year is
+   empty until the exporter types into it or uploads a file.
 
-   MOCK DATA, written in English and translated at render (the Thai lives in
-   lib/i18n-th-workspace.ts) — a galvanised-fastener plant, so the sheets
-   read like a real CBAM workspace. Sheet 00 is built from the files the
-   exporter actually uploaded.
+   Column labels are English and translated at render (the Thai lives in
+   lib/i18n-th-workspace.ts).
    ════════════════════════════════════════════════════════════ */
 
-import type { WorkspaceFile } from "./workspace-store";
+/** One uploaded file, as the year's meta records it. */
+export type WorkspaceFile = {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  description: string;
+};
 
 /** "empty" is a row of a workspace started from the beginning: nothing in it yet, nothing to check. */
 export type RowStatus = "review" | "confirmed" | "missing" | "empty";
@@ -25,6 +30,8 @@ export type SheetCol = { key: string; label: string; kind: ColKind; width: strin
 export type SheetRow = {
   cells: Record<string, string>;
   status: RowStatus;
+  /* Reserved: nothing sets flags yet (sheetsFromCells never produces them), so the
+     warn/missing highlight in the spreadsheet is inert until a checker fills this in. */
   flags?: Record<string, CellFlag>;
 };
 export type Sheet = { id: string; code: string; name: string; cols: SheetCol[]; rows: SheetRow[] };
@@ -49,40 +56,20 @@ const method = col("method", "Method", "method", W.method);
 const qty = col("qty", "Quantity", "number", W.qty);
 const unit = col("unit", "Unit", "unit", W.unit);
 
-const r = (cells: Record<string, string>, st: RowStatus, flags?: Record<string, CellFlag>): SheetRow => ({
-  cells,
-  status: st,
-  flags,
-});
-
 export const PRODUCTION_DIAGRAM_ID = "diagram";
 export const INSTALLATION_SHEET_ID = "installation";
 
-/** Rows a workspace started from the beginning opens with, per sheet. */
+/** Rows a sheet starts with; cells.ts pads every sheet to at least this many. */
 export const BLANK_ROWS = 20;
 
-/** The sheets of a year: built from its files, or — when the year was started
-    from the beginning — the same sheets with empty rows to fill in. */
-export function buildSheets(files: WorkspaceFile[], blank = false): Sheet[] {
-  const sheets = sampleSheets(files);
-  if (!blank) return sheets;
-  return sheets.map((s) => ({
-    ...s,
-    rows: Array.from({ length: BLANK_ROWS }, () => ({ cells: {}, status: "empty" as const })),
-  }));
-}
+const kb = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 
-function sampleSheets(files: WorkspaceFile[]): Sheet[] {
-  const kb = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+/** The sheet structure of a year. Only the documents sheet has rows of its own (its uploaded files);
+    every other sheet's rows are filled in by cells.ts from the server workbook. */
+export function buildSheets(files: WorkspaceFile[]): Sheet[] {
   return [
     // The first tab: the site the sheets are about, before its products and steps (MEASUR order).
-    {
-      id: INSTALLATION_SHEET_ID,
-      code: "00A",
-      name: "Installation",
-      cols: [],
-      rows: [],
-    },
+    { id: INSTALLATION_SHEET_ID, code: "00A", name: "Installation", cols: [], rows: [] },
     {
       id: "documents",
       code: "00",
@@ -94,28 +81,22 @@ function sampleSheets(files: WorkspaceFile[]): Sheet[] {
         col("size", "Size", "number", "minmax(72px,0.7fr)"),
         status,
       ],
-      rows: files.map((f) =>
-        r(
-          {
-            file: f.name,
-            description: f.description,
-            type: (f.name.split(".").pop() ?? "").toUpperCase(),
-            size: kb(f.size),
-          },
-          "confirmed",
-        ),
-      ),
+      rows: files.map((f) => ({
+        cells: {
+          file: f.name,
+          description: f.description,
+          type: (f.name.split(".").pop() ?? "").toUpperCase(),
+          size: kb(f.size),
+        },
+        status: "confirmed" as const,
+      })),
     },
     {
       id: "products",
       code: "01",
       name: "Products",
       cols: [col("cn", "CN code", "text", W.step), col("item", "Product", "text", W.item), qty, unit, method, source, status],
-      rows: [
-        r({ cn: "7318 15 88", item: "Hexagon bolts, galvanised", qty: "3,850", unit: "t", method: "Measured", source: "production_2026.xlsx" }, "confirmed"),
-        r({ cn: "7318 16 92", item: "Hexagon nuts, galvanised", qty: "1,240", unit: "t", method: "Measured", source: "production_2026.xlsx" }, "confirmed"),
-        r({ cn: "7318 22 00", item: "Washers", qty: "410", unit: "t", method: "Measured", source: "production_2026.xlsx" }, "confirmed"),
-      ],
+      rows: [],
     },
     {
       id: "steps",
@@ -129,30 +110,14 @@ function sampleSheets(files: WorkspaceFile[]): Sheet[] {
         source,
         status,
       ],
-      rows: [
-        r({ step: "Pickling", what: "Remove scale with acid", input: "Wire rod", output: "Clean rod", source: "process_map.pdf" }, "confirmed"),
-        r({ step: "Wire drawing", what: "Draw to diameter", input: "Clean rod", output: "Wire", source: "process_map.pdf" }, "confirmed"),
-        r({ step: "Cold forging", what: "Form heads and threads", input: "Wire", output: "Blanks", source: "process_map.pdf" }, "confirmed"),
-        r({ step: "Heat treatment", what: "Quench and temper", input: "Blanks", output: "Hardened parts", source: "process_map.pdf" }, "confirmed"),
-        r({ step: "Galvanizing", what: "Hot-dip zinc coating", input: "Hardened parts", output: "Galvanised parts", source: "process_map.pdf" }, "confirmed"),
-        r({ step: "Packing", what: "Box and palletise", input: "Galvanised parts", output: "Finished goods", source: "process_map.pdf" }, "confirmed"),
-      ],
+      rows: [],
     },
     {
       id: "materials",
       code: "03",
       name: "Raw materials",
       cols: [col("step", "Step", "text", W.step), col("item", "Item", "text", W.item), qty, unit, method, source, status],
-      rows: [
-        r({ step: "Galvanizing", item: "Zinc (Zn)", qty: "18.4", unit: "Not stated", method: "Calculated", source: "PO-221.pdf" }, "review", { qty: "warn", unit: "warn" }),
-        r({ step: "Packing", item: "Steel strapping", qty: "1.8", unit: "t", method: "Estimated", source: NO_FILE }, "review", { method: "warn" }),
-        r({ step: "Pickling", item: "Hydrochloric acid 32%", qty: "4.2", unit: "t", method: "Measured", source: "invoice_03.pdf" }, "confirmed"),
-        r({ step: "Wire drawing", item: "Carbon steel wire rod", qty: "520", unit: "t", method: "Measured", source: "stock_card.xlsx" }, "confirmed"),
-        r({ step: "Galvanizing", item: "Recycled zinc", qty: "", unit: "t", method: "Estimated", source: NO_FILE }, "missing", { qty: "missing" }),
-        r({ step: "Galvanizing", item: "Flux ZnCl₂ / NH₄Cl", qty: "1.1", unit: "t", method: "Measured", source: "invoice_07.pdf" }, "confirmed"),
-        r({ step: "Packing", item: "Wooden pallets", qty: "3,200", unit: "pcs", method: "Measured", source: "packing_list.xlsx" }, "confirmed"),
-        r({ step: "Packing", item: "Plastic film", qty: "0.6", unit: "t", method: "Measured", source: "invoice_11.pdf" }, "confirmed"),
-      ],
+      rows: [],
     },
     {
       id: "flow",
@@ -167,36 +132,21 @@ function sampleSheets(files: WorkspaceFile[]): Sheet[] {
         method,
         status,
       ],
-      rows: [
-        r({ from: "Wire drawing", to: "Cold forging", item: "Wire", qty: "512", unit: "t", method: "Measured" }, "confirmed"),
-        r({ from: "Cold forging", to: "Heat treatment", item: "Blanks", qty: "498", unit: "t", method: "Measured" }, "confirmed"),
-        r({ from: "Heat treatment", to: "Galvanizing", item: "Hardened parts", qty: "495", unit: "t", method: "Calculated" }, "confirmed"),
-        r({ from: "Galvanizing", to: "Packing", item: "Galvanised parts", qty: "", unit: "t", method: "Estimated" }, "missing", { qty: "missing" }),
-      ],
+      rows: [],
     },
     {
       id: "energy",
       code: "05",
       name: "Energy",
       cols: [col("step", "Step", "text", W.step), col("item", "Energy source", "text", W.item), qty, unit, method, source, status],
-      rows: [
-        r({ step: "Whole plant", item: "Grid electricity", qty: "2,140", unit: "MWh", method: "Measured", source: "pea_bills_2026.pdf" }, "confirmed"),
-        r({ step: "Heat treatment", item: "Natural gas", qty: "18,600", unit: "GJ", method: "Measured", source: "gas_invoice.pdf" }, "confirmed"),
-        r({ step: "Galvanizing", item: "LPG", qty: "312", unit: "GJ", method: "Estimated", source: NO_FILE }, "review", { method: "warn" }),
-        r({ step: "Forklifts", item: "Diesel", qty: "41,000", unit: "L", method: "Calculated", source: "fuel_log.xlsx" }, "review", { qty: "warn" }),
-      ],
+      rows: [],
     },
     {
       id: "output",
       code: "06",
       name: "Output & waste",
       cols: [col("step", "Step", "text", W.step), col("item", "Item", "text", W.item), qty, unit, method, source, status],
-      rows: [
-        r({ step: "Packing", item: "Finished fasteners", qty: "5,500", unit: "t", method: "Measured", source: "production_2026.xlsx" }, "confirmed"),
-        r({ step: "Cold forging", item: "Steel scrap, sold", qty: "22", unit: "t", method: "Measured", source: "scrap_sales.pdf" }, "confirmed"),
-        r({ step: "Galvanizing", item: "Zinc dross", qty: "2.9", unit: "t", method: "Estimated", source: NO_FILE }, "review", { method: "warn" }),
-        r({ step: "Pickling", item: "Spent acid", qty: "", unit: "t", method: "Estimated", source: NO_FILE }, "missing", { qty: "missing" }),
-      ],
+      rows: [],
     },
     {
       id: "transport",
@@ -211,10 +161,7 @@ function sampleSheets(files: WorkspaceFile[]): Sheet[] {
         source,
         status,
       ],
-      rows: [
-        r({ route: "Plant → Laem Chabang", mode: "Truck", qty: "64", unit: "km", method: "Measured", source: "delivery_note.pdf" }, "confirmed"),
-        r({ route: "Laem Chabang → Rotterdam", mode: "Sea", qty: "17,900", unit: "km", method: "Calculated", source: "bl_0418.pdf" }, "confirmed"),
-      ],
+      rows: [],
     },
     {
       id: "evidence",
@@ -228,11 +175,7 @@ function sampleSheets(files: WorkspaceFile[]): Sheet[] {
         source,
         status,
       ],
-      rows: [
-        r({ item: "Gas meter calibration certificate", covers: "05 Energy", issuer: "Metrology lab", valid: "2027-03", source: "calib_gas.pdf" }, "confirmed"),
-        r({ item: "Electricity bills, Jan–Dec", covers: "05 Energy", issuer: "PEA", valid: "—", source: "pea_bills_2026.pdf" }, "confirmed"),
-        r({ item: "Supplier emissions statement", covers: "03 Raw materials", issuer: "Wire rod mill", valid: "2027-04", source: "mill_statement.pdf" }, "confirmed"),
-      ],
+      rows: [],
     },
   ];
 }
