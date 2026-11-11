@@ -155,6 +155,7 @@ export function Spreadsheet({
   const isFlow = view === "flow" && !empty;
   const isFactory = view === "factory" && !empty && !!installation;
   const [importing, setImporting] = React.useState(false);
+  const importOpener = React.useRef<HTMLElement | null>(null); // the "Import from file" button, focused again on close
   // Import writes rows into a sheet of cells; the Installation and Documents tabs are not row sheets.
   const canImport = !!sheet && !!onEdit && !!savePatch && tab !== INSTALLATION_SHEET_ID && tab !== "documents";
   const installStatus = installationSheetStatus(installation);
@@ -255,7 +256,14 @@ export function Spreadsheet({
           {!empty && !isFlow && !isFactory && (
             <div className="flex items-center gap-3 border-l border-black/[0.08] px-2.5 py-1">
               {canImport && (
-                <Button variant="secondary" size="sm" onClick={() => setImporting(true)}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={(e) => {
+                    importOpener.current = e.currentTarget;
+                    setImporting(true);
+                  }}
+                >
                   {t("Import from file")}
                 </Button>
               )}
@@ -487,7 +495,13 @@ export function Spreadsheet({
         <LivePanel sheets={sheets} installation={installation} country={installation?.country ?? ""} year={year} onOpenSheet={showLive} />
       )}
       {importing && sheet && canImport && savePatch && (
-        <ImportWizard sheet={sheet} cells={cells ?? {}} savePatch={savePatch} onClose={() => setImporting(false)} t={t} />
+        <ImportWizard sheet={sheet} cells={cells ?? {}} savePatch={savePatch}
+          onClose={() => {
+            setImporting(false);
+            importOpener.current?.focus();
+          }}
+          t={t}
+        />
       )}
     </div>
   );

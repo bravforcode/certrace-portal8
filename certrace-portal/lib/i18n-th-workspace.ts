@@ -387,8 +387,6 @@ export const TH_WORKSPACE: Record<string, string> = {
   "Columns": "คอลัมน์",
   "Preview": "ตัวอย่างก่อนนำเข้า",
   "Import": "นำเข้า",
-  "Next": "ถัดไป",
-  "Back": "ย้อนกลับ",
   "Start over": "เริ่มใหม่",
   "Skip": "ข้าม",
   "Row {n}": "แถว {n}",
@@ -416,4 +414,8 @@ export const TH_WORKSPACE: Record<string, string> = {
   "Imported {done} of {total} rows. The rest were not saved.": "นำเข้าได้ {done} จาก {total} แถว แถวที่เหลือยังไม่ได้บันทึก",
   "Imported {n} rows into {sheet}": "นำเข้า {n} แถวเข้า {sheet} แล้ว",
   "Factory": "โรงงาน",
+  "This workbook uses ZIP64, which the portal cannot read. Save it as .csv instead.": "สมุดงานนี้ใช้รูปแบบ ZIP64 ซึ่งระบบอ่านไม่ได้ กรุณาบันทึกเป็น .csv แทน",
+  "This workbook has too many parts to read.": "สมุดงานนี้มีส่วนประกอบมากเกินกว่าจะอ่านได้",
+  "This workbook expands past 50 MB when read.": "เมื่ออ่านแล้ว สมุดงานนี้มีขนาดเกิน 50 MB",
+  "This sheet is too large to read.": "ชีตนี้มีขนาดใหญ่เกินกว่าจะอ่านได้",
 };

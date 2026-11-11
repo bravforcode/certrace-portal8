@@ -1,15 +1,63 @@
 /* Reads .xlsx workbooks in the browser with DecompressionStream (no dependency).
-   Only what the import needs: sheet names, and each cell's text or value. */
+   Only what the import needs: sheet names, and each cell's text or value. Every size and count is
+   checked before anything is inflated, so a crafted file cannot exhaust memory. */
+
+import { ImportError, PARSE_LIMITS } from "./import-limits";
+
+const NOT_XLSX = "This file is not a valid .xlsx workbook.";
+const UNSUPPORTED = "This workbook uses a compression the portal cannot read.";
+const ZIP64 = "This workbook uses ZIP64, which the portal cannot read. Save it as .csv instead.";
+const TOO_MANY = "This workbook has too many parts to read.";
+const TOO_BIG = "This workbook expands past 50 MB when read.";
+const PART_BIG = "This sheet is too large to read.";
+
+/** The parts the import reads. Everything else in the package (styles, drawings, themes) is skipped. */
+const PARTS = new Set(["xl/workbook.xml", "xl/_rels/workbook.xml.rels", "xl/sharedStrings.xml"]);
+const SHEET_PART = /^xl\/worksheets\/[^/]+\.xml$/;
+
+export type ZipOptions = {
+  /** total bytes that may be inflated across all parts */
+  maxBytes?: number;
+  /** largest single part, by its declared size */
+  maxPart?: number;
+  /** which entries to read; the rest are not inflated */
+  want?: (name: string) => boolean;
+};
 
 const u16 = (b: Uint8Array, o: number) => b[o]! | (b[o + 1]! << 8);
 const u32 = (b: Uint8Array, o: number) => (u16(b, o) | (u16(b, o + 2) << 16)) >>> 0;
 
-async function inflate(data: Uint8Array) {
-  const stream = new Blob([data as Uint8Array<ArrayBuffer>]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
-  return new Uint8Array(await new Response(stream).arrayBuffer());
+/* Inflates one entry, failing as soon as its output would pass `limit` bytes. */
+async function inflate(data: Uint8Array, limit: number) {
+  const reader = new Blob([data as Uint8Array<ArrayBuffer>])
+    .stream()
+    .pipeThrough(new DecompressionStream("deflate-raw"))
+    .getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > limit) {
+      await reader.cancel();
+      throw new ImportError(TOO_BIG);
+    }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(total);
+  let at = 0;
+  for (const c of chunks) {
+    out.set(c, at);
+    at += c.byteLength;
+  }
+  return out;
 }
 
-export async function readZip(buf: ArrayBuffer): Promise<Map<string, Uint8Array>> {
+export async function readZip(buf: ArrayBuffer, opts: ZipOptions = {}): Promise<Map<string, Uint8Array>> {
+  const maxBytes = opts.maxBytes ?? PARSE_LIMITS.zipBytes;
+  const maxPart = opts.maxPart ?? PARSE_LIMITS.partBytes;
+  const want = opts.want ?? (() => true);
   const b = new Uint8Array(buf);
   let end = -1;
   for (let i = b.length - 22; i >= Math.max(0, b.length - 65557); i--)
@@ -17,68 +65,142 @@ export async function readZip(buf: ArrayBuffer): Promise<Map<string, Uint8Array>
       end = i;
       break;
     }
-  if (end < 0) throw new Error("This file is not a valid .xlsx workbook.");
+  if (end < 0) throw new ImportError(NOT_XLSX);
   const count = u16(b, end + 10);
-  let p = u32(b, end + 16);
+  const cdAt = u32(b, end + 16);
+  const zip64 =
+    count === 0xffff ||
+    cdAt === 0xffffffff ||
+    (end >= 20 && u32(b, end - 20) === 0x07064b50) ||
+    (end >= 56 && u32(b, end - 56) === 0x06064b50);
+  if (zip64) throw new ImportError(ZIP64);
+  if (count > PARSE_LIMITS.zipEntries) throw new ImportError(TOO_MANY);
+
   const out = new Map<string, Uint8Array>();
+  let used = 0;
+  let p = cdAt;
   for (let n = 0; n < count; n++) {
-    if (u32(b, p) !== 0x02014b50) throw new Error("This file is not a valid .xlsx workbook.");
+    if (p + 46 > b.length || u32(b, p) !== 0x02014b50) throw new ImportError(NOT_XLSX);
     const method = u16(b, p + 10),
-      size = u32(b, p + 20);
+      size = u32(b, p + 20),
+      declared = u32(b, p + 24);
     const nameLen = u16(b, p + 28),
       extra = u16(b, p + 30),
-      comment = u16(b, p + 32);
-    const local = u32(b, p + 42);
+      comment = u16(b, p + 32),
+      local = u32(b, p + 42);
+    const next = p + 46 + nameLen + extra + comment;
+    if (next > b.length) throw new ImportError(NOT_XLSX);
     const name = new TextDecoder().decode(b.subarray(p + 46, p + 46 + nameLen));
+    p = next;
+    if (!want(name)) continue;
+    if (declared > maxPart) throw new ImportError(PART_BIG);
+    if (declared > maxBytes - used) throw new ImportError(TOO_BIG);
+    if (local + 30 > b.length || u32(b, local) !== 0x04034b50) throw new ImportError(NOT_XLSX);
     const start = local + 30 + u16(b, local + 26) + u16(b, local + 28);
+    if (start + size > b.length) throw new ImportError(NOT_XLSX);
     const data = b.subarray(start, start + size);
-    if (method === 0) out.set(name, data);
-    else if (method === 8) out.set(name, await inflate(data));
-    else throw new Error("This workbook uses a compression the portal cannot read.");
-    p += 46 + nameLen + extra + comment;
+    let bytes: Uint8Array;
+    if (method === 0) bytes = data;
+    else if (method === 8) bytes = await inflate(data, maxBytes - used);
+    else throw new ImportError(UNSUPPORTED);
+    used += bytes.byteLength;
+    out.set(name, bytes);
   }
   return out;
 }
 
 const ENTITY: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
-const decode = (s: string) =>
-  s.replace(/&(#x[0-9a-f]+|#\d+|\w+);/gi, (m, e: string) =>
-    e[0] === "#" ? String.fromCodePoint(parseInt(e.slice(e[1] === "x" ? 2 : 1), e[1] === "x" ? 16 : 10)) : (ENTITY[e] ?? m),
-  );
+/* A numeric reference outside Unicode is left as written rather than thrown on. */
+const decodeEntities = (s: string) =>
+  s.replace(/&(#x[0-9a-f]+|#\d+|\w+);/gi, (m, e: string) => {
+    if (e[0] !== "#") return ENTITY[e] ?? m;
+    const hex = e[1] === "x" || e[1] === "X";
+    const cp = parseInt(e.slice(hex ? 2 : 1), hex ? 16 : 10);
+    return cp > 0 && cp <= 0x10ffff ? String.fromCodePoint(cp) : m;
+  });
+
+/* Every <tag ...>...</tag> or <tag .../> in xml. A forward scan, so the cost grows with the input, not its square. */
+function elements(xml: string, tag: string) {
+  const open = `<${tag}`;
+  const close = `</${tag}>`;
+  const out: { attrs: string; body: string }[] = [];
+  let pos = 0;
+  for (;;) {
+    const s = xml.indexOf(open, pos);
+    if (s < 0) break;
+    const after = xml.charAt(s + open.length);
+    if (after !== " " && after !== ">" && after !== "/") {
+      pos = s + open.length;
+      continue;
+    }
+    const gt = xml.indexOf(">", s);
+    if (gt < 0) break;
+    const attrs = xml.slice(s + open.length, gt);
+    if (attrs.endsWith("/")) {
+      out.push({ attrs: attrs.slice(0, -1), body: "" });
+      pos = gt + 1;
+      continue;
+    }
+    const e = xml.indexOf(close, gt + 1);
+    if (e < 0) break;
+    out.push({ attrs, body: xml.slice(gt + 1, e) });
+    pos = e + close.length;
+  }
+  return out;
+}
+
+/* An attribute's value, whatever order the attributes come in. */
+function attr(attrs: string, name: string) {
+  const key = `${name}="`;
+  for (let i = attrs.indexOf(key); i >= 0; i = attrs.indexOf(key, i + 1)) {
+    if (i === 0 || /\s/.test(attrs[i - 1]!)) {
+      const end = attrs.indexOf('"', i + key.length);
+      return end < 0 ? undefined : attrs.slice(i + key.length, end);
+    }
+  }
+  return undefined;
+}
+
+const RPH = /<rPh\b[\s\S]*?<\/rPh>/g; // phonetic guide text is not part of the cell's value
 const texts = (xml: string) =>
-  [...xml.matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map((m) => decode(m[1]!)).join("");
+  elements(xml.replace(RPH, ""), "t")
+    .map((t) => decodeEntities(t.body))
+    .join("");
 const colIndex = (ref: string) =>
   [...ref.replace(/\d+$/, "")].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) - 1;
 
 export async function readXlsx(buf: ArrayBuffer) {
-  const files = await readZip(buf);
-  const text = (path: string) => (files.has(path) ? new TextDecoder().decode(files.get(path)) : "");
-  const shared = [...text("xl/sharedStrings.xml").matchAll(/<si>([\s\S]*?)<\/si>/g)].map((m) => texts(m[1]!));
+  const files = await readZip(buf, { want: (n) => PARTS.has(n) || SHEET_PART.test(n) });
+  const text = (path: string) => {
+    const f = files.get(path);
+    return f ? new TextDecoder().decode(f) : "";
+  };
+  const shared = elements(text("xl/sharedStrings.xml"), "si").map((si) => texts(si.body));
   const rels = new Map(
-    [...text("xl/_rels/workbook.xml.rels").matchAll(/<Relationship[^>]*Id="([^"]+)"[^>]*Target="([^"]+)"/g)].map((m) => [
-      m[1]!,
-      m[2]!,
-    ]),
+    elements(text("xl/_rels/workbook.xml.rels"), "Relationship").map((r) => [attr(r.attrs, "Id") ?? "", attr(r.attrs, "Target") ?? ""]),
   );
-  return [...text("xl/workbook.xml").matchAll(/<sheet [^>]*name="([^"]*)"[^>]*r:id="([^"]+)"/g)].map((m) => {
-    const target = rels.get(m[2]!) ?? "";
+  return elements(text("xl/workbook.xml"), "sheet").map((s) => {
+    const target = rels.get(attr(s.attrs, "r:id") ?? "") ?? "";
     const xml = text(target.startsWith("/") ? target.slice(1) : `xl/${target}`);
     const rows: string[][] = [];
-    for (const r of xml.matchAll(/<row[^>]*r="(\d+)"[^>]*>([\s\S]*?)<\/row>/g)) {
+    for (const row of elements(xml, "row")) {
+      const at = Number(attr(row.attrs, "r") ?? rows.length + 1) - 1;
+      if (!Number.isInteger(at) || at < 0 || at >= PARSE_LIMITS.rows) continue;
       const line: string[] = [];
-      for (const c of r[2]!.matchAll(/<c ([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
-        const ref = /r="([A-Z]+\d+)"/.exec(c[1]!)?.[1];
-        if (!ref) continue;
-        const type = /t="(\w+)"/.exec(c[1]!)?.[1];
-        const body = c[2] ?? "";
-        const v = decode(/<v>([\s\S]*?)<\/v>/.exec(body)?.[1] ?? "");
-        line[colIndex(ref)] = type === "s" ? (shared[Number(v)] ?? "") : type === "inlineStr" ? texts(body) : v;
+      for (const c of elements(row.body, "c")) {
+        const ref = attr(c.attrs, "r");
+        const col = ref ? colIndex(ref) : -1;
+        if (col < 0 || col >= PARSE_LIMITS.cols) continue;
+        const type = attr(c.attrs, "t");
+        const v = decodeEntities(/<v>([\s\S]*?)<\/v>/.exec(c.body)?.[1] ?? "");
+        line[col] = type === "s" ? (shared[Number(v)] ?? "") : type === "inlineStr" ? texts(c.body) : v;
       }
-      rows[Number(r[1]) - 1] = Array.from(line, (x) => x ?? "");
+      rows[at] = Array.from(line, (x) => x ?? "");
     }
-    const width = Math.max(0, ...rows.map((x) => x?.length ?? 0));
+    let width = 0;
+    for (const r of rows) if (r && r.length > width) width = r.length;
     return {
-      name: decode(m[1]!),
+      name: decodeEntities(attr(s.attrs, "name") ?? ""),
       rows: Array.from(rows, (x) => Array.from({ length: width }, (_, i) => x?.[i] ?? "")),
     };
   });
