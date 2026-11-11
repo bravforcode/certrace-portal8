@@ -393,7 +393,7 @@ export function Spreadsheet({
               type="button"
               title={dot && full ? statusTooltip(full) : undefined}
               onClick={() => {
-                setView("table");
+                if (view === "flow") setView("table");
                 setTab(s.id);
                 setSel({ r: 0, c: 0 });
                 setEditing(null);
