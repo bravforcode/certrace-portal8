@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  emptyProfile, factoryGaps, factoryKey, factoryProgress, processesFromSteps, productionMismatch, validateProfile,
+  emptyProfile, factoryGaps, factoryKey, factoryProgress, localDate, processesFromSteps, productionMismatch, validateProfile,
   type FactoryProfile,
 } from "../profile";
 
@@ -36,6 +36,19 @@ test("gaps follow the monitoring chain process, source, meter, production", () =
     ["sources:s2:no-meter", "meters:m1:owner", "meters:m1:calibration", "production:2026"],
   );
   assert.match(factoryGaps(p, 2026, "2026-11-11").at(-1)!.message, /Mar, Nov, Dec/);
+});
+test("the local calendar date is used, so an early-morning reading is not yesterday", () => {
+  // 00:30 local time: in any zone east of UTC, the UTC date is the day before.
+  assert.equal(localDate(new Date(2026, 10, 11, 0, 30)), "2026-11-11");
+  assert.equal(localDate(new Date(2026, 0, 5, 23, 59)), "2026-01-05");
+});
+test("a calibration that expires today is not yet expired at local midnight", () => {
+  const p: FactoryProfile = {
+    ...full,
+    meters: [{ ...full.meters[0]!, calibratedUntil: "2026-11-11" }],
+  };
+  assert.deepEqual(factoryGaps(p, 2026, localDate(new Date(2026, 10, 11, 0, 30))), []);
+  assert.equal(factoryGaps(p, 2026, localDate(new Date(2026, 10, 12, 0, 30)))[0]!.key, "meters:m1:calibration");
 });
 test("an empty profile asks for processes first", () => {
   assert.equal(factoryGaps(emptyProfile(), 2026)[0]!.key, "processes:none");

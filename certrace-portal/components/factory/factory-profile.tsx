@@ -498,6 +498,15 @@ export function FactoryProfileView({
         {saved && <span role="status" className="text-sm text-[#16a34a]">{t("Factory profile saved")}</span>}
         {saveError && <span role="alert" className="text-sm text-[#dc2626]">{saveError}</span>}
       </div>
+      {/* Every validator error, including those with no field to sit under (for example a
+          row that is not an object), so nothing that blocks the save is silent. */}
+      {errors.length > 0 && (
+        <ul role="alert" className="list-disc space-y-1 pl-5 text-sm text-[#dc2626]">
+          {errors.map((e) => (
+            <li key={e}>{errorText(t, e.slice(e.indexOf(": ") + 2))}</li>
+          ))}
+        </ul>
+      )}
     </Card>
   );
 }

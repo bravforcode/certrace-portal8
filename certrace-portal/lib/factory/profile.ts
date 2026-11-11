@@ -17,6 +17,10 @@ const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Se
 export const emptyProfile = (): FactoryProfile => ({ version: 1, processes: [], sources: [], meters: [], production: [], updatedAt: "" });
 export const factoryKey = (installationId: string) => `certrace:factory:${installationId}`;
 const norm = (s: string) => s.trim().toLowerCase();
+/** Calendar date in the user's local timezone as YYYY-MM-DD. Not toISOString, which is UTC and
+    puts a Bangkok morning on the previous day. */
+export const localDate = (d: Date = new Date()) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
 export function validateProfile(data: unknown): { ok: true; data: FactoryProfile } | { ok: false; errors: string[] } {
@@ -95,7 +99,7 @@ export function validateProfile(data: unknown): { ok: true; data: FactoryProfile
 const missingMonths = (p: FactoryProfile, year: number) =>
   MONTH_NAMES.filter((_, i) => !p.production.some((r) => r.month === `${year}-${String(i + 1).padStart(2, "0")}`));
 
-export function factoryGaps(p: FactoryProfile, year: number, today = new Date().toISOString().slice(0, 10)): FactoryGap[] {
+export function factoryGaps(p: FactoryProfile, year: number, today = localDate()): FactoryGap[] {
   const gaps: FactoryGap[] = [];
   if (!p.processes.length) gaps.push({ key: "processes:none", group: "processes", message: "Add the processes inside the installation boundary." });
   for (const proc of p.processes.filter((x) => x.inBoundary))
