@@ -411,6 +411,43 @@ test("a 401 from a public link route leaves the signed-in session alone", async 
   );
 });
 
+/* ── a refused write after the trial is a lock, not a sign-out ── */
+
+test("a 403 TRIAL_ENDED announces the lock and keeps the session", async () => {
+  reset();
+  const events: string[] = [];
+  const win = g.window as { dispatchEvent?: (event: Event) => boolean };
+  win.dispatchEvent = (event: Event) => {
+    events.push(event.type);
+    return true;
+  };
+  try {
+    stubServer(() =>
+      json(
+        {
+          detail: {
+            code: "TRIAL_ENDED",
+            message: "Your free trial has ended. Choose a plan to keep editing.",
+          },
+        },
+        403,
+      ),
+    );
+    saveSession({
+      accessToken: "good",
+      user: { id: "u1", email: "a@b.co", onboarded: true, ready: true },
+    });
+
+    const error = await listDeclarations().catch((cause) => cause);
+
+    assert.equal((error as { code?: string }).code, "TRIAL_ENDED");
+    assert.deepEqual(events, ["certrace:trial-ended"]);
+    assert.equal(loadSession()?.accessToken, "cookie");
+  } finally {
+    delete win.dispatchEvent;
+  }
+});
+
 /* ── a suspended account is not a signed-out one ── */
 
 const SUSPENDED = {
