@@ -958,6 +958,28 @@ export function HelpTip({
   );
 }
 
+const FOCUSABLE =
+  'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+
+/* Keeps Tab and Shift+Tab inside the dialog, so focus cannot wander onto the page behind it. A dialog
+   opened on top of another one is left alone. */
+function keepTabInside(e: KeyboardEvent, panel: HTMLElement) {
+  const active = document.activeElement;
+  if (active && !panel.contains(active) && active.closest('[role="dialog"]')) return;
+  const els = [...panel.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => !el.closest("[hidden]"));
+  if (!els.length) return;
+  const first = els[0]!;
+  const last = els[els.length - 1]!;
+  const inside = active !== null && panel.contains(active);
+  if (e.shiftKey && (!inside || active === first)) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && (!inside || active === last)) {
+    e.preventDefault();
+    first.focus();
+  }
+}
+
 /* ── Modal ──────────────────────────────────────────────────
    Portaled so it clears every sticky header and blurred panel on the page,
    and scroll-locked so the page behind it does not move while a wizard step
@@ -1003,9 +1025,21 @@ export function Modal({
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
 
+  const panelRef = React.useRef<HTMLDivElement>(null);
+
+  // Focus goes back to whatever opened the dialog when it closes.
   React.useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const opener = document.activeElement as HTMLElement | null;
+    return () => opener?.focus?.();
+  }, [open]);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      else if (e.key === "Tab" && panelRef.current) keepTabInside(e, panelRef.current);
+    };
     document.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -1020,6 +1054,7 @@ export function Modal({
   return createPortal(
     <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/25 p-4 backdrop-blur-[2px] sm:p-6">
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label={title}
