@@ -27,13 +27,13 @@ test("OEM turns smart-link fixes into fill-in links", () => {
   const oem = { ...emptyInstallation(false), id: "p2", name: "OEM", role: "oem" } as Installation;
   const r = liveRequirements(eu, { installation: oem, sheets: [] }).find((x) => x.id === "precursors")!;
   assert.equal(r.fix, "fill-in");
-  assert.equal(r.href, "/workspace?installation=p2&sheet=materials");
+  assert.equal(r.href, "/convert/fill/precursors?installation=p2");
 });
 test("supplier installations route fill-in to smart links", () => {
   const sup = { ...emptyInstallation(false), id: "p3", name: "Mill", supplierId: "s1" } as Installation;
   const r = liveRequirements(eu, { installation: sup, sheets: [] }).find((x) => x.id === "goods")!;
   assert.equal(r.fix, "smart-link");
-  assert.equal(r.href, "/smart-links?installation=p3&request=goods");
+  assert.equal(r.href, "/convert/fill/goods?installation=p3");
 });
 test("readiness is the share of complete requirements", () => {
   const reqs = liveRequirements(eu, { installation: null, sheets: [] });
@@ -58,19 +58,19 @@ test("a requirement with one complete and one untouched source is in progress at
   assert.equal(r.state, "in-progress");
   assert.equal(r.progress, 50);
 });
-test("installation requirement links to the installation sheet with the id encoded", () => {
+test("installation requirement links to its fill form with the id encoded", () => {
   const oem = { ...emptyInstallation(false), id: "p 2", name: "OEM", role: "oem" } as Installation;
   const r = liveRequirements(eu, { installation: oem, sheets: [] }).find((x) => x.id === "installation")!;
-  assert.equal(r.href, "/workspace?installation=p%202&sheet=installation");
+  assert.equal(r.href, "/convert/fill/installation?installation=p%202");
 });
 test("installationRole defaults to own, supplier when a supplierId is set, and honours an explicit role", () => {
   assert.equal(installationRole({ supplierId: "" }), "own");
   assert.equal(installationRole({ supplierId: "s1" }), "supplier");
   assert.equal(installationRole({ role: "oem", supplierId: "" }), "oem");
 });
-test("supplier installations keep smart-link requirements on the Smart Link route", () => {
+test("supplier installations lead with Smart Link but open the same form", () => {
   const sup = { ...emptyInstallation(false), id: "p3", name: "Mill", supplierId: "s1" } as Installation;
   const r = liveRequirements(eu, { installation: sup, sheets: [] }).find((x) => x.id === "precursors")!;
   assert.equal(r.fix, "smart-link");
-  assert.equal(r.href, "/smart-links?installation=p3&request=precursors");
+  assert.equal(r.href, "/convert/fill/precursors?installation=p3");
 });

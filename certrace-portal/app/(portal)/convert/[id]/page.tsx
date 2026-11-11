@@ -51,6 +51,7 @@ import { listEvidence } from "@/lib/workspace-evidence";
 import { getCarbonPrice } from "@/lib/carbon-price";
 import { buildVerificationExport } from "@/lib/export/verification-export";
 import { buildXlsx } from "@/lib/xlsx-write";
+import { createItemLink } from "@/lib/api/item-links";
 
 const STATE: Record<
   RequirementState,
@@ -281,6 +282,8 @@ function ConvertStandardInner() {
               <RequirementRow
                 key={r.id}
                 r={r}
+                installationId={installation?.id ?? null}
+                year={year}
                 first={i === 0}
                 open={open === r.id}
                 onToggle={() => setOpen((v) => (v === r.id ? null : r.id))}
@@ -332,22 +335,48 @@ function BackLinkInner() {
 
 function RequirementRow({
   r,
+  installationId,
+  year,
   first,
   open,
   onToggle,
 }: {
   r: LiveRequirement;
+  installationId: string | null;
+  year: number;
   first: boolean;
   open: boolean;
   onToggle: () => void;
 }) {
   const t = useT();
   const st = STATE[r.state];
-  // One way to work on it, by whose data it is: an own gap is filled in, a supplier's is requested through a Smart Link.
-  const action =
-    r.fix === "fill-in"
-      ? { label: t("Fill in"), icon: <PencilLine size={13} strokeWidth={1.5} /> }
-      : { label: t("Request via Smart Link"), icon: <Link2 size={13} strokeWidth={1.5} /> };
+  const [linking, setLinking] = React.useState(false);
+  // Both open the same form: Fill in here, or a Smart Link copied for someone outside to fill.
+  const fillIn = (
+    <>
+      <PencilLine size={13} strokeWidth={1.5} /> {t("Fill in")}
+    </>
+  );
+  const smartLink = (
+    <>
+      <Link2 size={13} strokeWidth={1.5} /> {linking ? t("Creating…") : t("Smart Link")}
+    </>
+  );
+  const copySmartLink = async () => {
+    if (!installationId) return;
+    setLinking(true);
+    try {
+      const { path } = await createItemLink({ installationId, year, itemKey: r.id });
+      const url = `${window.location.origin}${path}`;
+      await navigator.clipboard.writeText(url).catch(() => undefined);
+      toast(t("Smart Link copied. Send it to whoever fills this in."));
+    } catch {
+      toast(t("Could not create the Smart Link. Try again."));
+    } finally {
+      setLinking(false);
+    }
+  };
+  const primary = r.fix === "fill-in" ? "fill" : "link";
   return (
     <div
       className={cn(
@@ -387,14 +416,27 @@ function RequirementRow({
             {r.detail}
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            {r.href ? (
-              <ButtonLink href={r.href} variant="secondary" size="sm">
-                {action.icon} {action.label}
-              </ButtonLink>
+            {r.href && installationId ? (
+              <>
+                <ButtonLink href={r.href} variant={primary === "fill" ? "primary" : "secondary"} size="sm">
+                  {fillIn}
+                </ButtonLink>
+                <Button
+                  variant={primary === "link" ? "primary" : "secondary"}
+                  size="sm"
+                  disabled={linking}
+                  onClick={copySmartLink}
+                >
+                  {smartLink}
+                </Button>
+              </>
             ) : (
               <>
                 <Button variant="secondary" size="sm" disabled>
-                  {action.icon} {action.label}
+                  {fillIn}
+                </Button>
+                <Button variant="secondary" size="sm" disabled>
+                  {smartLink}
                 </Button>
                 <span className="text-[12px] text-black/40">{t("Choose an installation")}</span>
               </>

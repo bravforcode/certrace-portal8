@@ -1,0 +1,849 @@
+{
+ "items": {
+  "installation": "Installation details",
+  "goods": "Goods, CN codes and production routes",
+  "direct": "Direct emissions — fuels and materials",
+  "indirect": "Indirect emissions — electricity",
+  "precursors": "Precursors — embedded emissions",
+  "carbon-price": "Carbon price paid",
+  "monitoring": "Monitoring methodology document",
+  "communication": "Supplier communication sheets",
+  "verification": "Verification statement"
+ },
+ "fields": [
+  {
+   "item": "installation",
+   "key": "a-i9",
+   "label": "Reporting period start",
+   "section": "Reporting period",
+   "cell": "cbam:0:a-i9",
+   "kind": "date"
+  },
+  {
+   "item": "installation",
+   "key": "a-l9",
+   "label": "Reporting period end",
+   "section": "Reporting period",
+   "cell": "cbam:0:a-l9",
+   "kind": "date"
+  },
+  {
+   "item": "installation",
+   "key": "a-i19",
+   "label": "Name of the installation",
+   "section": "Installation",
+   "cell": "cbam:0:a-i19",
+   "kind": "text",
+   "optional": true
+  },
+  {
+   "item": "installation",
+   "key": "a-i20",
+   "label": "Name of the installation (English name)",
+   "section": "Installation",
+   "cell": "cbam:0:a-i20",
+   "kind": "text"
+  },
+  {
+   "item": "installation",
+   "key": "a-i21",
+   "label": "Street, number",
+   "section": "Installation",
+   "cell": "cbam:0:a-i21",
+   "kind": "text"
+  },
+  {
+   "item": "installation",
+   "key": "a-i22",
+   "label": "Economic activity",
+   "section": "Installation",
+   "cell": "cbam:0:a-i22",
+   "kind": "text"
+  },
+  {
+   "item": "installation",
+   "key": "a-i23",
+   "label": "Post code",
+   "section": "Installation",
+   "cell": "cbam:0:a-i23",
+   "kind": "text"
+  },
+  {
+   "item": "installation",
+   "key": "a-i24",
+   "label": "P.O. Box",
+   "section": "Installation",
+   "cell": "cbam:0:a-i24",
+   "kind": "text",
+   "optional": true
+  },
+  {
+   "item": "installation",
+   "key": "a-i25",
+   "label": "City",
+   "section": "Installation",
+   "cell": "cbam:0:a-i25",
+   "kind": "text"
+  },
+  {
+   "item": "installation",
+   "key": "a-i26",
+   "label": "Country",
+   "section": "Installation",
+   "cell": "cbam:0:a-i26",
+   "kind": "text"
+  },
+  {
+   "item": "installation",
+   "key": "a-i27",
+   "label": "UNLOCODE",
+   "section": "Installation",
+   "cell": "cbam:0:a-i27",
+   "kind": "text"
+  },
+  {
+   "item": "installation",
+   "key": "a-i28",
+   "label": "Coordinates of the main emission source (latitude)",
+   "section": "Installation",
+   "cell": "cbam:0:a-i28",
+   "kind": "text"
+  },
+  {
+   "item": "installation",
+   "key": "a-i29",
+   "label": "Coordinates of the main emission source (longitude)",
+   "section": "Installation",
+   "cell": "cbam:0:a-i29",
+   "kind": "text"
+  },
+  {
+   "item": "installation",
+   "key": "a-i30",
+   "label": "Name of authorised representative",
+   "section": "Authorised representative",
+   "cell": "cbam:0:a-i30",
+   "kind": "text"
+  },
+  {
+   "item": "installation",
+   "key": "a-i31",
+   "label": "Email",
+   "section": "Authorised representative",
+   "cell": "cbam:0:a-i31",
+   "kind": "text"
+  },
+  {
+   "item": "installation",
+   "key": "a-i32",
+   "label": "Telephone",
+   "section": "Authorised representative",
+   "cell": "cbam:0:a-i32",
+   "kind": "text"
+  },
+  {
+   "item": "installation",
+   "key": "a-i37",
+   "label": "Company name",
+   "section": "Operator",
+   "cell": "cbam:0:a-i37",
+   "kind": "text"
+  },
+  {
+   "item": "installation",
+   "key": "a-i38",
+   "label": "Street, number",
+   "section": "Operator",
+   "cell": "cbam:0:a-i38",
+   "kind": "text"
+  },
+  {
+   "item": "installation",
+   "key": "a-i39",
+   "label": "City",
+   "section": "Operator",
+   "cell": "cbam:0:a-i39",
+   "kind": "text"
+  },
+  {
+   "item": "installation",
+   "key": "a-i40",
+   "label": "Postcode / ZIP",
+   "section": "Operator",
+   "cell": "cbam:0:a-i40",
+   "kind": "text"
+  },
+  {
+   "item": "installation",
+   "key": "a-i41",
+   "label": "Country",
+   "section": "Operator",
+   "cell": "cbam:0:a-i41",
+   "kind": "text"
+  },
+  {
+   "item": "verification",
+   "key": "a-i45",
+   "label": "Name",
+   "section": "Verifier",
+   "cell": "cbam:0:a-i45",
+   "kind": "text"
+  },
+  {
+   "item": "verification",
+   "key": "a-i46",
+   "label": "Email address",
+   "section": "Verifier",
+   "cell": "cbam:0:a-i46",
+   "kind": "text"
+  },
+  {
+   "item": "verification",
+   "key": "a-i47",
+   "label": "Telephone number",
+   "section": "Verifier",
+   "cell": "cbam:0:a-i47",
+   "kind": "text"
+  },
+  {
+   "item": "verification",
+   "key": "a-i48",
+   "label": "Fax",
+   "section": "Verifier",
+   "cell": "cbam:0:a-i48",
+   "kind": "text",
+   "optional": true
+  },
+  {
+   "item": "verification",
+   "key": "a-i51",
+   "label": "Accreditation Member State",
+   "section": "Verifier",
+   "cell": "cbam:0:a-i51",
+   "kind": "text"
+  },
+  {
+   "item": "verification",
+   "key": "a-i52",
+   "label": "Name of the national accreditation body",
+   "section": "Verifier",
+   "cell": "cbam:0:a-i52",
+   "kind": "text"
+  },
+  {
+   "item": "verification",
+   "key": "a-i53",
+   "label": "Registration number issued by the accreditation body",
+   "section": "Verifier",
+   "cell": "cbam:0:a-i53",
+   "kind": "text"
+  },
+  {
+   "item": "goods",
+   "key": "a-e62",
+   "label": "Aggregated goods category",
+   "section": "Goods",
+   "cell": "cbam:0:a-e62",
+   "kind": "select",
+   "options": [
+    "Cement",
+    "Cement clinker",
+    "Calcined clays ",
+    "Aluminous cement",
+    "Iron or steel products",
+    "Crude steel",
+    "Direct reduced iron",
+    "Pig iron",
+    "Alloys (FeMn, FeCr, FeNi)",
+    "Sintered Ore",
+    "Hydrogen",
+    "Ammonia",
+    "Nitric acid",
+    "Urea",
+    "Mixed fertilisers",
+    "Aluminium products",
+    "Unwrought aluminium",
+    "Electricity (export to EU)"
+   ]
+  },
+  {
+   "item": "goods",
+   "key": "a-i62",
+   "label": "Route 1",
+   "section": "Goods",
+   "cell": "cbam:0:a-i62",
+   "kind": "text"
+  },
+  {
+   "item": "goods",
+   "key": "a-j62",
+   "label": "Route 2",
+   "section": "Goods",
+   "cell": "cbam:0:a-j62",
+   "kind": "text"
+  },
+  {
+   "item": "goods",
+   "key": "a-e102",
+   "label": "Production process",
+   "section": "Precursor routes",
+   "cell": "cbam:0:a-e102",
+   "kind": "select",
+   "options": [
+    "Cement",
+    "Cement clinker",
+    "Calcined clays ",
+    "Aluminous cement",
+    "Iron or steel products",
+    "Crude steel",
+    "Direct reduced iron",
+    "Pig iron",
+    "Alloys (FeMn, FeCr, FeNi)",
+    "Sintered Ore",
+    "Hydrogen",
+    "Ammonia",
+    "Nitric acid",
+    "Urea",
+    "Mixed fertilisers",
+    "Aluminium products",
+    "Unwrought aluminium",
+    "Electricity (export to EU)"
+   ]
+  },
+  {
+   "item": "goods",
+   "key": "a-f102",
+   "label": "Country code",
+   "section": "Precursor routes",
+   "cell": "cbam:0:a-f102",
+   "kind": "text"
+  },
+  {
+   "item": "goods",
+   "key": "a-g102",
+   "label": "Route 1",
+   "section": "Precursor routes",
+   "cell": "cbam:0:a-g102",
+   "kind": "text"
+  },
+  {
+   "item": "direct",
+   "key": "b-d17",
+   "label": "Method",
+   "section": "Source streams",
+   "cell": "cbam:0:b-d17",
+   "kind": "select",
+   "options": [
+    "Combustion",
+    "Process emissions",
+    "Mass Balance"
+   ]
+  },
+  {
+   "item": "direct",
+   "key": "b-e17",
+   "label": "Source stream name",
+   "section": "Source streams",
+   "cell": "cbam:0:b-e17",
+   "kind": "text"
+  },
+  {
+   "item": "direct",
+   "key": "b-f17",
+   "label": "Activity data (AD)",
+   "section": "Source streams",
+   "cell": "cbam:0:b-f17",
+   "kind": "text"
+  },
+  {
+   "item": "direct",
+   "key": "b-g17",
+   "label": "AD unit",
+   "section": "Source streams",
+   "cell": "cbam:0:b-g17",
+   "kind": "select",
+   "options": [
+    "t",
+    "1000Nm3"
+   ]
+  },
+  {
+   "item": "direct",
+   "key": "b-h17",
+   "label": "Net calorific value (NCV)",
+   "section": "Source streams",
+   "cell": "cbam:0:b-h17",
+   "kind": "number"
+  },
+  {
+   "item": "direct",
+   "key": "b-j17",
+   "label": "Emission factor (EF)",
+   "section": "Source streams",
+   "cell": "cbam:0:b-j17",
+   "kind": "number"
+  },
+  {
+   "item": "direct",
+   "key": "b-k17",
+   "label": "EF unit",
+   "section": "Source streams",
+   "cell": "cbam:0:b-k17",
+   "kind": "select",
+   "options": [
+    "tCO2/TJ",
+    "tCO2/t",
+    "tCO2/1000Nm3"
+   ]
+  },
+  {
+   "item": "direct",
+   "key": "b-l17",
+   "label": "Carbon content",
+   "section": "Source streams",
+   "cell": "cbam:0:b-l17",
+   "kind": "number"
+  },
+  {
+   "item": "direct",
+   "key": "b-n17",
+   "label": "Oxidation factor (OxF)",
+   "section": "Source streams",
+   "cell": "cbam:0:b-n17",
+   "kind": "number"
+  },
+  {
+   "item": "direct",
+   "key": "b-p17",
+   "label": "Conversion factor (ConvF)",
+   "section": "Source streams",
+   "cell": "cbam:0:b-p17",
+   "kind": "number"
+  },
+  {
+   "item": "direct",
+   "key": "b-r17",
+   "label": "Biomass content (BioC)",
+   "section": "Source streams",
+   "cell": "cbam:0:b-r17",
+   "kind": "number"
+  },
+  {
+   "item": "direct",
+   "key": "c-h16",
+   "label": "Total fuel input",
+   "section": "Fuel and GHG balance",
+   "cell": "cbam:0:c-h16",
+   "kind": "number",
+   "unit": "TJ"
+  },
+  {
+   "item": "direct",
+   "key": "c-i16",
+   "label": "Direct fuel for CBAM goods",
+   "section": "Fuel and GHG balance",
+   "cell": "cbam:0:c-i16",
+   "kind": "number",
+   "unit": "TJ"
+  },
+  {
+   "item": "direct",
+   "key": "c-j16",
+   "label": "Fuel for electricity",
+   "section": "Fuel and GHG balance",
+   "cell": "cbam:0:c-j16",
+   "kind": "number",
+   "unit": "TJ"
+  },
+  {
+   "item": "direct",
+   "key": "c-k16",
+   "label": "Direct fuel for non-CBAM goods",
+   "section": "Fuel and GHG balance",
+   "cell": "cbam:0:c-k16",
+   "kind": "number",
+   "unit": "TJ"
+  },
+  {
+   "item": "direct",
+   "key": "c-h26",
+   "label": "Total CO2 emissions",
+   "section": "Fuel and GHG balance",
+   "cell": "cbam:0:c-h26",
+   "kind": "number",
+   "unit": "tCO2e"
+  },
+  {
+   "item": "direct",
+   "key": "c-i26",
+   "label": "Biomass emissions",
+   "section": "Fuel and GHG balance",
+   "cell": "cbam:0:c-i26",
+   "kind": "number",
+   "unit": "tCO2e"
+  },
+  {
+   "item": "direct",
+   "key": "c-j26",
+   "label": "Total N2O emissions",
+   "section": "Fuel and GHG balance",
+   "cell": "cbam:0:c-j26",
+   "kind": "number",
+   "unit": "tCO2e"
+  },
+  {
+   "item": "direct",
+   "key": "c-k26",
+   "label": "Total PFC emissions",
+   "section": "Fuel and GHG balance",
+   "cell": "cbam:0:c-k26",
+   "kind": "number",
+   "unit": "tCO2e"
+  },
+  {
+   "item": "direct",
+   "key": "c-m26",
+   "label": "Total indirect emissions",
+   "section": "Fuel and GHG balance",
+   "cell": "cbam:0:c-m26",
+   "kind": "number",
+   "unit": "tCO2e"
+  },
+  {
+   "item": "monitoring",
+   "key": "c-h40",
+   "label": "General information on data quality",
+   "section": "Data quality",
+   "cell": "cbam:0:c-h40",
+   "kind": "select",
+   "options": [
+    "Mostly measurements & analyses",
+    "Mostly measurements & national standard factors for e.g. the emission factor",
+    "Mostly measurements & sector-specific standard factors for e.g. the emission factor",
+    "Mostly measurements & international standard factors for e.g. the emission factor",
+    "Mostly default values provided by the European Commission"
+   ]
+  },
+  {
+   "item": "monitoring",
+   "key": "c-h41",
+   "label": "Justification for use of default values (if relevant)",
+   "section": "Data quality",
+   "cell": "cbam:0:c-h41",
+   "kind": "select",
+   "options": [
+    "Unreasonable costs for more accurate monitoring",
+    "Data gaps",
+    "Other"
+   ]
+  },
+  {
+   "item": "monitoring",
+   "key": "c-h42",
+   "label": "Information on quality assurance",
+   "section": "Data quality",
+   "cell": "cbam:0:c-h42",
+   "kind": "select",
+   "options": [
+    "Third-party verification",
+    "Internal audits",
+    "Four eyes principle",
+    "None"
+   ]
+  },
+  {
+   "item": "indirect",
+   "key": "d-l65",
+   "label": "Electricity consumption",
+   "section": "Production process 1",
+   "cell": "cbam:0:d-l65",
+   "kind": "number",
+   "unit": "MWh"
+  },
+  {
+   "item": "indirect",
+   "key": "d-l66",
+   "label": "Emission factor of the electricity",
+   "section": "Production process 1",
+   "cell": "cbam:0:d-l66",
+   "kind": "number",
+   "unit": "tCO2/MWh"
+  },
+  {
+   "item": "indirect",
+   "key": "d-l67",
+   "label": "Source of the emission factor",
+   "section": "Production process 1",
+   "cell": "cbam:0:d-l67",
+   "kind": "select",
+   "options": [
+    "D.4(a)",
+    "D.4(b)",
+    "D.4.1",
+    "D.4.2",
+    "D.4.3.1",
+    "D.4.3.2",
+    "Mix"
+   ]
+  },
+  {
+   "item": "indirect",
+   "key": "d-l71",
+   "label": "Amounts exported",
+   "section": "Production process 1",
+   "cell": "cbam:0:d-l71",
+   "kind": "number",
+   "unit": "MWh"
+  },
+  {
+   "item": "indirect",
+   "key": "d-l72",
+   "label": "Emission factor of the exported electricity",
+   "section": "Production process 1",
+   "cell": "cbam:0:d-l72",
+   "kind": "number",
+   "unit": "tCO2/MWh"
+  },
+  {
+   "item": "communication",
+   "key": "d-l16",
+   "label": "Amounts, route no. 1",
+   "section": "Production process 1",
+   "cell": "cbam:0:d-l16",
+   "kind": "number"
+  },
+  {
+   "item": "communication",
+   "key": "d-l27",
+   "label": "Produced for the market",
+   "section": "Production process 1",
+   "cell": "cbam:0:d-l27",
+   "kind": "number"
+  },
+  {
+   "item": "communication",
+   "key": "d-l32",
+   "label": "Consumed in other production processes, item 1",
+   "section": "Production process 1",
+   "cell": "cbam:0:d-l32",
+   "kind": "number"
+  },
+  {
+   "item": "communication",
+   "key": "d-l41",
+   "label": "Consumed for non-CBAM goods within the installation",
+   "section": "Production process 1",
+   "cell": "cbam:0:d-l41",
+   "kind": "number"
+  },
+  {
+   "item": "communication",
+   "key": "d-k50",
+   "label": "Measurable heat applicable",
+   "section": "Production process 1",
+   "cell": "cbam:0:d-k50",
+   "kind": "select",
+   "options": [
+    "1",
+    "0"
+   ]
+  },
+  {
+   "item": "communication",
+   "key": "d-l50",
+   "label": "Waste gases applicable",
+   "section": "Production process 1",
+   "cell": "cbam:0:d-l50",
+   "kind": "select",
+   "options": [
+    "1",
+    "0"
+   ]
+  },
+  {
+   "item": "communication",
+   "key": "d-l54",
+   "label": "Directly attributable emissions (DirEm*)",
+   "section": "Production process 1",
+   "cell": "cbam:0:d-l54",
+   "kind": "number",
+   "unit": "tCO2e"
+  },
+  {
+   "item": "communication",
+   "key": "d-l57",
+   "label": "Net measurable heat, imported",
+   "section": "Production process 1",
+   "cell": "cbam:0:d-l57",
+   "kind": "number",
+   "unit": "TJ"
+  },
+  {
+   "item": "communication",
+   "key": "d-m57",
+   "label": "Net measurable heat, exported",
+   "section": "Production process 1",
+   "cell": "cbam:0:d-m57",
+   "kind": "number",
+   "unit": "TJ"
+  },
+  {
+   "item": "communication",
+   "key": "d-l58",
+   "label": "Emission factor for net measurable heat, imported",
+   "section": "Production process 1",
+   "cell": "cbam:0:d-l58",
+   "kind": "number",
+   "unit": "tCO2/TJ"
+  },
+  {
+   "item": "communication",
+   "key": "d-m58",
+   "label": "Emission factor for net measurable heat, exported",
+   "section": "Production process 1",
+   "cell": "cbam:0:d-m58",
+   "kind": "number",
+   "unit": "tCO2/TJ"
+  },
+  {
+   "item": "communication",
+   "key": "d-l61",
+   "label": "Waste gas, imported",
+   "section": "Production process 1",
+   "cell": "cbam:0:d-l61",
+   "kind": "number",
+   "unit": "TJ"
+  },
+  {
+   "item": "communication",
+   "key": "d-m61",
+   "label": "Waste gas, exported",
+   "section": "Production process 1",
+   "cell": "cbam:0:d-m61",
+   "kind": "number",
+   "unit": "TJ"
+  },
+  {
+   "item": "communication",
+   "key": "d-l62",
+   "label": "Emission factor for waste gas, imported",
+   "section": "Production process 1",
+   "cell": "cbam:0:d-l62",
+   "kind": "number",
+   "unit": "tCO2/TJ"
+  },
+  {
+   "item": "communication",
+   "key": "d-m62",
+   "label": "Emission factor for waste gas, exported",
+   "section": "Production process 1",
+   "cell": "cbam:0:d-m62",
+   "kind": "number",
+   "unit": "tCO2/TJ"
+  },
+  {
+   "item": "precursors",
+   "key": "e-l17",
+   "label": "Total purchased levels, route no. 1",
+   "section": "Purchased precursor 1",
+   "cell": "cbam:0:e-l17",
+   "kind": "number"
+  },
+  {
+   "item": "precursors",
+   "key": "e-l28",
+   "label": "Consumed in production processes, item 1",
+   "section": "Purchased precursor 1",
+   "cell": "cbam:0:e-l28",
+   "kind": "number"
+  },
+  {
+   "item": "precursors",
+   "key": "e-l38",
+   "label": "Consumed for other purposes (sold or non-CBAM goods)",
+   "section": "Purchased precursor 1",
+   "cell": "cbam:0:e-l38",
+   "kind": "number"
+  },
+  {
+   "item": "precursors",
+   "key": "e-l49",
+   "label": "Specific embedded direct emissions (SEE direct), value",
+   "section": "Purchased precursor 1",
+   "cell": "cbam:0:e-l49",
+   "kind": "number"
+  },
+  {
+   "item": "precursors",
+   "key": "e-m49",
+   "label": "Specific embedded direct emissions (SEE direct), source",
+   "section": "Purchased precursor 1",
+   "cell": "cbam:0:e-m49",
+   "kind": "select",
+   "options": [
+    "Measured",
+    "Default",
+    "Unknown"
+   ]
+  },
+  {
+   "item": "precursors",
+   "key": "e-l50",
+   "label": "Specific electricity consumption (SEE indirect), value",
+   "section": "Purchased precursor 1",
+   "cell": "cbam:0:e-l50",
+   "kind": "number"
+  },
+  {
+   "item": "precursors",
+   "key": "e-m50",
+   "label": "Specific electricity consumption (SEE indirect), source",
+   "section": "Purchased precursor 1",
+   "cell": "cbam:0:e-m50",
+   "kind": "select",
+   "options": [
+    "Measured",
+    "Default",
+    "Unknown"
+   ]
+  },
+  {
+   "item": "precursors",
+   "key": "e-l51",
+   "label": "Electricity emission factor (SEE indirect), value",
+   "section": "Purchased precursor 1",
+   "cell": "cbam:0:e-l51",
+   "kind": "number"
+  },
+  {
+   "item": "precursors",
+   "key": "e-m51",
+   "label": "Electricity emission factor (SEE indirect), source",
+   "section": "Purchased precursor 1",
+   "cell": "cbam:0:e-m51",
+   "kind": "select",
+   "options": [
+    "D.4(a)",
+    "D.4(b)",
+    "D.4.1",
+    "D.4.2",
+    "D.4.3.1",
+    "D.4.3.2",
+    "Mix"
+   ]
+  },
+  {
+   "item": "precursors",
+   "key": "e-k54",
+   "label": "Justification for use of default values",
+   "section": "Purchased precursor 1",
+   "cell": "cbam:0:e-k54",
+   "kind": "select",
+   "options": [
+    "Unreasonable costs for more accurate monitoring",
+    "Data gaps",
+    "Other"
+   ]
+  }
+ ]
+}

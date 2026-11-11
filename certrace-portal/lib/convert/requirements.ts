@@ -51,13 +51,10 @@ export function liveRequirements(
     // D9: an OEM plant's data is typed in by the account; a supplier's comes from its own form.
     const fix: Fix =
       role === "oem" ? "fill-in" : role === "supplier" ? "smart-link" : src.fix;
+    // Fill in and Smart Link open the same form: the account types it here, a Smart Link
+    // hands that form to someone outside. `fix` only picks which button leads.
     const iid = ctx.installation?.id ? encodeURIComponent(ctx.installation.id) : null;
-    const sheet = src.installation ? "installation" : src.sheets[0];
-    const href = !iid
-      ? null
-      : fix === "fill-in"
-        ? `/workspace?installation=${iid}&sheet=${sheet}`
-        : `/smart-links?installation=${iid}&request=${encodeURIComponent(req.id)}`;
+    const href = iid ? `/convert/fill/${encodeURIComponent(req.id)}?installation=${iid}` : null;
     return { ...req, ...stateOf(statuses), fix, href };
   });
 }

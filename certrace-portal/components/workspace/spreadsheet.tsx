@@ -89,6 +89,7 @@ export function Spreadsheet({
   year = currentYear(),
   cells,
   savePatch,
+  extraTabs = [],
 }: {
   /** The year's cells with unsaved edits on top (the Flow view is drawn from them). */
   cells?: Record<string, string>;
@@ -107,6 +108,8 @@ export function Spreadsheet({
   onInstallationSave?: (inst: Installation) => void;
   /** The reporting year the workbook is open on; the live check's estimate uses its factor year. */
   year?: number;
+  /** Tabs that are not row sheets (e.g. CBAM): a tab after the sheets, showing its own content in the grid's place. */
+  extraTabs?: { id: string; label: string; content: React.ReactNode }[];
 }) {
   const t = useSheetT();
   const team = useTeam().data;
@@ -114,7 +117,7 @@ export function Spreadsheet({
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
-  const tab = parseSheetParam(params.get("sheet"), sheets.map((s) => s.id), DEFAULT_SHEET);
+  const tab = parseSheetParam(params.get("sheet"), [...sheets.map((s) => s.id), ...extraTabs.map((x) => x.id)], DEFAULT_SHEET);
   // "Table", "Flow" or "Factory". Factory needs an installation; without one the link falls back to the table.
   const requested = params.get("view");
   const view: "table" | "flow" | "factory" =
@@ -154,6 +157,8 @@ export function Spreadsheet({
   const sheet = sheets.find((s) => s.id === tab);
   const isFlow = view === "flow" && !empty;
   const isFactory = view === "factory" && !empty && !!installation;
+  const extra = extraTabs.find((x) => x.id === tab);
+  const showExtra = !!extra && !isFlow && !isFactory;
   const [importing, setImporting] = React.useState(false);
   const importOpener = React.useRef<HTMLElement | null>(null); // the "Import from file" button, focused again on close
   // Import writes rows into a sheet of cells; the Installation and Documents tabs are not row sheets.
@@ -229,7 +234,7 @@ export function Spreadsheet({
         {/* ── Formula bar ─────────────────────────────── */}
         <div className="flex min-h-[36px] flex-wrap items-stretch border-b border-black/[0.08]">
           <div className="flex w-[76px] flex-none items-center justify-center border-r border-black/[0.08] font-mono text-[12px] text-black/75">
-            {empty || isFlow ? "" : ref}
+            {empty || isFlow || showExtra ? "" : ref}
           </div>
           <div className="flex min-w-0 flex-1 items-center gap-2.5 px-3">
             <span className="font-serif text-[12px] italic text-black/35">fx</span>
@@ -253,7 +258,7 @@ export function Spreadsheet({
               ))}
             </div>
           )}
-          {!empty && !isFlow && !isFactory && (
+          {!empty && !isFlow && !isFactory && !showExtra && (
             <div className="flex items-center gap-3 border-l border-black/[0.08] px-2.5 py-1">
               {canImport && (
                 <Button
@@ -327,6 +332,8 @@ export function Spreadsheet({
           />
         ) : tab === INSTALLATION_SHEET_ID ? (
           <InstallationSheet key={installation?.id ?? ""} installation={installation} onSave={onInstallationSave} />
+        ) : showExtra ? (
+          <div className="min-h-[320px]">{extra!.content}</div>
         ) : (
           <div
             ref={gridRef}
@@ -489,6 +496,21 @@ export function Spreadsheet({
               </button>
             );
           })}
+          {extraTabs.map((x) => (
+            <button
+              key={x.id}
+              type="button"
+              onClick={() => openTab(x.id)}
+              className={cn(
+                "flex flex-none items-center gap-1.5 whitespace-nowrap px-3.5 py-1.5 text-[12.5px] transition-colors",
+                tab === x.id
+                  ? "rounded-b-xl bg-white font-medium text-[#111] shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
+                  : "text-black/55 hover:text-black",
+              )}
+            >
+              {t(x.label)}
+            </button>
+          ))}
         </div>
       </div>
       {!empty && (

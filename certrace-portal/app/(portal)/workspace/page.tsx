@@ -26,6 +26,8 @@ import { ArrowRight, Copy, FileText } from "lucide-react";
 import { Button, ButtonLink, Card, PageHeader } from "@/components/ui";
 import { YearBar } from "@/components/year-bar";
 import { Spreadsheet } from "@/components/workspace/spreadsheet";
+import { CbamTab } from "@/components/workspace/cbam-tab";
+import { CBAM_TAB_ID } from "@/lib/cbam/cbam-tab";
 import { SettingUpStage } from "@/components/workspace/setting-up";
 import { WorkspaceReveal } from "@/components/workspace/reveal";
 import { UploadPanel } from "@/components/workspace/upload-panel";
@@ -106,6 +108,8 @@ function WorkspaceInner() {
   }, [syncKey]);
 
   const withData = yearRange().filter((y) => ws.get(y)?.status === "ready");
+  // Fill in and Smart Link write CBAM answers before a year is started, so the tab shows on both sheets.
+  const cbamTab = [{ id: CBAM_TAB_ID, label: "CBAM", content: <CbamTab cells={wb.cells ?? {}} /> }];
 
   return (
     <div className="space-y-6">
@@ -149,7 +153,7 @@ function WorkspaceInner() {
             onCopy={(from) => ws.copy(year, from)}
           />
           {/* Until a start is chosen, only the current year shows a plain sheet under the upload. */}
-          {year === currentYear() && <Spreadsheet sheets={buildSheets([])} empty />}
+          {year === currentYear() && <Spreadsheet sheets={buildSheets([])} empty extraTabs={cbamTab} />}
         </>
       ) : walkinPending(installationId, year, rec) ? (
         /* Set up and not yet shown in this browser: the card shows it is ready, and Get started opens the sheet. */
@@ -215,6 +219,7 @@ function WorkspaceInner() {
             onEdit={wb.saveEdit}
             installation={installation}
             year={year}
+            extraTabs={cbamTab}
             onInstallationSave={(inst) => {
               saveInstallation(inst);
               setInstallTick((n) => n + 1);
