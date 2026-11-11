@@ -50,6 +50,7 @@ import { FactoryMap } from "@/components/factory/factory-map";
 import { useActiveInstallation } from "@/lib/active-installation";
 import { currentYear } from "@/lib/year-range";
 import { OpportunitySummary } from "@/components/factory/opportunity-summary";
+import { WhatIfPanel } from "@/components/factory/what-if-panel";
 
 export default function DashboardPage() {
   const t = useT();
@@ -117,6 +118,7 @@ export default function DashboardPage() {
       {mapId && (
         <FactoryMap key={`${mapId}:${year}`} installationId={mapId} year={year} onInstallationChange={setPicked} onYearChange={setYear} />
       )}
+      {mapId && <WhatIfPanel key={`whatif:${mapId}:${year}`} installationId={mapId} year={year} env={data.carbon.env} currency={currency} />}
 
       {empty ? (
         <EmptyState
