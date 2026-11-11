@@ -318,6 +318,198 @@ describe("onboarding", () => {
   });
 });
 
+describe("admin actions", () => {
+  test("reject suspends the account with the reason and emails the customer", async () => {
+    const a = await account(false);
+    const boss = await admin();
+    const r = await call(`/api/admin/users/${a.user.id}/reject`, "POST", { reason: "Duplicate company" }, boss.cookie);
+    expect(r.status).toBe(200);
+    const u = await db.users.findUniqueOrThrow({ where: { id: a.user.id } });
+    expect(u.status).toBe("SUSPENDED");
+    expect(u.suspension_reason).toBe("Duplicate company");
+    expect(u.ready).toBe(false);
+  });
+
+  test("extend-trial moves the trial start forward by the given days", async () => {
+    const a = await account(true);
+    const before = (await db.users.findUniqueOrThrow({ where: { id: a.user.id } })).trial_started_at;
+    const boss = await admin();
+    await call(`/api/admin/users/${a.user.id}/extend-trial`, "POST", { days: 14 }, boss.cookie);
+    const after = (await db.users.findUniqueOrThrow({ where: { id: a.user.id } })).trial_started_at;
+    expect(after.getTime() - before.getTime()).toBe(14 * 86_400_000);
+  });
+
+  test("non-admins cannot reject", async () => {
+    const a = await account(false);
+    const b = await account(true);
+    const r = await call(`/api/admin/users/${a.user.id}/reject`, "POST", { reason: "nope" }, b.cookie);
+    expect(r.status).toBe(403);
+  });
+
+  test("an admin cannot reject their own account", async () => {
+    const boss = await admin();
+    const r = await call(`/api/admin/users/${boss.user.id}/reject`, "POST", { reason: "Self test" }, boss.cookie);
+    expect(r.status).toBe(409);
+    expect((await r.json()).detail.code).toBe("SELF_REJECT");
+  });
+
+  test("an admin account cannot be rejected by another admin", async () => {
+    const boss = await admin();
+    const other = await admin();
+    const r = await call(`/api/admin/users/${other.user.id}/reject`, "POST", { reason: "Rival admin" }, boss.cookie);
+    expect(r.status).toBe(409);
+    expect((await r.json()).detail.code).toBe("ADMIN_TARGET");
+    const u = await db.users.findUniqueOrThrow({ where: { id: other.user.id } });
+    expect(u.status).toBe("ACTIVE");
+  });
+
+  test("rejecting an already suspended account is refused with no second audit row or email", async () => {
+    const a = await account(false);
+    const boss = await admin();
+    process.env.CERTRACE_EMAIL_DELIVERY = "console";
+    const logSpy = spyOn(console, "info").mockImplementation(() => {});
+    try {
+      const first = await call(`/api/admin/users/${a.user.id}/reject`, "POST", { reason: "Duplicate company" }, boss.cookie);
+      expect(first.status).toBe(200);
+      const second = await call(`/api/admin/users/${a.user.id}/reject`, "POST", { reason: "Duplicate company" }, boss.cookie);
+      expect(second.status).toBe(409);
+      expect((await second.json()).detail.code).toBe("ALREADY_SUSPENDED");
+      const mailToCustomer = logSpy.mock.calls.filter(([m]) => (m as { to?: string }).to === a.email);
+      expect(mailToCustomer).toHaveLength(1);
+    } finally {
+      logSpy.mockRestore();
+    }
+    const audits = await db.account_audit_events.count({ where: { user_id: a.user.id, event: "ADMIN_REJECTED" } });
+    expect(audits).toBe(1);
+  });
+
+  test("reject sends the account_rejected email carrying the reason", async () => {
+    const a = await account(false);
+    const boss = await admin();
+    process.env.CERTRACE_EMAIL_DELIVERY = "console";
+    const logSpy = spyOn(console, "info").mockImplementation(() => {});
+    try {
+      await call(`/api/admin/users/${a.user.id}/reject`, "POST", { reason: "Duplicate company" }, boss.cookie);
+      const toCustomer = logSpy.mock.calls
+        .map(([m]) => m as { to?: string; text: string })
+        .filter((m) => m.to === a.email);
+      expect(toCustomer).toHaveLength(1);
+      expect(toCustomer[0]!.text).toContain("Duplicate company");
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+
+  test("a failed reject email does not undo the rejection", async () => {
+    const a = await account(false);
+    const boss = await admin();
+    failingMail();
+    const errorSpy = spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const r = await call(`/api/admin/users/${a.user.id}/reject`, "POST", { reason: "Duplicate company" }, boss.cookie);
+      expect(r.status).toBe(200);
+    } finally {
+      errorSpy.mockRestore();
+    }
+    const u = await db.users.findUniqueOrThrow({ where: { id: a.user.id } });
+    expect(u.status).toBe("SUSPENDED");
+  });
+
+  test("reject trims the reason, stores the trimmed value and writes the audit row", async () => {
+    const a = await account(false);
+    const boss = await admin();
+    const r = await call(`/api/admin/users/${a.user.id}/reject`, "POST", { reason: "  Duplicate company  " }, boss.cookie);
+    expect(r.status).toBe(200);
+    const u = await db.users.findUniqueOrThrow({ where: { id: a.user.id } });
+    expect(u.suspension_reason).toBe("Duplicate company");
+    const audit = await db.account_audit_events.findFirstOrThrow({ where: { user_id: a.user.id, event: "ADMIN_REJECTED" } });
+    expect((audit.details as { reason: string }).reason).toBe("Duplicate company");
+  });
+
+  test("reject refuses a reason that is too short after trimming or too long with 422", async () => {
+    const a = await account(false);
+    const boss = await admin();
+    const short = await call(`/api/admin/users/${a.user.id}/reject`, "POST", { reason: "   ab   " }, boss.cookie);
+    expect(short.status).toBe(422);
+    const long = await call(`/api/admin/users/${a.user.id}/reject`, "POST", { reason: "x".repeat(501) }, boss.cookie);
+    expect(long.status).toBe(422);
+    const u = await db.users.findUniqueOrThrow({ where: { id: a.user.id } });
+    expect(u.status).toBe("ACTIVE");
+  });
+
+  test("extend-trial refuses days outside 1..90 with 422", async () => {
+    const a = await account(true);
+    const boss = await admin();
+    for (const days of [0, 91]) {
+      const r = await call(`/api/admin/users/${a.user.id}/extend-trial`, "POST", { days }, boss.cookie);
+      expect(r.status).toBe(422);
+    }
+  });
+
+  test("extend-trial writes the ADMIN_TRIAL_EXTENDED audit row", async () => {
+    const a = await account(true);
+    const boss = await admin();
+    const r = await call(`/api/admin/users/${a.user.id}/extend-trial`, "POST", { days: 7 }, boss.cookie);
+    expect(r.status).toBe(200);
+    const audit = await db.account_audit_events.findFirstOrThrow({ where: { user_id: a.user.id, event: "ADMIN_TRIAL_EXTENDED" } });
+    expect((audit.details as { days: number }).days).toBe(7);
+  });
+
+  test("extend-trial refuses an account that was never approved", async () => {
+    const a = await account(false);
+    const boss = await admin();
+    const r = await call(`/api/admin/users/${a.user.id}/extend-trial`, "POST", { days: 14 }, boss.cookie);
+    expect(r.status).toBe(409);
+    expect((await r.json()).detail.code).toBe("NOT_APPROVED");
+  });
+
+  test("extend-trial refuses an account that is not on the trial plan", async () => {
+    const a = await account(true);
+    await db.users.update({ where: { id: a.user.id }, data: { plan_id: "standard" } });
+    const boss = await admin();
+    const r = await call(`/api/admin/users/${a.user.id}/extend-trial`, "POST", { days: 14 }, boss.cookie);
+    expect(r.status).toBe(409);
+    expect((await r.json()).detail.code).toBe("NOT_TRIAL");
+  });
+
+  test("unknown users return 404 on reject and extend-trial", async () => {
+    const boss = await admin();
+    const ghost = crypto.randomUUID();
+    const reject = await call(`/api/admin/users/${ghost}/reject`, "POST", { reason: "Unknown user" }, boss.cookie);
+    expect(reject.status).toBe(404);
+    const extend = await call(`/api/admin/users/${ghost}/extend-trial`, "POST", { days: 7 }, boss.cookie);
+    expect(extend.status).toBe(404);
+  });
+
+  test("two concurrent 14-day extensions move the trial by exactly 28 days", async () => {
+    const a = await account(true);
+    const boss = await admin();
+    const before = (await db.users.findUniqueOrThrow({ where: { id: a.user.id } })).trial_started_at;
+    await Promise.all([
+      call(`/api/admin/users/${a.user.id}/extend-trial`, "POST", { days: 14 }, boss.cookie),
+      call(`/api/admin/users/${a.user.id}/extend-trial`, "POST", { days: 14 }, boss.cookie),
+    ]);
+    const after = (await db.users.findUniqueOrThrow({ where: { id: a.user.id } })).trial_started_at;
+    expect(after.getTime() - before.getTime()).toBe(28 * 86_400_000);
+  });
+
+  test("an anonymised account cannot be rejected and keeps its status", async () => {
+    const a = await account(false);
+    // The status check constraint requires anonymised_at alongside ANONYMISED.
+    await db.users.update({
+      where: { id: a.user.id },
+      data: { status: "ANONYMISED", anonymised_at: new Date() },
+    });
+    const boss = await admin();
+    const r = await call(`/api/admin/users/${a.user.id}/reject`, "POST", { reason: "Duplicate company" }, boss.cookie);
+    expect(r.status).toBe(409);
+    expect((await r.json()).detail.code).toBe("NOT_ACTIVE");
+    const u = await db.users.findUniqueOrThrow({ where: { id: a.user.id } });
+    expect(u.status).toBe("ANONYMISED");
+    expect(await db.account_audit_events.count({ where: { user_id: a.user.id, event: "ADMIN_REJECTED" } })).toBe(0);
+  });
+});
+
 describe("password reset", () => {
   // A reset is a takeover signal; the owner must hear about it.
   test("successful reset sends password_changed", async () => {

@@ -4,10 +4,12 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CertraceLogo } from "@/components/logo";
-import { Button, Card, inputClass } from "@/components/ui";
+import { Button, Card, Field, Modal, inputClass } from "@/components/ui";
 import { isApiError } from "@/lib/api";
 import {
+  extendAdminTrial,
   listAdminUsers,
+  rejectAdminUser,
   setAdminUserReady,
   type AdminUser,
 } from "@/lib/api/admin";
@@ -22,6 +24,10 @@ export default function AdminPage() {
   const [savingId, setSavingId] = React.useState<string | null>(null);
   const [denied, setDenied] = React.useState(false);
   const [error, setError] = React.useState("");
+  const [rejecting, setRejecting] = React.useState<AdminUser | null>(null);
+  const [rejectReason, setRejectReason] = React.useState("");
+  const [rejectError, setRejectError] = React.useState("");
+  const rejectTrigger = React.useRef<HTMLButtonElement | null>(null);
 
   const load = React.useCallback(
     async (query: string, after?: string) => {
@@ -62,6 +68,54 @@ export default function AdminPage() {
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "Could not update this user.",
+      );
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  // Closing the dialog returns focus to the row button that opened it.
+  function closeReject() {
+    setRejecting(null);
+    rejectTrigger.current?.focus();
+  }
+
+  async function extendTrial(user: AdminUser, days: number) {
+    setSavingId(user.id);
+    setError("");
+    try {
+      const result = await extendAdminTrial(user.id, days);
+      setUsers((current) =>
+        current.map((item) => (item.id === user.id ? result.user : item)),
+      );
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Could not extend the trial.",
+      );
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  async function submitReject() {
+    if (!rejecting) return;
+    const reason = rejectReason.trim();
+    if (reason.length < 3) {
+      setRejectError("Give a reason of at least 3 characters.");
+      return;
+    }
+    setSavingId(rejecting.id);
+    setRejectError("");
+    try {
+      const result = await rejectAdminUser(rejecting.id, reason);
+      setUsers((current) =>
+        current.map((item) => (item.id === rejecting.id ? result.user : item)),
+      );
+      setRejectReason("");
+      closeReject();
+    } catch (cause) {
+      setRejectError(
+        cause instanceof Error ? cause.message : "Could not reject this user.",
       );
     } finally {
       setSavingId(null);
@@ -151,7 +205,15 @@ export default function AdminPage() {
                           {user.companyName || "—"}
                         </td>
                         <td className="px-5 py-4 text-black/65">
-                          {new Date(user.registeredAt).toLocaleDateString()}
+                          <div>
+                            {new Date(user.registeredAt).toLocaleDateString()}
+                          </div>
+                          {user.approvedAt && (
+                            <div className="mt-1 text-xs text-black/45">
+                              Approved{" "}
+                              {new Date(user.approvedAt).toLocaleDateString()}
+                            </div>
+                          )}
                         </td>
                         <td className="px-5 py-4 text-black/65">
                           {user.status} · {user.planId}
@@ -176,6 +238,32 @@ export default function AdminPage() {
                               : user.ready
                                 ? "Set not ready"
                                 : "Set ready"}
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            className="ml-2"
+                            disabled={savingId === user.id}
+                            onClick={() => void extendTrial(user, 14)}
+                          >
+                            +14 days
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            className="ml-2"
+                            disabled={savingId === user.id || user.status === "SUSPENDED"}
+                            aria-label={`Reject ${user.email}`}
+                            onClick={(event) => {
+                              rejectTrigger.current = event.currentTarget;
+                              setRejectError("");
+                              setRejectReason("");
+                              setRejecting(user);
+                            }}
+                          >
+                            Reject
                           </Button>
                         </td>
                       </tr>
@@ -204,6 +292,48 @@ export default function AdminPage() {
           </>
         )}
       </div>
+      <Modal
+        open={rejecting !== null}
+        onClose={closeReject}
+        title="Reject account"
+        lead={rejecting?.email}
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={savingId !== null}
+              onClick={closeReject}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              disabled={savingId !== null}
+              onClick={() => void submitReject()}
+            >
+              Reject account
+            </Button>
+          </>
+        }
+      >
+        <Field label="Reason (shown to the customer)">
+          <textarea
+            className={inputClass}
+            rows={3}
+            maxLength={500}
+            autoFocus
+            value={rejectReason}
+            onChange={(event) => setRejectReason(event.target.value)}
+          />
+        </Field>
+        {rejectError && (
+          <p className="mt-3 text-sm text-[#dc2626]" role="alert">
+            {rejectError}
+          </p>
+        )}
+      </Modal>
     </main>
   );
 }

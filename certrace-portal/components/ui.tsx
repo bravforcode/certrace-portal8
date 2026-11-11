@@ -87,7 +87,7 @@ export function Card({
 
 /* ── Buttons ────────────────────────────────────────────── */
 type BtnProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary" | "ghost";
+  variant?: "primary" | "secondary" | "ghost" | "danger";
   size?: "md" | "sm";
 };
 /* Shared with ButtonLink below, so a button and a link that sit side by side
@@ -96,8 +96,9 @@ const btnBase =
   "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl uppercase tracking-[0.1em] transition-colors disabled:opacity-40 disabled:pointer-events-none";
 const btnSizing = (size: "md" | "sm") =>
   size === "sm" ? "px-4 py-2 text-[11px]" : "px-6 py-3 text-[13px]";
-const btnVariants: Record<"primary" | "secondary" | "ghost", string> = {
+const btnVariants: Record<"primary" | "secondary" | "ghost" | "danger", string> = {
   primary: "bg-[#111] text-white hover:bg-[#333]",
+  danger: "bg-[#dc2626] text-white hover:bg-[#b91c1c]",
   secondary:
     "border border-black/10 text-black/60 hover:border-black/25 hover:text-black hover:bg-black/[0.04]",
   ghost: "text-black/45 hover:text-black",
