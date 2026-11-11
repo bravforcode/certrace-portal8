@@ -23,8 +23,10 @@ import {
   type WorkbookMeta,
 } from "../api/workbooks";
 import { sheetsFromCells } from "./cells";
-import { clearBatches, pendingFor } from "./save-queue";
+import { clearBatches, pendingFor, type Target } from "./save-queue";
 import { SaveRunner } from "./save-runner";
+import { createSyncQueue, type SyncResult } from "./sync-queue";
+import type { CellPatch } from "./flow-edit";
 import type { Sheet, WorkspaceFile } from "../workspace-sheets";
 
 /** How long the set-up takes after Confirm. */
@@ -77,6 +79,16 @@ const runner = new SaveRunner<Workbook>({
 if (typeof window !== "undefined") {
   onSessionChange((s) => runner.onAccountChange(s?.user.id ?? null));
 }
+
+type DiagramJob = { target: Target; patch: CellPatch };
+/* Diagram patches, one at a time, in order. A failed patch makes the later ones "skipped". */
+const diagram = createSyncQueue<DiagramJob>(
+  async ({ target, patch }) => {
+    const r = await runner.enqueueCells(target, patch);
+    if (!r.ok) throw new Error("not saved");
+  },
+  (job) => Object.keys(job.patch).length === 0,
+);
 
 const subscribeQueue = (fn: () => void) => runner.subscribe(fn);
 const queueSnapshot = () => runner.snapshot();
@@ -269,6 +281,18 @@ export function useWorkbook(installationId: string | null, year: number) {
     [installationId, year],
   );
 
+  // A diagram patch goes through the same runner as typed edits (one ordered path per target), so
+  // a later value always wins and the optimistic overlay shows it at once. Resolves "skipped" for
+  // patches queued after a failed one; the caller shows a single notice with the count.
+  const savePatch = React.useCallback(
+    (patch: CellPatch): Promise<SyncResult> => {
+      const accountId = currentAccount();
+      if (!installationId || !accountId) return Promise.resolve("failed");
+      return diagram.enqueue({ target: { accountId, iid: installationId, year }, patch });
+    },
+    [installationId, year],
+  );
+
   // Anything still typed is sent when the page is left.
   React.useEffect(() => () => runner.flush(), []);
 
@@ -303,6 +327,7 @@ export function useWorkbook(installationId: string | null, year: number) {
     editors: data?.editors ?? {},
     revision: data?.revision,
     saveEdit,
+    savePatch,
     pending: pendingN,
   };
 }

@@ -228,3 +228,78 @@ test("a target refused with another 4xx is dropped after the attempt cap, with o
   assert.deepEqual(pendingFor(h.runner.snapshot(), T), {});
   assert.equal(h.notes.length, 1);
 });
+
+// Diagram patches (enqueueCells) share the typed-edit path: one ordered queue, one batch in flight.
+test("a diagram patch queued while a typed batch is in flight is sent after it and wins the cell", async () => {
+  const h = harness();
+  let release!: () => void;
+  const gate = new Promise<void>((r) => (release = r));
+  h.setAnswer(async (_t, cells) => {
+    if (cells.X === "typed") await gate;
+    return { ok: true };
+  });
+  h.runner.enqueue(T, "X", "typed");
+  h.advance(0); // the debounce fires; the typed batch is now in flight
+  const diagram = h.runner.enqueueCells(T, { X: "diagram" });
+  release();
+  assert.deepEqual(await diagram, { ok: true });
+  assert.deepEqual(
+    h.calls.map((c) => c.cells),
+    [{ X: "typed" }, { X: "diagram" }],
+  );
+  assert.deepEqual(pendingFor(h.runner.snapshot(), T), {});
+});
+
+test("a change of account drops the diagram patch of the previous account", async () => {
+  const h = harness("acct-a");
+  h.setAnswer(() => new Promise(() => {})); // never answers: the patch stays in flight
+  const pending = h.runner.enqueueCells(T, { X: "diagram" });
+  h.setWho("acct-b");
+  h.runner.onAccountChange("acct-b");
+  assert.deepEqual(await pending, { ok: false });
+  assert.deepEqual(pendingFor(h.runner.snapshot(), T), {});
+});
+
+test("diagram patches for two years share one runner: one batch at a time, both resolve", async () => {
+  const h = harness();
+  let inFlight = 0;
+  let maxInFlight = 0;
+  h.setAnswer(async () => {
+    inFlight++;
+    maxInFlight = Math.max(maxInFlight, inFlight);
+    await settle();
+    inFlight--;
+    return { ok: true };
+  });
+  const a = h.runner.enqueueCells(T, { X: "1" });
+  const b = h.runner.enqueueCells(T2, { X: "2" });
+  assert.deepEqual([await a, await b], [{ ok: true }, { ok: true }]);
+  assert.equal(maxInFlight, 1);
+  assert.equal(h.calls.length, 2);
+});
+
+test("a diagram cell the server refuses resolves { ok: false } and leaves nothing pending", async () => {
+  const h = harness();
+  h.setAnswer(async () => {
+    throw { status: 422, message: "bad value" };
+  });
+  assert.deepEqual(await h.runner.enqueueCells(T, { X: "bad" }), { ok: false });
+  assert.deepEqual(pendingFor(h.runner.snapshot(), T), {});
+});
+
+test("a network failure fails the diagram patch at once and removes its cells; typed cells keep retrying", async () => {
+  const h = harness();
+  let calls = 0;
+  h.setAnswer(async () => {
+    calls++;
+    if (calls === 1) throw { status: 0, message: "offline" };
+    return { ok: true };
+  });
+  h.runner.enqueue(T, "Y", "typed");
+  assert.deepEqual(await h.runner.enqueueCells(T, { X: "diagram" }), { ok: false });
+  assert.deepEqual(Object.keys(pendingFor(h.runner.snapshot(), T)), ["Y"]);
+  h.advance(1000); // the typed cell's retry
+  await settle();
+  assert.deepEqual(pendingFor(h.runner.snapshot(), T), {});
+  assert.deepEqual(h.calls[1].cells, { Y: "typed" });
+});

@@ -9,17 +9,22 @@
    - network and 5xx: keep the cells, retry with backoff (1 s, 2 s ... 30 s)
    - 400 / 413 / 422: split the batch in halves until the bad cell is alone, drop only that cell, one notice
    - 401 / 403 / anything else: hold everything, retry after 30 s or when the same account signs in again
-   - a change of account drops the queued edits of the previous account (one notice) */
+   - a change of account drops the queued edits of the previous account (one notice)
+   - diagram patches (enqueueCells) use the same queue; a waiter resolves { ok: false } when its
+     cells are refused, or fail on a transient error, and those cells are removed at once;
+     typed cells of the same target keep their own retry rules */
 
 import {
   acknowledge,
   dropKeys,
   enqueue,
+  enqueueMany,
   isValidationRefusal,
   keepAccount,
   nextBatch,
   pendingFor,
   retryDelay,
+  targetKey,
   type Cells,
   type Queue,
   type Target,
@@ -44,6 +49,9 @@ export type RunnerDeps<S> = {
 
 type Split = { key: string; keys: string[] };
 
+/** A caller waiting for cells to be saved. `cells` null means "until nothing is pending for the target". */
+type Waiter = { target: Target; key: string; cells: string[] | null; ok: boolean; resolve: (r: { ok: boolean }) => void };
+
 export class SaveRunner<S> {
   private q: Queue = {};
   private sending = false;
@@ -54,6 +62,7 @@ export class SaveRunner<S> {
   private noticed = false;
   private timers: Partial<Record<"debounce" | "hold" | "retry", { handle: unknown; at: number }>> = {};
   private listeners = new Set<() => void>();
+  private waiters: Waiter[] = [];
   private d: RunnerDeps<S>;
 
   constructor(deps: RunnerDeps<S>) {
@@ -74,6 +83,23 @@ export class SaveRunner<S> {
     this.arm("debounce", this.d.now() + (this.d.delayMs ?? 600), () => this.pump());
   }
 
+  /**
+   * Queue cells for a target (a diagram patch) on the same path as typed edits, and send them now.
+   * Resolves { ok: true } once the cells are saved, or { ok: false } when the server refused them or
+   * a transient failure gave up on them; those cells are then removed, so nothing stays on screen.
+   */
+  enqueueCells(t: Target, cells: Record<string, string | null>): Promise<{ ok: boolean }> {
+    this.setQueue(enqueueMany(this.q, t, cells));
+    const done = this.wait(t, Object.keys(cells));
+    this.pump();
+    return done;
+  }
+
+  /** Resolves once no queued or in-flight cells remain for the target. */
+  idle(t: Target): Promise<{ ok: boolean }> {
+    return this.wait(t, null);
+  }
+
   /** Send now (poll, page leave, explicit save). */
   flush(): void {
     this.disarm("debounce");
@@ -85,6 +111,7 @@ export class SaveRunner<S> {
     if (account === null) return; // signed out: edits wait for this account, nothing is sent
     const kept = keepAccount(this.q, account);
     const dropped = Object.keys(kept).length !== Object.keys(this.q).length;
+    for (const w of this.waiters) if (!(w.key in kept)) w.ok = false;
     this.setQueue(kept);
     this.splits = [];
     this.retries.clear();
@@ -98,7 +125,41 @@ export class SaveRunner<S> {
   private setQueue(q: Queue) {
     this.q = q;
     if (Object.keys(q).length === 0) this.noticed = false;
+    this.settle();
     this.listeners.forEach((l) => l());
+  }
+
+  private wait(t: Target, cells: string[] | null): Promise<{ ok: boolean }> {
+    return new Promise((resolve) => {
+      this.waiters.push({ target: t, key: targetKey(t), cells, ok: true, resolve });
+      this.settle();
+    });
+  }
+
+  /** Resolve every waiter whose cells have left the queue (saved, dropped or replaced). */
+  private settle() {
+    this.waiters = this.waiters.filter((w) => {
+      const pending = pendingFor(this.q, w.target);
+      const left = w.cells === null ? Object.keys(pending).length : w.cells.filter((k) => k in pending).length;
+      if (left) return true;
+      w.resolve({ ok: w.ok });
+      return false;
+    });
+  }
+
+  /**
+   * A batch for `key` failed for good (or was refused). Waiters whose cells were in it resolve { ok: false }
+   * and their cells leave the queue. Other cells of the target keep their own retry or refusal rules.
+   */
+  private failWaiters(key: string, batch: string[]) {
+    const hit = this.waiters.filter((w) => w.key === key && w.cells !== null && w.cells.some((k) => batch.includes(k)));
+    if (!hit.length) return;
+    let q = this.q;
+    for (const w of hit) {
+      w.ok = false;
+      q = dropKeys(q, w.target, w.cells!);
+    }
+    this.setQueue(q);
   }
 
   private arm(name: "debounce" | "hold" | "retry", at: number, fn: () => void) {
@@ -193,9 +254,12 @@ export class SaveRunner<S> {
       const attempt = this.retries.get(key)?.attempt ?? 0;
       const transient = status === 0 || status === 429 || status >= 500;
       this.splits = this.splits.filter((s) => s.key !== key);
+      if (transient) this.failWaiters(key, keys);
       if (!transient && attempt + 1 >= MAX_REFUSALS) {
         this.retries.delete(key);
-        this.setQueue(dropKeys(this.q, t, Object.keys(pendingFor(this.q, t))));
+        const dropped = Object.keys(pendingFor(this.q, t));
+        this.failWaiters(key, dropped);
+        this.setQueue(dropKeys(this.q, t, dropped));
         if (!this.noticed) {
           this.noticed = true;
           this.d.notify("Some changes were refused and not saved", e.message);
@@ -216,6 +280,7 @@ export class SaveRunner<S> {
         this.pump();
         return;
       }
+      this.failWaiters(key, keys);
       this.setQueue(dropKeys(this.q, t, keys));
       if (!this.noticed) {
         this.noticed = true;

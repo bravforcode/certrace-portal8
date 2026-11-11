@@ -67,6 +67,7 @@
   --flow-canvas: #fafaf8;
   --flow-ink: #111111;
   --flow-focus: var(--color-info-text);
+  --flow-warn-bg: color-mix(in srgb, var(--color-warn) 18%, white);
 }
 
 /* Dark theme hook for the Cera mark. The portal is not themed yet; when it is,
