@@ -80,7 +80,11 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       { source: "/workspaces", destination: "/workspace", permanent: false },
-      { source: "/workspaces/new", destination: "/workspace", permanent: false },
+      {
+        source: "/workspaces/new",
+        destination: "/workspace",
+        permanent: false,
+      },
     ];
   },
   async headers() {
