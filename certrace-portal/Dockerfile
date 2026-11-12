@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-cert
 COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 WORKDIR /app
 COPY package.json bun.lock ./
+COPY patches ./patches
 COPY certrace-backend/package.json certrace-backend/package.json
 COPY certrace-portal/package.json certrace-portal/package.json
 

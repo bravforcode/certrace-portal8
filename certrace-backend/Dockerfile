@@ -17,6 +17,7 @@ CMD ["bun", "run", "migrate"]
 FROM base AS runtime
 WORKDIR /app
 COPY package.json bun.lock ./
+COPY patches ./patches
 COPY certrace-backend/package.json certrace-backend/package.json
 COPY certrace-portal/package.json certrace-portal/package.json
 RUN bun install --frozen-lockfile --production --filter @certrace/backend
