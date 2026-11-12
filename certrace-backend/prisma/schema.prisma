@@ -319,9 +319,9 @@ model cookie_consents {
   policy_version String
   user_agent     String?
   created_at     DateTime @default(now()) @db.Timestamptz(6)
-  users          users?   @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  users          users?   @relation(fields: [user_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
-  @@index([visitor_id, created_at(sort: Desc)])
+  @@index([visitor_id, created_at(sort: Desc)], map: "cookie_consents_visitor")
   @@schema("public")
 }
 
@@ -330,7 +330,7 @@ model email_deliveries {
   user_id String   @db.Uuid
   kind    String
   sent_at DateTime @default(now()) @db.Timestamptz(6)
-  users   users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  users   users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([user_id, kind])
   @@schema("public")
@@ -347,8 +347,8 @@ model workbooks {
   revision        Int      @default(0)
   updated_by      String?  @db.Uuid
   updated_at      DateTime @default(now()) @db.Timestamptz(6)
-  company         users    @relation("workbook_company", fields: [company_id], references: [id], onDelete: Cascade)
-  editor          users?   @relation("workbook_editor", fields: [updated_by], references: [id], onDelete: SetNull)
+  company         users    @relation("workbook_company", fields: [company_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  editor          users?   @relation("workbook_editor", fields: [updated_by], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   @@unique([company_id, installation_id, year])
   @@schema("public")
@@ -388,14 +388,14 @@ model preverifications {
   reviewed_by       String?   @db.Uuid
   submitted_at      DateTime  @default(now()) @db.Timestamptz(6)
   reviewed_at       DateTime? @db.Timestamptz(6)
-  company           users     @relation("preverify_company", fields: [company_id], references: [id], onDelete: Cascade)
-  submitter         users     @relation("preverify_submitter", fields: [submitted_by], references: [id])
-  reviewer          users?    @relation("preverify_reviewer", fields: [reviewed_by], references: [id], onDelete: SetNull)
+  company           users     @relation("preverify_company", fields: [company_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  submitter         users     @relation("preverify_submitter", fields: [submitted_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reviewer          users?    @relation("preverify_reviewer", fields: [reviewed_by], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
   @@index([company_id, installation_id, year, standard_id, submitted_at(sort: Desc)], map: "preverifications_lookup_idx")
   @@index([status, submitted_at(sort: Desc)], map: "preverifications_status_submitted_idx")
-  // Partial unique index preverifications_one_review_idx (status = 'team_review') lives only in
-  // the SQL migration: at most one open review per workbook revision. Prisma cannot express the WHERE here.
+  // At most one open review per workbook revision.
+  @@unique([company_id, installation_id, year, standard_id, workbook_revision], map: "preverifications_one_review_idx", where: raw("(status = 'team_review'::text)"))
   @@schema("public")
 }
 
