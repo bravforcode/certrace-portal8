@@ -1,7 +1,5 @@
 "use client";
 
-export const runtime = "edge";
-
 /* ════════════════════════════════════════════════════════════
    MONITORING METHODOLOGY DOCUMENTATION
 

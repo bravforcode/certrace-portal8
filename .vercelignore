@@ -1,0 +1,15 @@
+node_modules
+.next
+.git
+.wolf
+.vercel
+docs
+plan
+# Nested copies under certrace-portal/. The build report listed its .next
+# (~1 GB of webpack cache packs) in the build container's input; its .vercel
+# holds pulled env values.
+**/node_modules
+**/.next
+**/.vercel
+# Agent worktrees (~1 GB of other checkouts); not needed by the build.
+**/.claude

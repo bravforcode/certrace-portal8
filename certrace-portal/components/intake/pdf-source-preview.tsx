@@ -1,6 +1,7 @@
 "use client";
 import * as React from "react";
 import type { PDFDocumentProxy, PDFDocumentLoadingTask } from "pdfjs-dist";
+import { loadPdfJs } from "../../lib/pdf-loader";
 
 /** Use the same local renderer as extraction, including in browsers without a PDF plugin. */
 export function PdfSourcePreview({
@@ -27,10 +28,7 @@ export function PdfSourcePreview({
     void (async () => {
       try {
         const data = await file.arrayBuffer();
-        const moduleUrl = "/pdf.min.mjs";
-        const pdfjs = (await import(
-          /* webpackIgnore: true */ moduleUrl
-        )) as typeof import("pdfjs-dist");
+        const pdfjs = await loadPdfJs();
         if (!active) return;
         pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
         task = pdfjs.getDocument({ data: new Uint8Array(data) });

@@ -1,7 +1,5 @@
 "use client";
 
-export const runtime = "edge";
-
 /* ════════════════════════════════════════════════════════════
    INSTALLATION · READINESS — can this site hand over its reports for the year?
 

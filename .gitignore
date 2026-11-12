@@ -42,3 +42,4 @@ certrace-backend/src/generated/
 **/.eslintcache
 
 certrace-new/
+.vercel

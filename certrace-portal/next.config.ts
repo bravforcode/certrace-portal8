@@ -67,6 +67,31 @@ const nextConfig: NextConfig = {
   // Pin the workspace root (there's another lockfile in the home dir).
   outputFileTracingRoot: join(import.meta.dirname, ".."),
   output: "standalone",
+  // Server source maps were ~26% of the function output (61 MB of 237 MB in
+  // the Vercel build) and nothing reads them at runtime. Client maps are off by default.
+  webpack(config, { dev, isServer, webpack }) {
+    if (isServer) {
+      config.devtool = false;
+      // Dictionaries load in the browser only (lib/i18n.ts loadLocale). Edge route bundles inlined them anyway.
+      config.plugins.push(
+        new webpack.NormalModuleReplacementPlugin(
+          /^\.\/i18n-(th-all|zh|hi)$/,
+          join(import.meta.dirname, "lib", "i18n-server-stub.ts"),
+        ),
+      );
+      // PDF.js loads from /pdf.min.mjs in the browser only (lib/pdf-loader.ts).
+      config.plugins.push(
+        new webpack.NormalModuleReplacementPlugin(
+          /(^|\/)pdf-loader$/,
+          join(import.meta.dirname, "lib", "pdf-loader-server-stub.ts"),
+        ),
+      );
+    }
+    // Production webpack cache packs were ~760 MB under .next/cache in the
+    // Vercel build container (build report, 2026-11-12).
+    if (!dev) config.cache = false;
+    return config;
+  },
   async rewrites() {
     return [
       {

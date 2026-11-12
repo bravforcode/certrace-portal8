@@ -2,6 +2,7 @@
  * No filename or PDF metadata can supply a measurement. Scans remain manual.
  */
 import type { ExtractedField } from "./workspace-evidence";
+import { loadPdfJs } from "./pdf-loader";
 
 export type DocumentPage = { page: number; text: string };
 export type DocumentReading = {
@@ -176,12 +177,7 @@ export function readDocumentPages(pages: DocumentPage[]): DocumentReading {
 export async function readPdfPages(
   bytes: ArrayBuffer,
 ): Promise<DocumentPage[]> {
-  // Load the packaged ES module directly: rebundling PDF.js's legacy webpack
-  // runtime inside Next's runtime can shadow its module export helpers.
-  const moduleUrl = "/pdf.min.mjs";
-  const pdfjs = (await import(
-    /* webpackIgnore: true */ moduleUrl
-  )) as typeof import("pdfjs-dist");
+  const pdfjs = await loadPdfJs();
   pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
   const task = pdfjs.getDocument({ data: new Uint8Array(bytes.slice(0)) });
   const pdf = await task.promise;
