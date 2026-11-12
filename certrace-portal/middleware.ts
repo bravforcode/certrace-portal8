@@ -34,7 +34,22 @@ function landingOrigin(): string {
   }
 }
 
+/* A prefetch gets no nonce policy: the browser fetches the page early and only
+   the real navigation needs it. Checked on `next start` (15.5.28): a
+   `Purpose: prefetch` request skips the policy. A `Next-Router-Prefetch`
+   request was not seen by this check there, so that branch is unverified.
+   This check used to live in the matcher's `missing` rules, but Vercel's build
+   rejects that object form, so it runs here. */
+function isPrefetch(request: NextRequest): boolean {
+  return (
+    request.headers.has("next-router-prefetch") ||
+    request.headers.get("purpose") === "prefetch"
+  );
+}
+
 export function middleware(request: NextRequest) {
+  if (isPrefetch(request)) return NextResponse.next();
+
   const isDevelopment = process.env.NODE_ENV !== "production";
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const api = apiOrigin();
@@ -95,13 +110,6 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    {
-      source:
-        "/((?!api|backend|_next/static|_next/image|favicon.ico|brand|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
-      missing: [
-        { type: "header", key: "next-router-prefetch" },
-        { type: "header", key: "purpose", value: "prefetch" },
-      ],
-    },
+    "/((?!api|backend|_next/static|_next/image|favicon.ico|brand|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
