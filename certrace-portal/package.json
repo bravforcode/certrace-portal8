@@ -7,7 +7,7 @@
     "predev": "node scripts/copy-pdf-worker.mjs",
     "prebuild": "node scripts/copy-pdf-worker.mjs",
     "prebuild-pages": "node scripts/copy-pdf-worker.mjs",
-    "dev": "next dev",
+    "dev": "next dev --turbopack",
     "build": "next build",
     "build-pages": "next-on-pages && echo _worker.js > .vercel/output/static/.assetsignore && node scripts/build-csp-headers.mjs .vercel/output/static",
     "deploy": "npm run build-pages && wrangler deploy",
