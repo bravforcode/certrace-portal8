@@ -223,13 +223,34 @@ try {
   const { profileSpec } = await import(
     "../certrace-backend/src/modules/master-data/profile-contract"
   );
+  // The v006 compact tables predate the onboarding profile fields.
+  const onboardingFields = new Set([
+    "taxId",
+    "website",
+    "country",
+    "employeeBand",
+    "exportMarkets",
+    "productionModel",
+    "energySources",
+    "boilerCount",
+    "furnaceCount",
+    "annualProductionBand",
+  ]);
+  const legacyProfileSpec = {
+    ...profileSpec,
+    fields: Object.fromEntries(
+      Object.entries(profileSpec.fields!).filter(
+        ([key]) => !onboardingFields.has(key),
+      ),
+    ),
+  };
   const profiles = await db.$queryRawUnsafe(
     "SELECT * FROM reporting.records WHERE key='certrace:profile' ORDER BY id",
   );
   const expected = await db.$transaction(async (tx: any) => {
     const decoded = await readTrees(
       tx,
-      profileSpec,
+      legacyProfileSpec,
       profiles.map((r: any) => r.id),
     );
     return profiles.map((r: any) => ({
