@@ -45,6 +45,9 @@ const adminView = (r: WithCompany) => ({
 
 const companyInclude = { company: { select: { email: true, company_name: true } } } as const;
 
+// Prisma's default 5s transaction window is too tight under load; a pool wait longer than 2s fails the request.
+const TX_OPTIONS = { timeout: 10_000, maxWait: 5_000 } as const;
+
 export async function submit(companyId: string, actorId: string, key: Key) {
   const wb = await db.workbooks.findUnique({ where: workbookKey(companyId, key) });
   const cells = catalogueCells(wb?.cells);
@@ -64,6 +67,7 @@ export async function submit(companyId: string, actorId: string, key: Key) {
   const ai = await aiReview(cells, checks);
   const findings = [...checks, ...ai.findings];
   try {
+    // The checks and the AI review run above. Only these two fast writes sit inside the transaction.
     const row = await db.$transaction(async (tx) => {
       // Earlier open submissions for this key can no longer be decided, so they are closed here.
       await tx.preverifications.updateMany({
@@ -81,7 +85,7 @@ export async function submit(companyId: string, actorId: string, key: Key) {
           submitted_by: actorId,
         },
       });
-    });
+    }, TX_OPTIONS);
     return view(row);
   } catch (e) {
     // Two concurrent submits both pass the check above; the partial unique index lets only one row in.
@@ -177,5 +181,5 @@ export async function decide(id: string, reviewerId: string, decision: Decision,
     });
     const updated = await tx.preverifications.findUniqueOrThrow({ where: { id }, include: companyInclude });
     return adminView(updated);
-  });
+  }, TX_OPTIONS);
 }

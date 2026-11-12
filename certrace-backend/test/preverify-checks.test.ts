@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { catalogueCells, decideStatus, runChecks, type Finding } from "../src/modules/preverify/checks";
+import { AI_UNAVAILABLE_MESSAGE, parseReviewText, unavailableReview } from "../src/modules/preverify/review";
 
 const has = (findings: Finding[], field: string, severity: Finding["severity"]) =>
   findings.some((f) => f.field === field && f.severity === severity);
@@ -61,5 +62,29 @@ describe("pre-verification status rule", () => {
   test("clean data goes straight to the team because the AI check found nothing to block it", () => {
     // No findings means the submission is ready for the manual check.
     expect(decideStatus([])).toBe("team_review");
+  });
+});
+
+describe("pre-verification AI review seam", () => {
+  test("a JSON reply wrapped in prose is still read, and unknown field keys are dropped", () => {
+    // Text-mode models wrap JSON in prose or fences. An invented field key must not reach the customer as a link.
+    const reply = 'Here you go:\n```json\n{"summary":"Looks fine.","findings":[{"severity":"warn","field":"made-up","message":"Check the total."}]}\n```';
+    expect(parseReviewText(reply)).toEqual({
+      summary: "Looks fine.",
+      findings: [{ severity: "warn", message: "Check the total." }],
+    });
+  });
+
+  test("a reply with no JSON object is treated as unparseable so it cannot pass as an empty review", () => {
+    // Prose with no object must not come back as a successful review with zero findings.
+    expect(parseReviewText("I cannot help with that.")).toBeNull();
+  });
+
+  test("an unavailable AI review says so as a warning, so a silent empty review cannot pass for a clean one", () => {
+    // The team must be able to tell an AI that found nothing from an AI that never ran.
+    const review = unavailableReview();
+    expect(review.model).toBeNull();
+    expect(review.findings).toEqual([{ severity: "warn", message: AI_UNAVAILABLE_MESSAGE }]);
+    expect(review.summary).toBe(AI_UNAVAILABLE_MESSAGE);
   });
 });
