@@ -104,3 +104,38 @@ test("a long fill request stays inside Cera's 4000-character prompt limit and sa
   assert.ok(text.length < 4000);
   assert.match(text, /…and \d+ more; ask again after these are done\./);
 });
+
+test("the fill request is written in Thai when the interface is Thai, and keeps the installation id", () => {
+  // Why: Cera answers in the language it is sent, so a Thai user must get a Thai request, and the id must survive translation.
+  const data = missingData(std!, empty);
+  const text = fillRequest({ id: "inst-1", name: "Plant A" }, 2026, data.fields.slice(0, 3), "th");
+  assert.match(text, /[฀-๿]/);
+  assert.match(text, /installationId inst-1/);
+  assert.doesNotMatch(text, /Fill the CBAM fields/);
+});
+
+test("requirements with no cell are named in the fill request, matching what the badge counts", () => {
+  // Why: the badge counts carbon price as a missing item, so the message Cera gets must say it is still open too.
+  const data = missingData(std!, empty);
+  const text = fillRequest({ id: "inst-1", name: "Plant A" }, 2026, data.fields);
+  assert.match(text, /Also still open in Convert, with no cell to set here: Carbon price paid\./);
+});
+
+test("the fields the request lists plus the ones it leaves out equal the field entries the badge counts", () => {
+  // Why: the message and the badge must describe the same set, or Cera works on a different list than the user sees.
+  const data = missingData(std!, empty);
+  const text = fillRequest({ id: "inst-1", name: "Plant A" }, 2026, data.fields);
+  const listed = [...text.matchAll(/^[a-e]-[a-z]+\d+: /gm)].length;
+  const left = Number(text.match(/…and (\d+) more/)?.[1] ?? 0);
+  assert.equal(listed + left, data.fields.filter((f) => f.kind === "field").length);
+});
+
+test("every field id in the fill request is a real CBAM field id from the catalogue", () => {
+  // Why: Cera's set_cbam_fields accepts only catalogue ids (lib/cera/actions.ts); an invented id would be dropped at the server or land on the wrong cell.
+  const data = missingData(std!, empty);
+  const text = fillRequest({ id: "inst-1", name: "Plant A" }, 2026, data.fields);
+  const catalogue = new Set(CBAM_FIELDS.map((f) => f.id));
+  const ids = [...text.matchAll(/^([a-e]-[a-z]+\d+): /gm)].map((m) => m[1]);
+  assert.ok(ids.length > 0, "the request lists at least one field");
+  for (const id of ids) assert.equal(catalogue.has(id), true, id);
+});

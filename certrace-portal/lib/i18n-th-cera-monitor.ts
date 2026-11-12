@@ -2,7 +2,6 @@
 // The English source is the key; zh and hi rows for these keys are in lib/i18n-zh.ts and lib/i18n-hi.ts.
 
 export const TH_CERA_MONITOR: Record<string, string> = {
-  "Missing data": "ขาดข้อมูล",
   Complete: "ครบแล้ว",
   "{n} missing": "ขาด {n} รายการ",
   "Everything Cera checks for this installation is in.": "ข้อมูลทั้งหมดที่ Cera ตรวจสำหรับโรงงานนี้ถูกกรอกครบแล้ว",
@@ -10,4 +9,5 @@ export const TH_CERA_MONITOR: Record<string, string> = {
   "Ask Cera to fill": "ให้ Cera กรอกให้",
   "Cera proposes each change; you confirm it before anything is saved.":
     "Cera เสนอทุกการเปลี่ยนแปลง คุณยืนยันก่อนบันทึกทุกครั้ง",
+  "Not started yet. Open Convert to begin.": "ยังไม่ได้เริ่ม เปิด Convert เพื่อเริ่มต้น",
 };

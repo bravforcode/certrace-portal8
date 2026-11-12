@@ -6877,4 +6877,5 @@ export const HI: Record<string, string> = {
   "and {n} more": "और {n} बाकी",
   "Ask Cera to fill": "Cera से भरवाएँ",
   "Cera proposes each change; you confirm it before anything is saved.": "Cera हर बदलाव सुझाता है; कुछ भी सहेजने से पहले आप उसकी पुष्टि करते हैं।",
+  "Not started yet. Open Convert to begin.": "अभी शुरू नहीं हुआ। शुरू करने के लिए Convert खोलें।",
 };

@@ -18,6 +18,8 @@ export function useConvertContext(): {
   year: number;
   /** the year's workbook has loaded, so `cells` is the real answer set and not the empty start */
   loaded: boolean;
+  /** the year is not started: no answers yet, or the store marks it blank */
+  blank: boolean;
 } {
   const { scoped } = useScopedInstallation();
   const iid = scoped?.id ?? null;
@@ -33,5 +35,8 @@ export function useConvertContext(): {
     () => withInstallationDefaults(stored ?? {}, installation, year),
     [stored, installation, year],
   );
-  return { scoped, installation, sheets, cells, year, loaded };
+  // A year nobody has started: the store marks it blank, or it holds no answers at all.
+  const meta = years.find((y: { year: number }) => y.year === year)?.meta as { blank?: boolean } | undefined;
+  const blank = Boolean(meta?.blank) || Object.keys(stored ?? {}).length === 0;
+  return { scoped, installation, sheets, cells, year, loaded, blank };
 }

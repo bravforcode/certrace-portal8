@@ -9,7 +9,7 @@ import { useT } from "@/lib/i18n";
 export function CeraButton() {
   const t = useT();
   const cera = useCera();
-  const missing = useCeraMissing()?.data.fields.length ?? 0;
+  const missing = useCeraMissing()?.count ?? 0;
 
   return (
     <button

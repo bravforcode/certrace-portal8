@@ -9224,4 +9224,5 @@ export const ZH: Record<string, string> = {
   "and {n} more": "还有 {n} 项",
   "Ask Cera to fill": "请 Cera 代为填写",
   "Cera proposes each change; you confirm it before anything is saved.": "Cera 会提出每项修改，您确认后才会保存。",
+  "Not started yet. Open Convert to begin.": "尚未开始。打开 Convert 即可开始。",
 };
