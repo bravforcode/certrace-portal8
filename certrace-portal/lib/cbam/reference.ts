@@ -178,21 +178,6 @@ export type UnresolvedValue<T> = {
   actionRequired: string;
 };
 
-/* The published default value per CN code — the figure the exporter is
-   measured against, and the basis of the penalty exposure in §5.5 Formula 6.
-   1.370 tCO₂e/t appears in the source specification with no citation behind
-   it, so it travels as an explicitly unverified placeholder rather than as
-   data. lib/default-values.ts holds the indicative category-level table the
-   comparison surfaces already use; neither reaches a filed output. */
-export const D_DEFAULT_PLACEHOLDER: UnresolvedValue<number> = {
-  value: 1.37,
-  resolved: false,
-  warning:
-    "Placeholder default value — 1.370 tCO₂e/t could not be traced to a published Commission schedule. Any exposure figure derived from it is indicative only.",
-  actionRequired:
-    "Obtain the published default value for this CN code from the Commission's CBAM default-values schedule and replace the placeholder.",
-};
-
 /* The certificate price. Undecided by design: it is either the live EU ETS
    auction average (quarterly through 2026, weekly from 2027) or an
    admin-maintained figure, and that is an architecture decision nobody has
