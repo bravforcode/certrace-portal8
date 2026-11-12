@@ -9220,6 +9220,8 @@ export const ZH: Record<string, string> = {
   "Fill in the CBAM requirements before you submit for pre-verification.": "提交预先核验前，请先填写全部 CBAM 要求。",
   "Missing data": "缺失数据",
   "{n} missing": "缺 {n} 项",
+  "Show missing data": "展开缺失数据",
+  "Hide missing data": "收起缺失数据",
   "Everything Cera checks for this installation is in.": "Cera 为此设施检查的全部数据均已填写。",
   "and {n} more": "还有 {n} 项",
   "Ask Cera to fill": "请 Cera 代为填写",

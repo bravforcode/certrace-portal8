@@ -15,6 +15,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { ChevronDown } from "lucide-react";
 import { useCera } from "@/components/cera/cera-provider";
 import { useConvertContext } from "@/lib/convert/use-convert-context";
 import { getStandard } from "@/lib/convert-standards";
@@ -89,6 +90,9 @@ export function CeraMissingSection() {
   const t = useT();
   const cera = useCeraMissing();
   const { thinking, answering } = useCera();
+  // Collapsed by default so the section does not cover the chat; the header row is always visible.
+  const [open, setOpen] = React.useState(false);
+  const bodyId = React.useId();
   if (!cera) return null;
   const { data, blank } = cera;
   const count = data.fields.length;
@@ -97,17 +101,31 @@ export function CeraMissingSection() {
   return (
     <section
       aria-label={t("Missing data")}
-      className="mx-4 mb-3 flex-none rounded-2xl border border-black/[0.07] bg-[#fafaf8] px-3.5 py-3"
+      className="mx-4 mb-3 flex-none rounded-2xl border border-black/[0.07] bg-[#fafaf8] px-3.5 py-2.5"
     >
-      <div className="flex items-baseline justify-between gap-3">
-        <p className="font-pixel text-[9.5px] uppercase tracking-[0.16em] text-black/45">{t("Missing data")}</p>
-        {!blank && (
-          <p className="font-mono text-[11px] text-black/45">
-            {count === 0 ? t("Complete") : t("{n} missing", { n: count })}
-          </p>
-        )}
-      </div>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-controls={bodyId}
+        aria-label={open ? t("Hide missing data") : t("Show missing data")}
+        className="flex w-full items-center justify-between gap-3 text-left"
+      >
+        <span className="font-pixel text-[9.5px] uppercase tracking-[0.16em] text-black/45">{t("Missing data")}</span>
+        <span className="flex items-center gap-2">
+          {!blank && (
+            <span className="font-mono text-[11px] text-black/45">
+              {count === 0 ? t("Complete") : t("{n} missing", { n: count })}
+            </span>
+          )}
+          <ChevronDown
+            aria-hidden
+            className={cn("h-3.5 w-3.5 text-black/45 transition-transform", open && "rotate-180")}
+          />
+        </span>
+      </button>
 
+      <div id={bodyId} hidden={!open}>
       {blank ? (
         <p className="mt-1.5 text-[12.5px] leading-relaxed text-black/55">
           <Link
@@ -123,21 +141,23 @@ export function CeraMissingSection() {
         </p>
       ) : (
         <>
-          <ul className="mt-2 space-y-0.5">
-            {listed.map((f) => {
-              const text = f.kind === "field" ? `${f.section} · ${f.label}` : f.label;
-              return (
-                <li key={`${f.kind}:${f.id}`}>
-                  <Link
-                    href={f.href ?? "#"}
-                    className="block truncate rounded-lg px-2 py-1 text-[12.5px] text-black/70 transition-colors hover:bg-white hover:text-black"
-                  >
-                    {text}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+          <div className="mt-2 max-h-[40vh] overflow-y-auto">
+            <ul className="space-y-0.5">
+              {listed.map((f) => {
+                const text = f.kind === "field" ? `${f.section} · ${f.label}` : f.label;
+                return (
+                  <li key={`${f.kind}:${f.id}`}>
+                    <Link
+                      href={f.href ?? "#"}
+                      className="block truncate rounded-lg px-2 py-1 text-[12.5px] text-black/70 transition-colors hover:bg-white hover:text-black"
+                    >
+                      {text}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
           {count > LISTED && (
             <p className="mt-1 px-2 text-[11.5px] text-black/40">{t("and {n} more", { n: count - LISTED })}</p>
           )}
@@ -155,6 +175,7 @@ export function CeraMissingSection() {
           </button>
         </>
       )}
+      </div>
     </section>
   );
 }

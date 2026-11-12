@@ -6873,6 +6873,8 @@ export const HI: Record<string, string> = {
   "Fill in the CBAM requirements before you submit for pre-verification.": "पूर्व-सत्यापन से पहले CBAM आवश्यकताएँ पूरी भरें।",
   "Missing data": "गायब डेटा",
   "{n} missing": "{n} गायब",
+  "Show missing data": "गायब डेटा दिखाएँ",
+  "Hide missing data": "गायब डेटा छिपाएँ",
   "Everything Cera checks for this installation is in.": "Cera इस संयंत्र के लिए जो जाँचता है, वह सब भरा हुआ है।",
   "and {n} more": "और {n} बाकी",
   "Ask Cera to fill": "Cera से भरवाएँ",
