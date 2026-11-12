@@ -86,5 +86,5 @@ export async function save(
     return await tx.account_records.findUniqueOrThrow({
       where: { user_id_key: { user_id: userId, key } },
     });
-  });
+  }, { maxWait: 5_000, timeout: 10_000 });
 }
