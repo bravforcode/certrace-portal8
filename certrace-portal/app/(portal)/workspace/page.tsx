@@ -17,7 +17,9 @@
      ready      the sheets, Excel-style, then the way on to Convert
 
    Stored on the server, per installation and year (lib/workbook/use-workbook.ts):
-   the sheets are built from the year's cells, so a new year is empty.
+   the sheets are built from the year's cells, so a new year is empty. With no
+   installation set up, the year is kept under UNASSIGNED_WORKBOOK_ID instead,
+   so files can be uploaded without the installation form.
    ════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
@@ -42,6 +44,7 @@ import {
 import { currentYear, yearRange } from "@/lib/year-range";
 import { buildSheets } from "@/lib/workspace-sheets";
 import { parseYearParam, withQueryParams } from "@/lib/workbook/url-state";
+import { UNASSIGNED_WORKBOOK_ID } from "@/lib/workbook/unassigned";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   COPY_MS,
@@ -92,10 +95,11 @@ function WorkspaceInner() {
       { scroll: false },
     );
   };
-  const installationId = scoped?.id ?? null;
-  const ws = useWorkbookYears(installationId);
+  // Nothing is keyed while the installation scope loads, so an upload cannot land in the unassigned workbook by mistake.
+  const storeId = loading ? null : (scoped?.id ?? UNASSIGNED_WORKBOOK_ID);
+  const ws = useWorkbookYears(storeId);
   const rec = ws.get(year);
-  const wb = useWorkbook(installationId, year);
+  const wb = useWorkbook(storeId, year);
   // Bumped when this browser has seen a walk-in, so the card re-reads the per-browser record.
   const [, setWalkinTick] = React.useState(0);
 
@@ -166,24 +170,7 @@ function WorkspaceInner() {
         }}
       />
 
-      {!installationId ? (
-        loading ? null : (
-          <Card className="p-6 text-center md:p-8">
-            <h2 className="font-[family-name:var(--font-plex)] text-xl font-light text-[#111]">
-              {t("Choose an installation to start your workspace")}
-            </h2>
-            <p className="mt-2 text-sm leading-relaxed text-black/45">
-              {t(
-                "The workspace belongs to one installation. Set one up first, then come back here.",
-              )}
-            </p>
-            <ButtonLink href="/workspaces/new" className="mt-4">
-              {t("Set up an installation")}{" "}
-              <ArrowRight size={14} strokeWidth={1.5} />
-            </ButtonLink>
-          </Card>
-        )
-      ) : !ws.loaded ? null : !rec ? (
+      {storeId === null || !ws.loaded ? null : !rec ? (
         <>
           <UploadPanel
             year={year}
@@ -198,7 +185,7 @@ function WorkspaceInner() {
             <Spreadsheet sheets={buildSheets([])} empty extraTabs={cbamTab} />
           )}
         </>
-      ) : walkinPending(installationId, year, rec) ? (
+      ) : walkinPending(storeId, year, rec) ? (
         /* Set up and not yet shown in this browser: the card shows it is ready, and Get started opens the sheet. */
         <Card className="overflow-hidden p-0">
           <WorkspaceReveal

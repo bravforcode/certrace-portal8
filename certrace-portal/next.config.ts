@@ -76,9 +76,11 @@ const nextConfig: NextConfig = {
     ];
   },
   // /workspaces has subroutes but no index page; older links to it land on the workbook.
+  // /workspaces/new (the installation wizard) is switched off: its links land on the workbook, which takes uploads without one.
   async redirects() {
     return [
       { source: "/workspaces", destination: "/workspace", permanent: false },
+      { source: "/workspaces/new", destination: "/workspace", permanent: false },
     ];
   },
   async headers() {
