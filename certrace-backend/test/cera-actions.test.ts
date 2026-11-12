@@ -1,13 +1,19 @@
 import { describe, expect, test } from "bun:test";
 import catalogue from "../src/modules/links/cbam-item-fields.json";
-import { MAX_CERA_ACTIONS, ceraTools, validateCeraActions } from "../src/modules/cera/actions";
+import {
+  MAX_CERA_ACTIONS,
+  ceraTools,
+  validateCeraActions,
+} from "../src/modules/cera/actions";
 
 const realKey = (catalogue.fields as { key: string }[])[0]!.key;
 
 describe("Cera proposed actions", () => {
   test("drops unknown tools so the server never proposes an unlisted action", () => {
     expect(
-      validateCeraActions([{ toolName: "delete_installation", input: { installationId: "TH-1" } }]),
+      validateCeraActions([
+        { toolName: "delete_installation", input: { installationId: "TH-1" } },
+      ]),
     ).toEqual([]);
   });
 
@@ -68,7 +74,10 @@ describe("Cera proposed actions", () => {
       validateCeraActions([
         {
           toolName: "update_installation",
-          input: { installationId: "TH-1", changes: { registryId: "X", passwordHash: "y" } },
+          input: {
+            installationId: "TH-1",
+            changes: { registryId: "X", passwordHash: "y" },
+          },
         },
       ]),
     ).toEqual([]);
@@ -78,7 +87,10 @@ describe("Cera proposed actions", () => {
     const [action] = validateCeraActions([
       {
         toolName: "update_installation",
-        input: { installationId: "TH-1", changes: { city: "Bangkok", registryId: "X" } },
+        input: {
+          installationId: "TH-1",
+          changes: { city: "Bangkok", registryId: "X" },
+        },
       },
     ]);
     expect(action).toEqual({
@@ -91,7 +103,10 @@ describe("Cera proposed actions", () => {
   test("rejects an installation id outside the allowed shape", () => {
     expect(
       validateCeraActions([
-        { toolName: "update_installation", input: { installationId: "../x", changes: { city: "A" } } },
+        {
+          toolName: "update_installation",
+          input: { installationId: "../x", changes: { city: "A" } },
+        },
       ]),
     ).toEqual([]);
   });
@@ -99,7 +114,14 @@ describe("Cera proposed actions", () => {
   test("rejects an out-of-range year", () => {
     expect(
       validateCeraActions([
-        { toolName: "set_cbam_fields", input: { installationId: "TH-1", year: 2041, values: { [realKey]: "1" } } },
+        {
+          toolName: "set_cbam_fields",
+          input: {
+            installationId: "TH-1",
+            year: 2041,
+            values: { [realKey]: "1" },
+          },
+        },
       ]),
     ).toEqual([]);
   });
@@ -116,21 +138,31 @@ describe("Cera proposed actions", () => {
   test("open_page keeps an allowed page with a query string", () => {
     expect(
       validateCeraActions([
-        { toolName: "open_page", input: { path: "/convert/eu-cbam?installation=TH-1" } },
+        {
+          toolName: "open_page",
+          input: { path: "/convert/eu-cbam?installation=TH-1" },
+        },
       ]),
-    ).toEqual([{ tool: "open_page", path: "/convert/eu-cbam?installation=TH-1" }]);
+    ).toEqual([
+      { tool: "open_page", path: "/convert/eu-cbam?installation=TH-1" },
+    ]);
   });
 
   test("open_page drops a page outside the list even with a query string", () => {
     expect(
-      validateCeraActions([{ toolName: "open_page", input: { path: "/admin?x=1" } }]),
+      validateCeraActions([
+        { toolName: "open_page", input: { path: "/admin?x=1" } },
+      ]),
     ).toEqual([]);
   });
 
   test("request_upload is kept with a trimmed purpose", () => {
     expect(
       validateCeraActions([
-        { tool: "request_upload", args: { purpose: "  Monitoring methodology  " } },
+        {
+          tool: "request_upload",
+          args: { purpose: "  Monitoring methodology  " },
+        },
       ]),
     ).toEqual([{ tool: "request_upload", purpose: "Monitoring methodology" }]);
   });
@@ -158,9 +190,17 @@ describe("Cera proposed actions", () => {
     expect(text).not.toContain("e-l61"); // precursor 2
     expect(text.length).toBeLessThan(12000);
     const [action] = validateCeraActions([
-      { toolName: "set_cbam_fields", input: { installationId: "TH-1", year: 2026, values: { "d-l81": "5" } } },
+      {
+        toolName: "set_cbam_fields",
+        input: { installationId: "TH-1", year: 2026, values: { "d-l81": "5" } },
+      },
     ]);
-    expect(action).toEqual({ tool: "set_cbam_fields", installationId: "TH-1", year: 2026, values: { "d-l81": "5" } });
+    expect(action).toEqual({
+      tool: "set_cbam_fields",
+      installationId: "TH-1",
+      year: 2026,
+      values: { "d-l81": "5" },
+    });
   });
 
   test("same-named fields in different blocks carry their section, so the model can tell process P1 from precursor PP1", () => {

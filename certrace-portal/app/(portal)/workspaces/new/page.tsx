@@ -789,26 +789,26 @@ function NewWorkspaceFlow() {
                 />
               </div>
             ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <ChoiceCard
-                active={supplierChoice === "self"}
-                onClick={() => setSupplierChoice("self")}
-                icon={<Factory size={16} strokeWidth={1.5} />}
-                title={t("We produce it ourselves")}
-                body={t(
-                  "Your own installation. Each month lands in your inbox — nothing goes to a third party.",
-                )}
-              />
-              <ChoiceCard
-                active={supplierChoice === "other"}
-                onClick={() => setSupplierChoice("other")}
-                icon={<Users size={16} strokeWidth={1.5} />}
-                title={t("Another supplier produces it")}
-                body={t(
-                  "Their installation. They get a link each month and fill it in without an account.",
-                )}
-              />
-            </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <ChoiceCard
+                  active={supplierChoice === "self"}
+                  onClick={() => setSupplierChoice("self")}
+                  icon={<Factory size={16} strokeWidth={1.5} />}
+                  title={t("We produce it ourselves")}
+                  body={t(
+                    "Your own installation. Each month lands in your inbox — nothing goes to a third party.",
+                  )}
+                />
+                <ChoiceCard
+                  active={supplierChoice === "other"}
+                  onClick={() => setSupplierChoice("other")}
+                  icon={<Users size={16} strokeWidth={1.5} />}
+                  title={t("Another supplier produces it")}
+                  body={t(
+                    "Their installation. They get a link each month and fill it in without an account.",
+                  )}
+                />
+              </div>
             )}
 
             {supplierChoice === "" ? (

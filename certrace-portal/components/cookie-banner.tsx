@@ -4,7 +4,11 @@ import Link from "next/link";
 import { Button, Card } from "@/components/ui";
 import { CookieModal } from "@/components/cookie-modal";
 import { useT } from "@/lib/i18n";
-import { COOKIE_POLICY_VERSION, readChoice, saveChoice } from "@/lib/cookie-consent";
+import {
+  COOKIE_POLICY_VERSION,
+  readChoice,
+  saveChoice,
+} from "@/lib/cookie-consent";
 
 /* Shown until the visitor records a choice. Necessary cookies are always on; Accept and Reject are equal so refusing is as easy as accepting. */
 export function CookieBanner() {
@@ -69,21 +73,24 @@ export function CookieBanner() {
               </p>
             )}
             <div className="mt-3 flex flex-wrap gap-1.5">
-              <Button size="sm"
+              <Button
+                size="sm"
                 variant="primary"
                 disabled={busy}
                 onClick={() => decide(false, false)}
               >
                 {t("Reject optional")}
               </Button>
-              <Button size="sm"
+              <Button
+                size="sm"
                 variant="primary"
                 disabled={busy}
                 onClick={() => decide(true, true)}
               >
                 {t("Accept all")}
               </Button>
-              <Button size="sm"
+              <Button
+                size="sm"
                 variant="ghost"
                 disabled={busy}
                 onClick={() => setCustomising(true)}

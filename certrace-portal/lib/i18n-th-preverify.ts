@@ -21,10 +21,14 @@ export const TH_PREVERIFY: Record<string, string> = {
   "Reviewed {time}": "ตรวจทานเมื่อ {time}",
   "Pre-verified by Certrace": "ผ่านการตรวจสอบล่วงหน้าโดย Certrace",
   "Certrace asked for changes": "Certrace ขอให้แก้ไข",
-  "Data changed since the review. Resubmit.": "ข้อมูลเปลี่ยนแปลงหลังการตรวจทาน กรุณาส่งใหม่",
-  "Fix the points below in the workbook, then resubmit.": "แก้ไขประเด็นด้านล่างในเวิร์กบุ๊ก แล้วส่งใหม่",
-  "Could not load the pre-verification status.": "ไม่สามารถโหลดสถานะการตรวจสอบล่วงหน้าได้",
-  "Could not submit for pre-verification. Try again.": "ไม่สามารถส่งเพื่อตรวจสอบล่วงหน้าได้ กรุณาลองอีกครั้ง",
+  "Data changed since the review. Resubmit.":
+    "ข้อมูลเปลี่ยนแปลงหลังการตรวจทาน กรุณาส่งใหม่",
+  "Fix the points below in the workbook, then resubmit.":
+    "แก้ไขประเด็นด้านล่างในเวิร์กบุ๊ก แล้วส่งใหม่",
+  "Could not load the pre-verification status.":
+    "ไม่สามารถโหลดสถานะการตรวจสอบล่วงหน้าได้",
+  "Could not submit for pre-verification. Try again.":
+    "ไม่สามารถส่งเพื่อตรวจสอบล่วงหน้าได้ กรุณาลองอีกครั้ง",
   "Too many submissions. Try again later.": "ส่งบ่อยเกินไป กรุณาลองใหม่ภายหลัง",
   "This workbook is already waiting for the Certrace team. Change the data to submit again.":
     "เวิร์กบุ๊กนี้กำลังรอทีมงาน Certrace ตรวจทานอยู่แล้ว เปลี่ยนแปลงข้อมูลก่อนจึงจะส่งใหม่ได้",

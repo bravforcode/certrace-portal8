@@ -32,7 +32,11 @@ describe("account_audit_events event constraint", () => {
   test("keeps the team and admin events that were already allowed", () => {
     // Re-creating the constraint must not drop the existing values, or team invites and admin actions start failing.
     const sql = latestConstraintMigration();
-    for (const event of ["SUSPENDED", "team.invite.created", "ADMIN_TRIAL_EXTENDED"]) {
+    for (const event of [
+      "SUSPENDED",
+      "team.invite.created",
+      "ADMIN_TRIAL_EXTENDED",
+    ]) {
       expect(sql).toContain(`'${event}'`);
     }
   });

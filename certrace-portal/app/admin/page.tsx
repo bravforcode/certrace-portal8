@@ -128,7 +128,10 @@ export default function AdminPage() {
         <header className="flex items-center justify-between gap-4">
           <CertraceLogo className="h-6 w-auto" />
           <div className="flex items-center gap-5 text-sm">
-            <Link href="/admin/preverifications" className="text-black/60 hover:text-black">
+            <Link
+              href="/admin/preverifications"
+              className="text-black/60 hover:text-black"
+            >
               Pre-verifications
             </Link>
             <Link href="/" className="text-black/60 hover:text-black">
@@ -259,7 +262,10 @@ export default function AdminPage() {
                             size="sm"
                             variant="secondary"
                             className="ml-2"
-                            disabled={savingId === user.id || user.status === "SUSPENDED"}
+                            disabled={
+                              savingId === user.id ||
+                              user.status === "SUSPENDED"
+                            }
                             aria-label={`Reject ${user.email}`}
                             onClick={(event) => {
                               rejectTrigger.current = event.currentTarget;

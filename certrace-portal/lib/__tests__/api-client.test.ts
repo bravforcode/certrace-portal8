@@ -427,7 +427,8 @@ test("a 403 TRIAL_ENDED announces the lock and keeps the session", async () => {
         {
           detail: {
             code: "TRIAL_ENDED",
-            message: "Your free trial has ended. Choose a plan to keep editing.",
+            message:
+              "Your free trial has ended. Choose a plan to keep editing.",
           },
         },
         403,

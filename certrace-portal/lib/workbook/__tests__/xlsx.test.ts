@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { readXlsx, readZip } from "../xlsx";
 
 async function deflate(bytes: Uint8Array) {
-  const stream = new Blob([bytes as Uint8Array<ArrayBuffer>]).stream().pipeThrough(new CompressionStream("deflate-raw"));
+  const stream = new Blob([bytes as Uint8Array<ArrayBuffer>])
+    .stream()
+    .pipeThrough(new CompressionStream("deflate-raw"));
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 // Minimal zip writer: local headers + central directory + end record. CRC is left 0;
@@ -41,13 +43,20 @@ async function zip(files: Record<string, string>, compress = false) {
   end.setUint16(10, Object.keys(files).length, true);
   end.setUint32(12, cdSize, true);
   end.setUint32(16, offset, true);
-  return new Blob([...parts, ...central, new Uint8Array(end.buffer)] as Uint8Array<ArrayBuffer>[]).arrayBuffer();
+  return new Blob([
+    ...parts,
+    ...central,
+    new Uint8Array(end.buffer),
+  ] as Uint8Array<ArrayBuffer>[]).arrayBuffer();
 }
 
 const book = {
-  "xl/workbook.xml": '<workbook><sheets><sheet name="Energy &amp; fuel" sheetId="1" r:id="rId1"/></sheets></workbook>',
-  "xl/_rels/workbook.xml.rels": '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>',
-  "xl/sharedStrings.xml": "<sst><si><t>Item</t></si><si><r><t>Natural </t></r><r><t>gas</t></r></si></sst>",
+  "xl/workbook.xml":
+    '<workbook><sheets><sheet name="Energy &amp; fuel" sheetId="1" r:id="rId1"/></sheets></workbook>',
+  "xl/_rels/workbook.xml.rels":
+    '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>',
+  "xl/sharedStrings.xml":
+    "<sst><si><t>Item</t></si><si><r><t>Natural </t></r><r><t>gas</t></r></si></sst>",
   "xl/worksheets/sheet1.xml":
     '<worksheet><sheetData><row r="1"><c r="A1" t="s"><v>0</v></c><c r="C1" t="inlineStr"><is><t>Qty</t></is></c></row>' +
     '<row r="2"><c r="A2" t="s"><v>1</v></c><c r="C2"><f>B2*2</f><v>420</v></c></row></sheetData></worksheet>',

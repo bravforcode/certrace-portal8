@@ -619,11 +619,16 @@ export default function OnboardingPage() {
                   onChange={(e) => setTaxId(e.target.value.trim())}
                   placeholder="0105561234567"
                   aria-invalid={Boolean(companyErrors.taxId)}
-                  aria-describedby={companyErrors.taxId ? "tax-id-error" : undefined}
+                  aria-describedby={
+                    companyErrors.taxId ? "tax-id-error" : undefined
+                  }
                 />
               </Field>
               {companyErrors.taxId && (
-                <p id="tax-id-error" className="mt-1.5 text-[12px] text-[#dc2626]">
+                <p
+                  id="tax-id-error"
+                  className="mt-1.5 text-[12px] text-[#dc2626]"
+                >
                   {t(companyErrors.taxId)}
                 </p>
               )}
@@ -634,11 +639,16 @@ export default function OnboardingPage() {
                   onChange={(e) => setWebsite(e.target.value.trim())}
                   placeholder="https://"
                   aria-invalid={Boolean(companyErrors.website)}
-                  aria-describedby={companyErrors.website ? "website-error" : undefined}
+                  aria-describedby={
+                    companyErrors.website ? "website-error" : undefined
+                  }
                 />
               </Field>
               {companyErrors.website && (
-                <p id="website-error" className="mt-1.5 text-[12px] text-[#dc2626]">
+                <p
+                  id="website-error"
+                  className="mt-1.5 text-[12px] text-[#dc2626]"
+                >
                   {t(companyErrors.website)}
                 </p>
               )}

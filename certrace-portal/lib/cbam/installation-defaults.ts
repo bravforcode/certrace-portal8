@@ -3,7 +3,9 @@ import { cbamCellKey } from "./template-fields";
 
 type InstallationText = Exclude<
   {
-    [K in keyof Installation]-?: Installation[K] extends string | undefined ? K : never;
+    [K in keyof Installation]-?: Installation[K] extends string | undefined
+      ? K
+      : never;
   }[keyof Installation],
   undefined
 >;
@@ -32,7 +34,10 @@ const FROM_RECORD: ReadonlyArray<readonly [string, InstallationText]> = [
 ];
 
 /** CBAM cells derived from the installation record and the reporting year; empty values are left out. */
-export function installationCbamCells(inst: Installation, year?: number): Record<string, string> {
+export function installationCbamCells(
+  inst: Installation,
+  year?: number,
+): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [id, key] of FROM_RECORD) {
     const v = String(inst[key] ?? "").trim();

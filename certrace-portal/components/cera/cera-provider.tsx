@@ -75,10 +75,7 @@ import {
 import { getWorkspace, type VerificationWorkspace } from "@/lib/workspace";
 import { UPDATES_EVENT, unseenUpdates } from "@/lib/cera/updates";
 import type { CeraAttachment, CeraCard, CeraMessage } from "@/lib/cera/types";
-import {
-  applyCeraAction,
-  type CeraActionDeps,
-} from "@/lib/cera/actions";
+import { applyCeraAction, type CeraActionDeps } from "@/lib/cera/actions";
 import { patchWorkbookCells } from "@/lib/api/workbooks";
 import { getInstallation, saveInstallation } from "@/lib/installations";
 import {

@@ -1,6 +1,13 @@
-import { buildSheets, BLANK_ROWS, type RowStatus, type Sheet, type WorkspaceFile } from "../workspace-sheets";
+import {
+  buildSheets,
+  BLANK_ROWS,
+  type RowStatus,
+  type Sheet,
+  type WorkspaceFile,
+} from "../workspace-sheets";
 
-export const cellKey = (sheetId: string, row: number, col: string) => `${sheetId}:${row}:${col}`;
+export const cellKey = (sheetId: string, row: number, col: string) =>
+  `${sheetId}:${row}:${col}`;
 
 export function rowsUsed(cells: Record<string, string>, sheetId: string) {
   let max = -1;
@@ -15,7 +22,10 @@ const ROW_STATUS = new Set<string>(["review", "confirmed", "missing"]);
 
 /** Server cells are the only data source. Five spare rows below the last used
     row leave room to type without an "add row" button. */
-export function sheetsFromCells(cells: Record<string, string>, files: WorkspaceFile[]): Sheet[] {
+export function sheetsFromCells(
+  cells: Record<string, string>,
+  files: WorkspaceFile[],
+): Sheet[] {
   return buildSheets(files).map((sheet) => {
     if (sheet.id === "documents") return sheet;
     const used = rowsUsed(cells, sheet.id);

@@ -41,14 +41,23 @@ export async function createItemLink(input: {
   return result(api().api.v1["item-links"].post(input));
 }
 
-export async function resolveItemLink(token: string): Promise<ItemLinkResolution> {
+export async function resolveItemLink(
+  token: string,
+): Promise<ItemLinkResolution> {
   return (await result(
-    api(false).api.v1["item-links"]({ token: encodeURIComponent(token) }).get(),
+    api(false)
+      .api.v1["item-links"]({ token: encodeURIComponent(token) })
+      .get(),
   )) as ItemLinkResolution;
 }
 
-export async function submitItemLink(token: string, values: Record<string, string | null>) {
+export async function submitItemLink(
+  token: string,
+  values: Record<string, string | null>,
+) {
   return result(
-    api(false).api.v1["item-links"]({ token: encodeURIComponent(token) }).submit.post({ values }),
+    api(false)
+      .api.v1["item-links"]({ token: encodeURIComponent(token) })
+      .submit.post({ values }),
   );
 }

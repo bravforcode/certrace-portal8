@@ -1,5 +1,10 @@
 import { generateText } from "ai";
-import { ceraBudget, ceraModels, ceraProviderName, type CeraModel } from "./provider";
+import {
+  ceraBudget,
+  ceraModels,
+  ceraProviderName,
+  type CeraModel,
+} from "./provider";
 import { visibleReports } from "../team/records";
 import { listReports } from "../reporting/service";
 import { companyContext, relevantKnowledge } from "./context";
@@ -114,7 +119,8 @@ export async function answerQuestion(
   );
   try {
     const out = await deps.generate(input, context);
-    const turn: CeraTurn = typeof out === "string" ? { text: out, actions: [] } : out;
+    const turn: CeraTurn =
+      typeof out === "string" ? { text: out, actions: [] } : out;
     return turn.actions.length > 0
       ? { mode: "ai", text: turn.text, actions: turn.actions }
       : { mode: "ai", text: turn.text };

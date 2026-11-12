@@ -110,8 +110,9 @@ export const emptyMonitoring = (): InstallationMonitoring => ({
     supplier: the supplier runs it and fills in a form. */
 export type InstallationRole = "own" | "oem" | "supplier";
 
-export const installationRole = (i: Pick<Installation, "role" | "supplierId">): InstallationRole =>
-  i.role ?? (i.supplierId ? "supplier" : "own");
+export const installationRole = (
+  i: Pick<Installation, "role" | "supplierId">,
+): InstallationRole => i.role ?? (i.supplierId ? "supplier" : "own");
 
 export type Installation = {
   /** operator reference — the id a verifier and the buyer both quote. Not a
@@ -330,7 +331,10 @@ export function emailError(raw: string): string | null {
 
 /** One coordinate's own range check. Empty is not checked here: an empty box is
     missing data, not bad data. */
-export function coordinateFieldError(key: "lat" | "lng", raw: string): string | null {
+export function coordinateFieldError(
+  key: "lat" | "lng",
+  raw: string,
+): string | null {
   const v = raw.trim();
   if (!v) return null;
   const n = Number(v);
@@ -381,10 +385,14 @@ export const startSheetEdit = (inst: Installation): SheetEditState => ({
   messages: {},
 });
 
-function editRejection(next: Installation, key: keyof Installation): string | undefined {
+function editRejection(
+  next: Installation,
+  key: keyof Installation,
+): string | undefined {
   const raw = String(next[key] ?? "");
   if (!raw.trim()) return undefined;
-  if (key === "lat" || key === "lng") return coordinateFieldError(key, raw) ?? undefined;
+  if (key === "lat" || key === "lng")
+    return coordinateFieldError(key, raw) ?? undefined;
   return installationErrors(next, next.id)[key];
 }
 

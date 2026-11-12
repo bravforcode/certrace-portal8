@@ -2,7 +2,11 @@ import { generateText } from "ai";
 import { ceraModels } from "../cera/provider";
 import { FIELDS, type Finding } from "./checks";
 
-export type AiReview = { summary: string; findings: Finding[]; model: string | null };
+export type AiReview = {
+  summary: string;
+  findings: Finding[];
+  model: string | null;
+};
 
 const MAX_FIELD_CHARS = 6_000;
 const MAX_FINDINGS = 10;
@@ -35,8 +39,10 @@ export function compactFields(cells: Record<string, string>): string {
 
 /** Keeps only well-formed findings and known field keys. Anything else is dropped. */
 function parseOutput(raw: unknown): { summary: string; findings: Finding[] } {
-  const o = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
-  const summary = typeof o.summary === "string" ? o.summary.trim().slice(0, 1000) : "";
+  const o =
+    raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const summary =
+    typeof o.summary === "string" ? o.summary.trim().slice(0, 1000) : "";
   const items = Array.isArray(o.findings) ? o.findings : [];
   const findings: Finding[] = [];
   for (const item of items) {
@@ -45,7 +51,10 @@ function parseOutput(raw: unknown): { summary: string; findings: Finding[] } {
     const f = item as Record<string, unknown>;
     if (f.severity !== "error" && f.severity !== "warn") continue;
     if (typeof f.message !== "string" || !f.message.trim()) continue;
-    const field = typeof f.field === "string" && KNOWN_KEYS.has(f.field) ? f.field : undefined;
+    const field =
+      typeof f.field === "string" && KNOWN_KEYS.has(f.field)
+        ? f.field
+        : undefined;
     findings.push({
       severity: f.severity,
       ...(field ? { field } : {}),
@@ -56,7 +65,9 @@ function parseOutput(raw: unknown): { summary: string; findings: Finding[] } {
 }
 
 /** Pulls the JSON object out of a text reply. Null when the reply has no parseable object. */
-export function parseReviewText(text: string): { summary: string; findings: Finding[] } | null {
+export function parseReviewText(
+  text: string,
+): { summary: string; findings: Finding[] } | null {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
   if (start < 0 || end <= start) return null;
@@ -75,10 +86,15 @@ export const unavailableReview = (): AiReview => ({
 });
 
 /** Never throws. With no provider or on any failure it returns the unavailable review, and the deterministic checks still decide. */
-export async function aiReview(cells: Record<string, string>, findings: Finding[]): Promise<AiReview> {
+export async function aiReview(
+  cells: Record<string, string>,
+  findings: Finding[],
+): Promise<AiReview> {
   try {
     const models = ceraModels();
-    const deterministic = findings.map((f) => `${f.severity}${f.field ? ` ${f.field}` : ""}: ${f.message}`);
+    const deterministic = findings.map(
+      (f) => `${f.severity}${f.field ? ` ${f.field}` : ""}: ${f.message}`,
+    );
     for (const { model, providerOptions } of models) {
       try {
         // Text mode, not Output.object: Groq's json_object mode rejects prompts without the word "json".
@@ -93,15 +109,22 @@ export async function aiReview(cells: Record<string, string>, findings: Finding[
         });
         const parsed = parseReviewText(result.text);
         if (!parsed) {
-          console.warn("[preverify] AI review unavailable: reply was not a JSON object");
+          console.warn(
+            "[preverify] AI review unavailable: reply was not a JSON object",
+          );
           return unavailableReview();
         }
-        return { ...parsed, model: typeof model === "string" ? model : model.modelId };
+        return {
+          ...parsed,
+          model: typeof model === "string" ? model : model.modelId,
+        };
       } catch (e) {
         // Only a rate limit moves on to the next model, as Cera does; anything else ends the review.
         // Log the error name and status only: provider messages can contain credentials.
         const status = (e as { statusCode?: number }).statusCode;
-        console.warn(`[preverify] AI review unavailable: ${(e as Error).name} ${status ?? ""}`.trim());
+        console.warn(
+          `[preverify] AI review unavailable: ${(e as Error).name} ${status ?? ""}`.trim(),
+        );
         if (status !== 429) return unavailableReview();
       }
     }

@@ -23,14 +23,20 @@ export type CeraAction =
 export const MAX_CERA_ACTIONS = 5;
 const MAX_VALUE_LENGTH = 2000;
 
-const CBAM_FIELDS = catalogue.fields as { key: string; label: string; section: string; block?: number }[];
+const CBAM_FIELDS = catalogue.fields as {
+  key: string;
+  label: string;
+  section: string;
+  block?: number;
+}[];
 const CBAM_KEYS: readonly string[] = CBAM_FIELDS.map((f) => f.key);
 // Processes 2-10 and precursors 2-20 repeat block 1 at a fixed row stride; naming all
 // 457 keys would spend most of a free-tier token budget, so the model is told the rule.
 const PROMPT_FIELDS = CBAM_FIELDS.filter((f) => !f.block || f.block === 1);
 // A bare "Name" fits process P1, precursor PP1 and the verifier contact alike, so a repeated label carries its section.
 const labelCount = new Map<string, number>();
-for (const f of PROMPT_FIELDS) labelCount.set(f.label, (labelCount.get(f.label) ?? 0) + 1);
+for (const f of PROMPT_FIELDS)
+  labelCount.set(f.label, (labelCount.get(f.label) ?? 0) + 1);
 const promptLabel = (f: (typeof PROMPT_FIELDS)[number]) =>
   labelCount.get(f.label)! > 1 ? `${f.section}: ${f.label}` : f.label;
 
@@ -98,7 +104,8 @@ function safePath(p: unknown): string | undefined {
 
 function setCbamFields(input: Record<string, unknown>): CeraAction | undefined {
   const { installationId, year } = input;
-  if (!validInstallationId(installationId) || !validYear(year)) return undefined;
+  if (!validInstallationId(installationId) || !validYear(year))
+    return undefined;
   // The tool sends `fields` as [{key, value}]; a `values` map is the older shape.
   const raw = input.fields ?? input.values;
   const entries: [string, unknown][] = Array.isArray(raw)
@@ -119,7 +126,8 @@ function updateInstallation(
   input: Record<string, unknown>,
 ): CeraAction | undefined {
   const { installationId, changes } = input;
-  if (!validInstallationId(installationId) || !isRecord(changes)) return undefined;
+  if (!validInstallationId(installationId) || !isRecord(changes))
+    return undefined;
   const kept: Record<string, string> = {};
   for (const [key, value] of Object.entries(changes)) {
     if (INSTALLATION_SET.has(key) && validValue(value)) kept[key] = value;
@@ -129,8 +137,7 @@ function updateInstallation(
 }
 
 function requestUpload(input: Record<string, unknown>): CeraAction | undefined {
-  const purpose =
-    typeof input.purpose === "string" ? input.purpose.trim() : "";
+  const purpose = typeof input.purpose === "string" ? input.purpose.trim() : "";
   if (purpose.length < 1 || purpose.length > 300) return undefined;
   return { tool: "request_upload", purpose };
 }
@@ -236,8 +243,7 @@ export const ceraTools = {
     }),
   }),
   open_page: tool({
-    description:
-      `Propose opening one Certrace page for the user. path must be one of ${PAGES.join(", ")}, optionally followed by a query string.`,
+    description: `Propose opening one Certrace page for the user. path must be one of ${PAGES.join(", ")}, optionally followed by a query string.`,
     inputSchema: schema<{ path: string }>({
       type: "object",
       properties: { path: { type: "string", maxLength: 300 } },

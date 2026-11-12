@@ -11,7 +11,11 @@
      until the server has them. */
 
 import * as React from "react";
-import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import {
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
 import { toast } from "@/components/toast";
 import { loadSession, onSessionChange } from "../api/session";
 import {
@@ -39,7 +43,10 @@ const YEARS_POLL_MS = 30_000;
 const CHUNK = 2000;
 
 /** A year that exists: its meta, with the files always present. */
-export type WorkbookYear = WorkbookMeta & { status: "syncing" | "ready"; files: WorkspaceFile[] };
+export type WorkbookYear = WorkbookMeta & {
+  status: "syncing" | "ready";
+  files: WorkspaceFile[];
+};
 
 const nowIso = () => new Date().toISOString();
 const currentAccount = () => loadSession()?.user.id ?? null;
@@ -57,7 +64,8 @@ async function clearCells(iid: string, year: number, keys: string[]) {
 
 /** A year with cells but no meta (left by a failed copy) must not show old cells under a new start.
  *  The server clears them under its row lock, so a copy running at the same time is not wiped. Throws on failure. */
-const clearLeftovers = (iid: string, year: number) => resetWorkbookLeftovers(iid, year);
+const clearLeftovers = (iid: string, year: number) =>
+  resetWorkbookLeftovers(iid, year);
 
 /* ── save runner: one per browser tab, shared by every year and installation ── */
 
@@ -70,7 +78,9 @@ const runner = new SaveRunner<Workbook>({
     if (queryClient && t.accountId === currentAccount()) {
       queryClient.setQueryData(["workbook", t.iid, t.year], saved);
       // The workbook revision moved, so a pre-verification on it may now be stale (lib/api/preverifications.ts).
-      void queryClient.invalidateQueries({ queryKey: ["preverification", t.iid, t.year] });
+      void queryClient.invalidateQueries({
+        queryKey: ["preverification", t.iid, t.year],
+      });
     }
   },
   notify: (message, detail) => toast({ message, tone: "err", detail }),
@@ -94,7 +104,9 @@ const diagram = createSyncQueue<DiagramJob>(
   (job) => Object.keys(job.patch).length === 0,
   // One queue serves every installation and year: a failure only skips patches for its own target.
   (a, b) =>
-    a.target.accountId === b.target.accountId && a.target.iid === b.target.iid && a.target.year === b.target.year,
+    a.target.accountId === b.target.accountId &&
+    a.target.iid === b.target.iid &&
+    a.target.year === b.target.year,
 );
 
 const subscribeQueue = (fn: () => void) => runner.subscribe(fn);
@@ -114,7 +126,9 @@ export function useWorkbookYears(installationId: string | null) {
   if (installationId && query.data) seedWalkin(installationId, years);
 
   const get = (year: number): WorkbookYear | undefined => {
-    const meta = years.find((y) => y.year === year)?.meta as WorkbookMeta | undefined;
+    const meta = years.find((y) => y.year === year)?.meta as
+      | WorkbookMeta
+      | undefined;
     if (!meta?.status) return undefined;
     return { ...meta, status: meta.status, files: meta.files ?? [] };
   };
@@ -123,15 +137,30 @@ export function useWorkbookYears(installationId: string | null) {
     if (!installationId) return;
     try {
       await putWorkbookMeta(installationId, year, meta);
-      await qc.invalidateQueries({ queryKey: ["workbook-years", installationId] });
-      await qc.invalidateQueries({ queryKey: ["workbook", installationId, year] });
-      await qc.invalidateQueries({ queryKey: ["preverification", installationId, year] });
+      await qc.invalidateQueries({
+        queryKey: ["workbook-years", installationId],
+      });
+      await qc.invalidateQueries({
+        queryKey: ["workbook", installationId, year],
+      });
+      await qc.invalidateQueries({
+        queryKey: ["preverification", installationId, year],
+      });
     } catch (e) {
-      toast({ message: "Your change was not saved", tone: "err", detail: (e as Error).message });
+      toast({
+        message: "Your change was not saved",
+        tone: "err",
+        detail: (e as Error).message,
+      });
     }
   };
 
-  const notSaved = (e: unknown) => toast({ message: "Your change was not saved", tone: "err", detail: (e as Error).message });
+  const notSaved = (e: unknown) =>
+    toast({
+      message: "Your change was not saved",
+      tone: "err",
+      detail: (e as Error).message,
+    });
 
   /** Confirm the upload: the year opens at once with these files attached. Nothing sorts them in the
       background, so the year never pretends to be "setting up". */
@@ -158,11 +187,19 @@ export function useWorkbookYears(installationId: string | null) {
       if (!src.changed) return;
       const files = src.meta.files ?? [];
       await clearLeftovers(installationId, year);
-      await putWorkbookMeta(installationId, year, copyingMeta(from, src.meta, nowIso()));
+      await putWorkbookMeta(
+        installationId,
+        year,
+        copyingMeta(from, src.meta, nowIso()),
+      );
       const entries = Object.entries(src.cells);
       written.push(...entries.map(([k]) => k));
       for (let i = 0; i < entries.length; i += CHUNK)
-        await patchWorkbookCells(installationId, year, Object.fromEntries(entries.slice(i, i + CHUNK)));
+        await patchWorkbookCells(
+          installationId,
+          year,
+          Object.fromEntries(entries.slice(i, i + CHUNK)),
+        );
       await putWorkbookMeta(installationId, year, {
         status: "ready",
         files,
@@ -170,9 +207,15 @@ export function useWorkbookYears(installationId: string | null) {
         confirmedAt: nowIso(),
         copiedFrom: from,
       });
-      await qc.invalidateQueries({ queryKey: ["workbook-years", installationId] });
-      await qc.invalidateQueries({ queryKey: ["workbook", installationId, year] });
-      await qc.invalidateQueries({ queryKey: ["preverification", installationId, year] });
+      await qc.invalidateQueries({
+        queryKey: ["workbook-years", installationId],
+      });
+      await qc.invalidateQueries({
+        queryKey: ["workbook", installationId, year],
+      });
+      await qc.invalidateQueries({
+        queryKey: ["preverification", installationId, year],
+      });
     } catch (e) {
       // Remove the cells already written, then reset meta so the year disappears and can be copied again.
       await clearCells(installationId, year, written);
@@ -181,8 +224,14 @@ export function useWorkbookYears(installationId: string | null) {
       } catch {
         // The reset itself failed; the year stays syncing until a retry overwrites it.
       }
-      await qc.invalidateQueries({ queryKey: ["workbook-years", installationId] });
-      toast({ message: "Your change was not saved", tone: "err", detail: (e as Error).message });
+      await qc.invalidateQueries({
+        queryKey: ["workbook-years", installationId],
+      });
+      toast({
+        message: "Your change was not saved",
+        tone: "err",
+        detail: (e as Error).message,
+      });
     }
   };
 
@@ -194,7 +243,12 @@ export function useWorkbookYears(installationId: string | null) {
     } catch (e) {
       return notSaved(e);
     }
-    await write(year, { status: "ready", files: [], blank: true, confirmedAt: nowIso() });
+    await write(year, {
+      status: "ready",
+      files: [],
+      blank: true,
+      confirmedAt: nowIso(),
+    });
   };
 
   /** Start over a year stuck syncing with no confirmedAt (set up before copies were timestamped): clear its meta, then its cells. */
@@ -206,9 +260,15 @@ export function useWorkbookYears(installationId: string | null) {
     } catch (e) {
       notSaved(e);
     }
-    await qc.invalidateQueries({ queryKey: ["workbook-years", installationId] });
-    await qc.invalidateQueries({ queryKey: ["workbook", installationId, year] });
-    await qc.invalidateQueries({ queryKey: ["preverification", installationId, year] });
+    await qc.invalidateQueries({
+      queryKey: ["workbook-years", installationId],
+    });
+    await qc.invalidateQueries({
+      queryKey: ["workbook", installationId, year],
+    });
+    await qc.invalidateQueries({
+      queryKey: ["preverification", installationId, year],
+    });
   };
 
   /** The set-up has finished. The walk-in for this year is per browser (see walkinPending). */
@@ -220,7 +280,8 @@ export function useWorkbookYears(installationId: string | null) {
   /** This browser has seen the walk-in for this year; the team's meta is untouched. */
   const markRevealed = (year: number) => {
     const rec = get(year);
-    if (rec && installationId) rememberWalkin(installationId, year, rec.confirmedAt);
+    if (rec && installationId)
+      rememberWalkin(installationId, year, rec.confirmedAt);
   };
 
   return {
@@ -240,22 +301,33 @@ export function useWorkbookYears(installationId: string | null) {
 /* ── walk-in, per browser ──────────────────────────────────────────────── */
 
 const WALKIN_KEY = "certrace:workbook-walkin-seen";
-const walkinId = (iid: string, year: number, confirmedAt: string | undefined) => `${iid}:${year}:${confirmedAt ?? ""}`;
+const walkinId = (iid: string, year: number, confirmedAt: string | undefined) =>
+  `${iid}:${year}:${confirmedAt ?? ""}`;
 
 function readSeen(): string[] {
   try {
     const v = JSON.parse(window.localStorage.getItem(WALKIN_KEY) ?? "[]");
-    return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+    return Array.isArray(v)
+      ? v.filter((x): x is string => typeof x === "string")
+      : [];
   } catch {
     return [];
   }
 }
 
-function rememberWalkin(iid: string, year: number, confirmedAt: string | undefined) {
+function rememberWalkin(
+  iid: string,
+  year: number,
+  confirmedAt: string | undefined,
+) {
   try {
     const seen = readSeen();
     const k = walkinId(iid, year, confirmedAt);
-    if (!seen.includes(k)) window.localStorage.setItem(WALKIN_KEY, JSON.stringify([...seen, k].slice(-200)));
+    if (!seen.includes(k))
+      window.localStorage.setItem(
+        WALKIN_KEY,
+        JSON.stringify([...seen, k].slice(-200)),
+      );
   } catch {
     // Storage blocked: the walk-in simply shows again next time.
   }
@@ -268,7 +340,11 @@ function seedWalkin(iid: string, years: { year: number; meta: unknown }[]) {
     if (window.localStorage.getItem(WALKIN_KEY) !== null) return;
     const seen = years
       .map((y) => y.meta as WorkbookMeta | undefined)
-      .map((m, i) => (m?.status === "ready" ? walkinId(iid, years[i].year, m.confirmedAt) : null))
+      .map((m, i) =>
+        m?.status === "ready"
+          ? walkinId(iid, years[i].year, m.confirmedAt)
+          : null,
+      )
       .filter((x): x is string => x !== null);
     window.localStorage.setItem(WALKIN_KEY, JSON.stringify(seen));
   } catch {
@@ -277,8 +353,13 @@ function seedWalkin(iid: string, years: { year: number; meta: unknown }[]) {
 }
 
 /** Whether this browser should play the "it's ready" walk-in for a year. Blank and copied years never play it. */
-export function walkinPending(iid: string | null, year: number, rec: WorkbookYear | undefined): boolean {
-  if (!iid || !rec || rec.status !== "ready" || rec.blank || rec.copiedFrom) return false;
+export function walkinPending(
+  iid: string | null,
+  year: number,
+  rec: WorkbookYear | undefined,
+): boolean {
+  if (!iid || !rec || rec.status !== "ready" || rec.blank || rec.copiedFrom)
+    return false;
   if (typeof window === "undefined") return false;
   return !readSeen().includes(walkinId(iid, year, rec.confirmedAt));
 }
@@ -289,9 +370,20 @@ export function useWorkbook(installationId: string | null, year: number) {
   queryClient = qc;
   const key = ["workbook", installationId, year] as const;
 
-  const queue = React.useSyncExternalStore(subscribeQueue, queueSnapshot, queueSnapshot);
+  const queue = React.useSyncExternalStore(
+    subscribeQueue,
+    queueSnapshot,
+    queueSnapshot,
+  );
   const pending = React.useMemo(
-    () => (installationId ? pendingFor(queue, { accountId: currentAccount(), iid: installationId, year }) : {}),
+    () =>
+      installationId
+        ? pendingFor(queue, {
+            accountId: currentAccount(),
+            iid: installationId,
+            year,
+          })
+        : {},
     [queue, installationId, year],
   );
   const pendingN = Object.keys(pending).length;
@@ -303,7 +395,8 @@ export function useWorkbook(installationId: string | null, year: number) {
       const cached = qc.getQueryData<Workbook>(key);
       const next = await getWorkbook(installationId!, year, cached?.revision);
       // An answer older than what is already cached (a poll that raced a save) must not undo it.
-      if (!next.changed || (cached && next.revision < cached.revision)) return qc.getQueryData<Workbook>(key) ?? cached!;
+      if (!next.changed || (cached && next.revision < cached.revision))
+        return qc.getQueryData<Workbook>(key) ?? cached!;
       return next;
     },
     enabled: Boolean(installationId),
@@ -327,7 +420,10 @@ export function useWorkbook(installationId: string | null, year: number) {
     (patch: CellPatch): Promise<SyncResult> => {
       const accountId = currentAccount();
       if (!installationId || !accountId) return Promise.resolve("failed");
-      return diagram.enqueue({ target: { accountId, iid: installationId, year }, patch });
+      return diagram.enqueue({
+        target: { accountId, iid: installationId, year },
+        patch,
+      });
     },
     [installationId, year],
   );
@@ -357,7 +453,10 @@ export function useWorkbook(installationId: string | null, year: number) {
     return out;
   }, [data, pending]);
 
-  const sheets: Sheet[] = React.useMemo(() => sheetsFromCells(cells, data?.meta.files ?? []), [cells, data]);
+  const sheets: Sheet[] = React.useMemo(
+    () => sheetsFromCells(cells, data?.meta.files ?? []),
+    [cells, data],
+  );
 
   return {
     loaded: Boolean(installationId) && query.isSuccess,

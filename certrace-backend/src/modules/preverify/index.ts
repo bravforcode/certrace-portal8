@@ -19,7 +19,9 @@ const key = t.Object({
   standardId: t.Literal("cbam"),
 });
 
-export const preverifications = new Elysia({ prefix: "/api/v1/preverifications" })
+export const preverifications = new Elysia({
+  prefix: "/api/v1/preverifications",
+})
   .use(companySession)
   .post(
     "/",
@@ -29,9 +31,13 @@ export const preverifications = new Elysia({ prefix: "/api/v1/preverifications" 
     },
     { body: key },
   )
-  .get("/", ({ company, query }) => S.latest(company.id, query), { query: key });
+  .get("/", ({ company, query }) => S.latest(company.id, query), {
+    query: key,
+  });
 
-export const preverifyAdmin = new Elysia({ prefix: "/api/admin/preverifications" })
+export const preverifyAdmin = new Elysia({
+  prefix: "/api/admin/preverifications",
+})
   .use(authenticated)
   .get(
     "/",
@@ -58,7 +64,10 @@ export const preverifyAdmin = new Elysia({ prefix: "/api/admin/preverifications"
     {
       params: t.Object({ id: t.String({ format: "uuid" }) }),
       body: t.Object({
-        decision: t.Union([t.Literal("approved"), t.Literal("changes_requested")]),
+        decision: t.Union([
+          t.Literal("approved"),
+          t.Literal("changes_requested"),
+        ]),
         note: t.String({ maxLength: 2000 }),
       }),
     },

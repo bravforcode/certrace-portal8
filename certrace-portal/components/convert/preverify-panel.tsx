@@ -87,7 +87,9 @@ export function PreverifyPanel({
       >
         {submit.isPending ? t("Submitting…") : t(label)}
       </Button>
-      {!canConvert && <span className="text-[12px] text-black/50">{t("Complete first")}</span>}
+      {!canConvert && (
+        <span className="text-[12px] text-black/50">{t("Complete first")}</span>
+      )}
     </div>
   );
 
@@ -98,7 +100,9 @@ export function PreverifyPanel({
           {t("Pre-verification")}
         </h2>
         <p className="mt-1 text-[12px] text-black/40">
-          {t("The AI checks the workbook first. A Certrace team member then reviews it.")}
+          {t(
+            "The AI checks the workbook first. A Certrace team member then reviews it.",
+          )}
         </p>
       </div>
       <Card className="space-y-5 p-5">
@@ -116,7 +120,8 @@ export function PreverifyPanel({
           ))}
         </ol>
 
-        {(state === "incomplete" || state === "ready") && submitButton("Submit for pre-verification")}
+        {(state === "incomplete" || state === "ready") &&
+          submitButton("Submit for pre-verification")}
 
         {state === "flagged" && latest && (
           <>
@@ -130,25 +135,35 @@ export function PreverifyPanel({
 
         {state === "in_review" && latest && (
           <>
-            <p className="text-[14px] text-black/80">{t("Waiting for Certrace team review.")}</p>
+            <p className="text-[14px] text-black/80">
+              {t("Waiting for Certrace team review.")}
+            </p>
             <p className="text-[12px] text-black/50">
               {t("Submitted {time}", { time: formatTime(latest.submittedAt) })}
             </p>
             {latest.aiSummary && (
-              <p className="text-[13px] leading-relaxed text-black/60">{latest.aiSummary}</p>
+              <p className="text-[13px] leading-relaxed text-black/60">
+                {latest.aiSummary}
+              </p>
             )}
-            <Findings findings={latest.aiFindings.filter((f) => f.severity === "warn")} />
+            <Findings
+              findings={latest.aiFindings.filter((f) => f.severity === "warn")}
+            />
           </>
         )}
 
         {state === "approved" && latest && (
           <>
-            <p className="text-[14px] text-black/80">{t("Pre-verified by Certrace")}</p>
+            <p className="text-[14px] text-black/80">
+              {t("Pre-verified by Certrace")}
+            </p>
             <p className="text-[12px] text-black/50">
               {t("Reviewed {time}", { time: formatTime(latest.reviewedAt) })}
             </p>
             {latest.teamNote && (
-              <p className="text-[13px] leading-relaxed text-black/60">{latest.teamNote}</p>
+              <p className="text-[13px] leading-relaxed text-black/60">
+                {latest.teamNote}
+              </p>
             )}
           </>
         )}
@@ -193,7 +208,9 @@ function Findings({ findings }: { findings: AiFinding[] }) {
           </span>
           <span className="min-w-0 flex-1 text-[13px] leading-relaxed text-black/70">
             {f.field && (
-              <span className="block text-[12px] text-black/45">{cbamCellLabel(f.field)}</span>
+              <span className="block text-[12px] text-black/45">
+                {cbamCellLabel(f.field)}
+              </span>
             )}
             {f.message}
           </span>
@@ -210,10 +227,14 @@ function formatTime(iso: string | null) {
 function submitError(err: unknown, t: TFunction) {
   if (isApiError(err)) {
     if (err.code === "ALREADY_IN_REVIEW")
-      return t("This workbook is already waiting for the Certrace team. Change the data to submit again.");
+      return t(
+        "This workbook is already waiting for the Certrace team. Change the data to submit again.",
+      );
     if (err.status === 429) return t("Too many submissions. Try again later.");
     if (err.code === "EMPTY_WORKBOOK")
-      return t("Fill in the CBAM requirements before you submit for pre-verification.");
+      return t(
+        "Fill in the CBAM requirements before you submit for pre-verification.",
+      );
     return err.message;
   }
   return t("Could not submit for pre-verification. Try again.");

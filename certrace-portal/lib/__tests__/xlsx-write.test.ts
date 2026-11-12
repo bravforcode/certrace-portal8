@@ -13,7 +13,10 @@ import { buildXlsx, safeSheetName } from "../xlsx-write";
 import { readXlsx, readZip } from "../workbook/xlsx";
 
 const toBuffer = (bytes: Uint8Array) =>
-  bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+  bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength,
+  ) as ArrayBuffer;
 
 /* Reads one stored part of the package, so a test can look at the XML itself. */
 async function partOf(bytes: Uint8Array, name: string): Promise<string> {
@@ -25,8 +28,20 @@ async function partOf(bytes: Uint8Array, name: string): Promise<string> {
 
 test("sheet names and cells round-trip through the portal's xlsx reader", async () => {
   const bytes = buildXlsx([
-    { name: "Summary", rows: [["Installation", "Plant A"], ["Year", 2026]] },
-    { name: "Goods", rows: [["CN code", "Product", "Tonnes"], ["7208", "Hot-rolled coil", 1500.5]] },
+    {
+      name: "Summary",
+      rows: [
+        ["Installation", "Plant A"],
+        ["Year", 2026],
+      ],
+    },
+    {
+      name: "Goods",
+      rows: [
+        ["CN code", "Product", "Tonnes"],
+        ["7208", "Hot-rolled coil", 1500.5],
+      ],
+    },
   ]);
   const sheets = await readXlsx(toBuffer(bytes));
   assert.deepEqual(
@@ -54,7 +69,9 @@ test("every XML-special character is escaped and read back unchanged", async () 
 });
 
 test("a value that looks like a formula is written as text, never as a formula", async () => {
-  const bytes = buildXlsx([{ name: "Inject", rows: [["=1+1", "+SUM(A1)", "-2", "@cmd"]] }]);
+  const bytes = buildXlsx([
+    { name: "Inject", rows: [["=1+1", "+SUM(A1)", "-2", "@cmd"]] },
+  ]);
   const xml = await partOf(bytes, "xl/worksheets/sheet1.xml");
   assert.equal(xml.includes("<f"), false, "no formula element may be written");
   const [sheet] = await readXlsx(toBuffer(bytes));

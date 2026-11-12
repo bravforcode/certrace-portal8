@@ -20,24 +20,41 @@ describe("renderEmail", () => {
         expect(m.text).not.toContain("{");
       });
   test("approval links to the portal sign-in", () => {
-    expect(renderEmail("account_approved", "en", { name: "A" }).action?.url).toMatch(/\/login$/);
+    expect(
+      renderEmail("account_approved", "en", { name: "A" }).action?.url,
+    ).toMatch(/\/login$/);
   });
   test("Thai templates are written in Thai script", () => {
     for (const kind of EMAIL_KINDS) {
-      const m = renderEmail(kind, "th", { name: "Somchai", days: "7", reason: "x" });
+      const m = renderEmail(kind, "th", {
+        name: "Somchai",
+        days: "7",
+        reason: "x",
+      });
       expect(m.text).toMatch(/[฀-๿]/);
       expect(m.subject).toMatch(/[฀-๿]/);
     }
   });
   test("the recipient name is substituted into the body", () => {
-    expect(renderEmail("application_received", "en", { name: "Somchai", company: "ACME" }).text)
-      .toContain("Somchai");
-    expect(renderEmail("application_received", "th", { name: "Somchai", company: "ACME" }).text)
-      .toContain("Somchai");
+    expect(
+      renderEmail("application_received", "en", {
+        name: "Somchai",
+        company: "ACME",
+      }).text,
+    ).toContain("Somchai");
+    expect(
+      renderEmail("application_received", "th", {
+        name: "Somchai",
+        company: "ACME",
+      }).text,
+    ).toContain("Somchai");
   });
   // A value with a line break must not inject headers into the subject line.
   test("subject never contains CR or LF", () => {
-    const m = renderEmail("trial_ending_7", "en", { name: "A", days: "7\r\nBcc: x@example.com" });
+    const m = renderEmail("trial_ending_7", "en", {
+      name: "A",
+      days: "7\r\nBcc: x@example.com",
+    });
     expect(m.subject).not.toMatch(/[\r\n]/);
   });
 });

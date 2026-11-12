@@ -1,5 +1,16 @@
-import { afterAll, afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { trialEnded, trialEndsAt, trialWriteOpen } from "../src/modules/auth/trial";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  test,
+} from "bun:test";
+import {
+  trialEnded,
+  trialEndsAt,
+  trialWriteOpen,
+} from "../src/modules/auth/trial";
 import { runTrialEmails } from "../src/modules/reminders/trial-emails";
 import { db } from "../src/lib/db";
 import { account, call, cleanup } from "./helpers";
@@ -11,24 +22,36 @@ afterAll(cleanup);
 const start = new Date("2026-11-01T00:00:00Z");
 
 test("trial lasts exactly 30 days", () => {
-  expect(trialEndsAt({ trial_started_at: start }).toISOString()).toBe("2026-12-01T00:00:00.000Z");
+  expect(trialEndsAt({ trial_started_at: start }).toISOString()).toBe(
+    "2026-12-01T00:00:00.000Z",
+  );
 });
 
 test("ended from the 30-day instant on the trial plan", () => {
   const u = { plan_id: "trial", trial_started_at: start };
   expect(trialEnded(u, new Date("2026-11-30T23:59:59Z"))).toBe(false);
   expect(trialEnded(u, new Date("2026-12-01T00:00:00Z"))).toBe(true);
-  expect(trialEnded({ ...u, plan_id: "standard" }, new Date("2030-01-01"))).toBe(false);
+  expect(
+    trialEnded({ ...u, plan_id: "standard" }, new Date("2030-01-01")),
+  ).toBe(false);
 });
 
 // After the trial, settings and team housekeeping stay writable; customer data does not.
 test("the post-trial allowlist opens only exact method and route pairs", () => {
   const b = "http://localhost/api/v1";
-  expect(trialWriteOpen("PUT", `${b}/account/records/certrace%3Anotification-prefs`)).toBe(true);
-  expect(trialWriteOpen("PUT", `${b}/account/records/certrace%3Alang`)).toBe(true);
-  expect(trialWriteOpen("PUT", `${b}/account/records/certrace%3Aprofile`)).toBe(false);
+  expect(
+    trialWriteOpen("PUT", `${b}/account/records/certrace%3Anotification-prefs`),
+  ).toBe(true);
+  expect(trialWriteOpen("PUT", `${b}/account/records/certrace%3Alang`)).toBe(
+    true,
+  );
+  expect(trialWriteOpen("PUT", `${b}/account/records/certrace%3Aprofile`)).toBe(
+    false,
+  );
   expect(trialWriteOpen("POST", `${b}/account/records/import`)).toBe(false);
-  expect(trialWriteOpen("PATCH", `${b}/master-data/organizations/abc`)).toBe(true);
+  expect(trialWriteOpen("PATCH", `${b}/master-data/organizations/abc`)).toBe(
+    true,
+  );
   expect(trialWriteOpen("PATCH", `${b}/master-data/products/abc`)).toBe(false);
   expect(trialWriteOpen("DELETE", `${b}/team/members/abc`)).toBe(true);
   expect(trialWriteOpen("DELETE", `${b}/team/members/abc/extra`)).toBe(false);
@@ -184,7 +207,12 @@ describe("public link writes after the trial", () => {
     const decl = await call(
       `/api/v1/declarations/${id}`,
       "PUT",
-      { id, name: "Annual", suppliers: [{ id: "one", name: "Mine" }], requests: [] },
+      {
+        id,
+        name: "Annual",
+        suppliers: [{ id: "one", name: "Mine" }],
+        requests: [],
+      },
       a.cookie,
     );
     expect(decl.status).toBe(200);
@@ -231,11 +259,14 @@ describe("public link writes after the trial", () => {
     });
     const bytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]);
     const upload = await app.handle(
-      new Request(`http://localhost/api/v1/links/${token}/files?filename=a.pdf`, {
-        method: "POST",
-        headers: { "content-type": "application/pdf" },
-        body: bytes,
-      }),
+      new Request(
+        `http://localhost/api/v1/links/${token}/files?filename=a.pdf`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/pdf" },
+          body: bytes,
+        },
+      ),
     );
     expect(upload.status).toBe(403);
     expect((await upload.json()).detail.code).toBe("TRIAL_ENDED");
@@ -274,7 +305,12 @@ test("accepting a team invite into a company whose trial ended returns TRIAL_END
     where: { id: owner.user.id },
     data: { trial_started_at: new Date(Date.now() - 31 * DAY) },
   });
-  const r = await call("/api/v1/team/accept", "POST", { token: secret }, member.cookie);
+  const r = await call(
+    "/api/v1/team/accept",
+    "POST",
+    { token: secret },
+    member.cookie,
+  );
   expect(r.status).toBe(403);
   expect((await r.json()).detail.code).toBe("TRIAL_ENDED");
   const seat = await db.account_members.findFirst({

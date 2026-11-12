@@ -5,7 +5,12 @@ import type { Sheet } from "../workspace-sheets";
    `fallback` the component translates. */
 
 export type FlowKind = "material" | "energy" | "step" | "output" | "product";
-export type FlowFallback = "unassigned" | "material" | "energy" | "output" | "product";
+export type FlowFallback =
+  | "unassigned"
+  | "material"
+  | "energy"
+  | "output"
+  | "product";
 export type FlowNode = {
   id: string;
   kind: FlowKind;
@@ -34,18 +39,34 @@ const clean = (v: string | undefined) => (v ?? "").trim();
 
 const rowsOf = (sheets: Sheet[], id: string): Cells[] =>
   (sheets.find((s) => s.id === id)?.rows ?? [])
-    .map((r) => Object.fromEntries(Object.entries(r.cells).filter(([k]) => k !== "status").map(([k, v]) => [k, clean(v)])))
+    .map((r) =>
+      Object.fromEntries(
+        Object.entries(r.cells)
+          .filter(([k]) => k !== "status")
+          .map(([k, v]) => [k, clean(v)]),
+      ),
+    )
     .filter((c) => Object.values(c).some(Boolean));
 
-const detail = (c: Cells) => [c.qty, c.unit].filter(Boolean).join(" ") || undefined;
+const detail = (c: Cells) =>
+  [c.qty, c.unit].filter(Boolean).join(" ") || undefined;
 
 const UNASSIGNED = "\u0000unassigned";
 
 /** The step names the Steps sheet declares, in order, without duplicates. */
-export const stepNamesOf = (sheets: Sheet[]): string[] => [...new Set(rowsOf(sheets, "steps").map((c) => c.step).filter(Boolean))];
+export const stepNamesOf = (sheets: Sheet[]): string[] => [
+  ...new Set(
+    rowsOf(sheets, "steps")
+      .map((c) => c.step)
+      .filter(Boolean),
+  ),
+];
 
 /** The declared step a raw cell value names (trimmed, exact match), or undefined when none does. */
-export function namedStep(step: string | undefined, stepNames: readonly string[]): string | undefined {
+export function namedStep(
+  step: string | undefined,
+  stepNames: readonly string[],
+): string | undefined {
   const s = clean(step);
   return s && stepNames.includes(s) ? s : undefined;
 }
@@ -71,14 +92,18 @@ export function buildFlow(sheets: Sheet[]) {
     flows.some((c) => (c.from && !named(c.from)) || (c.to && !named(c.to)));
   const order = needUnassigned ? [...stepNames, UNASSIGNED] : stepNames;
 
-  const stepId = (key: string) => (key === UNASSIGNED ? UNASSIGNED_ID : `step:${stepNames.indexOf(key)}`);
+  const stepId = (key: string) =>
+    key === UNASSIGNED ? UNASSIGNED_ID : `step:${stepNames.indexOf(key)}`;
   const stepOf = (key: string) => (key === UNASSIGNED ? "" : key);
   const stacks = order.map((key) => ({
     key,
     above: materials.filter((c) => keyOf(c) === key),
     below: energy.filter((c) => keyOf(c) === key),
   }));
-  const rowsAbove = Math.min(PER_COL, Math.max(0, ...stacks.map((s) => s.above.length)));
+  const rowsAbove = Math.min(
+    PER_COL,
+    Math.max(0, ...stacks.map((s) => s.above.length)),
+  );
   const baseY = PAD + rowsAbove * ROW;
   const subs = (n: number) => Math.max(1, Math.ceil(n / PER_COL));
 
@@ -89,21 +114,46 @@ export function buildFlow(sheets: Sheet[]) {
     const sid = stepId(key);
     nodes.push(
       key === UNASSIGNED
-        ? { id: sid, kind: "step", label: "", fallback: "unassigned", x: x0, y: baseY }
+        ? {
+            id: sid,
+            kind: "step",
+            label: "",
+            fallback: "unassigned",
+            x: x0,
+            y: baseY,
+          }
         : { id: sid, kind: "step", label: key, x: x0, y: baseY },
     );
     above.forEach((c, k) => {
       const id = `material:${i}:${k}`;
       const x = x0 + Math.floor(k / PER_COL) * COL;
       const y = baseY - ((k % PER_COL) + 1) * ROW;
-      nodes.push({ id, kind: "material", label: c.item ?? "", fallback: c.item ? undefined : "material", detail: detail(c), step: stepOf(key), x, y });
+      nodes.push({
+        id,
+        kind: "material",
+        label: c.item ?? "",
+        fallback: c.item ? undefined : "material",
+        detail: detail(c),
+        step: stepOf(key),
+        x,
+        y,
+      });
       edges.push({ from: id, to: sid });
     });
     below.forEach((c, k) => {
       const id = `energy:${i}:${k}`;
       const x = x0 + Math.floor(k / PER_COL) * COL;
       const y = baseY + ((k % PER_COL) + 1) * ROW;
-      nodes.push({ id, kind: "energy", label: c.item ?? "", fallback: c.item ? undefined : "energy", detail: detail(c), step: stepOf(key), x, y });
+      nodes.push({
+        id,
+        kind: "energy",
+        label: c.item ?? "",
+        fallback: c.item ? undefined : "energy",
+        detail: detail(c),
+        step: stepOf(key),
+        x,
+        y,
+      });
       edges.push({ from: id, to: sid });
     });
     x0 += Math.max(subs(above.length), subs(below.length)) * COL;
@@ -112,14 +162,32 @@ export function buildFlow(sheets: Sheet[]) {
   // Explicit Flow rows replace the default chain; a row whose ends are unknown lands on Unassigned.
   const flowEdges: FlowEdge[] = flows
     .filter((c) => c.from && c.to)
-    .map((c) => ({ from: stepId(named(c.from) ?? UNASSIGNED), to: stepId(named(c.to) ?? UNASSIGNED), label: c.item || undefined }));
+    .map((c) => ({
+      from: stepId(named(c.from) ?? UNASSIGNED),
+      to: stepId(named(c.to) ?? UNASSIGNED),
+      label: c.item || undefined,
+    }));
   if (flowEdges.length) edges.push(...flowEdges);
-  else for (let i = 0; i + 1 < stepNames.length; i++) edges.push({ from: stepId(stepNames[i]!), to: stepId(stepNames[i + 1]!) });
+  else
+    for (let i = 0; i + 1 < stepNames.length; i++)
+      edges.push({
+        from: stepId(stepNames[i]!),
+        to: stepId(stepNames[i + 1]!),
+      });
 
   const outX = x0;
   outputs.forEach((c, k) => {
     const id = `output:${k}`;
-    nodes.push({ id, kind: "output", label: c.item ?? "", fallback: c.item ? undefined : "output", detail: detail(c), step: stepOf(outKey(c)), x: outX + Math.floor(k / PER_COL) * COL, y: baseY + ((k % PER_COL)) * ROW });
+    nodes.push({
+      id,
+      kind: "output",
+      label: c.item ?? "",
+      fallback: c.item ? undefined : "output",
+      detail: detail(c),
+      step: stepOf(outKey(c)),
+      x: outX + Math.floor(k / PER_COL) * COL,
+      y: baseY + (k % PER_COL) * ROW,
+    });
     edges.push({ from: stepId(outKey(c)), to: id });
   });
   const prodX = outX + subs(outputs.length) * COL;
@@ -135,7 +203,8 @@ export function buildFlow(sheets: Sheet[]) {
       y: baseY + (k % PER_COL) * ROW,
     });
     outputs.forEach((o, j) => {
-      if (c.item && o.item === c.item) edges.push({ from: `output:${j}`, to: id });
+      if (c.item && o.item === c.item)
+        edges.push({ from: `output:${j}`, to: id });
     });
   });
 

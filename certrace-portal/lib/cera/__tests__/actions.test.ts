@@ -13,7 +13,11 @@ import {
 function spyDeps(overrides: Partial<CeraActionDeps> = {}) {
   const calls: string[] = [];
   const saved: Installation[] = [];
-  const patched: { iid: string; year: number; cells: Record<string, string | null> }[] = [];
+  const patched: {
+    iid: string;
+    year: number;
+    cells: Record<string, string | null>;
+  }[] = [];
   const deps: CeraActionDeps = {
     patchCells: async (iid, year, cells) => {
       calls.push("patchCells");
@@ -44,7 +48,9 @@ test("parse drops unknown tools so a made-up tool name never reaches the card", 
     { tool: "delete_everything", installationId: "TH-A", year: 2026 },
     { tool: "request_upload", purpose: "Electricity invoices" },
   ]);
-  assert.deepEqual(out, [{ tool: "request_upload", purpose: "Electricity invoices" }]);
+  assert.deepEqual(out, [
+    { tool: "request_upload", purpose: "Electricity invoices" },
+  ]);
 });
 
 test("parse keeps only bare CBAM field ids from the allowlist", () => {
@@ -192,7 +198,11 @@ test("building a card and describing its actions calls no dependency", () => {
       year: 2026,
       values: { "a-i9": "2026-01-01" },
     },
-    { tool: "update_installation", installationId: "TH-A", changes: { name: "X" } },
+    {
+      tool: "update_installation",
+      installationId: "TH-A",
+      changes: { name: "X" },
+    },
     { tool: "open_page", path: "/dashboard" },
   ];
   const actions = parseCeraActions(raw);

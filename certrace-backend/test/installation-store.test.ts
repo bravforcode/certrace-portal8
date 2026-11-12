@@ -58,16 +58,22 @@ describe("certrace:installations store", () => {
       operatorPostcode: "10110",
       operatorCountry: "TH",
     };
-    expect(() => validateStore("certrace:installations", [withAddress])).not.toThrow();
+    expect(() =>
+      validateStore("certrace:installations", [withAddress]),
+    ).not.toThrow();
   });
 
   test("still accepts a record saved before the split fields existed", () => {
-    expect(() => validateStore("certrace:installations", [installation])).not.toThrow();
+    expect(() =>
+      validateStore("certrace:installations", [installation]),
+    ).not.toThrow();
   });
 
   test("still rejects a field nobody declared", () => {
     expect(() =>
-      validateStore("certrace:installations", [{ ...installation, operatorFax: "x" }]),
+      validateStore("certrace:installations", [
+        { ...installation, operatorFax: "x" },
+      ]),
     ).toThrow();
   });
 });

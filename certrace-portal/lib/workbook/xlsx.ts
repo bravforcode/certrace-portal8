@@ -6,13 +6,18 @@ import { ImportError, PARSE_LIMITS } from "./import-limits";
 
 const NOT_XLSX = "This file is not a valid .xlsx workbook.";
 const UNSUPPORTED = "This workbook uses a compression the portal cannot read.";
-const ZIP64 = "This workbook uses ZIP64, which the portal cannot read. Save it as .csv instead.";
+const ZIP64 =
+  "This workbook uses ZIP64, which the portal cannot read. Save it as .csv instead.";
 const TOO_MANY = "This workbook has too many parts to read.";
 const TOO_BIG = "This workbook expands past 50 MB when read.";
 const PART_BIG = "This sheet is too large to read.";
 
 /** The parts the import reads. Everything else in the package (styles, drawings, themes) is skipped. */
-const PARTS = new Set(["xl/workbook.xml", "xl/_rels/workbook.xml.rels", "xl/sharedStrings.xml"]);
+const PARTS = new Set([
+  "xl/workbook.xml",
+  "xl/_rels/workbook.xml.rels",
+  "xl/sharedStrings.xml",
+]);
 const SHEET_PART = /^xl\/worksheets\/[^/]+\.xml$/;
 
 export type ZipOptions = {
@@ -25,7 +30,8 @@ export type ZipOptions = {
 };
 
 const u16 = (b: Uint8Array, o: number) => b[o]! | (b[o + 1]! << 8);
-const u32 = (b: Uint8Array, o: number) => (u16(b, o) | (u16(b, o + 2) << 16)) >>> 0;
+const u32 = (b: Uint8Array, o: number) =>
+  (u16(b, o) | (u16(b, o + 2) << 16)) >>> 0;
 
 /* Inflates one entry, failing as soon as its output would pass `limit` bytes. */
 async function inflate(data: Uint8Array, limit: number) {
@@ -54,7 +60,10 @@ async function inflate(data: Uint8Array, limit: number) {
   return out;
 }
 
-export async function readZip(buf: ArrayBuffer, opts: ZipOptions = {}): Promise<Map<string, Uint8Array>> {
+export async function readZip(
+  buf: ArrayBuffer,
+  opts: ZipOptions = {},
+): Promise<Map<string, Uint8Array>> {
   const maxBytes = opts.maxBytes ?? PARSE_LIMITS.zipBytes;
   const maxPart = opts.maxPart ?? PARSE_LIMITS.partBytes;
   const want = opts.want ?? (() => true);
@@ -80,7 +89,8 @@ export async function readZip(buf: ArrayBuffer, opts: ZipOptions = {}): Promise<
   let used = 0;
   let p = cdAt;
   for (let n = 0; n < count; n++) {
-    if (p + 46 > b.length || u32(b, p) !== 0x02014b50) throw new ImportError(NOT_XLSX);
+    if (p + 46 > b.length || u32(b, p) !== 0x02014b50)
+      throw new ImportError(NOT_XLSX);
     const method = u16(b, p + 10),
       size = u32(b, p + 20),
       declared = u32(b, p + 24);
@@ -95,7 +105,8 @@ export async function readZip(buf: ArrayBuffer, opts: ZipOptions = {}): Promise<
     if (!want(name)) continue;
     if (declared > maxPart) throw new ImportError(PART_BIG);
     if (declared > maxBytes - used) throw new ImportError(TOO_BIG);
-    if (local + 30 > b.length || u32(b, local) !== 0x04034b50) throw new ImportError(NOT_XLSX);
+    if (local + 30 > b.length || u32(b, local) !== 0x04034b50)
+      throw new ImportError(NOT_XLSX);
     const start = local + 30 + u16(b, local + 26) + u16(b, local + 28);
     if (start + size > b.length) throw new ImportError(NOT_XLSX);
     const data = b.subarray(start, start + size);
@@ -109,7 +120,13 @@ export async function readZip(buf: ArrayBuffer, opts: ZipOptions = {}): Promise<
   return out;
 }
 
-const ENTITY: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
+const ENTITY: Record<string, string> = {
+  amp: "&",
+  lt: "<",
+  gt: ">",
+  quot: '"',
+  apos: "'",
+};
 /* A numeric reference outside Unicode is left as written rather than thrown on. */
 const decodeEntities = (s: string) =>
   s.replace(/&(#x[0-9a-f]+|#\d+|\w+);/gi, (m, e: string) => {
@@ -167,17 +184,27 @@ const texts = (xml: string) =>
     .map((t) => decodeEntities(t.body))
     .join("");
 const colIndex = (ref: string) =>
-  [...ref.replace(/\d+$/, "")].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) - 1;
+  [...ref.replace(/\d+$/, "")].reduce(
+    (n, ch) => n * 26 + ch.charCodeAt(0) - 64,
+    0,
+  ) - 1;
 
 export async function readXlsx(buf: ArrayBuffer) {
-  const files = await readZip(buf, { want: (n) => PARTS.has(n) || SHEET_PART.test(n) });
+  const files = await readZip(buf, {
+    want: (n) => PARTS.has(n) || SHEET_PART.test(n),
+  });
   const text = (path: string) => {
     const f = files.get(path);
     return f ? new TextDecoder().decode(f) : "";
   };
-  const shared = elements(text("xl/sharedStrings.xml"), "si").map((si) => texts(si.body));
+  const shared = elements(text("xl/sharedStrings.xml"), "si").map((si) =>
+    texts(si.body),
+  );
   const rels = new Map(
-    elements(text("xl/_rels/workbook.xml.rels"), "Relationship").map((r) => [attr(r.attrs, "Id") ?? "", attr(r.attrs, "Target") ?? ""]),
+    elements(text("xl/_rels/workbook.xml.rels"), "Relationship").map((r) => [
+      attr(r.attrs, "Id") ?? "",
+      attr(r.attrs, "Target") ?? "",
+    ]),
   );
   return elements(text("xl/workbook.xml"), "sheet").map((s) => {
     const target = rels.get(attr(s.attrs, "r:id") ?? "") ?? "";
@@ -193,7 +220,12 @@ export async function readXlsx(buf: ArrayBuffer) {
         if (col < 0 || col >= PARSE_LIMITS.cols) continue;
         const type = attr(c.attrs, "t");
         const v = decodeEntities(/<v>([\s\S]*?)<\/v>/.exec(c.body)?.[1] ?? "");
-        line[col] = type === "s" ? (shared[Number(v)] ?? "") : type === "inlineStr" ? texts(c.body) : v;
+        line[col] =
+          type === "s"
+            ? (shared[Number(v)] ?? "")
+            : type === "inlineStr"
+              ? texts(c.body)
+              : v;
       }
       rows[at] = Array.from(line, (x) => x ?? "");
     }
@@ -201,7 +233,9 @@ export async function readXlsx(buf: ArrayBuffer) {
     for (const r of rows) if (r && r.length > width) width = r.length;
     return {
       name: decodeEntities(attr(s.attrs, "name") ?? ""),
-      rows: Array.from(rows, (x) => Array.from({ length: width }, (_, i) => x?.[i] ?? "")),
+      rows: Array.from(rows, (x) =>
+        Array.from({ length: width }, (_, i) => x?.[i] ?? ""),
+      ),
     };
   });
 }

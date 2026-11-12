@@ -22,11 +22,17 @@ export type WhatIfResult = {
 };
 
 const ZERO: WhatIfResult = {
-  perTonne: 0, chargeablePerTonne: 0, certificatesT: 0, costEur: 0,
-  defaultPerTonne: null, defaultCostEur: null, savingVsDefaultEur: null,
+  perTonne: 0,
+  chargeablePerTonne: 0,
+  certificatesT: 0,
+  costEur: 0,
+  defaultPerTonne: null,
+  defaultCostEur: null,
+  savingVsDefaultEur: null,
 };
 
-const finite = (v: number | null | undefined): v is number => v !== null && v !== undefined && Number.isFinite(v);
+const finite = (v: number | null | undefined): v is number =>
+  v !== null && v !== undefined && Number.isFinite(v);
 
 /* Direct and indirect intensities come from the estimate. Indirect is already gated there (indirectT is 0 for direct-only goods). */
 export function whatIf(e: EmissionEstimate, input: WhatIfInput): WhatIfResult {
@@ -40,14 +46,23 @@ export function whatIf(e: EmissionEstimate, input: WhatIfInput): WhatIfResult {
   }, 0);
   const chargeablePerTonne = direct + precursor + indirect;
   const perTonne = direct + indirect + precursor;
-  const d = input.productCn ? defaultFor(input.productCn, undefined, input.year) : null;
+  const d = input.productCn
+    ? defaultFor(input.productCn, undefined, input.year)
+    : null;
 
-  const exportedT = finite(input.exportedT) ? Math.max(0, Math.min(input.exportedT, e.productionT)) : null;
-  const certificatesT = exportedT === null ? null : chargeablePerTonne * exportedT;
+  const exportedT = finite(input.exportedT)
+    ? Math.max(0, Math.min(input.exportedT, e.productionT))
+    : null;
+  const certificatesT =
+    exportedT === null ? null : chargeablePerTonne * exportedT;
   const price = finite(input.priceEur) ? Math.max(0, input.priceEur) : null;
-  const costEur = certificatesT === null || price === null ? null : certificatesT * price;
+  const costEur =
+    certificatesT === null || price === null ? null : certificatesT * price;
 
-  const defaultCostEur = d && exportedT !== null && price !== null ? d.total * exportedT * price : null;
+  const defaultCostEur =
+    d && exportedT !== null && price !== null
+      ? d.total * exportedT * price
+      : null;
   return {
     perTonne,
     chargeablePerTonne,
@@ -55,35 +70,65 @@ export function whatIf(e: EmissionEstimate, input: WhatIfInput): WhatIfResult {
     costEur,
     defaultPerTonne: d?.total ?? null,
     defaultCostEur,
-    savingVsDefaultEur: defaultCostEur === null || costEur === null ? null : defaultCostEur - costEur,
+    savingVsDefaultEur:
+      defaultCostEur === null || costEur === null
+        ? null
+        : defaultCostEur - costEur,
   };
 }
 
-export function compareWhatIf(e: EmissionEstimate, base: WhatIfInput, next: WhatIfInput) {
-  const a = whatIf(e, base), b = whatIf(e, next);
-  const deltaEur = a.costEur === null || b.costEur === null ? null : b.costEur - a.costEur;
-  const deltaT = a.certificatesT === null || b.certificatesT === null ? null : b.certificatesT - a.certificatesT;
+export function compareWhatIf(
+  e: EmissionEstimate,
+  base: WhatIfInput,
+  next: WhatIfInput,
+) {
+  const a = whatIf(e, base),
+    b = whatIf(e, next);
+  const deltaEur =
+    a.costEur === null || b.costEur === null ? null : b.costEur - a.costEur;
+  const deltaT =
+    a.certificatesT === null || b.certificatesT === null
+      ? null
+      : b.certificatesT - a.certificatesT;
   return { base: a, next: b, deltaEur, deltaT };
 }
 
 /* The card's key is per installation and year: saving again overwrites the card with the latest scenario. */
-export const scenarioKey = (installationId: string, year: number) => `what-if:${installationId}:${year}`;
+export const scenarioKey = (installationId: string, year: number) =>
+  `what-if:${installationId}:${year}`;
 
 /* Short English list of the inputs that differ from today, stored as the card's detail. */
-export function changedInputs(e: EmissionEstimate, base: WhatIfInput, next: WhatIfInput): string {
+export function changedInputs(
+  e: EmissionEstimate,
+  base: WhatIfInput,
+  next: WhatIfInput,
+): string {
   const parts: string[] = [];
-  if (base.exportedT !== next.exportedT) parts.push(`exported ${base.exportedT ?? "—"} → ${next.exportedT ?? "—"} t`);
-  if (base.priceEur !== next.priceEur) parts.push(`price ${base.priceEur ?? "—"} → ${next.priceEur ?? "—"} EUR/t`);
+  if (base.exportedT !== next.exportedT)
+    parts.push(
+      `exported ${base.exportedT ?? "—"} → ${next.exportedT ?? "—"} t`,
+    );
+  if (base.priceEur !== next.priceEur)
+    parts.push(`price ${base.priceEur ?? "—"} → ${next.priceEur ?? "—"} EUR/t`);
   for (const p of e.precursors) {
     const actual = next.precursorActual[p.key];
-    if (finite(actual)) parts.push(`${p.item || p.cn} actual ${actual} (default ${p.defaultSee})`);
+    if (finite(actual))
+      parts.push(
+        `${p.item || p.cn} actual ${actual} (default ${p.defaultSee})`,
+      );
   }
   return parts.length > 0 ? parts.join("; ") : "No inputs changed";
 }
 
 /* The opportunity card for a saved scenario. The saving is against today's inputs, so a positive number means money saved. */
 export function scenarioOpportunity(a: {
-  installationId: string; year: number; e: EmissionEstimate; base: WhatIfInput; next: WhatIfInput; savingEur: number; savingT: number;
+  installationId: string;
+  year: number;
+  e: EmissionEstimate;
+  base: WhatIfInput;
+  next: WhatIfInput;
+  savingEur: number;
+  savingT: number;
 }): Derived {
   const eur = Math.round(a.savingEur);
   return {

@@ -10,6 +10,7 @@ export function requestRoute(
   answer: "internal" | "external",
   ctx: { isOwner: boolean },
 ): RequestRoute {
-  if (answer === "external") return { kind: "supplier", href: "/suppliers?add=1" };
+  if (answer === "external")
+    return { kind: "supplier", href: "/suppliers?add=1" };
   return ctx.isOwner ? { kind: "invite" } : { kind: "ask-owner" };
 }

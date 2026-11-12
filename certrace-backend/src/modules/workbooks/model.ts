@@ -34,8 +34,12 @@ export const meta = t.Object(
   { additionalProperties: false },
 );
 export const cellsBody = t.Object({
-  cells: t.Record(t.String(), t.Union([t.String({ maxLength: 10_000 }), t.Null()]), {
-    minProperties: 1,
-    maxProperties: 2000,
-  }),
+  cells: t.Record(
+    t.String(),
+    t.Union([t.String({ maxLength: 10_000 }), t.Null()]),
+    {
+      minProperties: 1,
+      maxProperties: 2000,
+    },
+  ),
 });

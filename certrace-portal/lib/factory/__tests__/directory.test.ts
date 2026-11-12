@@ -3,7 +3,14 @@ import assert from "node:assert/strict";
 import { countComplete, worstOf } from "../directory";
 
 test("an installation counts as complete only when it has checks and all are done", () => {
-  assert.equal(countComplete([{ done: 13, total: 13 }, { done: 2, total: 13 }, { done: 0, total: 0 }]), 1);
+  assert.equal(
+    countComplete([
+      { done: 13, total: 13 },
+      { done: 2, total: 13 },
+      { done: 0, total: 0 },
+    ]),
+    1,
+  );
   assert.equal(countComplete([]), 0);
 });
 

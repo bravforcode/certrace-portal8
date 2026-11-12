@@ -50,9 +50,13 @@ export function assertProductionConfig(
       "CERTRACE_SMTP_PASSWORD",
       "CERTRACE_EMAIL_SENDER",
     ].filter((k) => !get(k));
-    if (missing.length) problems.push(`${missing.join(", ")} required for smtp`);
+    if (missing.length)
+      problems.push(`${missing.join(", ")} required for smtp`);
     const port = get("CERTRACE_SMTP_PORT");
-    if (port && !(/^\d+$/.test(port) && Number(port) >= 1 && Number(port) <= 65535))
+    if (
+      port &&
+      !(/^\d+$/.test(port) && Number(port) >= 1 && Number(port) <= 65535)
+    )
       problems.push("CERTRACE_SMTP_PORT must be an integer from 1 to 65535");
   } else problems.push("CERTRACE_EMAIL_DELIVERY must be resend or smtp");
   if (!get("CERTRACE_APP_BASE_URL").startsWith("https://"))
@@ -60,5 +64,7 @@ export function assertProductionConfig(
   if (get("CERTRACE_MASTER_PASSWORD"))
     problems.push("CERTRACE_MASTER_PASSWORD is no longer supported; remove it");
   if (problems.length)
-    throw new Error("Unsafe production configuration:\n- " + problems.join("\n- "));
+    throw new Error(
+      "Unsafe production configuration:\n- " + problems.join("\n- "),
+    );
 }

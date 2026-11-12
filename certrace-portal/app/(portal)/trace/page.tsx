@@ -90,20 +90,21 @@ export default function TracePage() {
   const sites = React.useMemo<Site[]>(
     () =>
       options
-      .filter((o) => o.self)
-      .map((o) => {
-        const rec = getInstallation(o.id);
-        return {
-          id: o.id,
-          name: o.name,
-          city: rec?.city ?? "",
-          country: rec?.country ?? "",
-        };
-      }),
+        .filter((o) => o.self)
+        .map((o) => {
+          const rec = getInstallation(o.id);
+          return {
+            id: o.id,
+            name: o.name,
+            city: rec?.city ?? "",
+            country: rec?.country ?? "",
+          };
+        }),
     [options],
   );
 
-  if (!p || loading) return <PageHeader eyebrow="Trace" title="Company profile" />;
+  if (!p || loading)
+    return <PageHeader eyebrow="Trace" title="Company profile" />;
 
   const set = (patch: Partial<TraceProfile>) => setP({ ...p, ...patch });
   const factoryOf = (id: string) =>
@@ -149,7 +150,9 @@ export default function TracePage() {
               <div className="flex flex-wrap gap-2">
                 <UploadButton
                   label={p.logo ? "Replace logo" : "Upload logo"}
-                  onFiles={async (files) => set({ logo: await readFile(files[0]!) })}
+                  onFiles={async (files) =>
+                    set({ logo: await readFile(files[0]!) })
+                  }
                 />
                 {p.logo && (
                   <button
@@ -175,7 +178,10 @@ export default function TracePage() {
                   placeholder="e.g. Happy Steel Co., Ltd."
                 />
               </Field>
-              <Field label="Profile address" hint={`certrace.co/trace/${slug || "…"}`}>
+              <Field
+                label="Profile address"
+                hint={`certrace.co/trace/${slug || "…"}`}
+              >
                 <input
                   className={inputClass}
                   value={p.slug}
@@ -198,7 +204,10 @@ export default function TracePage() {
                 </Field>
               </div>
               <div className="sm:col-span-2">
-                <Field label="About" hint="Shown on your profile page. A blank line starts a new paragraph.">
+                <Field
+                  label="About"
+                  hint="Shown on your profile page. A blank line starts a new paragraph."
+                >
                   <textarea
                     rows={5}
                     className={cn(inputClass, "resize-y leading-relaxed")}
@@ -216,7 +225,11 @@ export default function TracePage() {
             <Eyebrow>Facts</Eyebrow>
             <div className="mt-5 grid gap-5 sm:grid-cols-2">
               <Field label="Head office — city">
-                <input className={inputClass} value={p.city} onChange={(e) => set({ city: e.target.value })} />
+                <input
+                  className={inputClass}
+                  value={p.city}
+                  onChange={(e) => set({ city: e.target.value })}
+                />
               </Field>
               <Field label="Head office — country">
                 <Select
@@ -234,12 +247,21 @@ export default function TracePage() {
                   className={inputClass}
                   inputMode="numeric"
                   value={p.founded}
-                  onChange={(e) => set({ founded: e.target.value.replace(/\D/g, "").slice(0, 4) })}
+                  onChange={(e) =>
+                    set({
+                      founded: e.target.value.replace(/\D/g, "").slice(0, 4),
+                    })
+                  }
                   placeholder="2004"
                 />
               </Field>
               <Field label="Employees" optional>
-                <input className={inputClass} value={p.employees} onChange={(e) => set({ employees: e.target.value })} placeholder="320" />
+                <input
+                  className={inputClass}
+                  value={p.employees}
+                  onChange={(e) => set({ employees: e.target.value })}
+                  placeholder="320"
+                />
               </Field>
               <div className="sm:col-span-2">
                 <Field label="Export markets" optional>
@@ -252,7 +274,10 @@ export default function TracePage() {
                 </Field>
               </div>
               <div className="sm:col-span-2">
-                <Certifications value={p.certifications} onChange={(v) => set({ certifications: v })} />
+                <Certifications
+                  value={p.certifications}
+                  onChange={(v) => set({ certifications: v })}
+                />
               </div>
             </div>
           </Card>
@@ -266,13 +291,21 @@ export default function TracePage() {
               </span>
             </div>
             <p className="mt-2 text-sm text-black/45">
-              The first photo is the cover on the directory card. Plant, line, products, lab, dispatch.
+              The first photo is the cover on the directory card. Plant, line,
+              products, lab, dispatch.
             </p>
             <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
               {p.photos.map((src, i) => (
-                <div key={i} className="group relative aspect-[4/3] overflow-hidden rounded-xl border border-black/[0.07] bg-[#fafaf8]">
+                <div
+                  key={i}
+                  className="group relative aspect-[4/3] overflow-hidden rounded-xl border border-black/[0.07] bg-[#fafaf8]"
+                >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={src} alt={`Photo ${i + 1}`} className="h-full w-full object-cover" />
+                  <img
+                    src={src}
+                    alt={`Photo ${i + 1}`}
+                    className="h-full w-full object-cover"
+                  />
                   {i === 0 && (
                     <span className="absolute left-2 top-2 rounded-full bg-white/90 px-2 py-0.5 font-pixel text-[9px] uppercase tracking-[0.16em] text-black/55">
                       Cover
@@ -281,7 +314,9 @@ export default function TracePage() {
                   <button
                     type="button"
                     aria-label={`Remove photo ${i + 1}`}
-                    onClick={() => set({ photos: p.photos.filter((_, j) => j !== i) })}
+                    onClick={() =>
+                      set({ photos: p.photos.filter((_, j) => j !== i) })
+                    }
                     className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-white/90 text-black/55 opacity-0 transition-opacity hover:text-black group-hover:opacity-100 focus:opacity-100"
                   >
                     <X size={13} strokeWidth={1.75} />
@@ -293,7 +328,9 @@ export default function TracePage() {
                   multiple
                   onFiles={async (files) => {
                     const room = MAX_PHOTOS - p.photos.length;
-                    const urls = await Promise.all(files.slice(0, room).map(readFile));
+                    const urls = await Promise.all(
+                      files.slice(0, room).map(readFile),
+                    );
                     set({ photos: [...p.photos, ...urls] });
                   }}
                 />
@@ -310,12 +347,14 @@ export default function TracePage() {
               </span>
             </div>
             <p className="mt-2 max-w-2xl text-sm text-black/45">
-              Every installation of your company. Each one shows on the profile with its industry and the products verified there.
+              Every installation of your company. Each one shows on the profile
+              with its industry and the products verified there.
             </p>
             <div className="mt-5 space-y-3">
               {sites.length === 0 && (
                 <p className="rounded-xl border border-dashed border-black/10 px-4 py-6 text-sm text-black/45">
-                  No installation yet. Add one under Installations and it appears here.
+                  No installation yet. Add one under Installations and it
+                  appears here.
                 </p>
               )}
               {sites.map((s, i) => (
@@ -335,7 +374,9 @@ export default function TracePage() {
         <div className="lg:sticky lg:top-24 lg:self-start">
           <div className="mb-3 flex items-center justify-between">
             <Eyebrow>Preview</Eyebrow>
-            <span className="text-[11px] text-black/35">Your public page · mobile</span>
+            <span className="text-[11px] text-black/35">
+              Your public page · mobile
+            </span>
           </div>
           <PhonePreview payload={toPublic(p, shownSites, factoryOf)} />
         </div>
@@ -349,7 +390,14 @@ export default function TracePage() {
 function Logo({ p, className }: { p: TraceProfile; className?: string }) {
   return p.logo ? (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={p.logo} alt="" className={cn("flex-none rounded-full border border-black/[0.07] bg-white object-contain", className)} />
+    <img
+      src={p.logo}
+      alt=""
+      className={cn(
+        "flex-none rounded-full border border-black/[0.07] bg-white object-contain",
+        className,
+      )}
+    />
   ) : (
     <span
       className={cn(
@@ -362,7 +410,13 @@ function Logo({ p, className }: { p: TraceProfile; className?: string }) {
   );
 }
 
-function UploadButton({ label, onFiles }: { label: string; onFiles: (f: File[]) => void }) {
+function UploadButton({
+  label,
+  onFiles,
+}: {
+  label: string;
+  onFiles: (f: File[]) => void;
+}) {
   const ref = React.useRef<HTMLInputElement>(null);
   return (
     <>
@@ -388,7 +442,13 @@ function UploadButton({ label, onFiles }: { label: string; onFiles: (f: File[]) 
   );
 }
 
-function UploadTile({ onFiles, multiple }: { onFiles: (f: File[]) => void; multiple?: boolean }) {
+function UploadTile({
+  onFiles,
+  multiple,
+}: {
+  onFiles: (f: File[]) => void;
+  multiple?: boolean;
+}) {
   const ref = React.useRef<HTMLInputElement>(null);
   return (
     <button
@@ -414,7 +474,13 @@ function UploadTile({ onFiles, multiple }: { onFiles: (f: File[]) => void; multi
   );
 }
 
-function Certifications({ value, onChange }: { value: string[]; onChange: (v: string[]) => void }) {
+function Certifications({
+  value,
+  onChange,
+}: {
+  value: string[];
+  onChange: (v: string[]) => void;
+}) {
   const [draft, setDraft] = React.useState("");
   const add = () => {
     const v = draft.trim();
@@ -422,10 +488,17 @@ function Certifications({ value, onChange }: { value: string[]; onChange: (v: st
     setDraft("");
   };
   return (
-    <Field label="Certifications" optional hint="Press Enter to add — e.g. ISO 9001, ISO 14001, IATF 16949.">
+    <Field
+      label="Certifications"
+      optional
+      hint="Press Enter to add — e.g. ISO 9001, ISO 14001, IATF 16949."
+    >
       <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-black/10 bg-white px-3 py-2 transition-colors focus-within:border-black/25">
         {value.map((c) => (
-          <span key={c} className="inline-flex items-center gap-1 rounded-full bg-black/[0.04] py-1 pl-2.5 pr-1.5 font-pixel text-[10px] uppercase tracking-[0.14em] text-black/55">
+          <span
+            key={c}
+            className="inline-flex items-center gap-1 rounded-full bg-black/[0.04] py-1 pl-2.5 pr-1.5 font-pixel text-[10px] uppercase tracking-[0.14em] text-black/55"
+          >
             {c}
             <button
               type="button"
@@ -472,13 +545,33 @@ function FactoryEditor({
   onChange: (patch: Partial<TraceFactory>) => void;
 }) {
   return (
-    <div className={cn("rounded-xl border transition-colors", f.shown ? "border-black/[0.08]" : "border-dashed border-black/10 bg-black/[0.015]")}>
+    <div
+      className={cn(
+        "rounded-xl border transition-colors",
+        f.shown
+          ? "border-black/[0.08]"
+          : "border-dashed border-black/10 bg-black/[0.015]",
+      )}
+    >
       <div className="flex items-center gap-3 px-4 py-3.5">
-        <span className="font-mono text-[10.5px] text-black/30">{String(n).padStart(2, "0")}</span>
-        <Factory size={16} strokeWidth={1.5} className="flex-none text-black/40" />
+        <span className="font-mono text-[10.5px] text-black/30">
+          {String(n).padStart(2, "0")}
+        </span>
+        <Factory
+          size={16}
+          strokeWidth={1.5}
+          className="flex-none text-black/40"
+        />
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-2">
-            <span className={cn("truncate text-[14px]", f.shown ? "text-black/85" : "text-black/45")}>{site.name}</span>
+            <span
+              className={cn(
+                "truncate text-[14px]",
+                f.shown ? "text-black/85" : "text-black/45",
+              )}
+            >
+              {site.name}
+            </span>
           </span>
           <span className="block truncate font-mono text-[10.5px] text-black/35">
             {site.id}
@@ -487,16 +580,28 @@ function FactoryEditor({
           </span>
         </span>
         <label className="flex flex-none items-center gap-2 text-[12px] text-black/50">
-          <span className="hidden sm:inline">{f.shown ? "Shown" : "Hidden"}</span>
-          <Switch checked={f.shown} onChange={(v) => onChange({ shown: v })} ariaLabel={`Show ${site.name} on the profile`} />
+          <span className="hidden sm:inline">
+            {f.shown ? "Shown" : "Hidden"}
+          </span>
+          <Switch
+            checked={f.shown}
+            onChange={(v) => onChange({ shown: v })}
+            ariaLabel={`Show ${site.name} on the profile`}
+          />
         </label>
       </div>
 
       {f.shown && (
         <div className="space-y-5 border-t border-black/[0.06] px-4 py-5">
           <div>
-            <span className="mb-2 block text-[11px] uppercase tracking-[0.1em] text-black/55">Industry</span>
-            <div role="radiogroup" aria-label="Industry" className="flex flex-wrap gap-1.5">
+            <span className="mb-2 block text-[11px] uppercase tracking-[0.1em] text-black/55">
+              Industry
+            </span>
+            <div
+              role="radiogroup"
+              aria-label="Industry"
+              className="flex flex-wrap gap-1.5"
+            >
               {TRACE_SECTORS.map((x: TraceSector) => {
                 const on = f.sector === x;
                 return (
@@ -521,14 +626,25 @@ function FactoryEditor({
             </div>
           </div>
 
-          <Field label="What the site does" optional hint="A few words, e.g. Cold forging, heat treatment, plating.">
-            <input className={inputClass} value={f.activity} onChange={(e) => onChange({ activity: e.target.value })} />
+          <Field
+            label="What the site does"
+            optional
+            hint="A few words, e.g. Cold forging, heat treatment, plating."
+          >
+            <input
+              className={inputClass}
+              value={f.activity}
+              onChange={(e) => onChange({ activity: e.target.value })}
+            />
           </Field>
 
           <div>
-            <span className="mb-2 block text-[11px] uppercase tracking-[0.1em] text-black/55">Verified products</span>
+            <span className="mb-2 block text-[11px] uppercase tracking-[0.1em] text-black/55">
+              Verified products
+            </span>
             <p className="text-sm text-black/45">
-              None yet. A product is listed here once a verifier has verified its emissions for this site.
+              None yet. A product is listed here once a verifier has verified
+              its emissions for this site.
             </p>
           </div>
         </div>
@@ -543,13 +659,19 @@ function FactoryEditor({
    copy of it. The landing side checks this portal's origin before it reads
    anything (its lib/trace-preview.ts). */
 
-const LANDING_URL = (process.env.NEXT_PUBLIC_LANDING_URL ?? "http://localhost:3000").replace(/\/$/, "");
+const LANDING_URL = (
+  process.env.NEXT_PUBLIC_LANDING_URL ?? "http://localhost:3000"
+).replace(/\/$/, "");
 const LANDING_ORIGIN = new URL(LANDING_URL).origin;
 const PHONE_W = 390;
 const PHONE_H = 780;
 
 /** The profile in the shape the landing page draws (its TraceSupplier). */
-function toPublic(p: TraceProfile, sites: Site[], factoryOf: (id: string) => TraceFactory) {
+function toPublic(
+  p: TraceProfile,
+  sites: Site[],
+  factoryOf: (id: string) => TraceFactory,
+) {
   return {
     name: p.name || "Company name",
     initials: initialsOf(p.name),
@@ -600,7 +722,9 @@ function PhonePreview({ payload }: { payload: ReturnType<typeof toPublic> }) {
   React.useEffect(() => {
     const el = box.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => setScale(Math.min(1, el.clientWidth / PHONE_W)));
+    const ro = new ResizeObserver(() =>
+      setScale(Math.min(1, el.clientWidth / PHONE_W)),
+    );
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
@@ -608,8 +732,15 @@ function PhonePreview({ payload }: { payload: ReturnType<typeof toPublic> }) {
   // The page says when it is listening; only then is a message worth sending.
   React.useEffect(() => {
     const onMessage = (e: MessageEvent) => {
-      if (e.origin !== LANDING_ORIGIN || e.source !== frame.current?.contentWindow) return;
-      if ((e.data as { type?: string })?.type === "certrace:trace-preview-ready") setReady((n) => n + 1);
+      if (
+        e.origin !== LANDING_ORIGIN ||
+        e.source !== frame.current?.contentWindow
+      )
+        return;
+      if (
+        (e.data as { type?: string })?.type === "certrace:trace-preview-ready"
+      )
+        setReady((n) => n + 1);
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
@@ -639,14 +770,19 @@ function PhonePreview({ payload }: { payload: ReturnType<typeof toPublic> }) {
           title="Public profile preview"
           src={`${LANDING_URL}/trace/preview`}
           className="absolute left-0 top-0 origin-top-left border-0"
-          style={{ width: PHONE_W, height: PHONE_H, transform: `scale(${scale})` }}
+          style={{
+            width: PHONE_W,
+            height: PHONE_H,
+            transform: `scale(${scale})`,
+          }}
         />
         {!ready && (
           <div className="absolute inset-0 grid place-items-center bg-[#F5F4F0] px-6 text-center">
             {stuck ? (
               <div>
                 <p className="text-[13px] text-black/55">
-                  The public site isn&apos;t reachable, so the preview can&apos;t load.
+                  The public site isn&apos;t reachable, so the preview
+                  can&apos;t load.
                 </p>
                 <button
                   type="button"
@@ -657,7 +793,9 @@ function PhonePreview({ payload }: { payload: ReturnType<typeof toPublic> }) {
                 </button>
               </div>
             ) : (
-              <span className="text-[11px] uppercase tracking-[0.1em] text-black/30">Loading preview…</span>
+              <span className="text-[11px] uppercase tracking-[0.1em] text-black/30">
+                Loading preview…
+              </span>
             )}
           </div>
         )}

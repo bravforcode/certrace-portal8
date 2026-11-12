@@ -34,12 +34,21 @@ import { UploadPanel } from "@/components/workspace/upload-panel";
 import { ScopedInstallationSwitcher } from "@/components/scoped-installation-switcher";
 import { useT } from "@/lib/i18n";
 import { useScopedInstallation } from "@/lib/scoped-installation";
-import { draftInstallation, getInstallation, saveInstallation } from "@/lib/installations";
+import {
+  draftInstallation,
+  getInstallation,
+  saveInstallation,
+} from "@/lib/installations";
 import { currentYear, yearRange } from "@/lib/year-range";
 import { buildSheets } from "@/lib/workspace-sheets";
 import { parseYearParam, withQueryParams } from "@/lib/workbook/url-state";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { COPY_MS, useWorkbook, useWorkbookYears, walkinPending } from "@/lib/workbook/use-workbook";
+import {
+  COPY_MS,
+  useWorkbook,
+  useWorkbookYears,
+  walkinPending,
+} from "@/lib/workbook/use-workbook";
 
 /* useSearchParams() (read by the installation scope) needs a Suspense boundary above it. */
 export default function WorkspacePage() {
@@ -56,16 +65,21 @@ function WorkspaceInner() {
   // Saving the Installation tab writes the store without re-rendering this page, so a counter re-reads it.
   const [installTick, setInstallTick] = React.useState(0);
   const installation = React.useMemo(
-    () => (scoped ? draftInstallation(scoped, getInstallation(scoped.id)) : null),
+    () =>
+      scoped ? draftInstallation(scoped, getInstallation(scoped.id)) : null,
     [scoped, installTick],
   );
-  const convertHref = scoped ? `/convert?installation=${encodeURIComponent(scoped.id)}` : "/convert";
+  const convertHref = scoped
+    ? `/convert?installation=${encodeURIComponent(scoped.id)}`
+    : "/convert";
   // ?year= opens that reporting year when the year bar offers it; anything else opens the current year.
   const params = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
   const yearParam = params.get("year");
-  const [year, setYear] = React.useState(() => parseYearParam(yearParam, yearRange()) ?? currentYear());
+  const [year, setYear] = React.useState(
+    () => parseYearParam(yearParam, yearRange()) ?? currentYear(),
+  );
   React.useEffect(() => {
     const requested = parseYearParam(yearParam, yearRange());
     if (requested !== null) setYear(requested);
@@ -73,7 +87,10 @@ function WorkspaceInner() {
   // Writes the chosen year back to ?year= with replace (no history entry per click), keeping ?installation= and the rest.
   const chooseYear = (next: number) => {
     setYear(next);
-    router.replace(`${pathname}?${withQueryParams(params.toString(), { year: String(next) })}`, { scroll: false });
+    router.replace(
+      `${pathname}?${withQueryParams(params.toString(), { year: String(next) })}`,
+      { scroll: false },
+    );
   };
   const installationId = scoped?.id ?? null;
   const ws = useWorkbookYears(installationId);
@@ -86,22 +103,30 @@ function WorkspaceInner() {
      revealed: its card plays the walk-in the next time it is opened (or at once, if it is open now). A year
      left syncing by an upload from before Confirm opened years at once is finished straight away. */
   const syncing = yearRange().filter((y) => ws.get(y)?.status === "syncing");
-  const syncKey = syncing.map((y) => `${y}:${ws.get(y)!.confirmedAt}`).join(",");
+  const syncKey = syncing
+    .map((y) => `${y}:${ws.get(y)!.confirmedAt}`)
+    .join(",");
   React.useEffect(() => {
     if (!syncKey) return;
     // A copy writes its own "ready" when it finishes; the timer only rescues a copy left behind by a closed tab,
     // so it waits COPY_MS and never marks a still-running copy ready.
     const due = syncing.map((y) => {
       const m = ws.get(y)!;
-      return { y, at: Date.parse(m.confirmedAt ?? "") + (m.copiedFrom ? COPY_MS : 0) };
+      return {
+        y,
+        at: Date.parse(m.confirmedAt ?? "") + (m.copiedFrom ? COPY_MS : 0),
+      };
     });
     const now = Date.now();
     for (const d of due) if (d.at <= now) ws.markReady(d.y);
     const next = due.filter((d) => d.at > now).map((d) => d.at - now);
     if (!next.length) return;
-    const id = window.setTimeout(() => {
-      for (const d of due) if (d.at <= Date.now()) ws.markReady(d.y);
-    }, Math.min(...next) + 50);
+    const id = window.setTimeout(
+      () => {
+        for (const d of due) if (d.at <= Date.now()) ws.markReady(d.y);
+      },
+      Math.min(...next) + 50,
+    );
     return () => window.clearTimeout(id);
     // syncKey stands for the syncing years and when each was confirmed
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -114,13 +139,17 @@ function WorkspaceInner() {
     () => withInstallationDefaults(wb.cells ?? {}, installation, year),
     [wb.cells, installation, year],
   );
-  const cbamTab = [{ id: CBAM_TAB_ID, label: "CBAM", content: <CbamTab cells={cbamCells} /> }];
+  const cbamTab = [
+    { id: CBAM_TAB_ID, label: "CBAM", content: <CbamTab cells={cbamCells} /> },
+  ];
 
   return (
     <div className="space-y-6">
       <PageHeader
         title={t("Workspace")}
-        lead={t("Everything you upload for a year, sorted into sheets you can check and edit.")}
+        lead={t(
+          "Everything you upload for a year, sorted into sheets you can check and edit.",
+        )}
         actions={<ScopedInstallationSwitcher />}
       />
 
@@ -129,7 +158,11 @@ function WorkspaceInner() {
         onChange={chooseYear}
         mark={(y) => {
           const s = ws.get(y)?.status;
-          return s === "ready" ? "data" : s === "syncing" ? "pending" : undefined;
+          return s === "ready"
+            ? "data"
+            : s === "syncing"
+              ? "pending"
+              : undefined;
         }}
       />
 
@@ -140,10 +173,13 @@ function WorkspaceInner() {
               {t("Choose an installation to start your workspace")}
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-black/45">
-              {t("The workspace belongs to one installation. Set one up first, then come back here.")}
+              {t(
+                "The workspace belongs to one installation. Set one up first, then come back here.",
+              )}
             </p>
             <ButtonLink href="/workspaces/new" className="mt-4">
-              {t("Set up an installation")} <ArrowRight size={14} strokeWidth={1.5} />
+              {t("Set up an installation")}{" "}
+              <ArrowRight size={14} strokeWidth={1.5} />
             </ButtonLink>
           </Card>
         )
@@ -158,7 +194,9 @@ function WorkspaceInner() {
             onCopy={(from) => ws.copy(year, from)}
           />
           {/* Until a start is chosen, only the current year shows a plain sheet under the upload. */}
-          {year === currentYear() && <Spreadsheet sheets={buildSheets([])} empty extraTabs={cbamTab} />}
+          {year === currentYear() && (
+            <Spreadsheet sheets={buildSheets([])} empty extraTabs={cbamTab} />
+          )}
         </>
       ) : walkinPending(installationId, year, rec) ? (
         /* Set up and not yet shown in this browser: the card shows it is ready, and Get started opens the sheet. */
@@ -180,18 +218,34 @@ function WorkspaceInner() {
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-black/45">
               {rec.files.length === 1
-                ? t("We're sorting your file into the sheets for the best experience. We'll let you know when it's ready.")
-                : t("We're sorting your {n} files into the sheets for the best experience. We'll let you know when it's ready.", {
-                    n: rec.files.length,
-                  })}
+                ? t(
+                    "We're sorting your file into the sheets for the best experience. We'll let you know when it's ready.",
+                  )
+                : t(
+                    "We're sorting your {n} files into the sheets for the best experience. We'll let you know when it's ready.",
+                    {
+                      n: rec.files.length,
+                    },
+                  )}
             </p>
             {/* Only a year with confirmedAt can be shown early. One without it (set up before copies were timestamped) can never finish on its own, so it can be started over. */}
             {rec.confirmedAt ? (
-              <Button variant="ghost" size="sm" className="mt-4" onClick={() => ws.markReady(year)}>
-                {t("Show the set-up workspace")} <ArrowRight size={13} strokeWidth={1.5} />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-4"
+                onClick={() => ws.markReady(year)}
+              >
+                {t("Show the set-up workspace")}{" "}
+                <ArrowRight size={13} strokeWidth={1.5} />
               </Button>
             ) : (
-              <Button variant="ghost" size="sm" className="mt-4" onClick={() => ws.restart(year)}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-4"
+                onClick={() => ws.restart(year)}
+              >
                 {t("Start over")}
               </Button>
             )}
@@ -202,10 +256,14 @@ function WorkspaceInner() {
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] text-black/45">
             <span className="inline-flex items-center gap-1.5">
               <FileText size={13} strokeWidth={1.5} />
-              {rec.files.length === 1 ? t("1 file") : t("{n} files", { n: rec.files.length })}
+              {rec.files.length === 1
+                ? t("1 file")
+                : t("{n} files", { n: rec.files.length })}
             </span>
             {rec.blank && !rec.copiedFrom && (
-              <span className="inline-flex items-center gap-1.5">{t("Started from the beginning")}</span>
+              <span className="inline-flex items-center gap-1.5">
+                {t("Started from the beginning")}
+              </span>
             )}
             {rec.copiedFrom && (
               <span className="inline-flex items-center gap-1.5">
@@ -243,9 +301,13 @@ function ConvertBar({ href }: { href: string }) {
   return (
     <Card className="flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <div className="text-[15px] font-medium text-[#111]">{t("The data you've chosen works for every standard")}</div>
+        <div className="text-[15px] font-medium text-[#111]">
+          {t("The data you've chosen works for every standard")}
+        </div>
         <p className="mt-1 text-[13px] text-black/45">
-          {t("Pick CBAM, ISO 14064-1, ISO 14067 or TGO on the Convert page — no need to upload again.")}
+          {t(
+            "Pick CBAM, ISO 14064-1, ISO 14067 or TGO on the Convert page — no need to upload again.",
+          )}
         </p>
       </div>
       <ButtonLink href={href} className="flex-none self-start sm:self-auto">

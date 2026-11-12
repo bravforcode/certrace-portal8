@@ -1,9 +1,15 @@
 /* The customer's pre-verification state decides what Convert shows and whether Submit is allowed. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { preverifyState, type PreverificationView } from "../api/preverifications";
+import {
+  preverifyState,
+  type PreverificationView,
+} from "../api/preverifications";
 
-const sub = (status: PreverificationView["status"], workbookRevision = 3): PreverificationView => ({
+const sub = (
+  status: PreverificationView["status"],
+  workbookRevision = 3,
+): PreverificationView => ({
   id: "p1",
   installationId: "i1",
   year: 2026,
@@ -56,15 +62,28 @@ test("approved, in review or changes requested on a changed revision is stale", 
 test("approved and changes requested on the same revision show the team's outcome", () => {
   // The result stands while the data is unchanged, so the customer sees the team's verdict.
   assert.equal(preverifyState(sub("approved", 3), 3, true), "approved");
-  assert.equal(preverifyState(sub("changes_requested", 3), 3, true), "changes_requested");
+  assert.equal(
+    preverifyState(sub("changes_requested", 3), 3, true),
+    "changes_requested",
+  );
 });
 
 test("an incomplete workbook is never ready to submit, whatever the last submission", () => {
   // Submit is the only way to send data for review, so an incomplete workbook must not reach "ready" in any state.
-  const statuses = ["ai_flagged", "team_review", "approved", "changes_requested", "superseded"] as const;
+  const statuses = [
+    "ai_flagged",
+    "team_review",
+    "approved",
+    "changes_requested",
+    "superseded",
+  ] as const;
   for (const status of statuses)
     for (const revision of [3, 4])
-      assert.notEqual(preverifyState(sub(status, 3), revision, false), "ready", `${status} at revision ${revision}`);
+      assert.notEqual(
+        preverifyState(sub(status, 3), revision, false),
+        "ready",
+        `${status} at revision ${revision}`,
+      );
   assert.notEqual(preverifyState(null, 0, false), "ready");
 });
 

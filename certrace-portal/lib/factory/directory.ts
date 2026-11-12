@@ -8,5 +8,8 @@ const SEVERITY: SheetStatus[] = ["untouched", "complete", "review", "missing"];
 
 /** A year's status is its worst sheet: missing over review over complete over untouched. */
 export function worstOf(statuses: SheetStatus[]): SheetStatus {
-  return statuses.reduce<SheetStatus>((a, b) => (SEVERITY.indexOf(b) > SEVERITY.indexOf(a) ? b : a), "untouched");
+  return statuses.reduce<SheetStatus>(
+    (a, b) => (SEVERITY.indexOf(b) > SEVERITY.indexOf(a) ? b : a),
+    "untouched",
+  );
 }

@@ -149,7 +149,12 @@ export function renderEmail(
     subject: fill(c.subject, vars).replace(/[\r\n]+/g, " "),
     text: fill(c.text, vars),
     ...(c.label && c.path
-      ? { action: { label: c.label, url: config.appUrl.replace(/\/$/, "") + c.path } }
+      ? {
+          action: {
+            label: c.label,
+            url: config.appUrl.replace(/\/$/, "") + c.path,
+          },
+        }
       : {}),
   };
 }

@@ -50,7 +50,13 @@ export type RunnerDeps<S> = {
 type Split = { key: string; keys: string[] };
 
 /** A caller waiting for cells to be saved. `cells` null means "until nothing is pending for the target". */
-type Waiter = { target: Target; key: string; cells: string[] | null; ok: boolean; resolve: (r: { ok: boolean }) => void };
+type Waiter = {
+  target: Target;
+  key: string;
+  cells: string[] | null;
+  ok: boolean;
+  resolve: (r: { ok: boolean }) => void;
+};
 
 export class SaveRunner<S> {
   private q: Queue = {};
@@ -60,7 +66,9 @@ export class SaveRunner<S> {
   private retries = new Map<string, { attempt: number; at: number }>();
   private last: string | null = null;
   private noticed = false;
-  private timers: Partial<Record<"debounce" | "hold" | "retry", { handle: unknown; at: number }>> = {};
+  private timers: Partial<
+    Record<"debounce" | "hold" | "retry", { handle: unknown; at: number }>
+  > = {};
   private listeners = new Set<() => void>();
   private waiters: Waiter[] = [];
   private d: RunnerDeps<S>;
@@ -80,7 +88,9 @@ export class SaveRunner<S> {
 
   enqueue(t: Target, cellKey: string, value: string): void {
     this.setQueue(enqueue(this.q, t, cellKey, value));
-    this.arm("debounce", this.d.now() + (this.d.delayMs ?? 600), () => this.pump());
+    this.arm("debounce", this.d.now() + (this.d.delayMs ?? 600), () =>
+      this.pump(),
+    );
   }
 
   /**
@@ -88,7 +98,10 @@ export class SaveRunner<S> {
    * Resolves { ok: true } once the cells are saved, or { ok: false } when the server refused them or
    * a transient failure gave up on them; those cells are then removed, so nothing stays on screen.
    */
-  enqueueCells(t: Target, cells: Record<string, string | null>): Promise<{ ok: boolean }> {
+  enqueueCells(
+    t: Target,
+    cells: Record<string, string | null>,
+  ): Promise<{ ok: boolean }> {
     this.setQueue(enqueueMany(this.q, t, cells));
     const done = this.wait(t, Object.keys(cells));
     this.pump();
@@ -118,7 +131,8 @@ export class SaveRunner<S> {
     this.held = false;
     this.disarm("hold");
     this.disarm("retry");
-    if (dropped) this.d.notify("Unsaved changes from the previous account were discarded");
+    if (dropped)
+      this.d.notify("Unsaved changes from the previous account were discarded");
     this.pump();
   }
 
@@ -131,7 +145,13 @@ export class SaveRunner<S> {
 
   private wait(t: Target, cells: string[] | null): Promise<{ ok: boolean }> {
     return new Promise((resolve) => {
-      this.waiters.push({ target: t, key: targetKey(t), cells, ok: true, resolve });
+      this.waiters.push({
+        target: t,
+        key: targetKey(t),
+        cells,
+        ok: true,
+        resolve,
+      });
       this.settle();
     });
   }
@@ -140,7 +160,10 @@ export class SaveRunner<S> {
   private settle() {
     this.waiters = this.waiters.filter((w) => {
       const pending = pendingFor(this.q, w.target);
-      const left = w.cells === null ? Object.keys(pending).length : w.cells.filter((k) => k in pending).length;
+      const left =
+        w.cells === null
+          ? Object.keys(pending).length
+          : w.cells.filter((k) => k in pending).length;
       if (left) return true;
       w.resolve({ ok: w.ok });
       return false;
@@ -152,7 +175,12 @@ export class SaveRunner<S> {
    * and their cells leave the queue. Other cells of the target keep their own retry or refusal rules.
    */
   private failWaiters(key: string, batch: string[]) {
-    const hit = this.waiters.filter((w) => w.key === key && w.cells !== null && w.cells.some((k) => batch.includes(k)));
+    const hit = this.waiters.filter(
+      (w) =>
+        w.key === key &&
+        w.cells !== null &&
+        w.cells.some((k) => batch.includes(k)),
+    );
     if (!hit.length) return;
     let q = this.q;
     for (const w of hit) {
@@ -166,10 +194,13 @@ export class SaveRunner<S> {
     const cur = this.timers[name];
     if (cur && name !== "debounce" && cur.at <= at) return; // keep the earlier wake-up
     if (cur) this.d.clearTimer(cur.handle);
-    const handle = this.d.setTimer(() => {
-      delete this.timers[name];
-      fn();
-    }, Math.max(0, at - this.d.now()));
+    const handle = this.d.setTimer(
+      () => {
+        delete this.timers[name];
+        fn();
+      },
+      Math.max(0, at - this.d.now()),
+    );
     this.timers[name] = { handle, at };
   }
 
@@ -196,11 +227,18 @@ export class SaveRunner<S> {
 
     const now = this.d.now();
     const all = Object.keys(this.q);
-    const mine = all.filter((k) => this.q[k].target.accountId === acct && Object.keys(this.q[k].cells).length > 0);
+    const mine = all.filter(
+      (k) =>
+        this.q[k].target.accountId === acct &&
+        Object.keys(this.q[k].cells).length > 0,
+    );
     const ready = mine.filter((k) => (this.retries.get(k)?.at ?? 0) <= now);
     if (!ready.length) {
-      const waiting = mine.map((k) => this.retries.get(k)?.at).filter((x): x is number => x !== undefined);
-      if (waiting.length) this.arm("retry", Math.min(...waiting), () => this.pump());
+      const waiting = mine
+        .map((k) => this.retries.get(k)?.at)
+        .filter((x): x is number => x !== undefined);
+      if (waiting.length)
+        this.arm("retry", Math.min(...waiting), () => this.pump());
       return;
     }
 
@@ -229,11 +267,17 @@ export class SaveRunner<S> {
         this.d.onSaved(t, saved);
         this.pump();
       },
-      (e: { status?: number; message?: string }) => this.failed(t, cells, key, e),
+      (e: { status?: number; message?: string }) =>
+        this.failed(t, cells, key, e),
     );
   }
 
-  private failed(t: Target, cells: Cells, key: string, e: { status?: number; message?: string; retryAfter?: number }): void {
+  private failed(
+    t: Target,
+    cells: Cells,
+    key: string,
+    e: { status?: number; message?: string; retryAfter?: number },
+  ): void {
     this.sending = false;
     const status = e.status ?? 0;
     const keys = Object.keys(cells);
@@ -267,7 +311,10 @@ export class SaveRunner<S> {
         this.pump();
         return;
       }
-      const wait = e.retryAfter && e.retryAfter > 0 ? e.retryAfter * 1000 : retryDelay(attempt);
+      const wait =
+        e.retryAfter && e.retryAfter > 0
+          ? e.retryAfter * 1000
+          : retryDelay(attempt);
       this.retries.set(key, { attempt: attempt + 1, at: this.d.now() + wait });
       this.pump();
       return;
@@ -276,7 +323,10 @@ export class SaveRunner<S> {
     if (isValidationRefusal({ status })) {
       if (keys.length > 1) {
         const mid = Math.ceil(keys.length / 2);
-        this.splits.unshift({ key, keys: keys.slice(0, mid) }, { key, keys: keys.slice(mid) });
+        this.splits.unshift(
+          { key, keys: keys.slice(0, mid) },
+          { key, keys: keys.slice(mid) },
+        );
         this.pump();
         return;
       }

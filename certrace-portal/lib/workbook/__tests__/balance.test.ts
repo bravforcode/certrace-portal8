@@ -4,7 +4,10 @@ import { massBalance, parseQuantity, toTonnes } from "../balance";
 import type { Sheet } from "../../workspace-sheets";
 
 const s = (id: string, rows: Record<string, string>[]): Sheet => ({
-  id, code: "", name: id, cols: [],
+  id,
+  code: "",
+  name: id,
+  cols: [],
   rows: rows.map((cells) => ({ cells, status: "confirmed" as const })),
 });
 
@@ -43,17 +46,27 @@ test("a step balances within tolerance and flags beyond it", () => {
     ]),
   ];
   const [drawing, annealing] = massBalance(sheets);
-  assert.deepEqual(drawing, { step: "Drawing", inT: 100, outT: 97, diffPct: 0.03, ok: true, ignored: 0 });
+  assert.deepEqual(drawing, {
+    step: "Drawing",
+    inT: 100,
+    outT: 97,
+    diffPct: 0.03,
+    ok: true,
+    ignored: 0,
+  });
   assert.equal(annealing!.ok, false);
   assert.equal(annealing!.ignored, 1);
 });
 
 test("the tolerance boundary is inclusive: exactly 5 % passes, 5.01 % fails", () => {
   const at = (outQty: string) =>
-    massBalance([
-      s("materials", [{ step: "Draw", qty: "100", unit: "t" }]),
-      s("output", [{ step: "Draw", qty: outQty, unit: "t" }]),
-    ], 0.05)[0]!;
+    massBalance(
+      [
+        s("materials", [{ step: "Draw", qty: "100", unit: "t" }]),
+        s("output", [{ step: "Draw", qty: outQty, unit: "t" }]),
+      ],
+      0.05,
+    )[0]!;
   assert.equal(at("95").diffPct, 0.05);
   assert.equal(at("95").ok, true);
   assert.equal(at("94.99").ok, false);
@@ -62,7 +75,9 @@ test("the tolerance boundary is inclusive: exactly 5 % passes, 5.01 % fails", ()
 });
 
 test("a step with outputs but no inputs is not ok, and shows no ratio", () => {
-  const [b] = massBalance([s("output", [{ step: "Pickling", qty: "5", unit: "t" }])]);
+  const [b] = massBalance([
+    s("output", [{ step: "Pickling", qty: "5", unit: "t" }]),
+  ]);
   assert.equal(b!.inT, 0);
   assert.equal(b!.diffPct, null);
   assert.equal(b!.ok, false);

@@ -13,20 +13,34 @@ export type Cells = Record<string, string | null>;
 type Entry = { target: Target; cells: Cells };
 export type Queue = Record<string, Entry>;
 
-export const targetKey = (t: Target) => `${t.accountId ?? ""}|${t.iid}|${t.year}`;
+export const targetKey = (t: Target) =>
+  `${t.accountId ?? ""}|${t.iid}|${t.year}`;
 
 /** Queue a typed value. An empty value queues a delete (null); long values are clamped. */
-export function enqueue(q: Queue, t: Target, cellKey: string, value: string): Queue {
+export function enqueue(
+  q: Queue,
+  t: Target,
+  cellKey: string,
+  value: string,
+): Queue {
   const v: string | null = value === "" ? null : value.slice(0, CELL_MAX);
   const k = targetKey(t);
-  return { ...q, [k]: { target: t, cells: { ...pendingFor(q, t), [cellKey]: v } } };
+  return {
+    ...q,
+    [k]: { target: t, cells: { ...pendingFor(q, t), [cellKey]: v } },
+  };
 }
 
 /** Queue several cells at once (a diagram patch). Same clamping as a typed edit; null deletes. */
-export function enqueueMany(q: Queue, t: Target, cells: Record<string, string | null>): Queue {
+export function enqueueMany(
+  q: Queue,
+  t: Target,
+  cells: Record<string, string | null>,
+): Queue {
   if (!Object.keys(cells).length) return q;
   const next: Cells = { ...pendingFor(q, t) };
-  for (const [k, v] of Object.entries(cells)) next[k] = v === null || v === "" ? null : v.slice(0, CELL_MAX);
+  for (const [k, v] of Object.entries(cells))
+    next[k] = v === null || v === "" ? null : v.slice(0, CELL_MAX);
   return { ...q, [targetKey(t)]: { target: t, cells: next } };
 }
 
@@ -75,7 +89,9 @@ export function dropKeys(q: Queue, t: Target, keys: string[]): Queue {
 export function clearBatches(keys: string[]): Cells[] {
   const out: Cells[] = [];
   for (let i = 0; i < keys.length; i += CHUNK) {
-    out.push(Object.fromEntries(keys.slice(i, i + CHUNK).map((k) => [k, null])));
+    out.push(
+      Object.fromEntries(keys.slice(i, i + CHUNK).map((k) => [k, null])),
+    );
   }
   return out;
 }
@@ -83,7 +99,8 @@ export function clearBatches(keys: string[]): Cells[] {
 /** Keep only the targets that belong to `accountId`. Edits of any other account are discarded. */
 export function keepAccount(q: Queue, accountId: string | null): Queue {
   const out: Queue = {};
-  for (const [k, e] of Object.entries(q)) if (e.target.accountId === accountId) out[k] = e;
+  for (const [k, e] of Object.entries(q))
+    if (e.target.accountId === accountId) out[k] = e;
   return out;
 }
 

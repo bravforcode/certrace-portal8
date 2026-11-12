@@ -27,7 +27,9 @@ const FIELDS = catalogue.fields as CatalogueField[];
 const ITEMS = catalogue.items as Record<string, string>;
 
 export function getItemFields(itemKey: string): ItemField[] {
-  return FIELDS.filter((f) => f.item === itemKey).map(({ item: _item, ...f }) => f);
+  return FIELDS.filter((f) => f.item === itemKey).map(
+    ({ item: _item, ...f }) => f,
+  );
 }
 
 export function getItemLabel(itemKey: string): string {
@@ -37,10 +39,14 @@ export function getItemLabel(itemKey: string): string {
 /** `process:n` / `precursor:m` for each process and precursor the A_InstData lists declare in `cells`. */
 export function declaredBlocks(cells: Record<string, unknown>): string[] {
   const declared = FIELDS.filter(
-    (f) => f.declares && typeof cells[f.cell] === "string" && (cells[f.cell] as string).trim() !== "",
+    (f) =>
+      f.declares &&
+      typeof cells[f.cell] === "string" &&
+      (cells[f.cell] as string).trim() !== "",
   ).map((f) => `${f.group}:${f.block}`);
   return [...new Set(declared)];
 }
 
 /** A link can only be made for an item that has fields to fill. */
-export const isKnownItem = (itemKey: string) => FIELDS.some((f) => f.item === itemKey);
+export const isKnownItem = (itemKey: string) =>
+  FIELDS.some((f) => f.item === itemKey);

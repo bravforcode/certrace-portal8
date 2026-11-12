@@ -4,7 +4,13 @@ import { object, string } from "../../lib/json";
 import { token as newToken } from "../../lib/security";
 import { trialEnded } from "../auth/trial";
 import { patchCells } from "../workbooks/service";
-import { declaredBlocks, getItemFields, getItemLabel, isKnownItem, type ItemField } from "./item-fields";
+import {
+  declaredBlocks,
+  getItemFields,
+  getItemLabel,
+  isKnownItem,
+  type ItemField,
+} from "./item-fields";
 
 const ITEM_LINK_DAYS = 90;
 
@@ -15,7 +21,8 @@ export async function createItemLink(
   actorId: string,
   body: { installationId: string; year: number; itemKey: string },
 ) {
-  if (!isKnownItem(body.itemKey)) fail(422, "UNKNOWN_ITEM", "That item has no form to share.");
+  if (!isKnownItem(body.itemKey))
+    fail(422, "UNKNOWN_ITEM", "That item has no form to share.");
   const row = await db.item_links.create({
     data: {
       token: newToken(),
@@ -27,7 +34,11 @@ export async function createItemLink(
       expires_at: new Date(Date.now() + ITEM_LINK_DAYS * 86_400_000),
     },
   });
-  return { token: row.token, path: `/s/item/${row.token}`, expiresAt: +row.expires_at };
+  return {
+    token: row.token,
+    path: `/s/item/${row.token}`,
+    expiresAt: +row.expires_at,
+  };
 }
 
 // Unknown, expired and suspended-owner tokens all read as not found.
@@ -41,7 +52,10 @@ async function liveItemLink(token: string) {
   return link;
 }
 
-export async function resolveItemLink(token: string, fieldsFor: FieldsFor = getItemFields) {
+export async function resolveItemLink(
+  token: string,
+  fieldsFor: FieldsFor = getItemFields,
+) {
   const link = await liveItemLink(token);
   const wb = await db.workbooks.findUnique({
     where: {
@@ -69,12 +83,16 @@ export async function resolveItemLink(token: string, fieldsFor: FieldsFor = getI
 }
 
 /** Maps submitted field keys to workbook cells. Only keys from this item's catalogue are accepted. */
-export function itemCellPatch(fields: ItemField[], values: Record<string, string | null>) {
+export function itemCellPatch(
+  fields: ItemField[],
+  values: Record<string, string | null>,
+) {
   const cellOf = new Map(fields.map((f) => [f.key, f.cell]));
   const patch: Record<string, string | null> = {};
   for (const [key, value] of Object.entries(values)) {
     const cell = cellOf.get(key);
-    if (cell === undefined) fail(422, "UNKNOWN_ITEM_FIELD", `Unknown field ${key.slice(0, 80)}`);
+    if (cell === undefined)
+      fail(422, "UNKNOWN_ITEM_FIELD", `Unknown field ${key.slice(0, 80)}`);
     patch[cell] = value;
   }
   return patch;
@@ -88,9 +106,19 @@ export async function submitItemLink(
   const link = await liveItemLink(token);
   // Public writes stop when the owner's trial has ended, as on existing smart links.
   if (trialEnded(link.users))
-    fail(403, "TRIAL_ENDED", "Your free trial has ended. Choose a plan to keep editing.");
+    fail(
+      403,
+      "TRIAL_ENDED",
+      "Your free trial has ended. Choose a plan to keep editing.",
+    );
   const cells = itemCellPatch(fieldsFor(link.item_key), values);
   // Attributed to the member who created the link, since public writers have no account.
-  await patchCells(link.user_id, link.installation_id, link.year, link.created_by, cells);
+  await patchCells(
+    link.user_id,
+    link.installation_id,
+    link.year,
+    link.created_by,
+    cells,
+  );
   return { saved: true as const };
 }

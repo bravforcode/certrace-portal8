@@ -5,7 +5,8 @@ export const TH_OPPORTUNITIES: Record<string, string> = {
   Opportunities: "โอกาสปรับปรุง",
   "Find the gaps and savings to close, assign them, and print a report.":
     "หาช่องว่างข้อมูลและโอกาสลดต้นทุนที่ต้องปิด มอบหมายงาน แล้วพิมพ์เป็นรายงานได้",
-  "Get actual emissions for {item} (CN {cn})": "ขอค่าการปล่อยจริงของ {item} (CN {cn})",
+  "Get actual emissions for {item} (CN {cn})":
+    "ขอค่าการปล่อยจริงของ {item} (CN {cn})",
   "Fill in the {name} sheet": "กรอกชีต {name}",
   "Default values include a mark-up. The supplier's actual value removes at least that part.":
     "ค่าตั้งต้นมีส่วนบวกเพิ่ม การใช้ค่าจริงจากซัพพลายเออร์จะตัดส่วนนี้ออกอย่างน้อย",
@@ -20,7 +21,8 @@ export const TH_OPPORTUNITIES: Record<string, string> = {
   "Print report": "พิมพ์รายงาน",
   "Nothing to close yet": "ยังไม่มีสิ่งที่ต้องปิด",
   "No open items": "ไม่มีรายการที่เปิดอยู่",
-  "Open items worth at least {eur} EUR and {t} tCO₂e": "รายการที่เปิดอยู่มีมูลค่าอย่างน้อย {eur} EUR และ {t} tCO₂e",
+  "Open items worth at least {eur} EUR and {t} tCO₂e":
+    "รายการที่เปิดอยู่มีมูลค่าอย่างน้อย {eur} EUR และ {t} tCO₂e",
   "Open cards": "การ์ดที่เปิดอยู่",
   "Opportunities summary": "สรุปโอกาสปรับปรุง",
   Dismissed: "ไม่ทำแล้ว",
@@ -35,10 +37,13 @@ export const TH_OPPORTUNITIES: Record<string, string> = {
   "Filter by assignee": "กรองตามผู้รับผิดชอบ",
   "Open the item": "เปิดรายการ",
   "Open card": "การ์ดที่เปิด",
-  "Read-only. This account or seat cannot change opportunities.": "อ่านอย่างเดียว บัญชีหรือบทบาทนี้ไม่สามารถแก้ไขโอกาสปรับปรุงได้",
-  "{count} new items did not fit the list limit.": "มี {count} รายการใหม่เกินจำนวนสูงสุดของรายการ จึงไม่ได้เพิ่ม",
+  "Read-only. This account or seat cannot change opportunities.":
+    "อ่านอย่างเดียว บัญชีหรือบทบาทนี้ไม่สามารถแก้ไขโอกาสปรับปรุงได้",
+  "{count} new items did not fit the list limit.":
+    "มี {count} รายการใหม่เกินจำนวนสูงสุดของรายการ จึงไม่ได้เพิ่ม",
   "Opportunities report for {company}": "รายงานโอกาสปรับปรุงของ {company}",
   "Printed on {date}": "พิมพ์เมื่อ {date}",
   "Your changes could not be saved.": "บันทึกการเปลี่ยนแปลงไม่สำเร็จ",
-  "The opportunity list is full. Close or remove cards first.": "รายการโอกาสปรับปรุงเต็มแล้ว ปิดหรือลบการ์ดก่อน",
+  "The opportunity list is full. Close or remove cards first.":
+    "รายการโอกาสปรับปรุงเต็มแล้ว ปิดหรือลบการ์ดก่อน",
 };

@@ -62,13 +62,21 @@ export function InstallationSheet({
   // with it. Our own save coming back is not outside: it is the same record.
   React.useEffect(() => {
     if (!installation || pending.current) return;
-    if (edit.current && canonical(installation) === canonical(edit.current.known)) return;
+    if (
+      edit.current &&
+      canonical(installation) === canonical(edit.current.known)
+    )
+      return;
     edit.current = startSheetEdit(installation);
     setView(edit.current);
   }, [installation]);
 
   if (!view) {
-    return <div className="grid min-h-[240px] place-items-center bg-[#fafaf8] px-6 text-center text-[14px] text-black/55">{t("Choose an installation above to fill in its details.")}</div>;
+    return (
+      <div className="grid min-h-[240px] place-items-center bg-[#fafaf8] px-6 text-center text-[14px] text-black/55">
+        {t("Choose an installation above to fill in its details.")}
+      </div>
+    );
   }
 
   const change = (key: keyof Installation, value: string) => {
@@ -86,11 +94,17 @@ export function InstallationSheet({
   return (
     <div className="bg-white">
       <p className="border-b border-black/[0.08] px-4 py-2 text-[12.5px] text-black/55">
-        {t("This tab edits the installation record. Changes also show in Settings → Installations.")}
+        {t(
+          "This tab edits the installation record. Changes also show in Settings → Installations.",
+        )}
       </p>
       <div className="grid grid-cols-[minmax(180px,260px)_1fr] text-[13px]">
-        <div className="border-b border-r border-black/[0.08] bg-[#f0efea] px-4 py-2 text-black/60">{t("Installation reference")}</div>
-        <div className="border-b border-black/[0.08] px-4 py-2 font-mono text-black/70">{draft.id}</div>
+        <div className="border-b border-r border-black/[0.08] bg-[#f0efea] px-4 py-2 text-black/60">
+          {t("Installation reference")}
+        </div>
+        <div className="border-b border-black/[0.08] px-4 py-2 font-mono text-black/70">
+          {draft.id}
+        </div>
         {INSTALLATION_SHEET_FIELDS.map((f) => {
           const raw = String(draft[f.key] ?? "");
           const empty = f.required && !raw.trim();
@@ -101,7 +115,12 @@ export function InstallationSheet({
             <React.Fragment key={f.key}>
               <div className="border-b border-r border-black/[0.08] bg-[#f0efea] px-4 py-2 text-black/60">
                 {t(f.label)}
-                {f.required && <span aria-hidden="true" className="text-[#dc2626]"> *</span>}
+                {f.required && (
+                  <span aria-hidden="true" className="text-[#dc2626]">
+                    {" "}
+                    *
+                  </span>
+                )}
               </div>
               <div
                 className={`border-b border-black/[0.08] border-l-2 px-2 py-1 ${invalid ? "border-l-[#dc2626]" : "border-l-transparent"}`}

@@ -22,7 +22,8 @@ const STATUSES: { value: PreverificationStatus; label: string }[] = [
 
 export default function PreverificationListPage() {
   const router = useRouter();
-  const [status, setStatus] = React.useState<PreverificationStatus>("team_review");
+  const [status, setStatus] =
+    React.useState<PreverificationStatus>("team_review");
   const [items, setItems] = React.useState<AdminPreverification[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [denied, setDenied] = React.useState(false);
@@ -38,7 +39,12 @@ export default function PreverificationListPage() {
         if (!live) return;
         if (isApiError(cause) && cause.status === 401) router.replace("/login");
         else if (isApiError(cause) && cause.status === 403) setDenied(true);
-        else setError(cause instanceof Error ? cause.message : "Could not load submissions.");
+        else
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : "Could not load submissions.",
+          );
       })
       .finally(() => live && setLoading(false));
     return () => {
@@ -51,12 +57,17 @@ export default function PreverificationListPage() {
       <div className="mx-auto max-w-6xl">
         <header className="flex items-center justify-between gap-4">
           <CertraceLogo className="h-6 w-auto" />
-          <Link href="/admin" className="text-sm text-black/60 hover:text-black">
+          <Link
+            href="/admin"
+            className="text-sm text-black/60 hover:text-black"
+          >
             Back to users
           </Link>
         </header>
         <div className="mt-10">
-          <p className="text-xs uppercase tracking-[0.16em] text-black/45">Administration</p>
+          <p className="text-xs uppercase tracking-[0.16em] text-black/45">
+            Administration
+          </p>
           <h1 className="mt-2 text-3xl font-light">CBAM pre-verification</h1>
           <p className="mt-2 text-sm text-black/55">
             Review what the AI checked, then approve or request changes.
@@ -75,7 +86,9 @@ export default function PreverificationListPage() {
                 <select
                   className={inputClass + " w-auto"}
                   value={status}
-                  onChange={(e) => setStatus(e.target.value as PreverificationStatus)}
+                  onChange={(e) =>
+                    setStatus(e.target.value as PreverificationStatus)
+                  }
                 >
                   {STATUSES.map((s) => (
                     <option key={s.value} value={s.value}>
@@ -96,10 +109,14 @@ export default function PreverificationListPage() {
               {loading ? (
                 <p className="px-5 py-6 text-[13px] text-black/40">Loading…</p>
               ) : items.length === 0 ? (
-                <p className="px-5 py-6 text-[13px] text-black/40">No submissions here.</p>
+                <p className="px-5 py-6 text-[13px] text-black/40">
+                  No submissions here.
+                </p>
               ) : (
                 items.map((item, i) => {
-                  const errors = item.aiFindings.filter((f) => f.severity === "error").length;
+                  const errors = item.aiFindings.filter(
+                    (f) => f.severity === "error",
+                  ).length;
                   const warns = item.aiFindings.length - errors;
                   return (
                     <Link
@@ -115,7 +132,8 @@ export default function PreverificationListPage() {
                           {item.companyName || item.companyEmail}
                         </p>
                         <p className="mt-0.5 text-[12px] text-black/45">
-                          Installation {item.installationId} · {item.year} · Submitted{" "}
+                          Installation {item.installationId} · {item.year} ·
+                          Submitted{" "}
                           {new Date(item.submittedAt).toLocaleString()}
                         </p>
                       </div>

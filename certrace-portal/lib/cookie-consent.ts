@@ -27,7 +27,9 @@ function visitorId(): string {
 
 export function readChoice(): CookieChoice | null {
   try {
-    const c = JSON.parse(localStorage.getItem(KEY) ?? "null") as CookieChoice | null;
+    const c = JSON.parse(
+      localStorage.getItem(KEY) ?? "null",
+    ) as CookieChoice | null;
     return c?.policyVersion === COOKIE_POLICY_VERSION ? c : null;
   } catch {
     return null;

@@ -16,8 +16,14 @@ import { coordinateError, type Installation } from "../installations";
 import { estimateEmissions, indirectGate } from "../workbook/estimate";
 import { toTonnes } from "../workbook/balance";
 import { startedRow } from "../workbook/status";
-import { DATA_ORIGIN_LABEL, type PrecursorSupplier } from "../precursor-suppliers";
-import { EVIDENCE_SOURCE_LABEL, type EvidenceItem } from "../workspace-evidence";
+import {
+  DATA_ORIGIN_LABEL,
+  type PrecursorSupplier,
+} from "../precursor-suppliers";
+import {
+  EVIDENCE_SOURCE_LABEL,
+  type EvidenceItem,
+} from "../workspace-evidence";
 import type { CarbonPriceRecord } from "../carbon-price";
 import type { Sheet, SheetRow } from "../workspace-sheets";
 import type { XlsxCell, XlsxSheet } from "../xlsx-write";
@@ -89,14 +95,24 @@ function table(
   entries: Entry[],
   t: (en: string) => string,
 ): Counted {
-  const header: XlsxCell[] = [t(idLabel), ...valueFields.map((f) => t(f.label)), t("Status"), t("Reason")];
+  const header: XlsxCell[] = [
+    t(idLabel),
+    ...valueFields.map((f) => t(f.label)),
+    t("Status"),
+    t("Reason"),
+  ];
   let verified = 0;
   const body = entries.map((e): XlsxCell[] => {
     if (e.check.verified) {
       verified++;
       return [e.id, ...e.values, t("verified"), null];
     }
-    return [e.id, ...e.values.map(() => null), t("not yet verified"), t(e.check.reason ?? "not yet verified")];
+    return [
+      e.id,
+      ...e.values.map(() => null),
+      t("not yet verified"),
+      t(e.check.reason ?? "not yet verified"),
+    ];
   });
   return {
     sheet: { name, rows: [header, ...body] },
@@ -109,7 +125,9 @@ function table(
 const dataRows = (sheets: Sheet[], id: string): SheetRow[] =>
   (sheets.find((s) => s.id === id)?.rows ?? []).filter(startedRow);
 
-export function buildVerificationExport(input: VerificationExportInput): VerificationExport {
+export function buildVerificationExport(
+  input: VerificationExportInput,
+): VerificationExport {
   const t = input.t ?? ((en: string) => en);
   const inst = input.installation;
   const ctx = { suppliers: input.suppliers };
@@ -118,7 +136,9 @@ export function buildVerificationExport(input: VerificationExportInput): Verific
   /* Installation: one row per CBAM identification item in scope. */
   const coordsOk = coordinateError(inst.lat, inst.lng) === null;
   const installationEntries: Entry[] = INSTALLATION_SCOPE.map((f) => {
-    const value = String((inst as unknown as Record<string, unknown>)[f.key] ?? "").trim();
+    const value = String(
+      (inst as unknown as Record<string, unknown>)[f.key] ?? "",
+    ).trim();
     const coordinate = f.key === "lat" || f.key === "lng";
     const check = rowVerification(
       "installation",
@@ -128,12 +148,22 @@ export function buildVerificationExport(input: VerificationExportInput): Verific
     return { id: t(f.label), values: [check.verified ? value : null], check };
   });
   counted.push(
-    table(t(SHEET.installation), "Field", [{ key: "value", label: "Value", why: "The field as entered." }], installationEntries, t),
+    table(
+      t(SHEET.installation),
+      "Field",
+      [{ key: "value", label: "Value", why: "The field as entered." }],
+      installationEntries,
+      t,
+    ),
   );
 
   /* Estimate: the installation's totals, from lib/workbook/estimate.ts. */
-  const estimate = estimateEmissions(input.sheets, { country: inst.country, year: input.year });
-  const emissionsComplete = estimate.unmatched.length === 0 && estimate.productionT > 0;
+  const estimate = estimateEmissions(input.sheets, {
+    country: inst.country,
+    year: input.year,
+  });
+  const emissionsComplete =
+    estimate.unmatched.length === 0 && estimate.productionT > 0;
 
   /* Goods. Specific emissions are the installation's totals per tonne of production.
      Indirect is counted only where indirectGate says the CN counts it. */
@@ -143,66 +173,112 @@ export function buildVerificationExport(input: VerificationExportInput): Verific
     const tonnes = toTonnes(r.cells.qty ?? "", r.cells.unit ?? "");
     const gate = indirectGate(cn);
     let check = rowVerification("products", r, ctx);
-    if (check.verified && tonnes === null) check = { verified: false, reason: "unit is not a mass unit" };
-    else if (check.verified && !emissionsComplete) check = { verified: false, reason: "emissions estimate incomplete" };
-    else if (check.verified && gate === null) check = { verified: false, reason: "unknown CN code" };
+    if (check.verified && tonnes === null)
+      check = { verified: false, reason: "unit is not a mass unit" };
+    else if (check.verified && !emissionsComplete)
+      check = { verified: false, reason: "emissions estimate incomplete" };
+    else if (check.verified && gate === null)
+      check = { verified: false, reason: "unknown CN code" };
     const p = estimate.productionT;
     const direct = p > 0 ? r4(estimate.directT / p) : null;
     const indirect: XlsxCell =
-      gate === true && p > 0 ? r4(estimate.indirectT / p) : gate === false ? t("not counted (direct-only good)") : null;
+      gate === true && p > 0
+        ? r4(estimate.indirectT / p)
+        : gate === false
+          ? t("not counted (direct-only good)")
+          : null;
     return {
       id: item,
-      values: check.verified ? [cn, tonnes, direct, indirect] : [null, null, null, null],
-      check,
-    };
-  });
-  // The product name is the row's identifier; the CN code and the figures are its values.
-  counted.push(table(t(SHEET.goods), "Product", GOODS_SCOPE.filter((f) => f.key !== "item"), goodsEntries, t));
-
-  /* Precursors: each row is linked to a supplier by CN code. The figure is the supplier's. */
-  const precursorEntries: Entry[] = dataRows(input.sheets, "materials").map((r) => {
-    const cn = (r.cells.cn ?? "").trim();
-    const item = (r.cells.item ?? "").trim() || cn;
-    const tonnes = toTonnes(r.cells.qty ?? "", r.cells.unit ?? "");
-    let check = rowVerification("materials", r, ctx);
-    const digits = cn.replace(/\D/g, "");
-    const match = digits ? input.suppliers.find((s) => !s.isScrap && s.cnCode.replace(/\D/g, "") === digits) : undefined;
-    if (check.verified && tonnes === null) check = { verified: false, reason: "unit is not a mass unit" };
-    else if (check.verified && (match?.seeTco2ePerT ?? null) === null) check = { verified: false, reason: "no verified supplier data" };
-    return {
-      id: item,
-      values: check.verified && match
-        ? [cn, tonnes, match.seeTco2ePerT, t(DATA_ORIGIN_LABEL[match.dataOrigin])]
+      values: check.verified
+        ? [cn, tonnes, direct, indirect]
         : [null, null, null, null],
       check,
     };
   });
-  counted.push(table(t(SHEET.precursors), "Precursor", PRECURSOR_SCOPE, precursorEntries, t));
+  // The product name is the row's identifier; the CN code and the figures are its values.
+  counted.push(
+    table(
+      t(SHEET.goods),
+      "Product",
+      GOODS_SCOPE.filter((f) => f.key !== "item"),
+      goodsEntries,
+      t,
+    ),
+  );
+
+  /* Precursors: each row is linked to a supplier by CN code. The figure is the supplier's. */
+  const precursorEntries: Entry[] = dataRows(input.sheets, "materials").map(
+    (r) => {
+      const cn = (r.cells.cn ?? "").trim();
+      const item = (r.cells.item ?? "").trim() || cn;
+      const tonnes = toTonnes(r.cells.qty ?? "", r.cells.unit ?? "");
+      let check = rowVerification("materials", r, ctx);
+      const digits = cn.replace(/\D/g, "");
+      const match = digits
+        ? input.suppliers.find(
+            (s) => !s.isScrap && s.cnCode.replace(/\D/g, "") === digits,
+          )
+        : undefined;
+      if (check.verified && tonnes === null)
+        check = { verified: false, reason: "unit is not a mass unit" };
+      else if (check.verified && (match?.seeTco2ePerT ?? null) === null)
+        check = { verified: false, reason: "no verified supplier data" };
+      return {
+        id: item,
+        values:
+          check.verified && match
+            ? [
+                cn,
+                tonnes,
+                match.seeTco2ePerT,
+                t(DATA_ORIGIN_LABEL[match.dataOrigin]),
+              ]
+            : [null, null, null, null],
+        check,
+      };
+    },
+  );
+  counted.push(
+    table(
+      t(SHEET.precursors),
+      "Precursor",
+      PRECURSOR_SCOPE,
+      precursorEntries,
+      t,
+    ),
+  );
 
   /* Process steps. */
   const stepEntries: Entry[] = dataRows(input.sheets, "steps").map((r) => {
     const check = rowVerification("steps", r, ctx);
-    const keep = (v: string | undefined) => (check.verified ? (v ?? "").trim() || null : null);
+    const keep = (v: string | undefined) =>
+      check.verified ? (v ?? "").trim() || null : null;
     return {
       id: (r.cells.step ?? "").trim(),
       values: [keep(r.cells.what), keep(r.cells.input), keep(r.cells.output)],
       check,
     };
   });
-  counted.push(table(t(SHEET.steps), "Process step", PROCESS_SCOPE, stepEntries, t));
+  counted.push(
+    table(t(SHEET.steps), "Process step", PROCESS_SCOPE, stepEntries, t),
+  );
 
   /* Meters: each energy source with its step and monitoring method. */
   const meterEntries: Entry[] = dataRows(input.sheets, "energy").map((r) => {
     let check = rowVerification("energy", r, ctx);
-    if (check.verified && !(r.cells.method ?? "").trim()) check = { verified: false, reason: "monitoring method missing" };
-    const keep = (v: string | undefined) => (check.verified ? (v ?? "").trim() || null : null);
+    if (check.verified && !(r.cells.method ?? "").trim())
+      check = { verified: false, reason: "monitoring method missing" };
+    const keep = (v: string | undefined) =>
+      check.verified ? (v ?? "").trim() || null : null;
     return {
       id: (r.cells.item ?? "").trim(),
       values: [keep(r.cells.step), keep(r.cells.method)],
       check,
     };
   });
-  counted.push(table(t(SHEET.meters), "Energy source", METER_SCOPE, meterEntries, t));
+  counted.push(
+    table(t(SHEET.meters), "Energy source", METER_SCOPE, meterEntries, t),
+  );
 
   /* Evidence: the document's name, type and date. Never its contents or a link. */
   const evidenceEntries: Entry[] = input.evidence.map((item) => {
@@ -210,29 +286,45 @@ export function buildVerificationExport(input: VerificationExportInput): Verific
     return {
       id: item.fileName,
       values: check.verified
-        ? [t(EVIDENCE_SOURCE_LABEL[item.sourceType]), item.capturedAt.slice(0, 10)]
+        ? [
+            t(EVIDENCE_SOURCE_LABEL[item.sourceType]),
+            item.capturedAt.slice(0, 10),
+          ]
         : [null, null],
       check,
     };
   });
-  counted.push(table(t(SHEET.evidence), "Document", EVIDENCE_SCOPE, evidenceEntries, t));
+  counted.push(
+    table(t(SHEET.evidence), "Document", EVIDENCE_SCOPE, evidenceEntries, t),
+  );
 
   /* Carbon price: only recorded answers, and only the price, its currency and the rebate. */
   const carbonEntries: Entry[] = input.carbonPrices.map(({ label, record }) => {
-    const check = rowVerification("carbon-price", {
-      recorded: record.recorded,
-      amountPerTonne: record.amountPerTonne,
-      evidenceItemId: record.evidenceItemId,
-    }, ctx);
+    const check = rowVerification(
+      "carbon-price",
+      {
+        recorded: record.recorded,
+        amountPerTonne: record.amountPerTonne,
+        evidenceItemId: record.evidenceItemId,
+      },
+      ctx,
+    );
     return {
       id: label,
       values: check.verified
-        ? [record.amountPerTonne, record.currency, record.rebateAmountPerTonne ?? 0]
+        ? [
+            record.amountPerTonne,
+            record.currency,
+            record.rebateAmountPerTonne ?? 0,
+          ]
         : [null, null, null],
       check,
     };
   });
-  if (carbonEntries.length > 0) counted.push(table(t(SHEET.carbon), "Good", CARBON_PRICE_SCOPE, carbonEntries, t));
+  if (carbonEntries.length > 0)
+    counted.push(
+      table(t(SHEET.carbon), "Good", CARBON_PRICE_SCOPE, carbonEntries, t),
+    );
 
   /* Summary: the facts a verifier starts from, then the counts per sheet. */
   const summaryRows: XlsxCell[][] = [

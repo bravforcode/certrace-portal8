@@ -8,7 +8,10 @@ import { installationSheetStatus } from "../workbook/status";
 // first edit creates the record, so the seed carries the reference and link,
 // but never a name copied from the org profile. An unsaved site reads untouched.
 test("a scoped site with no saved record is seeded with its reference, not a name", () => {
-  const d = draftInstallation({ id: "TH-RAYONG-01", self: false, supplierId: "sup-1" }, null);
+  const d = draftInstallation(
+    { id: "TH-RAYONG-01", self: false, supplierId: "sup-1" },
+    null,
+  );
   assert.equal(d.id, "TH-RAYONG-01");
   assert.equal(d.name, "");
   assert.equal(d.supplierId, "sup-1");
@@ -23,7 +26,12 @@ test("the unsaved own site reads untouched in the tab until a name is entered", 
 });
 
 test("a saved record is returned as stored, never overwritten by the seed", () => {
-  const stored = { ...emptyInstallation(), id: "TH-RAYONG-01", name: "Stored name", street: "1 Moo 2" };
+  const stored = {
+    ...emptyInstallation(),
+    id: "TH-RAYONG-01",
+    name: "Stored name",
+    street: "1 Moo 2",
+  };
   const d = draftInstallation({ id: "TH-RAYONG-01", self: false }, stored);
   assert.equal(d, stored);
 });

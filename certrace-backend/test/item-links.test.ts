@@ -1,24 +1,48 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { db } from "../src/lib/db";
-import { declaredBlocks, type ItemField } from "../src/modules/links/item-fields";
-import { itemCellPatch, submitItemLink } from "../src/modules/links/item-service";
+import {
+  declaredBlocks,
+  type ItemField,
+} from "../src/modules/links/item-fields";
+import {
+  itemCellPatch,
+  submitItemLink,
+} from "../src/modules/links/item-service";
 import { account, call, cleanup, editorOf } from "./helpers";
 afterAll(cleanup);
 
 // Test-only catalogue: isolation between two items is exercised with explicit field lists,
 // bound to two real item keys so the links can be created.
 const FIELDS_A: ItemField[] = [
-  { key: "item-a:weight", label: "Weight", section: "Goods", cell: "products:0:weight", kind: "number" },
+  {
+    key: "item-a:weight",
+    label: "Weight",
+    section: "Goods",
+    cell: "products:0:weight",
+    kind: "number",
+  },
 ];
 const FIELDS_B: ItemField[] = [
-  { key: "item-b:origin", label: "Origin", section: "Direct", cell: "products:1:origin", kind: "text" },
+  {
+    key: "item-b:origin",
+    label: "Origin",
+    section: "Direct",
+    cell: "products:1:origin",
+    kind: "text",
+  },
 ];
 const fieldsFor = (itemKey: string) =>
   itemKey === "goods" ? FIELDS_A : itemKey === "direct" ? FIELDS_B : [];
 
 const base = "/api/v1/workbooks/inst-1/2026";
 const create = (cookie: string, itemKey: string, h = {}) =>
-  call("/api/v1/item-links", "POST", { installationId: "inst-1", year: 2026, itemKey }, cookie, h);
+  call(
+    "/api/v1/item-links",
+    "POST",
+    { installationId: "inst-1", year: 2026, itemKey },
+    cookie,
+    h,
+  );
 
 async function mint(cookie: string, itemKey: string, h = {}) {
   const r = await create(cookie, itemKey, h);
@@ -31,7 +55,12 @@ describe("declared processes", () => {
   // so the holder does not have to discover process 2 by first filling process 1.
   test("reads the A_InstData process and precursor lists from the workbook cells", () => {
     expect(
-      declaredBlocks({ "cbam:0:a-e83": "Crude steel", "cbam:0:a-l84": "Rolling", "cbam:0:a-e103": "  ", "cbam:0:a-l102": "Coke" }),
+      declaredBlocks({
+        "cbam:0:a-e83": "Crude steel",
+        "cbam:0:a-l84": "Rolling",
+        "cbam:0:a-e103": "  ",
+        "cbam:0:a-l102": "Coke",
+      }),
     ).toEqual(["process:1", "process:2", "precursor:1"]);
     expect(declaredBlocks({ "cbam:0:d-l16": "100" })).toEqual([]);
   });
@@ -39,16 +68,23 @@ describe("declared processes", () => {
 
 describe("item link mapping", () => {
   test("maps item field keys to their workbook cells", () => {
-    expect(itemCellPatch(FIELDS_A, { "item-a:weight": "12" })).toEqual({ "products:0:weight": "12" });
+    expect(itemCellPatch(FIELDS_A, { "item-a:weight": "12" })).toEqual({
+      "products:0:weight": "12",
+    });
   });
 
   test("null passes through so the cell is cleared", () => {
-    expect(itemCellPatch(FIELDS_A, { "item-a:weight": null })).toEqual({ "products:0:weight": null });
+    expect(itemCellPatch(FIELDS_A, { "item-a:weight": null })).toEqual({
+      "products:0:weight": null,
+    });
   });
 
   // A key that belongs to another item must never map to a cell, even when it is a real cell key.
   test("rejects keys outside the item and raw workbook cell keys", () => {
-    const rejected: Record<string, string>[] = [{ "item-b:origin": "CN" }, { "products:0:weight": "9" }];
+    const rejected: Record<string, string>[] = [
+      { "item-b:origin": "CN" },
+      { "products:0:weight": "9" },
+    ];
     for (const values of rejected) {
       try {
         itemCellPatch(FIELDS_A, values);
@@ -69,7 +105,9 @@ describe("item links", () => {
     const body = await r.json();
     expect(body.token).toMatch(/^[A-Za-z0-9_-]{20,}$/);
     expect(body.path).toBe(`/s/item/${body.token}`);
-    const row = await db.item_links.findUnique({ where: { token: body.token } });
+    const row = await db.item_links.findUnique({
+      where: { token: body.token },
+    });
     expect(row).toMatchObject({
       item_key: "goods",
       installation_id: "inst-1",
@@ -85,11 +123,15 @@ describe("item links", () => {
     const h = await editorOf(owner, member);
     const r = await create(member.cookie, "goods", h);
     expect(r.status).toBe(201);
-    const row = await db.item_links.findUnique({ where: { token: (await r.json()).token } });
+    const row = await db.item_links.findUnique({
+      where: { token: (await r.json()).token },
+    });
     expect(row?.user_id).toBe(owner.user.id);
     expect(row?.created_by).toBe(member.user.id);
     const stranger = await account();
-    const refused = await create(stranger.cookie, "goods", { "X-Certrace-Company": owner.user.id });
+    const refused = await create(stranger.cookie, "goods", {
+      "X-Certrace-Company": owner.user.id,
+    });
     expect(refused.status).toBe(403);
   });
 
@@ -100,7 +142,11 @@ describe("item links", () => {
     const r = await call(`/api/v1/item-links/${token}`);
     expect(r.status).toBe(200);
     const body = await r.json();
-    expect(body).toMatchObject({ itemKey: "goods", installationId: "inst-1", year: 2026 });
+    expect(body).toMatchObject({
+      itemKey: "goods",
+      installationId: "inst-1",
+      year: 2026,
+    });
     expect(body.label).toBe("Goods, CN codes and production routes");
     // The form gets the catalogue fields with their current answers, never the raw cell keys.
     expect(body.fields.length).toBeGreaterThan(0);
@@ -170,8 +216,11 @@ describe("item links", () => {
   test("the public submit endpoint writes a catalogue field into the cbam sheet", async () => {
     const owner = await account();
     const token = await mint(owner.cookie, "goods");
-    const field = (await (await call(`/api/v1/item-links/${token}`)).json()).fields[0];
-    const r = await call(`/api/v1/item-links/${token}/submit`, "POST", { values: { [field.key]: "7" } });
+    const field = (await (await call(`/api/v1/item-links/${token}`)).json())
+      .fields[0];
+    const r = await call(`/api/v1/item-links/${token}/submit`, "POST", {
+      values: { [field.key]: "7" },
+    });
     expect(r.status).toBe(200);
     const wb = await (await call(base, "GET", undefined, owner.cookie)).json();
     expect(wb.cells).toEqual({ [`cbam:0:${field.key}`]: "7" });

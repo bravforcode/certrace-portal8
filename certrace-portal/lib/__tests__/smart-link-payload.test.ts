@@ -110,7 +110,10 @@ test("builds this supplier's request straight from the resolve payload", () => {
 /* A supplier must never see a quantity the exporter did not enter: invented
    lots would be signed and submitted as if they were the exporter's ask. */
 test("a link with no recorded product spec asks for the good with no invented lots", () => {
-  const req = buildFromPayload(TOKEN, resolution({ request: { products: [] } }));
+  const req = buildFromPayload(
+    TOKEN,
+    resolution({ request: { products: [] } }),
+  );
   assert.ok(req);
   assert.equal(req.products.length, 1);
   assert.equal(req.products[0].product.id, "hrc");

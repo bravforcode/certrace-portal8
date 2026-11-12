@@ -28,20 +28,28 @@ export function OpportunitySummary() {
   return (
     <Card className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-lg font-light text-black/80">{t("Opportunities summary")}</h2>
-        <Link href="/opportunities" className="text-sm text-black/60 underline-offset-2 hover:underline">
+        <h2 className="text-lg font-light text-black/80">
+          {t("Opportunities summary")}
+        </h2>
+        <Link
+          href="/opportunities"
+          className="text-sm text-black/60 underline-offset-2 hover:underline"
+        >
           {t("See all")}
         </Link>
       </div>
       <p className="text-sm text-black/60">
-        {t("Open")} {totals.open} · {t("In progress")} {totals.inProgress} · {t("Done")} {totals.done}
+        {t("Open")} {totals.open} · {t("In progress")} {totals.inProgress} ·{" "}
+        {t("Done")} {totals.done}
       </p>
       {top.length > 0 && (
         <div>
           <p className="text-xs text-black/50">{t("Top open items")}</p>
           <ul className="mt-1 space-y-1 text-sm text-black/75">
             {top.map((o) => (
-              <li key={o.id} className="truncate">{cardText(t, o)}</li>
+              <li key={o.id} className="truncate">
+                {cardText(t, o)}
+              </li>
             ))}
           </ul>
         </div>

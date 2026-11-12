@@ -8,7 +8,8 @@ export type Stamp = number | string | undefined;
 /** The calendar year a stamp falls in, or null when there is no usable value. */
 export function yearOf(value: Stamp): number | null {
   if (value === undefined || value === null || value === "") return null;
-  if (typeof value === "string" && /^\d{4}-/.test(value)) return Number(value.slice(0, 4));
+  if (typeof value === "string" && /^\d{4}-/.test(value))
+    return Number(value.slice(0, 4));
   const at = new Date(typeof value === "number" ? value : Date.parse(value));
   return Number.isNaN(at.getTime()) ? null : at.getFullYear();
 }

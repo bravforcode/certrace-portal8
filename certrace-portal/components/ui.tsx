@@ -96,7 +96,10 @@ const btnBase =
   "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl uppercase tracking-[0.1em] transition-[transform,box-shadow,background-color,color,border-color] duration-150 active:scale-[0.98] motion-reduce:transform-none disabled:opacity-40 disabled:pointer-events-none";
 const btnSizing = (size: "md" | "sm") =>
   size === "sm" ? "px-4 py-2 text-[11px]" : "px-6 py-3 text-[13px]";
-const btnVariants: Record<"primary" | "secondary" | "ghost" | "danger", string> = {
+const btnVariants: Record<
+  "primary" | "secondary" | "ghost" | "danger",
+  string
+> = {
   primary: "bg-[#111] text-white hover:bg-[#333]",
   danger: "bg-[#dc2626] text-white hover:bg-[#b91c1c]",
   secondary:
@@ -965,8 +968,11 @@ const FOCUSABLE =
    opened on top of another one is left alone. */
 function keepTabInside(e: KeyboardEvent, panel: HTMLElement) {
   const active = document.activeElement;
-  if (active && !panel.contains(active) && active.closest('[role="dialog"]')) return;
-  const els = [...panel.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => !el.closest("[hidden]"));
+  if (active && !panel.contains(active) && active.closest('[role="dialog"]'))
+    return;
+  const els = [...panel.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
+    (el) => !el.closest("[hidden]"),
+  );
   if (!els.length) return;
   const first = els[0]!;
   const last = els[els.length - 1]!;
@@ -1038,7 +1044,8 @@ export function Modal({
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
-      else if (e.key === "Tab" && panelRef.current) keepTabInside(e, panelRef.current);
+      else if (e.key === "Tab" && panelRef.current)
+        keepTabInside(e, panelRef.current);
     };
     document.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;

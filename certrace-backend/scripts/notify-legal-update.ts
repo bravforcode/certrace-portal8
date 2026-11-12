@@ -9,7 +9,8 @@ import { Prisma } from "../src/generated/prisma/client";
 // The key row is written before the send (email_deliveries is unique on
 // user_id+kind), which also makes concurrent runs safe.
 
-const errorCode = (e: unknown) => (e as { code?: string } | undefined)?.code ?? "UNKNOWN";
+const errorCode = (e: unknown) =>
+  (e as { code?: string } | undefined)?.code ?? "UNKNOWN";
 
 export async function currentLegalNoticeKey() {
   const docs = await db.legal_document_versions.findMany({
@@ -19,14 +20,19 @@ export async function currentLegalNoticeKey() {
   const terms = docs.find((d) => d.kind === "terms");
   const privacy = docs.find((d) => d.kind === "privacy");
   if (docs.length !== 2 || !terms || !privacy)
-    throw new Error("Expected one current terms and one current privacy version");
+    throw new Error(
+      "Expected one current terms and one current privacy version",
+    );
   return `legal_updated:${terms.id}/${privacy.id}`;
 }
 
 export async function sendLegalUpdateNotices({
   dry = false,
   key,
-}: { dry?: boolean; key?: string } = {}) {
+}: {
+  dry?: boolean;
+  key?: string;
+} = {}) {
   const noticeKey = key ?? (await currentLegalNoticeKey());
   const users = await db.users.findMany({ where: { status: "ACTIVE" } });
   const notified = new Set(
@@ -38,15 +44,22 @@ export async function sendLegalUpdateNotices({
     ).map((r) => r.user_id),
   );
   const pending = users.filter((u) => !notified.has(u.id));
-  if (dry) return { key: noticeKey, recipients: pending.length, sent: 0, failed: 0 };
+  if (dry)
+    return { key: noticeKey, recipients: pending.length, sent: 0, failed: 0 };
 
   let sent = 0;
   let failed = 0;
   for (const u of pending) {
     try {
-      await db.email_deliveries.create({ data: { user_id: u.id, kind: noticeKey } });
+      await db.email_deliveries.create({
+        data: { user_id: u.id, kind: noticeKey },
+      });
     } catch (e) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") continue;
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === "P2002"
+      )
+        continue;
       failed++;
       console.error(u.id, errorCode(e));
       continue;

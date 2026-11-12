@@ -1,7 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { installationSheetStatus, missingCells, sheetStatus, SHEET_ORDER, statusTooltip } from "../status";
-import { emptyInstallation, isInstallationComplete, type Installation } from "../../installations";
+import {
+  installationSheetStatus,
+  missingCells,
+  sheetStatus,
+  SHEET_ORDER,
+  statusTooltip,
+} from "../status";
+import {
+  emptyInstallation,
+  isInstallationComplete,
+  type Installation,
+} from "../../installations";
 import { installationTabTone, STATUS_TONE } from "../status";
 import type { Sheet } from "../../workspace-sheets";
 
@@ -17,11 +27,17 @@ const req = ["item", "qty", "unit"];
 // The tab colour is the customer's to-do list: red must mean "something is
 // missing here", never just "you have not looked yet".
 test("no values is untouched", () => {
-  assert.equal(sheetStatus(sheet([{ cells: {}, status: "empty" }]), req), "untouched");
+  assert.equal(
+    sheetStatus(sheet([{ cells: {}, status: "empty" }]), req),
+    "untouched",
+  );
 });
 test("a started row without a required column is missing", () => {
   assert.equal(
-    sheetStatus(sheet([{ cells: { item: "Wire rod", qty: "10" }, status: "confirmed" }]), req),
+    sheetStatus(
+      sheet([{ cells: { item: "Wire rod", qty: "10" }, status: "confirmed" }]),
+      req,
+    ),
     "missing",
   );
 });
@@ -35,7 +51,10 @@ test("a missing flag is missing even when columns are filled", () => {
 });
 test("review rows or warn flags give review", () => {
   assert.equal(
-    sheetStatus(sheet([{ cells: { item: "a", qty: "1", unit: "t" }, status: "review" }]), req),
+    sheetStatus(
+      sheet([{ cells: { item: "a", qty: "1", unit: "t" }, status: "review" }]),
+      req,
+    ),
     "review",
   );
   const warn = {
@@ -53,7 +72,10 @@ test("all started rows complete is complete; blank rows are ignored", () => {
   assert.equal(sheetStatus(sheet(rows), req), "complete");
 });
 test("a status cell alone does not start a row", () => {
-  assert.equal(sheetStatus(sheet([{ cells: { status: "review" }, status: "empty" }]), req), "untouched");
+  assert.equal(
+    sheetStatus(sheet([{ cells: { status: "review" }, status: "empty" }]), req),
+    "untouched",
+  );
 });
 
 const labelled = (rows: Sheet["rows"]): Sheet => ({
@@ -69,7 +91,11 @@ test("missingCells lists required and flagged gaps per started row", () => {
   const s = labelled([
     { cells: {}, status: "empty" },
     { cells: { item: "Wire rod" }, status: "confirmed" },
-    { cells: { item: "a", qty: "1", unit: "t" }, status: "confirmed", flags: { qty: "missing" } },
+    {
+      cells: { item: "a", qty: "1", unit: "t" },
+      status: "confirmed",
+      flags: { qty: "missing" },
+    },
   ]);
   assert.deepEqual(missingCells(s, req), [
     { row: 1, cols: ["qty", "unit"] },
@@ -81,19 +107,35 @@ test("statusTooltip names rows (1-based) and column labels", () => {
   assert.equal(statusTooltip(s, req), "Missing data — row 1: Qty, Unit");
 });
 test("statusTooltip caps the list at 5 rows", () => {
-  const rows = Array.from({ length: 7 }, () => ({ cells: { item: "x" }, status: "confirmed" as const }));
-  assert.match(statusTooltip(labelled(rows), req), /row 5: Qty, Unit; \+2 more$/);
+  const rows = Array.from({ length: 7 }, () => ({
+    cells: { item: "x" },
+    status: "confirmed" as const,
+  }));
+  assert.match(
+    statusTooltip(labelled(rows), req),
+    /row 5: Qty, Unit; \+2 more$/,
+  );
 });
 test("statusTooltip for other states is the plain label", () => {
-  assert.equal(statusTooltip(labelled([{ cells: {}, status: "empty" }]), req), "Not started");
+  assert.equal(
+    statusTooltip(labelled([{ cells: {}, status: "empty" }]), req),
+    "Not started",
+  );
 });
 test("statusTooltip for a missing-flagged row with no gap columns still says why", () => {
-  const s = labelled([{ cells: { item: "a", qty: "1", unit: "t" }, status: "missing" }]);
+  const s = labelled([
+    { cells: { item: "a", qty: "1", unit: "t" }, status: "missing" },
+  ]);
   assert.equal(sheetStatus(s, req), "missing");
   assert.equal(statusTooltip(s, req), "Missing data — marked missing");
 });
 test("SHEET_ORDER follows the material flow", () => {
-  assert.deepEqual(SHEET_ORDER.slice(0, 4), ["installation", "products", "steps", "materials"]);
+  assert.deepEqual(SHEET_ORDER.slice(0, 4), [
+    "installation",
+    "products",
+    "steps",
+    "materials",
+  ]);
   assert.equal(SHEET_ORDER.at(-1), "documents");
 });
 
@@ -104,7 +146,10 @@ test("installation tab: no record or a blank record is untouched", () => {
   assert.equal(installationSheetStatus(emptyInstallation()), "untouched");
 });
 test("installation tab: a started record with gaps is missing", () => {
-  const partial: Installation = { ...emptyInstallation(), name: "Rayong Rolling Mill 2" };
+  const partial: Installation = {
+    ...emptyInstallation(),
+    name: "Rayong Rolling Mill 2",
+  };
   assert.equal(installationSheetStatus(partial), "missing");
   assert.equal(isInstallationComplete(partial), false);
 });
@@ -125,7 +170,10 @@ test("installation tab: a complete record is complete and matches Settings", () 
   assert.equal(isInstallationComplete(full), true);
 });
 test("installation tab: a country alone does not start the site", () => {
-  assert.equal(installationSheetStatus({ ...emptyInstallation(), country: "TH" }), "untouched");
+  assert.equal(
+    installationSheetStatus({ ...emptyInstallation(), country: "TH" }),
+    "untouched",
+  );
 });
 // A half-entered or out-of-range coordinate pair is not a complete site, even
 // though the form would accept the record's other fields.
@@ -141,9 +189,15 @@ test("installation tab: an invalid coordinate pair is missing, the same as Setti
     lng: "101.2",
   };
   assert.equal(installationSheetStatus(base), "missing");
-  assert.equal(installationSheetStatus({ ...base, lat: "12.7", lng: "" }), "missing");
+  assert.equal(
+    installationSheetStatus({ ...base, lat: "12.7", lng: "" }),
+    "missing",
+  );
 });
 test("installation tab tone follows the status colour", () => {
   assert.equal(installationTabTone(null), STATUS_TONE.untouched);
-  assert.equal(installationTabTone({ ...emptyInstallation(), name: "x" }), STATUS_TONE.missing);
+  assert.equal(
+    installationTabTone({ ...emptyInstallation(), name: "x" }),
+    STATUS_TONE.missing,
+  );
 });

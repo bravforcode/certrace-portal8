@@ -23,7 +23,9 @@
       "!certrace-portal/next-env.d.ts",
       "!certrace-portal/public/**",
       "!certrace-portal/lib/data/**",
-      "!docs/fixtures/**"
+      "!docs/fixtures/**",
+      "!**/.wolf/**",
+      "!**/.claude/**"
     ]
   },
   "formatter": {

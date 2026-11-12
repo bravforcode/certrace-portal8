@@ -116,7 +116,8 @@ export const STANDARDS: Standard[] = [
     id: "iso-14064-1",
     name: "ISO 14064-1",
     region: "Organisational greenhouse gas inventory",
-    description: "Quantification and reporting of an organisation's GHG emissions.",
+    description:
+      "Quantification and reporting of an organisation's GHG emissions.",
     status: "soon",
     logo: "iso",
     requirements: [],

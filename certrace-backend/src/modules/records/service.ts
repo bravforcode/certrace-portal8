@@ -13,7 +13,12 @@ const reserved = new Set([
 ]);
 // Row limits for the factory profile. The portal validator (lib/factory/profile.ts) holds the full
 // rules; the server only checks the outer shape and the sizes, so a malformed body cannot be stored.
-const FACTORY_LIMITS = { processes: 50, sources: 200, meters: 200, production: 600 } as const;
+const FACTORY_LIMITS = {
+  processes: 50,
+  sources: 200,
+  meters: 200,
+  production: 600,
+} as const;
 function validateFactoryProfile(value: Json) {
   const bad = (message: string): never =>
     fail(422, "INVALID_FACTORY_PROFILE", message);
@@ -73,18 +78,21 @@ export async function save(
       throw e;
     }
   }
-  return db.$transaction(async (tx) => {
-    const updated = await tx.account_records.updateMany({
-      where: { user_id: userId, key, revision },
-      data: {
-        value: value === null ? Prisma.JsonNull : value,
-        revision: { increment: 1 },
-        updated_at: new Date(),
-      },
-    });
-    if (!updated.count) return conflict();
-    return await tx.account_records.findUniqueOrThrow({
-      where: { user_id_key: { user_id: userId, key } },
-    });
-  }, { maxWait: 5_000, timeout: 10_000 });
+  return db.$transaction(
+    async (tx) => {
+      const updated = await tx.account_records.updateMany({
+        where: { user_id: userId, key, revision },
+        data: {
+          value: value === null ? Prisma.JsonNull : value,
+          revision: { increment: 1 },
+          updated_at: new Date(),
+        },
+      });
+      if (!updated.count) return conflict();
+      return await tx.account_records.findUniqueOrThrow({
+        where: { user_id_key: { user_id: userId, key } },
+      });
+    },
+    { maxWait: 5_000, timeout: 10_000 },
+  );
 }

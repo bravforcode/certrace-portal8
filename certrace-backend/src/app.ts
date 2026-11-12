@@ -10,7 +10,12 @@ import { auth } from "./modules/auth";
 import { team } from "./modules/team";
 import { admin } from "./modules/admin";
 import { declarations } from "./modules/declarations";
-import { links, publicLinks, itemLinks, publicItemLinks } from "./modules/links";
+import {
+  links,
+  publicLinks,
+  itemLinks,
+  publicItemLinks,
+} from "./modules/links";
 import { files, publicFiles } from "./modules/files";
 import { reporting } from "./modules/reporting";
 import { records } from "./modules/records";

@@ -2,14 +2,19 @@ import { cellKey, rowsUsed } from "./cells";
 import type { CellPatch } from "./flow-edit";
 import { PARSE_LIMITS } from "./import-limits";
 
-export const IMPORT_LIMITS = { bytes: 5_000_000, rows: 5000, keysPerPatch: 2000 };
+export const IMPORT_LIMITS = {
+  bytes: 5_000_000,
+  rows: 5000,
+  keysPerPatch: 2000,
+};
 
 /** The message for a file that cannot be imported at all, or null when it can. */
 export function fileProblem(name: string, size: number): string | null {
   const lower = name.toLowerCase();
   if (lower.endsWith(".xls")) return "Save the file as .xlsx or .csv first.";
   if (size > IMPORT_LIMITS.bytes) return "The file is larger than 5 MB.";
-  if (!lower.endsWith(".csv") && !lower.endsWith(".xlsx")) return "Choose a .csv or .xlsx file.";
+  if (!lower.endsWith(".csv") && !lower.endsWith(".xlsx"))
+    return "Choose a .csv or .xlsx file.";
   return null;
 }
 
@@ -27,8 +32,12 @@ export function decodeCsv(bytes: ArrayBuffer): string {
 export function parseCsv(text: string): string[][] {
   const src = text.replace(/^﻿/, "");
   const first = src.split(/\r?\n/, 1)[0] ?? "";
-  const count = (d: string) => first.replace(/"[^"]*"/g, "").split(d).length - 1;
-  const delim = [",", ";", "\t"].reduce((a, d) => (count(d) > count(a) ? d : a), ",");
+  const count = (d: string) =>
+    first.replace(/"[^"]*"/g, "").split(d).length - 1;
+  const delim = [",", ";", "\t"].reduce(
+    (a, d) => (count(d) > count(a) ? d : a),
+    ",",
+  );
   const rows: string[][] = [];
   let row: string[] = [],
     cell = "",
@@ -50,7 +59,8 @@ export function parseCsv(text: string): string[][] {
         i++;
       } else if (ch === '"') quoted = false;
       else cell += ch;
-    } else if (ch === '"' && cell === "") quoted = true; // a quote opens a field only at its start; elsewhere it is literal
+    } else if (ch === '"' && cell === "")
+      quoted = true; // a quote opens a field only at its start; elsewhere it is literal
     else if (ch === delim) endCell();
     else if (ch === "\n" || ch === "\r") {
       if (ch === "\r" && src[i + 1] === "\n") i++;
@@ -81,12 +91,18 @@ const SYNONYMS: Record<string, string[]> = {
 };
 const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}\p{M}]/gu, "");
 
-export function suggestMapping(header: string[], cols: { key: string; label: string }[]) {
+export function suggestMapping(
+  header: string[],
+  cols: { key: string; label: string }[],
+) {
   const used = new Set<string>();
   return header.map((h) => {
     const n = norm(h);
     const hit = cols.find(
-      (c) => !used.has(c.key) && n && [c.key, c.label, ...(SYNONYMS[c.key] ?? [])].some((x) => norm(x) === n),
+      (c) =>
+        !used.has(c.key) &&
+        n &&
+        [c.key, c.label, ...(SYNONYMS[c.key] ?? [])].some((x) => norm(x) === n),
     );
     if (!hit) return null;
     used.add(hit.key);
@@ -99,7 +115,8 @@ export function hasDuplicateMapping(mapping: (string | null)[]) {
   return mapping.some((k, i) => k !== null && mapping.indexOf(k) !== i);
 }
 
-const cleanQty = (v: string) => (/^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(v) ? v.replace(/,/g, "") : v);
+const cleanQty = (v: string) =>
+  /^-?\d{1,3}(,\d{3})+(\.\d+)?$/.test(v) ? v.replace(/,/g, "") : v;
 
 export function buildImport(
   rows: string[][],
@@ -113,18 +130,25 @@ export function buildImport(
   let next = rowsUsed(cells, sheetId),
     added = 0,
     skipped = 0;
-  for (const source of rows.slice(headerRow + 1, headerRow + 1 + IMPORT_LIMITS.rows)) {
+  for (const source of rows.slice(
+    headerRow + 1,
+    headerRow + 1 + IMPORT_LIMITS.rows,
+  )) {
     const values: CellPatch = {};
     mapping.forEach((key, i) => {
       const v = (source[i] ?? "").trim();
-      if (key && v) values[cellKey(sheetId, next, key)] = key === "qty" ? cleanQty(v) : v;
+      if (key && v)
+        values[cellKey(sheetId, next, key)] = key === "qty" ? cleanQty(v) : v;
     });
     if (!Object.keys(values).length) {
       skipped++;
       continue;
     }
     values[cellKey(sheetId, next, "status")] = "review";
-    if (Object.keys(current).length + Object.keys(values).length > IMPORT_LIMITS.keysPerPatch) {
+    if (
+      Object.keys(current).length + Object.keys(values).length >
+      IMPORT_LIMITS.keysPerPatch
+    ) {
       patches.push(current);
       current = {};
     }
@@ -137,7 +161,8 @@ export function buildImport(
 }
 
 /** Rows one patch holds: one status cell per imported row. */
-const rowsIn = (patch: CellPatch) => Object.keys(patch).filter((k) => k.endsWith(":status")).length;
+const rowsIn = (patch: CellPatch) =>
+  Object.keys(patch).filter((k) => k.endsWith(":status")).length;
 
 /**
  * Sends the patches in order from index `from`. Stops at the first patch that is not saved and says where to

@@ -9120,19 +9120,25 @@ export const ZH: Record<string, string> = {
     "保存设置后即可使用您的工作区。",
   "Request data": "请求数据",
   "Is this person in your company?": "此人是贵公司的员工吗？",
-  "They get a portal login and edit the workspace with you": "他们将获得门户登录权限，并与您一起编辑工作区",
+  "They get a portal login and edit the workspace with you":
+    "他们将获得门户登录权限，并与您一起编辑工作区",
   "They get a secure form link; no login": "他们将获得安全表单链接，无需登录",
   "Send invitation": "发送邀请",
   "Invitation sent to {email}.": "已发送邀请至 {email}。",
-  "Invitation saved. Check delivery before asking them to join.": "邀请已保存。请先确认送达，再请对方加入。",
-  "Only the company owner can add team members. Ask them to invite this person from Team.": "只有公司所有者可以添加团队成员。请让其从“团队”页面邀请此人。",
-  "Also invite them to sign in and edit the workspace": "同时邀请其登录并编辑工作区",
-  "Contact saved, but the invitation failed: {error}": "联系人已保存，但邀请发送失败：{error}",
+  "Invitation saved. Check delivery before asking them to join.":
+    "邀请已保存。请先确认送达，再请对方加入。",
+  "Only the company owner can add team members. Ask them to invite this person from Team.":
+    "只有公司所有者可以添加团队成员。请让其从“团队”页面邀请此人。",
+  "Also invite them to sign in and edit the workspace":
+    "同时邀请其登录并编辑工作区",
+  "Contact saved, but the invitation failed: {error}":
+    "联系人已保存，但邀请发送失败：{error}",
   /* ── Company and factory basics (onboarding) ─────────────── */
   "Tax ID": "纳税人识别号",
-  "13 digits. Optional, but needed for CBAM invoicing.": "13 位数字。选填，但 CBAM 开票需要",
+  "13 digits. Optional, but needed for CBAM invoicing.":
+    "13 位数字。选填，但 CBAM 开票需要",
   "Tax ID is 13 digits": "纳税人识别号须为 13 位数字",
-  "Website": "网站",
+  Website: "网站",
   "Enter a web address starting with https://": "请输入以 https:// 开头的网址",
   "Company size": "公司规模",
   "1–49 people": "1–49 人",
@@ -9144,17 +9150,17 @@ export const ZH: Record<string, string> = {
   "Who makes your products?": "您的产品由谁生产？",
   "We make it ourselves": "我们自行生产",
   "An OEM makes it for us": "由 OEM 代工厂为我们生产",
-  "Both": "两者兼有",
-  "China": "中国",
-  "India": "印度",
-  "Japan": "日本",
+  Both: "两者兼有",
+  China: "中国",
+  India: "印度",
+  Japan: "日本",
   "South Korea": "韩国",
   "Factory basics": "工厂基本信息",
   "Energy sources": "能源来源",
-  "Oil": "石油",
+  Oil: "石油",
   "Purchased steam": "外购蒸汽",
-  "Boilers": "锅炉",
-  "Furnaces": "熔炉",
+  Boilers: "锅炉",
+  Furnaces: "熔炉",
   "Select annual production": "选择年产量",
   "Under 1,000 t": "低于 1,000 吨",
   "1,000–10,000 t": "1,000–10,000 吨",
@@ -9163,7 +9169,8 @@ export const ZH: Record<string, string> = {
   "Enter a whole number from 0 to 999": "请输入 0 至 999 之间的整数",
   "This tab edits the installation record. Changes also show in Settings → Installations.":
     "此标签页直接编辑设施记录。修改也会显示在 Settings → Installations 中。",
-  "Choose an installation above to fill in its details.": "请在上方选择一个设施以填写详细信息。",
+  "Choose an installation above to fill in its details.":
+    "请在上方选择一个设施以填写详细信息。",
   "{n} missing fields": "缺少 {n} 项",
   "Cookie consent": "Cookie 同意设置",
   "We use necessary cookies to keep you signed in. With your permission we also use analytics cookies to improve Certrace.":
@@ -9193,9 +9200,10 @@ export const ZH: Record<string, string> = {
   "A supplier — they fill in a form": "供应商，由其填写表格",
   "Who runs your plant": "由谁运营您的工厂",
   "History covers all installations.": "历史记录涵盖所有装置。",
-  "Generated": "生成于",
+  Generated: "生成于",
   "Pre-verification": "预先核验",
-  "The AI checks the workbook first. A Certrace team member then reviews it.": "AI 先检查工作簿，然后由 Certrace 团队人工复核。",
+  "The AI checks the workbook first. A Certrace team member then reviews it.":
+    "AI 先检查工作簿，然后由 Certrace 团队人工复核。",
   "AI check": "AI 检查",
   "Certrace team review": "Certrace 团队复核",
   "Pre-verified": "已预先核验",
@@ -9212,19 +9220,26 @@ export const ZH: Record<string, string> = {
   "Pre-verified by Certrace": "已由 Certrace 预先核验",
   "Certrace asked for changes": "Certrace 要求修改",
   "Data changed since the review. Resubmit.": "复核后数据已更改，请重新提交。",
-  "Fix the points below in the workbook, then resubmit.": "请在工作簿中修正以下问题，然后重新提交。",
+  "Fix the points below in the workbook, then resubmit.":
+    "请在工作簿中修正以下问题，然后重新提交。",
   "Could not load the pre-verification status.": "无法加载预先核验状态。",
-  "Could not submit for pre-verification. Try again.": "无法提交预先核验，请重试。",
+  "Could not submit for pre-verification. Try again.":
+    "无法提交预先核验，请重试。",
   "Too many submissions. Try again later.": "提交过于频繁，请稍后再试。",
-  "This workbook is already waiting for the Certrace team. Change the data to submit again.": "此工作簿已在等待 Certrace 团队复核。请更改数据后再提交。",
-  "Fill in the CBAM requirements before you submit for pre-verification.": "提交预先核验前，请先填写全部 CBAM 要求。",
+  "This workbook is already waiting for the Certrace team. Change the data to submit again.":
+    "此工作簿已在等待 Certrace 团队复核。请更改数据后再提交。",
+  "Fill in the CBAM requirements before you submit for pre-verification.":
+    "提交预先核验前，请先填写全部 CBAM 要求。",
   "Missing data": "缺失数据",
   "{n} missing": "缺 {n} 项",
   "Show missing data": "展开缺失数据",
   "Hide missing data": "收起缺失数据",
-  "Everything Cera checks for this installation is in.": "Cera 为此设施检查的全部数据均已填写。",
+  "Everything Cera checks for this installation is in.":
+    "Cera 为此设施检查的全部数据均已填写。",
   "and {n} more": "还有 {n} 项",
   "Ask Cera to fill": "请 Cera 代为填写",
-  "Cera proposes each change; you confirm it before anything is saved.": "Cera 会提出每项修改，您确认后才会保存。",
-  "Not started yet. Open Convert to begin.": "尚未开始。打开 Convert 即可开始。",
+  "Cera proposes each change; you confirm it before anything is saved.":
+    "Cera 会提出每项修改，您确认后才会保存。",
+  "Not started yet. Open Convert to begin.":
+    "尚未开始。打开 Convert 即可开始。",
 };

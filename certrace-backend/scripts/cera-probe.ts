@@ -16,6 +16,15 @@ try {
   );
   console.log(JSON.stringify(turn, null, 2));
 } catch (e) {
-  const err = e as { message?: string; statusCode?: number; responseBody?: string };
-  console.log("error:", err.statusCode, err.message, err.responseBody?.slice(0, 600));
+  const err = e as {
+    message?: string;
+    statusCode?: number;
+    responseBody?: string;
+  };
+  console.log(
+    "error:",
+    err.statusCode,
+    err.message,
+    err.responseBody?.slice(0, 600),
+  );
 }

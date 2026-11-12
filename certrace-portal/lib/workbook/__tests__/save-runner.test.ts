@@ -11,7 +11,10 @@ function harness(account: string | null = "acct-a") {
   const timers: { id: number; at: number; fn: () => void }[] = [];
   const calls: { t: Target; cells: Record<string, string | null> }[] = [];
   const notes: string[] = [];
-  let answer: (t: Target, cells: Record<string, string | null>) => Promise<unknown> = async () => ({ ok: true });
+  let answer: (
+    t: Target,
+    cells: Record<string, string | null>,
+  ) => Promise<unknown> = async () => ({ ok: true });
   let who = account;
   const runner = new SaveRunner<unknown>({
     patch: (t, cells) => {
@@ -43,7 +46,9 @@ function harness(account: string | null = "acct-a") {
     advance(ms: number) {
       now += ms;
       for (;;) {
-        const due = timers.filter((x) => x.at <= now).sort((a, b) => a.at - b.at)[0];
+        const due = timers
+          .filter((x) => x.at <= now)
+          .sort((a, b) => a.at - b.at)[0];
         if (!due) break;
         timers.splice(timers.indexOf(due), 1);
         due.fn();
@@ -68,7 +73,11 @@ test("single in-flight: a second flush while a batch is out sends nothing new", 
   assert.equal(h.calls.length, 1);
   release();
   await settle();
-  assert.equal(h.calls.length, 2, "the next target goes out only after the first answer");
+  assert.equal(
+    h.calls.length,
+    2,
+    "the next target goes out only after the first answer",
+  );
 });
 
 test("a network or 5xx failure is retried with backoff, not dropped", async () => {
@@ -90,7 +99,11 @@ test("a network or 5xx failure is retried with backoff, not dropped", async () =
   h.advance(2_000);
   await settle();
   assert.equal(h.calls.length, 3, "second retry waits 2 s");
-  assert.deepEqual(pendingFor(h.runner.snapshot(), T), {}, "the cell is acknowledged once the server takes it");
+  assert.deepEqual(
+    pendingFor(h.runner.snapshot(), T),
+    {},
+    "the cell is acknowledged once the server takes it",
+  );
   assert.equal(h.notes.length, 0);
 });
 
@@ -107,7 +120,11 @@ test("401 holds the queue without dropping it, and resumes when the same account
   await settle();
   assert.equal(h.calls.length >= 1, true);
   const sentBefore = h.calls.length;
-  assert.deepEqual(pendingFor(h.runner.snapshot(), T), { "a:1:b": "typed" }, "the edit is still queued");
+  assert.deepEqual(
+    pendingFor(h.runner.snapshot(), T),
+    { "a:1:b": "typed" },
+    "the edit is still queued",
+  );
   h.setAnswer(async () => ({ ok: true }));
   h.runner.onAccountChange("acct-a");
   await settle();
@@ -127,7 +144,11 @@ test("422 splits the batch and drops only the cell that fails alone, with one no
   h.runner.enqueue(T, "a:4:b", "fine four");
   h.runner.flush();
   for (let i = 0; i < 20; i++) await settle();
-  assert.deepEqual(pendingFor(h.runner.snapshot(), T), {}, "every good cell was saved, the bad one dropped");
+  assert.deepEqual(
+    pendingFor(h.runner.snapshot(), T),
+    {},
+    "every good cell was saved, the bad one dropped",
+  );
   assert.equal(h.notes.length, 1, "one notice for the whole batch");
   assert.ok(h.calls.every((c) => Object.keys(c.cells).length >= 1));
 });
@@ -142,7 +163,11 @@ test("a failing target does not starve the other target", async () => {
   h.runner.enqueue(T2, "a:1:b", "free");
   h.runner.flush();
   for (let i = 0; i < 5; i++) await settle();
-  assert.deepEqual(pendingFor(h.runner.snapshot(), T2), {}, "the other year was saved while this one waits");
+  assert.deepEqual(
+    pendingFor(h.runner.snapshot(), T2),
+    {},
+    "the other year was saved while this one waits",
+  );
   assert.deepEqual(pendingFor(h.runner.snapshot(), T), { "a:1:b": "stuck" });
 });
 
@@ -186,7 +211,8 @@ test("a Retry-After in seconds is honoured instead of the default backoff", asyn
   const h = harness();
   let calls = 0;
   h.setAnswer(async () => {
-    if (calls++ === 0) throw { status: 429, message: "slow down", retryAfter: 5 };
+    if (calls++ === 0)
+      throw { status: 429, message: "slow down", retryAfter: 5 };
     return { ok: true };
   });
   h.runner.enqueue(T, "a:1:b", "keep");
@@ -209,8 +235,16 @@ test("a 404 on one target does not stop the other target", async () => {
   h.runner.enqueue(T2, "a:1:b", "fine");
   h.runner.flush();
   for (let i = 0; i < 5; i++) await settle();
-  assert.deepEqual(pendingFor(h.runner.snapshot(), T2), {}, "the other year was saved");
-  assert.deepEqual(pendingFor(h.runner.snapshot(), T), { "a:1:b": "missing" }, "the failing target waits");
+  assert.deepEqual(
+    pendingFor(h.runner.snapshot(), T2),
+    {},
+    "the other year was saved",
+  );
+  assert.deepEqual(
+    pendingFor(h.runner.snapshot(), T),
+    { "a:1:b": "missing" },
+    "the failing target waits",
+  );
 });
 
 test("a target refused with another 4xx is dropped after the attempt cap, with one notice", async () => {
@@ -296,7 +330,9 @@ test("a network failure fails the diagram patch at once and removes its cells; t
     return { ok: true };
   });
   h.runner.enqueue(T, "Y", "typed");
-  assert.deepEqual(await h.runner.enqueueCells(T, { X: "diagram" }), { ok: false });
+  assert.deepEqual(await h.runner.enqueueCells(T, { X: "diagram" }), {
+    ok: false,
+  });
   assert.deepEqual(Object.keys(pendingFor(h.runner.snapshot(), T)), ["Y"]);
   h.advance(1000); // the typed cell's retry
   await settle();

@@ -3,7 +3,11 @@
    only stop a malformed value before the request is sent. Blank values are
    allowed: only a value that is typed must be well formed. */
 
-export type CompanyBasics = { taxId?: string; website?: string; country?: string };
+export type CompanyBasics = {
+  taxId?: string;
+  website?: string;
+  country?: string;
+};
 export type FactoryBasics = { boilerCount?: string; furnaceCount?: string };
 
 export function companyBasicsErrors(

@@ -88,7 +88,11 @@ export const admin = new Elysia({ prefix: "/api/admin" })
         // A suspended account stays out until its record is restored; approving
         // it would start a trial and send the approval mail.
         if (body.ready && previous.status !== "ACTIVE")
-          fail(409, "ACCOUNT_SUSPENDED", "This account is suspended and cannot be approved.");
+          fail(
+            409,
+            "ACCOUNT_SUSPENDED",
+            "This account is suspended and cannot be approved.",
+          );
         if (previous.ready === body.ready) return previous;
         // The trial clock starts at the first approval only. The approved_at
         // guard in the WHERE clause keeps a concurrent second approval from
@@ -143,9 +147,15 @@ export const admin = new Elysia({ prefix: "/api/admin" })
       // Trimmed here, not in the schema: "   ab  " passes a raw length check.
       const reason = body.reason.trim();
       if (reason.length < 3)
-        fail(422, "REASON_TOO_SHORT", "The reason must be at least 3 characters.");
+        fail(
+          422,
+          "REASON_TOO_SHORT",
+          "The reason must be at least 3 characters.",
+        );
       const user = await db.$transaction(async (tx) => {
-        const previous = await tx.users.findUnique({ where: { id: params.id } });
+        const previous = await tx.users.findUnique({
+          where: { id: params.id },
+        });
         if (!previous) return missing();
         if (previous.is_admin)
           fail(409, "ADMIN_TARGET", "Admin accounts cannot be rejected.");
@@ -163,10 +173,16 @@ export const admin = new Elysia({ prefix: "/api/admin" })
         });
         if (claimed.count === 0) {
           if (previous.status === "SUSPENDED")
-            fail(409, "ALREADY_SUSPENDED", "This account is already suspended.");
+            fail(
+              409,
+              "ALREADY_SUSPENDED",
+              "This account is already suspended.",
+            );
           fail(409, "NOT_ACTIVE", "Only active accounts can be rejected.");
         }
-        const u = await tx.users.findUniqueOrThrow({ where: { id: params.id } });
+        const u = await tx.users.findUniqueOrThrow({
+          where: { id: params.id },
+        });
         await tx.account_audit_events.create({
           data: {
             user_id: params.id,
@@ -205,13 +221,25 @@ export const admin = new Elysia({ prefix: "/api/admin" })
               updated_at = now()
           WHERE id = ${params.id}::uuid AND plan_id = 'trial' AND approved_at IS NOT NULL`;
         if (moved === 0) {
-          const current = await tx.users.findUnique({ where: { id: params.id } });
+          const current = await tx.users.findUnique({
+            where: { id: params.id },
+          });
           if (!current) return missing();
           if (current.approved_at === null)
-            fail(409, "NOT_APPROVED", "Approve the account before extending its trial.");
-          fail(409, "NOT_TRIAL", "Only accounts on the trial plan can be extended.");
+            fail(
+              409,
+              "NOT_APPROVED",
+              "Approve the account before extending its trial.",
+            );
+          fail(
+            409,
+            "NOT_TRIAL",
+            "Only accounts on the trial plan can be extended.",
+          );
         }
-        const u = await tx.users.findUniqueOrThrow({ where: { id: params.id } });
+        const u = await tx.users.findUniqueOrThrow({
+          where: { id: params.id },
+        });
         await tx.account_audit_events.create({
           data: {
             user_id: params.id,

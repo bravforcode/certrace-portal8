@@ -38,7 +38,8 @@ const STEPS = ["File", "Header row", "Columns", "Preview"] as const;
 const HEADER_CHOICES = 15;
 const PREVIEW_ROWS = 20;
 const NO_ROWS: string[][] = [];
-const CONTROL = "input:not([disabled]),select:not([disabled]),button:not([disabled])";
+const CONTROL =
+  "input:not([disabled]),select:not([disabled]),button:not([disabled])";
 const UNREADABLE = "This file could not be read.";
 
 /* Reads the picked file. Problems we can name come out as ImportError; anything else is reported as UNREADABLE. */
@@ -46,7 +47,8 @@ async function readFile(file: File): Promise<Book> {
   const problem = fileProblem(file.name, file.size);
   if (problem) throw new ImportError(problem);
   const bytes = await file.arrayBuffer();
-  if (file.name.toLowerCase().endsWith(".csv")) return [{ name: file.name, rows: parseCsv(decodeCsv(bytes)) }];
+  if (file.name.toLowerCase().endsWith(".csv"))
+    return [{ name: file.name, rows: parseCsv(decodeCsv(bytes)) }];
   return readXlsx(bytes);
 }
 
@@ -73,7 +75,10 @@ export function ImportWizard({
   const [mapping, setMapping] = React.useState<(string | null)[]>([]);
   const [error, setError] = React.useState<string | null>(null);
   const [reading, setReading] = React.useState(false);
-  const [progress, setProgress] = React.useState<{ done: number; total: number } | null>(null);
+  const [progress, setProgress] = React.useState<{
+    done: number;
+    total: number;
+  } | null>(null);
   const [saved, setSaved] = React.useState(0); // rows written by earlier runs
   const [resumeAt, setResumeAt] = React.useState(0); // first patch not yet saved
   const [notice, setNotice] = React.useState<string | null>(null);
@@ -85,17 +90,23 @@ export function ImportWizard({
 
   // Each step opens on its first usable control, not on the heading.
   React.useEffect(() => {
-    const controls = [...(bodyRef.current?.querySelectorAll<HTMLElement>(CONTROL) ?? [])];
+    const controls = [
+      ...(bodyRef.current?.querySelectorAll<HTMLElement>(CONTROL) ?? []),
+    ];
     controls.find((el) => !el.closest("[hidden]"))?.focus();
   }, [step]);
 
-  const targets = React.useMemo(() => target.cols.filter((c) => c.kind !== "status"), [target]);
+  const targets = React.useMemo(
+    () => target.cols.filter((c) => c.kind !== "status"),
+    [target],
+  );
   const rows = book?.[sheetIdx]?.rows ?? NO_ROWS;
   const header = rows[headerRow] ?? [];
   const duplicate = hasDuplicateMapping(mapping);
 
   const plan = React.useMemo(
-    () => (book ? buildImport(rows, headerRow, mapping, target.id, cells) : null),
+    () =>
+      book ? buildImport(rows, headerRow, mapping, target.id, cells) : null,
     [book, rows, headerRow, mapping, target.id, cells],
   );
 
@@ -106,7 +117,12 @@ export function ImportWizard({
       .slice(headerRow + 1)
       .filter((r) => mapping.some((k, i) => k && (r[i] ?? "").trim()))
       .slice(0, PREVIEW_ROWS);
-    return { sample, built: buildImport([head, ...sample], 0, mapping, target.id, {}).patches[0] ?? {} };
+    return {
+      sample,
+      built:
+        buildImport([head, ...sample], 0, mapping, target.id, {}).patches[0] ??
+        {},
+    };
   }, [rows, headerRow, mapping, target.id]);
 
   const samples = React.useMemo(
@@ -191,10 +207,21 @@ export function ImportWizard({
     setResumeAt(result.next);
     setProgress(null);
     if (result.failed) {
-      setNotice(t("Imported {done} of {total} rows. The rest were not saved.", { done, total: run.added }));
+      setNotice(
+        t("Imported {done} of {total} rows. The rest were not saved.", {
+          done,
+          total: run.added,
+        }),
+      );
       return;
     }
-    toast({ message: t("Imported {n} rows into {sheet}", { n: done, sheet: t(target.name) }), tone: "ok" });
+    toast({
+      message: t("Imported {n} rows into {sheet}", {
+        n: done,
+        sheet: t(target.name),
+      }),
+      tone: "ok",
+    });
     onClose();
   };
 
@@ -210,17 +237,31 @@ export function ImportWizard({
       width="max-w-3xl"
       footer={
         <div className="flex w-full flex-wrap items-center justify-between gap-2">
-          <Button variant="ghost" size="sm" onClick={startOver} disabled={!!progress || reading || partial}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={startOver}
+            disabled={!!progress || reading || partial}
+          >
             {t("Start over")}
           </Button>
           <div className="flex items-center gap-2">
             {step > 0 && (
-              <Button variant="secondary" size="sm" onClick={() => setStep(step - 1)} disabled={!!progress || partial}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setStep(step - 1)}
+                disabled={!!progress || partial}
+              >
                 {t("Back")}
               </Button>
             )}
             {step < STEPS.length - 1 ? (
-              <Button size="sm" onClick={() => setStep(step + 1)} disabled={!canNext || !!progress}>
+              <Button
+                size="sm"
+                onClick={() => setStep(step + 1)}
+                disabled={!canNext || !!progress}
+              >
                 {t("Next")}
               </Button>
             ) : (
@@ -255,7 +296,9 @@ export function ImportWizard({
       </ol>
 
       <div ref={bodyRef}>
-        <h3 className="mb-3 text-[15px] font-semibold text-[color:var(--flow-ink)]">{t(STEPS[step]!)}</h3>
+        <h3 className="mb-3 text-[15px] font-semibold text-[color:var(--flow-ink)]">
+          {t(STEPS[step]!)}
+        </h3>
 
         {/* The file input stays mounted on every step so Start over can clear it. */}
         <div hidden={step !== 0} className="space-y-4">
@@ -285,7 +328,12 @@ export function ImportWizard({
           )}
           {book && (
             <div className="space-y-3">
-              <p className="text-[13px] text-black/60">{t("{n} rows read from {name}", { n: rows.length, name: fileName })}</p>
+              <p className="text-[13px] text-black/60">
+                {t("{n} rows read from {name}", {
+                  n: rows.length,
+                  name: fileName,
+                })}
+              </p>
               {book.length > 1 && (
                 <Field label={t("Sheet")}>
                   <select
@@ -308,12 +356,17 @@ export function ImportWizard({
 
         {step === 1 && (
           <div className="space-y-3">
-            <p className="text-[13px] text-black/60">{t("Choose the row with the column names.")}</p>
+            <p className="text-[13px] text-black/60">
+              {t("Choose the row with the column names.")}
+            </p>
             <div className="max-h-[360px] overflow-auto rounded-xl border border-black/10">
               <table className="w-full border-collapse text-[12.5px]">
                 <tbody>
                   {rows.slice(0, HEADER_CHOICES).map((row, i) => (
-                    <tr key={i} className="border-b border-black/[0.06] last:border-0">
+                    <tr
+                      key={i}
+                      className="border-b border-black/[0.06] last:border-0"
+                    >
                       <td className="px-2 py-1.5">
                         <input
                           type="radio"
@@ -323,9 +376,14 @@ export function ImportWizard({
                           onChange={() => pickHeader(rows, i)}
                         />
                       </td>
-                      <td className="px-2 py-1.5 font-mono text-black/45">{i + 1}</td>
+                      <td className="px-2 py-1.5 font-mono text-black/45">
+                        {i + 1}
+                      </td>
                       {row.slice(0, 8).map((cell, c) => (
-                        <td key={c} className="max-w-[160px] truncate px-2 py-1.5 text-black/75">
+                        <td
+                          key={c}
+                          className="max-w-[160px] truncate px-2 py-1.5 text-black/75"
+                        >
                           {cell}
                         </td>
                       ))}
@@ -339,18 +397,27 @@ export function ImportWizard({
 
         {step === 2 && (
           <div className="space-y-3">
-            <p className="text-[13px] text-black/60">{t("Match each column in the file to a column in the sheet.")}</p>
+            <p className="text-[13px] text-black/60">
+              {t("Match each column in the file to a column in the sheet.")}
+            </p>
             <ul className="divide-y divide-black/[0.06] rounded-xl border border-black/10">
               {header.map((name, i) => (
-                <li key={i} className="grid gap-2 px-3 py-2.5 sm:grid-cols-[1fr_1fr_200px] sm:items-center">
+                <li
+                  key={i}
+                  className="grid gap-2 px-3 py-2.5 sm:grid-cols-[1fr_1fr_200px] sm:items-center"
+                >
                   <span className="truncate text-[13px] font-medium text-[color:var(--flow-ink)]">
                     {name.trim() || t("Column {letter}", { letter: letter(i) })}
                   </span>
                   <span className="truncate text-[12px] text-black/45">
-                    {samples[i]?.length ? `${t("Sample")}: ${samples[i]!.join(" · ")}` : ""}
+                    {samples[i]?.length
+                      ? `${t("Sample")}: ${samples[i]!.join(" · ")}`
+                      : ""}
                   </span>
                   <select
-                    aria-label={t("Sheet column for {col}", { col: name.trim() || letter(i) })}
+                    aria-label={t("Sheet column for {col}", {
+                      col: name.trim() || letter(i),
+                    })}
                     value={mapping[i] ?? ""}
                     onChange={(e) => {
                       const value = e.target.value || null;
@@ -407,15 +474,27 @@ export function ImportWizard({
               </table>
             </div>
             <p className="text-[13px] text-black/70">
-              {t("{added} rows will be added · {skipped} empty rows skipped", { added: plan.added, skipped: plan.skipped })}
+              {t("{added} rows will be added · {skipped} empty rows skipped", {
+                added: plan.added,
+                skipped: plan.skipped,
+              })}
             </p>
-            <p className="text-[12.5px] text-warn-text">{t("Imported rows are marked Needs review")}</p>
+            <p className="text-[12.5px] text-warn-text">
+              {t("Imported rows are marked Needs review")}
+            </p>
             {dataLimited && (
-              <p className="text-[12.5px] text-black/60">{t("Only the first {n} rows will be imported.", { n: IMPORT_LIMITS.rows })}</p>
+              <p className="text-[12.5px] text-black/60">
+                {t("Only the first {n} rows will be imported.", {
+                  n: IMPORT_LIMITS.rows,
+                })}
+              </p>
             )}
             {progress && (
               <p role="status" className="text-[13px] text-black/60">
-                {t("Importing… {done} / {total}", { done: progress.done, total: progress.total })}
+                {t("Importing… {done} / {total}", {
+                  done: progress.done,
+                  total: progress.total,
+                })}
               </p>
             )}
             {notice && (

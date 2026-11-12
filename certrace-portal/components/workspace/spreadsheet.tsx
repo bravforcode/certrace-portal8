@@ -71,12 +71,16 @@ function timeAgo(at: string, t: TFunction) {
    portal-wide words for the same English (แหล่ง, วิธีการ, สินค้า), without changing them elsewhere. */
 function useSheetT(): TFunction {
   const { lang, t } = useLanguage();
-  return (en, vars) => (lang === "th" && !vars && TH_WORKSPACE[en] ? TH_WORKSPACE[en]! : t(en, vars));
+  return (en, vars) =>
+    lang === "th" && !vars && TH_WORKSPACE[en]
+      ? TH_WORKSPACE[en]!
+      : t(en, vars);
 }
 const ROW_NO = "44px";
 
 const RAW_KEYS = new Set(["description", "cn", "size", "type", "valid"]);
-const isRaw = (c: SheetCol) => c.kind === "number" || c.kind === "file" || RAW_KEYS.has(c.key);
+const isRaw = (c: SheetCol) =>
+  c.kind === "number" || c.kind === "file" || RAW_KEYS.has(c.key);
 
 export function Spreadsheet({
   sheets,
@@ -117,11 +121,19 @@ export function Spreadsheet({
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
-  const tab = parseSheetParam(params.get("sheet"), [...sheets.map((s) => s.id), ...extraTabs.map((x) => x.id)], DEFAULT_SHEET);
+  const tab = parseSheetParam(
+    params.get("sheet"),
+    [...sheets.map((s) => s.id), ...extraTabs.map((x) => x.id)],
+    DEFAULT_SHEET,
+  );
   // "Table", "Flow" or "Factory". Factory needs an installation; without one the link falls back to the table.
   const requested = params.get("view");
   const view: "table" | "flow" | "factory" =
-    requested === "flow" ? "flow" : requested === "factory" && installation ? "factory" : "table";
+    requested === "flow"
+      ? "flow"
+      : requested === "factory" && installation
+        ? "factory"
+        : "table";
   const updateParams = (changes: Record<string, string | null>) => {
     const next = new URLSearchParams(params.toString());
     for (const [key, value] of Object.entries(changes)) {
@@ -131,8 +143,12 @@ export function Spreadsheet({
     const qs = next.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
-  const setView = (v: "table" | "flow" | "factory") => updateParams({ view: v === "table" ? null : v });
-  const [sel, setSel] = React.useState<{ r: number; c: number }>({ r: 0, c: 2 });
+  const setView = (v: "table" | "flow" | "factory") =>
+    updateParams({ view: v === "table" ? null : v });
+  const [sel, setSel] = React.useState<{ r: number; c: number }>({
+    r: 0,
+    c: 2,
+  });
   const [editing, setEditing] = React.useState<string | null>(null);
   const [query, setQuery] = React.useState("");
   // Opening a sheet always leaves the Flow and Factory views, as the sheet tabs did before.
@@ -143,7 +159,8 @@ export function Spreadsheet({
   };
   const gridRef = React.useRef<HTMLDivElement>(null);
 
-  const editorName = (by: string) => team?.find((m) => m.id === by)?.name ?? t("a teammate");
+  const editorName = (by: string) =>
+    team?.find((m) => m.id === by)?.name ?? t("a teammate");
   // Tabs follow the material flow; a sheet not in SHEET_ORDER goes after the ones that are.
   const orderOf = (id: string) => {
     const i = SHEET_ORDER.indexOf(id);
@@ -152,7 +169,10 @@ export function Spreadsheet({
   // Installation first, then the sheets in material-flow order.
   const tabOrder = (list: Sheet[]): Sheet[] => {
     const sorted = [...list].sort((a, b) => orderOf(a.id) - orderOf(b.id));
-    return [...sorted.filter((s) => s.id === INSTALLATION_SHEET_ID), ...sorted.filter((s) => s.id !== INSTALLATION_SHEET_ID)];
+    return [
+      ...sorted.filter((s) => s.id === INSTALLATION_SHEET_ID),
+      ...sorted.filter((s) => s.id !== INSTALLATION_SHEET_ID),
+    ];
   };
   const sheet = sheets.find((s) => s.id === tab);
   const isFlow = view === "flow" && !empty;
@@ -162,14 +182,23 @@ export function Spreadsheet({
   const [importing, setImporting] = React.useState(false);
   const importOpener = React.useRef<HTMLElement | null>(null); // the "Import from file" button, focused again on close
   // Import writes rows into a sheet of cells; the Installation and Documents tabs are not row sheets.
-  const canImport = !!sheet && !!onEdit && !!savePatch && tab !== INSTALLATION_SHEET_ID && tab !== "documents";
+  const canImport =
+    !!sheet &&
+    !!onEdit &&
+    !!savePatch &&
+    tab !== INSTALLATION_SHEET_ID &&
+    tab !== "documents";
   const installStatus = installationSheetStatus(installation);
-  const installIssues = installation && installStatus === "missing" ? installationGaps(installation) : 0;
+  const installIssues =
+    installation && installStatus === "missing"
+      ? installationGaps(installation)
+      : 0;
   const cols = sheet?.cols ?? [];
   const colCount = empty || !sheet ? 7 : cols.length;
 
   const keyOf = (r: number, c: number) => `${tab}:${r}:${cols[c]?.key}`;
-  const valueOf = (row: SheetRow, _r: number, c: number) => row.cells[cols[c]!.key] ?? "";
+  const valueOf = (row: SheetRow, _r: number, c: number) =>
+    row.cells[cols[c]!.key] ?? "";
   const shown = (col: SheetCol, v: string) => (v && !isRaw(col) ? t(v) : v);
 
   // Search: rows of this sheet with a cell that matches; counts per sheet for the tabs.
@@ -179,22 +208,38 @@ export function Spreadsheet({
     s.cols.some((c) => {
       if (c.kind === "status") return false;
       const v = row.cells[c.key] ?? "";
-      return v.toLowerCase().includes(q) || shown(c, v).toLowerCase().includes(q);
+      return (
+        v.toLowerCase().includes(q) || shown(c, v).toLowerCase().includes(q)
+      );
     });
-  const visible = sheet && !empty ? sheet.rows.map((row, r) => ({ row, r })).filter(({ row }) => rowMatches(sheet, row)) : [];
-  const matchCount = (s: Sheet) => s.rows.filter((row) => rowMatches(s, row)).length;
+  const visible =
+    sheet && !empty
+      ? sheet.rows
+          .map((row, r) => ({ row, r }))
+          .filter(({ row }) => rowMatches(sheet, row))
+      : [];
+  const matchCount = (s: Sheet) =>
+    s.rows.filter((row) => rowMatches(s, row)).length;
   const firstVisible = visible[0]?.r;
   const selHidden = !!q && !visible.some((v) => v.r === sel.r);
   React.useEffect(() => {
-    if (selHidden && firstVisible !== undefined) setSel((s) => ({ ...s, r: firstVisible }));
+    if (selHidden && firstVisible !== undefined)
+      setSel((s) => ({ ...s, r: firstVisible }));
   }, [selHidden, firstVisible]);
 
-  const template = [ROW_NO, ...(empty || !sheet ? Array(7).fill("minmax(96px,1fr)") : cols.map((c) => c.width))].join(" ");
+  const template = [
+    ROW_NO,
+    ...(empty || !sheet
+      ? Array(7).fill("minmax(96px,1fr)")
+      : cols.map((c) => c.width)),
+  ].join(" ");
 
   const selRow = sheet?.rows[sel.r];
   const selCol = cols[sel.c];
   const selValue =
-    !empty && !selHidden && selRow && selCol && selCol.kind !== "status" ? shown(selCol, valueOf(selRow, sel.r, sel.c)) : "";
+    !empty && !selHidden && selRow && selCol && selCol.kind !== "status"
+      ? shown(selCol, valueOf(selRow, sel.r, sel.c))
+      : "";
   const ref = `${letter(sel.c)}${sel.r + 2}`;
 
   const commit = (r: number, c: number, value: string) => {
@@ -206,7 +251,8 @@ export function Spreadsheet({
     onEdit(keyOf(r, c), value);
   };
 
-  const editable = (c: number) => !empty && !!onEdit && cols[c]?.kind !== "status";
+  const editable = (c: number) =>
+    !empty && !!onEdit && cols[c]?.kind !== "status";
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (editing || empty || !sheet) return;
@@ -214,7 +260,10 @@ export function Spreadsheet({
     const maxC = cols.length - 1;
     const move = (dr: number, dc: number) => {
       e.preventDefault();
-      setSel((s) => ({ r: Math.min(maxR, Math.max(0, s.r + dr)), c: Math.min(maxC, Math.max(0, s.c + dc)) }));
+      setSel((s) => ({
+        r: Math.min(maxR, Math.max(0, s.r + dr)),
+        c: Math.min(maxC, Math.max(0, s.c + dc)),
+      }));
     };
     if (e.key === "ArrowDown") move(1, 0);
     else if (e.key === "ArrowUp") move(-1, 0);
@@ -237,12 +286,23 @@ export function Spreadsheet({
             {empty || isFlow || showExtra ? "" : ref}
           </div>
           <div className="flex min-w-0 flex-1 items-center gap-2.5 px-3">
-            <span className="font-serif text-[12px] italic text-black/35">fx</span>
-            <span className="truncate text-[12.5px] text-black/80">{selValue}</span>
+            <span className="font-serif text-[12px] italic text-black/35">
+              fx
+            </span>
+            <span className="truncate text-[12.5px] text-black/80">
+              {selValue}
+            </span>
           </div>
           {!empty && (
-            <div role="group" aria-label={t("View")} className="my-1 ml-2 flex flex-none items-center self-center rounded-md bg-[#f0efea] p-0.5 text-[12px]">
-              {(installation ? (["table", "flow", "factory"] as const) : (["table", "flow"] as const)).map((v) => (
+            <div
+              role="group"
+              aria-label={t("View")}
+              className="my-1 ml-2 flex flex-none items-center self-center rounded-md bg-[#f0efea] p-0.5 text-[12px]"
+            >
+              {(installation
+                ? (["table", "flow", "factory"] as const)
+                : (["table", "flow"] as const)
+              ).map((v) => (
                 <button
                   key={v}
                   type="button"
@@ -250,10 +310,16 @@ export function Spreadsheet({
                   onClick={() => setView(v)}
                   className={cn(
                     "rounded px-2.5 py-1 transition-colors",
-                    view === v ? "bg-white font-medium text-[#111] shadow-[0_1px_2px_rgba(0,0,0,0.06)]" : "text-black/55 hover:text-black",
+                    view === v
+                      ? "bg-white font-medium text-[#111] shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
+                      : "text-black/55 hover:text-black",
                   )}
                 >
-                  {v === "table" ? t("Table") : v === "flow" ? t("Flow") : t("Factory")}
+                  {v === "table"
+                    ? t("Table")
+                    : v === "flow"
+                      ? t("Flow")
+                      : t("Factory")}
                 </button>
               ))}
             </div>
@@ -286,13 +352,21 @@ export function Spreadsheet({
                   </>
                 ) : (
                   <>
-                    <Check size={12} strokeWidth={2} className="text-emerald-600" />
+                    <Check
+                      size={12}
+                      strokeWidth={2}
+                      className="text-emerald-600"
+                    />
                     {t("All changes saved")}
                   </>
                 )}
               </span>
               <label className="relative flex items-center">
-                <Search size={12} strokeWidth={1.5} className="pointer-events-none absolute left-2 text-black/30" />
+                <Search
+                  size={12}
+                  strokeWidth={1.5}
+                  className="pointer-events-none absolute left-2 text-black/30"
+                />
                 <input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
@@ -319,7 +393,11 @@ export function Spreadsheet({
         {/* ── Grid ────────────────────────────────────── */}
         {isFactory && installation ? (
           <div className="p-4">
-            <FactoryProfileView installationId={installation.id} stepNames={stepNames(cells ?? {})} year={year} />
+            <FactoryProfileView
+              installationId={installation.id}
+              stepNames={stepNames(cells ?? {})}
+              year={year}
+            />
           </div>
         ) : isFlow ? (
           <FlowDiagram
@@ -331,7 +409,11 @@ export function Spreadsheet({
             savePatch={savePatch}
           />
         ) : tab === INSTALLATION_SHEET_ID ? (
-          <InstallationSheet key={installation?.id ?? ""} installation={installation} onSave={onInstallationSave} />
+          <InstallationSheet
+            key={installation?.id ?? ""}
+            installation={installation}
+            onSave={onInstallationSave}
+          />
         ) : showExtra ? (
           <div className="min-h-[320px]">{extra!.content}</div>
         ) : (
@@ -343,7 +425,10 @@ export function Spreadsheet({
             onKeyDown={onKeyDown}
             className="no-focus-ring overflow-x-auto focus:outline-none"
           >
-            <div className="grid min-w-max text-[12.5px]" style={{ gridTemplateColumns: template }}>
+            <div
+              className="grid min-w-max text-[12.5px]"
+              style={{ gridTemplateColumns: template }}
+            >
               {/* column letters */}
               <div className="sticky left-0 z-10 h-6 border-b border-r border-black/[0.08] bg-[#f0efea]" />
               {Array.from({ length: colCount }, (_, c) => (
@@ -351,7 +436,9 @@ export function Spreadsheet({
                   key={c}
                   className={cn(
                     "flex h-6 items-center justify-center border-b border-r border-black/[0.08] text-[11px] text-black/45",
-                    !empty && sel.c === c ? "bg-[#e3e2dc] font-medium text-black/70" : "bg-[#f0efea]",
+                    !empty && sel.c === c
+                      ? "bg-[#e3e2dc] font-medium text-black/70"
+                      : "bg-[#f0efea]",
                   )}
                 >
                   {letter(c)}
@@ -361,7 +448,10 @@ export function Spreadsheet({
               {/* header row */}
               <RowNo n={1} />
               {Array.from({ length: colCount }, (_, c) => (
-                <div key={c} className="flex h-8 items-center border-b border-r border-black/[0.08] bg-[#f7f6f2] px-2.5 font-semibold text-[#111]">
+                <div
+                  key={c}
+                  className="flex h-8 items-center border-b border-r border-black/[0.08] bg-[#f7f6f2] px-2.5 font-semibold text-[#111]"
+                >
                   {!empty && cols[c] ? t(cols[c]!.label) : ""}
                 </div>
               ))}
@@ -380,7 +470,14 @@ export function Spreadsheet({
                       <div
                         key={col.key}
                         role="gridcell"
-                        title={editor ? t("Edited by {name} · {time}", { name: editorName(editor.by), time: timeAgo(editor.at, t) }) : undefined}
+                        title={
+                          editor
+                            ? t("Edited by {name} · {time}", {
+                                name: editorName(editor.by),
+                                time: timeAgo(editor.at, t),
+                              })
+                            : undefined
+                        }
                         tabIndex={-1}
                         aria-selected={selected}
                         onClick={() => {
@@ -388,14 +485,16 @@ export function Spreadsheet({
                           gridRef.current?.focus();
                         }}
                         onKeyDown={(e) => {
-                          if (e.key === "Enter" && editable(c) && !editing) setEditing(k);
+                          if (e.key === "Enter" && editable(c) && !editing)
+                            setEditing(k);
                         }}
                         onDoubleClick={() => editable(c) && setEditing(k)}
                         className={cn(
                           "relative flex h-8 min-w-0 items-center border-b border-r border-black/[0.08] px-2.5",
                           col.kind === "number" && "justify-end",
                           flag && "bg-[#fffbeb]",
-                          selected && "z-[1] outline outline-2 -outline-offset-1 outline-[#111]",
+                          selected &&
+                            "z-[1] outline outline-2 -outline-offset-1 outline-[#111]",
                         )}
                       >
                         {editing === k ? (
@@ -409,7 +508,15 @@ export function Spreadsheet({
                             }}
                           />
                         ) : (
-                          <CellView col={col} value={v} flag={flag} status={row.status} selected={selected} query={q} text={shown(col, v)} />
+                          <CellView
+                            col={col}
+                            value={v}
+                            flag={flag}
+                            status={row.status}
+                            selected={selected}
+                            query={q}
+                            text={shown(col, v)}
+                          />
                         )}
                       </div>
                     );
@@ -418,17 +525,23 @@ export function Spreadsheet({
               ))}
 
               {/* empty rows to the fold, like a fresh sheet */}
-              {Array.from({ length: Math.max(0, MIN_ROWS - 1 - visible.length) }, (_, i) => {
-                const n = (empty ? 2 : (sheet?.rows.length ?? 0) + 2) + i;
-                return (
-                  <React.Fragment key={`e${i}`}>
-                    <RowNo n={empty ? 2 + i : n} />
-                    {Array.from({ length: colCount }, (_, c) => (
-                      <div key={c} className="h-8 border-b border-r border-black/[0.08]" />
-                    ))}
-                  </React.Fragment>
-                );
-              })}
+              {Array.from(
+                { length: Math.max(0, MIN_ROWS - 1 - visible.length) },
+                (_, i) => {
+                  const n = (empty ? 2 : (sheet?.rows.length ?? 0) + 2) + i;
+                  return (
+                    <React.Fragment key={`e${i}`}>
+                      <RowNo n={empty ? 2 + i : n} />
+                      {Array.from({ length: colCount }, (_, c) => (
+                        <div
+                          key={c}
+                          className="h-8 border-b border-r border-black/[0.08]"
+                        />
+                      ))}
+                    </React.Fragment>
+                  );
+                },
+              )}
             </div>
             {q && visible.length === 0 && (
               <p className="border-b border-black/[0.08] px-3 py-2 text-[12px] text-black/40">
@@ -443,8 +556,12 @@ export function Spreadsheet({
           {tabOrder(sheets).map((s) => {
             const on = tab === s.id;
             const full = sheets.find((x) => x.id === s.id);
-            const n = !full || empty ? 0 : q ? matchCount(full) : issuesOf(full);
-            const dot = full && !empty && s.id !== INSTALLATION_SHEET_ID ? sheetStatus(full) : null;
+            const n =
+              !full || empty ? 0 : q ? matchCount(full) : issuesOf(full);
+            const dot =
+              full && !empty && s.id !== INSTALLATION_SHEET_ID
+                ? sheetStatus(full)
+                : null;
             return (
               <button
                 key={s.id}
@@ -468,31 +585,35 @@ export function Spreadsheet({
                 )}
                 {s.code && <span>{s.code}</span>}
                 {t(s.name)}
-                {s.id === INSTALLATION_SHEET_ID && !empty ? (
-                  installStatus !== "untouched" && (
-                    <span
-                      role="img"
-                      aria-label={
-                        installStatus === "missing"
-                          ? t("{n} missing fields", { n: installIssues })
-                          : t(STATUS_LABEL[installStatus])
-                      }
-                      style={{ backgroundColor: installationTabTone(installation) }}
-                      className="grid h-4 min-w-4 place-items-center rounded-full px-1 font-mono text-[10px] text-white"
-                    >
-                      {installStatus === "missing" ? installIssues : ""}
-                    </span>
-                  )
-                ) : n > 0 && (
-                  <span
-                    className={cn(
-                      "grid h-4 min-w-4 place-items-center rounded-full px-1 font-mono text-[10px]",
-                      q ? "bg-black/[0.07] text-black/55" : "bg-[#fdecc8] text-[#b45309]",
+                {s.id === INSTALLATION_SHEET_ID && !empty
+                  ? installStatus !== "untouched" && (
+                      <span
+                        role="img"
+                        aria-label={
+                          installStatus === "missing"
+                            ? t("{n} missing fields", { n: installIssues })
+                            : t(STATUS_LABEL[installStatus])
+                        }
+                        style={{
+                          backgroundColor: installationTabTone(installation),
+                        }}
+                        className="grid h-4 min-w-4 place-items-center rounded-full px-1 font-mono text-[10px] text-white"
+                      >
+                        {installStatus === "missing" ? installIssues : ""}
+                      </span>
+                    )
+                  : n > 0 && (
+                      <span
+                        className={cn(
+                          "grid h-4 min-w-4 place-items-center rounded-full px-1 font-mono text-[10px]",
+                          q
+                            ? "bg-black/[0.07] text-black/55"
+                            : "bg-[#fdecc8] text-[#b45309]",
+                        )}
+                      >
+                        {n}
+                      </span>
                     )}
-                  >
-                    {n}
-                  </span>
-                )}
               </button>
             );
           })}
@@ -514,10 +635,19 @@ export function Spreadsheet({
         </div>
       </div>
       {!empty && (
-        <LivePanel sheets={sheets} installation={installation} country={installation?.country ?? ""} year={year} onOpenSheet={showLive} />
+        <LivePanel
+          sheets={sheets}
+          installation={installation}
+          country={installation?.country ?? ""}
+          year={year}
+          onOpenSheet={showLive}
+        />
       )}
       {importing && sheet && canImport && savePatch && (
-        <ImportWizard sheet={sheet} cells={cells ?? {}} savePatch={savePatch}
+        <ImportWizard
+          sheet={sheet}
+          cells={cells ?? {}}
+          savePatch={savePatch}
           onClose={() => {
             setImporting(false);
             importOpener.current?.focus();
@@ -534,7 +664,9 @@ function RowNo({ n, on }: { n: number; on?: boolean }) {
     <div
       className={cn(
         "sticky left-0 z-10 flex h-8 items-center justify-center border-b border-r border-black/[0.08] text-[11.5px]",
-        on ? "bg-[#e3e2dc] font-medium text-black/70" : "bg-[#f0efea] text-black/45",
+        on
+          ? "bg-[#e3e2dc] font-medium text-black/70"
+          : "bg-[#f0efea] text-black/45",
       )}
     >
       {n}
@@ -590,7 +722,9 @@ function Highlight({ text, query }: { text: string; query: string }) {
   return (
     <>
       {text.slice(0, i)}
-      <mark className="rounded-sm bg-[#fde68a] text-inherit">{text.slice(i, i + query.length)}</mark>
+      <mark className="rounded-sm bg-[#fde68a] text-inherit">
+        {text.slice(i, i + query.length)}
+      </mark>
       {text.slice(i + query.length)}
     </>
   );
@@ -616,12 +750,18 @@ function CellView({
   const t = useSheetT();
   if (col.kind === "status") return <StatusPill status={status} />;
   if (status === "empty" && !value) return null;
-  if (flag === "missing" || (!value && col.kind === "number")) return <span className="text-[#c2410c]">—</span>;
+  if (flag === "missing" || (!value && col.kind === "number"))
+    return <span className="text-[#c2410c]">—</span>;
   if (col.kind === "file") {
-    if (value === NO_FILE) return <span className="truncate text-black/35">{t(NO_FILE)}</span>;
+    if (value === NO_FILE)
+      return <span className="truncate text-black/35">{t(NO_FILE)}</span>;
     return (
       <span className="flex min-w-0 items-center gap-2 text-black/70">
-        <FileText size={13} strokeWidth={1.5} className="flex-none text-black/55" />
+        <FileText
+          size={13}
+          strokeWidth={1.5}
+          className="flex-none text-black/55"
+        />
         <span className="truncate">
           <Highlight text={text} query={query} />
         </span>
@@ -633,7 +773,11 @@ function CellView({
       className={cn(
         "truncate",
         col.kind === "number" && "tabular-nums",
-        flag === "warn" && value === "Not stated" ? "text-[#c2410c]" : flag === "warn" || selected ? "font-semibold text-[#111]" : "text-black/80",
+        flag === "warn" && value === "Not stated"
+          ? "text-[#c2410c]"
+          : flag === "warn" || selected
+            ? "font-semibold text-[#111]"
+            : "text-black/80",
       )}
     >
       <Highlight text={text} query={query} />

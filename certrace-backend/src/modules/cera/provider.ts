@@ -10,7 +10,10 @@ import type { generateText, LanguageModel } from "ai";
    counting maxOutputTokens, so its knowledge and company context must stay small. */
 export type CeraBudget = { knowledgeChars: number; companyChars: number };
 
-const FULL_BUDGET: CeraBudget = { knowledgeChars: Infinity, companyChars: 100_000 };
+const FULL_BUDGET: CeraBudget = {
+  knowledgeChars: Infinity,
+  companyChars: 100_000,
+};
 
 type FreeProvider = {
   baseURL: string;
@@ -39,7 +42,9 @@ const FREE_PROVIDERS: Record<string, FreeProvider> = {
 
 export function ceraBudget(): CeraBudget {
   const name = ceraProviderName();
-  return name && name !== "deepseek" ? FREE_PROVIDERS[name]!.budget : FULL_BUDGET;
+  return name && name !== "deepseek"
+    ? FREE_PROVIDERS[name]!.budget
+    : FULL_BUDGET;
 }
 
 export type CeraProviderName = "deepseek" | keyof typeof FREE_PROVIDERS;
@@ -49,7 +54,8 @@ const env = (name: string) => process.env[name]?.trim() || undefined;
 /** The configured provider when its key is present; undefined means chat falls back to rules. */
 export function ceraProviderName(): CeraProviderName | undefined {
   const chosen = env("CERTRACE_CERA_PROVIDER")?.toLowerCase() ?? "deepseek";
-  if (chosen === "deepseek") return env("DEEPSEEK_API_KEY") ? "deepseek" : undefined;
+  if (chosen === "deepseek")
+    return env("DEEPSEEK_API_KEY") ? "deepseek" : undefined;
   const free = FREE_PROVIDERS[chosen];
   return free && env(free.keyEnv) ? chosen : undefined;
 }
@@ -64,7 +70,10 @@ export function ceraModels(fetchImpl?: typeof fetch): CeraModel[] {
   const name = ceraProviderName();
   if (!name) throw new Error("Cera chat is not configured");
   if (name === "deepseek") {
-    const provider = createDeepSeek({ apiKey: env("DEEPSEEK_API_KEY")!, fetch: fetchImpl });
+    const provider = createDeepSeek({
+      apiKey: env("DEEPSEEK_API_KEY")!,
+      fetch: fetchImpl,
+    });
     return [
       {
         model: provider(env("CERTRACE_CERA_MODEL") || "deepseek-flash"),
@@ -84,4 +93,5 @@ export function ceraModels(fetchImpl?: typeof fetch): CeraModel[] {
   return ids.map((id) => ({ model: provider.chatModel(id) }));
 }
 
-export const ceraModel = (fetchImpl?: typeof fetch): CeraModel => ceraModels(fetchImpl)[0]!;
+export const ceraModel = (fetchImpl?: typeof fetch): CeraModel =>
+  ceraModels(fetchImpl)[0]!;

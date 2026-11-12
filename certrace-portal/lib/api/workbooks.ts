@@ -31,15 +31,21 @@ const wb = (iid: string) => api().api.v1.workbooks({ installationId: iid });
 export const listWorkbooks = (iid: string) => result(wb(iid).get());
 
 export const getWorkbook = (iid: string, year: number, since?: number) =>
-  result(wb(iid)({ year }).get({ query: since === undefined ? {} : { since } })) as Promise<
-    Workbook | WorkbookUnchanged
-  >;
+  result(
+    wb(iid)({ year }).get({ query: since === undefined ? {} : { since } }),
+  ) as Promise<Workbook | WorkbookUnchanged>;
 
-export const patchWorkbookCells = (iid: string, year: number, cells: Record<string, string | null>) =>
-  result(wb(iid)({ year }).cells.patch({ cells })) as Promise<Workbook>;
+export const patchWorkbookCells = (
+  iid: string,
+  year: number,
+  cells: Record<string, string | null>,
+) => result(wb(iid)({ year }).cells.patch({ cells })) as Promise<Workbook>;
 
-export const putWorkbookMeta = (iid: string, year: number, meta: WorkbookMeta) =>
-  result(wb(iid)({ year }).meta.put({ meta })) as Promise<Workbook>;
+export const putWorkbookMeta = (
+  iid: string,
+  year: number,
+  meta: WorkbookMeta,
+) => result(wb(iid)({ year }).meta.put({ meta })) as Promise<Workbook>;
 
 /** Clears the cells of a year with no meta status, under the server's row lock. */
 export const resetWorkbookLeftovers = (iid: string, year: number) =>

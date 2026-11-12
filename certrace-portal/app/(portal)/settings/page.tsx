@@ -403,7 +403,8 @@ function OwnInstallationCard() {
   const newSiteDraft = React.useMemo(
     () => ({
       ...emptyInstallation(true),
-      role: profile.productionModel === "oem" ? ("oem" as const) : ("own" as const),
+      role:
+        profile.productionModel === "oem" ? ("oem" as const) : ("own" as const),
     }),
     [profile.productionModel],
   );

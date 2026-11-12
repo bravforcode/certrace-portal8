@@ -31,13 +31,18 @@ export function useConvertContext(): {
     .sort((a: number, b: number) => b - a)[0];
   const year = latest ?? currentYear();
   const { sheets, cells: stored, loaded } = useWorkbook(iid, year);
-  const installation = React.useMemo(() => (iid ? getInstallation(iid) : null), [iid]);
+  const installation = React.useMemo(
+    () => (iid ? getInstallation(iid) : null),
+    [iid],
+  );
   const cells = React.useMemo(
     () => withInstallationDefaults(stored ?? {}, installation, year),
     [stored, installation, year],
   );
   // A year nobody has started: the store marks it blank, or it holds no answers at all.
-  const meta = years.find((y: { year: number }) => y.year === year)?.meta as { blank?: boolean } | undefined;
+  const meta = years.find((y: { year: number }) => y.year === year)?.meta as
+    | { blank?: boolean }
+    | undefined;
   const blank = isBlankYear(stored, meta);
   return { scoped, installation, sheets, cells, year, loaded, blank };
 }

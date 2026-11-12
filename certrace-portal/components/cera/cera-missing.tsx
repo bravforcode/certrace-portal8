@@ -48,23 +48,37 @@ export function useCeraMissing(): Monitor | null {
 
 /* The provider's data hook reads useSearchParams (through the scoped installation). That suspends during
    static rendering, so the boundary sits here: while it suspends the children still render, without a monitor. */
-export function CeraMissingProvider({ children }: { children: React.ReactNode }) {
+export function CeraMissingProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <React.Suspense fallback={<MonitorContext.Provider value={null}>{children}</MonitorContext.Provider>}>
+    <React.Suspense
+      fallback={
+        <MonitorContext.Provider value={null}>
+          {children}
+        </MonitorContext.Provider>
+      }
+    >
       <MonitorReader>{children}</MonitorReader>
     </React.Suspense>
   );
 }
 
 function MonitorReader({ children }: { children: React.ReactNode }) {
-  const { installation, sheets, cells, year, loaded, blank } = useConvertContext();
+  const { installation, sheets, cells, year, loaded, blank } =
+    useConvertContext();
   const { send } = useCera();
   const { lang } = useLanguage();
   const std = getStandard("eu-cbam");
   // Nothing to watch until an installation is selected and its workbook has loaded; an unloaded
   // workbook has no answers yet, which would look like everything being missing.
   const data = React.useMemo(
-    () => (installation && std && loaded ? missingData(std, { installation, sheets, cells }) : null),
+    () =>
+      installation && std && loaded
+        ? missingData(std, { installation, sheets, cells })
+        : null,
     [installation, std, loaded, sheets, cells],
   );
   const value = React.useMemo<Monitor | null>(
@@ -77,12 +91,21 @@ function MonitorReader({ children }: { children: React.ReactNode }) {
             data,
             count: blank ? 0 : data.fields.length,
             askToFill: () =>
-              send(fillRequest({ id: installation.id, name: installation.name }, year, data.fields, lang)),
+              send(
+                fillRequest(
+                  { id: installation.id, name: installation.name },
+                  year,
+                  data.fields,
+                  lang,
+                ),
+              ),
           }
         : null,
     [installation, year, blank, data, send, lang],
   );
-  return <MonitorContext.Provider value={value}>{children}</MonitorContext.Provider>;
+  return (
+    <MonitorContext.Provider value={value}>{children}</MonitorContext.Provider>
+  );
 }
 
 /** The "Missing data" block at the top of the panel. Renders nothing where there is no monitor. */
@@ -111,7 +134,9 @@ export function CeraMissingSection() {
         aria-label={open ? t("Hide missing data") : t("Show missing data")}
         className="flex w-full items-center justify-between gap-3 text-left"
       >
-        <span className="font-pixel text-[9.5px] uppercase tracking-[0.16em] text-black/45">{t("Missing data")}</span>
+        <span className="font-pixel text-[9.5px] uppercase tracking-[0.16em] text-black/45">
+          {t("Missing data")}
+        </span>
         <span className="flex items-center gap-2">
           {!blank && (
             <span className="font-mono text-[11px] text-black/45">
@@ -120,61 +145,69 @@ export function CeraMissingSection() {
           )}
           <ChevronDown
             aria-hidden
-            className={cn("h-3.5 w-3.5 text-black/45 transition-transform", open && "rotate-180")}
+            className={cn(
+              "h-3.5 w-3.5 text-black/45 transition-transform",
+              open && "rotate-180",
+            )}
           />
         </span>
       </button>
 
       <div id={bodyId} hidden={!open}>
-      {blank ? (
-        <p className="mt-1.5 text-[12.5px] leading-relaxed text-black/55">
-          <Link
-            href={`/convert/eu-cbam?installation=${encodeURIComponent(cera.installation.id)}`}
-            className="underline-offset-2 hover:underline"
-          >
-            {t("Not started yet. Open Convert to begin.")}
-          </Link>
-        </p>
-      ) : count === 0 ? (
-        <p className="mt-1.5 text-[12.5px] leading-relaxed text-black/55">
-          {t("Everything Cera checks for this installation is in.")}
-        </p>
-      ) : (
-        <>
-          <div className="mt-2 max-h-[40vh] overflow-y-auto">
-            <ul className="space-y-0.5">
-              {listed.map((f) => {
-                const text = f.kind === "field" ? `${f.section} · ${f.label}` : f.label;
-                return (
-                  <li key={`${f.kind}:${f.id}`}>
-                    <Link
-                      href={f.href ?? "#"}
-                      className="block truncate rounded-lg px-2 py-1 text-[12.5px] text-black/70 transition-colors hover:bg-white hover:text-black"
-                    >
-                      {text}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-          {count > LISTED && (
-            <p className="mt-1 px-2 text-[11.5px] text-black/40">{t("and {n} more", { n: count - LISTED })}</p>
-          )}
-          <button
-            type="button"
-            onClick={cera.askToFill}
-            disabled={thinking || answering}
-            title={t("Cera proposes each change; you confirm it before anything is saved.")}
-            className={cn(
-              "mt-2.5 w-full rounded-xl border border-black/[0.09] bg-white px-3 py-2 text-left text-[13px] text-black/80 transition-colors hover:border-black/25",
-              (thinking || answering) && "cursor-not-allowed opacity-50",
+        {blank ? (
+          <p className="mt-1.5 text-[12.5px] leading-relaxed text-black/55">
+            <Link
+              href={`/convert/eu-cbam?installation=${encodeURIComponent(cera.installation.id)}`}
+              className="underline-offset-2 hover:underline"
+            >
+              {t("Not started yet. Open Convert to begin.")}
+            </Link>
+          </p>
+        ) : count === 0 ? (
+          <p className="mt-1.5 text-[12.5px] leading-relaxed text-black/55">
+            {t("Everything Cera checks for this installation is in.")}
+          </p>
+        ) : (
+          <>
+            <div className="mt-2 max-h-[40vh] overflow-y-auto">
+              <ul className="space-y-0.5">
+                {listed.map((f) => {
+                  const text =
+                    f.kind === "field" ? `${f.section} · ${f.label}` : f.label;
+                  return (
+                    <li key={`${f.kind}:${f.id}`}>
+                      <Link
+                        href={f.href ?? "#"}
+                        className="block truncate rounded-lg px-2 py-1 text-[12.5px] text-black/70 transition-colors hover:bg-white hover:text-black"
+                      >
+                        {text}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+            {count > LISTED && (
+              <p className="mt-1 px-2 text-[11.5px] text-black/40">
+                {t("and {n} more", { n: count - LISTED })}
+              </p>
             )}
-          >
-            {t("Ask Cera to fill")}
-          </button>
-        </>
-      )}
+            <button
+              type="button"
+              onClick={cera.askToFill}
+              disabled={thinking || answering}
+              title={t(
+                "Cera proposes each change; you confirm it before anything is saved.",
+              )}
+              className={cn(
+                "mt-2.5 w-full rounded-xl border border-black/[0.09] bg-white px-3 py-2 text-left text-[13px] text-black/80 transition-colors hover:border-black/25",
+                (thinking || answering) && "cursor-not-allowed opacity-50",
+              )}
+            >
+              {t("Ask Cera to fill")}
+            </button>
+          </>
+        )}
       </div>
     </section>
   );

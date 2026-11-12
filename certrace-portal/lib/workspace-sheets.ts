@@ -27,7 +27,12 @@ export type RowStatus = "review" | "confirmed" | "missing" | "empty";
 export type CellFlag = "warn" | "missing";
 export type ColKind = "text" | "number" | "unit" | "method" | "file" | "status";
 
-export type SheetCol = { key: string; label: string; kind: ColKind; width: string };
+export type SheetCol = {
+  key: string;
+  label: string;
+  kind: ColKind;
+  width: string;
+};
 export type SheetRow = {
   cells: Record<string, string>;
   status: RowStatus;
@@ -35,7 +40,13 @@ export type SheetRow = {
      warn/missing highlight in the spreadsheet is inert until a checker fills this in. */
   flags?: Record<string, CellFlag>;
 };
-export type Sheet = { id: string; code: string; name: string; cols: SheetCol[]; rows: SheetRow[] };
+export type Sheet = {
+  id: string;
+  code: string;
+  name: string;
+  cols: SheetCol[];
+  rows: SheetRow[];
+};
 
 /** Words in a cell that are translated (the rest — numbers, file names, CN codes — are not). */
 export const NO_FILE = "No file";
@@ -50,7 +61,12 @@ const W = {
   status: "minmax(112px,1.1fr)",
 };
 
-const col = (key: string, label: string, kind: ColKind, width: string): SheetCol => ({ key, label, kind, width });
+const col = (
+  key: string,
+  label: string,
+  kind: ColKind,
+  width: string,
+): SheetCol => ({ key, label, kind, width });
 const status = col("status", "Status", "status", W.status);
 const source = col("source", "Source", "file", W.file);
 const method = col("method", "Method", "method", W.method);
@@ -62,14 +78,23 @@ export const INSTALLATION_SHEET_ID = "installation";
 /** Rows a sheet starts with; cells.ts pads every sheet to at least this many. */
 export const BLANK_ROWS = 20;
 
-const kb = (n: number) => (n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+const kb = (n: number) =>
+  n >= 1024 * 1024
+    ? `${(n / 1024 / 1024).toFixed(1)} MB`
+    : `${Math.max(1, Math.round(n / 1024))} KB`;
 
 /** The sheet structure of a year. Only the documents sheet has rows of its own (its uploaded files);
     every other sheet's rows are filled in by cells.ts from the server workbook. */
 export function buildSheets(files: WorkspaceFile[]): Sheet[] {
   return [
     // The first tab: the site the sheets are about, before its products and steps (MEASUR order).
-    { id: INSTALLATION_SHEET_ID, code: "00A", name: "Installation", cols: [], rows: [] },
+    {
+      id: INSTALLATION_SHEET_ID,
+      code: "00A",
+      name: "Installation",
+      cols: [],
+      rows: [],
+    },
     {
       id: "documents",
       code: "00",
@@ -95,7 +120,15 @@ export function buildSheets(files: WorkspaceFile[]): Sheet[] {
       id: "products",
       code: "01",
       name: "Products",
-      cols: [col("cn", "CN code", "text", W.step), col("item", "Product", "text", W.item), qty, unit, method, source, status],
+      cols: [
+        col("cn", "CN code", "text", W.step),
+        col("item", "Product", "text", W.item),
+        qty,
+        unit,
+        method,
+        source,
+        status,
+      ],
       rows: [],
     },
     {
@@ -147,14 +180,30 @@ export function buildSheets(files: WorkspaceFile[]): Sheet[] {
       id: "energy",
       code: "05",
       name: "Energy",
-      cols: [col("step", "Step", "text", W.step), col("item", "Energy source", "text", W.item), qty, unit, method, source, status],
+      cols: [
+        col("step", "Step", "text", W.step),
+        col("item", "Energy source", "text", W.item),
+        qty,
+        unit,
+        method,
+        source,
+        status,
+      ],
       rows: [],
     },
     {
       id: "output",
       code: "06",
       name: "Output & waste",
-      cols: [col("step", "Step", "text", W.step), col("item", "Item", "text", W.item), qty, unit, method, source, status],
+      cols: [
+        col("step", "Step", "text", W.step),
+        col("item", "Item", "text", W.item),
+        qty,
+        unit,
+        method,
+        source,
+        status,
+      ],
       rows: [],
     },
     {
@@ -189,7 +238,8 @@ export function buildSheets(files: WorkspaceFile[]): Sheet[] {
   ];
 }
 
-export const issuesOf = (s: Sheet) => s.rows.filter((r) => r.status === "review" || r.status === "missing").length;
+export const issuesOf = (s: Sheet) =>
+  s.rows.filter((r) => r.status === "review" || r.status === "missing").length;
 
 /** A-1-style column letters. */
 export const letter = (i: number) => String.fromCharCode(65 + i);

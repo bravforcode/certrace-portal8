@@ -18,7 +18,9 @@ describe("assertProductionConfig", () => {
     expect(() => assertProductionConfig(complete)).not.toThrow();
   });
   test("ignores non-production environments", () => {
-    expect(() => assertProductionConfig({ NODE_ENV: "development" })).not.toThrow();
+    expect(() =>
+      assertProductionConfig({ NODE_ENV: "development" }),
+    ).not.toThrow();
   });
   test("lists every missing or unsafe setting", () => {
     expect(() =>
@@ -58,7 +60,9 @@ describe("assertProductionConfig", () => {
     ["CERTRACE_EMAIL_SENDER", "  "],
     ["CERTRACE_APP_BASE_URL", "   "],
   ])("rejects whitespace-only %s", (key, value) => {
-    expect(() => assertProductionConfig({ ...complete, [key]: value })).toThrow(key);
+    expect(() => assertProductionConfig({ ...complete, [key]: value })).toThrow(
+      key,
+    );
   });
   test("rejects whitespace-only SMTP settings", () => {
     expect(() =>
@@ -74,7 +78,10 @@ describe("assertProductionConfig", () => {
   });
   test("trims the JWT secret before counting its length", () => {
     expect(() =>
-      assertProductionConfig({ ...complete, CERTRACE_JWT_SECRET: ` ${"x".repeat(31)} ` }),
+      assertProductionConfig({
+        ...complete,
+        CERTRACE_JWT_SECRET: ` ${"x".repeat(31)} `,
+      }),
     ).toThrow(/CERTRACE_JWT_SECRET must be at least 32 characters/);
   });
   test.each(["console", "off", "", "RESEND"])(

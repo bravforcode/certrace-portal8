@@ -22,7 +22,11 @@
 import * as React from "react";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui";
-import { MiniPlatform, WORKER_CSS, WorkerFigure } from "@/components/workspace/setting-up";
+import {
+  MiniPlatform,
+  WORKER_CSS,
+  WorkerFigure,
+} from "@/components/workspace/setting-up";
 import { useT } from "@/lib/i18n";
 
 type Phase = "enter" | "walk" | "ready" | "bow" | "zoom";
@@ -53,7 +57,9 @@ export function WorkspaceReveal({ onDone }: { onDone: () => void }) {
   const stage = React.useRef<HTMLDivElement>(null);
   const [box, setBox] = React.useState<{ w: number; h: number } | null>(null);
   const calm = React.useMemo(
-    () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
     [],
   );
   const timers = React.useRef<number[]>([]);
@@ -80,7 +86,12 @@ export function WorkspaceReveal({ onDone }: { onDone: () => void }) {
       /* A moment at the start positions, then walk — so the transition has somewhere to come from. A timer, not
          requestAnimationFrame: a frame can be held back (a background tab), and then nobody would walk. */
       list.push(window.setTimeout(() => setPhase("walk"), 60));
-      list.push(window.setTimeout(() => setPhase("ready"), 60 + WALK_MS + STAGGER_MS * STARTS.length + 150));
+      list.push(
+        window.setTimeout(
+          () => setPhase("ready"),
+          60 + WALK_MS + STAGGER_MS * STARTS.length + 150,
+        ),
+      );
     }
     return () => list.forEach(window.clearTimeout);
   }, [calm]);
@@ -90,7 +101,9 @@ export function WorkspaceReveal({ onDone }: { onDone: () => void }) {
     if (calm) return cb.current();
     setPhase("bow");
     timers.current.push(window.setTimeout(() => setPhase("zoom"), BOW_MS));
-    timers.current.push(window.setTimeout(() => cb.current(), BOW_MS + ZOOM_MS));
+    timers.current.push(
+      window.setTimeout(() => cb.current(), BOW_MS + ZOOM_MS),
+    );
   };
 
   // As wide as 460px or 62% of the card, and never taller than 31% of it.
@@ -105,7 +118,10 @@ export function WorkspaceReveal({ onDone }: { onDone: () => void }) {
       role="region"
       aria-label={t("Your workspace is set up")}
       className="relative h-[480px] overflow-hidden rounded-2xl bg-[#fafaf8]"
-      style={{ opacity: zooming ? 0 : 1, transition: `opacity ${ZOOM_MS}ms ease-in ${ZOOM_MS * 0.35}ms` }}
+      style={{
+        opacity: zooming ? 0 : 1,
+        transition: `opacity ${ZOOM_MS}ms ease-in ${ZOOM_MS * 0.35}ms`,
+      }}
     >
       <style>{WORKER_CSS + REVEAL_CSS}</style>
 
@@ -138,7 +154,10 @@ export function WorkspaceReveal({ onDone }: { onDone: () => void }) {
               opacity: zooming ? 0 : 1,
             }}
           >
-            <div className={phase === "bow" ? "rv-bow" : ""} style={{ "--bow-delay": `${i * 60}ms` } as React.CSSProperties}>
+            <div
+              className={phase === "bow" ? "rv-bow" : ""}
+              style={{ "--bow-delay": `${i * 60}ms` } as React.CSSProperties}
+            >
               <WorkerFigure className="ws-bob h-11 w-[30px]" />
             </div>
           </div>
@@ -159,7 +178,9 @@ export function WorkspaceReveal({ onDone }: { onDone: () => void }) {
         <h2 className="font-[family-name:var(--font-plex)] text-2xl font-light tracking-tight text-[#111]">
           {t("Your workspace is set up")}
         </h2>
-        <p className="mt-1.5 text-sm text-black/45">{t("Every file is sorted into the sheets.")}</p>
+        <p className="mt-1.5 text-sm text-black/45">
+          {t("Every file is sorted into the sheets.")}
+        </p>
         <Button className="mt-5" onClick={start}>
           {t("Get started")} <ArrowRight size={14} strokeWidth={1.5} />
         </Button>

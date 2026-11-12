@@ -43,7 +43,5 @@ export function LanguageToggle({
 }) {
   /* Twelve languages no longer fit a row of pills in a packed top bar, so the toggle is now the same dropdown the links use —
      still in place (no navigation), still sized down for the bar. */
-  return (
-    <LanguageSelect className={cn("flex-none", className)} size={size} />
-  );
+  return <LanguageSelect className={cn("flex-none", className)} size={size} />;
 }

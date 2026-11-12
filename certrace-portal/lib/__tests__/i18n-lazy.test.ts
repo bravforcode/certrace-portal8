@@ -5,7 +5,8 @@ import { TH_ALL } from "../i18n-th-all";
 
 // The test loader preloads every dictionary; this proves loading is what makes translate() answer, and that a repeat load is a no-op.
 test("a loaded dictionary answers synchronously, and loading again changes nothing", async () => {
-  for (const lang of ["th", "zh", "hi"] as const) assert.equal(isLocaleLoaded(lang), true);
+  for (const lang of ["th", "zh", "hi"] as const)
+    assert.equal(isLocaleLoaded(lang), true);
   assert.equal(isLocaleLoaded("en"), true);
   const before = translate("th", "Dashboard");
   assert.notEqual(before, "Dashboard");

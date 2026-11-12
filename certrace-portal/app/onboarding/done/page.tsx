@@ -107,7 +107,8 @@ export default function OnboardingDonePage() {
           </p>
           {loaded && user && !user.ready && (
             <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-black/50">
-              {t("We'll email you at")} {user.email} {t("when your account is approved.")}
+              {t("We'll email you at")} {user.email}{" "}
+              {t("when your account is approved.")}
             </p>
           )}
           {complete && (

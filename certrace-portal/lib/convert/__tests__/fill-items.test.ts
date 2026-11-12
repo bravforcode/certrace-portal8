@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { FILL_ITEMS, fillFieldCell, getFillItem } from "../fill-items";
-import { CBAM_SHEET_ID, cbamFieldId, cbamFieldsFor } from "../../cbam/template-fields";
+import {
+  CBAM_SHEET_ID,
+  cbamFieldId,
+  cbamFieldsFor,
+} from "../../cbam/template-fields";
 import { buildSheets } from "../../workspace-sheets";
 import { STANDARDS } from "../../convert-standards";
 
@@ -14,7 +18,10 @@ test("an unknown requirement id returns null, including Object prototype names",
 // A CBAM answer must land on the CBAM tab, in the column named after its template cell.
 test("a known field resolves to the CBAM tab and its template column; an unknown field returns null", () => {
   const id = cbamFieldId("A_InstData", "E62");
-  assert.deepEqual(fillFieldCell("goods", id), { sheet: CBAM_SHEET_ID, cell: id });
+  assert.deepEqual(fillFieldCell("goods", id), {
+    sheet: CBAM_SHEET_ID,
+    cell: id,
+  });
   assert.equal(fillFieldCell("goods", "no-such-field"), null);
 });
 
@@ -31,7 +38,11 @@ test("every item's fields are the CBAM template fields, with no other sheet", ()
   for (const [id, item] of Object.entries(FILL_ITEMS)) {
     assert.equal(item.sheet, CBAM_SHEET_ID, id);
     const expected = cbamFieldsFor(id).map((f) => f.id);
-    assert.deepEqual(item.fields.map((f) => f.key), expected, id);
+    assert.deepEqual(
+      item.fields.map((f) => f.key),
+      expected,
+      id,
+    );
   }
 });
 
@@ -43,11 +54,16 @@ test("every non-CBAM field's column exists on its sheet", () => {
     if (item.sheet === CBAM_SHEET_ID) continue;
     const sheet = sheets.find((s) => s.id === item.sheet);
     assert.ok(sheet, item.sheet);
-    for (const f of item.fields) assert.ok(sheet.cols.some((c) => c.key === f.cell), `${item.sheet}:${f.cell}`);
+    for (const f of item.fields)
+      assert.ok(
+        sheet.cols.some((c) => c.key === f.cell),
+        `${item.sheet}:${f.cell}`,
+      );
   }
 });
 
 // The fill route must resolve every requirement the Convert page lists.
 test("every catalogue requirement has a fill entry", () => {
-  for (const s of STANDARDS) for (const r of s.requirements) assert.ok(getFillItem(r.id), r.id);
+  for (const s of STANDARDS)
+    for (const r of s.requirements) assert.ok(getFillItem(r.id), r.id);
 });

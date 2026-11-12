@@ -11,7 +11,9 @@ beforeEach(async () => {
 });
 
 const post = (body: unknown, cookie?: string) =>
-  call("/api/v1/consent/cookies", "POST", body, cookie, { origin: "http://localhost:3000" });
+  call("/api/v1/consent/cookies", "POST", body, cookie, {
+    origin: "http://localhost:3000",
+  });
 const valid = (visitorId: string, extra: Record<string, unknown> = {}) => ({
   visitorId,
   analytics: false,
@@ -26,11 +28,26 @@ test("anonymous and signed-in choices are both recorded", async () => {
   const anon = await post(valid(visitorId));
   expect(anon.status).toBe(201);
   const a = await account();
-  const signed = await call("/api/v1/consent/cookies", "POST",
-    { visitorId, analytics: true, marketing: false, policyVersion: "2026-11-10" }, a.cookie);
+  const signed = await call(
+    "/api/v1/consent/cookies",
+    "POST",
+    {
+      visitorId,
+      analytics: true,
+      marketing: false,
+      policyVersion: "2026-11-10",
+    },
+    a.cookie,
+  );
   expect(signed.status).toBe(201);
-  const rows = await db.cookie_consents.findMany({ where: { visitor_id: visitorId }, orderBy: { created_at: "asc" } });
-  expect(rows.map((r) => [r.analytics, r.user_id])).toEqual([[false, null], [true, a.user.id]]);
+  const rows = await db.cookie_consents.findMany({
+    where: { visitor_id: visitorId },
+    orderBy: { created_at: "asc" },
+  });
+  expect(rows.map((r) => [r.analytics, r.user_id])).toEqual([
+    [false, null],
+    [true, a.user.id],
+  ]);
   await db.cookie_consents.deleteMany({ where: { visitor_id: visitorId } });
 });
 
@@ -45,7 +62,9 @@ test("rotating visitor ids from one address is rate limited", async () => {
   }
   expect(statuses).toContain(429);
   expect(statuses.filter((s) => s === 201).length).toBeLessThan(65);
-  await db.cookie_consents.deleteMany({ where: { visitor_id: { in: visitors } } });
+  await db.cookie_consents.deleteMany({
+    where: { visitor_id: { in: visitors } },
+  });
 });
 
 test("a non-UUID visitor id is rejected", async () => {
@@ -54,21 +73,31 @@ test("a non-UUID visitor id is rejected", async () => {
 
 test("a string where a boolean belongs is rejected", async () => {
   const visitorId = crypto.randomUUID();
-  expect((await post(valid(visitorId, { analytics: "true" }))).status).toBe(422);
-  expect(await db.cookie_consents.count({ where: { visitor_id: visitorId } })).toBe(0);
+  expect((await post(valid(visitorId, { analytics: "true" }))).status).toBe(
+    422,
+  );
+  expect(
+    await db.cookie_consents.count({ where: { visitor_id: visitorId } }),
+  ).toBe(0);
 });
 
 test("a policy version the server does not publish is rejected", async () => {
   const visitorId = crypto.randomUUID();
-  expect((await post(valid(visitorId, { policyVersion: "anything-goes" }))).status).toBe(422);
-  expect(await db.cookie_consents.count({ where: { visitor_id: visitorId } })).toBe(0);
+  expect(
+    (await post(valid(visitorId, { policyVersion: "anything-goes" }))).status,
+  ).toBe(422);
+  expect(
+    await db.cookie_consents.count({ where: { visitor_id: visitorId } }),
+  ).toBe(0);
 });
 
 // Necessary cookies are always on; a client cannot switch that off in its record.
 test("necessary:false from the client is ignored and stored as true", async () => {
   const visitorId = crypto.randomUUID();
   expect((await post(valid(visitorId, { necessary: false }))).status).toBe(201);
-  const [row] = await db.cookie_consents.findMany({ where: { visitor_id: visitorId } });
+  const [row] = await db.cookie_consents.findMany({
+    where: { visitor_id: visitorId },
+  });
   expect(row?.necessary).toBe(true);
   await db.cookie_consents.deleteMany({ where: { visitor_id: visitorId } });
 });

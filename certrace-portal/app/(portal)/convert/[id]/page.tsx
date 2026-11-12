@@ -16,7 +16,13 @@
 import * as React from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { ArrowLeft, ChevronDown, Link2, PencilLine, Search } from "lucide-react";
+import {
+  ArrowLeft,
+  ChevronDown,
+  Link2,
+  PencilLine,
+  Search,
+} from "lucide-react";
 import {
   Button,
   ButtonLink,
@@ -64,7 +70,11 @@ const STATE: Record<
   missing: { label: "Missing", tone: "err" },
 };
 
-const ROLE_LABEL = { own: "Own plant", oem: "OEM plant", supplier: "Supplier plant" } as const;
+const ROLE_LABEL = {
+  own: "Own plant",
+  oem: "OEM plant",
+  supplier: "Supplier plant",
+} as const;
 
 export default function ConvertStandardPage() {
   return (
@@ -85,7 +95,10 @@ function ConvertStandardInner() {
   const [open, setOpen] = React.useState<string | null>(null);
   const thisYear = currentYear();
   const [year, setYear] = React.useState(thisYear);
-  const { sheets: yearSheets, cells: yearCells } = useWorkbook(installation?.id ?? null, year);
+  const { sheets: yearSheets, cells: yearCells } = useWorkbook(
+    installation?.id ?? null,
+    year,
+  );
   const cells = React.useMemo(
     () => withInstallationDefaults(yearCells ?? {}, installation, year),
     [yearCells, installation, year],
@@ -125,7 +138,9 @@ function ConvertStandardInner() {
   const exportVerification = () => {
     if (!canConvert || !installation) return;
     try {
-      const wss = listWorkspaces().filter((w) => w.installationId === installation.id && w.year === year);
+      const wss = listWorkspaces().filter(
+        (w) => w.installationId === installation.id && w.year === year,
+      );
       const out = buildVerificationExport({
         installation,
         year,
@@ -147,7 +162,10 @@ function ConvertStandardInner() {
       a.download = out.fileName;
       a.click();
       URL.revokeObjectURL(url);
-      toast({ message: t("Verification file downloaded"), detail: out.fileName });
+      toast({
+        message: t("Verification file downloaded"),
+        detail: out.fileName,
+      });
     } catch (err) {
       toast({
         message: t("Could not build the verification file"),
@@ -218,7 +236,10 @@ function ConvertStandardInner() {
                 <React.Fragment key={r.id}>
                   {i > 0 && ", "}
                   {r.href ? (
-                    <Link href={r.href} className="underline underline-offset-2 hover:text-black">
+                    <Link
+                      href={r.href}
+                      className="underline underline-offset-2 hover:text-black"
+                    >
                       {r.title}
                     </Link>
                   ) : (
@@ -232,7 +253,11 @@ function ConvertStandardInner() {
       </div>
 
       {s.id === "eu-cbam" && installation && (
-        <PreverifyPanel installationId={installation.id} year={year} canConvert={canConvert} />
+        <PreverifyPanel
+          installationId={installation.id}
+          year={year}
+          canConvert={canConvert}
+        />
       )}
 
       {/* Reporting year: the shared bar (2020 → five years ahead, opening on
@@ -313,7 +338,9 @@ function ConvertStandardInner() {
           </p>
         </div>
         {yearHistory.length === 0 ? (
-          <EmptyState title={t("No reports generated for {year} yet.", { year })} />
+          <EmptyState
+            title={t("No reports generated for {year} yet.", { year })}
+          />
         ) : (
           <DeclarationRows items={yearHistory} />
         )}
@@ -335,7 +362,11 @@ function BackLinkInner() {
   const installation = useSearchParams().get("installation");
   return (
     <Link
-      href={installation ? `/convert?installation=${encodeURIComponent(installation)}` : "/convert"}
+      href={
+        installation
+          ? `/convert?installation=${encodeURIComponent(installation)}`
+          : "/convert"
+      }
       className="inline-flex items-center gap-1.5 text-[12px] uppercase tracking-[0.08em] text-black/40 hover:text-black"
     >
       <ArrowLeft size={14} strokeWidth={1.5} /> Convert
@@ -369,14 +400,19 @@ function RequirementRow({
   );
   const smartLink = (
     <>
-      <Link2 size={13} strokeWidth={1.5} /> {linking ? t("Creating…") : t("Smart Link")}
+      <Link2 size={13} strokeWidth={1.5} />{" "}
+      {linking ? t("Creating…") : t("Smart Link")}
     </>
   );
   const copySmartLink = async () => {
     if (!installationId) return;
     setLinking(true);
     try {
-      const { path } = await createItemLink({ installationId, year, itemKey: r.id });
+      const { path } = await createItemLink({
+        installationId,
+        year,
+        itemKey: r.id,
+      });
       const url = `${window.location.origin}${path}`;
       await navigator.clipboard.writeText(url).catch(() => undefined);
       toast(t("Smart Link copied. Send it to whoever fills this in."));
@@ -428,7 +464,11 @@ function RequirementRow({
           <div className="mt-3 flex flex-wrap items-center gap-2">
             {r.href && installationId ? (
               <>
-                <ButtonLink href={r.href} variant={primary === "fill" ? "primary" : "secondary"} size="sm">
+                <ButtonLink
+                  href={r.href}
+                  variant={primary === "fill" ? "primary" : "secondary"}
+                  size="sm"
+                >
                   {fillIn}
                 </ButtonLink>
                 <Button
@@ -448,7 +488,9 @@ function RequirementRow({
                 <Button variant="secondary" size="sm" disabled>
                   {smartLink}
                 </Button>
-                <span className="text-[12px] text-black/40">{t("Choose an installation")}</span>
+                <span className="text-[12px] text-black/40">
+                  {t("Choose an installation")}
+                </span>
               </>
             )}
           </div>

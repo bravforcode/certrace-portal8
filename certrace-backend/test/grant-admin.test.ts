@@ -19,7 +19,9 @@ async function grant(email: string) {
 
 describe("grant-admin", () => {
   test("an unknown email exits 1", async () => {
-    expect(await grant(`nobody-${crypto.randomUUID()}@example.invalid`)).toBe(1);
+    expect(await grant(`nobody-${crypto.randomUUID()}@example.invalid`)).toBe(
+      1,
+    );
   });
 
   test("a never-approved account becomes admin, ready and approved", async () => {

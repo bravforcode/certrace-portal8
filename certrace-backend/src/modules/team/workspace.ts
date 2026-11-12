@@ -22,7 +22,11 @@ export const companySession = new Elysia({ name: "team.company" }).resolve(
       trialEnded(company) &&
       !trialWriteOpen(request.method, request.url)
     )
-      fail(403, "TRIAL_ENDED", "Your free trial has ended. Choose a plan to keep editing.");
+      fail(
+        403,
+        "TRIAL_ENDED",
+        "Your free trial has ended. Choose a plan to keep editing.",
+      );
     return { account, company };
   },
 );
@@ -40,7 +44,11 @@ async function companyFor(
     include: { accounts: { include: { users: true } } },
   });
   const owner = membership?.accounts.users;
-  if (!owner?.ready || owner.status !== "ACTIVE" || membership?.role !== "editor")
+  if (
+    !owner?.ready ||
+    owner.status !== "ACTIVE" ||
+    membership?.role !== "editor"
+  )
     fail(403, "COMPANY_ACCESS", "You no longer have access to this company.");
   return owner;
 }

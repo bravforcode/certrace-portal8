@@ -47,7 +47,11 @@ const countFor = (tab: Tab, reports: number) =>
       ? reports
       : STANDARDS.filter((s) => s.status === tab).length;
 
-const ROLE_LABEL = { own: "Own plant", oem: "OEM plant", supplier: "Supplier plant" } as const;
+const ROLE_LABEL = {
+  own: "Own plant",
+  oem: "OEM plant",
+  supplier: "Supplier plant",
+} as const;
 
 export default function ConvertPage() {
   return (
@@ -92,8 +96,7 @@ function ConvertInner() {
   const live = shown.filter((s) => s.status !== "soon");
   const soon = shown.filter((s) => s.status === "soon");
   const reports = declarations.filter(
-    (d) =>
-      !q || `${d.title ?? d.name} ${d.period}`.toLowerCase().includes(q),
+    (d) => !q || `${d.title ?? d.name} ${d.period}`.toLowerCase().includes(q),
   );
 
   return (
@@ -134,7 +137,9 @@ function ConvertInner() {
             data-lock="allow"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={tab === "report" ? "Search reports…" : "Search standards…"}
+            placeholder={
+              tab === "report" ? "Search reports…" : "Search standards…"
+            }
             aria-label="Search"
           />
         </div>
@@ -151,8 +156,16 @@ function ConvertInner() {
         )
       ) : shown.length === 0 ? (
         <EmptyState
-          title={q ? `Nothing matches “${query}”.` : `No standard is ${TABS.find((x) => x.key === tab)?.label.toLowerCase()} yet.`}
-          body={q ? undefined : "Standards show up here once their requirements reach this stage."}
+          title={
+            q
+              ? `Nothing matches “${query}”.`
+              : `No standard is ${TABS.find((x) => x.key === tab)?.label.toLowerCase()} yet.`
+          }
+          body={
+            q
+              ? undefined
+              : "Standards show up here once their requirements reach this stage."
+          }
         />
       ) : (
         <div className="space-y-10">
@@ -225,9 +238,7 @@ function StandardCard({ s, pct }: { s: Standard; pct: number }) {
         </div>
         {!soon && (
           <div className="mt-2.5 flex flex-wrap items-center gap-2 whitespace-nowrap">
-            <Chip tone={pct === 100 ? "ok" : "warn"}>
-              {pct}% ready
-            </Chip>
+            <Chip tone={pct === 100 ? "ok" : "warn"}>{pct}% ready</Chip>
             <span className="text-[11.5px] text-black/40">
               {s.requirements.length} requirements
             </span>

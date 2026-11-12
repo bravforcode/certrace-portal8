@@ -75,5 +75,7 @@ registerHooks({
 
 // lib/i18n loads its dictionaries on demand in the app; tests call translate() synchronously,
 // so every dictionary is loaded before any test file runs. Same module URL, so the same instance.
-const { loadLocale } = await import(pathToFileURL(path.join(ROOT, "lib/i18n.ts")).href);
+const { loadLocale } = await import(
+  pathToFileURL(path.join(ROOT, "lib/i18n.ts")).href
+);
 await Promise.all(["th", "zh", "hi"].map((lang) => loadLocale(lang)));

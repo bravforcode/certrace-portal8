@@ -1,10 +1,24 @@
-import { accountStorage, discardPendingRecord, flushAccount, refreshAccountRecords } from "../account-storage";
+import {
+  accountStorage,
+  discardPendingRecord,
+  flushAccount,
+  refreshAccountRecords,
+} from "../account-storage";
 import { factoryKey, validateProfile, type FactoryProfile } from "./profile";
-import { classifySaveError, FactorySaveError, parseStoredFactory } from "./stored";
+import {
+  classifySaveError,
+  FactorySaveError,
+  parseStoredFactory,
+} from "./stored";
 
-export function readFactory(installationId: string): { profile: FactoryProfile; unreadable: boolean } {
+export function readFactory(installationId: string): {
+  profile: FactoryProfile;
+  unreadable: boolean;
+} {
   try {
-    return parseStoredFactory(accountStorage.getItem(factoryKey(installationId)));
+    return parseStoredFactory(
+      accountStorage.getItem(factoryKey(installationId)),
+    );
   } catch {
     return parseStoredFactory(null);
   }
@@ -14,7 +28,10 @@ export async function saveFactory(installationId: string, p: FactoryProfile) {
   const checked = validateProfile(p);
   if (!checked.ok) throw new Error(checked.errors.join("; "));
   const key = factoryKey(installationId);
-  accountStorage.setItem(key, JSON.stringify({ ...checked.data, updatedAt: new Date().toISOString() }));
+  accountStorage.setItem(
+    key,
+    JSON.stringify({ ...checked.data, updatedAt: new Date().toISOString() }),
+  );
   try {
     await flushAccount();
   } catch (e) {

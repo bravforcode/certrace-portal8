@@ -6,7 +6,8 @@ import { POST_END_DAYS, TRIAL_DAYS, trialEndsAt } from "../auth/trial";
 
 const DAY = 86_400_000;
 
-const errorCode = (e: unknown) => (e as { code?: string } | undefined)?.code ?? "UNKNOWN";
+const errorCode = (e: unknown) =>
+  (e as { code?: string } | undefined)?.code ?? "UNKNOWN";
 
 /** Reminders are keyed on the trial end date, not only the kind. An admin
     extension moves trial_started_at, which moves the end date, so the new
@@ -22,7 +23,8 @@ const claimKey = (kind: EmailKind, endsAt: Date) =>
     Without delivery (dry run, or CERTRACE_EMAIL_DELIVERY off) nothing is
     claimed and `sent` counts the reminders that would go out. */
 export async function runTrialEmails(now = new Date(), dryRun = false) {
-  const live = !dryRun && (process.env.CERTRACE_EMAIL_DELIVERY ?? "off") !== "off";
+  const live =
+    !dryRun && (process.env.CERTRACE_EMAIL_DELIVERY ?? "off") !== "off";
   // Only trials ending within POST_END_DAYS either way, so the first run after
   // deploy does not mail every expired account.
   const users = await db.users.findMany({
@@ -36,7 +38,13 @@ export async function runTrialEmails(now = new Date(), dryRun = false) {
         lte: new Date(now.getTime() - (TRIAL_DAYS - POST_END_DAYS) * DAY),
       },
     },
-    select: { id: true, email: true, locale: true, first_name: true, trial_started_at: true },
+    select: {
+      id: true,
+      email: true,
+      locale: true,
+      first_name: true,
+      trial_started_at: true,
+    },
   });
   let sent = 0,
     failed = 0,
@@ -45,7 +53,13 @@ export async function runTrialEmails(now = new Date(), dryRun = false) {
     const endsAt = trialEndsAt(u);
     const left = (endsAt.getTime() - now.getTime()) / DAY;
     const kind: EmailKind | null =
-      left <= 0 ? "trial_ended" : left <= 1 ? "trial_ending_1" : left <= 7 ? "trial_ending_7" : null;
+      left <= 0
+        ? "trial_ended"
+        : left <= 1
+          ? "trial_ending_1"
+          : left <= 7
+            ? "trial_ending_7"
+            : null;
     if (!kind) continue;
     if (!live) {
       sent++;
@@ -55,14 +69,22 @@ export async function runTrialEmails(now = new Date(), dryRun = false) {
     try {
       await db.email_deliveries.create({ data: { user_id: u.id, kind: key } });
     } catch (e) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === "P2002"
+      ) {
         skipped++;
         continue;
       }
       throw e;
     }
     try {
-      await notify(u, kind, { days: String(Math.max(1, Math.ceil(left))) }, false);
+      await notify(
+        u,
+        kind,
+        { days: String(Math.max(1, Math.ceil(left))) },
+        false,
+      );
       sent++;
     } catch (e) {
       failed++;

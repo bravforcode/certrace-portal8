@@ -20,8 +20,16 @@ export const consent = new Elysia({ prefix: "/api/v1/consent" }).post(
     );
     await rateLimit(`cookie-consent-ip:${ipAddress ?? "unknown"}`, 60, 3600);
     await rateLimit(`cookie-consent:${body.visitorId}`, 20, 3600);
-    if (!(COOKIE_POLICY_VERSIONS as readonly string[]).includes(body.policyVersion))
-      fail(422, "UNKNOWN_POLICY_VERSION", "That cookie policy version is not published.");
+    if (
+      !(COOKIE_POLICY_VERSIONS as readonly string[]).includes(
+        body.policyVersion,
+      )
+    )
+      fail(
+        422,
+        "UNKNOWN_POLICY_VERSION",
+        "That cookie policy version is not published.",
+      );
     const user = await currentAccount(request).catch(() => null);
     const row = await db.cookie_consents.create({
       data: {

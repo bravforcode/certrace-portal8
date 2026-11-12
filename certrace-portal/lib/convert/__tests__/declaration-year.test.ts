@@ -11,7 +11,10 @@ test("a numeric updatedAt (epoch ms, as the backend stores it) gives its year wi
   assert.equal(generatedDate(d)?.getFullYear(), 2025);
 });
 test("periodStart wins over the timestamps", () => {
-  assert.equal(declarationYear({ periodStart: "2026-01-01", updatedAt: mid2025 }), 2026);
+  assert.equal(
+    declarationYear({ periodStart: "2026-01-01", updatedAt: mid2025 }),
+    2026,
+  );
 });
 test("an ISO string timestamp is read too", () => {
   assert.equal(declarationYear({ createdAt: "2024-03-02T00:00:00Z" }), 2024);

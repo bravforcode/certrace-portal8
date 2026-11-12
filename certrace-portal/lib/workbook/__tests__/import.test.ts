@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildImport, detectHeaderRow, parseCsv, suggestMapping } from "../import";
+import {
+  buildImport,
+  detectHeaderRow,
+  parseCsv,
+  suggestMapping,
+} from "../import";
 
 test("parseCsv handles quotes, CRLF, BOM and semicolons", () => {
   assert.deepEqual(parseCsv('﻿a;"b;c"\r\n1;"say ""hi"""\r\n'), [
@@ -15,7 +20,11 @@ test("parseCsv keeps empty trailing cells", () => {
   ]);
 });
 test("detectHeaderRow skips a title row", () => {
-  const rows = [["Plant energy 2026"], ["Process", "Material", "Quantity", "Unit"], ["Drawing", "Wire rod", "1200", "t"]];
+  const rows = [
+    ["Plant energy 2026"],
+    ["Process", "Material", "Quantity", "Unit"],
+    ["Drawing", "Wire rod", "1200", "t"],
+  ];
   assert.equal(detectHeaderRow(rows), 1);
 });
 test("suggestMapping uses keys, labels and Thai synonyms once each", () => {
@@ -25,14 +34,13 @@ test("suggestMapping uses keys, labels and Thai synonyms once each", () => {
     { key: "qty", label: "Quantity" },
     { key: "unit", label: "Unit" },
   ];
-  assert.deepEqual(suggestMapping(["ขั้นตอน", "Material", "Amount", "หน่วย", "Notes", "Name"], cols), [
-    "step",
-    "item",
-    "qty",
-    "unit",
-    null,
-    null,
-  ]);
+  assert.deepEqual(
+    suggestMapping(
+      ["ขั้นตอน", "Material", "Amount", "หน่วย", "Notes", "Name"],
+      cols,
+    ),
+    ["step", "item", "qty", "unit", null, null],
+  );
 });
 test("buildImport appends review rows, skips blanks and cleans quantities", () => {
   const rows = [
@@ -41,7 +49,9 @@ test("buildImport appends review rows, skips blanks and cleans quantities", () =
     ["", "", ""],
     ["Annealing", "Gas", "abc"],
   ];
-  const out = buildImport(rows, 0, ["step", "item", "qty"], "materials", { "materials:0:item": "Existing" });
+  const out = buildImport(rows, 0, ["step", "item", "qty"], "materials", {
+    "materials:0:item": "Existing",
+  });
   assert.equal(out.added, 2);
   assert.equal(out.skipped, 1);
   assert.deepEqual(out.patches, [
@@ -62,5 +72,8 @@ test("buildImport splits patches on row boundaries", () => {
   const { patches } = buildImport(rows, 0, ["item"], "materials", {});
   assert.ok(patches.length >= 2);
   for (const p of patches) assert.ok(Object.keys(p).length <= 2000);
-  assert.equal(patches.reduce((n, p) => n + Object.keys(p).length, 0), 3000);
+  assert.equal(
+    patches.reduce((n, p) => n + Object.keys(p).length, 0),
+    3000,
+  );
 });

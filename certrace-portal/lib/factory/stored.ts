@@ -3,7 +3,10 @@ import { emptyProfile, validateProfile, type FactoryProfile } from "./profile";
 
 /** Reads a stored factory value. A value that is present but fails validation is reported as
     unreadable and never replaced by an empty profile, so a later save cannot overwrite it silently. */
-export function parseStoredFactory(raw: string | null): { profile: FactoryProfile; unreadable: boolean } {
+export function parseStoredFactory(raw: string | null): {
+  profile: FactoryProfile;
+  unreadable: boolean;
+} {
   if (raw === null) return { profile: emptyProfile(), unreadable: false };
   try {
     const checked = validateProfile(JSON.parse(raw));

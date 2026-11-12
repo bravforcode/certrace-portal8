@@ -47,7 +47,11 @@ export function StandardLogo({
           <g clipPath="url(#uk-tile)">
             <rect width="40" height="40" fill="#012169" />
             <path d="M0,0 40,40 M40,0 0,40" stroke="#fff" strokeWidth="7" />
-            <path d="M0,0 40,40 M40,0 0,40" stroke="#C8102E" strokeWidth="2.5" />
+            <path
+              d="M0,0 40,40 M40,0 0,40"
+              stroke="#C8102E"
+              strokeWidth="2.5"
+            />
             <path d="M20,0 V40 M0,20 H40" stroke="#fff" strokeWidth="11" />
             <path d="M20,0 V40 M0,20 H40" stroke="#C8102E" strokeWidth="6" />
           </g>
@@ -72,10 +76,7 @@ export function StandardLogo({
       {logo === "leaf" && (
         <>
           <rect width="40" height="40" rx="10" fill="#E3F1E7" />
-          <path
-            d="M12 28c0-10 7-16 17-16 0 10-6 17-16 17"
-            fill="#5FAE7A"
-          />
+          <path d="M12 28c0-10 7-16 17-16 0 10-6 17-16 17" fill="#5FAE7A" />
           <path
             d="M13 27 23 17"
             stroke="#2F7A4B"

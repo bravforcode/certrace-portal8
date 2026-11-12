@@ -34,7 +34,10 @@ const MAX_VALUE_LENGTH = 2000;
 
 const CBAM_IDS: ReadonlySet<string> = new Set(CBAM_FIELDS.map((f) => f.id));
 const CBAM_LABELS: ReadonlyMap<string, string> = new Map(
-  CBAM_FIELDS.map((f) => [f.id, f.section && f.section !== f.label ? `${f.section} · ${f.label}` : f.label]),
+  CBAM_FIELDS.map((f) => [
+    f.id,
+    f.section && f.section !== f.label ? `${f.section} · ${f.label}` : f.label,
+  ]),
 );
 /** Template cell ids are `<sheet letter>-<cell>`, e.g. "a-i20". The set above is the real check; the shape check keeps an odd key out early. */
 const CBAM_ID_SHAPE = /^[a-e]-[a-z]+\d+$/;
@@ -99,7 +102,9 @@ function safePath(p: unknown): string | undefined {
   return p;
 }
 
-function parseSetCbamFields(input: Record<string, unknown>): CeraAction | undefined {
+function parseSetCbamFields(
+  input: Record<string, unknown>,
+): CeraAction | undefined {
   const { installationId, year, values } = input;
   if (!isInstallationId(installationId) || !isYear(year) || !isRecord(values))
     return undefined;
@@ -112,7 +117,9 @@ function parseSetCbamFields(input: Record<string, unknown>): CeraAction | undefi
   return { tool: "set_cbam_fields", installationId, year, values: kept };
 }
 
-function parseUpdateInstallation(input: Record<string, unknown>): CeraAction | undefined {
+function parseUpdateInstallation(
+  input: Record<string, unknown>,
+): CeraAction | undefined {
   const { installationId, changes } = input;
   if (!isInstallationId(installationId) || !isRecord(changes)) return undefined;
   const kept: Record<string, string> = {};
@@ -123,7 +130,9 @@ function parseUpdateInstallation(input: Record<string, unknown>): CeraAction | u
   return { tool: "update_installation", installationId, changes: kept };
 }
 
-function parseRequestUpload(input: Record<string, unknown>): CeraAction | undefined {
+function parseRequestUpload(
+  input: Record<string, unknown>,
+): CeraAction | undefined {
   const purpose = typeof input.purpose === "string" ? input.purpose.trim() : "";
   if (purpose.length < 1 || purpose.length > 300) return undefined;
   return { tool: "request_upload", purpose };
@@ -134,7 +143,10 @@ function parseOpenPage(input: Record<string, unknown>): CeraAction | undefined {
   return path === undefined ? undefined : { tool: "open_page", path };
 }
 
-const PARSERS = new Map<string, (input: Record<string, unknown>) => CeraAction | undefined>([
+const PARSERS = new Map<
+  string,
+  (input: Record<string, unknown>) => CeraAction | undefined
+>([
   ["set_cbam_fields", parseSetCbamFields],
   ["update_installation", parseUpdateInstallation],
   ["request_upload", parseRequestUpload],
@@ -168,7 +180,10 @@ export type ActionContext = {
 const EMPTY = "(empty)";
 
 /** Pure: no dependency is called. Safe to run while a card is only being shown. */
-export function describeAction(action: CeraAction, ctx?: ActionContext): ActionDescription {
+export function describeAction(
+  action: CeraAction,
+  ctx?: ActionContext,
+): ActionDescription {
   switch (action.tool) {
     case "set_cbam_fields":
       return {
@@ -187,7 +202,10 @@ export function describeAction(action: CeraAction, ctx?: ActionContext): ActionD
         title: `Installation ${action.installationId}`,
         rows: Object.entries(action.changes).map(([key, value]) => {
           const current = ctx?.installation
-            ? String((ctx.installation as unknown as Record<string, unknown>)[key] ?? "")
+            ? String(
+                (ctx.installation as unknown as Record<string, unknown>)[key] ??
+                  "",
+              )
             : undefined;
           return {
             label: key,
@@ -217,25 +235,32 @@ export type CeraActionDeps = {
     cells: Record<string, string | null>,
   ) => Promise<unknown>;
   saveInstallation: (record: Installation) => unknown | Promise<unknown>;
-  getInstallation: (id: string) => Installation | null | Promise<Installation | null>;
+  getInstallation: (
+    id: string,
+  ) => Installation | null | Promise<Installation | null>;
   /** turns on the smart-upload drop area so the next file is read */
   openUpload: (purpose: string) => void;
   navigate: (path: string) => void;
 };
 
 /** Runs one confirmed action. Throws when a write cannot be made, so the card can say so. */
-export async function applyCeraAction(action: CeraAction, deps: CeraActionDeps): Promise<void> {
+export async function applyCeraAction(
+  action: CeraAction,
+  deps: CeraActionDeps,
+): Promise<void> {
   switch (action.tool) {
     case "set_cbam_fields": {
       const cells: Record<string, string | null> = {};
-      for (const [id, value] of Object.entries(action.values)) cells[`cbam:0:${id}`] = value;
+      for (const [id, value] of Object.entries(action.values))
+        cells[`cbam:0:${id}`] = value;
       await deps.patchCells(action.installationId, action.year, cells);
       return;
     }
     case "update_installation": {
       // Merge onto the stored record: a save of only the changed fields would wipe the rest.
       const current = await deps.getInstallation(action.installationId);
-      if (!current) throw new Error(`Installation ${action.installationId} not found`);
+      if (!current)
+        throw new Error(`Installation ${action.installationId} not found`);
       await deps.saveInstallation({ ...current, ...action.changes });
       return;
     }

@@ -67,7 +67,9 @@ function cellXml(ref: string, value: XlsxCell): string {
 function sheetXml(rows: XlsxCell[][]): string {
   const body = rows
     .map((row, r) => {
-      const cells = row.map((v, c) => cellXml(`${columnLetters(c)}${r + 1}`, v)).join("");
+      const cells = row
+        .map((v, c) => cellXml(`${columnLetters(c)}${r + 1}`, v))
+        .join("");
       return `<row r="${r + 1}">${cells}</row>`;
     })
     .join("");
@@ -80,7 +82,8 @@ function sheetXml(rows: XlsxCell[][]): string {
 
 /** The .xlsx package for these sheets, in order. The first sheet opens first. */
 export function buildXlsx(sheets: XlsxSheet[]): Uint8Array {
-  if (sheets.length === 0) throw new Error("A workbook needs at least one sheet.");
+  if (sheets.length === 0)
+    throw new Error("A workbook needs at least one sheet.");
   const names = sheets.map((s) => safeSheetName(s.name));
 
   const overrides = sheets
@@ -105,7 +108,10 @@ export function buildXlsx(sheets: XlsxSheet[]): Uint8Array {
     `</Relationships>`;
 
   const sheetEntries = names
-    .map((n, i) => `<sheet name="${esc(n)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`)
+    .map(
+      (n, i) =>
+        `<sheet name="${esc(n)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`,
+    )
     .join("");
   const workbook =
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +

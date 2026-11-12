@@ -19,7 +19,13 @@ import * as React from "react";
 import { Button, Field, Modal } from "@/components/ui";
 import { toast } from "@/components/toast";
 import type { TFunction } from "@/lib/i18n";
-import { FLOW_NODE, buildFlow, type FlowFallback, type FlowKind, type FlowNode } from "@/lib/workbook/flow";
+import {
+  FLOW_NODE,
+  buildFlow,
+  type FlowFallback,
+  type FlowKind,
+  type FlowNode,
+} from "@/lib/workbook/flow";
 import {
   FLOW_ERROR_TEMPLATE,
   FlowEditError,
@@ -65,7 +71,8 @@ const FALLBACK_LABEL: Record<FlowFallback, string> = {
 const FAILED_MSG = "Not saved. Nothing changed; try again.";
 const SKIPPED_MSG = "{count} skipped because an earlier change did not save.";
 const MAX_LABEL = 22;
-const clip = (s: string) => (s.length > MAX_LABEL ? `${s.slice(0, MAX_LABEL - 1)}…` : s);
+const clip = (s: string) =>
+  s.length > MAX_LABEL ? `${s.slice(0, MAX_LABEL - 1)}…` : s;
 const stacked = (n: FlowNode) => n.kind === "material" || n.kind === "energy";
 const NO_CELLS: Record<string, string> = {};
 const FORM_ID = "flow-dialog-form";
@@ -99,10 +106,28 @@ function actionOf(d: Dialog, v: Record<string, string>): FlowAction {
       return { kind: "add-step", name: v.name ?? "", what: v.what };
     case "add-input":
       return d.sheet === "output"
-        ? { kind: "add-output", step: v.step ?? "", item: v.item ?? "", qty: v.qty, unit: v.unit }
-        : { kind: "add-input", sheet: d.sheet, step: v.step ?? "", item: v.item ?? "", qty: v.qty, unit: v.unit };
+        ? {
+            kind: "add-output",
+            step: v.step ?? "",
+            item: v.item ?? "",
+            qty: v.qty,
+            unit: v.unit,
+          }
+        : {
+            kind: "add-input",
+            sheet: d.sheet,
+            step: v.step ?? "",
+            item: v.item ?? "",
+            qty: v.qty,
+            unit: v.unit,
+          };
     case "link":
-      return { kind: "connect", from: v.from ?? "", to: v.to ?? "", item: v.item };
+      return {
+        kind: "connect",
+        from: v.from ?? "",
+        to: v.to ?? "",
+        item: v.item,
+      };
     case "rename":
       return { kind: "rename-step", from: d.from, to: v.name ?? "" };
     case "unlink":
@@ -145,13 +170,21 @@ export function FlowDiagram({
 }) {
   const arrowId = `flow-arrow-${React.useId().replace(/:/g, "")}`;
   const f = React.useMemo(() => buildFlow(sheets), [sheets]);
-  const ordered = React.useMemo(() => [...f.nodes].sort((a, b) => a.x - b.x || a.y - b.y), [f.nodes]);
-  const byId = React.useMemo(() => new Map(f.nodes.map((n) => [n.id, n])), [f.nodes]);
+  const ordered = React.useMemo(
+    () => [...f.nodes].sort((a, b) => a.x - b.x || a.y - b.y),
+    [f.nodes],
+  );
+  const byId = React.useMemo(
+    () => new Map(f.nodes.map((n) => [n.id, n])),
+    [f.nodes],
+  );
   const missing = React.useMemo(() => missingSteps(cells), [cells]);
   // Explicit edges between two real steps: the only links the Unlink dialog offers.
   const links = React.useMemo(() => {
     const known = new Set(stepNames(cells).map((s) => s.toLowerCase()));
-    return explicitEdges(cells).filter((e) => known.has(e.from.toLowerCase()) && known.has(e.to.toLowerCase()));
+    return explicitEdges(cells).filter(
+      (e) => known.has(e.from.toLowerCase()) && known.has(e.to.toLowerCase()),
+    );
   }, [cells]);
   const [stop, setStop] = React.useState<string | null>(null);
   const [focused, setFocused] = React.useState<string | null>(null);
@@ -177,9 +210,14 @@ export function FlowDiagram({
 
   if (!f.nodes.length)
     return (
-      <div className="grid min-h-[420px] place-items-center px-6 text-center" style={{ backgroundColor: "var(--flow-canvas)" }}>
+      <div
+        className="grid min-h-[420px] place-items-center px-6 text-center"
+        style={{ backgroundColor: "var(--flow-canvas)" }}
+      >
         <div>
-          <p className="text-[14px] text-black/55">{t("Add steps in sheet 02 to see your production flow.")}</p>
+          <p className="text-[14px] text-black/55">
+            {t("Add steps in sheet 02 to see your production flow.")}
+          </p>
           <button
             type="button"
             onClick={() => onOpenSheet("steps")}
@@ -191,7 +229,8 @@ export function FlowDiagram({
       </div>
     );
 
-  const nameOf = (n: FlowNode) => n.label || (n.fallback ? t(FALLBACK_LABEL[n.fallback]) : "");
+  const nameOf = (n: FlowNode) =>
+    n.label || (n.fallback ? t(FALLBACK_LABEL[n.fallback]) : "");
   const open = (n: FlowNode) => onOpenSheet(SHEET_OF[n.kind]);
   const move = (id: string, d: number) => {
     const i = ordered.findIndex((n) => n.id === id);
@@ -214,8 +253,13 @@ export function FlowDiagram({
     const skipped = results.filter((r) => r === "skipped").length;
     if (!failed && !skipped) return;
     toast({
-      message: failed ? t(FAILED_MSG) : t(SKIPPED_MSG, { count: String(skipped) }),
-      detail: failed && skipped ? t(SKIPPED_MSG, { count: String(skipped) }) : undefined,
+      message: failed
+        ? t(FAILED_MSG)
+        : t(SKIPPED_MSG, { count: String(skipped) }),
+      detail:
+        failed && skipped
+          ? t(SKIPPED_MSG, { count: String(skipped) })
+          : undefined,
       tone: "err",
     });
   };
@@ -249,7 +293,10 @@ export function FlowDiagram({
       if (dialog.kind === "unlink") {
         const link = links[Number(form.edge)];
         if (!link) throw new FlowEditError("blank");
-        patch = flowActionToCells({ kind: "disconnect", from: link.from, to: link.to }, cells);
+        patch = flowActionToCells(
+          { kind: "disconnect", from: link.from, to: link.to },
+          cells,
+        );
       } else {
         patch = flowActionToCells(actionOf(dialog, form), cells);
       }
@@ -374,15 +421,26 @@ export function FlowDiagram({
       p2 = { x: b.x, y: b.y + H / 2 };
     }
     const mx = (p1.x + p2.x) / 2;
-    return { d: `M ${p1.x} ${p1.y} C ${mx} ${p1.y}, ${mx} ${p2.y}, ${p2.x} ${p2.y}`, mx, my: (p1.y + p2.y) / 2 };
+    return {
+      d: `M ${p1.x} ${p1.y} C ${mx} ${p1.y}, ${mx} ${p2.y}, ${p2.x} ${p2.y}`,
+      mx,
+      my: (p1.y + p2.y) / 2,
+    };
   };
 
   return (
     <div style={{ backgroundColor: "var(--flow-canvas)" }}>
-      <ul aria-label={t("Legend")} className="flex flex-wrap gap-x-4 gap-y-1.5 px-4 pt-3 text-[11.5px] text-black/60">
+      <ul
+        aria-label={t("Legend")}
+        className="flex flex-wrap gap-x-4 gap-y-1.5 px-4 pt-3 text-[11.5px] text-black/60"
+      >
         {(Object.keys(FILL) as FlowKind[]).map((k) => (
           <li key={k} className="flex items-center gap-1.5">
-            <span aria-hidden="true" style={{ backgroundColor: FILL[k] }} className="inline-block h-3 w-3 rounded-sm border border-black/15" />
+            <span
+              aria-hidden="true"
+              style={{ backgroundColor: FILL[k] }}
+              className="inline-block h-3 w-3 rounded-sm border border-black/15"
+            />
             {t(KIND_LABEL[k])}
           </li>
         ))}
@@ -395,43 +453,87 @@ export function FlowDiagram({
           style={{ backgroundColor: "var(--flow-warn-bg)" }}
         >
           <span>
-            {t("Rows name steps that are not in the Steps sheet:")} {missing.join(", ")}
+            {t("Rows name steps that are not in the Steps sheet:")}{" "}
+            {missing.join(", ")}
           </span>
-          <Button variant="secondary" size="sm" onClick={addMissing} disabled={busy}>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={addMissing}
+            disabled={busy}
+          >
             {t("Add these steps")}
           </Button>
         </div>
       )}
 
       {canEdit && (
-        <div role="group" aria-label={t("Edit the flow")} className="flex flex-wrap gap-2 px-4 pt-3">
-          <Button variant="secondary" size="sm" onClick={() => openDialog({ kind: "add-step" })}>
+        <div
+          role="group"
+          aria-label={t("Edit the flow")}
+          className="flex flex-wrap gap-2 px-4 pt-3"
+        >
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => openDialog({ kind: "add-step" })}
+          >
             {t("Add step")}
           </Button>
-          <Button variant="secondary" size="sm" onClick={() => openDialog({ kind: "add-input", sheet: "materials" })}>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() =>
+              openDialog({ kind: "add-input", sheet: "materials" })
+            }
+          >
             {t("Add material")}
           </Button>
-          <Button variant="secondary" size="sm" onClick={() => openDialog({ kind: "add-input", sheet: "energy" })}>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => openDialog({ kind: "add-input", sheet: "energy" })}
+          >
             {t("Add energy")}
           </Button>
-          <Button variant="secondary" size="sm" onClick={() => openDialog({ kind: "add-input", sheet: "output" })}>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => openDialog({ kind: "add-input", sheet: "output" })}
+          >
             {t("Add output")}
           </Button>
-          <Button variant="secondary" size="sm" onClick={() => openDialog({ kind: "link" })}>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => openDialog({ kind: "link" })}
+          >
             {t("Link steps")}
           </Button>
           {selStep && (
             <>
-              <Button variant="secondary" size="sm" onClick={() => openDialog({ kind: "rename", from: selStep })}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => openDialog({ kind: "rename", from: selStep })}
+              >
                 {t("Rename step")}
               </Button>
-              <Button variant="secondary" size="sm" onClick={() => onOpenSheet(SHEET_OF.step)}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => onOpenSheet(SHEET_OF.step)}
+              >
                 {t("Open sheet")}
               </Button>
             </>
           )}
           {links.length > 0 && (
-            <Button variant="secondary" size="sm" onClick={() => openDialog({ kind: "unlink" })}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => openDialog({ kind: "unlink" })}
+            >
               {t("Unlink")}
             </Button>
           )}
@@ -449,7 +551,15 @@ export function FlowDiagram({
         >
           <title>{t("Production flow diagram")}</title>
           <defs>
-            <marker id={arrowId} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <marker
+              id={arrowId}
+              viewBox="0 0 10 10"
+              refX="9"
+              refY="5"
+              markerWidth="7"
+              markerHeight="7"
+              orient="auto-start-reverse"
+            >
               <path d="M0 0L10 5L0 10z" style={{ fill: "var(--flow-edge)" }} />
             </marker>
           </defs>
@@ -461,7 +571,12 @@ export function FlowDiagram({
             const p = path(a, b);
             return (
               <g key={`e${i}`}>
-                <title>{t("Flow: {from} to {to}", { from: nameOf(a), to: nameOf(b) })}</title>
+                <title>
+                  {t("Flow: {from} to {to}", {
+                    from: nameOf(a),
+                    to: nameOf(b),
+                  })}
+                </title>
                 <path
                   d={p.d}
                   fill="none"
@@ -470,7 +585,14 @@ export function FlowDiagram({
                   markerEnd={`url(#${arrowId})`}
                 />
                 {e.label && (
-                  <text x={p.mx} y={p.my - 4} textAnchor="middle" fontSize={11} fill="currentColor" className="text-black/60">
+                  <text
+                    x={p.mx}
+                    y={p.my - 4}
+                    textAnchor="middle"
+                    fontSize={11}
+                    fill="currentColor"
+                    className="text-black/60"
+                  >
                     {clip(e.label)}
                   </text>
                 )}
@@ -521,23 +643,57 @@ export function FlowDiagram({
                   width={FLOW_NODE.w}
                   height={FLOW_NODE.h}
                   rx={8}
-                  style={{ fill: nodeTone?.[n.id] ?? FILL[n.kind], stroke: n.kind === "step" ? "var(--flow-step-stroke)" : "var(--flow-line)" }}
+                  style={{
+                    fill: nodeTone?.[n.id] ?? FILL[n.kind],
+                    stroke:
+                      n.kind === "step"
+                        ? "var(--flow-step-stroke)"
+                        : "var(--flow-line)",
+                  }}
                   strokeWidth={n.kind === "step" ? 1.5 : 1}
-                  strokeDasharray={n.kind === "output" || n.kind === "product" ? "4 3" : undefined}
+                  strokeDasharray={
+                    n.kind === "output" || n.kind === "product"
+                      ? "4 3"
+                      : undefined
+                  }
                 />
-                <text x={n.x + 10} y={n.y + 12} fontSize={9} fill="currentColor" className="text-black/50">
+                <text
+                  x={n.x + 10}
+                  y={n.y + 12}
+                  fontSize={9}
+                  fill="currentColor"
+                  className="text-black/50"
+                >
                   {t(KIND_LABEL[n.kind])}
                 </text>
-                <text x={n.x + 10} y={n.y + 26} fontSize={13} fontWeight={600} style={{ fill: "var(--flow-ink)" }}>
+                <text
+                  x={n.x + 10}
+                  y={n.y + 26}
+                  fontSize={13}
+                  fontWeight={600}
+                  style={{ fill: "var(--flow-ink)" }}
+                >
                   {clip(name)}
                 </text>
                 {n.detail && (
-                  <text x={n.x + 10} y={n.y + 39} fontSize={11} fill="currentColor" className="text-black/50">
+                  <text
+                    x={n.x + 10}
+                    y={n.y + 39}
+                    fontSize={11}
+                    fill="currentColor"
+                    className="text-black/50"
+                  >
                     {clip(n.detail)}
                   </text>
                 )}
                 {badge && (
-                  <text x={n.x} y={n.y + FLOW_NODE.h + 13} fontSize={10} fontWeight={600} style={{ fill: "var(--flow-ink)" }}>
+                  <text
+                    x={n.x}
+                    y={n.y + FLOW_NODE.h + 13}
+                    fontSize={10}
+                    fontWeight={600}
+                    style={{ fill: "var(--flow-ink)" }}
+                  >
                     {clip(badge)}
                   </text>
                 )}
@@ -597,7 +753,10 @@ export function FlowDiagram({
           >
             {dialog && dialogFields(dialog)}
             {formError && (
-              <p role="alert" className="text-[12.5px] text-[var(--color-err-text)]">
+              <p
+                role="alert"
+                className="text-[12.5px] text-[var(--color-err-text)]"
+              >
                 {formError}
               </p>
             )}

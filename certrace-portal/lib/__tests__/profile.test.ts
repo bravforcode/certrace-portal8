@@ -11,7 +11,10 @@ test("blank optional company fields raise no errors", () => {
 });
 
 test("a tax ID must be exactly 13 digits", () => {
-  assert.equal(companyBasicsErrors({ taxId: "0105561234567" }).taxId, undefined);
+  assert.equal(
+    companyBasicsErrors({ taxId: "0105561234567" }).taxId,
+    undefined,
+  );
   assert.equal(
     companyBasicsErrors({ taxId: "12345" }).taxId,
     "Tax ID is 13 digits",
@@ -40,7 +43,10 @@ test("country is a two-letter uppercase ISO code", () => {
 });
 
 test("factory counts are whole numbers from 0 to 999", () => {
-  assert.deepEqual(factoryBasicsErrors({ boilerCount: "0", furnaceCount: "999" }), {});
+  assert.deepEqual(
+    factoryBasicsErrors({ boilerCount: "0", furnaceCount: "999" }),
+    {},
+  );
   assert.ok(factoryBasicsErrors({ boilerCount: "1000" }).boilerCount);
   assert.ok(factoryBasicsErrors({ furnaceCount: "2.5" }).furnaceCount);
 });

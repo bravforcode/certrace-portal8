@@ -53,7 +53,9 @@ export function YearBar({
   const fit = React.useCallback(() => {
     const el = track.current;
     const cur = el?.querySelector<HTMLElement>(`[data-year="${now}"]`);
-    const last = el?.querySelector<HTMLElement>(`[data-year="${years[years.length - 1]}"]`);
+    const last = el?.querySelector<HTMLElement>(
+      `[data-year="${years[years.length - 1]}"]`,
+    );
     if (!el || !cur || !last) return 0;
     const span = last.offsetLeft + last.offsetWidth - cur.offsetLeft;
     return Math.max(0, el.clientWidth - span - 4);
@@ -129,7 +131,11 @@ export function YearBar({
               aria-pressed={on}
               data-lock="allow"
               onClick={() => onChange(y)}
-              title={m === "locked" ? t("{year} is locked — no data yet", { year: y }) : undefined}
+              title={
+                m === "locked"
+                  ? t("{year} is locked — no data yet", { year: y })
+                  : undefined
+              }
               className={cn(
                 "inline-flex flex-none items-center gap-1.5 rounded-full border px-3.5 py-1.5 font-mono text-[12px] tabular-nums transition-colors",
                 on
@@ -141,7 +147,12 @@ export function YearBar({
               {m === "locked" && <Lock size={11} strokeWidth={1.75} />}
               {y}
               {m === "data" && (
-                <span className={cn("h-1.5 w-1.5 rounded-full", on ? "bg-white" : "bg-[#111]")} />
+                <span
+                  className={cn(
+                    "h-1.5 w-1.5 rounded-full",
+                    on ? "bg-white" : "bg-[#111]",
+                  )}
+                />
               )}
               {m === "pending" && (
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-500" />
@@ -149,7 +160,13 @@ export function YearBar({
             </button>
           );
         })}
-        {tail > 0 && <span aria-hidden="true" className="flex-none" style={{ width: tail }} />}
+        {tail > 0 && (
+          <span
+            aria-hidden="true"
+            className="flex-none"
+            style={{ width: tail }}
+          />
+        )}
       </div>
       <button
         type="button"

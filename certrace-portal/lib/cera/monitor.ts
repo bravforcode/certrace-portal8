@@ -47,12 +47,32 @@ export function missingData(std: Standard, ctx: MissingContext): MissingData {
   const fields = open.flatMap((r): MissingField[] => {
     const cells = cbamFieldsFor(r.id);
     if (cells.length === 0)
-      return [{ kind: "requirement", id: r.id, label: r.title, section: "", requirement: r.id, href: r.href }];
+      return [
+        {
+          kind: "requirement",
+          id: r.id,
+          label: r.title,
+          section: "",
+          requirement: r.id,
+          href: r.href,
+        },
+      ];
     return cells
       .filter((f) => !f.optional && !(ctx.cells[cbamCellKey(f)] ?? "").trim())
-      .map((f) => ({ kind: "field", id: f.id, label: f.label, section: f.section, requirement: r.id, href: r.href }));
+      .map((f) => ({
+        kind: "field",
+        id: f.id,
+        label: f.label,
+        section: f.section,
+        requirement: r.id,
+        href: r.href,
+      }));
   });
-  return { fields, incompleteRequirements: open.length, readiness: readiness(reqs) };
+  return {
+    fields,
+    incompleteRequirements: open.length,
+    readiness: readiness(reqs),
+  };
 }
 
 /** Cera's chat takes a prompt of at most 4000 characters; the list stays well under that. */
@@ -63,7 +83,8 @@ const FILL_WORDS = {
   en: {
     head: (name: string, id: string, year: number) =>
       `Fill the CBAM fields below for installation "${name}" (installationId ${id}), year ${year}. Use only data that is already in this account. Propose each value as a confirmable action; say which fields you could not fill.`,
-    open: (titles: string) => `Also still open in Convert, with no cell to set here: ${titles}.`,
+    open: (titles: string) =>
+      `Also still open in Convert, with no cell to set here: ${titles}.`,
     fields: "Fields:",
     more: (n: number) => `…and ${n} more; ask again after these are done.`,
   },
@@ -77,14 +98,16 @@ const FILL_WORDS = {
   zh: {
     head: (name: string, id: string, year: number) =>
       `请为设施"${name}"（installationId ${id}）${year} 年填写下列 CBAM 字段。只使用账户中已有的数据。将每个值作为可确认的操作提出，并说明无法填写的字段。`,
-    open: (titles: string) => `在 Convert 中仍待处理，但此处没有可填写的单元格：${titles}。`,
+    open: (titles: string) =>
+      `在 Convert 中仍待处理，但此处没有可填写的单元格：${titles}。`,
     fields: "字段：",
     more: (n: number) => `…还有 ${n} 项；待这些完成后请再次询问。`,
   },
   hi: {
     head: (name: string, id: string, year: number) =>
       `संयंत्र "${name}" (installationId ${id}), वर्ष ${year} के लिए नीचे दिए CBAM फ़ील्ड भरें। केवल इस खाते में पहले से मौजूद डेटा का उपयोग करें। हर मान को पुष्टि योग्य कार्रवाई के रूप में सुझाएँ, और बताएँ कि कौन से फ़ील्ड नहीं भर सके।`,
-    open: (titles: string) => `Convert में अभी भी खुला है, और यहाँ भरने के लिए कोई सेल नहीं है: ${titles}।`,
+    open: (titles: string) =>
+      `Convert में अभी भी खुला है, और यहाँ भरने के लिए कोई सेल नहीं है: ${titles}।`,
     fields: "फ़ील्ड:",
     more: (n: number) => `…और ${n} बाकी; इन्हें पूरा करने के बाद फिर पूछें।`,
   },
@@ -99,9 +122,17 @@ export function fillRequest(
   lang: CeraLang = "en",
   budget = FILL_REQUEST_BUDGET,
 ): string {
-  const w = pick(lang, FILL_WORDS.en, FILL_WORDS.th, FILL_WORDS.zh, FILL_WORDS.hi);
+  const w = pick(
+    lang,
+    FILL_WORDS.en,
+    FILL_WORDS.th,
+    FILL_WORDS.zh,
+    FILL_WORDS.hi,
+  );
   const cells = missing.filter((m) => m.kind === "field");
-  const openTitles = missing.filter((m) => m.kind === "requirement").map((m) => m.label);
+  const openTitles = missing
+    .filter((m) => m.kind === "requirement")
+    .map((m) => m.label);
   const parts = [w.head(installation.name, installation.id, year)];
   if (openTitles.length) parts.push(w.open(openTitles.join("; ")));
   let used = parts.join("\n").length + w.fields.length + 2;

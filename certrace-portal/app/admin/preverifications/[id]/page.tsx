@@ -12,14 +12,20 @@ import {
   getPreverificationDetail,
   type AdminPreverificationDetail,
 } from "@/lib/api/preverifications";
-import { CBAM_FIELDS, cbamCellLabel, cbamOptionLabel } from "@/lib/cbam/template-fields";
+import {
+  CBAM_FIELDS,
+  cbamCellLabel,
+  cbamOptionLabel,
+} from "@/lib/cbam/template-fields";
 
 const NOTE_MAX = 2000;
 
 export default function PreverificationDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const [detail, setDetail] = React.useState<AdminPreverificationDetail | null>(null);
+  const [detail, setDetail] = React.useState<AdminPreverificationDetail | null>(
+    null,
+  );
   const [loading, setLoading] = React.useState(true);
   const [denied, setDenied] = React.useState(false);
   const [error, setError] = React.useState("");
@@ -35,7 +41,12 @@ export default function PreverificationDetailPage() {
         if (!live) return;
         if (isApiError(cause) && cause.status === 401) router.replace("/login");
         else if (isApiError(cause) && cause.status === 403) setDenied(true);
-        else setError(cause instanceof Error ? cause.message : "Could not load this submission.");
+        else
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : "Could not load this submission.",
+          );
       })
       .finally(() => live && setLoading(false));
     return () => {
@@ -66,14 +77,24 @@ export default function PreverificationDetailPage() {
     if (!detail) return;
     const text = note.trim();
     if (decision === "changes_requested" && !text) {
-      setError("Write what the customer should change before requesting changes.");
+      setError(
+        "Write what the customer should change before requesting changes.",
+      );
       return;
     }
     setSaving(true);
     setError("");
     try {
-      await decidePreverification(detail.id, decision, decision === "changes_requested" ? text : "");
-      toast(decision === "approved" ? "Pre-verification approved" : "Changes requested");
+      await decidePreverification(
+        detail.id,
+        decision,
+        decision === "changes_requested" ? text : "",
+      );
+      toast(
+        decision === "approved"
+          ? "Pre-verification approved"
+          : "Changes requested",
+      );
       router.push("/admin/preverifications");
     } catch (cause) {
       setError(decideError(cause));
@@ -87,7 +108,10 @@ export default function PreverificationDetailPage() {
       <div className="mx-auto max-w-6xl">
         <header className="flex items-center justify-between gap-4">
           <CertraceLogo className="h-6 w-auto" />
-          <Link href="/admin/preverifications" className="text-sm text-black/60 hover:text-black">
+          <Link
+            href="/admin/preverifications"
+            className="text-sm text-black/60 hover:text-black"
+          >
             Back to submissions
           </Link>
         </header>
@@ -100,13 +124,19 @@ export default function PreverificationDetailPage() {
           <p className="mt-10 text-[13px] text-black/40">Loading…</p>
         ) : !detail ? (
           <Card className="mt-8 p-6">
-            <p role="alert">{error || "This submission could not be loaded."}</p>
+            <p role="alert">
+              {error || "This submission could not be loaded."}
+            </p>
           </Card>
         ) : (
           <>
             <div className="mt-10">
-              <p className="text-xs uppercase tracking-[0.16em] text-black/45">CBAM pre-verification</p>
-              <h1 className="mt-2 text-3xl font-light">{detail.companyName || detail.companyEmail}</h1>
+              <p className="text-xs uppercase tracking-[0.16em] text-black/45">
+                CBAM pre-verification
+              </p>
+              <h1 className="mt-2 text-3xl font-light">
+                {detail.companyName || detail.companyEmail}
+              </h1>
               <p className="mt-2 text-sm text-black/55">
                 Installation {detail.installationId} · {detail.year} · Submitted{" "}
                 {new Date(detail.submittedAt).toLocaleString()}
@@ -124,7 +154,9 @@ export default function PreverificationDetailPage() {
               <Card className="space-y-4 p-6">
                 <h2 className="text-sm font-medium text-black/75">AI check</h2>
                 {detail.aiSummary && (
-                  <p className="text-[13px] leading-relaxed text-black/65">{detail.aiSummary}</p>
+                  <p className="text-[13px] leading-relaxed text-black/65">
+                    {detail.aiSummary}
+                  </p>
                 )}
                 {detail.aiFindings.length === 0 ? (
                   <p className="text-[13px] text-black/45">No findings.</p>
@@ -133,7 +165,10 @@ export default function PreverificationDetailPage() {
                     {detail.aiFindings.map((f, i) => (
                       <li key={i} className="flex items-start gap-3">
                         <span className="pt-0.5">
-                          <Chip tone={f.severity === "error" ? "err" : "warn"} filled>
+                          <Chip
+                            tone={f.severity === "error" ? "err" : "warn"}
+                            filled
+                          >
                             {f.severity === "error" ? "Error" : "Warning"}
                           </Chip>
                         </span>
@@ -165,7 +200,10 @@ export default function PreverificationDetailPage() {
                   Approve
                 </Button>
                 <div className="space-y-2">
-                  <label className="block text-[13px] text-black/60" htmlFor="review-note">
+                  <label
+                    className="block text-[13px] text-black/60"
+                    htmlFor="review-note"
+                  >
                     Note for the customer (required to request changes)
                   </label>
                   <textarea
@@ -194,10 +232,14 @@ export default function PreverificationDetailPage() {
 
             <Card className="mt-6 overflow-hidden p-0">
               <div className="px-5 py-4">
-                <h2 className="text-sm font-medium text-black/75">Reviewed answers</h2>
+                <h2 className="text-sm font-medium text-black/75">
+                  Reviewed answers
+                </h2>
               </div>
               {cellRows.length === 0 ? (
-                <p className="px-5 pb-5 text-[13px] text-black/40">No answers filled.</p>
+                <p className="px-5 pb-5 text-[13px] text-black/40">
+                  No answers filled.
+                </p>
               ) : (
                 <table className="w-full text-left text-[13px]">
                   <thead className="border-t border-black/[0.06] text-black/45">
@@ -208,9 +250,16 @@ export default function PreverificationDetailPage() {
                   </thead>
                   <tbody>
                     {cellRows.map((row) => (
-                      <tr key={row.key} className="border-t border-black/[0.06]">
-                        <td className="px-5 py-2 align-top text-black/65">{row.label}</td>
-                        <td className="px-5 py-2 align-top text-black/85">{row.value}</td>
+                      <tr
+                        key={row.key}
+                        className="border-t border-black/[0.06]"
+                      >
+                        <td className="px-5 py-2 align-top text-black/65">
+                          {row.label}
+                        </td>
+                        <td className="px-5 py-2 align-top text-black/85">
+                          {row.value}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -228,7 +277,8 @@ function decideError(cause: unknown) {
   if (isApiError(cause)) {
     if (cause.code === "STALE_SUBMISSION")
       return "The customer changed the data after the AI check. They must submit again.";
-    if (cause.code === "NOT_IN_REVIEW") return "This submission was already decided.";
+    if (cause.code === "NOT_IN_REVIEW")
+      return "This submission was already decided.";
     return cause.message;
   }
   return "Could not record the decision. Try again.";

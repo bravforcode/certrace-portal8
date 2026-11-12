@@ -314,7 +314,11 @@ const browserOnly = new Set([
 ]);
 /** Whether a localStorage key may be offered for import into the account. */
 export function isImportableLegacyKey(key: string | null): key is string {
-  return Boolean(key?.startsWith("certrace:")) && !key!.startsWith("certrace:company:") && !browserOnly.has(key!);
+  return (
+    Boolean(key?.startsWith("certrace:")) &&
+    !key!.startsWith("certrace:company:") &&
+    !browserOnly.has(key!)
+  );
 }
 export function legacyRecords() {
   if (typeof window === "undefined") return [];

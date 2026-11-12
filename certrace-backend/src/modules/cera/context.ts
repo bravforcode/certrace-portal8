@@ -98,7 +98,8 @@ export function relevantKnowledge(query: string, maxChars = Infinity) {
       return {
         entry,
         score: terms.reduce(
-          (s, t) => s + (title.includes(t) ? 2 : 0) + (answer.includes(t) ? 1 : 0),
+          (s, t) =>
+            s + (title.includes(t) ? 2 : 0) + (answer.includes(t) ? 1 : 0),
           0,
         ),
       };

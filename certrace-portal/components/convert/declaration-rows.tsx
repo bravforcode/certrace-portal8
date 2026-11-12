@@ -32,12 +32,15 @@ export function DeclarationRows({ items }: { items: Declaration[] }) {
           )}
         >
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[14px] text-black/85">{d.title ?? d.name}</div>
+            <div className="truncate text-[14px] text-black/85">
+              {d.title ?? d.name}
+            </div>
             <div className="mt-0.5 text-[12px] text-black/40">
               {[
                 getStandard(d.regulation)?.name,
                 d.period,
-                generatedDate(d) && `${t("Generated")} ${date(generatedDate(d)!)}`,
+                generatedDate(d) &&
+                  `${t("Generated")} ${date(generatedDate(d)!)}`,
               ]
                 .filter(Boolean)
                 .join(" · ")}

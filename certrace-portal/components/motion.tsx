@@ -75,7 +75,11 @@ export function StaggerItem({
       className={className}
       variants={{
         hidden: { opacity: 0, y: 6 },
-        show: { opacity: 1, y: 0, transition: { duration: 0.2, ease: EASE_OUT } },
+        show: {
+          opacity: 1,
+          y: 0,
+          transition: { duration: 0.2, ease: EASE_OUT },
+        },
       }}
     >
       {children}

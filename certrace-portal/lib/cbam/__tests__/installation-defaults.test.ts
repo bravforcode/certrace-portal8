@@ -2,7 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { emptyInstallation, type Installation } from "../../installations";
 import { cbamOptionLabel, cbamProgress, CBAM_FIELDS } from "../template-fields";
-import { installationCbamCells, withInstallationDefaults } from "../installation-defaults";
+import {
+  installationCbamCells,
+  withInstallationDefaults,
+} from "../installation-defaults";
 
 const site = {
   ...emptyInstallation(true),
@@ -31,7 +34,10 @@ test("the installation record fills the A_InstData installation fields", () => {
   assert.equal(cells["cbam:0:a-i9"], "2026-01-01");
   assert.equal(cells["cbam:0:a-l9"], "2026-12-31");
   // Only the operator address (I38–I41) is left for the user: 15 of 19 required.
-  assert.deepEqual(cbamProgress(withInstallationDefaults({}, site, 2026), "installation"), { filled: 15, total: 19 });
+  assert.deepEqual(
+    cbamProgress(withInstallationDefaults({}, site, 2026), "installation"),
+    { filled: 15, total: 19 },
+  );
 });
 
 // With the operator address entered in parts on the site wizard, the whole installation sheet is answered.
@@ -46,18 +52,30 @@ test("the split operator address fills I38–I41, completing the installation sh
   const cells = installationCbamCells(withAddress, 2026);
   assert.equal(cells["cbam:0:a-i38"], "99 Sukhumvit Rd");
   assert.equal(cells["cbam:0:a-i41"], "TH");
-  assert.deepEqual(cbamProgress(withInstallationDefaults({}, withAddress, 2026), "installation"), {
-    filled: 19,
-    total: 19,
-  });
+  assert.deepEqual(
+    cbamProgress(
+      withInstallationDefaults({}, withAddress, 2026),
+      "installation",
+    ),
+    {
+      filled: 19,
+      total: 19,
+    },
+  );
 });
 
 // An answer typed on Fill in or sent through a Smart Link wins over the site record.
 test("defaults never overwrite an answer and skip empty record fields", () => {
-  const merged = withInstallationDefaults({ "cbam:0:a-i20": "Typed name" }, site, 2026);
+  const merged = withInstallationDefaults(
+    { "cbam:0:a-i20": "Typed name" },
+    site,
+    2026,
+  );
   assert.equal(merged["cbam:0:a-i20"], "Typed name");
   assert.equal(merged["cbam:0:a-i24"], undefined);
-  assert.deepEqual(withInstallationDefaults({ x: "1" }, null, 2026), { x: "1" });
+  assert.deepEqual(withInstallationDefaults({ x: "1" }, null, 2026), {
+    x: "1",
+  });
 });
 
 // The template stores 1/0 and "Calcined clays " with a space; readers see Yes/No and a clean name.

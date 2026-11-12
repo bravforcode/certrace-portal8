@@ -11,7 +11,11 @@ export type PreverificationStatus =
   | "changes_requested"
   | "superseded";
 
-export type AiFinding = { severity: "error" | "warn"; field?: string; message: string };
+export type AiFinding = {
+  severity: "error" | "warn";
+  field?: string;
+  message: string;
+};
 
 export type PreverificationView = {
   id: string;
@@ -28,7 +32,10 @@ export type PreverificationView = {
   reviewedAt: string | null;
 };
 
-export type PreverificationLatest = { latest: PreverificationView | null; currentRevision: number };
+export type PreverificationLatest = {
+  latest: PreverificationView | null;
+  currentRevision: number;
+};
 
 /** Admin list row: the view plus the company, the reviewer and whether the data moved on since. */
 export type AdminPreverification = PreverificationView & {
@@ -54,27 +61,45 @@ export type PreverifyState =
   | "changes_requested"
   | "stale";
 
-export async function getPreverification(installationId: string, year: number): Promise<PreverificationLatest> {
+export async function getPreverification(
+  installationId: string,
+  year: number,
+): Promise<PreverificationLatest> {
   return (await result(
-    api().api.v1.preverifications.get({ query: { installationId, year, standardId: "cbam" } }),
+    api().api.v1.preverifications.get({
+      query: { installationId, year, standardId: "cbam" },
+    }),
   )) as PreverificationLatest;
 }
 
-export async function submitPreverification(installationId: string, year: number): Promise<PreverificationView> {
+export async function submitPreverification(
+  installationId: string,
+  year: number,
+): Promise<PreverificationView> {
   return (await result(
-    api().api.v1.preverifications.post({ installationId, year, standardId: "cbam" }),
+    api().api.v1.preverifications.post({
+      installationId,
+      year,
+      standardId: "cbam",
+    }),
   )) as PreverificationView;
 }
 
-export async function listPreverifications(status?: PreverificationStatus): Promise<AdminPreverification[]> {
+export async function listPreverifications(
+  status?: PreverificationStatus,
+): Promise<AdminPreverification[]> {
   const res = (await result(
     api().api.admin.preverifications.get({ query: status ? { status } : {} }),
   )) as { items: AdminPreverification[] };
   return res.items;
 }
 
-export async function getPreverificationDetail(id: string): Promise<AdminPreverificationDetail> {
-  return (await result(api().api.admin.preverifications({ id }).get())) as AdminPreverificationDetail;
+export async function getPreverificationDetail(
+  id: string,
+): Promise<AdminPreverificationDetail> {
+  return (await result(
+    api().api.admin.preverifications({ id }).get(),
+  )) as AdminPreverificationDetail;
 }
 
 export async function decidePreverification(
@@ -96,7 +121,8 @@ export function preverifyState(
   canConvert: boolean,
 ): PreverifyState {
   // Data edited after the last submission: nothing decided on it still applies.
-  const changed = latest !== null && latest.workbookRevision !== currentRevision;
+  const changed =
+    latest !== null && latest.workbookRevision !== currentRevision;
   // Nothing open to show, or the customer may submit again: only complete data can be sent.
   const submittable = canConvert ? "ready" : "incomplete";
   if (!latest || latest.status === "superseded") return submittable;

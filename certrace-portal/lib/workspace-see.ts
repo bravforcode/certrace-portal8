@@ -253,7 +253,9 @@ export function workspaceSEE(workspace: VerificationWorkspace): WorkspaceSEE {
 
   const seeTotal = seeDirect + seeIndirect + seePrecursor; // M9
 
-  const indirectCounted = workspaceRequiresIndirectEmissions(workspace.productId);
+  const indirectCounted = workspaceRequiresIndirectEmissions(
+    workspace.productId,
+  );
   const seeChargeable =
     (seeDirect + seePrecursor + (indirectCounted ? seeIndirect : 0)) *
     (1 + NO_MARKUP); // M10

@@ -66,7 +66,11 @@ import { useProfile } from "@/lib/profile";
 import { useFormat, useT } from "@/lib/i18n";
 import { trialState, currentPlan } from "@/lib/plan";
 import { RoleRadios } from "@/components/workspace/installation-form";
-import { ownInstallation, saveInstallation, type InstallationRole } from "@/lib/installations";
+import {
+  ownInstallation,
+  saveInstallation,
+  type InstallationRole,
+} from "@/lib/installations";
 
 /* Who runs the plant: the same choice Settings offers, limited to the two that
    a sign-in onboarding can answer. "both" from the onboarding question stays
@@ -241,7 +245,8 @@ export default function SignInSetupPage() {
         // The role is saved with the exporter's own installation when there is one,
         // and mirrored on the profile so a new site starts with the same answer.
         const own = ownInstallation();
-        if (own) saveInstallation({ ...own, role: plantRole as InstallationRole });
+        if (own)
+          saveInstallation({ ...own, role: plantRole as InstallationRole });
         update({
           ...toPatch(),
           energySources,
@@ -413,11 +418,18 @@ export default function SignInSetupPage() {
                     maxLength={3}
                     onChange={(e) => setBoilerCount(e.target.value.trim())}
                     aria-invalid={Boolean(factoryErrors.boilerCount)}
-                    aria-describedby={factoryErrors.boilerCount ? "boiler-count-error" : undefined}
+                    aria-describedby={
+                      factoryErrors.boilerCount
+                        ? "boiler-count-error"
+                        : undefined
+                    }
                   />
                 </Field>
                 {factoryErrors.boilerCount && (
-                  <p id="boiler-count-error" className="mt-1.5 text-[12px] text-[#dc2626]">
+                  <p
+                    id="boiler-count-error"
+                    className="mt-1.5 text-[12px] text-[#dc2626]"
+                  >
                     {t(factoryErrors.boilerCount)}
                   </p>
                 )}
@@ -433,11 +445,18 @@ export default function SignInSetupPage() {
                     maxLength={3}
                     onChange={(e) => setFurnaceCount(e.target.value.trim())}
                     aria-invalid={Boolean(factoryErrors.furnaceCount)}
-                    aria-describedby={factoryErrors.furnaceCount ? "furnace-count-error" : undefined}
+                    aria-describedby={
+                      factoryErrors.furnaceCount
+                        ? "furnace-count-error"
+                        : undefined
+                    }
                   />
                 </Field>
                 {factoryErrors.furnaceCount && (
-                  <p id="furnace-count-error" className="mt-1.5 text-[12px] text-[#dc2626]">
+                  <p
+                    id="furnace-count-error"
+                    className="mt-1.5 text-[12px] text-[#dc2626]"
+                  >
                     {t(factoryErrors.furnaceCount)}
                   </p>
                 )}

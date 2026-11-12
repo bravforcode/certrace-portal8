@@ -7,7 +7,8 @@ export const TH_CERA_MONITOR: Record<string, string> = {
   "{n} missing": "ขาด {n} รายการ",
   "Show missing data": "แสดงข้อมูลที่ขาด",
   "Hide missing data": "ซ่อนข้อมูลที่ขาด",
-  "Everything Cera checks for this installation is in.": "ข้อมูลทั้งหมดที่ Cera ตรวจสำหรับโรงงานนี้ถูกกรอกครบแล้ว",
+  "Everything Cera checks for this installation is in.":
+    "ข้อมูลทั้งหมดที่ Cera ตรวจสำหรับโรงงานนี้ถูกกรอกครบแล้ว",
   "and {n} more": "และอีก {n} รายการ",
   "Ask Cera to fill": "ให้ Cera กรอกให้",
   "Cera proposes each change; you confirm it before anything is saved.":

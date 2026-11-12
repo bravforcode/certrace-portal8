@@ -1,7 +1,17 @@
 import catalogue from "../links/cbam-item-fields.json";
 
-export type Finding = { severity: "error" | "warn"; field?: string; message: string };
-export type CatalogueField = { key: string; label: string; section: string; cell: string; kind: string };
+export type Finding = {
+  severity: "error" | "warn";
+  field?: string;
+  message: string;
+};
+export type CatalogueField = {
+  key: string;
+  label: string;
+  section: string;
+  cell: string;
+  kind: string;
+};
 export type Status = "ai_flagged" | "team_review";
 
 export const FIELDS = catalogue.fields as CatalogueField[];
@@ -12,13 +22,16 @@ const PROCESS_SECTION = /^Production process \d+$/;
 const named = (f: CatalogueField) => `${f.section} · ${f.label}`;
 // Round-trip so impossible dates such as 2026-02-30 fail; Date rolls them over silently.
 const isDate = (v: string) =>
-  /^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v)) && new Date(v).toISOString().slice(0, 10) === v;
+  /^\d{4}-\d{2}-\d{2}$/.test(v) &&
+  !Number.isNaN(Date.parse(v)) &&
+  new Date(v).toISOString().slice(0, 10) === v;
 
 /** Keeps only real catalogue cells with text values. Stale or foreign keys never reach the checks, the AI or the empty test. */
 export function catalogueCells(raw: unknown): Record<string, string> {
   return Object.fromEntries(
     Object.entries((raw ?? {}) as Record<string, unknown>).filter(
-      (entry): entry is [string, string] => CELLS.has(entry[0]) && typeof entry[1] === "string",
+      (entry): entry is [string, string] =>
+        CELLS.has(entry[0]) && typeof entry[1] === "string",
     ),
   );
 }
@@ -35,15 +48,27 @@ export function runChecks(cells: Record<string, string>): Finding[] {
     if (!v) continue;
     if (f.kind === "date") {
       if (!isDate(v))
-        findings.push({ severity: "error", field: f.key, message: `${named(f)} must be a date (YYYY-MM-DD).` });
+        findings.push({
+          severity: "error",
+          field: f.key,
+          message: `${named(f)} must be a date (YYYY-MM-DD).`,
+        });
       continue;
     }
     if (f.kind !== "number") continue;
     const n = Number(v);
     if (!Number.isFinite(n)) {
-      findings.push({ severity: "error", field: f.key, message: `${named(f)} must be a number.` });
+      findings.push({
+        severity: "error",
+        field: f.key,
+        message: `${named(f)} must be a number.`,
+      });
     } else if (n < 0) {
-      findings.push({ severity: "error", field: f.key, message: `${named(f)} must be 0 or more.` });
+      findings.push({
+        severity: "error",
+        field: f.key,
+        message: `${named(f)} must be 0 or more.`,
+      });
     }
   }
 
@@ -64,7 +89,8 @@ export function runChecks(cells: Record<string, string>): Finding[] {
   // A process with other answers but no name is likely a half-finished block.
   const processes = new Map<string, CatalogueField[]>();
   for (const f of FIELDS)
-    if (PROCESS_SECTION.test(f.section)) processes.set(f.section, [...(processes.get(f.section) ?? []), f]);
+    if (PROCESS_SECTION.test(f.section))
+      processes.set(f.section, [...(processes.get(f.section) ?? []), f]);
   for (const [section, list] of processes) {
     const name = list.find((f) => f.label === "Name");
     if (!name || value(name)) continue;
@@ -81,5 +107,7 @@ export function runChecks(cells: Record<string, string>): Finding[] {
 
 /** Any error from either the deterministic checks or the AI review blocks the team review. */
 export function decideStatus(findings: Finding[]): Status {
-  return findings.some((f) => f.severity === "error") ? "ai_flagged" : "team_review";
+  return findings.some((f) => f.severity === "error")
+    ? "ai_flagged"
+    : "team_review";
 }

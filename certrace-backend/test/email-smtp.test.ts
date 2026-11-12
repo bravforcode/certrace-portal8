@@ -1,4 +1,12 @@
-import { afterEach, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  mock,
+  spyOn,
+  test,
+} from "bun:test";
 
 const sent: Record<string, unknown>[] = [];
 let transport: Record<string, unknown> | undefined;
@@ -10,9 +18,12 @@ mock.module("nodemailer", () => ({
       return {
         sendMail: async (message: Record<string, unknown>) => {
           if (relayDown)
-            throw Object.assign(new Error("connect ECONNREFUSED to a@example.com"), {
-              code: "ECONNREFUSED",
-            });
+            throw Object.assign(
+              new Error("connect ECONNREFUSED to a@example.com"),
+              {
+                code: "ECONNREFUSED",
+              },
+            );
           sent.push(message);
         },
       };
@@ -54,8 +65,16 @@ describe("sendEmail in smtp mode", () => {
       label: "Open",
       url: "https://portal.certrace.co/?a=1&b=2",
     });
-    expect(transport).toMatchObject({ host: "smtp.example.com", port: 465, secure: true });
-    expect(sent[0]).toMatchObject({ to: "a@example.com", subject: "Code", text: "<b>123456</b>" });
+    expect(transport).toMatchObject({
+      host: "smtp.example.com",
+      port: 465,
+      secure: true,
+    });
+    expect(sent[0]).toMatchObject({
+      to: "a@example.com",
+      subject: "Code",
+      text: "<b>123456</b>",
+    });
     expect(String(sent[0]?.html)).toContain("&lt;b&gt;123456&lt;/b&gt;");
     expect(String(sent[0]?.html)).toContain("a=1&amp;b=2");
   });
@@ -66,31 +85,43 @@ describe("sendEmail in smtp mode", () => {
   test("port 587 upgrades with STARTTLS and refuses plain text", async () => {
     process.env.CERTRACE_SMTP_PORT = "587";
     await sendEmail("a@example.com", "Code", "x");
-    expect(transport).toMatchObject({ port: 587, secure: false, requireTLS: true });
+    expect(transport).toMatchObject({
+      port: 587,
+      secure: false,
+      requireTLS: true,
+    });
   });
   test("a relay error becomes EMAIL_UNAVAILABLE", async () => {
     relayDown = true;
-    await expect(sendEmail("a@example.com", "Code", "x")).rejects.toMatchObject({
-      status: 503,
-      code: "EMAIL_UNAVAILABLE",
-    });
+    await expect(sendEmail("a@example.com", "Code", "x")).rejects.toMatchObject(
+      {
+        status: 503,
+        code: "EMAIL_UNAVAILABLE",
+      },
+    );
   });
   test("a missing host becomes EMAIL_UNAVAILABLE with status 503", async () => {
     process.env.CERTRACE_SMTP_HOST = "";
-    await expect(sendEmail("a@example.com", "Code", "x")).rejects.toMatchObject({
-      status: 503,
-      code: "EMAIL_UNAVAILABLE",
-    });
+    await expect(sendEmail("a@example.com", "Code", "x")).rejects.toMatchObject(
+      {
+        status: 503,
+        code: "EMAIL_UNAVAILABLE",
+      },
+    );
     expect(transport).toBeUndefined();
   });
   test("a relay failure logs only the error code, never the message or recipient", async () => {
     relayDown = true;
     const errorSpy = spyOn(console, "error").mockImplementation(() => {});
     try {
-      await expect(sendEmail("a@example.com", "Code", "123456")).rejects.toMatchObject({
+      await expect(
+        sendEmail("a@example.com", "Code", "123456"),
+      ).rejects.toMatchObject({
         code: "EMAIL_UNAVAILABLE",
       });
-      expect(errorSpy.mock.calls).toEqual([["smtp delivery failed", "ECONNREFUSED"]]);
+      expect(errorSpy.mock.calls).toEqual([
+        ["smtp delivery failed", "ECONNREFUSED"],
+      ]);
     } finally {
       errorSpy.mockRestore();
     }

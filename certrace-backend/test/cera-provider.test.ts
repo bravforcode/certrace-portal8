@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { ceraKnowledge, relevantKnowledge } from "../src/modules/cera/context";
-import { ceraBudget, ceraModel, ceraProviderName } from "../src/modules/cera/provider";
+import {
+  ceraBudget,
+  ceraModel,
+  ceraProviderName,
+} from "../src/modules/cera/provider";
 import { generateTurn } from "../src/modules/cera/service";
 
 const KEYS = [
@@ -49,13 +53,20 @@ describe("Cera chat provider", () => {
     process.env.CERTRACE_CERA_PROVIDER = "groq";
     process.env.GROQ_API_KEY = "gq";
     const budget = ceraBudget();
-    const knowledge = relevantKnowledge("economic activity installation", budget.knowledgeChars);
-    expect(JSON.stringify(knowledge).length).toBeLessThanOrEqual(budget.knowledgeChars);
+    const knowledge = relevantKnowledge(
+      "economic activity installation",
+      budget.knowledgeChars,
+    );
+    expect(JSON.stringify(knowledge).length).toBeLessThanOrEqual(
+      budget.knowledgeChars,
+    );
     expect(knowledge.length).toBeGreaterThan(0);
     expect(knowledge.length).toBeLessThan(ceraKnowledge.length);
     delete process.env.CERTRACE_CERA_PROVIDER;
     process.env.DEEPSEEK_API_KEY = "ds";
-    expect(relevantKnowledge("anything", ceraBudget().knowledgeChars)).toEqual(ceraKnowledge);
+    expect(relevantKnowledge("anything", ceraBudget().knowledgeChars)).toEqual(
+      ceraKnowledge,
+    );
   });
 
   test("a rate-limited Groq model hands the turn to the next model's separate quota", async () => {
@@ -66,12 +77,21 @@ describe("Cera chat provider", () => {
       const model = JSON.parse(String(init.body)).model as string;
       models.push(model);
       if (model === "openai/gpt-oss-120b")
-        return new Response(JSON.stringify({ error: { message: "rate limited" } }), { status: 429 });
+        return new Response(
+          JSON.stringify({ error: { message: "rate limited" } }),
+          { status: 429 },
+        );
       return Response.json({
         id: "x",
         created: 0,
         model,
-        choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: "Hello" } }],
+        choices: [
+          {
+            index: 0,
+            finish_reason: "stop",
+            message: { role: "assistant", content: "Hello" },
+          },
+        ],
         usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
       });
     }) as unknown as typeof fetch;
@@ -98,7 +118,9 @@ describe("Cera chat provider", () => {
     }) as unknown as typeof fetch;
     const { model } = ceraModel(fetchImpl);
     await (model as unknown as { doGenerate: (o: unknown) => Promise<unknown> })
-      .doGenerate({ prompt: [{ role: "user", content: [{ type: "text", text: "hi" }] }] })
+      .doGenerate({
+        prompt: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+      })
       .catch(() => undefined);
     expect(seen).toEqual({
       url: "https://api.groq.com/openai/v1/chat/completions",

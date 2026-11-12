@@ -16,7 +16,9 @@ beforeAll(() => {
 
 afterAll(async () => {
   if (keysUsed.size)
-    await db.email_deliveries.deleteMany({ where: { kind: { in: [...keysUsed] } } });
+    await db.email_deliveries.deleteMany({
+      where: { kind: { in: [...keysUsed] } },
+    });
   if (savedDelivery === undefined) delete process.env.CERTRACE_EMAIL_DELIVERY;
   else process.env.CERTRACE_EMAIL_DELIVERY = savedDelivery;
   await cleanup();
@@ -34,12 +36,16 @@ describe("legal update notice script", () => {
     const key = await currentLegalNoticeKey();
     keysUsed.add(key);
     const expected = await pendingFor(key);
-    const rowsBefore = await db.email_deliveries.count({ where: { kind: key } });
+    const rowsBefore = await db.email_deliveries.count({
+      where: { kind: key },
+    });
 
     const result = await sendLegalUpdateNotices({ dry: true });
 
     expect(result).toEqual({ key, recipients: expected, sent: 0, failed: 0 });
-    expect(await db.email_deliveries.count({ where: { kind: key } })).toBe(rowsBefore);
+    expect(await db.email_deliveries.count({ where: { kind: key } })).toBe(
+      rowsBefore,
+    );
   });
 
   test("a second real run sends nothing", async () => {
@@ -51,7 +57,12 @@ describe("legal update notice script", () => {
     const first = await sendLegalUpdateNotices({ dry: false });
     const second = await sendLegalUpdateNotices({ dry: false });
 
-    expect(first).toEqual({ key, recipients: expected, sent: expected, failed: 0 });
+    expect(first).toEqual({
+      key,
+      recipients: expected,
+      sent: expected,
+      failed: 0,
+    });
     expect(second).toEqual({ key, recipients: 0, sent: 0, failed: 0 });
   });
 
@@ -65,7 +76,12 @@ describe("legal update notice script", () => {
     const result = await sendLegalUpdateNotices({ dry: false, key: newKey });
 
     expect(expected).toBeGreaterThanOrEqual(1);
-    expect(result).toEqual({ key: newKey, recipients: expected, sent: expected, failed: 0 });
+    expect(result).toEqual({
+      key: newKey,
+      recipients: expected,
+      sent: expected,
+      failed: 0,
+    });
     expect(await sendLegalUpdateNotices({ dry: false, key: newKey })).toEqual({
       key: newKey,
       recipients: 0,

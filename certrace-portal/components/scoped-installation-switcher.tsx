@@ -9,7 +9,11 @@ import { Select } from "./controls";
 import { useT } from "@/lib/i18n";
 import { useScopedInstallation } from "@/lib/scoped-installation";
 
-export function ScopedInstallationSwitcher({ className }: { className?: string }) {
+export function ScopedInstallationSwitcher({
+  className,
+}: {
+  className?: string;
+}) {
   const t = useT();
   const { options, scoped, loading, setScoped } = useScopedInstallation();
 
@@ -17,7 +21,11 @@ export function ScopedInstallationSwitcher({ className }: { className?: string }
 
   return (
     <div className={className ?? "flex min-w-0 items-center gap-2"}>
-      <Factory size={14} strokeWidth={1.5} className="flex-none text-black/40" />
+      <Factory
+        size={14}
+        strokeWidth={1.5}
+        className="flex-none text-black/40"
+      />
       <div className="min-w-[180px] max-w-[280px]">
         <Select
           ariaLabel={t("Switch installation")}

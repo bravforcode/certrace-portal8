@@ -13,7 +13,8 @@ export type SyncResult = "saved" | "skipped" | "failed";
 
 export function createSyncQueue<J = CellPatch>(
   send: (job: J) => Promise<void>,
-  isEmpty: (job: J) => boolean = (job) => Object.keys(job as object).length === 0,
+  isEmpty: (job: J) => boolean = (job) =>
+    Object.keys(job as object).length === 0,
   sameTarget: (a: J, b: J) => boolean = () => true,
 ) {
   const waiting: { job: J; done: (r: SyncResult) => void }[] = [];

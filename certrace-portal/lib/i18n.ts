@@ -135,11 +135,19 @@ const withoutGloss = (dict: Record<string, string>): Record<string, string> => {
    The three dictionaries are about 3 MB of source. Bundled statically, every page shipped all of them to a reader who uses one, or
    none. Each is now its own chunk, fetched the first time its language is chosen. Until it has arrived the provider keeps rendering
    English, so nobody sees a half-translated screen, and `translate()` stays synchronous for every language that is loaded. */
-const DICTS: Record<LangCode, Record<string, string>> = { en: {}, th: {}, zh: {}, hi: {} };
+const DICTS: Record<LangCode, Record<string, string>> = {
+  en: {},
+  th: {},
+  zh: {},
+  hi: {},
+};
 const LOADED = new Set<LangCode>(["en"]);
 const PENDING: Partial<Record<LangCode, Promise<void>>> = {};
 
-const LOADERS: Record<Exclude<LangCode, "en">, () => Promise<Record<string, string>>> = {
+const LOADERS: Record<
+  Exclude<LangCode, "en">,
+  () => Promise<Record<string, string>>
+> = {
   th: () => import("./i18n-th-all").then((m) => m.TH_ALL),
   zh: () => import("./i18n-zh").then((m) => m.ZH),
   hi: () => import("./i18n-hi").then((m) => m.HI),
@@ -433,7 +441,8 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         /* persistence best-effort */
       }
       // <html lang> follows the rendered language, which the effect below sets once the dictionary is in.
-      if (isLocaleLoaded(uiLang(l))) document.documentElement.lang = htmlLang(uiLang(l));
+      if (isLocaleLoaded(uiLang(l)))
+        document.documentElement.lang = htmlLang(uiLang(l));
     },
     [onLink, onOnboarding],
   );

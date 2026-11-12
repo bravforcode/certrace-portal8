@@ -25,7 +25,10 @@ export async function call(
   );
 }
 
-export async function account(ready = true, extra: Record<string, unknown> = {}) {
+export async function account(
+  ready = true,
+  extra: Record<string, unknown> = {},
+) {
   const email = `test-${crypto.randomUUID()}@example.invalid`;
   const r = await call("/api/auth/register", "POST", {
     email,
@@ -68,7 +71,11 @@ export async function editorOf(
     update: {},
   });
   await db.account_members.create({
-    data: { account_id: owner.user.id, user_id: member.user.id, role: "editor" },
+    data: {
+      account_id: owner.user.id,
+      user_id: member.user.id,
+      role: "editor",
+    },
   });
   return { "X-Certrace-Company": owner.user.id };
 }

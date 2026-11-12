@@ -111,11 +111,29 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      <InstallationDirectory year={year} selectedId={mapId} onShowOnMap={setPicked} />
+      <InstallationDirectory
+        year={year}
+        selectedId={mapId}
+        onShowOnMap={setPicked}
+      />
       {mapId && (
-        <FactoryMap key={`${mapId}:${year}`} installationId={mapId} year={year} onInstallationChange={setPicked} onYearChange={setYear} />
+        <FactoryMap
+          key={`${mapId}:${year}`}
+          installationId={mapId}
+          year={year}
+          onInstallationChange={setPicked}
+          onYearChange={setYear}
+        />
       )}
-      {mapId && <WhatIfPanel key={`whatif:${mapId}:${year}`} installationId={mapId} year={year} env={data.carbon.env} currency={currency} />}
+      {mapId && (
+        <WhatIfPanel
+          key={`whatif:${mapId}:${year}`}
+          installationId={mapId}
+          year={year}
+          env={data.carbon.env}
+          currency={currency}
+        />
+      )}
 
       {empty ? (
         <EmptyState

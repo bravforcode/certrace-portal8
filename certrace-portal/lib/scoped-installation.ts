@@ -1,7 +1,10 @@
 "use client";
 import { useCallback, useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useActiveInstallation, type InstallationChoice } from "./active-installation";
+import {
+  useActiveInstallation,
+  type InstallationChoice,
+} from "./active-installation";
 
 /* The installation a page-level switcher is looking at: the URL's
    `?installation=` if it names a known site (so a shared link opens the same
@@ -12,8 +15,15 @@ export function resolveScoped(
   urlId: string | null,
   storedId: string | null,
 ): InstallationChoice | null {
-  const find = (id: string | null) => (id ? options.find((o) => o.id === id) : undefined);
-  return find(urlId) ?? find(storedId) ?? options.find((o) => o.self) ?? options[0] ?? null;
+  const find = (id: string | null) =>
+    id ? options.find((o) => o.id === id) : undefined;
+  return (
+    find(urlId) ??
+    find(storedId) ??
+    options.find((o) => o.self) ??
+    options[0] ??
+    null
+  );
 }
 
 export function useScopedInstallation() {
@@ -22,7 +32,8 @@ export function useScopedInstallation() {
   const router = useRouter();
   const path = usePathname();
   const scoped = useMemo(
-    () => resolveScoped(options, params.get("installation"), active?.id ?? null),
+    () =>
+      resolveScoped(options, params.get("installation"), active?.id ?? null),
     [options, params, active],
   );
   const setScoped = useCallback(

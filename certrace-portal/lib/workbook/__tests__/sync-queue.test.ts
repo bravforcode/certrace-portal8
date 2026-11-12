@@ -12,7 +12,11 @@ test("patches run one at a time in order; after a failure, waiting patches are s
     if (k === "a") await gate;
     if (k === "b") throw new Error("network");
   });
-  const results = Promise.all([q.enqueue({ a: "1" }), q.enqueue({ b: "1" }), q.enqueue({ c: "1" })]);
+  const results = Promise.all([
+    q.enqueue({ a: "1" }),
+    q.enqueue({ b: "1" }),
+    q.enqueue({ c: "1" }),
+  ]);
   assert.equal(q.size(), 2);
   release();
   assert.deepEqual(await results, ["saved", "failed", "skipped"]);
@@ -26,7 +30,11 @@ test("several patches waiting behind a failure are all skipped, never sent", asy
     sent.push(k);
     if (k === "a") throw new Error("network");
   });
-  const results = await Promise.all([q.enqueue({ a: "1" }), q.enqueue({ b: "1" }), q.enqueue({ c: "1" })]);
+  const results = await Promise.all([
+    q.enqueue({ a: "1" }),
+    q.enqueue({ b: "1" }),
+    q.enqueue({ c: "1" }),
+  ]);
   assert.deepEqual(results, ["failed", "skipped", "skipped"]);
   assert.deepEqual(sent, ["a"]);
   assert.equal(q.size(), 0);
@@ -43,7 +51,11 @@ test("a synchronous throw from send counts as a failure and skips the waiting pa
     if (k === "b") throw new Error("boom"); // not a rejected promise
     return Promise.resolve();
   });
-  const results = Promise.all([q.enqueue({ x: "1" }), q.enqueue({ b: "1" }), q.enqueue({ c: "1" })]);
+  const results = Promise.all([
+    q.enqueue({ x: "1" }),
+    q.enqueue({ b: "1" }),
+    q.enqueue({ c: "1" }),
+  ]);
   release();
   assert.deepEqual(await results, ["saved", "failed", "skipped"]);
   assert.deepEqual(sent, ["x", "b"]);

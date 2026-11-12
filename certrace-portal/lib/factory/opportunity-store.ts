@@ -1,14 +1,22 @@
 import { accountStorage, flushAccount } from "../account-storage";
-import { capOpportunities, isOpportunity, type Derived, type Opportunity } from "./opportunities";
+import {
+  capOpportunities,
+  isOpportunity,
+  type Derived,
+  type Opportunity,
+} from "./opportunities";
 
 export const OPPORTUNITIES_KEY = "certrace:opportunities";
 export const SAVE_FAILED = "Your changes could not be saved.";
-export const LIST_FULL = "The opportunity list is full. Close or remove cards first.";
+export const LIST_FULL =
+  "The opportunity list is full. Close or remove cards first.";
 
 /** Stored cards that fail the Opportunity shape are dropped, not shown. Unreadable storage reads as empty. */
 export function readOpportunities(): Opportunity[] {
   try {
-    const v: unknown = JSON.parse(accountStorage.getItem(OPPORTUNITIES_KEY) ?? "[]");
+    const v: unknown = JSON.parse(
+      accountStorage.getItem(OPPORTUNITIES_KEY) ?? "[]",
+    );
     return Array.isArray(v) ? v.filter(isOpportunity) : [];
   } catch {
     return [];
@@ -25,7 +33,10 @@ export async function saveOpportunities(list: Opportunity[]) {
 }
 
 /** Assigns, moves or dates one card. Returns false when the card is gone. */
-export async function updateOpportunity(id: string, patch: Partial<Pick<Opportunity, "assignee" | "status" | "due">>) {
+export async function updateOpportunity(
+  id: string,
+  patch: Partial<Pick<Opportunity, "assignee" | "status" | "due">>,
+) {
   const list = readOpportunities();
   const i = list.findIndex((o) => o.id === id);
   if (i < 0) return false;
@@ -46,8 +57,19 @@ export async function saveOpportunity(d: Derived) {
     await saveOpportunities(list);
     return;
   }
-  const added: Opportunity = { ...d, id: crypto.randomUUID(), assignee: "", status: "open", due: "", createdAt: now, updatedAt: now };
-  const { list: capped, skipped } = capOpportunities([...list, added], new Set(list.map((o) => o.id)));
+  const added: Opportunity = {
+    ...d,
+    id: crypto.randomUUID(),
+    assignee: "",
+    status: "open",
+    due: "",
+    createdAt: now,
+    updatedAt: now,
+  };
+  const { list: capped, skipped } = capOpportunities(
+    [...list, added],
+    new Set(list.map((o) => o.id)),
+  );
   if (skipped > 0) throw new Error(LIST_FULL);
   await saveOpportunities(capped);
 }

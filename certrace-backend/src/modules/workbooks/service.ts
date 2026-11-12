@@ -4,7 +4,13 @@ import { CELL_KEY, MAX_BYTES } from "./model";
 
 type Cells = Record<string, string>;
 type Editors = Record<string, { by: string; at: string }>;
-type Row = { meta: unknown; cells: Cells; editors: Editors; revision: number; updated_at: Date };
+type Row = {
+  meta: unknown;
+  cells: Cells;
+  editors: Editors;
+  revision: number;
+  updated_at: Date;
+};
 
 const view = (r: Row | null) => ({
   changed: true as const,
@@ -16,7 +22,11 @@ const view = (r: Row | null) => ({
 });
 
 const where = (companyId: string, installationId: string, year: number) => ({
-  company_id_installation_id_year: { company_id: companyId, installation_id: installationId, year },
+  company_id_installation_id_year: {
+    company_id: companyId,
+    installation_id: installationId,
+    year,
+  },
 });
 
 export async function list(companyId: string, installationId: string) {
@@ -35,10 +45,18 @@ export async function list(companyId: string, installationId: string) {
   };
 }
 
-export async function read(companyId: string, installationId: string, year: number, since?: number) {
-  const r = (await db.workbooks.findUnique({ where: where(companyId, installationId, year) })) as Row | null;
+export async function read(
+  companyId: string,
+  installationId: string,
+  year: number,
+  since?: number,
+) {
+  const r = (await db.workbooks.findUnique({
+    where: where(companyId, installationId, year),
+  })) as Row | null;
   const revision = r?.revision ?? 0;
-  if (since !== undefined && since === revision) return { changed: false as const, revision };
+  if (since !== undefined && since === revision)
+    return { changed: false as const, revision };
   return view(r);
 }
 
@@ -53,15 +71,22 @@ async function mutate(
   return db.$transaction(async (tx) => {
     await tx.$executeRaw`INSERT INTO workbooks (company_id, installation_id, year)
       VALUES (${companyId}::uuid, ${installationId}, ${year}) ON CONFLICT DO NOTHING`;
-    const [row] = await tx.$queryRaw<Row[]>`SELECT meta, cells, editors, revision, updated_at
+    const [row] = await tx.$queryRaw<
+      Row[]
+    >`SELECT meta, cells, editors, revision, updated_at
       FROM workbooks WHERE company_id = ${companyId}::uuid AND installation_id = ${installationId}
       AND year = ${year} FOR UPDATE`;
     const next = { ...row!, ...change(row!) };
     if (
-      Buffer.byteLength(JSON.stringify(next.cells)) + Buffer.byteLength(JSON.stringify(next.editors)) >
+      Buffer.byteLength(JSON.stringify(next.cells)) +
+        Buffer.byteLength(JSON.stringify(next.editors)) >
       MAX_BYTES
     )
-      fail(413, "WORKBOOK_TOO_LARGE", "This workbook is too large. Remove unused rows or split the year.");
+      fail(
+        413,
+        "WORKBOOK_TOO_LARGE",
+        "This workbook is too large. Remove unused rows or split the year.",
+      );
     const saved = await tx.workbooks.update({
       where: where(companyId, installationId, year),
       data: {
@@ -85,7 +110,8 @@ export function patchCells(
   patch: Record<string, string | null>,
 ) {
   for (const key of Object.keys(patch))
-    if (!CELL_KEY.test(key)) fail(422, "INVALID_CELL_KEY", `Invalid cell ${key.slice(0, 80)}`);
+    if (!CELL_KEY.test(key))
+      fail(422, "INVALID_CELL_KEY", `Invalid cell ${key.slice(0, 80)}`);
   return mutate(companyId, installationId, year, actorId, (row) => {
     const cells = { ...row.cells };
     const editors = { ...row.editors };
@@ -112,7 +138,12 @@ export const putMeta = (
 ) => mutate(companyId, installationId, year, actorId, () => ({ meta }));
 
 /** Clears cells left by a failed copy or reset. A year with a status is in use (set up or copied), so its cells stay. */
-export const resetLeftovers = (companyId: string, installationId: string, year: number, actorId: string) =>
+export const resetLeftovers = (
+  companyId: string,
+  installationId: string,
+  year: number,
+  actorId: string,
+) =>
   mutate(companyId, installationId, year, actorId, (row) =>
     (row.meta as { status?: unknown }).status ? {} : { cells: {}, editors: {} },
   );

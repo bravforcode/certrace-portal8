@@ -17,8 +17,24 @@ import { cbamCellKey, type CbamField } from "../template-fields";
 import { summariseCbam } from "../cbam-tab";
 
 const FIELDS: CbamField[] = [
-  { id: "a-i20", sheet: "A_InstData", cell: "I20", label: "Name", section: "Installation", item: "installation", kind: "text" },
-  { id: "b-b5", sheet: "B_EmInst", cell: "B5", label: "Address", section: "Installation", item: "installation", kind: "text" },
+  {
+    id: "a-i20",
+    sheet: "A_InstData",
+    cell: "I20",
+    label: "Name",
+    section: "Installation",
+    item: "installation",
+    kind: "text",
+  },
+  {
+    id: "b-b5",
+    sheet: "B_EmInst",
+    cell: "B5",
+    label: "Address",
+    section: "Installation",
+    item: "installation",
+    kind: "text",
+  },
   {
     id: "a-i30",
     sheet: "A_InstData",
@@ -29,14 +45,28 @@ const FIELDS: CbamField[] = [
     kind: "text",
     optional: true,
   },
-  { id: "d-l65", sheet: "D_Processes", cell: "L65", label: "Output", section: "Production process 1", item: "goods", unit: "t", kind: "number" },
+  {
+    id: "d-l65",
+    sheet: "D_Processes",
+    cell: "L65",
+    label: "Output",
+    section: "Production process 1",
+    item: "goods",
+    unit: "t",
+    kind: "number",
+  },
 ];
 
 const cellsWith = (values: Record<string, string>) =>
-  Object.fromEntries(Object.entries(values).map(([id, v]) => [cbamCellKey({ id }), v]));
+  Object.fromEntries(
+    Object.entries(values).map(([id, v]) => [cbamCellKey({ id }), v]),
+  );
 
 test("counts required fields only: filled and missing", () => {
-  const s = summariseCbam(cellsWith({ "a-i20": "Acme", "d-l65": "12" }), FIELDS);
+  const s = summariseCbam(
+    cellsWith({ "a-i20": "Acme", "d-l65": "12" }),
+    FIELDS,
+  );
   assert.equal(s.total, 3);
   assert.equal(s.filled, 2);
   assert.equal(s.missing, 1);
@@ -61,7 +91,10 @@ test("a filled optional field shows as filled and does not change the counts", (
   const s = summariseCbam(cellsWith({ "a-i30": "PO 1" }), FIELDS);
   assert.equal(s.total, 3);
   assert.equal(s.filled, 0);
-  assert.equal(s.sections[0].rows.find((r) => r.field.id === "a-i30")?.state, "filled");
+  assert.equal(
+    s.sections[0].rows.find((r) => r.field.id === "a-i30")?.state,
+    "filled",
+  );
 });
 
 test("sections and items follow the catalogue order", () => {
@@ -89,7 +122,13 @@ test("the row value is the trimmed answer; a missing row has an empty value", ()
 test("no fields gives an empty summary", () => {
   const s = summariseCbam({}, []);
   assert.deepEqual(
-    { total: s.total, filled: s.filled, missing: s.missing, byItem: s.byItem, sections: s.sections },
+    {
+      total: s.total,
+      filled: s.filled,
+      missing: s.missing,
+      byItem: s.byItem,
+      sections: s.sections,
+    },
     { total: 0, filled: 0, missing: 0, byItem: [], sections: [] },
   );
 });

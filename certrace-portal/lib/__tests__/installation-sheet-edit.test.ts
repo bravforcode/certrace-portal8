@@ -34,7 +34,11 @@ test("a rejected latitude is never saved, even after later valid edits", () => {
   assert.ok(s.messages.lat, "and is told why");
   s = applySheetEdit(s, "street", "2 Moo 3");
   assert.equal(s.known.street, "2 Moo 3");
-  assert.equal(s.known.lat, "12.7", "a later valid edit does not carry the rejected latitude");
+  assert.equal(
+    s.known.lat,
+    "12.7",
+    "a later valid edit does not carry the rejected latitude",
+  );
   s = applySheetEdit(s, "lat", "13");
   assert.equal(s.known.lat, "13");
   assert.equal(s.messages.lat, undefined, "a valid value clears its message");
@@ -49,8 +53,16 @@ test("every rejected field reverts, not only the one being edited", () => {
   assert.equal(s.known.lng, "101.2");
   s = applySheetEdit(s, "city", "Chonburi");
   assert.equal(s.known.city, "Chonburi");
-  assert.equal(s.known.lat, "12.7", "lat stays reverted after an unrelated valid edit");
-  assert.equal(s.known.lng, "101.2", "lng stays reverted after an unrelated valid edit");
+  assert.equal(
+    s.known.lat,
+    "12.7",
+    "lat stays reverted after an unrelated valid edit",
+  );
+  assert.equal(
+    s.known.lng,
+    "101.2",
+    "lng stays reverted after an unrelated valid edit",
+  );
 });
 
 // An empty value is missing data, not bad data: it is saved and the tab says so.
@@ -99,13 +111,23 @@ test("a half-entered pair counts once, not once per box", () => {
 
 test("the gap count matches the required fields Settings enforces", () => {
   const blank = site({ postcode: "", unlocode: "" });
-  assert.equal(installationGaps(blank), 2, "postcode and UNLOCODE are required, as in Settings");
+  assert.equal(
+    installationGaps(blank),
+    2,
+    "postcode and UNLOCODE are required, as in Settings",
+  );
 });
 
 // One source of truth: the keys the sheet marks required are exactly the keys
 // the validator reports when empty.
 test("the required keys are exactly the fields Settings requires", () => {
-  const e = installationErrors({ ...emptyInstallation(), id: "TH-RAYONG-01", country: "" });
-  const errored = Object.keys(e).filter((k) => k !== "id" && k !== "coordinates").sort();
+  const e = installationErrors({
+    ...emptyInstallation(),
+    id: "TH-RAYONG-01",
+    country: "",
+  });
+  const errored = Object.keys(e)
+    .filter((k) => k !== "id" && k !== "coordinates")
+    .sort();
   assert.deepEqual(errored, [...REQUIRED_INSTALLATION_KEYS].sort());
 });

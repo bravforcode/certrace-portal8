@@ -122,4 +122,3 @@ export function buyerEoriError(raw: string): string | null {
 
 export const canSaveBuyer = (b: Buyer): boolean =>
   Boolean(b.name.trim()) && buyerEoriError(b.eori) === null;
-

@@ -7,7 +7,10 @@ import { getStandard } from "../lib/convert-standards";
 // link can only ever write the cells the Fill in form writes.
 // To refresh: `npx tsx scripts/write-item-fields.ts` from `certrace-portal`.
 const destination = fileURLToPath(
-  new URL("../../certrace-backend/src/modules/links/cbam-item-fields.json", import.meta.url),
+  new URL(
+    "../../certrace-backend/src/modules/links/cbam-item-fields.json",
+    import.meta.url,
+  ),
 );
 const items = Object.fromEntries(
   (getStandard("eu-cbam")?.requirements ?? []).map((r) => [r.id, r.title]),
@@ -27,4 +30,6 @@ const fields = CBAM_FIELDS.map((f) => ({
   ...(f.declares ? { declares: true } : {}),
 }));
 writeFileSync(destination, `${JSON.stringify({ items, fields }, null, 1)}\n`);
-console.log(`${fields.length} fields, ${Object.keys(items).length} items -> ${destination}`);
+console.log(
+  `${fields.length} fields, ${Object.keys(items).length} items -> ${destination}`,
+);

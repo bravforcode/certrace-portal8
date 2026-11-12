@@ -12,7 +12,14 @@
 import * as React from "react";
 import Link from "next/link";
 import { Factory, MapPin } from "lucide-react";
-import { ButtonLink, Card, Chip, cn, EmptyState, Progress } from "@/components/ui";
+import {
+  ButtonLink,
+  Card,
+  Chip,
+  cn,
+  EmptyState,
+  Progress,
+} from "@/components/ui";
 import { PressScale, Stagger, StaggerItem } from "@/components/motion";
 import { ErrorState, LoadingState } from "@/components/query-state";
 import { useT } from "@/lib/i18n";
@@ -21,7 +28,11 @@ import { getInstallation } from "@/lib/installations";
 import { countComplete, worstOf } from "@/lib/factory/directory";
 import { factoryProgress } from "@/lib/factory/profile";
 import { readFactory } from "@/lib/factory/store";
-import { sheetStatus, STATUS_LABEL, type SheetStatus } from "@/lib/workbook/status";
+import {
+  sheetStatus,
+  STATUS_LABEL,
+  type SheetStatus,
+} from "@/lib/workbook/status";
 import { useWorkbook, useWorkbookYears } from "@/lib/workbook/use-workbook";
 
 const PILL_TONE: Record<SheetStatus, string> = {
@@ -43,7 +54,10 @@ export function InstallationDirectory({
   const t = useT();
   const { options, loading, error, retry } = useActiveInstallation();
   const complete = React.useMemo(
-    () => countComplete(options.map((o) => factoryProgress(readFactory(o.id).profile, year))),
+    () =>
+      countComplete(
+        options.map((o) => factoryProgress(readFactory(o.id).profile, year)),
+      ),
     [options, year],
   );
 
@@ -53,12 +67,18 @@ export function InstallationDirectory({
   return (
     <section aria-labelledby="installation-directory" className="space-y-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="installation-directory" className="text-[15px] font-medium text-black/80">
+        <h2
+          id="installation-directory"
+          className="text-[15px] font-medium text-black/80"
+        >
           {t("Sites")}
         </h2>
         {options.length > 0 && (
           <p className="text-[13px] text-black/55">
-            {t("{n} installations · {m} with factory checks complete", { n: options.length, m: complete })}
+            {t("{n} installations · {m} with factory checks complete", {
+              n: options.length,
+              m: complete,
+            })}
           </p>
         )}
       </div>
@@ -115,7 +135,10 @@ function InstallationCard({
   const wb = useWorkbook(id, year);
   const failed = years.error || wb.error;
   const pending = !failed && !(years.loaded && wb.loaded);
-  const yearStatus = wb.loaded && wb.sheets.length ? worstOf(wb.sheets.map((s) => sheetStatus(s))) : null;
+  const yearStatus =
+    wb.loaded && wb.sheets.length
+      ? worstOf(wb.sheets.map((s) => sheetStatus(s)))
+      : null;
   const progress = factoryProgress(readFactory(id).profile, year);
   const yearList = [...years.years.map((y) => y.year)].sort((a, b) => b - a);
 
@@ -127,7 +150,9 @@ function InstallationCard({
       )}
     >
       <div className="flex items-start justify-between gap-3">
-        <h3 className="min-w-0 truncate text-[15px] font-medium text-black/85">{name}</h3>
+        <h3 className="min-w-0 truncate text-[15px] font-medium text-black/85">
+          {name}
+        </h3>
         <Chip tone="muted" className="flex-none">
           {t(self ? "Own site" : "OEM / supplier site")}
         </Chip>
@@ -135,7 +160,9 @@ function InstallationCard({
 
       <div className="flex min-w-0 items-baseline justify-between gap-3">
         <p className="min-w-0 truncate text-[13px] text-black/55">{country}</p>
-        <span className="min-w-0 truncate font-mono text-[11px] text-black/40">{id}</span>
+        <span className="min-w-0 truncate font-mono text-[11px] text-black/40">
+          {id}
+        </span>
       </div>
 
       <ul className="flex flex-wrap gap-1.5" aria-label={t("Workbook years")}>
@@ -146,29 +173,52 @@ function InstallationCard({
         ) : (
           <>
             {yearList.map((y) => {
-              const current = y === year && yearStatus !== null ? yearStatus : null;
+              const current =
+                y === year && yearStatus !== null ? yearStatus : null;
               const color = current ? PILL_TONE[current] : "var(--flow-edge)";
               return (
                 <li
                   key={y}
                   className="rounded-full border px-2.5 py-0.5 text-[12px] tabular-nums"
-                  style={{ borderColor: color, color: current ? color : undefined }}
-                  aria-label={current ? t("{y}: {status}", { y, status: t(STATUS_LABEL[current]) }) : String(y)}
+                  style={{
+                    borderColor: color,
+                    color: current ? color : undefined,
+                  }}
+                  aria-label={
+                    current
+                      ? t("{y}: {status}", {
+                          y,
+                          status: t(STATUS_LABEL[current]),
+                        })
+                      : String(y)
+                  }
                   title={current ? t(STATUS_LABEL[current]) : undefined}
                 >
                   {y}
                 </li>
               );
             })}
-            {yearStatus === null && <li className="text-[13px] text-black/55">{t("No workbook for {year} yet", { year })}</li>}
+            {yearStatus === null && (
+              <li className="text-[13px] text-black/55">
+                {t("No workbook for {year} yet", { year })}
+              </li>
+            )}
           </>
         )}
       </ul>
 
       <div className="space-y-2">
-        <Progress value={progress.pct} tone={progress.done === progress.total ? "ok" : "warn"} />
+        <Progress
+          value={progress.pct}
+          tone={progress.done === progress.total ? "ok" : "warn"}
+        />
         <div className="flex items-center justify-between text-[12px] tabular-nums text-black/55">
-          <span>{t("{done} of {total} checks", { done: progress.done, total: progress.total })}</span>
+          <span>
+            {t("{done} of {total} checks", {
+              done: progress.done,
+              total: progress.total,
+            })}
+          </span>
           <span className="text-black/40">{Math.round(progress.pct)}%</span>
         </div>
       </div>
