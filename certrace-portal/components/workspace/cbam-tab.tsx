@@ -120,7 +120,9 @@ export function CbamTab({
                 <span
                   className={cn(
                     "font-mono",
-                    c.filled === c.total ? "text-emerald-700" : "text-[#b91c1c]",
+                    c.filled === c.total
+                      ? "text-emerald-700"
+                      : "text-[#b91c1c]",
                   )}
                 >
                   {c.filled}/{c.total}

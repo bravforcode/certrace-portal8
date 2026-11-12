@@ -1158,7 +1158,10 @@ export default function ActivityDataPage({
         production={production}
         reportingYear={Number(periodFor(decl).start.slice(0, 4))}
         country={decl.origin}
-        ownCnCodes={ownGoodsCnCodes(decl.requests, (id) => getCatalogProduct(id)?.cnCode)}
+        ownCnCodes={ownGoodsCnCodes(
+          decl.requests,
+          (id) => getCatalogProduct(id)?.cnCode,
+        )}
       />
 
       {/* Assumptions roll-up — every ASSUMPTION on one screen, because that is
@@ -1261,7 +1264,9 @@ function DerivedTotals({
   const chargeable = sector
     ? chargeablePerTonne(sector, directPerTonne, indirectPerTonne)
     : directPerTonne;
-  const published = ownCn ? publishedDefaultFor(ownCn, country, reportingYear) : null;
+  const published = ownCn
+    ? publishedDefaultFor(ownCn, country, reportingYear)
+    : null;
   const penalty =
     sector && published !== null
       ? dataGapPenalty({
@@ -1331,8 +1336,8 @@ function DerivedTotals({
             </p>
             <p className="mt-2 font-mono text-[12px] text-black/55">
               Δ {penalty.delta.toFixed(4)} tCO₂e/t ×{" "}
-              {production.toLocaleString("en-US")} t × €{pricing.pricePerTonneEUR}{" "}
-              ={" "}
+              {production.toLocaleString("en-US")} t × €
+              {pricing.pricePerTonneEUR} ={" "}
               <span className="text-black/80">
                 €
                 {Math.abs(penalty.currency).toLocaleString("en-US", {
@@ -1350,8 +1355,7 @@ function DerivedTotals({
           {penalty && published !== null && (
             <li>
               · Published default {published.toFixed(3)} tCO₂e/t for CN {ownCn}{" "}
-              in {country}, {reportingYear} (Annex I, Reg. (EU) 2025/2621). The
-              {" "}
+              in {country}, {reportingYear} (Annex I, Reg. (EU) 2025/2621). The{" "}
               {Math.round(penalty.markup * 100)}% markup is already inside it.
             </li>
           )}

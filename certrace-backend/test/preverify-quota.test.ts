@@ -1,8 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import {
-  PREVERIFY_QUOTA,
-  quotaUsed,
-} from "../src/modules/preverify/checks";
+import { PREVERIFY_QUOTA, quotaUsed } from "../src/modules/preverify/checks";
 
 const error = { severity: "error" as const, message: "missing CN code" };
 const warn = { severity: "warn" as const, message: "check the unit" };

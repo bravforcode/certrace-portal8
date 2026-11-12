@@ -295,8 +295,8 @@ function ConvertBar({ href }: { href: string }) {
         </p>
       </div>
       <ButtonLink href={href} className="flex-none self-start sm:self-auto">
-        <ProductMark product="convert" className="h-4 w-4" /> {t("Go to Convert")}{" "}
-        <ArrowRight size={14} strokeWidth={1.5} />
+        <ProductMark product="convert" className="h-4 w-4" />{" "}
+        {t("Go to Convert")} <ArrowRight size={14} strokeWidth={1.5} />
       </ButtonLink>
     </Card>
   );

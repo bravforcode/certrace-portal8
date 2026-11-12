@@ -24,13 +24,21 @@ test("one requirement partly filled turns Complete yellow, though none is finish
 });
 
 test("Complete turns green only when every requirement is complete", () => {
-  assert.equal(stageDots(req("complete", "in-progress"), "ready", false).complete, "progress");
+  assert.equal(
+    stageDots(req("complete", "in-progress"), "ready", false).complete,
+    "progress",
+  );
   assert.equal(stageDots(ALL_DONE, "ready", false).complete, "done");
   assert.equal(stageDots([], "incomplete", false).complete, "ready");
 });
 
 test("every review state between sending and approval reads in progress", () => {
-  for (const s of ["flagged", "in_review", "changes_requested", "stale"] as const)
+  for (const s of [
+    "flagged",
+    "in_review",
+    "changes_requested",
+    "stale",
+  ] as const)
     assert.equal(stageDots(ALL_DONE, s, false).review, "progress", s);
 });
 

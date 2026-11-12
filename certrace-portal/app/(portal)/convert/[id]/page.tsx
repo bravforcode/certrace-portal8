@@ -157,7 +157,11 @@ function ConvertStandardInner() {
   );
   // A declaration names its period; without one, the year it was created (or last changed) stands in.
   const yearHistory = declarations.filter((d) => declarationYear(d) === year);
-  const dots = stageDots(requirements, pv.state ?? "incomplete", yearHistory.length > 0);
+  const dots = stageDots(
+    requirements,
+    pv.state ?? "incomplete",
+    yearHistory.length > 0,
+  );
   const stages: { label: string; dot: StageDot }[] = [
     { label: "Complete", dot: dots.complete },
     ...(isCbam

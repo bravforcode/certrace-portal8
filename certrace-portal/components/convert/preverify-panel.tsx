@@ -166,13 +166,13 @@ export function PreverifyMenu({
                   left === 0 ? "text-[#b91c1c]" : "text-black/55",
                 )}
               >
-                {t("{left} of {quota} left", { left: left ?? 0, quota: data.quota })}
+                {t("{left} of {quota} left", {
+                  left: left ?? 0,
+                  quota: data.quota,
+                })}
               </span>
             </div>
-            <div
-              aria-hidden
-              className="mt-2 flex gap-1"
-            >
+            <div aria-hidden className="mt-2 flex gap-1">
               {Array.from({ length: data.quota }, (_, i) => (
                 <span
                   key={i}
@@ -230,32 +230,31 @@ export function PreverifyPanel({
   const t = useT();
   const { status, data, state } = pv;
 
-  const body =
-    status.isError ? (
-      <p className="text-[13px] text-black/55">
-        {t("Could not load the pre-verification status.")}
-      </p>
-    ) : !data || !state ? null : (
-      <>
-        <ol className="grid gap-2 sm:grid-cols-3">
-          {STEPS.map((label, i) => {
-            const step = STEP_CHIP[STEP_STATES[state][i]];
-            return (
-              <li
-                key={label}
-                className="flex items-center justify-between gap-2 rounded-xl border border-black/[0.06] px-3 py-2"
-              >
-                <span className="text-[13px] text-black/75">{t(label)}</span>
-                <Chip tone={step.tone} filled>
-                  {t(step.label)}
-                </Chip>
-              </li>
-            );
-          })}
-        </ol>
-        <StateNote pv={pv} />
-      </>
-    );
+  const body = status.isError ? (
+    <p className="text-[13px] text-black/55">
+      {t("Could not load the pre-verification status.")}
+    </p>
+  ) : !data || !state ? null : (
+    <>
+      <ol className="grid gap-2 sm:grid-cols-3">
+        {STEPS.map((label, i) => {
+          const step = STEP_CHIP[STEP_STATES[state][i]];
+          return (
+            <li
+              key={label}
+              className="flex items-center justify-between gap-2 rounded-xl border border-black/[0.06] px-3 py-2"
+            >
+              <span className="text-[13px] text-black/75">{t(label)}</span>
+              <Chip tone={step.tone} filled>
+                {t(step.label)}
+              </Chip>
+            </li>
+          );
+        })}
+      </ol>
+      <StateNote pv={pv} />
+    </>
+  );
 
   return (
     <section className="space-y-4">

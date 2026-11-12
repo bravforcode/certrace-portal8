@@ -254,7 +254,6 @@ export function LivePanel({
             </p>
           )}
         </Card>
-
       </div>
     </aside>
   );

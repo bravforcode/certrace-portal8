@@ -31,7 +31,11 @@ export function InstallationSwitcher({
         title={t("No installation yet")}
         body={t("Add your first installation and it becomes the current one.")}
         action={
-          <ButtonLink href="/settings?tab=organisation" variant="secondary" size="sm">
+          <ButtonLink
+            href="/settings?tab=organisation"
+            variant="secondary"
+            size="sm"
+          >
             <Plus size={13} strokeWidth={1.5} /> {t("Add an installation")}
           </ButtonLink>
         }
@@ -109,7 +113,11 @@ export function InstallationSwitcher({
       })}
       {!compact && (
         <div className="pt-2">
-          <ButtonLink href="/settings?tab=organisation" variant="secondary" size="sm">
+          <ButtonLink
+            href="/settings?tab=organisation"
+            variant="secondary"
+            size="sm"
+          >
             <Plus size={13} strokeWidth={1.5} /> {t("Add an installation")}
           </ButtonLink>
         </div>

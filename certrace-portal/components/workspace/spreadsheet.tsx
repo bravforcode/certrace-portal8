@@ -561,171 +561,171 @@ export function Spreadsheet({
 
         {/* ── Grid ────────────────────────────────────── */}
         <div className={cn(full && "min-h-0 flex-1 overflow-auto")}>
-        {isFlow ? (
-          <FlowDiagram
-            sheets={sheets}
-            cells={cells}
-            t={t}
-            onOpenSheet={showLive}
-            editable={!empty && !!onEdit}
-            savePatch={savePatch}
-          />
-        ) : tab === INSTALLATION_SHEET_ID ? (
-          <InstallationSheet
-            key={installation?.id ?? ""}
-            installation={installation}
-            onSave={onInstallationSave}
-          />
-        ) : showExtra ? (
-          <div className="min-h-[320px]">{extra!.content}</div>
-        ) : (
-          <div
-            ref={gridRef}
-            role="grid"
-            aria-label={sheet ? `${sheet.code} ${t(sheet.name)}` : t("Sheet")}
-            tabIndex={0}
-            onKeyDown={onKeyDown}
-            onCopy={onCopy}
-            onPaste={onPaste}
-            className="no-focus-ring overflow-x-auto focus:outline-none"
-          >
+          {isFlow ? (
+            <FlowDiagram
+              sheets={sheets}
+              cells={cells}
+              t={t}
+              onOpenSheet={showLive}
+              editable={!empty && !!onEdit}
+              savePatch={savePatch}
+            />
+          ) : tab === INSTALLATION_SHEET_ID ? (
+            <InstallationSheet
+              key={installation?.id ?? ""}
+              installation={installation}
+              onSave={onInstallationSave}
+            />
+          ) : showExtra ? (
+            <div className="min-h-[320px]">{extra!.content}</div>
+          ) : (
             <div
-              className="grid min-w-max text-[12.5px]"
-              style={{ gridTemplateColumns: template }}
+              ref={gridRef}
+              role="grid"
+              aria-label={sheet ? `${sheet.code} ${t(sheet.name)}` : t("Sheet")}
+              tabIndex={0}
+              onKeyDown={onKeyDown}
+              onCopy={onCopy}
+              onPaste={onPaste}
+              className="no-focus-ring overflow-x-auto focus:outline-none"
             >
-              {/* column letters */}
-              <div className="sticky left-0 z-10 h-6 border-b border-r border-black/[0.08] bg-[#f0efea]" />
-              {Array.from({ length: colCount }, (_, c) => (
-                <div
-                  key={c}
-                  className={cn(
-                    "flex h-6 items-center justify-center border-b border-r border-black/[0.08] text-[11px] text-black/45",
-                    !empty && sel.c === c
-                      ? "bg-[#e3e2dc] font-medium text-black/70"
-                      : "bg-[#f0efea]",
-                  )}
-                >
-                  {letter(c)}
-                </div>
-              ))}
+              <div
+                className="grid min-w-max text-[12.5px]"
+                style={{ gridTemplateColumns: template }}
+              >
+                {/* column letters */}
+                <div className="sticky left-0 z-10 h-6 border-b border-r border-black/[0.08] bg-[#f0efea]" />
+                {Array.from({ length: colCount }, (_, c) => (
+                  <div
+                    key={c}
+                    className={cn(
+                      "flex h-6 items-center justify-center border-b border-r border-black/[0.08] text-[11px] text-black/45",
+                      !empty && sel.c === c
+                        ? "bg-[#e3e2dc] font-medium text-black/70"
+                        : "bg-[#f0efea]",
+                    )}
+                  >
+                    {letter(c)}
+                  </div>
+                ))}
 
-              {/* header row */}
-              <RowNo n={1} />
-              {Array.from({ length: colCount }, (_, c) => (
-                <div
-                  key={c}
-                  className="flex h-8 items-center border-b border-r border-black/[0.08] bg-[#f7f6f2] px-2.5 font-semibold text-[#111]"
-                >
-                  {!empty && cols[c] ? t(cols[c]!.label) : ""}
-                </div>
-              ))}
+                {/* header row */}
+                <RowNo n={1} />
+                {Array.from({ length: colCount }, (_, c) => (
+                  <div
+                    key={c}
+                    className="flex h-8 items-center border-b border-r border-black/[0.08] bg-[#f7f6f2] px-2.5 font-semibold text-[#111]"
+                  >
+                    {!empty && cols[c] ? t(cols[c]!.label) : ""}
+                  </div>
+                ))}
 
-              {/* data rows */}
-              {visible.map(({ row, r }) => (
-                <div key={r} role="row" className="contents">
-                  <RowNo n={r + 2} on={sel.r === r} />
-                  {cols.map((col, c) => {
-                    const k = keyOf(r, c);
-                    const v = valueOf(row, r, c);
-                    const flag = row.flags?.[col.key];
-                    const editor = editors[`${tab}:${r}:${col.key}`];
-                    const selected = sel.r === r && sel.c === c;
-                    const isEditing = editing?.key === k;
-                    return (
-                      <div
-                        key={col.key}
-                        role="gridcell"
-                        title={
-                          editor
-                            ? t("Edited by {name} · {time}", {
-                                name: editorName(editor.by),
-                                time: timeAgo(editor.at, t),
-                              })
-                            : undefined
-                        }
-                        tabIndex={-1}
-                        aria-selected={selected}
-                        onMouseDown={(e) => {
-                          // A click on the cell being edited places the caret; anywhere else selects.
-                          if (isEditing) return;
-                          e.preventDefault();
-                          setSel({ r, c });
-                          focusGrid();
-                        }}
-                        onDoubleClick={() => editable(c) && setEditing(k)}
-                        className={cn(
-                          "relative flex h-8 min-w-0 cursor-cell items-center border-b border-r border-black/[0.08] px-2.5",
-                          col.kind === "number" && "justify-end",
-                          flag && "bg-[#fffbeb]",
-                          selected &&
-                            "z-[1] outline outline-2 -outline-offset-1 outline-[#111]",
-                          selected && !isEditing && "bg-[#f7f6f2]",
-                          isEditing && "bg-white",
-                        )}
-                      >
-                        {/* The text stays under the editor (hidden), so the column keeps its width while editing. */}
-                        <span
+                {/* data rows */}
+                {visible.map(({ row, r }) => (
+                  <div key={r} role="row" className="contents">
+                    <RowNo n={r + 2} on={sel.r === r} />
+                    {cols.map((col, c) => {
+                      const k = keyOf(r, c);
+                      const v = valueOf(row, r, c);
+                      const flag = row.flags?.[col.key];
+                      const editor = editors[`${tab}:${r}:${col.key}`];
+                      const selected = sel.r === r && sel.c === c;
+                      const isEditing = editing?.key === k;
+                      return (
+                        <div
+                          key={col.key}
+                          role="gridcell"
+                          title={
+                            editor
+                              ? t("Edited by {name} · {time}", {
+                                  name: editorName(editor.by),
+                                  time: timeAgo(editor.at, t),
+                                })
+                              : undefined
+                          }
+                          tabIndex={-1}
+                          aria-selected={selected}
+                          onMouseDown={(e) => {
+                            // A click on the cell being edited places the caret; anywhere else selects.
+                            if (isEditing) return;
+                            e.preventDefault();
+                            setSel({ r, c });
+                            focusGrid();
+                          }}
+                          onDoubleClick={() => editable(c) && setEditing(k)}
                           className={cn(
-                            "flex min-w-0 items-center",
-                            isEditing && "invisible",
+                            "relative flex h-8 min-w-0 cursor-cell items-center border-b border-r border-black/[0.08] px-2.5",
+                            col.kind === "number" && "justify-end",
+                            flag && "bg-[#fffbeb]",
+                            selected &&
+                              "z-[1] outline outline-2 -outline-offset-1 outline-[#111]",
+                            selected && !isEditing && "bg-[#f7f6f2]",
+                            isEditing && "bg-white",
                           )}
                         >
-                          <CellView
-                            col={col}
-                            value={v}
-                            flag={flag}
-                            status={row.status}
-                            query={q}
-                            text={shown(col, v)}
-                          />
-                        </span>
-                        {isEditing && (
-                          <CellEditor
-                            initial={editing.seed ?? v}
-                            seeded={editing.seed !== undefined}
-                            align={col.kind === "number" ? "right" : "left"}
-                            onCommit={(val, dr, dc) => {
-                              commit(r, c, val);
-                              if (dr || dc) moveSel(dr, dc);
-                            }}
-                            onCancel={() => {
-                              setEditing(null);
-                              focusGrid();
-                            }}
-                          />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
+                          {/* The text stays under the editor (hidden), so the column keeps its width while editing. */}
+                          <span
+                            className={cn(
+                              "flex min-w-0 items-center",
+                              isEditing && "invisible",
+                            )}
+                          >
+                            <CellView
+                              col={col}
+                              value={v}
+                              flag={flag}
+                              status={row.status}
+                              query={q}
+                              text={shown(col, v)}
+                            />
+                          </span>
+                          {isEditing && (
+                            <CellEditor
+                              initial={editing.seed ?? v}
+                              seeded={editing.seed !== undefined}
+                              align={col.kind === "number" ? "right" : "left"}
+                              onCommit={(val, dr, dc) => {
+                                commit(r, c, val);
+                                if (dr || dc) moveSel(dr, dc);
+                              }}
+                              onCancel={() => {
+                                setEditing(null);
+                                focusGrid();
+                              }}
+                            />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ))}
 
-              {/* empty rows to the fold, like a fresh sheet */}
-              {Array.from(
-                { length: Math.max(0, MIN_ROWS - 1 - visible.length) },
-                (_, i) => {
-                  const n = (empty ? 2 : (sheet?.rows.length ?? 0) + 2) + i;
-                  return (
-                    <React.Fragment key={`e${i}`}>
-                      <RowNo n={empty ? 2 + i : n} />
-                      {Array.from({ length: colCount }, (_, c) => (
-                        <div
-                          key={c}
-                          className="h-8 border-b border-r border-black/[0.08]"
-                        />
-                      ))}
-                    </React.Fragment>
-                  );
-                },
+                {/* empty rows to the fold, like a fresh sheet */}
+                {Array.from(
+                  { length: Math.max(0, MIN_ROWS - 1 - visible.length) },
+                  (_, i) => {
+                    const n = (empty ? 2 : (sheet?.rows.length ?? 0) + 2) + i;
+                    return (
+                      <React.Fragment key={`e${i}`}>
+                        <RowNo n={empty ? 2 + i : n} />
+                        {Array.from({ length: colCount }, (_, c) => (
+                          <div
+                            key={c}
+                            className="h-8 border-b border-r border-black/[0.08]"
+                          />
+                        ))}
+                      </React.Fragment>
+                    );
+                  },
+                )}
+              </div>
+              {q && visible.length === 0 && (
+                <p className="border-b border-black/[0.08] px-3 py-2 text-[12px] text-black/40">
+                  {t("No rows in this sheet match “{query}”.", { query })}
+                </p>
               )}
             </div>
-            {q && visible.length === 0 && (
-              <p className="border-b border-black/[0.08] px-3 py-2 text-[12px] text-black/40">
-                {t("No rows in this sheet match “{query}”.", { query })}
-              </p>
-            )}
-          </div>
-        )}
+          )}
         </div>
 
         {/* ── Sheet tabs ──────────────────────────────── */}
@@ -734,7 +734,11 @@ export function Spreadsheet({
             const on = tab === s.id;
             const fullSheet = sheets.find((x) => x.id === s.id);
             const n =
-              !fullSheet || empty ? 0 : q ? matchCount(fullSheet) : issuesOf(fullSheet);
+              !fullSheet || empty
+                ? 0
+                : q
+                  ? matchCount(fullSheet)
+                  : issuesOf(fullSheet);
             const isInstall = s.id === INSTALLATION_SHEET_ID;
             // Every tab has the same dot before its code: the installation's from its form, the rest from their rows.
             const dot = empty
@@ -779,17 +783,17 @@ export function Spreadsheet({
                 {s.code && <span className="tabular-nums">{s.code}</span>}
                 {t(s.name)}
                 {!isInstall && n > 0 && (
-                      <span
-                        className={cn(
-                          "grid h-4 min-w-4 place-items-center rounded-full px-1 font-mono text-[10px]",
-                          q
-                            ? "bg-black/[0.07] text-black/55"
-                            : "bg-[#fdecc8] text-[#b45309]",
-                        )}
-                      >
-                        {n}
-                      </span>
+                  <span
+                    className={cn(
+                      "grid h-4 min-w-4 place-items-center rounded-full px-1 font-mono text-[10px]",
+                      q
+                        ? "bg-black/[0.07] text-black/55"
+                        : "bg-[#fdecc8] text-[#b45309]",
                     )}
+                  >
+                    {n}
+                  </span>
+                )}
               </button>
             );
           })}
