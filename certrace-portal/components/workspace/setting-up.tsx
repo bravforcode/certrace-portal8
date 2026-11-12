@@ -218,7 +218,7 @@ export function MiniPlatform({
               >
                 <span className="block h-1 w-1/2 rounded-full bg-black/10" />
                 <span
-                  className="ws-tick mt-1.5 block h-2 rounded-sm bg-[#111]"
+                  className="ws-tick mt-1.5 block h-2 rounded-sm bg-emerald-500/60"
                   style={{ animationDelay: `${-n * 0.9}s` }}
                 />
               </div>
@@ -231,7 +231,7 @@ export function MiniPlatform({
                   <span className="h-1 w-3 rounded-full bg-black/15" />
                   <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-black/[0.05]">
                     <span
-                      className="ws-fill block h-full rounded-full bg-black/45"
+                      className="ws-fill block h-full rounded-full bg-emerald-500/45"
                       style={{ animationDelay: `${n * 0.55}s` }}
                     />
                   </span>
@@ -259,20 +259,20 @@ export function WorkerFigure({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 16 24" className={className} fill="none">
       <g className="ws-upper">
-        <circle cx="8" cy="4" r="3" fill="#111" />
-        <rect x="4.5" y="8" width="7" height="8" rx="3" fill="#111" />
+        <circle cx="8" cy="4" r="3" fill="#a8a59b" />
+        <rect x="4.5" y="8" width="7" height="8" rx="3" fill="#a8a59b" />
       </g>
       <path
         className="ws-leg-a"
         d="M6.5 15.5 5.5 22"
-        stroke="#111"
+        stroke="#a8a59b"
         strokeWidth="1.8"
         strokeLinecap="round"
       />
       <path
         className="ws-leg-b"
         d="M9.5 15.5 10.5 22"
-        stroke="#111"
+        stroke="#a8a59b"
         strokeWidth="1.8"
         strokeLinecap="round"
       />

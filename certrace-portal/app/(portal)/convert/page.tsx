@@ -13,7 +13,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Plus, Search } from "lucide-react";
+import { Search } from "lucide-react";
 import {
   Chip,
   EmptyState,
@@ -47,8 +47,8 @@ const countFor = (tab: Tab, reports: number) =>
       ? reports
       : STANDARDS.filter((s) => s.status === tab).length;
 
+// An own plant is the default, so only the other roles get a label.
 const ROLE_LABEL = {
-  own: "Own plant",
   oem: "OEM plant",
   supplier: "Supplier plant",
 } as const;
@@ -106,7 +106,9 @@ function ConvertInner() {
         lead="Turn your workspace data into the report each standard asks for."
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            {role && <Chip tone="muted">{t(ROLE_LABEL[role])}</Chip>}
+            {role && role !== "own" && (
+              <Chip tone="muted">{t(ROLE_LABEL[role])}</Chip>
+            )}
             <ScopedInstallationSwitcher />
           </div>
         }
@@ -181,11 +183,6 @@ function ConvertInner() {
               {soon.map((s) => (
                 <StandardCard key={s.id} s={s} pct={0} />
               ))}
-              {!q && (
-                <div className="flex min-h-[104px] items-center gap-3 rounded-xl border border-dashed border-black/15 px-5 text-[13px] text-black/40">
-                  <Plus size={16} strokeWidth={1.5} /> More standards on the way
-                </div>
-              )}
             </Section>
           )}
         </div>

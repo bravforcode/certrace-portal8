@@ -277,6 +277,14 @@ export function useWorkbookYears(installationId: string | null) {
     if (rec) return write(year, { ...rec, status: "ready" });
   };
 
+  /** Attach more files to a year that is already open. Cells stay as they are; the new files wait for
+      Certrace's review. The backend caps a year at 200 files. */
+  const addFiles = (year: number, files: WorkspaceFile[]) => {
+    const rec = get(year);
+    if (!rec || files.length === 0) return;
+    return write(year, { ...rec, files: [...rec.files, ...files] });
+  };
+
   /** This browser has seen the walk-in for this year; the team's meta is untouched. */
   const markRevealed = (year: number) => {
     const rec = get(year);
@@ -295,6 +303,7 @@ export function useWorkbookYears(installationId: string | null) {
     restart,
     markReady,
     markRevealed,
+    addFiles,
   };
 }
 

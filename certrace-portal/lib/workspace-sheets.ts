@@ -20,6 +20,8 @@ export type WorkspaceFile = {
   size: number;
   type: string;
   description: string;
+  /** When Certrace finished reviewing the file. Absent while the review is pending. */
+  reviewedAt?: string;
 };
 
 /** "empty" is a row of a workspace started from the beginning: nothing in it yet, nothing to check. */
@@ -90,7 +92,7 @@ export function buildSheets(files: WorkspaceFile[]): Sheet[] {
     // The first tab: the site the sheets are about, before its products and steps (MEASUR order).
     {
       id: INSTALLATION_SHEET_ID,
-      code: "00A",
+      code: "00",
       name: "Installation",
       cols: [],
       rows: [],

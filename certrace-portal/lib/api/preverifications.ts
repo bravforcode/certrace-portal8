@@ -35,6 +35,10 @@ export type PreverificationView = {
 export type PreverificationLatest = {
   latest: PreverificationView | null;
   currentRevision: number;
+  /** Pre-verifications that reached the Certrace team, across the company. */
+  used: number;
+  /** How many the plan includes before a top-up. */
+  quota: number;
 };
 
 /** Admin list row: the view plus the company, the reviewer and whether the data moved on since. */
@@ -137,4 +141,31 @@ export function preverifyState(
     case "changes_requested":
       return changed ? "stale" : "changes_requested";
   }
+}
+
+/** The Convert page's three status dots: red = ready to start, yellow = in progress, green = completed. */
+export type StageDot = "ready" | "progress" | "done";
+
+export function stageDots(
+  /** The standard's requirements; any requirement started (not "missing") makes Complete in progress. */
+  requirements: readonly { state: string }[],
+  state: PreverifyState,
+  hasDeclaration: boolean,
+): { complete: StageDot; review: StageDot; reporting: StageDot } {
+  // Readiness counts only finished requirements, so a half-filled one would still read as "not started".
+  const complete: StageDot =
+    requirements.length > 0 && requirements.every((r) => r.state === "complete")
+      ? "done"
+      : requirements.some((r) => r.state !== "missing")
+        ? "progress"
+        : "ready";
+  const review: StageDot =
+    state === "approved"
+      ? "done"
+      : state === "incomplete" || state === "ready"
+        ? "ready"
+        : "progress";
+  const reporting: StageDot =
+    state !== "approved" ? "ready" : hasDeclaration ? "done" : "progress";
+  return { complete, review, reporting };
 }

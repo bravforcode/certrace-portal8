@@ -43,3 +43,6 @@ certrace-backend/src/generated/
 
 certrace-new/
 .vercel
+
+# OpenWolf local search index
+.wolf/.obsidian-hybrid-search.db*

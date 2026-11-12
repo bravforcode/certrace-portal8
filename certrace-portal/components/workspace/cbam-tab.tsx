@@ -5,12 +5,15 @@
 
    Read-only. A summary (required fields filled, per item) and then the fields
    grouped by section, each with its template reference (sheet!cell), its value
-   or "Missing", and its unit. The answers are written from Convert (the fill-in
-   form and Smart Link); this tab only shows what is there. The counting is
+   or "Missing", and its unit. Rows are tinted by state: red while a required
+   field is missing, green once filled. The answers are written from the fill-in
+   form (each unfinished item links to it) and Smart Links. The counting is
    lib/cbam/cbam-tab.ts.
    ════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
+import Link from "next/link";
+import { PencilLine } from "lucide-react";
 import { Card, Chip, Progress, cn } from "@/components/ui";
 import { useT } from "@/lib/i18n";
 import {
@@ -34,14 +37,27 @@ const ITEM_LABEL: Record<CbamItemId, string> = {
 
 const STATE_CHIP: Record<
   CbamRowState,
-  { tone: "ok" | "muted"; label: string }
+  { tone: "ok" | "err" | "muted"; label: string }
 > = {
   filled: { tone: "ok", label: "Filled" },
-  missing: { tone: "muted", label: "Missing" },
+  missing: { tone: "err", label: "Missing" },
   optional: { tone: "muted", label: "Optional" },
 };
 
-export function CbamTab({ cells }: { cells: Record<string, string> }) {
+const ROW_TINT: Record<CbamRowState, string> = {
+  filled: "border-l-[#16a34a] bg-[#f0fdf4]/60",
+  missing: "border-l-[#dc2626] bg-[#fef2f2]/70",
+  optional: "border-l-transparent",
+};
+
+export function CbamTab({
+  cells,
+  fillHref,
+}: {
+  cells: Record<string, string>;
+  /** The fill-in form for an item; without it the tab offers no link. */
+  fillHref?: (item: CbamItemId) => string;
+}) {
   const t = useT();
   const summary = React.useMemo(() => summariseCbam(cells), [cells]);
 
@@ -91,13 +107,24 @@ export function CbamTab({ cells }: { cells: Record<string, string> }) {
               <span className="text-black/65">
                 {t(ITEM_LABEL[c.item as CbamItemId] ?? c.item)}
               </span>
-              <span
-                className={cn(
-                  "font-mono",
-                  c.filled === c.total ? "text-emerald-700" : "text-black/55",
+              <span className="flex items-center gap-2">
+                {fillHref && c.filled < c.total && (
+                  <Link
+                    href={fillHref(c.item as CbamItemId)}
+                    className="inline-flex items-center gap-1 text-[12px] text-black/55 underline-offset-2 hover:text-black hover:underline"
+                  >
+                    <PencilLine size={12} strokeWidth={1.5} />
+                    {t("Fill in")}
+                  </Link>
                 )}
-              >
-                {c.filled}/{c.total}
+                <span
+                  className={cn(
+                    "font-mono",
+                    c.filled === c.total ? "text-emerald-700" : "text-[#b91c1c]",
+                  )}
+                >
+                  {c.filled}/{c.total}
+                </span>
               </span>
             </li>
           ))}
@@ -113,7 +140,10 @@ export function CbamTab({ cells }: { cells: Record<string, string> }) {
             {sec.rows.map(({ field, value, state }) => (
               <li
                 key={field.id}
-                className="grid gap-1 px-5 py-2.5 text-[13px] sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1.6fr)_auto] sm:items-center sm:gap-4"
+                className={cn(
+                  "grid gap-1 border-l-2 px-5 py-2.5 text-[13px] sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1.6fr)_auto] sm:items-center sm:gap-4",
+                  ROW_TINT[state],
+                )}
               >
                 <div className="min-w-0">
                   <div className="text-[#111]">{t(field.label)}</div>
@@ -122,7 +152,11 @@ export function CbamTab({ cells }: { cells: Record<string, string> }) {
                 <div
                   className={cn(
                     "min-w-0 break-words",
-                    state === "filled" ? "text-black/80" : "text-black/40",
+                    state === "filled"
+                      ? "text-black/80"
+                      : state === "missing"
+                        ? "text-[#b91c1c]"
+                        : "text-black/40",
                   )}
                 >
                   {state === "filled"
@@ -139,7 +173,7 @@ export function CbamTab({ cells }: { cells: Record<string, string> }) {
                 <div>
                   <Chip
                     tone={STATE_CHIP[state].tone}
-                    filled={state === "filled"}
+                    filled={state !== "optional"}
                   >
                     {t(STATE_CHIP[state].label)}
                   </Chip>

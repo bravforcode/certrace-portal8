@@ -22,6 +22,8 @@ export const meta = t.Object(
           size: t.Integer({ minimum: 0 }),
           type: t.String({ maxLength: 120 }),
           description: t.String({ maxLength: 1000 }),
+          // When Certrace finished reviewing the file. Absent means the review is still pending.
+          reviewedAt: t.Optional(t.String({ format: "date-time" })),
         }),
         { maxItems: 200 },
       ),

@@ -2,8 +2,10 @@ import { db } from "../../lib/db";
 import { fail, missing } from "../../lib/errors";
 import type { preverifications } from "../../generated/prisma/client";
 import {
+  PREVERIFY_QUOTA,
   catalogueCells,
   decideStatus,
+  quotaUsed,
   runChecks,
   type Finding,
   type Status,
@@ -68,7 +70,23 @@ const companyInclude = {
 // Prisma's default 5s transaction window is too tight under load; a pool wait longer than 2s fails the request.
 const TX_OPTIONS = { timeout: 10_000, maxWait: 5_000 } as const;
 
+/** Uses spent across every installation and year of the company. */
+async function usedQuota(companyId: string) {
+  const rows = await db.preverifications.findMany({
+    where: { company_id: companyId },
+    select: { status: true, ai_findings: true },
+  });
+  return quotaUsed(rows);
+}
+
 export async function submit(companyId: string, actorId: string, key: Key) {
+  // Checked before the AI review runs, so a refused submission costs no AI call.
+  if ((await usedQuota(companyId)) >= PREVERIFY_QUOTA)
+    fail(
+      402,
+      "QUOTA_EXCEEDED",
+      "All pre-verifications in your plan are used. Top up on the billing page to submit again.",
+    );
   const wb = await db.workbooks.findUnique({
     where: workbookKey(companyId, key),
   });
@@ -133,7 +151,7 @@ export async function submit(companyId: string, actorId: string, key: Key) {
 }
 
 export async function latest(companyId: string, key: Key) {
-  const [row, wb] = await Promise.all([
+  const [row, wb, used] = await Promise.all([
     db.preverifications.findFirst({
       where: submissionScope(companyId, key),
       orderBy: { submitted_at: "desc" },
@@ -142,8 +160,14 @@ export async function latest(companyId: string, key: Key) {
       where: workbookKey(companyId, key),
       select: { revision: true },
     }),
+    usedQuota(companyId),
   ]);
-  return { latest: row ? view(row) : null, currentRevision: wb?.revision ?? 0 };
+  return {
+    latest: row ? view(row) : null,
+    currentRevision: wb?.revision ?? 0,
+    used,
+    quota: PREVERIFY_QUOTA,
+  };
 }
 
 export async function adminList(status: Stored) {

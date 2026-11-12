@@ -23,8 +23,9 @@
    ════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
-import { ArrowRight, Copy, FileText } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Button, ButtonLink, Card, PageHeader } from "@/components/ui";
+import { ProductMark } from "@/components/product-marks";
 import { YearBar } from "@/components/year-bar";
 import { Spreadsheet } from "@/components/workspace/spreadsheet";
 import { CbamTab } from "@/components/workspace/cbam-tab";
@@ -144,7 +145,21 @@ function WorkspaceInner() {
     [wb.cells, installation, year],
   );
   const cbamTab = [
-    { id: CBAM_TAB_ID, label: "CBAM", content: <CbamTab cells={cbamCells} /> },
+    {
+      id: CBAM_TAB_ID,
+      label: "CBAM",
+      content: (
+        <CbamTab
+          cells={cbamCells}
+          fillHref={
+            scoped
+              ? (item) =>
+                  `/convert/fill/${encodeURIComponent(item)}?installation=${encodeURIComponent(scoped.id)}&from=eu-cbam`
+              : undefined
+          }
+        />
+      ),
+    },
   ];
 
   return (
@@ -240,35 +255,17 @@ function WorkspaceInner() {
         </Card>
       ) : (
         <>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] text-black/45">
-            <span className="inline-flex items-center gap-1.5">
-              <FileText size={13} strokeWidth={1.5} />
-              {rec.files.length === 1
-                ? t("1 file")
-                : t("{n} files", { n: rec.files.length })}
-            </span>
-            {rec.blank && !rec.copiedFrom && (
-              <span className="inline-flex items-center gap-1.5">
-                {t("Started from the beginning")}
-              </span>
-            )}
-            {rec.copiedFrom && (
-              <span className="inline-flex items-center gap-1.5">
-                <Copy size={13} strokeWidth={1.5} />
-                {t("Started from {year}", { year: rec.copiedFrom })}
-              </span>
-            )}
-          </div>
           <Spreadsheet
             key={year}
             sheets={wb.sheets}
             cells={wb.cells}
+            files={rec.files}
+            onAddFiles={(f) => ws.addFiles(year, f)}
             savePatch={wb.savePatch}
             editors={wb.editors}
             saving={wb.pending > 0}
             onEdit={wb.saveEdit}
             installation={installation}
-            year={year}
             extraTabs={cbamTab}
             onInstallationSave={(inst) => {
               saveInstallation(inst);
@@ -298,7 +295,8 @@ function ConvertBar({ href }: { href: string }) {
         </p>
       </div>
       <ButtonLink href={href} className="flex-none self-start sm:self-auto">
-        {t("Go to Convert")} <ArrowRight size={14} strokeWidth={1.5} />
+        <ProductMark product="convert" className="h-4 w-4" /> {t("Go to Convert")}{" "}
+        <ArrowRight size={14} strokeWidth={1.5} />
       </ButtonLink>
     </Card>
   );
