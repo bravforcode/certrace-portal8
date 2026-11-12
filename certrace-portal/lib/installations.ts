@@ -106,6 +106,14 @@ export const emptyMonitoring = (): InstallationMonitoring => ({
   electricityToEu: "",
 });
 
+/** own: the exporter runs the plant. oem: an OEM runs it and the exporter enters its data.
+    supplier: the supplier runs it and fills in a form. */
+export type InstallationRole = "own" | "oem" | "supplier";
+
+export const installationRole = (
+  i: Pick<Installation, "role" | "supplierId">,
+): InstallationRole => i.role ?? (i.supplierId ? "supplier" : "own");
+
 export type Installation = {
   /** operator reference — the id a verifier and the buyer both quote. Not a
       template field; it is how Certrace keys the record and groups workspaces. */
@@ -124,6 +132,8 @@ export type Installation = {
       company, and pointing at a supplier record for yourself would put your
       own plant on the Suppliers page. */
   supplierId: string;
+  /** Who keys in this plant's data. Absent on records saved before roles existed; read it through `installationRole`. */
+  role?: InstallationRole;
   /** (iii) Street, Number */
   street: string;
   /** (iv) Economic activity */
@@ -164,6 +174,12 @@ export type Installation = {
   operatorRegistrationNumber: string;
   /** 1(c) full address of the operator, in English */
   operatorAddress: string;
+  /** The operator address split as the CBAM template asks for it (A_InstData
+      I38–I41). Optional: records saved before these fields existed lack them. */
+  operatorStreet?: string;
+  operatorCity?: string;
+  operatorPostcode?: string;
+  operatorCountry?: string;
   /** 1(d) unique installation identifier in the CBAM Registry, once issued */
   registryId: string;
   /** items 2–6 */
@@ -313,6 +329,24 @@ export function emailError(raw: string): string | null {
   return null;
 }
 
+/** One coordinate's own range check. Empty is not checked here: an empty box is
+    missing data, not bad data. */
+export function coordinateFieldError(
+  key: "lat" | "lng",
+  raw: string,
+): string | null {
+  const v = raw.trim();
+  if (!v) return null;
+  const n = Number(v);
+  if (key === "lat")
+    return Number.isFinite(n) && n >= -90 && n <= 90
+      ? null
+      : "Latitude is between −90 and 90.";
+  return Number.isFinite(n) && n >= -180 && n <= 180
+    ? null
+    : "Longitude is between −180 and 180.";
+}
+
 /** Latitude/longitude are optional, but a half-entered pair is not: a verifier
     reading one coordinate cannot place a site. */
 export function coordinateError(lat: string, lng: string): string | null {
@@ -320,13 +354,68 @@ export function coordinateError(lat: string, lng: string): string | null {
   const b = lng.trim();
   if (!a && !b) return null;
   if (!a || !b) return "Give both coordinates, or neither.";
-  const nlat = Number(a);
-  const nlng = Number(b);
-  if (!Number.isFinite(nlat) || nlat < -90 || nlat > 90)
-    return "Latitude is between −90 and 90.";
-  if (!Number.isFinite(nlng) || nlng < -180 || nlng > 180)
-    return "Longitude is between −180 and 180.";
-  return null;
+  return coordinateFieldError("lat", a) ?? coordinateFieldError("lng", b);
+}
+
+/* ── Workbook edits ─────────────────────────────────────────────
+   The Installation tab edits the record in place. Its rules live here, not in
+   the component, so they can be tested as a sequence.
+
+     · An empty value is missing data, never rejected. It is saved and reads as
+       a gap.
+     · A non-empty value the validator rejects is shown with its message and is
+       NOT saved. Every rejected field keeps its last valid value in what is
+       saved, so a rejected latitude cannot reach the store on a later edit to
+       any other field. */
+export type SheetEditState = {
+  /** what is saved: the last valid value of every field */
+  known: Installation;
+  /** what the typist sees, rejected raw values included */
+  draft: Installation;
+  /** raw values the validator rejected, kept on screen until corrected */
+  rejected: Partial<Installation>;
+  /** the message for each rejected field */
+  messages: Partial<Record<keyof Installation, string>>;
+};
+
+export const startSheetEdit = (inst: Installation): SheetEditState => ({
+  known: inst,
+  draft: inst,
+  rejected: {},
+  messages: {},
+});
+
+function editRejection(
+  next: Installation,
+  key: keyof Installation,
+): string | undefined {
+  const raw = String(next[key] ?? "");
+  if (!raw.trim()) return undefined;
+  if (key === "lat" || key === "lng")
+    return coordinateFieldError(key, raw) ?? undefined;
+  return installationErrors(next, next.id)[key];
+}
+
+export function applySheetEdit(
+  s: SheetEditState,
+  key: keyof Installation,
+  value: string,
+): SheetEditState {
+  const draft = { ...s.draft, [key]: value } as Installation;
+  const message = editRejection(draft, key);
+  const rejected: Partial<Installation> = { ...s.rejected };
+  const messages = { ...s.messages };
+  if (message) {
+    Object.assign(rejected, { [key]: value });
+    messages[key] = message;
+  } else {
+    delete rejected[key];
+    delete messages[key];
+  }
+  const known: Installation = { ...draft };
+  for (const k of Object.keys(rejected) as (keyof Installation)[])
+    Object.assign(known, { [k]: s.known[k] });
+  return { known, draft, rejected, messages };
 }
 
 /* ── Store ────────────────────────────────────────────────────── */
@@ -390,11 +479,71 @@ export function emptyInstallation(self = false): Installation {
     operatorName: "",
     operatorRegistrationNumber: "",
     operatorAddress: "",
+    operatorStreet: "",
+    operatorCity: "",
+    operatorPostcode: "",
+    operatorCountry: "",
     registryId: "",
     monitoring: emptyMonitoring(),
     createdAt: new Date().toISOString(),
   };
 }
+
+/* The record the Installation tab edits for the scoped site. A site with no
+   saved record yet (the exporter's own site, synthesised from the org profile)
+   is seeded with its reference and link only. The name is NOT copied from the
+   org profile: a company name in the English-name field is the wrong answer a
+   verifier would quote, so the site starts with an empty name and reads as
+   untouched until the exporter enters it. A saved record is returned as stored. */
+export function draftInstallation(
+  choice: { id: string; self: boolean; supplierId?: string },
+  stored: Installation | null,
+): Installation {
+  if (stored) return stored;
+  return {
+    ...emptyInstallation(choice.self),
+    id: choice.id,
+    self: choice.self,
+    supplierId: choice.self ? "" : (choice.supplierId ?? ""),
+  };
+}
+
+/** The fields Settings requires. ONE list: `installationErrors` reports exactly
+    these when empty, `missingFields` counts exactly these, and the workbook tab
+    marks exactly these red. A test holds the three in agreement. */
+export const REQUIRED_INSTALLATION_KEYS: readonly (keyof Installation)[] = [
+  "name",
+  "street",
+  "postcode",
+  "city",
+  "country",
+  "unlocode",
+  "lat",
+  "lng",
+];
+
+const SHEET_FIELD_SPECS: { key: keyof Installation; label: string }[] = [
+  { key: "name", label: "Name of the installation (English)" },
+  { key: "street", label: "Street, number" },
+  { key: "postcode", label: "Post code" },
+  { key: "poBox", label: "P.O. Box" },
+  { key: "city", label: "City" },
+  { key: "country", label: "Country" },
+  { key: "unlocode", label: "UNLOCODE" },
+  { key: "lat", label: "Latitude — main emission source" },
+  { key: "lng", label: "Longitude — main emission source" },
+];
+
+/** The fields the workbook's Installation tab shows, in form order. `required`
+    comes from REQUIRED_INSTALLATION_KEYS, never from a second list. */
+export const INSTALLATION_SHEET_FIELDS: {
+  key: keyof Installation;
+  label: string;
+  required: boolean;
+}[] = SHEET_FIELD_SPECS.map((f) => ({
+  ...f,
+  required: REQUIRED_INSTALLATION_KEYS.includes(f.key),
+}));
 
 /** Records written before a field existed load as `undefined` and would render
     an uncontrolled input. Everything that reads a stored installation goes
@@ -579,8 +728,10 @@ export function missingFields(i: Installation | null): string[] {
   if (referenceError(i.id, i.country, i.id))
     gaps.push("Installation reference");
   if (!i.street.trim()) gaps.push("Street, number");
+  if (!i.postcode.trim()) gaps.push("Post code");
   if (!i.city.trim()) gaps.push("City");
   if (!i.country.trim()) gaps.push("Country");
+  if (!i.unlocode.trim()) gaps.push("UNLOCODE");
   // The template asks for both coordinates of the main emission source, and a
   // site a verifier cannot place is a site they will ask about.
   if (!i.lat.trim() || !i.lng.trim())

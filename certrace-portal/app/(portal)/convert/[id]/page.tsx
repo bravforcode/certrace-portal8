@@ -6,21 +6,19 @@
    Logo, name and description on top, with the one primary action: convert
    the workspace data into the standard's report. Under it, the reporting
    year (only the current one is open; later years are locked), then each
-   requirement with its readiness and two ways to work on it — send a Smart
-   Link or fill it in — which stay available even once it is complete, so
-   a figure can still be corrected. Last, the reports already generated for
-   that year. Mock data (lib/convert-mock.ts).
+   requirement with its readiness and the one way to work on it — fill it in,
+   or request it through a Smart Link, depending on whose data it is. The
+   report stays locked until every requirement is complete (D21). Last, the
+   reports already generated for that year. Readiness is live
+   (lib/convert/requirements.ts).
    ════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   ChevronDown,
-  Download,
-  FileArchive,
-  FileSpreadsheet,
   Link2,
   PencilLine,
   Search,
@@ -39,14 +37,29 @@ import { toast } from "@/components/toast";
 import { YearBar } from "@/components/year-bar";
 import { currentYear } from "@/lib/year-range";
 import { StandardLogo } from "@/components/convert/standard-logo";
+import { DeclarationRows } from "@/components/convert/declaration-rows";
+import { ScopedInstallationSwitcher } from "@/components/scoped-installation-switcher";
+import { useDeclarations } from "@/lib/declarations-query";
+import { useT } from "@/lib/i18n";
+import { getStandard, type RequirementState } from "@/lib/convert-standards";
 import {
-  REPORTS,
-  getStandard,
+  liveRequirements,
   readiness,
-  type ConvertedReport,
-  type Requirement,
-  type RequirementState,
-} from "@/lib/convert-mock";
+  type LiveRequirement,
+} from "@/lib/convert/requirements";
+import { useConvertContext } from "@/lib/convert/use-convert-context";
+import { installationRole } from "@/lib/installations";
+import { declarationYear } from "@/lib/convert/declaration-year";
+import { useWorkbook } from "@/lib/workbook/use-workbook";
+import { withInstallationDefaults } from "@/lib/cbam/installation-defaults";
+import { listWorkspaces } from "@/lib/workspace";
+import { listSuppliers } from "@/lib/precursor-suppliers";
+import { listEvidence } from "@/lib/workspace-evidence";
+import { getCarbonPrice } from "@/lib/carbon-price";
+import { buildVerificationExport } from "@/lib/export/verification-export";
+import { buildXlsx } from "@/lib/xlsx-write";
+import { createItemLink } from "@/lib/api/item-links";
+import { PreverifyPanel } from "@/components/convert/preverify-panel";
 
 const STATE: Record<
   RequirementState,
@@ -57,25 +70,38 @@ const STATE: Record<
   missing: { label: "Missing", tone: "err" },
 };
 
+const ROLE_LABEL = {
+  own: "Own plant",
+  oem: "OEM plant",
+  supplier: "Supplier plant",
+} as const;
+
 export default function ConvertStandardPage() {
+  return (
+    <React.Suspense fallback={null}>
+      <ConvertStandardInner />
+    </React.Suspense>
+  );
+}
+
+function ConvertStandardInner() {
   const { id } = useParams<{ id: string }>();
   const s = getStandard(id);
+  const t = useT();
+  const { installation } = useConvertContext();
+  const { data: declarations = [] } = useDeclarations();
   const [more, setMore] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const [open, setOpen] = React.useState<string | null>(null);
   const thisYear = currentYear();
   const [year, setYear] = React.useState(thisYear);
-  // Set when Convert is pressed too early: the unfinished requirements light up.
-  const [flagged, setFlagged] = React.useState(false);
-  const listRef = React.useRef<HTMLDivElement>(null);
-  // The highlight is a pointer, not a state: it fades out on its own.
-  React.useEffect(() => {
-    if (!flagged) return;
-    const id = window.setTimeout(() => setFlagged(false), 2600);
-    return () => window.clearTimeout(id);
-  }, [flagged]);
-  const [history, setHistory] = React.useState<ConvertedReport[]>(() =>
-    REPORTS.filter((r) => r.standardId === id),
+  const { sheets: yearSheets, cells: yearCells } = useWorkbook(
+    installation?.id ?? null,
+    year,
+  );
+  const cells = React.useMemo(
+    () => withInstallationDefaults(yearCells ?? {}, installation, year),
+    [yearCells, installation, year],
   );
 
   if (!s || s.status === "soon")
@@ -90,45 +116,71 @@ export default function ConvertStandardPage() {
 
   // Only the current year has data so far: any other year shows every requirement missing.
   const locked = year !== thisYear;
-  const requirements: Requirement[] = locked
-    ? s.requirements.map((r) => ({ ...r, state: "missing", progress: undefined }))
-    : s.requirements;
-  const pct = readiness({ ...s, requirements });
-  const open_ = requirements.filter((r) => r.state !== "complete").length;
-  // Converting needs every requirement complete.
-  const canConvert = open_ === 0;
+  // Readiness and the export read the same year, so the gate cannot pass on one year and export another.
+  const live = liveRequirements(s, { installation, sheets: yearSheets, cells });
+  const requirements: LiveRequirement[] = locked
+    ? live.map((r) => ({ ...r, state: "missing", progress: 0 }))
+    : live;
+  const pct = readiness(requirements);
+  const incomplete = requirements.filter((r) => r.state !== "complete");
+  // Export stays locked until every requirement is complete, but Convert itself stays open to browse (D21).
+  const canConvert = incomplete.length === 0;
+  const role = installation ? installationRole(installation) : null;
   const q = query.trim().toLowerCase();
   const rows = requirements.filter(
     (r) => !q || r.title.toLowerCase().includes(q),
   );
-  const yearHistory = history.filter((r) => r.year === year);
+  // A declaration names its period; without one, the year it was created (or last changed) stands in.
+  const yearHistory = declarations.filter((d) => declarationYear(d) === year);
 
-  const convert = () => {
-    if (!canConvert) {
-      setQuery("");
-      setFlagged(true);
-      listRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      return;
-    }
-    const today = new Date().toISOString().slice(0, 10);
-    setHistory((h) => [
-      {
-        id: `r-${Date.now()}`,
-        standardId: s.id,
-        title: `${s.name} report package — ${year}`,
+  /* The verification file: only the allowlisted scope, built from the year's workbook and the
+     installation's verification workspaces (lib/export/verifier-scope.ts). */
+  const exportVerification = () => {
+    if (!canConvert || !installation) return;
+    try {
+      const wss = listWorkspaces().filter(
+        (w) => w.installationId === installation.id && w.year === year,
+      );
+      const out = buildVerificationExport({
+        installation,
         year,
-        period: `${year} to date`,
-        createdAt: today,
-        format: "ZIP",
-      },
-      ...h,
-    ]);
-    toast(`${s.name} report for ${year} is ready. (Mock)`);
+        sheets: yearSheets,
+        suppliers: wss.flatMap((w) => listSuppliers(w.id)),
+        evidence: wss.flatMap((w) => listEvidence(w.id)),
+        carbonPrices: wss
+          .map((w) => ({ label: w.productName, record: getCarbonPrice(w.id) }))
+          .filter((c) => c.record.recorded),
+        generatedAt: new Date(),
+        t: (en) => t(en),
+      });
+      const blob = new Blob([buildXlsx(out.sheets) as BlobPart], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = out.fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({
+        message: t("Verification file downloaded"),
+        detail: out.fileName,
+      });
+    } catch (err) {
+      toast({
+        message: t("Could not build the verification file"),
+        tone: "err",
+        detail: err instanceof Error ? err.message : undefined,
+      });
+    }
   };
 
   return (
     <div className="mx-auto max-w-4xl space-y-10">
-      <BackLink />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <BackLink />
+        <ScopedInstallationSwitcher />
+      </div>
 
       <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
         <div className="flex min-w-0 gap-4">
@@ -137,6 +189,11 @@ export default function ConvertStandardPage() {
             <h1 className="font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111]">
               {s.name}
             </h1>
+            {role && (
+              <div className="mt-2">
+                <Chip tone="muted">{t(ROLE_LABEL[role])}</Chip>
+              </div>
+            )}
             <p
               className={cn(
                 "mt-2 max-w-xl text-[14px] leading-relaxed text-black/55",
@@ -155,29 +212,60 @@ export default function ConvertStandardPage() {
           </div>
         </div>
 
-        {/* Looks inactive until every requirement is complete, but still answers a
-            click: it points at what is left instead of doing nothing. */}
-        <Button
-          onClick={convert}
-          aria-disabled={!canConvert}
-          className={cn(
-            "flex-none self-start",
-            !canConvert && "bg-black/[0.08] text-black/35 hover:bg-black/[0.08]",
+        <div className="flex flex-none flex-col items-start gap-2 md:items-end">
+          <Button
+            onClick={exportVerification}
+            disabled={!canConvert || !installation}
+            title={
+              canConvert
+                ? undefined
+                : `${t("Complete first")}: ${incomplete.map((r) => r.title).join(", ")}`
+            }
+            aria-describedby={canConvert ? undefined : "convert-incomplete"}
+            className="self-start"
+          >
+            {t("Export for verification")}
+          </Button>
+          {!canConvert && (
+            <p
+              id="convert-incomplete"
+              className="max-w-xs text-[12px] leading-relaxed text-black/50 md:text-right"
+            >
+              {t("Complete first")}:{" "}
+              {incomplete.map((r, i) => (
+                <React.Fragment key={r.id}>
+                  {i > 0 && ", "}
+                  {r.href ? (
+                    <Link
+                      href={r.href}
+                      className="underline underline-offset-2 hover:text-black"
+                    >
+                      {r.title}
+                    </Link>
+                  ) : (
+                    r.title
+                  )}
+                </React.Fragment>
+              ))}
+            </p>
           )}
-        >
-          Convert to report
-        </Button>
+        </div>
       </div>
+
+      {s.id === "eu-cbam" && installation && (
+        <PreverifyPanel
+          installationId={installation.id}
+          year={year}
+          canConvert={canConvert}
+        />
+      )}
 
       {/* Reporting year: the shared bar (2020 → five years ahead, opening on
           the current year). Years ahead carry a lock but still open: they
           show every requirement as missing, as does any earlier year. */}
       <YearBar
         value={year}
-        onChange={(y) => {
-          setYear(y);
-          setFlagged(false);
-        }}
+        onChange={(y) => setYear(y)}
         mark={(y) => (y > thisYear ? "locked" : undefined)}
       />
 
@@ -196,8 +284,10 @@ export default function ConvertStandardPage() {
               </span>
             </div>
             <p className="mt-1.5 text-[12px] text-black/40">
-              {s.requirements.length - open_} of {s.requirements.length}{" "}
-              requirements complete
+              {t("{done} of {total} requirements complete", {
+                done: requirements.length - incomplete.length,
+                total: requirements.length,
+              })}
             </p>
           </div>
           <div className="relative w-full sm:w-72">
@@ -217,7 +307,6 @@ export default function ConvertStandardPage() {
           </div>
         </div>
 
-        <div ref={listRef} className="scroll-mt-24" />
         <Card className="overflow-hidden p-0">
           {rows.length === 0 ? (
             <p className="px-5 py-6 text-[13px] text-black/40">
@@ -228,8 +317,9 @@ export default function ConvertStandardPage() {
               <RequirementRow
                 key={r.id}
                 r={r}
+                installationId={installation?.id ?? null}
+                year={year}
                 first={i === 0}
-                flagged={flagged && r.state !== "complete"}
                 open={open === r.id}
                 onToggle={() => setOpen((v) => (v === r.id ? null : r.id))}
               />
@@ -239,58 +329,44 @@ export default function ConvertStandardPage() {
       </section>
 
       <section className="space-y-4">
-        <h2 className="font-[family-name:var(--font-plex)] text-xl font-light tracking-tight text-[#111]">
-          Report history
-        </h2>
+        <div>
+          <h2 className="font-[family-name:var(--font-plex)] text-xl font-light tracking-tight text-[#111]">
+            Report history
+          </h2>
+          <p className="mt-1 text-[12px] text-black/40">
+            {t("History covers all installations.")}
+          </p>
+        </div>
         {yearHistory.length === 0 ? (
-          <EmptyState title={`No reports generated for ${year} yet.`} />
+          <EmptyState
+            title={t("No reports generated for {year} yet.", { year })}
+          />
         ) : (
-          <div className="overflow-hidden rounded-xl border border-black/[0.08] bg-white">
-            {yearHistory.map((r, i) => (
-              <div
-                key={r.id}
-                className={cn(
-                  "flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center",
-                  i > 0 && "border-t border-black/[0.06]",
-                )}
-              >
-                {r.format === "ZIP" ? (
-                  <FileArchive size={18} strokeWidth={1.5} className="hidden flex-none text-black/35 sm:block" />
-                ) : (
-                  <FileSpreadsheet size={18} strokeWidth={1.5} className="hidden flex-none text-black/35 sm:block" />
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[14px] text-black/85">
-                    {r.title}
-                  </div>
-                  <div className="mt-0.5 text-[12px] text-black/40">
-                    {r.period} · Generated {r.createdAt}
-                  </div>
-                </div>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  aria-label={`Download ${r.title} (${r.format})`}
-                  onClick={() =>
-                    toast(`${r.title} (${r.format}) — download is a mock for now.`)
-                  }
-                  className="flex-none self-start sm:self-auto"
-                >
-                  <Download size={13} strokeWidth={1.5} /> Download
-                </Button>
-              </div>
-            ))}
-          </div>
+          <DeclarationRows items={yearHistory} />
         )}
       </section>
     </div>
   );
 }
 
+/* Keeps the installation picked on Convert (`?installation=`) when going back. */
 function BackLink() {
   return (
+    <React.Suspense fallback={null}>
+      <BackLinkInner />
+    </React.Suspense>
+  );
+}
+
+function BackLinkInner() {
+  const installation = useSearchParams().get("installation");
+  return (
     <Link
-      href="/convert"
+      href={
+        installation
+          ? `/convert?installation=${encodeURIComponent(installation)}`
+          : "/convert"
+      }
       className="inline-flex items-center gap-1.5 text-[12px] uppercase tracking-[0.08em] text-black/40 hover:text-black"
     >
       <ArrowLeft size={14} strokeWidth={1.5} /> Convert
@@ -300,33 +376,61 @@ function BackLink() {
 
 function RequirementRow({
   r,
+  installationId,
+  year,
   first,
-  flagged,
   open,
   onToggle,
 }: {
-  r: Requirement;
+  r: LiveRequirement;
+  installationId: string | null;
+  year: number;
   first: boolean;
-  /** Still to do, and Convert was pressed: tinted so it stands out. */
-  flagged: boolean;
   open: boolean;
   onToggle: () => void;
 }) {
+  const t = useT();
   const st = STATE[r.state];
+  const [linking, setLinking] = React.useState(false);
+  // Both open the same form: Fill in here, or a Smart Link copied for someone outside to fill.
+  const fillIn = (
+    <>
+      <PencilLine size={13} strokeWidth={1.5} /> {t("Fill in")}
+    </>
+  );
+  const smartLink = (
+    <>
+      <Link2 size={13} strokeWidth={1.5} />{" "}
+      {linking ? t("Creating…") : t("Smart Link")}
+    </>
+  );
+  const copySmartLink = async () => {
+    if (!installationId) return;
+    setLinking(true);
+    try {
+      const { path } = await createItemLink({
+        installationId,
+        year,
+        itemKey: r.id,
+      });
+      const url = `${window.location.origin}${path}`;
+      await navigator.clipboard.writeText(url).catch(() => undefined);
+      toast(t("Smart Link copied. Send it to whoever fills this in."));
+    } catch {
+      toast(t("Could not create the Smart Link. Try again."));
+    } finally {
+      setLinking(false);
+    }
+  };
+  const primary = r.fix === "fill-in" ? "fill" : "link";
   return (
     <div
       className={cn(
-        "border-l-2 transition-colors duration-700 ease-out",
+        "border-l-2 border-l-transparent transition-colors duration-700 ease-out",
         !first && "border-t border-t-black/[0.06]",
-        flagged ? "border-l-[#dc2626] bg-[#fef2f2]" : "border-l-transparent",
       )}
     >
-      <div
-        className={cn(
-          "px-5 py-3 transition-colors",
-          flagged ? "hover:bg-[#fde8e8]" : "hover:bg-[#fafaf8]",
-        )}
-      >
+      <div className="px-5 py-3 transition-colors hover:bg-[#fafaf8]">
         <button
           type="button"
           aria-expanded={open}
@@ -344,11 +448,9 @@ function RequirementRow({
           <span className="min-w-0 flex-1 text-[14px] text-black/80">
             {r.title}
           </span>
-          {r.progress && (
-            <span className="hidden text-[12px] text-black/40 md:inline">
-              {r.progress}
-            </span>
-          )}
+          <span className="hidden text-[12px] tabular-nums text-black/40 md:inline">
+            {r.progress}%
+          </span>
           <Chip tone={st.tone} filled>
             {st.label}
           </Chip>
@@ -359,19 +461,38 @@ function RequirementRow({
           <p className="max-w-2xl text-[13px] leading-relaxed text-black/55">
             {r.detail}
           </p>
-          {r.progress && (
-            <p className="mt-1 text-[12px] text-black/40 md:hidden">
-              {r.progress}
-            </p>
-          )}
-          {/* Both stay available whatever the state — a complete figure can still be corrected. */}
-          <div className="mt-3 flex flex-wrap gap-2">
-            <ButtonLink href="/smart-links" variant="secondary" size="sm">
-              <Link2 size={13} strokeWidth={1.5} /> Smart Link
-            </ButtonLink>
-            <ButtonLink href="/workspaces" variant="secondary" size="sm">
-              <PencilLine size={13} strokeWidth={1.5} /> Fill in
-            </ButtonLink>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {r.href && installationId ? (
+              <>
+                <ButtonLink
+                  href={r.href}
+                  variant={primary === "fill" ? "primary" : "secondary"}
+                  size="sm"
+                >
+                  {fillIn}
+                </ButtonLink>
+                <Button
+                  variant={primary === "link" ? "primary" : "secondary"}
+                  size="sm"
+                  disabled={linking}
+                  onClick={copySmartLink}
+                >
+                  {smartLink}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="secondary" size="sm" disabled>
+                  {fillIn}
+                </Button>
+                <Button variant="secondary" size="sm" disabled>
+                  {smartLink}
+                </Button>
+                <span className="text-[12px] text-black/40">
+                  {t("Choose an installation")}
+                </span>
+              </>
+            )}
           </div>
         </div>
       )}

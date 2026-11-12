@@ -1,6 +1,7 @@
 import { db } from "../../lib/db";
 import { ApiError, fail } from "../../lib/errors";
 import { hash, rateLimit } from "../../lib/security";
+import { trialEnded } from "../auth/trial";
 import { canonical, object, string, type Json } from "../../lib/json";
 import {
   listReports,
@@ -108,11 +109,7 @@ export function requireAutofillPlan(account: {
   trial_started_at: Date;
 }) {
   if (["standard", "enterprise"].includes(account.plan_id)) return;
-  if (
-    account.plan_id === "trial" &&
-    Date.now() - account.trial_started_at.getTime() < 30 * 86400_000
-  )
-    return;
+  if (account.plan_id === "trial" && !trialEnded(account)) return;
   fail(
     403,
     "AUTOFILL_PLAN_REQUIRED",

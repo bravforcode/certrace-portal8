@@ -10,7 +10,8 @@
    Critical findings BLOCK submission; warnings PASS THROUGH with a flag the
    supplier acknowledges. A data-quality score summarises the result.
 
-   Deterministic mock engine — this is the seam where a real model call slots in.
+   Deterministic rules over the submitted data, no model call and no canned
+   results: every finding comes from the values and documents in the request.
    ════════════════════════════════════════════════════════════ */
 
 import type { SupplierRequest, SectionKey } from "./supplier";

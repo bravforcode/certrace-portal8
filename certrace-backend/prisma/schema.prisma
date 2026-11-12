@@ -264,6 +264,7 @@ model uploaded_files {
 
 model users {
   profile_sources      profile_sources[]
+  item_links           item_links[]
   id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email                String
   password_hash        String
@@ -282,6 +283,9 @@ model users {
   anonymised_at        DateTime?              @db.Timestamptz(6)
   plan_id              String                 @default("trial")
   trial_started_at     DateTime               @default(now()) @db.Timestamptz(6)
+  approved_at          DateTime?              @db.Timestamptz(6)
+  locale               String                 @default("en")
+  email_deliveries     email_deliveries[]
   account_members      account_members[]
   accounts             accounts?
   legal_acceptances    legal_acceptances[]
@@ -295,7 +299,103 @@ model users {
   migration_receipts   migration_receipts[]
   record_heads         record_heads[]
   records              records[]
+  workbooks            workbooks[]     @relation("workbook_company")
+  workbooks_edited     workbooks[]     @relation("workbook_editor")
+  cookie_consents      cookie_consents[]
+  preverify_company    preverifications[] @relation("preverify_company")
+  preverify_submitted  preverifications[] @relation("preverify_submitter")
+  preverify_reviewed   preverifications[] @relation("preverify_reviewer")
 
+  @@schema("public")
+}
+
+model cookie_consents {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  visitor_id     String   @db.Uuid
+  user_id        String?  @db.Uuid
+  necessary      Boolean  @default(true)
+  analytics      Boolean
+  marketing      Boolean
+  policy_version String
+  user_agent     String?
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+  users          users?   @relation(fields: [user_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([visitor_id, created_at(sort: Desc)], map: "cookie_consents_visitor")
+  @@schema("public")
+}
+
+model email_deliveries {
+  id      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id String   @db.Uuid
+  kind    String
+  sent_at DateTime @default(now()) @db.Timestamptz(6)
+  users   users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([user_id, kind])
+  @@schema("public")
+}
+
+model workbooks {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  company_id      String   @db.Uuid
+  installation_id String
+  year            Int
+  meta            Json     @default("{}")
+  cells           Json     @default("{}")
+  editors         Json     @default("{}")
+  revision        Int      @default(0)
+  updated_by      String?  @db.Uuid
+  updated_at      DateTime @default(now()) @db.Timestamptz(6)
+  company         users    @relation("workbook_company", fields: [company_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  editor          users?   @relation("workbook_editor", fields: [updated_by], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@unique([company_id, installation_id, year])
+  @@schema("public")
+}
+
+// One Smart Link per checklist item. Scoped to a workbook row (company, installation, year)
+// rather than a declaration, so it cannot reuse smart_links.
+model item_links {
+  token           String   @id
+  user_id         String   @db.Uuid
+  installation_id String
+  year            Int
+  item_key        String
+  created_by      String   @db.Uuid
+  expires_at      DateTime @db.Timestamptz(6)
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  users           users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id, installation_id, year], map: "item_links_workbook_idx")
+  @@schema("public")
+}
+
+// AI check plus Certrace team review of a CBAM workbook before it is treated as pre-verified.
+model preverifications {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  company_id        String    @db.Uuid
+  installation_id   String
+  year              Int
+  standard_id       String
+  status            String
+  workbook_revision Int
+  ai_findings       Json      @default("[]")
+  ai_summary        String    @default("")
+  ai_model          String?
+  team_note         String    @default("")
+  submitted_by      String    @db.Uuid
+  reviewed_by       String?   @db.Uuid
+  submitted_at      DateTime  @default(now()) @db.Timestamptz(6)
+  reviewed_at       DateTime? @db.Timestamptz(6)
+  company           users     @relation("preverify_company", fields: [company_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  submitter         users     @relation("preverify_submitter", fields: [submitted_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reviewer          users?    @relation("preverify_reviewer", fields: [reviewed_by], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([company_id, installation_id, year, standard_id, submitted_at(sort: Desc)], map: "preverifications_lookup_idx")
+  @@index([status, submitted_at(sort: Desc)], map: "preverifications_status_submitted_idx")
+  // At most one open review per workbook revision.
+  @@unique([company_id, installation_id, year, standard_id, workbook_revision], map: "preverifications_one_review_idx", where: raw("(status = 'team_review'::text)"))
   @@schema("public")
 }
 

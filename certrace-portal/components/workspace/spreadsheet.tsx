@@ -18,13 +18,36 @@
    ════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Check, CircleMinus, Eye, FileText, Search, X } from "lucide-react";
-import { cn } from "@/components/ui";
+import { Button, cn } from "@/components/ui";
 import { useLanguage, type TFunction } from "@/lib/i18n";
 import { TH_WORKSPACE } from "@/lib/i18n-th-workspace";
+import { InstallationSheet } from "@/components/workspace/installation-sheet";
+import { FlowDiagram } from "@/components/workspace/flow-diagram";
+import { ImportWizard } from "@/components/workspace/import-wizard";
+import { FactoryProfileView } from "@/components/factory/factory-profile";
+import { stepNames } from "@/lib/workbook/flow-edit";
+import { parseSheetParam } from "@/lib/workbook/url-state";
+import type { SyncResult } from "@/lib/workbook/sync-queue";
+import { LivePanel } from "@/components/workspace/live-panel";
+import type { Installation } from "@/lib/installations";
+import { currentYear } from "@/lib/year-range";
 import {
+  SHEET_ORDER,
+  STATUS_LABEL,
+  STATUS_TONE,
+  installationGaps,
+  installationSheetStatus,
+  installationTabTone,
+  sheetStatus,
+  statusTooltip,
+} from "@/lib/workbook/status";
+import { useTeam } from "@/lib/team-query";
+import { CELL_MAX } from "@/lib/workbook/save-queue";
+import {
+  INSTALLATION_SHEET_ID,
   NO_FILE,
-  PRODUCTION_DIAGRAM_ID,
   issuesOf,
   letter,
   type Sheet,
@@ -33,97 +56,190 @@ import {
 } from "@/lib/workspace-sheets";
 
 const MIN_ROWS = 20;
+const DEFAULT_SHEET = "materials";
+
+/* "3 min ago" style, for the editor note on a cell. */
+function timeAgo(at: string, t: TFunction) {
+  const s = Math.max(0, (Date.now() - Date.parse(at)) / 1000);
+  if (s < 60) return t("just now");
+  if (s < 3600) return t("{n} min ago", { n: Math.floor(s / 60) });
+  if (s < 86400) return t("{n} h ago", { n: Math.floor(s / 3600) });
+  return t("{n} days ago", { n: Math.floor(s / 86400) });
+}
 
 /* Inside the sheet the workspace's own Thai wins (แหล่งที่มา, วิธีได้ค่า, ผลิตภัณฑ์) over the
    portal-wide words for the same English (แหล่ง, วิธีการ, สินค้า), without changing them elsewhere. */
 function useSheetT(): TFunction {
   const { lang, t } = useLanguage();
-  return (en, vars) => (lang === "th" && !vars && TH_WORKSPACE[en] ? TH_WORKSPACE[en]! : t(en, vars));
+  return (en, vars) =>
+    lang === "th" && !vars && TH_WORKSPACE[en]
+      ? TH_WORKSPACE[en]!
+      : t(en, vars);
 }
 const ROW_NO = "44px";
 
-type SaveState = "saved" | "saving";
-
 const RAW_KEYS = new Set(["description", "cn", "size", "type", "valid"]);
-const isRaw = (c: SheetCol) => c.kind === "number" || c.kind === "file" || RAW_KEYS.has(c.key);
+const isRaw = (c: SheetCol) =>
+  c.kind === "number" || c.kind === "file" || RAW_KEYS.has(c.key);
 
 export function Spreadsheet({
   sheets,
-  edits: saved = {},
   onEdit,
+  saving = false,
+  editors = {},
   empty = false,
+  installation = null,
+  onInstallationSave,
+  year = currentYear(),
+  cells,
+  savePatch,
+  extraTabs = [],
 }: {
+  /** The year's cells with unsaved edits on top (the Flow view is drawn from them). */
+  cells?: Record<string, string>;
+  /** Sends a diagram patch through the save runner; resolves how it went. */
+  savePatch?: (patch: Record<string, string | null>) => Promise<SyncResult>;
+  /** Rows come from the server workbook (useWorkbook), already with unsaved edits on top. */
   sheets: Sheet[];
-  edits?: Record<string, string>;
   onEdit?: (cell: string, value: string) => void;
+  /** Typed edits not yet confirmed by the server. */
+  saving?: boolean;
+  /** Who last changed each cell ("sheet:row:col" → account id and time). */
+  editors?: Record<string, { by: string; at: string }>;
   empty?: boolean;
+  /** The site the Installation tab edits — the scoped installation's full record. */
+  installation?: Installation | null;
+  onInstallationSave?: (inst: Installation) => void;
+  /** The reporting year the workbook is open on; the live check's estimate uses its factor year. */
+  year?: number;
+  /** Tabs that are not row sheets (e.g. CBAM): a tab after the sheets, showing its own content in the grid's place. */
+  extraTabs?: { id: string; label: string; content: React.ReactNode }[];
 }) {
   const t = useSheetT();
-  const [tab, setTab] = React.useState<string>("materials");
-  const [sel, setSel] = React.useState<{ r: number; c: number }>({ r: 0, c: 2 });
+  const team = useTeam().data;
+  // The view and the open sheet live in the URL (?view=, ?sheet=), so a reload or a shared link opens the same place.
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
+  const tab = parseSheetParam(
+    params.get("sheet"),
+    [...sheets.map((s) => s.id), ...extraTabs.map((x) => x.id)],
+    DEFAULT_SHEET,
+  );
+  // "Table", "Flow" or "Factory". Factory needs an installation; without one the link falls back to the table.
+  const requested = params.get("view");
+  const view: "table" | "flow" | "factory" =
+    requested === "flow"
+      ? "flow"
+      : requested === "factory" && installation
+        ? "factory"
+        : "table";
+  const updateParams = (changes: Record<string, string | null>) => {
+    const next = new URLSearchParams(params.toString());
+    for (const [key, value] of Object.entries(changes)) {
+      if (value === null) next.delete(key);
+      else next.set(key, value);
+    }
+    const qs = next.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  };
+  const setView = (v: "table" | "flow" | "factory") =>
+    updateParams({ view: v === "table" ? null : v });
+  const [sel, setSel] = React.useState<{ r: number; c: number }>({
+    r: 0,
+    c: 2,
+  });
   const [editing, setEditing] = React.useState<string | null>(null);
   const [query, setQuery] = React.useState("");
-  const [save, setSave] = React.useState<SaveState>("saved");
+  // Opening a sheet always leaves the Flow and Factory views, as the sheet tabs did before.
+  const openTab = (id: string) => {
+    setSel({ r: 0, c: 0 });
+    setEditing(null);
+    updateParams({ sheet: id === DEFAULT_SHEET ? null : id, view: null });
+  };
   const gridRef = React.useRef<HTMLDivElement>(null);
 
-  /* Kept edits show at once, before they are written: `pending` sits over the
-     saved edits, and one timer writes everything pending together — so two
-     quick edits cannot have the first one's timer report "saved" while the
-     second is still on its way. Anything still pending is written on unmount. */
-  const [pending, setPending] = React.useState<Record<string, string>>({});
-  const pendingRef = React.useRef<Record<string, string>>({});
-  const timer = React.useRef<number | undefined>(undefined);
-  const onEditRef = React.useRef(onEdit);
-  onEditRef.current = onEdit;
-  const flush = React.useCallback(() => {
-    window.clearTimeout(timer.current);
-    const out = pendingRef.current;
-    pendingRef.current = {};
-    for (const [k, v] of Object.entries(out)) onEditRef.current?.(k, v);
-    setPending({});
-    setSave("saved");
-  }, []);
-  React.useEffect(() => () => {
-    if (Object.keys(pendingRef.current).length) flush();
-  }, [flush]);
-  const edits = React.useMemo(() => ({ ...saved, ...pending }), [saved, pending]);
-
+  const editorName = (by: string) =>
+    team?.find((m) => m.id === by)?.name ?? t("a teammate");
+  // Tabs follow the material flow; a sheet not in SHEET_ORDER goes after the ones that are.
+  const orderOf = (id: string) => {
+    const i = SHEET_ORDER.indexOf(id);
+    return i < 0 ? SHEET_ORDER.length : i;
+  };
+  // Installation first, then the sheets in material-flow order.
+  const tabOrder = (list: Sheet[]): Sheet[] => {
+    const sorted = [...list].sort((a, b) => orderOf(a.id) - orderOf(b.id));
+    return [
+      ...sorted.filter((s) => s.id === INSTALLATION_SHEET_ID),
+      ...sorted.filter((s) => s.id !== INSTALLATION_SHEET_ID),
+    ];
+  };
   const sheet = sheets.find((s) => s.id === tab);
-  const isDiagram = tab === PRODUCTION_DIAGRAM_ID;
+  const isFlow = view === "flow" && !empty;
+  const isFactory = view === "factory" && !empty && !!installation;
+  const extra = extraTabs.find((x) => x.id === tab);
+  const showExtra = !!extra && !isFlow && !isFactory;
+  const [importing, setImporting] = React.useState(false);
+  const importOpener = React.useRef<HTMLElement | null>(null); // the "Import from file" button, focused again on close
+  // Import writes rows into a sheet of cells; the Installation and Documents tabs are not row sheets.
+  const canImport =
+    !!sheet &&
+    !!onEdit &&
+    !!savePatch &&
+    tab !== INSTALLATION_SHEET_ID &&
+    tab !== "documents";
+  const installStatus = installationSheetStatus(installation);
+  const installIssues =
+    installation && installStatus === "missing"
+      ? installationGaps(installation)
+      : 0;
   const cols = sheet?.cols ?? [];
   const colCount = empty || !sheet ? 7 : cols.length;
 
   const keyOf = (r: number, c: number) => `${tab}:${r}:${cols[c]?.key}`;
-  const valueOf = (row: SheetRow, r: number, c: number) => {
-    const k = keyOf(r, c);
-    return k in edits ? edits[k]! : (row.cells[cols[c]!.key] ?? "");
-  };
+  const valueOf = (row: SheetRow, _r: number, c: number) =>
+    row.cells[cols[c]!.key] ?? "";
   const shown = (col: SheetCol, v: string) => (v && !isRaw(col) ? t(v) : v);
 
   // Search: rows of this sheet with a cell that matches; counts per sheet for the tabs.
   const q = query.trim().toLowerCase();
-  const rowMatches = (s: Sheet, row: SheetRow, r: number) =>
+  const rowMatches = (s: Sheet, row: SheetRow) =>
     !q ||
     s.cols.some((c) => {
       if (c.kind === "status") return false;
-      const k = `${s.id}:${r}:${c.key}`;
-      const v = k in edits ? edits[k]! : (row.cells[c.key] ?? "");
-      return v.toLowerCase().includes(q) || shown(c, v).toLowerCase().includes(q);
+      const v = row.cells[c.key] ?? "";
+      return (
+        v.toLowerCase().includes(q) || shown(c, v).toLowerCase().includes(q)
+      );
     });
-  const visible = sheet && !empty ? sheet.rows.map((row, r) => ({ row, r })).filter(({ row, r }) => rowMatches(sheet, row, r)) : [];
-  const matchCount = (s: Sheet) => s.rows.filter((row, r) => rowMatches(s, row, r)).length;
+  const visible =
+    sheet && !empty
+      ? sheet.rows
+          .map((row, r) => ({ row, r }))
+          .filter(({ row }) => rowMatches(sheet, row))
+      : [];
+  const matchCount = (s: Sheet) =>
+    s.rows.filter((row) => rowMatches(s, row)).length;
   const firstVisible = visible[0]?.r;
   const selHidden = !!q && !visible.some((v) => v.r === sel.r);
   React.useEffect(() => {
-    if (selHidden && firstVisible !== undefined) setSel((s) => ({ ...s, r: firstVisible }));
+    if (selHidden && firstVisible !== undefined)
+      setSel((s) => ({ ...s, r: firstVisible }));
   }, [selHidden, firstVisible]);
 
-  const template = [ROW_NO, ...(empty || !sheet ? Array(7).fill("minmax(96px,1fr)") : cols.map((c) => c.width))].join(" ");
+  const template = [
+    ROW_NO,
+    ...(empty || !sheet
+      ? Array(7).fill("minmax(96px,1fr)")
+      : cols.map((c) => c.width)),
+  ].join(" ");
 
   const selRow = sheet?.rows[sel.r];
   const selCol = cols[sel.c];
   const selValue =
-    !empty && !selHidden && selRow && selCol && selCol.kind !== "status" ? shown(selCol, valueOf(selRow, sel.r, sel.c)) : "";
+    !empty && !selHidden && selRow && selCol && selCol.kind !== "status"
+      ? shown(selCol, valueOf(selRow, sel.r, sel.c))
+      : "";
   const ref = `${letter(sel.c)}${sel.r + 2}`;
 
   const commit = (r: number, c: number, value: string) => {
@@ -132,15 +248,11 @@ export function Spreadsheet({
     const row = sheet?.rows[r];
     if (!row || !onEdit) return;
     if (value === valueOf(row, r, c)) return;
-    const k = keyOf(r, c);
-    pendingRef.current = { ...pendingRef.current, [k]: value };
-    setPending(pendingRef.current);
-    setSave("saving");
-    window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(flush, 700);
+    onEdit(keyOf(r, c), value);
   };
 
-  const editable = (c: number) => !empty && !!onEdit && cols[c]?.kind !== "status";
+  const editable = (c: number) =>
+    !empty && !!onEdit && cols[c]?.kind !== "status";
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (editing || empty || !sheet) return;
@@ -148,7 +260,10 @@ export function Spreadsheet({
     const maxC = cols.length - 1;
     const move = (dr: number, dc: number) => {
       e.preventDefault();
-      setSel((s) => ({ r: Math.min(maxR, Math.max(0, s.r + dr)), c: Math.min(maxC, Math.max(0, s.c + dc)) }));
+      setSel((s) => ({
+        r: Math.min(maxR, Math.max(0, s.r + dr)),
+        c: Math.min(maxC, Math.max(0, s.c + dc)),
+      }));
     };
     if (e.key === "ArrowDown") move(1, 0);
     else if (e.key === "ArrowUp") move(-1, 0);
@@ -160,211 +275,386 @@ export function Spreadsheet({
     }
   };
 
-  return (
-    <div className="overflow-hidden rounded-2xl border border-black/[0.08] bg-white">
-      {/* ── Formula bar ─────────────────────────────── */}
-      <div className="flex min-h-[36px] flex-wrap items-stretch border-b border-black/[0.08]">
-        <div className="flex w-[76px] flex-none items-center justify-center border-r border-black/[0.08] font-mono text-[12px] text-black/75">
-          {empty || isDiagram ? "" : ref}
-        </div>
-        <div className="flex min-w-0 flex-1 items-center gap-2.5 px-3">
-          <span className="font-serif text-[12px] italic text-black/35">fx</span>
-          <span className="truncate text-[12.5px] text-black/80">{selValue}</span>
-        </div>
-        {!empty && !isDiagram && (
-          <div className="flex items-center gap-3 border-l border-black/[0.08] px-2.5 py-1">
-            <span
-              aria-live="polite"
-              className={cn(
-                "hidden items-center gap-1.5 whitespace-nowrap text-[11.5px] sm:inline-flex",
-                save === "saving" ? "text-black/45" : "text-black/40",
-              )}
-            >
-              {save === "saving" ? (
-                <>
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-500" />
-                  {t("Saving…")}
-                </>
-              ) : (
-                <>
-                  <Check size={12} strokeWidth={2} className="text-emerald-600" />
-                  {t("All changes saved")}
-                </>
-              )}
-            </span>
-            <label className="relative flex items-center">
-              <Search size={12} strokeWidth={1.5} className="pointer-events-none absolute left-2 text-black/30" />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={t("Search sheets…")}
-                aria-label={t("Search sheets")}
-                data-lock="allow"
-                className="no-focus-ring h-7 w-44 rounded-md border border-black/10 bg-white pl-7 pr-6 text-[12px] text-black/70 placeholder:text-black/30 focus:border-black/25 focus:outline-none"
-              />
-              {query && (
-                <button
-                  type="button"
-                  aria-label={t("Clear search")}
-                  onClick={() => setQuery("")}
-                  className="absolute right-1.5 grid h-5 w-5 place-items-center rounded text-black/35 hover:text-black"
-                >
-                  <X size={11} strokeWidth={2} />
-                </button>
-              )}
-            </label>
-          </div>
-        )}
-      </div>
+  const showLive = (id: string) => openTab(id);
 
-      {/* ── Grid ────────────────────────────────────── */}
-      {isDiagram ? (
-        <div className="grid min-h-[420px] place-items-center bg-[#fafaf8] px-6 text-center">
-          <div>
-            <p className="text-[14px] text-black/55">{t("Production diagram")}</p>
-            <p className="mt-1 text-[12.5px] text-black/35">{t("Coming soon.")}</p>
+  return (
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+      <div className="min-w-0 overflow-hidden rounded-2xl border border-black/[0.08] bg-white">
+        {/* ── Formula bar ─────────────────────────────── */}
+        <div className="flex min-h-[36px] flex-wrap items-stretch border-b border-black/[0.08]">
+          <div className="flex w-[76px] flex-none items-center justify-center border-r border-black/[0.08] font-mono text-[12px] text-black/75">
+            {empty || isFlow || showExtra ? "" : ref}
           </div>
-        </div>
-      ) : (
-        <div
-          ref={gridRef}
-          role="grid"
-          aria-label={sheet ? `${sheet.code} ${t(sheet.name)}` : t("Sheet")}
-          tabIndex={0}
-          onKeyDown={onKeyDown}
-          className="no-focus-ring overflow-x-auto focus:outline-none"
-        >
-          <div className="grid min-w-max text-[12.5px]" style={{ gridTemplateColumns: template }}>
-            {/* column letters */}
-            <div className="sticky left-0 z-10 h-6 border-b border-r border-black/[0.08] bg-[#f0efea]" />
-            {Array.from({ length: colCount }, (_, c) => (
-              <div
-                key={c}
+          <div className="flex min-w-0 flex-1 items-center gap-2.5 px-3">
+            <span className="font-serif text-[12px] italic text-black/35">
+              fx
+            </span>
+            <span className="truncate text-[12.5px] text-black/80">
+              {selValue}
+            </span>
+          </div>
+          {!empty && (
+            <div
+              role="group"
+              aria-label={t("View")}
+              className="my-1 ml-2 flex flex-none items-center self-center rounded-md bg-[#f0efea] p-0.5 text-[12px]"
+            >
+              {(installation
+                ? (["table", "flow", "factory"] as const)
+                : (["table", "flow"] as const)
+              ).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  aria-pressed={view === v}
+                  onClick={() => setView(v)}
+                  className={cn(
+                    "rounded px-2.5 py-1 transition-colors",
+                    view === v
+                      ? "bg-white font-medium text-[#111] shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
+                      : "text-black/55 hover:text-black",
+                  )}
+                >
+                  {v === "table"
+                    ? t("Table")
+                    : v === "flow"
+                      ? t("Flow")
+                      : t("Factory")}
+                </button>
+              ))}
+            </div>
+          )}
+          {!empty && !isFlow && !isFactory && !showExtra && (
+            <div className="flex items-center gap-3 border-l border-black/[0.08] px-2.5 py-1">
+              {canImport && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={(e) => {
+                    importOpener.current = e.currentTarget;
+                    setImporting(true);
+                  }}
+                >
+                  {t("Import from file")}
+                </Button>
+              )}
+              <span
+                aria-live="polite"
                 className={cn(
-                  "flex h-6 items-center justify-center border-b border-r border-black/[0.08] text-[11px] text-black/45",
-                  !empty && sel.c === c ? "bg-[#e3e2dc] font-medium text-black/70" : "bg-[#f0efea]",
+                  "hidden items-center gap-1.5 whitespace-nowrap text-[11.5px] sm:inline-flex",
+                  saving ? "text-black/45" : "text-black/40",
                 )}
               >
-                {letter(c)}
-              </div>
-            ))}
-
-            {/* header row */}
-            <RowNo n={1} />
-            {Array.from({ length: colCount }, (_, c) => (
-              <div key={c} className="flex h-8 items-center border-b border-r border-black/[0.08] bg-[#f7f6f2] px-2.5 font-semibold text-[#111]">
-                {!empty && cols[c] ? t(cols[c]!.label) : ""}
-              </div>
-            ))}
-
-            {/* data rows */}
-            {visible.map(({ row, r }) => (
-              <div key={r} role="row" className="contents">
-                <RowNo n={r + 2} on={sel.r === r} />
-                {cols.map((col, c) => {
-                  const k = keyOf(r, c);
-                  const v = valueOf(row, r, c);
-                  const flag = k in edits && v ? undefined : row.flags?.[col.key];
-                  const selected = sel.r === r && sel.c === c;
-                  return (
-                    <div
-                      key={col.key}
-                      role="gridcell"
-                      tabIndex={-1}
-                      aria-selected={selected}
-                      onClick={() => {
-                        setSel({ r, c });
-                        gridRef.current?.focus();
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && editable(c) && !editing) setEditing(k);
-                      }}
-                      onDoubleClick={() => editable(c) && setEditing(k)}
-                      className={cn(
-                        "relative flex h-8 min-w-0 items-center border-b border-r border-black/[0.08] px-2.5",
-                        col.kind === "number" && "justify-end",
-                        flag && "bg-[#fffbeb]",
-                        selected && "z-[1] outline outline-2 -outline-offset-1 outline-[#111]",
-                      )}
-                    >
-                      {editing === k ? (
-                        <CellEditor
-                          initial={v}
-                          align={col.kind === "number" ? "right" : "left"}
-                          onCommit={(val) => commit(r, c, val)}
-                          onCancel={() => {
-                            setEditing(null);
-                            gridRef.current?.focus();
-                          }}
-                        />
-                      ) : (
-                        <CellView col={col} value={v} flag={flag} status={row.status} selected={selected} query={q} text={shown(col, v)} />
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
-
-            {/* empty rows to the fold, like a fresh sheet */}
-            {Array.from({ length: Math.max(0, MIN_ROWS - 1 - visible.length) }, (_, i) => {
-              const n = (empty ? 2 : (sheet?.rows.length ?? 0) + 2) + i;
-              return (
-                <React.Fragment key={`e${i}`}>
-                  <RowNo n={empty ? 2 + i : n} />
-                  {Array.from({ length: colCount }, (_, c) => (
-                    <div key={c} className="h-8 border-b border-r border-black/[0.08]" />
-                  ))}
-                </React.Fragment>
-              );
-            })}
-          </div>
-          {q && visible.length === 0 && (
-            <p className="border-b border-black/[0.08] px-3 py-2 text-[12px] text-black/40">
-              {t("No rows in this sheet match “{query}”.", { query })}
-            </p>
+                {saving ? (
+                  <>
+                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-500" />
+                    {t("Saving…")}
+                  </>
+                ) : (
+                  <>
+                    <Check
+                      size={12}
+                      strokeWidth={2}
+                      className="text-emerald-600"
+                    />
+                    {t("All changes saved")}
+                  </>
+                )}
+              </span>
+              <label className="relative flex items-center">
+                <Search
+                  size={12}
+                  strokeWidth={1.5}
+                  className="pointer-events-none absolute left-2 text-black/30"
+                />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder={t("Search sheets…")}
+                  aria-label={t("Search sheets")}
+                  data-lock="allow"
+                  className="no-focus-ring h-7 w-44 rounded-md border border-black/10 bg-white pl-7 pr-6 text-[12px] text-black/70 placeholder:text-black/30 focus:border-black/25 focus:outline-none"
+                />
+                {query && (
+                  <button
+                    type="button"
+                    aria-label={t("Clear search")}
+                    onClick={() => setQuery("")}
+                    className="absolute right-1.5 grid h-5 w-5 place-items-center rounded text-black/35 hover:text-black"
+                  >
+                    <X size={11} strokeWidth={2} />
+                  </button>
+                )}
+              </label>
+            </div>
           )}
         </div>
-      )}
 
-      {/* ── Sheet tabs ──────────────────────────────── */}
-      <div className="flex items-stretch overflow-x-auto border-t border-black/[0.08] bg-[#f0efea] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {[{ id: PRODUCTION_DIAGRAM_ID, code: "", name: "Production diagram" } as Pick<Sheet, "id" | "code" | "name">, ...sheets].map((s) => {
-          const on = tab === s.id;
-          const full = sheets.find((x) => x.id === s.id);
-          const n = !full || empty ? 0 : q ? matchCount(full) : issuesOf(full);
-          return (
+        {/* ── Grid ────────────────────────────────────── */}
+        {isFactory && installation ? (
+          <div className="p-4">
+            <FactoryProfileView
+              installationId={installation.id}
+              stepNames={stepNames(cells ?? {})}
+              year={year}
+            />
+          </div>
+        ) : isFlow ? (
+          <FlowDiagram
+            sheets={sheets}
+            cells={cells}
+            t={t}
+            onOpenSheet={showLive}
+            editable={!empty && !!onEdit}
+            savePatch={savePatch}
+          />
+        ) : tab === INSTALLATION_SHEET_ID ? (
+          <InstallationSheet
+            key={installation?.id ?? ""}
+            installation={installation}
+            onSave={onInstallationSave}
+          />
+        ) : showExtra ? (
+          <div className="min-h-[320px]">{extra!.content}</div>
+        ) : (
+          <div
+            ref={gridRef}
+            role="grid"
+            aria-label={sheet ? `${sheet.code} ${t(sheet.name)}` : t("Sheet")}
+            tabIndex={0}
+            onKeyDown={onKeyDown}
+            className="no-focus-ring overflow-x-auto focus:outline-none"
+          >
+            <div
+              className="grid min-w-max text-[12.5px]"
+              style={{ gridTemplateColumns: template }}
+            >
+              {/* column letters */}
+              <div className="sticky left-0 z-10 h-6 border-b border-r border-black/[0.08] bg-[#f0efea]" />
+              {Array.from({ length: colCount }, (_, c) => (
+                <div
+                  key={c}
+                  className={cn(
+                    "flex h-6 items-center justify-center border-b border-r border-black/[0.08] text-[11px] text-black/45",
+                    !empty && sel.c === c
+                      ? "bg-[#e3e2dc] font-medium text-black/70"
+                      : "bg-[#f0efea]",
+                  )}
+                >
+                  {letter(c)}
+                </div>
+              ))}
+
+              {/* header row */}
+              <RowNo n={1} />
+              {Array.from({ length: colCount }, (_, c) => (
+                <div
+                  key={c}
+                  className="flex h-8 items-center border-b border-r border-black/[0.08] bg-[#f7f6f2] px-2.5 font-semibold text-[#111]"
+                >
+                  {!empty && cols[c] ? t(cols[c]!.label) : ""}
+                </div>
+              ))}
+
+              {/* data rows */}
+              {visible.map(({ row, r }) => (
+                <div key={r} role="row" className="contents">
+                  <RowNo n={r + 2} on={sel.r === r} />
+                  {cols.map((col, c) => {
+                    const k = keyOf(r, c);
+                    const v = valueOf(row, r, c);
+                    const flag = row.flags?.[col.key];
+                    const editor = editors[`${tab}:${r}:${col.key}`];
+                    const selected = sel.r === r && sel.c === c;
+                    return (
+                      <div
+                        key={col.key}
+                        role="gridcell"
+                        title={
+                          editor
+                            ? t("Edited by {name} · {time}", {
+                                name: editorName(editor.by),
+                                time: timeAgo(editor.at, t),
+                              })
+                            : undefined
+                        }
+                        tabIndex={-1}
+                        aria-selected={selected}
+                        onClick={() => {
+                          setSel({ r, c });
+                          gridRef.current?.focus();
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && editable(c) && !editing)
+                            setEditing(k);
+                        }}
+                        onDoubleClick={() => editable(c) && setEditing(k)}
+                        className={cn(
+                          "relative flex h-8 min-w-0 items-center border-b border-r border-black/[0.08] px-2.5",
+                          col.kind === "number" && "justify-end",
+                          flag && "bg-[#fffbeb]",
+                          selected &&
+                            "z-[1] outline outline-2 -outline-offset-1 outline-[#111]",
+                        )}
+                      >
+                        {editing === k ? (
+                          <CellEditor
+                            initial={v}
+                            align={col.kind === "number" ? "right" : "left"}
+                            onCommit={(val) => commit(r, c, val)}
+                            onCancel={() => {
+                              setEditing(null);
+                              gridRef.current?.focus();
+                            }}
+                          />
+                        ) : (
+                          <CellView
+                            col={col}
+                            value={v}
+                            flag={flag}
+                            status={row.status}
+                            selected={selected}
+                            query={q}
+                            text={shown(col, v)}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+
+              {/* empty rows to the fold, like a fresh sheet */}
+              {Array.from(
+                { length: Math.max(0, MIN_ROWS - 1 - visible.length) },
+                (_, i) => {
+                  const n = (empty ? 2 : (sheet?.rows.length ?? 0) + 2) + i;
+                  return (
+                    <React.Fragment key={`e${i}`}>
+                      <RowNo n={empty ? 2 + i : n} />
+                      {Array.from({ length: colCount }, (_, c) => (
+                        <div
+                          key={c}
+                          className="h-8 border-b border-r border-black/[0.08]"
+                        />
+                      ))}
+                    </React.Fragment>
+                  );
+                },
+              )}
+            </div>
+            {q && visible.length === 0 && (
+              <p className="border-b border-black/[0.08] px-3 py-2 text-[12px] text-black/40">
+                {t("No rows in this sheet match “{query}”.", { query })}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* ── Sheet tabs ──────────────────────────────── */}
+        <div className="flex items-stretch overflow-x-auto border-t border-black/[0.08] bg-[#f0efea] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {tabOrder(sheets).map((s) => {
+            const on = tab === s.id;
+            const full = sheets.find((x) => x.id === s.id);
+            const n =
+              !full || empty ? 0 : q ? matchCount(full) : issuesOf(full);
+            const dot =
+              full && !empty && s.id !== INSTALLATION_SHEET_ID
+                ? sheetStatus(full)
+                : null;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                title={dot && full ? statusTooltip(full) : undefined}
+                onClick={() => openTab(s.id)}
+                className={cn(
+                  "flex flex-none items-center gap-1.5 whitespace-nowrap px-3.5 py-1.5 text-[12.5px] transition-colors",
+                  on
+                    ? "rounded-b-xl bg-white font-medium text-[#111] shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
+                    : "text-black/55 hover:text-black",
+                )}
+              >
+                {dot && (
+                  <span
+                    role="img"
+                    aria-label={t(STATUS_LABEL[dot])}
+                    style={{ backgroundColor: STATUS_TONE[dot] }}
+                    className="inline-block h-2 w-2 flex-none rounded-full"
+                  />
+                )}
+                {s.code && <span>{s.code}</span>}
+                {t(s.name)}
+                {s.id === INSTALLATION_SHEET_ID && !empty
+                  ? installStatus !== "untouched" && (
+                      <span
+                        role="img"
+                        aria-label={
+                          installStatus === "missing"
+                            ? t("{n} missing fields", { n: installIssues })
+                            : t(STATUS_LABEL[installStatus])
+                        }
+                        style={{
+                          backgroundColor: installationTabTone(installation),
+                        }}
+                        className="grid h-4 min-w-4 place-items-center rounded-full px-1 font-mono text-[10px] text-white"
+                      >
+                        {installStatus === "missing" ? installIssues : ""}
+                      </span>
+                    )
+                  : n > 0 && (
+                      <span
+                        className={cn(
+                          "grid h-4 min-w-4 place-items-center rounded-full px-1 font-mono text-[10px]",
+                          q
+                            ? "bg-black/[0.07] text-black/55"
+                            : "bg-[#fdecc8] text-[#b45309]",
+                        )}
+                      >
+                        {n}
+                      </span>
+                    )}
+              </button>
+            );
+          })}
+          {extraTabs.map((x) => (
             <button
-              key={s.id}
+              key={x.id}
               type="button"
-              onClick={() => {
-                setTab(s.id);
-                setSel({ r: 0, c: 0 });
-                setEditing(null);
-              }}
+              onClick={() => openTab(x.id)}
               className={cn(
                 "flex flex-none items-center gap-1.5 whitespace-nowrap px-3.5 py-1.5 text-[12.5px] transition-colors",
-                on
+                tab === x.id
                   ? "rounded-b-xl bg-white font-medium text-[#111] shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
                   : "text-black/55 hover:text-black",
               )}
             >
-              {s.code && <span>{s.code}</span>}
-              {t(s.name)}
-              {n > 0 && (
-                <span
-                  className={cn(
-                    "grid h-4 min-w-4 place-items-center rounded-full px-1 font-mono text-[10px]",
-                    q ? "bg-black/[0.07] text-black/55" : "bg-[#fdecc8] text-[#b45309]",
-                  )}
-                >
-                  {n}
-                </span>
-              )}
+              {t(x.label)}
             </button>
-          );
-        })}
+          ))}
+        </div>
       </div>
+      {!empty && (
+        <LivePanel
+          sheets={sheets}
+          installation={installation}
+          country={installation?.country ?? ""}
+          year={year}
+          onOpenSheet={showLive}
+        />
+      )}
+      {importing && sheet && canImport && savePatch && (
+        <ImportWizard
+          sheet={sheet}
+          cells={cells ?? {}}
+          savePatch={savePatch}
+          onClose={() => {
+            setImporting(false);
+            importOpener.current?.focus();
+          }}
+          t={t}
+        />
+      )}
     </div>
   );
 }
@@ -374,7 +664,9 @@ function RowNo({ n, on }: { n: number; on?: boolean }) {
     <div
       className={cn(
         "sticky left-0 z-10 flex h-8 items-center justify-center border-b border-r border-black/[0.08] text-[11.5px]",
-        on ? "bg-[#e3e2dc] font-medium text-black/70" : "bg-[#f0efea] text-black/45",
+        on
+          ? "bg-[#e3e2dc] font-medium text-black/70"
+          : "bg-[#f0efea] text-black/45",
       )}
     >
       {n}
@@ -409,6 +701,7 @@ function CellEditor({
       onChange={(e) => setV(e.target.value)}
       onFocus={(e) => e.currentTarget.select()}
       onBlur={() => finish(true)}
+      maxLength={CELL_MAX}
       onKeyDown={(e) => {
         e.stopPropagation();
         if (e.key === "Enter") finish(true);
@@ -429,7 +722,9 @@ function Highlight({ text, query }: { text: string; query: string }) {
   return (
     <>
       {text.slice(0, i)}
-      <mark className="rounded-sm bg-[#fde68a] text-inherit">{text.slice(i, i + query.length)}</mark>
+      <mark className="rounded-sm bg-[#fde68a] text-inherit">
+        {text.slice(i, i + query.length)}
+      </mark>
       {text.slice(i + query.length)}
     </>
   );
@@ -455,12 +750,18 @@ function CellView({
   const t = useSheetT();
   if (col.kind === "status") return <StatusPill status={status} />;
   if (status === "empty" && !value) return null;
-  if (flag === "missing" || (!value && col.kind === "number")) return <span className="text-[#c2410c]">—</span>;
+  if (flag === "missing" || (!value && col.kind === "number"))
+    return <span className="text-[#c2410c]">—</span>;
   if (col.kind === "file") {
-    if (value === NO_FILE) return <span className="truncate text-black/35">{t(NO_FILE)}</span>;
+    if (value === NO_FILE)
+      return <span className="truncate text-black/35">{t(NO_FILE)}</span>;
     return (
       <span className="flex min-w-0 items-center gap-2 text-black/70">
-        <FileText size={13} strokeWidth={1.5} className="flex-none text-black/55" />
+        <FileText
+          size={13}
+          strokeWidth={1.5}
+          className="flex-none text-black/55"
+        />
         <span className="truncate">
           <Highlight text={text} query={query} />
         </span>
@@ -472,7 +773,11 @@ function CellView({
       className={cn(
         "truncate",
         col.kind === "number" && "tabular-nums",
-        flag === "warn" && value === "Not stated" ? "text-[#c2410c]" : flag === "warn" || selected ? "font-semibold text-[#111]" : "text-black/80",
+        flag === "warn" && value === "Not stated"
+          ? "text-[#c2410c]"
+          : flag === "warn" || selected
+            ? "font-semibold text-[#111]"
+            : "text-black/80",
       )}
     >
       <Highlight text={text} query={query} />

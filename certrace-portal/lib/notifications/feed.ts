@@ -439,7 +439,7 @@ function fromDeadline(dash: DashboardData): Notice[] {
             key: "The dashboard shows how far each report has got, and which ones are holding the package up.",
           },
         ],
-        cta: { label: "Open Verification", href: "/workspaces" },
+        cta: { label: "Open Verification", href: "/convert" },
       },
       // far off it is information, among the messages; close it is a warning, among the things that need doing
       rank: tone === "info" ? 3 : toneRank(tone),

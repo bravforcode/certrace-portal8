@@ -16,11 +16,13 @@ const { TH_ROUTES } = await import("../i18n-th-routes");
 const { TH_SECTOR } = await import("../i18n-th-sector");
 const { TH_INTAKE } = await import("../i18n-th-intake");
 const { TH_POLISH } = await import("../i18n-th-polish");
+const { TH_CERA_MONITOR } = await import("../i18n-th-cera-monitor");
 const { ZH } = await import("../i18n-zh");
 const { HI } = await import("../i18n-hi");
 const { LANGUAGES, translate } = await import("../i18n");
 
 const TH_ALL: Record<string, string> = {
+  ...TH_CERA_MONITOR,
   ...TH_LINK,
   ...TH_CN,
   ...TH_ROUTES,

@@ -7,8 +7,8 @@
    narrative, business-impact framing, and what a reviewer should look at —
    always explainable, always overridable by a human.
 
-   Deterministic mock — same seam pattern as lib/ai-check.ts — this is where a
-   real model call slots in. See docs/EXPORTER-PORTAL-REDESIGN.md §4.
+   Deterministic rules over the submitted rollup, no model call and no canned
+   results — same seam as lib/ai-check.ts, where a model call would slot in. See docs/EXPORTER-PORTAL-REDESIGN.md §4.
    ════════════════════════════════════════════════════════════ */
 
 import type { ReviewRollup } from "./exporter-review";

@@ -26,7 +26,9 @@ function apiOrigin(): string {
 /** The public site, whose /trace/preview the Trace page frames. */
 function landingOrigin(): string {
   try {
-    return new URL(process.env.NEXT_PUBLIC_LANDING_URL ?? "http://localhost:3000").origin;
+    return new URL(
+      process.env.NEXT_PUBLIC_LANDING_URL ?? "http://localhost:3000",
+    ).origin;
   } catch {
     return "";
   }

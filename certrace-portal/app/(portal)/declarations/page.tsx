@@ -18,7 +18,7 @@ import { useRouter } from "next/navigation";
 export default function DeclarationsIndexRedirect() {
   const router = useRouter();
   React.useEffect(() => {
-    router.replace("/workspaces");
+    router.replace("/convert");
   }, [router]);
   return null;
 }

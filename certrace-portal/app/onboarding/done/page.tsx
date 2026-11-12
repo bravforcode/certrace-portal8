@@ -105,6 +105,12 @@ export default function OnboardingDonePage() {
                 : "Your account is registered. We'll email you when the dashboard is ready. You can sign in anytime to see this page.",
             )}
           </p>
+          {loaded && user && !user.ready && (
+            <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-black/50">
+              {t("We'll email you at")} {user.email}{" "}
+              {t("when your account is approved.")}
+            </p>
+          )}
           {complete && (
             <div className="mx-auto mt-6 h-[3px] w-full max-w-xs overflow-hidden rounded-full bg-black/[0.07]">
               <span className="ct-sweep block h-full w-1/3 rounded-full bg-[#111]/60" />

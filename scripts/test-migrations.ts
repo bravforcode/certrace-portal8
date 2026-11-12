@@ -94,7 +94,7 @@ async function migrate(ok = true, extra: string[] = []) {
   );
 }
 const snapshotSQL = `SELECT jsonb_build_object(
-  'users', (SELECT jsonb_agg(to_jsonb(t) - 'deployment_probe' - 'ready' - 'is_admin') FROM public.users t),
+  'users', (SELECT jsonb_agg(to_jsonb(t) - 'deployment_probe' - 'ready' - 'is_admin' - 'approved_at' - 'locale') FROM public.users t),
   'records', (SELECT jsonb_agg(to_jsonb(t)) FROM public.account_records t WHERE key NOT IN ('certrace:profile','certrace:report-inputs:v1')),
   'files', (SELECT jsonb_agg(to_jsonb(t) - 'object_key') FROM public.account_files t))::text`;
 try {
@@ -221,6 +221,12 @@ try {
       "SELECT is_admin FROM public.users WHERE email='migration@example.test'",
     ),
     "f",
+  );
+  assert.equal(
+    await sql(
+      "SELECT locale || ':' || coalesce(approved_at::text,'null') FROM public.users WHERE email='migration@example.test'",
+    ),
+    "en:null",
   );
   assert.equal(
     await sql(

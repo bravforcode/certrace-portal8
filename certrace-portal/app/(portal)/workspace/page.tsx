@@ -9,16 +9,15 @@
      no data    the three ways to start (upload · from the beginning · from an
                 earlier year) and one Confirm; only the current year shows a
                 plain sheet under them
-     syncing    the set-up stage — files are being sorted into the sheets
-                (the mock takes SETUP_MS; "Show the set-up workspace" finishes
-                it now)
+     syncing    a copy from an earlier year is still running
+                ("Show the set-up workspace" finishes it now)
      ready, not yet shown
                 the year's card plays the walk-in, in the upload's space —
                 pressed just now, or finished while the reader was away
      ready      the sheets, Excel-style, then the way on to Convert
 
-   Mock storage (lib/workspace-store.ts); the sheet data is sample data
-   (lib/workspace-sheets.ts) until the set-up runs for real.
+   Stored on the server, per installation and year (lib/workbook/use-workbook.ts):
+   the sheets are built from the year's cells, so a new year is empty.
    ════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
@@ -26,60 +25,165 @@ import { ArrowRight, Copy, FileText } from "lucide-react";
 import { Button, ButtonLink, Card, PageHeader } from "@/components/ui";
 import { YearBar } from "@/components/year-bar";
 import { Spreadsheet } from "@/components/workspace/spreadsheet";
+import { CbamTab } from "@/components/workspace/cbam-tab";
+import { CBAM_TAB_ID } from "@/lib/cbam/cbam-tab";
+import { withInstallationDefaults } from "@/lib/cbam/installation-defaults";
 import { SettingUpStage } from "@/components/workspace/setting-up";
 import { WorkspaceReveal } from "@/components/workspace/reveal";
 import { UploadPanel } from "@/components/workspace/upload-panel";
+import { ScopedInstallationSwitcher } from "@/components/scoped-installation-switcher";
 import { useT } from "@/lib/i18n";
+import { useScopedInstallation } from "@/lib/scoped-installation";
+import {
+  draftInstallation,
+  getInstallation,
+  saveInstallation,
+} from "@/lib/installations";
 import { currentYear, yearRange } from "@/lib/year-range";
 import { buildSheets } from "@/lib/workspace-sheets";
-import { SETUP_MS, useWorkspaceYears } from "@/lib/workspace-store";
+import { parseYearParam, withQueryParams } from "@/lib/workbook/url-state";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import {
+  COPY_MS,
+  useWorkbook,
+  useWorkbookYears,
+  walkinPending,
+} from "@/lib/workbook/use-workbook";
 
+/* useSearchParams() (read by the installation scope) needs a Suspense boundary above it. */
 export default function WorkspacePage() {
-  const t = useT();
-  const [year, setYear] = React.useState(currentYear);
-  const ws = useWorkspaceYears();
-  const rec = ws.get(year);
+  return (
+    <React.Suspense fallback={null}>
+      <WorkspaceInner />
+    </React.Suspense>
+  );
+}
 
-  /* The mock set-up finishes SETUP_MS after Confirm, whether or not anybody is watching. A year that finished
-     unseen is ready but not yet revealed: its card plays the walk-in the next time it is opened (or at once,
-     if it is open now). */
+function WorkspaceInner() {
+  const t = useT();
+  const { scoped, loading } = useScopedInstallation();
+  // Saving the Installation tab writes the store without re-rendering this page, so a counter re-reads it.
+  const [installTick, setInstallTick] = React.useState(0);
+  const installation = React.useMemo(
+    () =>
+      scoped ? draftInstallation(scoped, getInstallation(scoped.id)) : null,
+    [scoped, installTick],
+  );
+  const convertHref = scoped
+    ? `/convert?installation=${encodeURIComponent(scoped.id)}`
+    : "/convert";
+  // ?year= opens that reporting year when the year bar offers it; anything else opens the current year.
+  const params = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const yearParam = params.get("year");
+  const [year, setYear] = React.useState(
+    () => parseYearParam(yearParam, yearRange()) ?? currentYear(),
+  );
+  React.useEffect(() => {
+    const requested = parseYearParam(yearParam, yearRange());
+    if (requested !== null) setYear(requested);
+  }, [yearParam]);
+  // Writes the chosen year back to ?year= with replace (no history entry per click), keeping ?installation= and the rest.
+  const chooseYear = (next: number) => {
+    setYear(next);
+    router.replace(
+      `${pathname}?${withQueryParams(params.toString(), { year: String(next) })}`,
+      { scroll: false },
+    );
+  };
+  const installationId = scoped?.id ?? null;
+  const ws = useWorkbookYears(installationId);
+  const rec = ws.get(year);
+  const wb = useWorkbook(installationId, year);
+  // Bumped when this browser has seen a walk-in, so the card re-reads the per-browser record.
+  const [, setWalkinTick] = React.useState(0);
+
+  /* Only a copy from an earlier year runs as "syncing". A year that finished unseen is ready but not yet
+     revealed: its card plays the walk-in the next time it is opened (or at once, if it is open now). A year
+     left syncing by an upload from before Confirm opened years at once is finished straight away. */
   const syncing = yearRange().filter((y) => ws.get(y)?.status === "syncing");
-  const syncKey = syncing.map((y) => `${y}:${ws.get(y)!.confirmedAt}`).join(",");
+  const syncKey = syncing
+    .map((y) => `${y}:${ws.get(y)!.confirmedAt}`)
+    .join(",");
   React.useEffect(() => {
     if (!syncKey) return;
-    const due = syncing.map((y) => ({ y, at: Date.parse(ws.get(y)!.confirmedAt) + SETUP_MS }));
+    // A copy writes its own "ready" when it finishes; the timer only rescues a copy left behind by a closed tab,
+    // so it waits COPY_MS and never marks a still-running copy ready.
+    const due = syncing.map((y) => {
+      const m = ws.get(y)!;
+      return {
+        y,
+        at: Date.parse(m.confirmedAt ?? "") + (m.copiedFrom ? COPY_MS : 0),
+      };
+    });
     const now = Date.now();
     for (const d of due) if (d.at <= now) ws.markReady(d.y);
     const next = due.filter((d) => d.at > now).map((d) => d.at - now);
     if (!next.length) return;
-    const id = window.setTimeout(() => {
-      for (const d of due) if (d.at <= Date.now()) ws.markReady(d.y);
-    }, Math.min(...next) + 50);
+    const id = window.setTimeout(
+      () => {
+        for (const d of due) if (d.at <= Date.now()) ws.markReady(d.y);
+      },
+      Math.min(...next) + 50,
+    );
     return () => window.clearTimeout(id);
     // syncKey stands for the syncing years and when each was confirmed
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [syncKey]);
 
   const withData = yearRange().filter((y) => ws.get(y)?.status === "ready");
-  const sheets = React.useMemo(() => buildSheets(rec?.files ?? [], rec?.blank), [rec?.files, rec?.blank]);
+  // Fill in and Smart Link write CBAM answers before a year is started, so the tab shows on both sheets.
+  // The installation record answers the A_InstData fields the site wizard already asked for.
+  const cbamCells = React.useMemo(
+    () => withInstallationDefaults(wb.cells ?? {}, installation, year),
+    [wb.cells, installation, year],
+  );
+  const cbamTab = [
+    { id: CBAM_TAB_ID, label: "CBAM", content: <CbamTab cells={cbamCells} /> },
+  ];
 
   return (
     <div className="space-y-6">
       <PageHeader
         title={t("Workspace")}
-        lead={t("Everything you upload for a year, sorted into sheets you can check and edit.")}
+        lead={t(
+          "Everything you upload for a year, sorted into sheets you can check and edit.",
+        )}
+        actions={<ScopedInstallationSwitcher />}
       />
 
       <YearBar
         value={year}
-        onChange={setYear}
+        onChange={chooseYear}
         mark={(y) => {
           const s = ws.get(y)?.status;
-          return s === "ready" ? "data" : s === "syncing" ? "pending" : undefined;
+          return s === "ready"
+            ? "data"
+            : s === "syncing"
+              ? "pending"
+              : undefined;
         }}
       />
 
-      {!ws.loaded ? null : !rec ? (
+      {!installationId ? (
+        loading ? null : (
+          <Card className="p-6 text-center md:p-8">
+            <h2 className="font-[family-name:var(--font-plex)] text-xl font-light text-[#111]">
+              {t("Choose an installation to start your workspace")}
+            </h2>
+            <p className="mt-2 text-sm leading-relaxed text-black/45">
+              {t(
+                "The workspace belongs to one installation. Set one up first, then come back here.",
+              )}
+            </p>
+            <ButtonLink href="/workspaces/new" className="mt-4">
+              {t("Set up an installation")}{" "}
+              <ArrowRight size={14} strokeWidth={1.5} />
+            </ButtonLink>
+          </Card>
+        )
+      ) : !ws.loaded ? null : !rec ? (
         <>
           <UploadPanel
             year={year}
@@ -90,12 +194,20 @@ export default function WorkspacePage() {
             onCopy={(from) => ws.copy(year, from)}
           />
           {/* Until a start is chosen, only the current year shows a plain sheet under the upload. */}
-          {year === currentYear() && <Spreadsheet sheets={buildSheets([])} empty />}
+          {year === currentYear() && (
+            <Spreadsheet sheets={buildSheets([])} empty extraTabs={cbamTab} />
+          )}
         </>
-      ) : rec.status === "ready" && rec.revealed === false ? (
-        /* Set up and not yet shown: the card shows it is ready, and Get started opens the sheet. */
+      ) : walkinPending(installationId, year, rec) ? (
+        /* Set up and not yet shown in this browser: the card shows it is ready, and Get started opens the sheet. */
         <Card className="overflow-hidden p-0">
-          <WorkspaceReveal key={year} onDone={() => ws.markRevealed(year)} />
+          <WorkspaceReveal
+            key={year}
+            onDone={() => {
+              ws.markRevealed(year);
+              setWalkinTick((n) => n + 1);
+            }}
+          />
         </Card>
       ) : rec.status === "syncing" ? (
         <Card className="p-6 md:p-8">
@@ -106,14 +218,37 @@ export default function WorkspacePage() {
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-black/45">
               {rec.files.length === 1
-                ? t("We're sorting your file into the sheets for the best experience. We'll let you know when it's ready.")
-                : t("We're sorting your {n} files into the sheets for the best experience. We'll let you know when it's ready.", {
-                    n: rec.files.length,
-                  })}
+                ? t(
+                    "We're sorting your file into the sheets for the best experience. We'll let you know when it's ready.",
+                  )
+                : t(
+                    "We're sorting your {n} files into the sheets for the best experience. We'll let you know when it's ready.",
+                    {
+                      n: rec.files.length,
+                    },
+                  )}
             </p>
-            <Button variant="ghost" size="sm" className="mt-4" onClick={() => ws.markReady(year)}>
-              {t("Show the set-up workspace")} <ArrowRight size={13} strokeWidth={1.5} />
-            </Button>
+            {/* Only a year with confirmedAt can be shown early. One without it (set up before copies were timestamped) can never finish on its own, so it can be started over. */}
+            {rec.confirmedAt ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-4"
+                onClick={() => ws.markReady(year)}
+              >
+                {t("Show the set-up workspace")}{" "}
+                <ArrowRight size={13} strokeWidth={1.5} />
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-4"
+                onClick={() => ws.restart(year)}
+              >
+                {t("Start over")}
+              </Button>
+            )}
           </div>
         </Card>
       ) : (
@@ -121,10 +256,14 @@ export default function WorkspacePage() {
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] text-black/45">
             <span className="inline-flex items-center gap-1.5">
               <FileText size={13} strokeWidth={1.5} />
-              {rec.files.length === 1 ? t("1 file") : t("{n} files", { n: rec.files.length })}
+              {rec.files.length === 1
+                ? t("1 file")
+                : t("{n} files", { n: rec.files.length })}
             </span>
             {rec.blank && !rec.copiedFrom && (
-              <span className="inline-flex items-center gap-1.5">{t("Started from the beginning")}</span>
+              <span className="inline-flex items-center gap-1.5">
+                {t("Started from the beginning")}
+              </span>
             )}
             {rec.copiedFrom && (
               <span className="inline-flex items-center gap-1.5">
@@ -135,11 +274,21 @@ export default function WorkspacePage() {
           </div>
           <Spreadsheet
             key={year}
-            sheets={sheets}
-            edits={rec.edits}
-            onEdit={(cell, value) => ws.saveEdit(year, cell, value)}
+            sheets={wb.sheets}
+            cells={wb.cells}
+            savePatch={wb.savePatch}
+            editors={wb.editors}
+            saving={wb.pending > 0}
+            onEdit={wb.saveEdit}
+            installation={installation}
+            year={year}
+            extraTabs={cbamTab}
+            onInstallationSave={(inst) => {
+              saveInstallation(inst);
+              setInstallTick((n) => n + 1);
+            }}
           />
-          <ConvertBar />
+          <ConvertBar href={convertHref} />
         </>
       )}
     </div>
@@ -147,17 +296,21 @@ export default function WorkspacePage() {
 }
 
 /* The way on: what is in the workspace serves every standard, chosen on Convert. */
-function ConvertBar() {
+function ConvertBar({ href }: { href: string }) {
   const t = useT();
   return (
     <Card className="flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <div className="text-[15px] font-medium text-[#111]">{t("The data you've chosen works for every standard")}</div>
+        <div className="text-[15px] font-medium text-[#111]">
+          {t("The data you've chosen works for every standard")}
+        </div>
         <p className="mt-1 text-[13px] text-black/45">
-          {t("Pick CBAM, ISO 14064-1, ISO 14067 or TGO on the Convert page — no need to upload again.")}
+          {t(
+            "Pick CBAM, ISO 14064-1, ISO 14067 or TGO on the Convert page — no need to upload again.",
+          )}
         </p>
       </div>
-      <ButtonLink href="/convert" className="flex-none self-start sm:self-auto">
+      <ButtonLink href={href} className="flex-none self-start sm:self-auto">
         {t("Go to Convert")} <ArrowRight size={14} strokeWidth={1.5} />
       </ButtonLink>
     </Card>

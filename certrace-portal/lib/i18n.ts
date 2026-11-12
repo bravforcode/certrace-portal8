@@ -21,16 +21,6 @@
 
 import * as React from "react";
 import { usePathname } from "next/navigation";
-import { TH } from "./i18n-th";
-import { TH_CN } from "./i18n-th-cn";
-import { TH_INTAKE } from "./i18n-th-intake";
-import { TH_LINK } from "./i18n-th-link";
-import { TH_POLISH } from "./i18n-th-polish";
-import { TH_ROUTES } from "./i18n-th-routes";
-import { TH_SECTOR } from "./i18n-th-sector";
-import { TH_WORKSPACE } from "./i18n-th-workspace";
-import { HI } from "./i18n-hi";
-import { ZH } from "./i18n-zh";
 
 export type LangCode = "en" | "th" | "zh" | "hi";
 type LanguageInfo = {
@@ -141,21 +131,44 @@ const withoutGloss = (dict: Record<string, string>): Record<string, string> => {
   return out;
 };
 
+/* ── Dictionaries load on demand ───────────────────────────────
+   The three dictionaries are about 3 MB of source. Bundled statically, every page shipped all of them to a reader who uses one, or
+   none. Each is now its own chunk, fetched the first time its language is chosen. Until it has arrived the provider keeps rendering
+   English, so nobody sees a half-translated screen, and `translate()` stays synchronous for every language that is loaded. */
 const DICTS: Record<LangCode, Record<string, string>> = {
   en: {},
-  th: withoutGloss({
-    ...TH_WORKSPACE,
-    ...TH_LINK,
-    ...TH_CN,
-    ...TH_ROUTES,
-    ...TH_SECTOR,
-    ...TH_INTAKE,
-    ...TH,
-    ...TH_POLISH,
-  }),
-  zh: ZH,
-  hi: HI,
+  th: {},
+  zh: {},
+  hi: {},
 };
+const LOADED = new Set<LangCode>(["en"]);
+const PENDING: Partial<Record<LangCode, Promise<void>>> = {};
+
+const LOADERS: Record<
+  Exclude<LangCode, "en">,
+  () => Promise<Record<string, string>>
+> = {
+  th: () => import("./i18n-th-all").then((m) => m.TH_ALL),
+  zh: () => import("./i18n-zh").then((m) => m.ZH),
+  hi: () => import("./i18n-hi").then((m) => m.HI),
+};
+
+export const isLocaleLoaded = (lang: LangCode): boolean => LOADED.has(lang);
+
+/** Fetches a language's dictionary once. Resolves when `translate(lang, …)` will answer in that language. */
+export function loadLocale(lang: LangCode): Promise<void> {
+  if (lang === "en" || LOADED.has(lang)) return Promise.resolve();
+  return (PENDING[lang] ??= LOADERS[lang]()
+    .then((dict) => {
+      DICTS[lang] = lang === "th" ? withoutGloss(dict) : dict;
+      delete TEMPLATES[lang];
+      delete SEEN[lang];
+      LOADED.add(lang);
+    })
+    .finally(() => {
+      delete PENDING[lang];
+    }));
+}
 
 export type Vars = Record<string, string | number>;
 
@@ -366,7 +379,23 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     [languages],
   );
   const [choice, setChoice] = React.useState<MenuCode>("en");
-  const lang = uiLang(choice);
+  const wanted = uiLang(choice);
+  // Re-render once the wanted dictionary arrives; until then the screen stays English.
+  const [, setLoadedTick] = React.useState(0);
+  const lang: LangCode = isLocaleLoaded(wanted) ? wanted : "en";
+  React.useEffect(() => {
+    if (isLocaleLoaded(wanted)) return;
+    let live = true;
+    loadLocale(wanted).then(
+      () => live && setLoadedTick((n) => n + 1),
+      () => {
+        /* chunk failed to load — English stays on screen; the next choice retries */
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [wanted]);
 
   /* Runs after the first paint on purpose: the server has neither the saved
      choice nor the browser's list, so deciding here — and only here — is what
@@ -411,7 +440,9 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
       } catch {
         /* persistence best-effort */
       }
-      document.documentElement.lang = htmlLang(uiLang(l));
+      // <html lang> follows the rendered language, which the effect below sets once the dictionary is in.
+      if (isLocaleLoaded(uiLang(l)))
+        document.documentElement.lang = htmlLang(uiLang(l));
     },
     [onLink, onOnboarding],
   );

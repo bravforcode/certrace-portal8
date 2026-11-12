@@ -50,6 +50,7 @@ import {
 } from "@/components/cera/cera-chat";
 import { shownTitle } from "@/lib/cera/history";
 import { useCera } from "@/components/cera/cera-provider";
+import { CeraMissingSection } from "@/components/cera/cera-missing";
 import { useT } from "@/lib/i18n";
 
 const EDGE = 8; // never let the popup sit closer than this to the screen edge
@@ -303,6 +304,7 @@ export function CeraPanel() {
       </header>
 
       {/* ── Body ────────────────────────────────────────────────── */}
+      {!inHistory && <CeraMissingSection />}
       {inHistory ? <HistoryList /> : <ChatPane key={conversationId} />}
     </section>
   );
@@ -502,6 +504,7 @@ function FullScreen() {
             <X size={16} strokeWidth={1.5} />
           </IconButton>
         </header>
+        <CeraMissingSection />
         <ChatPane key={conversationId} large />
       </div>
     </section>

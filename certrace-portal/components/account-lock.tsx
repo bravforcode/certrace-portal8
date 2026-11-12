@@ -55,6 +55,7 @@ import {
   type PlanId,
   type TrialState,
 } from "@/lib/plan";
+import { onTrialEnded } from "@/lib/api/session";
 
 export type AccountState = {
   /** false until the client has measured the plan — render nothing plan-shaped before it */
@@ -91,20 +92,30 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = React.useState<AccountState>(INITIAL);
 
   React.useEffect(() => {
+    /* The server can end the trial before this clock does (D4). Once it has
+       refused a write with TRIAL_ENDED, the lock stays until reload. */
+    let refused = false;
     const read = () =>
       setState({
         ready: true,
         planId: currentPlanId(),
         plan: currentPlan(),
         trial: trialState(),
-        locked: accountLocked(),
+        locked: refused || accountLocked(),
       });
     read();
     /* A trial that runs out while the tab is open should lock the tab, not
        wait for a reload. Once an hour is plenty for a countdown measured in
        days, and costs nothing. */
     const timer = window.setInterval(read, 60 * 60 * 1000);
-    return () => window.clearInterval(timer);
+    const offTrialEnded = onTrialEnded(() => {
+      refused = true;
+      read();
+    });
+    return () => {
+      window.clearInterval(timer);
+      offTrialEnded();
+    };
   }, []);
 
   return (

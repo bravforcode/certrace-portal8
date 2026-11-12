@@ -5,7 +5,7 @@ services:
     environment:
       POSTGRES_DB: certrace
       POSTGRES_USER: certrace
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-certrace-local}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
     ports:
       - "127.0.0.1:${DATABASE_PORT:-55432}:5432"
     volumes:
@@ -22,7 +22,7 @@ services:
       target: migrate
     restart: "no"
     environment:
-      DATABASE_URL: postgresql://certrace:${POSTGRES_PASSWORD:-certrace-local}@database:5432/certrace
+      DATABASE_URL: postgresql://certrace:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@database:5432/certrace
     depends_on:
       database:
         condition: service_healthy
@@ -35,14 +35,14 @@ services:
       - path: .env
         required: false
     environment:
-      DATABASE_URL: postgresql://certrace:${POSTGRES_PASSWORD:-certrace-local}@database:5432/certrace
+      DATABASE_URL: postgresql://certrace:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@database:5432/certrace
       PORT: "8000"
       CERTRACE_APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
       CERTRACE_CORS_ALLOWED_ORIGINS: ${APP_BASE_URL:-http://localhost:3000}
-      CERTRACE_JWT_SECRET: ${CERTRACE_JWT_SECRET:-local-development-change-before-deployment}
-      CERTRACE_EMAIL_DELIVERY: ${CERTRACE_EMAIL_DELIVERY:-off}
+      CERTRACE_JWT_SECRET: ${CERTRACE_JWT_SECRET:?set CERTRACE_JWT_SECRET in .env}
+      CERTRACE_EMAIL_DELIVERY: ${CERTRACE_EMAIL_DELIVERY:-console}
       CERTRACE_FILE_STORAGE: ${CERTRACE_FILE_STORAGE:-database}
-      NODE_ENV: production
+      NODE_ENV: development
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
     ports:
       - "127.0.0.1:${BACKEND_PORT:-8000}:8000"

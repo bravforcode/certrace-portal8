@@ -63,12 +63,12 @@ The route tree in `certrace-portal/app/` has four main areas:
 | Area | Main paths | Purpose |
 | --- | --- | --- |
 | Account access | `/login`, `/register`, `/auth/google`, password reset, `/onboarding`, `/onboarding/done`, `/pending`, `/admin` | Sign-in, registration questions, readiness wait for returning users, and admin user management |
-| Customer portal | `app/(portal)/` | Dashboard, declarations, suppliers, Smart Links, inbox, reports, billing, team, and settings |
+| Customer portal | `app/(portal)/` | Dashboard, declarations, suppliers, Smart Links, inbox, reports, billing, team, settings, and `/opportunities` (data-gap and reduction cards with a printable report) |
 | Verification | `app/(portal)/workspaces/` | Installation profiles, reporting years, monthly data, precursors, evidence, and readiness |
 | Supplier link forms | `/s/[token]`, `/w/[token]`, `/p/[token]` | General supplier, monthly, and precursor data requests |
 | Self-supply | `/self/[token]` | The exporter enters data for its own installation |
 
-`components/` holds reusable screens and controls. `lib/api/client.ts` infers API types from the backend `App`; `lib/account-storage.ts` hydrates a working copy from PostgreSQL and queues revision-checked saves. `lib/cbam/` contains the portal's calculation, validation, and report-output code. `next.config.ts` defines the `/backend` rewrite.
+`components/` holds reusable screens and controls. `lib/api/client.ts` infers API types from the backend `App`; `lib/account-storage.ts` hydrates a working copy from PostgreSQL and queues revision-checked saves. `lib/cbam/` contains the portal's calculation, validation, and report-output code. `next.config.ts` defines the `/backend` rewrite. `lib/export/` builds the verification file on Convert: `verifier-scope.ts` is the per-sheet allowlist and the check that decides whether a row is verified, `verification-export.ts` builds the sheets (Summary first, unverified rows by name and reason with no values), and `lib/xlsx-write.ts` writes the .xlsx in the browser.
 
 Company/report inputs and Cera history persist through the backend; their browser
 working copy is in memory. Public supplier and precursor forms require server-issued
@@ -85,6 +85,13 @@ remain under their test directories. Fictional declarations and suppliers were
 removed from `lib/data.ts`; tests use a small fixture under `lib/__tests__/fixtures/`.
 Settings now sends password changes to the backend and does not show fabricated
 device sessions or a simulated email-change confirmation.
+
+The workspace (`/workspace`) has Table, Flow and Factory views over one shared server
+workbook per installation and year. It also has an import wizard for Excel or CSV,
+a live panel (completeness, mass balance, embedded-emissions estimate), and the
+factory map and CBAM what-if in `components/factory/`. The dashboard shows an
+installation directory card per installation. Factory and opportunity data live in
+records `certrace:factory:<installationId>` and `certrace:opportunities`.
 
 The frontend parity port in the working tree adds installation pages under
 `/workspaces/installation/[iid]`, Supply Chain, notifications, Cera, and the
@@ -285,6 +292,20 @@ Both Compose files load the root `.env` into the backend through optional
 there without adding Compose entries. Explicit environment overrides retain the
 container database URL, service port, public origins and deployment defaults;
 production still requires the database password, JWT secret and public URL.
+
+### Scheduled jobs
+
+Trial reminder emails (7 days and 1 day before the end, and an "ended" email) are
+sent by `certrace-backend/src/modules/reminders/trial-emails.ts`, through
+`POST /api/internal/jobs/trial-emails` in `reminders/index.ts`. The job needs
+`Authorization: Bearer $CERTRACE_JOBS_TOKEN`; without that variable the endpoint
+returns 404. Each reminder is claimed in `email_deliveries` before sending, so a
+repeat run the same day does not send it twice.
+
+Schedule one `POST` to that endpoint once a day. No cron is configured yet: neither
+`compose.yaml` nor `.github/workflows/` runs it. Until a scheduler is added, trial
+reminders are not sent. `POST /api/internal/jobs/send-reminders` is a separate job
+guarded by the same token.
 
 Run workspace checks from the repository root:
 

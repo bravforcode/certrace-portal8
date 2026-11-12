@@ -108,7 +108,10 @@ const FLAGS: Record<MenuCode, React.ReactNode> = {
     <>
       <rect width="30" height="20" fill="#fff" />
       <circle cx="15" cy="10" r="5" fill="#0047A0" />
-      <path d="M10,10 A5,5 0 0 1 20,10 A2.5,2.5 0 0 1 15,10 A2.5,2.5 0 0 0 10,10 Z" fill="#CD2E3A" />
+      <path
+        d="M10,10 A5,5 0 0 1 20,10 A2.5,2.5 0 0 1 15,10 A2.5,2.5 0 0 0 10,10 Z"
+        fill="#CD2E3A"
+      />
       <g stroke="#000" strokeWidth="0.8">
         <path d="M4,4.6 l2.2,-1.6 M4.6,5.6 l2.2,-1.6 M5.2,6.6 l2.2,-1.6" />
         <path d="M22.6,13.4 l2.2,1.6 M23.2,12.4 l2.2,1.6 M23.8,11.4 l2.2,1.6" />

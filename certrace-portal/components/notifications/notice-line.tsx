@@ -61,7 +61,11 @@ export function NoticeLine({
       <span className="min-w-0 flex-1">
         <span className="flex items-start gap-2 text-[13px] leading-snug">
           {unread ? (
-            <span role="img" aria-label={t("Unread")} className="mt-[7px] flex flex-none">
+            <span
+              role="img"
+              aria-label={t("Unread")}
+              className="mt-[7px] flex flex-none"
+            >
               <StatusDot tone={n.tone} />
             </span>
           ) : (

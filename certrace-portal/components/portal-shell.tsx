@@ -4,7 +4,6 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  ClipboardCheck,
   Users,
   Settings,
   CreditCard,
@@ -19,7 +18,6 @@ import {
   Lightbulb,
   PlayCircle,
   ExternalLink,
-  Factory,
   PanelLeft,
 } from "lucide-react";
 import { cn } from "./ui";
@@ -30,8 +28,6 @@ import { logout } from "@/lib/api";
 import { MENU_LANGUAGES, useLanguage, useT } from "@/lib/i18n";
 import { Flag } from "./flag";
 import { ProductMark, type ProductId } from "./product-marks";
-import { InstallationSwitcher } from "./installation-switcher";
-import { useActiveInstallation } from "@/lib/active-installation";
 import {
   FEATURE_REQUEST_URL,
   GUIDE_VIDEO_URL,
@@ -46,6 +42,7 @@ import { CeraMark } from "./cera/cera-mark";
 import { CeraButton } from "./cera/cera-button";
 import { shownTitle } from "@/lib/cera/history";
 import { CeraPanel } from "./cera/cera-panel";
+import { CeraMissingProvider } from "./cera/cera-missing";
 import { NotificationsBell } from "./notifications/bell";
 import { NotificationsProvider } from "./notifications/provider";
 
@@ -183,8 +180,8 @@ function mark(product: ProductId): NavIcon {
 
 /* THE SIDEBAR FOLLOWS THE PRODUCT FAMILY on the public site (certrace-landing
    lib/nav-menu.ts): Prove and its five parts, Trace, the three lines still to
-   come, and Cera — with the same marks, and no descriptions. Dashboard and
-   Verification stay on top as the screens the day starts on. */
+   come, and Cera — with the same marks, and no descriptions. Dashboard stays on
+   top as the screen the day starts on. */
 function useNav(): NavEntry[] {
   const { t } = useLanguage();
   return [
@@ -196,9 +193,9 @@ function useNav(): NavEntry[] {
     },
     {
       kind: "link",
-      href: "/workspaces",
-      label: t("Verification"),
-      icon: ClipboardCheck,
+      href: "/opportunities",
+      label: t("Opportunities"),
+      icon: Lightbulb,
     },
     { kind: "group", label: "Prove", icon: mark("prove") },
     {
@@ -354,46 +351,6 @@ function Wordmark() {
   );
 }
 
-/* "Switch installation" in the account menu: a row that opens the list in place, so picking a site never leaves the page you are on. */
-function SwitchInstallationRow({ onPicked }: { onPicked: () => void }) {
-  const t = useT();
-  const { active } = useActiveInstallation();
-  const [open, setOpen] = React.useState(false);
-  return (
-    <div>
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] text-black/70 hover:bg-[#fafaf8]"
-      >
-        <Factory size={15} strokeWidth={1.5} className="text-black/40" />
-        <span className="min-w-0 flex-1">
-          <span className="block">{t("Switch installation")}</span>
-          {active && (
-            <span className="block truncate text-[11px] text-black/40">
-              {active.name}
-            </span>
-          )}
-        </span>
-        <ChevronDown
-          size={13}
-          strokeWidth={1.5}
-          className={cn(
-            "flex-none text-black/30 transition-transform",
-            open && "rotate-180",
-          )}
-        />
-      </button>
-      {open && (
-        <div className="mb-1 ml-[21px] border-l border-black/[0.09] pl-1.5">
-          <InstallationSwitcher compact onPicked={onPicked} />
-        </div>
-      )}
-    </div>
-  );
-}
-
 function AccountMenu() {
   const router = useRouter();
   const { t } = useLanguage();
@@ -473,7 +430,6 @@ function AccountMenu() {
               />{" "}
               {t("Profile & account")}
             </Link>
-            <SwitchInstallationRow onPicked={close} />
             <Link
               href="/settings?tab=notifications"
               onClick={close}
@@ -629,7 +585,10 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
   // button both read it, and a component cannot use a context it renders itself.
   return (
     <CeraProvider>
-      <ShellFrame>{children}</ShellFrame>
+      {/* The missing-data monitor reads the selected installation, so it sits inside the shell: a supplier link never gets it. */}
+      <CeraMissingProvider>
+        <ShellFrame>{children}</ShellFrame>
+      </CeraMissingProvider>
     </CeraProvider>
   );
 }
@@ -692,7 +651,7 @@ function ShellFrameInner({ children }: { children: React.ReactNode }) {
           notifications. See components/account-lock.tsx. */}
       <header
         data-lock="chrome"
-        className="sticky top-0 z-50 border-b border-black/[0.06] bg-[rgba(245,244,240,0.8)] backdrop-blur-md"
+        className="sticky top-0 z-50 border-b border-black/[0.06] bg-[rgba(245,244,240,0.8)] backdrop-blur-md print:hidden"
       >
         <div className="flex h-16 items-center gap-4 px-4 md:px-6">
           <button
@@ -736,6 +695,7 @@ function ShellFrameInner({ children }: { children: React.ReactNode }) {
         <aside
           data-lock="chrome"
           className={cn(
+            "print:hidden",
             // Fixed-height + self-start keeps `sticky` working: without an explicit
             // height the flex row stretches the sidebar to the full content height,
             // which is taller than the viewport and silently breaks sticky so it

@@ -45,7 +45,8 @@
    ════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
-import { ArrowUpRight, Check, Copy, Link2, Send } from "lucide-react";
+import { ArrowUpRight, Check, Copy, Link2, Plus, Send } from "lucide-react";
+import { RequestDataModal } from "@/components/request-data-modal";
 import {
   Button,
   ButtonLink,
@@ -142,6 +143,7 @@ export default function SmartLinksPage() {
   const [state, setState] = React.useState<StateFilter>("all");
   const [kind, setKind] = React.useState<KindFilter>("all");
   const [openId, setOpenId] = React.useState<string | null>(null);
+  const [requestOpen, setRequestOpen] = React.useState(false);
 
   const all = React.useMemo(() => links ?? [], [links]);
   const stateCounts = React.useMemo(() => countByState(all), [all]);
@@ -162,6 +164,15 @@ export default function SmartLinksPage() {
       <PageHeader
         title={t("Smart Links")}
         lead={t("Every request for data, and where it stands.")}
+        actions={
+          <Button onClick={() => setRequestOpen(true)}>
+            <Plus size={15} strokeWidth={1.5} /> {t("Request data")}
+          </Button>
+        }
+      />
+      <RequestDataModal
+        open={requestOpen}
+        onClose={() => setRequestOpen(false)}
       />
 
       {all.length === 0 ? (

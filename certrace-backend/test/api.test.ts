@@ -2,7 +2,6 @@ import { legalVersionIds } from "./fixtures/legal";
 import { afterAll, describe, test, expect } from "bun:test";
 import { app } from "../src/app";
 import { db } from "../src/lib/db";
-import { config } from "../src/lib/config";
 import { hash } from "../src/lib/security";
 import { calculate } from "../src/modules/calculations/service";
 import { accountForVerifiedGoogleIdentity } from "../src/modules/auth/service";
@@ -746,68 +745,6 @@ test("legacy passwords still authenticate and password changes revoke old cookie
       })
     ).status,
   ).toBe(200);
-});
-test("configured master password signs in to existing active accounts", async () => {
-  const first = await account();
-  const second = await account();
-  const masterPassword = `master-${crypto.randomUUID()}`;
-  const previous = config.masterPassword;
-  try {
-    config.masterPassword = "";
-    expect(
-      (
-        await call("/api/auth/login", "POST", {
-          email: first.user.email,
-          password: masterPassword,
-        })
-      ).status,
-    ).toBe(401);
-
-    config.masterPassword = masterPassword;
-    for (const account of [first, second]) {
-      const response = await call("/api/auth/login", "POST", {
-        email: account.user.email,
-        password: masterPassword,
-      });
-      expect(response.status).toBe(200);
-      const result = await response.json();
-      expect(result.user.id).toBe(account.user.id);
-      const cookie = response.headers.get("set-cookie")!.split(";")[0]!;
-      expect(
-        (await call("/api/auth/me", "GET", undefined, cookie)).status,
-      ).toBe(200);
-    }
-    expect(
-      (
-        await call("/api/auth/login", "POST", {
-          email: first.user.email,
-          password: "wrong-master-password",
-        })
-      ).status,
-    ).toBe(401);
-    expect(
-      (
-        await call("/api/auth/login", "POST", {
-          email: `missing-${crypto.randomUUID()}@example.invalid`,
-          password: masterPassword,
-        })
-      ).status,
-    ).toBe(401);
-    await db.users.update({
-      where: { id: second.user.id },
-      data: { status: "SUSPENDED", suspended_at: new Date() },
-    });
-    expect(
-      (
-        await call("/api/auth/login", "POST", {
-          email: second.user.email,
-          password: masterPassword,
-        })
-      ).status,
-    ).toBe(403);
-  } finally {
-    config.masterPassword = previous;
-  }
 });
 test("password reset revokes previously issued bearer access", async () => {
   const a = await account();

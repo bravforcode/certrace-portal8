@@ -7,6 +7,7 @@ import { config } from "../../lib/config";
 import { array, object, type JsonObject } from "../../lib/json";
 import { LinkModel } from "./model";
 import * as Links from "./service";
+import * as ItemLinks from "./item-service";
 import { reopenExchange } from "../reporting/exchanges";
 import { lockOwner } from "../reporting/service";
 export const publicLinks = new Elysia({ prefix: "/api/v1/links" })
@@ -179,3 +180,24 @@ export const links = new Elysia({ prefix: "/api/v1/declarations" })
     });
     return { token: row.token, revokedAt: +row.revoked_at! };
   });
+
+// Smart Links scoped to one checklist item. Public routes resolve by token only; the
+// item key, installation and year all come from the stored link, never from the request.
+export const publicItemLinks = new Elysia({ prefix: "/api/v1/item-links" })
+  .get("/:token", ({ params }) => ItemLinks.resolveItemLink(params.token))
+  .post(
+    "/:token/submit",
+    ({ params, body }) => ItemLinks.submitItemLink(params.token, body.values),
+    { body: LinkModel.itemSubmit },
+  );
+
+export const itemLinks = new Elysia({ prefix: "/api/v1" })
+  .use(companySession)
+  .post(
+    "/item-links",
+    async ({ company, account, body, set }) => {
+      set.status = 201;
+      return ItemLinks.createItemLink(company.id, account.id, body);
+    },
+    { body: LinkModel.itemCreate },
+  );

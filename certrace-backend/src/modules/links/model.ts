@@ -10,6 +10,18 @@ export const LinkModel = {
       t.Integer({ minimum: 1, maximum: 365, default: 90 }),
     ),
   }),
+  itemCreate: t.Object({
+    installationId: t.String({ pattern: "^[A-Za-z0-9_-]{1,64}$" }),
+    year: t.Integer({ minimum: 2000, maximum: 2100 }),
+    itemKey: t.String({ minLength: 1, maxLength: 200 }),
+  }),
+  itemSubmit: t.Object({
+    values: t.Record(
+      t.String({ maxLength: 200 }),
+      t.Union([t.String({ maxLength: 10_000 }), t.Null()]),
+      { minProperties: 1, maxProperties: 2000 },
+    ),
+  }),
   save: t.Object({ state: jsonObject }),
   submit: t.Object({
     state: jsonObject,

@@ -1,0 +1,17 @@
+// Thai rows for Cera's missing-data monitor: the badge count, the complete and blank states, and "Ask Cera to fill".
+// The "Missing data" heading itself is in lib/i18n-th-workspace.ts.
+// The English source is the key; zh and hi rows for these keys are in lib/i18n-zh.ts and lib/i18n-hi.ts.
+
+export const TH_CERA_MONITOR: Record<string, string> = {
+  Complete: "ครบแล้ว",
+  "{n} missing": "ขาด {n} รายการ",
+  "Show missing data": "แสดงข้อมูลที่ขาด",
+  "Hide missing data": "ซ่อนข้อมูลที่ขาด",
+  "Everything Cera checks for this installation is in.":
+    "ข้อมูลทั้งหมดที่ Cera ตรวจสำหรับโรงงานนี้ถูกกรอกครบแล้ว",
+  "and {n} more": "และอีก {n} รายการ",
+  "Ask Cera to fill": "ให้ Cera กรอกให้",
+  "Cera proposes each change; you confirm it before anything is saved.":
+    "Cera เสนอทุกการเปลี่ยนแปลง คุณยืนยันก่อนบันทึกทุกครั้ง",
+  "Not started yet. Open Convert to begin.": "ยังไม่ได้เริ่ม เปิด Convert เพื่อเริ่มต้น",
+};

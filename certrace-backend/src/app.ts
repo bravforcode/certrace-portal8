@@ -10,7 +10,12 @@ import { auth } from "./modules/auth";
 import { team } from "./modules/team";
 import { admin } from "./modules/admin";
 import { declarations } from "./modules/declarations";
-import { links, publicLinks } from "./modules/links";
+import {
+  links,
+  publicLinks,
+  itemLinks,
+  publicItemLinks,
+} from "./modules/links";
 import { files, publicFiles } from "./modules/files";
 import { reporting } from "./modules/reporting";
 import { records } from "./modules/records";
@@ -19,6 +24,9 @@ import { calculations } from "./modules/calculations";
 import { evidence, publicEvidence } from "./modules/evidence";
 import { reportAutofill } from "./modules/evidence/autofill";
 import { cera } from "./modules/cera";
+import { workbooks } from "./modules/workbooks";
+import { consent } from "./modules/consent";
+import { preverifications, preverifyAdmin } from "./modules/preverify";
 export const app = new Elysia({
   serve: { maxRequestBodySize: 20 * 1024 * 1024 },
 })
@@ -118,7 +126,11 @@ export const app = new Elysia({
   .use(declarations)
   .use(links)
   .use(publicLinks)
+  .use(itemLinks)
+  .use(publicItemLinks)
+  .use(consent)
   .use(files)
+  .use(workbooks)
   .use(publicFiles)
   .use(publicEvidence)
   .use(records)
@@ -129,5 +141,7 @@ export const app = new Elysia({
   .use(calculations)
   .use(evidence)
   .use(reportAutofill)
-  .use(cera);
+  .use(cera)
+  .use(preverifications)
+  .use(preverifyAdmin);
 export type App = typeof app;

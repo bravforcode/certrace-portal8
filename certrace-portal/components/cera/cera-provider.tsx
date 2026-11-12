@@ -40,10 +40,10 @@ import { conversationalReply } from "@/lib/cera/ai-reply";
 import { loadSession, onSessionChange } from "@/lib/api/session";
 import { isApiError } from "@/lib/api/errors";
 import { request } from "@/lib/api";
-import { chunks, pick, type CeraLang } from "@/lib/cera/lang";
+import { chunks, langOf, pick, type CeraLang } from "@/lib/cera/lang";
 import { focusHash, requestFocus } from "@/lib/cera/focus";
 import { localQuestion } from "@/lib/cera/knowledge-local";
-import { useLanguage } from "@/lib/i18n";
+import { loadLocale, useLanguage } from "@/lib/i18n";
 import {
   deleteConversation,
   getConversation,
@@ -75,6 +75,13 @@ import {
 import { getWorkspace, type VerificationWorkspace } from "@/lib/workspace";
 import { UPDATES_EVENT, unseenUpdates } from "@/lib/cera/updates";
 import type { CeraAttachment, CeraCard, CeraMessage } from "@/lib/cera/types";
+import { applyCeraAction, type CeraActionDeps } from "@/lib/cera/actions";
+import { patchWorkbookCells } from "@/lib/api/workbooks";
+import { getInstallation, saveInstallation } from "@/lib/installations";
+import {
+  invalidateReportViews,
+  persistReportChange,
+} from "@/lib/persist-report-change";
 
 type Ctx = {
   open: boolean;
@@ -122,6 +129,9 @@ type Ctx = {
   ) => void;
   applyExtraction: (messageId: string, cardId: string) => void;
   discardExtraction: (messageId: string, cardId: string) => void;
+  /* ── Actions Cera proposed (a change to the account) ──────── */
+  confirmAction: (messageId: string, cardId: string) => void;
+  discardAction: (messageId: string, cardId: string) => void;
   /* ── History ──────────────────────────────────────────────── */
   view: "chat" | "history";
   setView: (v: "chat" | "history") => void;
@@ -762,6 +772,8 @@ export function CeraProvider({
           attachments: attachments.length ? attachments : undefined,
         },
       ]);
+      // Cera answers in the language typed, which may not be the screen's; its dictionary loads on demand.
+      await loadLocale(langOf(prompt, uiLangRef.current)).catch(() => {});
       /* A DESCRIPTION IS NOT A QUESTION. When Cera has just asked what a file holds, the next thing typed is the answer: read it together with the
          file and carry on from there. It comes before everything else, including a supplier's link, which otherwise would turn it away. */
       const psess = precursorSession.current;
@@ -970,7 +982,9 @@ export function CeraProvider({
             ? {
                 ...m,
                 cards: m.cards.map((c) =>
-                  (c.kind === "choice" || c.kind === "extraction") &&
+                  (c.kind === "choice" ||
+                    c.kind === "extraction" ||
+                    c.kind === "action") &&
                   c.id === cardId
                     ? fn(c)
                     : c,
@@ -1335,6 +1349,86 @@ export function CeraProvider({
     [patchCard, say],
   );
 
+  /* ── Actions Cera proposed ────────────────────────────────────
+     Nothing is written until Confirm runs. The actions run in order. The queries
+     they touch are refreshed even when one fails, because a write that already
+     landed must still show on screen. */
+  const confirmAction = React.useCallback(
+    async (messageId: string, cardId: string) => {
+      const card = messagesRef.current
+        .find((m) => m.id === messageId)
+        ?.cards?.find((c) => c.kind === "action" && c.id === cardId);
+      if (!card || card.kind !== "action" || card.applying) return;
+      if (card.status !== "pending" && card.status !== "failed") return;
+      patchCard(messageId, cardId, (c) =>
+        c.kind === "action" ? { ...c, applying: true, error: undefined } : c,
+      );
+      const deps: CeraActionDeps = {
+        patchCells: async (iid, year, cells) => {
+          await patchWorkbookCells(iid, year, cells);
+        },
+        saveInstallation: (record) =>
+          persistReportChange(() => saveInstallation(record)),
+        getInstallation,
+        openUpload: () => setUploadOn(true),
+        navigate: (path) => {
+          setFullscreenState(false);
+          hide();
+          router.push(path);
+        },
+      };
+      let applied = 0;
+      let failure: string | undefined;
+      try {
+        for (const action of card.actions) {
+          await applyCeraAction(action, deps);
+          applied++;
+        }
+      } catch (cause) {
+        failure = cause instanceof Error ? cause.message : String(cause);
+      } finally {
+        for (const action of card.actions) {
+          if (action.tool === "set_cbam_fields") {
+            void queryClient.invalidateQueries({
+              queryKey: ["workbook", action.installationId, action.year],
+            });
+            void queryClient.invalidateQueries({
+              queryKey: ["workbook-years", action.installationId],
+            });
+          } else if (action.tool === "update_installation") {
+            void invalidateReportViews(queryClient);
+          }
+        }
+      }
+      patchCard(messageId, cardId, (c) => {
+        if (c.kind !== "action") return c;
+        if (failure === undefined)
+          return { ...c, status: "applied", applying: false, error: undefined };
+        return {
+          ...c,
+          status: "failed",
+          applying: false,
+          error: `${applied} of ${card.actions.length} applied before the error. ${failure}`,
+        };
+      });
+    },
+    [patchCard, queryClient, router, hide],
+  );
+
+  const discardAction = React.useCallback(
+    (messageId: string, cardId: string) => {
+      // Discard writes nothing: it only changes the card's status.
+      patchCard(messageId, cardId, (c) =>
+        c.kind === "action" &&
+        (c.status === "pending" || c.status === "failed") &&
+        !c.applying
+          ? { ...c, status: "discarded" }
+          : c,
+      );
+    },
+    [patchCard],
+  );
+
   /* ── History ──────────────────────────────────────────────── */
   const newChat = React.useCallback(() => {
     reset();
@@ -1390,6 +1484,8 @@ export function CeraProvider({
       editReading: changeReading,
       applyExtraction,
       discardExtraction,
+      confirmAction,
+      discardAction,
       view,
       setView: (v) => {
         if (v === "history") refreshHistory();
@@ -1438,6 +1534,8 @@ export function CeraProvider({
       changeReading,
       applyExtraction,
       discardExtraction,
+      confirmAction,
+      discardAction,
       view,
       refreshHistory,
       history,

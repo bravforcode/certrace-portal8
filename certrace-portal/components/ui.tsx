@@ -73,7 +73,7 @@ export function Card({
   return (
     <Tag
       className={cn(
-        "rounded-2xl border bg-white",
+        "rounded-2xl border bg-white transition-[border-color,box-shadow,transform] duration-200 motion-reduce:transition-none",
         highlight && "border-black/20 !bg-[#f0eee8]",
         warm && "!bg-[#faf9f7]",
         !highlight && "border-black/[0.07]",
@@ -87,17 +87,21 @@ export function Card({
 
 /* ── Buttons ────────────────────────────────────────────── */
 type BtnProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary" | "ghost";
+  variant?: "primary" | "secondary" | "ghost" | "danger";
   size?: "md" | "sm";
 };
 /* Shared with ButtonLink below, so a button and a link that sit side by side
    are the same control at the same size — see its header. */
 const btnBase =
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl uppercase tracking-[0.1em] transition-colors disabled:opacity-40 disabled:pointer-events-none";
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl uppercase tracking-[0.1em] transition-[transform,box-shadow,background-color,color,border-color] duration-150 active:scale-[0.98] motion-reduce:transform-none disabled:opacity-40 disabled:pointer-events-none";
 const btnSizing = (size: "md" | "sm") =>
   size === "sm" ? "px-4 py-2 text-[11px]" : "px-6 py-3 text-[13px]";
-const btnVariants: Record<"primary" | "secondary" | "ghost", string> = {
+const btnVariants: Record<
+  "primary" | "secondary" | "ghost" | "danger",
+  string
+> = {
   primary: "bg-[#111] text-white hover:bg-[#333]",
+  danger: "bg-[#dc2626] text-white hover:bg-[#b91c1c]",
   secondary:
     "border border-black/10 text-black/60 hover:border-black/25 hover:text-black hover:bg-black/[0.04]",
   ghost: "text-black/45 hover:text-black",
@@ -688,6 +692,7 @@ export function NumberInput({
   className,
   inputClassName,
   ariaLabel,
+  ariaDescribedBy,
 }: {
   value: number | undefined | null;
   /** undefined when the field is cleared, so "not answered" stays different from 0 */
@@ -703,6 +708,8 @@ export function NumberInput({
   /** classes for the input box itself (className styles the wrapper) */
   inputClassName?: string;
   ariaLabel?: string;
+  /** id of the element that explains the error, so a screen reader reads it with the field */
+  ariaDescribedBy?: string;
 }) {
   const external = value == null || Number.isNaN(value) ? "" : String(value);
   const [draft, setDraft] = React.useState(external);
@@ -767,6 +774,8 @@ export function NumberInput({
           inputMode="decimal"
           autoComplete="off"
           aria-label={ariaLabel}
+          aria-invalid={invalid || undefined}
+          aria-describedby={ariaDescribedBy}
           disabled={disabled}
           value={draft}
           placeholder={placeholder}
@@ -952,6 +961,31 @@ export function HelpTip({
   );
 }
 
+const FOCUSABLE =
+  'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+
+/* Keeps Tab and Shift+Tab inside the dialog, so focus cannot wander onto the page behind it. A dialog
+   opened on top of another one is left alone. */
+function keepTabInside(e: KeyboardEvent, panel: HTMLElement) {
+  const active = document.activeElement;
+  if (active && !panel.contains(active) && active.closest('[role="dialog"]'))
+    return;
+  const els = [...panel.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
+    (el) => !el.closest("[hidden]"),
+  );
+  if (!els.length) return;
+  const first = els[0]!;
+  const last = els[els.length - 1]!;
+  const inside = active !== null && panel.contains(active);
+  if (e.shiftKey && (!inside || active === first)) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && (!inside || active === last)) {
+    e.preventDefault();
+    first.focus();
+  }
+}
+
 /* ── Modal ──────────────────────────────────────────────────
    Portaled so it clears every sticky header and blurred panel on the page,
    and scroll-locked so the page behind it does not move while a wizard step
@@ -997,9 +1031,22 @@ export function Modal({
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
 
+  const panelRef = React.useRef<HTMLDivElement>(null);
+
+  // Focus goes back to whatever opened the dialog when it closes.
   React.useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const opener = document.activeElement as HTMLElement | null;
+    return () => opener?.focus?.();
+  }, [open]);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      else if (e.key === "Tab" && panelRef.current)
+        keepTabInside(e, panelRef.current);
+    };
     document.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -1014,6 +1061,7 @@ export function Modal({
   return createPortal(
     <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/25 p-4 backdrop-blur-[2px] sm:p-6">
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label={title}

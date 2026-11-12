@@ -125,6 +125,7 @@ export const TH_POLISH: Record<string, string> = {
   "Choose a supplier": "เลือกซัพพลายเออร์",
   "No suppliers yet": "ยังไม่มีซัพพลายเออร์",
   "Choose an installation": "เลือกโรงงาน",
+  "your site": "โรงงานของคุณ",
   "No installations for this supplier yet": "ซัพพลายเออร์รายนี้ยังไม่มีโรงงาน",
   "Standard name": "ชื่อมาตรฐาน",
   "Precursors this implies": "วัตถุดิบตั้งต้นที่เกี่ยวข้อง",
@@ -1400,4 +1401,13 @@ export const TH_POLISH: Record<string, string> = {
   "Your plan": "แพ็กเกจของคุณ",
   "Your workspace is ready when setup is saved.":
     "พื้นที่ทำงานของคุณพร้อมใช้งานเมื่อบันทึกการตั้งค่าแล้ว",
+  /* ── Cookie banner ─────────────────────────────────────────── */
+  "Cookie consent": "การยินยอมใช้คุกกี้",
+  "We use necessary cookies to keep you signed in. With your permission we also use analytics cookies to improve Certrace.":
+    "เราใช้คุกกี้ที่จำเป็นเพื่อให้คุณลงชื่อเข้าใช้ไว้ และหากคุณอนุญาต เราจะใช้คุกกี้วิเคราะห์เพื่อพัฒนา Certrace",
+  "Reject optional": "ปฏิเสธส่วนที่ไม่จำเป็น",
+  "Accept all": "ยอมรับทั้งหมด",
+  Customise: "ปรับแต่ง",
+  "Could not save your cookie choice. Please try again.":
+    "บันทึกตัวเลือกคุกกี้ไม่สำเร็จ กรุณาลองอีกครั้ง",
 };

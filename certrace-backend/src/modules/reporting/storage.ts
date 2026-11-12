@@ -15,6 +15,15 @@ function bad(path: string, why: string): never {
   return fail(422, "INVALID_REPORT_INPUT", `${path}: ${why}`);
 }
 const dangerous = new Set(["__proto__", "prototype", "constructor"]);
+const patterns = new Map<string, RegExp>();
+function compiledPattern(source: string): RegExp {
+  let re = patterns.get(source);
+  if (!re) {
+    re = new RegExp(source);
+    patterns.set(source, re);
+  }
+  return re;
+}
 export function validateShape(
   s: Shape,
   value: unknown,
@@ -38,6 +47,10 @@ export function validateShape(
   if (s.kind === "array") {
     if (!Array.isArray(value)) bad(path, "expected an array");
     if (value.length > 10000) bad(path, "too many rows");
+    if (s.maxItems !== undefined && value.length > s.maxItems)
+      bad(path, `must have at most ${s.maxItems} items`);
+    if (s.unique && new Set(value).size !== value.length)
+      bad(path, "items must be unique");
     if (s.item?.fields?.id) {
       const ids = value.map((v) =>
         v && typeof v === "object"
@@ -80,7 +93,11 @@ export function validateShape(
         !Number.isFinite(Number(value)))
     )
       bad(path, "invalid number");
-    if (s.enum && !s.enum.includes(value as string | number | boolean))
+    if (
+      s.enum &&
+      (value !== "" || s.arrayElement) &&
+      !s.enum.includes(value as string | number | boolean)
+    )
       bad(path, "invalid option");
     if ((s.kind === "number" || s.kind === "decimalText") && value !== "") {
       if (s.min !== undefined && Number(value) < s.min)
@@ -90,6 +107,19 @@ export function validateShape(
     }
     if (typeof value === "string" && value.length > 1000000)
       bad(path, "text is too long");
+    if (
+      typeof value === "string" &&
+      s.maxLength !== undefined &&
+      value.length > s.maxLength
+    )
+      bad(path, `must be at most ${s.maxLength} characters`);
+    if (
+      typeof value === "string" &&
+      s.pattern &&
+      (value !== "" || s.arrayElement) &&
+      !compiledPattern(s.pattern).test(value)
+    )
+      bad(path, "invalid format");
     if (
       s.format === "date" &&
       value !== "" &&

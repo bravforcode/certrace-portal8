@@ -88,9 +88,6 @@ export default function CarbonCostPage() {
   const { data, isError, refetch } = useQuery({
     queryKey: ["carbon-cost", "v2"],
     queryFn: () => ({ facts: readCostFacts(), env: costEnv() }),
-    staleTime: 0,
-    refetchOnMount: "always",
-    refetchInterval: 5000,
   });
   useStoreSync(() => void refetch());
 

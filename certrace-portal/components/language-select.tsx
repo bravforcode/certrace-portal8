@@ -43,9 +43,7 @@ export function LanguageSelect({
           title={t("Language")}
           className={cn(
             "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border bg-white transition-colors",
-            size === "sm"
-              ? "h-7 px-2.5 text-[11px]"
-              : "h-9 px-3 text-[12.5px]",
+            size === "sm" ? "h-7 px-2.5 text-[11px]" : "h-9 px-3 text-[12.5px]",
             open
               ? "border-black/30 text-black"
               : "border-black/10 text-black/65 hover:border-black/25 hover:text-black",
@@ -79,7 +77,9 @@ export function LanguageSelect({
               }}
               className={cn(
                 "flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-[13px] transition-colors hover:bg-[#fafaf8]",
-                l.code === choice ? "bg-black/[0.04] text-black" : "text-black/65",
+                l.code === choice
+                  ? "bg-black/[0.04] text-black"
+                  : "text-black/65",
               )}
             >
               <span className="flex items-center gap-2.5">

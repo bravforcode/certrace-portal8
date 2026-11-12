@@ -54,6 +54,20 @@
   --cera-mark-back: #8cd499;
   --cera-mark-front: #67be8c;
   --cera-mark-overlap: #43a97f;
+
+  /* ── Production flow diagram (components/workspace/flow-diagram.tsx) ── */
+  --flow-step: #ffffff;
+  --flow-step-stroke: #1f2937;
+  --flow-material: #eff6ff;
+  --flow-energy: #fff7ed;
+  --flow-output: #f0fdf4;
+  --flow-product: #f5f3ff;
+  --flow-line: #e5e7eb;
+  --flow-edge: #c7c5be;
+  --flow-canvas: #fafaf8;
+  --flow-ink: #111111;
+  --flow-focus: var(--color-info-text);
+  --flow-warn-bg: color-mix(in srgb, var(--color-warn) 18%, white);
 }
 
 /* Dark theme hook for the Cera mark. The portal is not themed yet; when it is,

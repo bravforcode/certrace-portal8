@@ -35,7 +35,9 @@ export function sharedRecord(key: string) {
   return (
     shared.has(key) ||
     key.startsWith("certrace:exporter:") ||
-    key.startsWith("certrace:intake:")
+    key.startsWith("certrace:intake:") ||
+    key.startsWith("certrace:factory:") ||
+    key === "certrace:opportunities"
   );
 }
 export const personalPrefix = (companyId: string) =>

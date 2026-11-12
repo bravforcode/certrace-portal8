@@ -47,9 +47,6 @@ export default function SupplyChainPage() {
   const { data, isError, refetch } = useQuery({
     queryKey: ["supply-chain", "v1"],
     queryFn: () => ({ plants: readPlants(), precursors: readPrecursors() }),
-    staleTime: 0,
-    refetchOnMount: "always",
-    refetchInterval: 5000,
   });
   useStoreSync(() => void refetch());
 

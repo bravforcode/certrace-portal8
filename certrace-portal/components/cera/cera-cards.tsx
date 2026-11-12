@@ -39,6 +39,14 @@ import { pick, type CeraLang } from "@/lib/cera/lang";
 import { requestFocus } from "@/lib/cera/focus";
 import { listWorkspaces } from "@/lib/workspace";
 import { ReportAutofill } from "@/components/intake/report-autofill";
+import { useQuery } from "@tanstack/react-query";
+import {
+  describeAction,
+  type ActionContext,
+  type CeraAction,
+} from "@/lib/cera/actions";
+import { getWorkbook } from "@/lib/api/workbooks";
+import { getInstallation, type Installation } from "@/lib/installations";
 
 function EarlierVersion() {
   const t = useT();
@@ -72,6 +80,8 @@ export function CeraCardView({
       ) : (
         <EarlierVersion />
       );
+    case "action":
+      return <ActionCard messageId={messageId} card={card} />;
     case "updates":
       return <UpdatesCard card={card} />;
     case "links":
@@ -816,6 +826,157 @@ function ExtractionCard({
                 disabled={kept === 0 || blocked || thinking || answering}
               >
                 {t("Confirm and fill in")}
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Changes Cera proposes to the account ───────────────────── */
+type ActionContextData = {
+  /** workbook cells by "<installation>:<year>" */
+  cells: Record<string, Record<string, string>>;
+  installations: Record<string, Installation | undefined>;
+};
+
+/** What is stored now for each change, so a row can show old → new. A failed read leaves the old value out; the new value still shows. */
+function useActionContext(actions: CeraAction[], enabled: boolean) {
+  const writes = actions.filter(
+    (a) => a.tool === "set_cbam_fields" || a.tool === "update_installation",
+  );
+  return useQuery({
+    queryKey: ["cera-action-context", writes],
+    enabled: enabled && writes.length > 0,
+    staleTime: 0,
+    retry: false,
+    queryFn: async (): Promise<ActionContextData> => {
+      const data: ActionContextData = { cells: {}, installations: {} };
+      for (const a of writes) {
+        if (a.tool === "set_cbam_fields") {
+          const key = `${a.installationId}:${a.year}`;
+          if (key in data.cells) continue;
+          try {
+            const wb = await getWorkbook(a.installationId, a.year);
+            if ("cells" in wb) data.cells[key] = wb.cells;
+          } catch {
+            /* no old values for this year */
+          }
+        } else {
+          data.installations[a.installationId] =
+            getInstallation(a.installationId) ?? undefined;
+        }
+      }
+      return data;
+    },
+  });
+}
+
+function ActionCard({
+  messageId,
+  card,
+}: {
+  messageId: string;
+  card: Extract<CeraCard, { kind: "action" }>;
+}) {
+  const t = useT();
+  const { confirmAction, discardAction } = useCera();
+  const pending = card.status === "pending" || card.status === "failed";
+  const busy = Boolean(card.applying);
+  const context = useActionContext(card.actions, pending && !busy);
+  const data = context.data;
+  const writes = card.actions.some(
+    (a) => a.tool === "set_cbam_fields" || a.tool === "update_installation",
+  );
+  const contextOf = (a: CeraAction): ActionContext | undefined => {
+    if (a.tool === "set_cbam_fields") {
+      const cells = data?.cells[`${a.installationId}:${a.year}`];
+      return cells ? { cells } : undefined;
+    }
+    if (a.tool === "update_installation") {
+      const installation = data?.installations[a.installationId];
+      return installation ? { installation } : undefined;
+    }
+    return undefined;
+  };
+
+  return (
+    <div className={shell}>
+      <div className="space-y-4 px-4 py-3.5">
+        {card.actions.map((a, i) => {
+          const d = describeAction(a, contextOf(a));
+          return (
+            <div key={i}>
+              <p className="text-[13px] text-black/80">{t(d.title)}</p>
+              <ul className="mt-1.5 space-y-1">
+                {d.rows.map((r, j) => (
+                  <li
+                    key={j}
+                    className="flex flex-wrap items-baseline gap-x-2 text-[12px] leading-relaxed"
+                  >
+                    <span className="text-black/50">{t(r.label)}</span>
+                    {r.from !== undefined && (
+                      <>
+                        <span className="min-w-0 break-words text-black/35 line-through decoration-black/25">
+                          {r.from}
+                        </span>
+                        <span className="text-black/35">→</span>
+                      </>
+                    )}
+                    <span className="min-w-0 break-words text-black/80">
+                      {r.to}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-black/[0.06] px-4 py-3">
+        {card.status === "applied" ? (
+          <span className="inline-flex items-center gap-1.5 text-[12.5px] text-[#047857]">
+            <Check size={14} strokeWidth={2} /> {t(writes ? "Saved" : "Done")}
+          </span>
+        ) : card.status === "discarded" ? (
+          <span className="text-[12.5px] text-black/40">
+            {t("Discarded — nothing was saved")}
+          </span>
+        ) : (
+          <>
+            <span
+              role={card.status === "failed" ? "alert" : undefined}
+              className={cn(
+                "min-w-0 text-[12px]",
+                card.status === "failed" ? "text-[#dc2626]" : "text-black/40",
+              )}
+            >
+              {card.status === "failed"
+                ? card.error
+                : busy
+                  ? ""
+                  : t("Nothing is saved until you confirm.")}
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => discardAction(messageId, card.id)}
+                disabled={busy}
+              >
+                {t("Discard")}
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => confirmAction(messageId, card.id)}
+                disabled={busy}
+              >
+                {busy
+                  ? t("Saving…")
+                  : t(card.status === "failed" ? "Try again" : "Confirm")}
               </Button>
             </div>
           </>

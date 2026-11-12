@@ -20,10 +20,9 @@ services receive only their explicitly configured variables. After changing `.en
 run `docker compose up -d backend` to recreate the backend with the updated values;
 an image rebuild is unnecessary for environment-only changes.
 
-Set `CERTRACE_MASTER_PASSWORD` in the root `.env` to allow sign-in to any
-existing active account using its email and that password. Leave it empty to disable
-this access. Account readiness rules still apply. Use a long random value and keep
-it out of the frontend environment.
+There is no universal sign-in password. Do not set `CERTRACE_MASTER_PASSWORD`; the
+backend refuses to start in production when it is set. Support access goes through
+the admin console.
 
 ## Deploy published images on a VPS
 

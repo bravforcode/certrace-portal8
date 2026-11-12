@@ -117,7 +117,7 @@ export function HomeTiles({
           )}
         />
       </LinkTile>
-      <LinkTile href={l("/workspaces")}>
+      <LinkTile href={l("/convert")}>
         <StatTile
           value={`${c.monthsIn}/${c.monthsOf}`}
           label={t("Months in")}

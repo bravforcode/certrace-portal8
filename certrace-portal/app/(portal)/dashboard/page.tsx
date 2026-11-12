@@ -45,6 +45,12 @@ import {
   SitesPanel,
 } from "@/components/home/panels";
 import { CURRENCIES, type Currency } from "@/lib/cbam/carbon-cost-model";
+import { InstallationDirectory } from "@/components/factory/installation-directory";
+import { FactoryMap } from "@/components/factory/factory-map";
+import { useActiveInstallation } from "@/lib/active-installation";
+import { currentYear } from "@/lib/year-range";
+import { OpportunitySummary } from "@/components/factory/opportunity-summary";
+import { WhatIfPanel } from "@/components/factory/what-if-panel";
 
 export default function DashboardPage() {
   const t = useT();
@@ -62,9 +68,6 @@ export default function DashboardPage() {
   const { data, isError, refetch } = useQuery({
     queryKey: ["dashboard", "v2"],
     queryFn: () => readDashboard(),
-    staleTime: 0,
-    refetchOnMount: "always",
-    refetchInterval: 5000,
   });
   useStoreSync(() => void refetch());
 
@@ -73,6 +76,11 @@ export default function DashboardPage() {
     currency,
     data?.carbon.env.rates ?? { THB: 38, EUR: 1, CNY: 7.8, INR: 95 },
   );
+
+  const { active } = useActiveInstallation();
+  const [year, setYear] = React.useState(currentYear);
+  const [picked, setPicked] = React.useState<string | null>(null);
+  const mapId = picked ?? active?.id ?? null;
 
   if (isError) return <ErrorState onRetry={() => void refetch()} />;
   if (!data) return <LoadingState />;
@@ -103,6 +111,30 @@ export default function DashboardPage() {
         </Link>
       </div>
 
+      <InstallationDirectory
+        year={year}
+        selectedId={mapId}
+        onShowOnMap={setPicked}
+      />
+      {mapId && (
+        <FactoryMap
+          key={`${mapId}:${year}`}
+          installationId={mapId}
+          year={year}
+          onInstallationChange={setPicked}
+          onYearChange={setYear}
+        />
+      )}
+      {mapId && (
+        <WhatIfPanel
+          key={`whatif:${mapId}:${year}`}
+          installationId={mapId}
+          year={year}
+          env={data.carbon.env}
+          currency={currency}
+        />
+      )}
+
       {empty ? (
         <EmptyState
           icon={<LayoutGrid size={28} strokeWidth={1.25} />}
@@ -132,6 +164,8 @@ export default function DashboardPage() {
             <ChainPanel d={data} live />
             <ActivityPanel events={data.activity} d={data} live />
           </div>
+
+          <OpportunitySummary />
         </>
       )}
     </div>

@@ -1,10 +1,11 @@
-import { randomInt, timingSafeEqual } from "node:crypto";
+import { randomInt } from "node:crypto";
 import { createRemoteJWKSet, jwtVerify, SignJWT } from "jose";
 import { db } from "../../lib/db";
 import { config, SESSION_COOKIE, SESSION_SECONDS } from "../../lib/config";
 import { fail } from "../../lib/errors";
 import { hash, token, verifyPassword, rateLimit } from "../../lib/security";
 import { sendEmail } from "../../lib/email";
+import { notify } from "../../lib/notify";
 import { syncRegistrationSheet } from "../../lib/registration-sheet";
 import type { users } from "../../generated/prisma/client";
 import type { RegisterInput } from "./model";
@@ -25,6 +26,8 @@ export const publicUser = async (u: users) => ({
   companyName: u.company_name ?? undefined,
   planId: u.plan_id,
   trialStartedAt: u.trial_started_at.toISOString(),
+  approvedAt: u.approved_at?.toISOString() ?? null,
+  locale: u.locale === "th" ? ("th" as const) : ("en" as const),
   googleLinked: Boolean(u.google_sub),
 });
 const normalize = (email: string) => email.trim().toLowerCase();
@@ -140,15 +143,19 @@ export async function register(
   await rateLimit(`register:${normalize(input.email)}`, 5, 3600);
   if (await byEmail(input.email))
     fail(409, "EMAIL_TAKEN", "An account with this email already exists.");
+  // Hashing is slow by design; keep it out of the interactive transaction, whose
+  // 5 s timeout otherwise expires under load and the request fails with a 500.
+  const passwordHash = await Bun.password.hash(input.password);
   try {
     const user = await db.$transaction(async (tx) => {
       const user = await tx.users.create({
         data: {
           email: normalize(input.email),
-          password_hash: await Bun.password.hash(input.password),
+          password_hash: passwordHash,
           first_name: input.firstName,
           last_name: input.lastName,
           company_name: input.companyName,
+          locale: input.locale ?? "en",
         },
       });
       await recordLegalAcceptance(tx, user.id, input, context, "registration");
@@ -186,14 +193,7 @@ export async function login(email: string, password: string) {
     password,
     user?.password_hash ?? dummyHash,
   );
-  const masterPassword = config.masterPassword;
-  const masterValid =
-    Boolean(masterPassword) &&
-    timingSafeEqual(
-      Buffer.from(hash(password), "hex"),
-      Buffer.from(hash(masterPassword), "hex"),
-    );
-  if ((!valid && !masterValid) || !user) return unauthorized();
+  if (!valid || !user) return unauthorized();
   return active(user);
 }
 export async function refresh(credential: string | undefined) {
@@ -321,7 +321,7 @@ export async function resetPassword(
       where: { user_id: user.id },
       data: { used: true },
     });
-    return true;
+    return user;
   });
   if (!ok)
     fail(
@@ -329,6 +329,13 @@ export async function resetPassword(
       "INVALID_RESET_TOKEN",
       "That verification code is invalid or expired.",
     );
+  // A reset is a takeover signal; the owner must hear about it.
+  await notify(ok, "password_changed").catch((e) =>
+    console.error(
+      "password_changed email failed",
+      (e as { code?: string } | undefined)?.code,
+    ),
+  );
   return { success: true, message: "Password reset. Please sign in." };
 }
 const googleKeys = createRemoteJWKSet(
@@ -430,12 +437,14 @@ export async function accountForVerifiedGoogleIdentity(
       "Review both legal documents before creating an account.",
     );
   const googleEmail = identity.email;
+  // Unusable placeholder password; hashed outside the transaction for the same reason as register.
+  const placeholderHash = await Bun.password.hash(token());
   const user = await db.$transaction(async (tx) => {
     const user = await tx.users.create({
       data: {
         email: normalize(googleEmail),
         google_sub: identity.sub,
-        password_hash: await Bun.password.hash(token()),
+        password_hash: placeholderHash,
         first_name:
           typeof identity.given_name === "string"
             ? identity.given_name

@@ -75,6 +75,12 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  // /workspaces has subroutes but no index page; older links to it land on the workbook.
+  async redirects() {
+    return [
+      { source: "/workspaces", destination: "/workspace", permanent: false },
+    ];
+  },
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },

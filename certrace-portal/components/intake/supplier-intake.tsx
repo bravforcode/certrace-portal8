@@ -1,7 +1,7 @@
 "use client";
 
 /* ════════════════════════════════════════════════════════════
-   SUPPLIER-PORTAL SMART INTAKE — the screen (PROTOTYPE)
+   SUPPLIER-PORTAL SMART INTAKE — the screen
 
    Sits at the top of the Supplier Portal's Documents view (/s/ and /self/).
    Same grammar as the workspace version (components/intake/smart-intake.tsx):
@@ -453,7 +453,7 @@ export function SupplierIntake() {
         </p>
         <p className="mt-1 text-[11px] text-black/35">
           {t(
-            "Prototype — detection is simulated. Nothing leaves this browser.",
+            "Text PDFs are read in this browser. Images and scans need their values typed in.",
           )}
         </p>
       </div>

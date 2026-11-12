@@ -65,7 +65,10 @@ const HUES: Record<Exclude<ProductId, "cera">, [string, string, string]> = {
 
 type Fill = { fill: string; fillOpacity?: number };
 
-function fills(product: Exclude<ProductId, "cera">, tone: Tone): [Fill, Fill, Fill] {
+function fills(
+  product: Exclude<ProductId, "cera">,
+  tone: Tone,
+): [Fill, Fill, Fill] {
   if (tone === "ink") {
     return [
       { fill: "currentColor", fillOpacity: 0.32 },
@@ -126,8 +129,10 @@ function WorkspaceMark({ tone }: { tone: Tone }) {
 function ConvertMark({ tone, uid }: { tone: Tone; uid: string }) {
   const [back, front, overlap] = fills("convert", tone);
   const clip = `convert-clip-${uid}`;
-  const backPath = "M5.2 2.5h6.6a2.7 2.7 0 0 1 2.7 2.7v13.6a2.7 2.7 0 0 1-2.7 2.7H5.2a2.7 2.7 0 0 1-2.7-2.7V5.2a2.7 2.7 0 0 1 2.7-2.7Z";
-  const frontPath = "M12.2 6.5h6.6a2.7 2.7 0 0 1 2.7 2.7v9.6a2.7 2.7 0 0 1-2.7 2.7h-6.6a2.7 2.7 0 0 1-2.7-2.7V9.2a2.7 2.7 0 0 1 2.7-2.7Z";
+  const backPath =
+    "M5.2 2.5h6.6a2.7 2.7 0 0 1 2.7 2.7v13.6a2.7 2.7 0 0 1-2.7 2.7H5.2a2.7 2.7 0 0 1-2.7-2.7V5.2a2.7 2.7 0 0 1 2.7-2.7Z";
+  const frontPath =
+    "M12.2 6.5h6.6a2.7 2.7 0 0 1 2.7 2.7v9.6a2.7 2.7 0 0 1-2.7 2.7h-6.6a2.7 2.7 0 0 1-2.7-2.7V9.2a2.7 2.7 0 0 1 2.7-2.7Z";
   return (
     <>
       <defs>
@@ -160,7 +165,10 @@ function SmartLinkMark({ tone, uid }: { tone: Tone; uid: string }) {
       strokeWidth={2.4}
     />
   );
-  const colour = (f: Fill) => ({ stroke: f.fill, strokeOpacity: f.fillOpacity ?? 1 });
+  const colour = (f: Fill) => ({
+    stroke: f.fill,
+    strokeOpacity: f.fillOpacity ?? 1,
+  });
   return (
     <>
       <defs>
@@ -186,8 +194,10 @@ function SmartLinkMark({ tone, uid }: { tone: Tone; uid: string }) {
 function ProveMark({ tone, uid }: { tone: Tone; uid: string }) {
   const [back, front, overlap] = fills("prove", tone);
   const clip = `prove-clip-${uid}`;
-  const panel = "M5.5 2.5h7a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3h-7a3 3 0 0 1-3-3v-7a3 3 0 0 1 3-3Z";
-  const shield = "M15 8.2 21.5 10.7v4.7c0 3.6-2.6 6.3-6.5 7.8-3.9-1.5-6.5-4.2-6.5-7.8v-4.7Z";
+  const panel =
+    "M5.5 2.5h7a3 3 0 0 1 3 3v7a3 3 0 0 1-3 3h-7a3 3 0 0 1-3-3v-7a3 3 0 0 1 3-3Z";
+  const shield =
+    "M15 8.2 21.5 10.7v4.7c0 3.6-2.6 6.3-6.5 7.8-3.9-1.5-6.5-4.2-6.5-7.8v-4.7Z";
   return (
     <>
       <defs>
@@ -303,7 +313,13 @@ function ConnectMark({ tone, uid }: { tone: Tone; uid: string }) {
       </defs>
       <circle cx="8.8" cy="12" r="6.6" {...back} />
       <circle cx="15.2" cy="12" r="6.6" {...front} />
-      <circle cx="15.2" cy="12" r="6.6" {...overlap} clipPath={`url(#${clip})`} />
+      <circle
+        cx="15.2"
+        cy="12"
+        r="6.6"
+        {...overlap}
+        clipPath={`url(#${clip})`}
+      />
     </>
   );
 }
@@ -330,21 +346,32 @@ function MarketMark({ tone }: { tone: Tone }) {
   );
 }
 
-export function ProductMark({ product, className = "h-5 w-5", tone = "brand" }: Props) {
+export function ProductMark({
+  product,
+  className = "h-5 w-5",
+  tone = "brand",
+}: Props) {
   const uid = React.useId().replace(/[^a-zA-Z0-9]/g, "");
 
   if (product === "cera") {
     /* Cera's mark is taller than it is wide; centre it in the same square
        box the others use so a row of marks lines up. */
     return (
-      <span className={`inline-flex items-center justify-center shrink-0 ${className}`} aria-hidden="true">
+      <span
+        className={`inline-flex items-center justify-center shrink-0 ${className}`}
+        aria-hidden="true"
+      >
         <CeraMark tone={tone} className="h-[88%] w-auto" />
       </span>
     );
   }
 
   return (
-    <svg viewBox="0 0 24 24" className={`shrink-0 ${className}`} aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      className={`shrink-0 ${className}`}
+      aria-hidden="true"
+    >
       {product === "dashboard" && <DashboardMark tone={tone} />}
       {product === "workspace" && <WorkspaceMark tone={tone} />}
       {product === "convert" && <ConvertMark tone={tone} uid={uid} />}

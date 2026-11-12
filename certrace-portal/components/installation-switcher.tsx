@@ -40,7 +40,12 @@ export function InstallationSwitcher({
 
   if (!loading && options.length === 0)
     return (
-      <div className={cn("text-black/45", compact ? "px-2.5 py-2 text-[12px]" : "text-[13px]")}>
+      <div
+        className={cn(
+          "text-black/45",
+          compact ? "px-2.5 py-2 text-[12px]" : "text-[13px]",
+        )}
+      >
         {t("No installation yet.")}{" "}
         <Link
           href="/workspaces/new"
@@ -85,7 +90,12 @@ export function InstallationSwitcher({
               className="flex-none text-black/40"
             />
             <span className="min-w-0 flex-1">
-              <span className={cn("block truncate", on ? "text-black/85" : "text-black/65")}>
+              <span
+                className={cn(
+                  "block truncate",
+                  on ? "text-black/85" : "text-black/65",
+                )}
+              >
                 {o.name}
               </span>
               <span className="block truncate font-mono text-[10.5px] text-black/35">

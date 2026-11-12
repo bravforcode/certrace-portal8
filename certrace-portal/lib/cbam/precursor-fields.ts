@@ -49,7 +49,7 @@ import {
   type AggregatedGoodsCategory,
 } from "../config";
 import type { PrecursorSupplier } from "../precursor-suppliers";
-import { categoryRequiresIndirect } from "./product-category-rules";
+import { indirectCounts } from "./product-category-rules";
 import { cnProductByCode } from "./cn-catalogue";
 
 export type FieldOwner = "exporter" | "precursor";
@@ -273,7 +273,7 @@ export function needsIndirect(
   row: Pick<PrecursorSupplier, "cnCode" | "catalogProductId">,
 ): boolean {
   const c = categoryOf(row);
-  return c ? categoryRequiresIndirect(c) : true;
+  return c ? indirectCounts(c, row.cnCode) : true;
 }
 
 const YES_NO = [

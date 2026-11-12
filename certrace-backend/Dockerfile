@@ -26,7 +26,6 @@ RUN bun run --cwd certrace-backend db:generate
 COPY certrace-backend/src certrace-backend/src
 # Cera shares the existing rule engine's maintained knowledge, without a copy.
 COPY certrace-portal/lib/cera/knowledge-cbam.ts certrace-portal/lib/cera/knowledge-platform.ts certrace-portal/lib/cera/knowledge-types.ts certrace-portal/lib/cera/
-COPY certrace-portal/lib/team-seat-limits.ts certrace-portal/lib/team-seat-limits.ts
 COPY certrace-backend/scripts/migrate-report-data.ts certrace-backend/scripts/migrate-report-data.ts
 WORKDIR /app/certrace-backend
 USER node

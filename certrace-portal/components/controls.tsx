@@ -96,7 +96,12 @@ function useAnchoredStyle(
     align = "left",
     gap = 6,
     maxHeight: cap = MAX_POPOVER_HEIGHT,
-  }: { matchWidth?: boolean; align?: "left" | "right"; gap?: number; maxHeight?: number } = {},
+  }: {
+    matchWidth?: boolean;
+    align?: "left" | "right";
+    gap?: number;
+    maxHeight?: number;
+  } = {},
 ) {
   const [style, setStyle] = React.useState<React.CSSProperties>({
     position: "fixed",
@@ -420,7 +425,9 @@ export function Select({
           )}
         >
           {selected?.icon}
-          <span className="truncate">{selected ? selected.label : t(placeholder)}</span>
+          <span className="truncate">
+            {selected ? selected.label : t(placeholder)}
+          </span>
         </span>
         <ChevronDown
           size={15}
@@ -696,7 +703,10 @@ export function Dropdown({
   maxHeight?: number;
 }) {
   const { open, setOpen, triggerRef, popRef } = usePopover();
-  const anchor = useAnchoredStyle(open, triggerRef, popRef, { align, maxHeight });
+  const anchor = useAnchoredStyle(open, triggerRef, popRef, {
+    align,
+    maxHeight,
+  });
   return (
     <div className={cn("relative", className)}>
       <button
