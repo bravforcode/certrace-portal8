@@ -11,8 +11,10 @@ import { TH_WORKSPACE } from "./i18n-th-workspace";
 import { TH_OPPORTUNITIES } from "./i18n-th-opportunities";
 import { TH_PREVERIFY } from "./i18n-th-preverify";
 import { TH_WHATIF } from "./i18n-th-whatif";
+import { TH_CERA_MONITOR } from "./i18n-th-cera-monitor";
 
 export const TH_ALL: Record<string, string> = {
+  ...TH_CERA_MONITOR,
   ...TH_WORKSPACE,
   ...TH_PREVERIFY,
   ...TH_OPPORTUNITIES,

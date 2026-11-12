@@ -16,6 +16,8 @@ export function useConvertContext(): {
   /** CBAM answers of that year, with the installation record filling the unanswered cells. */
   cells: Record<string, string>;
   year: number;
+  /** the year's workbook has loaded, so `cells` is the real answer set and not the empty start */
+  loaded: boolean;
 } {
   const { scoped } = useScopedInstallation();
   const iid = scoped?.id ?? null;
@@ -25,11 +27,11 @@ export function useConvertContext(): {
     .map((y: { year: number }) => y.year)
     .sort((a: number, b: number) => b - a)[0];
   const year = latest ?? currentYear();
-  const { sheets, cells: stored } = useWorkbook(iid, year);
+  const { sheets, cells: stored, loaded } = useWorkbook(iid, year);
   const installation = React.useMemo(() => (iid ? getInstallation(iid) : null), [iid]);
   const cells = React.useMemo(
     () => withInstallationDefaults(stored ?? {}, installation, year),
     [stored, installation, year],
   );
-  return { scoped, installation, sheets, cells, year };
+  return { scoped, installation, sheets, cells, year, loaded };
 }

@@ -9218,4 +9218,10 @@ export const ZH: Record<string, string> = {
   "Too many submissions. Try again later.": "提交过于频繁，请稍后再试。",
   "This workbook is already waiting for the Certrace team. Change the data to submit again.": "此工作簿已在等待 Certrace 团队复核。请更改数据后再提交。",
   "Fill in the CBAM requirements before you submit for pre-verification.": "提交预先核验前，请先填写全部 CBAM 要求。",
+  "Missing data": "缺失数据",
+  "{n} missing": "缺 {n} 项",
+  "Everything Cera checks for this installation is in.": "Cera 为此设施检查的全部数据均已填写。",
+  "and {n} more": "还有 {n} 项",
+  "Ask Cera to fill": "请 Cera 代为填写",
+  "Cera proposes each change; you confirm it before anything is saved.": "Cera 会提出每项修改，您确认后才会保存。",
 };

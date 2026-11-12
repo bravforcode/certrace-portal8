@@ -6871,4 +6871,10 @@ export const HI: Record<string, string> = {
   "Too many submissions. Try again later.": "बहुत अधिक बार जमा किया गया। कुछ देर बाद फिर प्रयास करें।",
   "This workbook is already waiting for the Certrace team. Change the data to submit again.": "यह वर्कबुक पहले से Certrace टीम की समीक्षा की प्रतीक्षा में है। दोबारा जमा करने से पहले डेटा बदलें।",
   "Fill in the CBAM requirements before you submit for pre-verification.": "पूर्व-सत्यापन से पहले CBAM आवश्यकताएँ पूरी भरें।",
+  "Missing data": "गायब डेटा",
+  "{n} missing": "{n} गायब",
+  "Everything Cera checks for this installation is in.": "Cera इस संयंत्र के लिए जो जाँचता है, वह सब भरा हुआ है।",
+  "and {n} more": "और {n} बाकी",
+  "Ask Cera to fill": "Cera से भरवाएँ",
+  "Cera proposes each change; you confirm it before anything is saved.": "Cera हर बदलाव सुझाता है; कुछ भी सहेजने से पहले आप उसकी पुष्टि करते हैं।",
 };

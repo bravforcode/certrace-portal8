@@ -42,6 +42,7 @@ import { CeraMark } from "./cera/cera-mark";
 import { CeraButton } from "./cera/cera-button";
 import { shownTitle } from "@/lib/cera/history";
 import { CeraPanel } from "./cera/cera-panel";
+import { CeraMissingProvider } from "./cera/cera-missing";
 import { NotificationsBell } from "./notifications/bell";
 import { NotificationsProvider } from "./notifications/provider";
 
@@ -584,7 +585,10 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
   // button both read it, and a component cannot use a context it renders itself.
   return (
     <CeraProvider>
-      <ShellFrame>{children}</ShellFrame>
+      {/* The missing-data monitor reads the selected installation, so it sits inside the shell: a supplier link never gets it. */}
+      <CeraMissingProvider>
+        <ShellFrame>{children}</ShellFrame>
+      </CeraMissingProvider>
     </CeraProvider>
   );
 }
