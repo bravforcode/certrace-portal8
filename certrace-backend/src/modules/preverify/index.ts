@@ -11,11 +11,11 @@ const statuses = t.Union([
   t.Literal("approved"),
   t.Literal("changes_requested"),
 ]);
-// Same shapes as the workbook params (workbooks/model.ts).
+// Same shapes as the workbook params (workbooks/model.ts). Only CBAM has a catalogue to check against.
 const key = t.Object({
   installationId: t.String({ pattern: "^[A-Za-z0-9_-]{1,64}$" }),
   year: t.Numeric({ minimum: 2000, maximum: 2100 }),
-  standardId: t.String({ pattern: "^[a-z0-9-]{1,32}$" }),
+  standardId: t.Literal("cbam"),
 });
 
 export const preverifications = new Elysia({ prefix: "/api/v1/preverifications" })

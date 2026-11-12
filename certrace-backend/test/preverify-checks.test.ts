@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { decideStatus, runChecks, type CatalogueField, type Finding } from "../src/modules/preverify/checks";
+import { catalogueCells, decideStatus, runChecks, type Finding } from "../src/modules/preverify/checks";
 
 const has = (findings: Finding[], field: string, severity: Finding["severity"]) =>
   findings.some((f) => f.field === field && f.severity === severity);
@@ -10,15 +10,7 @@ describe("pre-verification deterministic checks", () => {
     expect(has(runChecks({ "cbam:0:c-h26": "-5" }), "c-h26", "error")).toBe(true);
   });
 
-  test("a share above 100 is an error because a percentage cannot exceed the whole", () => {
-    // No catalogue field is a share yet, so the rule is tested against a synthetic field carrying the same label rule.
-    const fields: CatalogueField[] = [
-      { key: "x-share", label: "Share of output", section: "Goods", cell: "cbam:0:x-share", kind: "number" },
-    ];
-    expect(has(runChecks({ "cbam:0:x-share": "120" }, fields), "x-share", "error")).toBe(true);
-  });
-
-  test("valid data produces no findings so the customer is not blocked for correct answers", () => {
+  test("valid data produces no findings so correct submissions are not blocked", () => {
     // A clean reporting period and a positive emission must pass, or every honest submission would be flagged.
     const cells = {
       "cbam:0:a-i9": "2026-01-01",
@@ -34,10 +26,24 @@ describe("pre-verification deterministic checks", () => {
     expect(has(findings, "a-l9", "error")).toBe(true);
   });
 
+  test("an impossible date such as 2026-02-30 is an error because Date would silently roll it over", () => {
+    // A round-trip check catches dates that JavaScript would otherwise accept as a different day.
+    expect(has(runChecks({ "cbam:0:a-i9": "2026-02-30" }), "a-i9", "error")).toBe(true);
+  });
+
   test("a process with answers but no name is a warning because a half-filled block is likely a mistake", () => {
     // Production process 1 · Name is empty while another answer in that process is filled, so the reviewer should look.
     const findings = runChecks({ "cbam:0:a-e83": "Cement" });
     expect(findings.some((f) => f.field === "a-l83" && f.severity === "warn")).toBe(true);
+  });
+});
+
+describe("pre-verification catalogue cell filter", () => {
+  test("keys that are not catalogue cells are dropped so stale data cannot pass the empty check", () => {
+    // A workbook can keep cells for fields the catalogue no longer has; those must not count as an answer.
+    expect(catalogueCells({ "cbam:0:zz-stale": "1", "other:0:a-i9": "x", "cbam:0:a-i9": "2026-01-01" })).toEqual({
+      "cbam:0:a-i9": "2026-01-01",
+    });
   });
 });
 

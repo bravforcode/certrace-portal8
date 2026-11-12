@@ -393,7 +393,9 @@ model preverifications {
   reviewer          users?    @relation("preverify_reviewer", fields: [reviewed_by], references: [id], onDelete: SetNull)
 
   @@index([company_id, installation_id, year, standard_id, submitted_at(sort: Desc)], map: "preverifications_lookup_idx")
-  @@index([status], map: "preverifications_status_idx")
+  @@index([status, submitted_at(sort: Desc)], map: "preverifications_status_submitted_idx")
+  // Partial unique index preverifications_one_review_idx (status = 'team_review') lives only in
+  // the SQL migration: at most one open review per workbook revision. Prisma cannot express the WHERE here.
   @@schema("public")
 }
 
