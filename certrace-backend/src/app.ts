@@ -21,6 +21,7 @@ import { reportAutofill } from "./modules/evidence/autofill";
 import { cera } from "./modules/cera";
 import { workbooks } from "./modules/workbooks";
 import { consent } from "./modules/consent";
+import { preverifications, preverifyAdmin } from "./modules/preverify";
 export const app = new Elysia({
   serve: { maxRequestBodySize: 20 * 1024 * 1024 },
 })
@@ -135,5 +136,7 @@ export const app = new Elysia({
   .use(calculations)
   .use(evidence)
   .use(reportAutofill)
-  .use(cera);
+  .use(cera)
+  .use(preverifications)
+  .use(preverifyAdmin);
 export type App = typeof app;

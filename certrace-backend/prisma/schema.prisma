@@ -302,6 +302,9 @@ model users {
   workbooks            workbooks[]     @relation("workbook_company")
   workbooks_edited     workbooks[]     @relation("workbook_editor")
   cookie_consents      cookie_consents[]
+  preverify_company    preverifications[] @relation("preverify_company")
+  preverify_submitted  preverifications[] @relation("preverify_submitter")
+  preverify_reviewed   preverifications[] @relation("preverify_reviewer")
 
   @@schema("public")
 }
@@ -365,6 +368,32 @@ model item_links {
   users           users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([user_id, installation_id, year], map: "item_links_workbook_idx")
+  @@schema("public")
+}
+
+// AI check plus Certrace team review of a CBAM workbook before it is treated as pre-verified.
+model preverifications {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  company_id        String    @db.Uuid
+  installation_id   String
+  year              Int
+  standard_id       String
+  status            String
+  workbook_revision Int
+  ai_findings       Json      @default("[]")
+  ai_summary        String    @default("")
+  ai_model          String?
+  team_note         String    @default("")
+  submitted_by      String    @db.Uuid
+  reviewed_by       String?   @db.Uuid
+  submitted_at      DateTime  @default(now()) @db.Timestamptz(6)
+  reviewed_at       DateTime? @db.Timestamptz(6)
+  company           users     @relation("preverify_company", fields: [company_id], references: [id], onDelete: Cascade)
+  submitter         users     @relation("preverify_submitter", fields: [submitted_by], references: [id])
+  reviewer          users?    @relation("preverify_reviewer", fields: [reviewed_by], references: [id], onDelete: SetNull)
+
+  @@index([company_id, installation_id, year, standard_id, submitted_at(sort: Desc)], map: "preverifications_lookup_idx")
+  @@index([status], map: "preverifications_status_idx")
   @@schema("public")
 }
 

@@ -34,7 +34,7 @@ const view = (user: AdminUser) => ({
   approvedAt: user.approved_at?.toISOString() ?? null,
 });
 
-function requireAdmin(account: users) {
+export function requireAdmin(account: users) {
   if (!account.is_admin)
     fail(403, "ADMIN_REQUIRED", "Admin access is required.");
 }
