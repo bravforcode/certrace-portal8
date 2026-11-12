@@ -67,7 +67,11 @@ const runner = new SaveRunner<Workbook>({
   patch: (t, cells) => patchWorkbookCells(t.iid, t.year, cells),
   onSaved: (t, saved) => {
     // Only the account that typed the edit may update the cache it reads.
-    if (queryClient && t.accountId === currentAccount()) queryClient.setQueryData(["workbook", t.iid, t.year], saved);
+    if (queryClient && t.accountId === currentAccount()) {
+      queryClient.setQueryData(["workbook", t.iid, t.year], saved);
+      // The workbook revision moved, so a pre-verification on it may now be stale (lib/api/preverifications.ts).
+      void queryClient.invalidateQueries({ queryKey: ["preverification", t.iid, t.year] });
+    }
   },
   notify: (message, detail) => toast({ message, tone: "err", detail }),
   account: currentAccount,
@@ -121,6 +125,7 @@ export function useWorkbookYears(installationId: string | null) {
       await putWorkbookMeta(installationId, year, meta);
       await qc.invalidateQueries({ queryKey: ["workbook-years", installationId] });
       await qc.invalidateQueries({ queryKey: ["workbook", installationId, year] });
+      await qc.invalidateQueries({ queryKey: ["preverification", installationId, year] });
     } catch (e) {
       toast({ message: "Your change was not saved", tone: "err", detail: (e as Error).message });
     }
@@ -167,6 +172,7 @@ export function useWorkbookYears(installationId: string | null) {
       });
       await qc.invalidateQueries({ queryKey: ["workbook-years", installationId] });
       await qc.invalidateQueries({ queryKey: ["workbook", installationId, year] });
+      await qc.invalidateQueries({ queryKey: ["preverification", installationId, year] });
     } catch (e) {
       // Remove the cells already written, then reset meta so the year disappears and can be copied again.
       await clearCells(installationId, year, written);
@@ -202,6 +208,7 @@ export function useWorkbookYears(installationId: string | null) {
     }
     await qc.invalidateQueries({ queryKey: ["workbook-years", installationId] });
     await qc.invalidateQueries({ queryKey: ["workbook", installationId, year] });
+    await qc.invalidateQueries({ queryKey: ["preverification", installationId, year] });
   };
 
   /** The set-up has finished. The walk-in for this year is per browser (see walkinPending). */

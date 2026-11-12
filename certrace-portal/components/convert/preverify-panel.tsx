@@ -60,7 +60,8 @@ export function PreverifyPanel({
     mutationFn: () => submitPreverification(installationId, year),
     onSuccess: () => toast(t("Submitted for pre-verification")),
     onError: (err) => toast({ message: submitError(err, t), tone: "err" }),
-    onSettled: () => void client.invalidateQueries({ queryKey: key }),
+    // Returned, so the mutation stays pending until the refetch lands and a second click cannot slip in.
+    onSettled: () => client.invalidateQueries({ queryKey: key }),
   });
 
   if (status.isError)
@@ -76,14 +77,18 @@ export function PreverifyPanel({
   const { latest, currentRevision } = status.data;
   const state = preverifyState(latest, currentRevision, canConvert);
   const steps = STEP_STATES[state];
+  // Submit is closed in every state while the workbook is incomplete, not only when nothing was sent yet.
   const submitButton = (label: string) => (
-    <Button
-      onClick={() => submit.mutate()}
-      disabled={state === "incomplete" || submit.isPending}
-      title={state === "incomplete" ? t("Complete first") : undefined}
-    >
-      {submit.isPending ? t("Submitting…") : t(label)}
-    </Button>
+    <div className="flex flex-wrap items-center gap-3">
+      <Button
+        onClick={() => submit.mutate()}
+        disabled={!canConvert || submit.isPending}
+        title={canConvert ? undefined : t("Complete first")}
+      >
+        {submit.isPending ? t("Submitting…") : t(label)}
+      </Button>
+      {!canConvert && <span className="text-[12px] text-black/50">{t("Complete first")}</span>}
+    </div>
   );
 
   return (
@@ -111,14 +116,7 @@ export function PreverifyPanel({
           ))}
         </ol>
 
-        {(state === "incomplete" || state === "ready") && (
-          <div className="flex flex-wrap items-center gap-3">
-            {submitButton("Submit for pre-verification")}
-            {state === "incomplete" && (
-              <span className="text-[12px] text-black/50">{t("Complete first")}</span>
-            )}
-          </div>
-        )}
+        {(state === "incomplete" || state === "ready") && submitButton("Submit for pre-verification")}
 
         {state === "flagged" && latest && (
           <>
@@ -126,7 +124,7 @@ export function PreverifyPanel({
               {t("Fix the points below in the workbook, then resubmit.")}
             </p>
             <Findings findings={latest.aiFindings} />
-            <div>{submitButton("Resubmit for pre-verification")}</div>
+            {submitButton("Resubmit for pre-verification")}
           </>
         )}
 
@@ -165,7 +163,7 @@ export function PreverifyPanel({
                 {latest.teamNote}
               </p>
             )}
-            <div>{submitButton("Resubmit for pre-verification")}</div>
+            {submitButton("Resubmit for pre-verification")}
           </>
         )}
 
@@ -174,7 +172,7 @@ export function PreverifyPanel({
             <p className="text-[14px] text-black/80">
               {t("Data changed since the review. Resubmit.")}
             </p>
-            <div>{submitButton("Resubmit for pre-verification")}</div>
+            {submitButton("Resubmit for pre-verification")}
           </>
         )}
       </Card>

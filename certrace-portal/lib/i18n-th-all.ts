@@ -9,10 +9,12 @@ import { TH_ROUTES } from "./i18n-th-routes";
 import { TH_SECTOR } from "./i18n-th-sector";
 import { TH_WORKSPACE } from "./i18n-th-workspace";
 import { TH_OPPORTUNITIES } from "./i18n-th-opportunities";
+import { TH_PREVERIFY } from "./i18n-th-preverify";
 import { TH_WHATIF } from "./i18n-th-whatif";
 
 export const TH_ALL: Record<string, string> = {
   ...TH_WORKSPACE,
+  ...TH_PREVERIFY,
   ...TH_OPPORTUNITIES,
   ...TH_WHATIF,
   ...TH_LINK,
