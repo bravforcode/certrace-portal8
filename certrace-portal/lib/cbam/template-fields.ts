@@ -330,3 +330,10 @@ export function cbamProgress(cells: Record<string, string>, item?: string) {
   const filled = fields.filter((f) => (cells[cbamCellKey(f)] ?? "").trim() !== "").length;
   return { filled, total: fields.length };
 }
+
+/** "Section · Label" for a CBAM cell key (`cbam:0:<id>` or the bare id); the bare id when the catalogue does not know it. */
+export const cbamCellLabel = (key: string): string => {
+  const id = key.replace(/^cbam:0:/, "");
+  const f = CBAM_FIELDS.find((x) => x.id === id);
+  return f ? `${f.section} · ${f.label}` : id;
+};

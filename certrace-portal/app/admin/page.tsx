@@ -127,9 +127,14 @@ export default function AdminPage() {
       <div className="mx-auto max-w-6xl">
         <header className="flex items-center justify-between gap-4">
           <CertraceLogo className="h-6 w-auto" />
-          <Link href="/" className="text-sm text-black/60 hover:text-black">
-            Back to portal
-          </Link>
+          <div className="flex items-center gap-5 text-sm">
+            <Link href="/admin/preverifications" className="text-black/60 hover:text-black">
+              Pre-verifications
+            </Link>
+            <Link href="/" className="text-black/60 hover:text-black">
+              Back to portal
+            </Link>
+          </div>
         </header>
         <div className="mt-10">
           <p className="text-xs uppercase tracking-[0.16em] text-black/45">

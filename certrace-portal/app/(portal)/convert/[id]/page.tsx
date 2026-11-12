@@ -53,6 +53,7 @@ import { getCarbonPrice } from "@/lib/carbon-price";
 import { buildVerificationExport } from "@/lib/export/verification-export";
 import { buildXlsx } from "@/lib/xlsx-write";
 import { createItemLink } from "@/lib/api/item-links";
+import { PreverifyPanel } from "@/components/convert/preverify-panel";
 
 const STATE: Record<
   RequirementState,
@@ -229,6 +230,10 @@ function ConvertStandardInner() {
           )}
         </div>
       </div>
+
+      {s.id === "eu-cbam" && installation && (
+        <PreverifyPanel installationId={installation.id} year={year} canConvert={canConvert} />
+      )}
 
       {/* Reporting year: the shared bar (2020 → five years ahead, opening on
           the current year). Years ahead carry a lock but still open: they
