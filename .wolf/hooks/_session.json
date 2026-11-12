@@ -1,18 +1,11 @@
 {
-  "session_id": "session-2026-11-11T13-56-31-651Z",
-  "started": "2026-11-11T13:56:31.653Z",
-  "files_read": {
-    "C:/Users/menum/AppData/Local/Temp/claude/6da0b079e6e8af05/879cb07d-9f63-49e7-809e-764e92cc9918/scratchpad/read-xlsx.ps1": {
-      "count": 1,
-      "tokens": 539,
-      "first_read": "2026-11-11T13:59:16.381Z",
-      "anatomy_had_description": false
-    }
-  },
+  "session_id": "session-2026-11-12T23-24-51-247Z",
+  "started": "2026-11-12T23:24:51.253Z",
+  "files_read": {},
   "files_written": [],
   "edit_counts": {},
   "anatomy_hits": 0,
-  "anatomy_misses": 1,
+  "anatomy_misses": 0,
   "repeated_reads_warned": 0,
   "cerebrum_warnings": 0,
   "stop_count": 1
