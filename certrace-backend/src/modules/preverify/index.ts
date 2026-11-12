@@ -10,6 +10,7 @@ const statuses = t.Union([
   t.Literal("team_review"),
   t.Literal("approved"),
   t.Literal("changes_requested"),
+  t.Literal("superseded"),
 ]);
 // Same shapes as the workbook params (workbooks/model.ts). Only CBAM has a catalogue to check against.
 const key = t.Object({
