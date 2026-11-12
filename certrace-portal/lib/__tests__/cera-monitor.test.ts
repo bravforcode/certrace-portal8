@@ -121,13 +121,34 @@ test("requirements with no cell are named in the fill request, matching what the
   assert.match(text, /Also still open in Convert, with no cell to set here: Carbon price paid\./);
 });
 
-test("the fields the request lists plus the ones it leaves out equal the field entries the badge counts", () => {
-  // Why: the message and the badge must describe the same set, or Cera works on a different list than the user sees.
+test("the fill request accounts for every entry the badge counts: listed and omitted cells, plus open requirements", () => {
+  // Why: the badge shows data.fields.length, requirements included. The message must account for each of those entries, or Cera works on a different list than the number the user sees.
   const data = missingData(std!, empty);
   const text = fillRequest({ id: "inst-1", name: "Plant A" }, 2026, data.fields);
   const listed = [...text.matchAll(/^[a-e]-[a-z]+\d+: /gm)].length;
   const left = Number(text.match(/…and (\d+) more/)?.[1] ?? 0);
-  assert.equal(listed + left, data.fields.filter((f) => f.kind === "field").length);
+  const named = (text.match(/no cell to set here: (.*)\./)?.[1] ?? "").split("; ").filter(Boolean).length;
+  assert.equal(listed + left, data.fields.filter((f) => f.kind === "field").length, "cells");
+  assert.equal(named, data.fields.filter((f) => f.kind === "requirement").length, "requirements");
+  assert.equal(listed + left + named, data.fields.length, "the badge number");
+});
+
+test("the fill request is written in Chinese when the interface is Chinese, and keeps the installation id", () => {
+  // Why: Cera answers in the language it is sent, so a Chinese user must get a Chinese request.
+  const data = missingData(std!, empty);
+  const text = fillRequest({ id: "inst-1", name: "Plant A" }, 2026, data.fields.slice(0, 3), "zh");
+  assert.match(text, /[一-鿿]/);
+  assert.match(text, /installationId inst-1/);
+  assert.doesNotMatch(text, /Fill the CBAM fields/);
+});
+
+test("the fill request is written in Hindi when the interface is Hindi, and keeps the installation id", () => {
+  // Why: Cera answers in the language it is sent, so a Hindi user must get a Hindi request.
+  const data = missingData(std!, empty);
+  const text = fillRequest({ id: "inst-1", name: "Plant A" }, 2026, data.fields.slice(0, 3), "hi");
+  assert.match(text, /[ऀ-ॿ]/);
+  assert.match(text, /installationId inst-1/);
+  assert.doesNotMatch(text, /Fill the CBAM fields/);
 });
 
 test("every field id in the fill request is a real CBAM field id from the catalogue", () => {

@@ -1,4 +1,5 @@
-// Thai rows for Cera's missing-data monitor: the badge, the "Missing data" section and "Ask Cera to fill".
+// Thai rows for Cera's missing-data monitor: the badge count, the complete and blank states, and "Ask Cera to fill".
+// The "Missing data" heading itself is in lib/i18n-th-workspace.ts.
 // The English source is the key; zh and hi rows for these keys are in lib/i18n-zh.ts and lib/i18n-hi.ts.
 
 export const TH_CERA_MONITOR: Record<string, string> = {

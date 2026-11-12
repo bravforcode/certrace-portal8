@@ -90,7 +90,7 @@ export function CeraMissingSection() {
   const cera = useCeraMissing();
   const { thinking, answering } = useCera();
   if (!cera) return null;
-  const { data, blank, count: shown } = cera;
+  const { data, blank } = cera;
   const count = data.fields.length;
   const listed = data.fields.slice(0, LISTED);
 
@@ -144,7 +144,7 @@ export function CeraMissingSection() {
           <button
             type="button"
             onClick={cera.askToFill}
-            disabled={thinking || answering || shown === 0}
+            disabled={thinking || answering}
             title={t("Cera proposes each change; you confirm it before anything is saved.")}
             className={cn(
               "mt-2.5 w-full rounded-xl border border-black/[0.09] bg-white px-3 py-2 text-left text-[13px] text-black/80 transition-colors hover:border-black/25",

@@ -6,6 +6,7 @@ import { useWorkbook, useWorkbookYears } from "../workbook/use-workbook";
 import { currentYear } from "../year-range";
 import type { Sheet } from "../workspace-sheets";
 import { withInstallationDefaults } from "../cbam/installation-defaults";
+import { isBlankYear } from "./blank-year";
 
 /* What Convert reads to work out readiness: the installation the page is
    scoped to, and the sheets of its latest workbook year. */
@@ -37,6 +38,6 @@ export function useConvertContext(): {
   );
   // A year nobody has started: the store marks it blank, or it holds no answers at all.
   const meta = years.find((y: { year: number }) => y.year === year)?.meta as { blank?: boolean } | undefined;
-  const blank = Boolean(meta?.blank) || Object.keys(stored ?? {}).length === 0;
+  const blank = isBlankYear(stored, meta);
   return { scoped, installation, sheets, cells, year, loaded, blank };
 }
