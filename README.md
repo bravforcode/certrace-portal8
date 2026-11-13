@@ -60,6 +60,9 @@ and retains certificates and state in `caddy_data` and `caddy_config`. Keep thos
 existing volume names when updating a custom VPS Compose file. For another domain,
 update both `Caddyfile` and `APP_BASE_URL`; point its DNS at the VPS and allow ports
 80/443. Local `compose.yaml` continues to serve the portal directly on port 3000.
+The service sits behind the `caddy` Compose profile, which the example `.env`
+turns on with `COMPOSE_PROFILES=caddy`. Remove that line when the host already
+runs its own proxy on 80/443; `docker compose up -d` then skips Caddy.
 
 To start the proxy or reload an edited Caddyfile:
 

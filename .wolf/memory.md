@@ -838,3 +838,25 @@
 | 07:51 | Created ../../Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/00828282-ea26-4a08-9dc4-4c94036a81c7/scratchpad/lockplan_fix.py | — | ~926 |
 | 07:52 | Created ../../Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/00828282-ea26-4a08-9dc4-4c94036a81c7/scratchpad/th_test.ts | — | ~473 |
 | 08:02 | Created ../../Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/00828282-ea26-4a08-9dc4-4c94036a81c7/scratchpad/buglog_add.py | — | ~502 |
+| 08:03 | Created ../../Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/00828282-ea26-4a08-9dc4-4c94036a81c7/scratchpad/threads.tsv | — | ~680 |
+| 08:08 | Edited certrace-backend/test/preverify-submit.test.ts | added 1 condition(s) | ~144 |
+
+## Session: 2026-11-13 08:08
+
+| Time | Action | File(s) | Outcome | ~Tokens |
+|------|--------|---------|---------|--------|
+| 08:10 | Edited scripts/test-migrations.ts | expanded (+7 lines) | ~67 |
+| 08:19 | Session end: 1 writes across 1 files (test-migrations.ts) | 0 reads | ~67 tok |
+
+## Session: 2026-11-13 11:47
+
+| Time | Action | File(s) | Outcome | ~Tokens |
+|------|--------|---------|---------|--------|
+| 11:51 | Created certrace-portal/handoff.md | — | ~1184 |
+| 11:52 | Session end: 1 writes across 1 files (handoff.md) | 1 reads | ~2976 tok |
+
+## Session: 2026-11-13 12:22
+
+| Time | Action | File(s) | Outcome | ~Tokens |
+|------|--------|---------|---------|--------|
+| 13:00 | Caddy compose profile, admin evidence review card, admin top-up grant, spreadsheet row windowing, switcher add-installation | docker-compose-prod.yml, preverify/workbooks service, admin pages, spreadsheet.tsx, lib/row-window.ts, switcher, settings | backend 4 preverify tests pass, portal unit tests pass, browser checks pass | ~ |

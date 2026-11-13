@@ -2,9 +2,22 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "certrace-backend",
+      "runtimeExecutable": "C:/Users/menum/.bun/bin/bun.exe",
+      "runtimeArgs": ["--cwd", "C:/Certrace/certrace-portal8/certrace-backend", "--watch", "src/index.ts"],
+      "port": 8000,
+      "autoPort": false
+    },
+    {
       "name": "certrace-portal",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "certrace-portal", "run", "dev"],
+      "port": 3000
+    },
+    {
+      "name": "certrace-portal-turbo",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "certrace-portal", "run", "dev", "--", "--turbopack"],
       "port": 3000
     },
     {

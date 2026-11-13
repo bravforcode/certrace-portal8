@@ -118,6 +118,52 @@ describe("pre-verification submit (PostgreSQL)", () => {
     });
     expect(charged).toBe(3);
   });
+  test("marking a file reviewed keeps a pending submission decidable and lists the file", async () => {
+    // A review is Certrace's note on a file, not a data change; it must not mark the submission stale.
+    const a = await account();
+    const boss = await admin();
+    await call(
+      "/api/v1/workbooks/plant-r/2026/meta",
+      "PUT",
+      {
+        meta: {
+          status: "ready",
+          files: [
+            {
+              id: "inv",
+              name: "inv.pdf",
+              size: 10,
+              type: "application/pdf",
+              description: "Fuel invoices",
+            },
+          ],
+        },
+      },
+      a.cookie,
+    );
+    await fill(a.cookie, "plant-r");
+    const submitted = await (await submit(a.cookie, "plant-r")).json();
+    expect(submitted.status).toBe("team_review");
+    const review = await call(
+      `/api/admin/workbooks/${a.user.id}/plant-r/2026/files/inv/review`,
+      "PUT",
+      { reviewed: true },
+      boss.cookie,
+    );
+    expect(review.status).toBe(200);
+    const detail = await (
+      await call(
+        `/api/admin/preverifications/${submitted.id}`,
+        "GET",
+        undefined,
+        boss.cookie,
+      )
+    ).json();
+    expect(detail.stale).toBe(false);
+    expect(detail.files).toHaveLength(1);
+    expect(detail.files[0].name).toBe("inv.pdf");
+    expect(typeof detail.files[0].reviewedAt).toBe("string");
+  });
 });
 
 describe("workbook files (PostgreSQL)", () => {

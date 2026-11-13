@@ -2489,6 +2489,131 @@
       "related_bugs": [],
       "occurrences": 1,
       "last_seen": "2026-11-12T23:11:19.426Z"
+    },
+    {
+      "id": "bug-156",
+      "timestamp": "2026-11-13T01:08:00.991Z",
+      "error_message": "Missing await",
+      "file": "certrace-backend/test/preverify-submit.test.ts",
+      "root_cause": "Async call without await — returned Promise instead of value",
+      "fix": "Added await to async call",
+      "tags": [
+        "auto-detected",
+        "async-fix",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T01:08:00.991Z"
+    },
+    {
+      "id": "bug-157",
+      "timestamp": "2026-11-13T01:10:13.471Z",
+      "error_message": "Missing await",
+      "file": "scripts/test-migrations.ts",
+      "root_cause": "Async call without await — returned Promise instead of value",
+      "fix": "Added await to async call",
+      "tags": [
+        "auto-detected",
+        "async-fix",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T01:10:13.471Z"
+    },
+    {
+      "id": "bug-158",
+      "timestamp": "2026-11-13T02:00:00.000Z",
+      "error_message": "CI Cera grounding tests fail: 'Cera chat is not configured' after preverify-submit tests",
+      "file": "certrace-backend/test/preverify-submit.test.ts",
+      "root_cause": "bun test runs all files in one process; the test set CERTRACE_CERA_PROVIDER=none and never restored it.",
+      "fix": "Save the old value at module load and restore it (or delete) in afterAll before cleanup.",
+      "tags": [
+        "manual",
+        "tests",
+        "bun"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T02:00:00.000Z"
+    },
+    {
+      "id": "bug-159",
+      "timestamp": "2026-11-13T02:00:00.000Z",
+      "error_message": "Migration and verification-schema snapshot mismatch after adding users.preverify_credits",
+      "file": "scripts/test-migrations.ts, scripts/test-verification-schema.ts",
+      "root_cause": "Both scripts snapshot public.users as JSON; a new column appears only after migrating.",
+      "fix": "Exclude the new column in BOTH scripts (- 'preverify_credits') and assert its default separately.",
+      "tags": [
+        "manual",
+        "migrations"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T02:00:00.000Z"
+    },
+    {
+      "id": "bug-160",
+      "timestamp": "2026-11-13T02:00:00.000Z",
+      "error_message": "VPS docker compose up -d: caddy container fails, Caddyfile mounted as directory",
+      "file": "/opt/certrace-portal8/docker-compose.yml (VPS)",
+      "root_cause": "The host Caddy serves certrace8 via /etc/caddy/certrace8.caddy; the compose caddy service has no Caddyfile on the VPS, so Docker created an empty directory.",
+      "fix": "Deploy with `docker compose up -d backend frontend` (migrate runs via depends_on). If caddy was created: rmdir the empty Caddyfile dir and `docker compose rm -f caddy`.",
+      "tags": [
+        "manual",
+        "deploy",
+        "vps"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T02:00:00.000Z"
+    },
+    {
+      "id": "bug-161",
+      "timestamp": "2026-11-13T13:00:00.000Z",
+      "error_message": "Admin marking an evidence file reviewed made a pending pre-verification stale",
+      "file": "certrace-backend/src/modules/workbooks/service.ts",
+      "root_cause": "reviewFile went through mutate(), which always bumps the workbook revision; the submission compares its workbook_revision to the current one.",
+      "fix": "mutate(..., bump=false) for reviewFile. Customer tab sees the green dot only after reload or its next edit.",
+      "tags": [
+        "manual",
+        "preverify",
+        "workbooks"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T13:00:00.000Z"
+    },
+    {
+      "id": "bug-162",
+      "timestamp": "2026-11-13T13:00:00.000Z",
+      "error_message": "Dev /admin returned 500: ENOENT _buildManifest.js.tmp",
+      "file": "certrace-portal/.next",
+      "root_cause": "Corrupt Next dev cache after many restarts.",
+      "fix": "Stop the portal preview, rm -rf certrace-portal/.next, start again.",
+      "tags": [
+        "manual",
+        "dev"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T13:00:00.000Z"
+    },
+    {
+      "id": "bug-163",
+      "timestamp": "2026-11-13T13:00:00.000Z",
+      "error_message": "Windowed spreadsheet spacer measured 0px height in the browser pane",
+      "file": "certrace-portal/components/workspace/spreadsheet.tsx",
+      "root_cause": "Not a code bug: the reduced-motion global rule gives every element a 0.01ms transition, and a hidden browser pane renders no frames, so the height transition never finishes.",
+      "fix": "In headless/hidden-pane checks inject *{transition:none!important} before measuring.",
+      "tags": [
+        "manual",
+        "testing"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T13:00:00.000Z"
     }
   ]
 }

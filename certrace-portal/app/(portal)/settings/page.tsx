@@ -424,6 +424,20 @@ function OwnInstallationCard() {
      is never counted: suppliers fill in without limit on every plan. */
   const cap = useCaps().data?.sites;
 
+  /* "Add installation" in the Workspace/Convert switcher lands here with
+     ?add=installation: open the form once, then drop the flag so a reload
+     does not reopen it. At the cap the form stays shut and the notice explains. */
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const cardRef = React.useRef<HTMLDivElement>(null);
+  const wantsAdd = searchParams.get("add") === "installation";
+  React.useEffect(() => {
+    if (!wantsAdd || !own || !cap) return;
+    if (!cap.atCap) setEditing("new");
+    cardRef.current?.scrollIntoView({ block: "start" });
+    router.replace("/settings?tab=organisation", { scroll: false });
+  }, [wantsAdd, own, cap, router]);
+
   if (!own || !cap) return null;
 
   /* Every product report that still names a site, archived ones too — they read
@@ -434,108 +448,109 @@ function OwnInstallationCard() {
     ).length;
 
   return (
-    <Card className="p-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <Eyebrow>{t("Your installations")}</Eyebrow>
-          <p className="mt-2 max-w-xl text-sm leading-relaxed text-black/55">
-            {/* THREE WHOLE SENTENCES, not one with a noun phrase dropped into
+    <div ref={cardRef} className="scroll-mt-24">
+      <Card className="p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <Eyebrow>{t("Your installations")}</Eyebrow>
+            <p className="mt-2 max-w-xl text-sm leading-relaxed text-black/55">
+              {/* THREE WHOLE SENTENCES, not one with a noun phrase dropped into
                 it. Interpolating "5 sites" left the Thai reading
                 "…ครอบคลุม5 โรงงาน" — Thai sets no space between words but does
                 take one before a Latin numeral, and a fragment assembled in
                 English word order cannot know that. Each form is written out
                 in each language instead. */}
-            {cap.cap == null
-              ? t(
-                  "Every site you operate yourself. Register them here once and their monthly data lands in your inbox instead of going out to a supplier. Add as many as you run.",
-                )
-              : cap.cap === 1
+              {cap.cap == null
                 ? t(
-                    "Every site you operate yourself. Register them here once and their monthly data lands in your inbox instead of going out to a supplier. Your plan covers one site.",
+                    "Every site you operate yourself. Register them here once and their monthly data lands in your inbox instead of going out to a supplier. Add as many as you run.",
                   )
-                : t(
-                    "Every site you operate yourself. Register them here once and their monthly data lands in your inbox instead of going out to a supplier. Your plan covers {cap} sites.",
-                    { cap: cap.cap },
-                  )}
-          </p>
-        </div>
-        <div className="flex flex-none items-center gap-3">
-          {cap.cap != null && (
-            <span
-              className={cn(
-                "font-mono text-[12px] tabular-nums",
-                cap.atCap ? "text-[#b45309]" : "text-black/40",
-              )}
-            >
-              {cap.label}
-            </span>
-          )}
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setEditing("new")}
-            disabled={cap.atCap}
-          >
-            <Plus size={13} strokeWidth={1.5} />{" "}
-            {own.length ? t("Add a site") : t("Register your installation")}
-          </Button>
-        </div>
-      </div>
-
-      <PlanCapNotice cap={cap} className="mt-5" />
-
-      {own.length === 0 ? (
-        <p className="mt-5 rounded-xl border border-dashed border-black/10 px-4 py-5 text-center text-[13px] text-black/40">
-          {t(
-            "No sites registered yet. If you produce the good yourself, add the plant that makes it.",
-          )}
-        </p>
-      ) : (
-        <div className="mt-5 space-y-2.5">
-          {own.map((i) => {
-            const gaps = missingFields(i);
-            return (
-              <div
-                key={i.id}
-                className="rounded-xl border border-black/[0.07] bg-[#faf9f7] p-4"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Building2
-                        size={14}
-                        strokeWidth={1.5}
-                        className="flex-none text-black/40"
-                      />
-                      <span className="truncate text-[14px] text-black/85">
-                        {i.name}
-                      </span>
-                      <span className="font-mono text-[11px] text-black/40">
-                        {i.id}
-                      </span>
-                    </div>
-                    <p className="mt-2 text-[12.5px] leading-relaxed text-black/50">
-                      {[i.street, i.city, i.postcode, i.country]
-                        .filter(Boolean)
-                        .join(", ") || t("No address yet.")}
-                    </p>
-                    {/* Named, not counted. "3 fields missing" sends the reader
-                        back into the form to find out which. */}
-                    {gaps.length > 0 && (
-                      <p className="mt-2 text-[12px] leading-relaxed text-[#b45309]">
-                        {t("Still missing:")} {gaps.join(", ")}.
-                      </p>
+                : cap.cap === 1
+                  ? t(
+                      "Every site you operate yourself. Register them here once and their monthly data lands in your inbox instead of going out to a supplier. Your plan covers one site.",
+                    )
+                  : t(
+                      "Every site you operate yourself. Register them here once and their monthly data lands in your inbox instead of going out to a supplier. Your plan covers {cap} sites.",
+                      { cap: cap.cap },
                     )}
-                  </div>
-                  <div className="flex flex-none items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setEditing(i)}
-                      className="rounded-lg border border-black/10 bg-white px-2.5 py-1.5 text-[11px] uppercase tracking-[0.08em] text-black/55 transition-colors hover:border-black/25 hover:text-black"
-                    >
-                      {t("Edit")}
-                    </button>
-                    {/* THE ⋯ MENU, NOT A BARE ✕. A lone, unlabelled cross beside
+            </p>
+          </div>
+          <div className="flex flex-none items-center gap-3">
+            {cap.cap != null && (
+              <span
+                className={cn(
+                  "font-mono text-[12px] tabular-nums",
+                  cap.atCap ? "text-[#b45309]" : "text-black/40",
+                )}
+              >
+                {cap.label}
+              </span>
+            )}
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setEditing("new")}
+              disabled={cap.atCap}
+            >
+              <Plus size={13} strokeWidth={1.5} />{" "}
+              {own.length ? t("Add a site") : t("Register your installation")}
+            </Button>
+          </div>
+        </div>
+
+        <PlanCapNotice cap={cap} className="mt-5" />
+
+        {own.length === 0 ? (
+          <p className="mt-5 rounded-xl border border-dashed border-black/10 px-4 py-5 text-center text-[13px] text-black/40">
+            {t(
+              "No sites registered yet. If you produce the good yourself, add the plant that makes it.",
+            )}
+          </p>
+        ) : (
+          <div className="mt-5 space-y-2.5">
+            {own.map((i) => {
+              const gaps = missingFields(i);
+              return (
+                <div
+                  key={i.id}
+                  className="rounded-xl border border-black/[0.07] bg-[#faf9f7] p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Building2
+                          size={14}
+                          strokeWidth={1.5}
+                          className="flex-none text-black/40"
+                        />
+                        <span className="truncate text-[14px] text-black/85">
+                          {i.name}
+                        </span>
+                        <span className="font-mono text-[11px] text-black/40">
+                          {i.id}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-[12.5px] leading-relaxed text-black/50">
+                        {[i.street, i.city, i.postcode, i.country]
+                          .filter(Boolean)
+                          .join(", ") || t("No address yet.")}
+                      </p>
+                      {/* Named, not counted. "3 fields missing" sends the reader
+                        back into the form to find out which. */}
+                      {gaps.length > 0 && (
+                        <p className="mt-2 text-[12px] leading-relaxed text-[#b45309]">
+                          {t("Still missing:")} {gaps.join(", ")}.
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex flex-none items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setEditing(i)}
+                        className="rounded-lg border border-black/10 bg-white px-2.5 py-1.5 text-[11px] uppercase tracking-[0.08em] text-black/55 transition-colors hover:border-black/25 hover:text-black"
+                      >
+                        {t("Edit")}
+                      </button>
+                      {/* THE ⋯ MENU, NOT A BARE ✕. A lone, unlabelled cross beside
                         Edit reads as "close this row", and it was the control
                         that deletes the site. Removal now sits in the same menu
                         the Verification page uses for the same site, last and
@@ -543,62 +558,63 @@ function OwnInstallationCard() {
                         product report still names the site — removing the
                         record would take the operator details and the monitoring
                         plan out from under it. */}
-                    <InstallationMenu
-                      installationId={i.id}
-                      name={i.name}
-                      remove={{
-                        reports: reportsOf(i.id),
-                        onRemove: () =>
-                          removeOwn.mutate(i.id, {
-                            onSuccess: () => {
-                              invalidateCaps();
-                              toast({
-                                message: t("Site removed"),
-                                detail: t(
-                                  "{name} is off your list. Nothing else was deleted.",
-                                  { name: i.name || i.id },
-                                ),
-                                tone: "info",
-                              });
-                            },
-                          }),
-                      }}
-                    />
+                      <InstallationMenu
+                        installationId={i.id}
+                        name={i.name}
+                        remove={{
+                          reports: reportsOf(i.id),
+                          onRemove: () =>
+                            removeOwn.mutate(i.id, {
+                              onSuccess: () => {
+                                invalidateCaps();
+                                toast({
+                                  message: t("Site removed"),
+                                  detail: t(
+                                    "{name} is off your list. Nothing else was deleted.",
+                                    { name: i.name || i.id },
+                                  ),
+                                  tone: "info",
+                                });
+                              },
+                            }),
+                        }}
+                      />
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+              );
+            })}
+          </div>
+        )}
 
-      {/* EDITING an existing site is always allowed, even over the cap — an
+        {/* EDITING an existing site is always allowed, even over the cap — an
           account that lands over the line on a downgrade must still be able
           to correct the sites it already has. Only ADDING a new one closes. */}
-      <InstallationModal
-        open={editing !== null && !(editing === "new" && cap.atCap)}
-        onClose={() => setEditing(null)}
-        initial={
-          editing && editing !== "new"
-            ? editing
-            : // An OEM answer in onboarding preselects the OEM role for the next site.
-              newSiteDraft
-        }
-        allowSelfToggle={false}
-        showRole
-        self
-        title={editing === "new" ? t("Add a site") : t("Your installation")}
-        lead={t(
-          "These are the facts a verifier asks for about a producing site. Entered once here, reused by every product report.",
-        )}
-        onSaved={(saved) => {
-          saveOwn.mutate(
-            { ...saved, self: true },
-            { onSuccess: invalidateCaps },
-          );
-        }}
-      />
-    </Card>
+        <InstallationModal
+          open={editing !== null && !(editing === "new" && cap.atCap)}
+          onClose={() => setEditing(null)}
+          initial={
+            editing && editing !== "new"
+              ? editing
+              : // An OEM answer in onboarding preselects the OEM role for the next site.
+                newSiteDraft
+          }
+          allowSelfToggle={false}
+          showRole
+          self
+          title={editing === "new" ? t("Add a site") : t("Your installation")}
+          lead={t(
+            "These are the facts a verifier asks for about a producing site. Entered once here, reused by every product report.",
+          )}
+          onSaved={(saved) => {
+            saveOwn.mutate(
+              { ...saved, self: true },
+              { onSuccess: invalidateCaps },
+            );
+          }}
+        />
+      </Card>
+    </div>
   );
 }
 

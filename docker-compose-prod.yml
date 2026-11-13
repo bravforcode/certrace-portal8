@@ -72,8 +72,11 @@ services:
       backend:
         condition: service_healthy
 
+  # Bundled HTTPS proxy. Off unless COMPOSE_PROFILES includes "caddy": a VPS whose
+  # host already runs a proxy on 80/443 would otherwise get a failing container.
   caddy:
     image: caddy:2.11.4-alpine
+    profiles: ["caddy"]
     restart: unless-stopped
     ports:
       - "80:80"

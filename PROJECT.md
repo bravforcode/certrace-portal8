@@ -285,7 +285,8 @@ Production also runs `caddy`, mounting the root `Caddyfile` to proxy
 `portal.certrace.co` to `frontend:3000` over HTTPS. Ports 80/443 are published;
 `caddy_data` and `caddy_config` retain certificate and proxy state. VPS deployments
 copy the production template as `docker-compose.yml`, matching the production
-environment example's `COMPOSE_FILE` setting. Local Compose has no Caddy service.
+environment example's `COMPOSE_FILE` setting. Caddy runs only with the `caddy`
+Compose profile (`COMPOSE_PROFILES=caddy` in the example `.env`). Local Compose has no Caddy service.
 
 Both Compose files load the root `.env` into the backend through optional
 `env_file` (Compose 2.24+). API keys and additional backend settings are configured
