@@ -59,7 +59,11 @@ import { useScopedInstallation } from "@/lib/scoped-installation";
 import { Button, Card, Eyebrow, Field, HelpTip, cn } from "@/components/ui";
 import { Select } from "@/components/controls";
 import { toast } from "@/components/toast";
-import { ProductPicker, RowTag } from "@/components/workspace/product-picker";
+import {
+  ProductPicker,
+  RowTag,
+  SECTOR_CATEGORY,
+} from "@/components/workspace/product-picker";
 import {
   InstallationFields,
   InstallationModal,
@@ -110,7 +114,6 @@ import { PlanCapNotice } from "@/components/plan-cap-notice";
 import { getSupplier } from "@/lib/precursor-suppliers";
 import { useT } from "@/lib/i18n";
 import { useProfile } from "@/lib/profile";
-import type { ProductCategory } from "@/lib/config";
 import {
   draftId,
   getWorkspaceDraft,
@@ -209,15 +212,6 @@ export default function NewWorkspacePage() {
     </React.Suspense>
   );
 }
-
-/** The organisation's sector (Settings → Organisation) and the part of the catalogue it lives in. */
-const SECTOR_CATEGORY: Record<string, ProductCategory | undefined> = {
-  steel: "Iron & Steel",
-  aluminium: "Aluminium",
-  cement: "Cement",
-  fertiliser: "Fertilisers",
-  hydrogen: "Hydrogen",
-};
 
 function NewWorkspaceFlow() {
   const t = useT();

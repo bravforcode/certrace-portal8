@@ -350,8 +350,8 @@ function accountReply(lang: CeraLang): CeraReply {
   if (all.length === 0) {
     return {
       text: L(
-        "You don't have any product reports yet. Start one from Verification → New product report: pick who produces the good, the country and CN code, the route and the year. If you haven't added your installation yet, do that first in Settings → Organisation → Your installations.",
-        "คุณยังไม่มีรายงานผลิตภัณฑ์ เริ่มได้จากการทวนสอบ → รายงานผลิตภัณฑ์ใหม่: เลือกว่าใครผลิตสินค้า ประเทศและรหัส CN เส้นทางผลิต และปี ถ้ายังไม่ได้เพิ่มโรงงาน ให้เพิ่มก่อนที่การตั้งค่า → องค์กร → โรงงานของคุณ",
+        "You don't have any product reports yet. Start one from Verification → New product report: pick who produces the good, the country and CN code, the route and the year. If you haven't added your installation yet, do that first in Settings → Installation → Your installations.",
+        "คุณยังไม่มีรายงานผลิตภัณฑ์ เริ่มได้จากการทวนสอบ → รายงานผลิตภัณฑ์ใหม่: เลือกว่าใครผลิตสินค้า ประเทศและรหัส CN เส้นทางผลิต และปี ถ้ายังไม่ได้เพิ่มโรงงาน ให้เพิ่มก่อนที่การตั้งค่า → โรงงานผู้ผลิต → โรงงานของคุณ",
         "您还没有产品报告。请从“核查 → 新建产品报告”开始：选择谁生产该货物、国家和 CN 编码、路线和年度。如果尚未添加您的设施，请先在“设置 → 组织 → 您的设施”中添加。",
         "आपके पास अभी कोई उत्पाद रिपोर्ट नहीं है। सत्यापन → नई उत्पाद रिपोर्ट से शुरू करें: चुनें कि माल कौन बनाता है, देश और CN कोड, मार्ग और साल। अगर आपने अभी अपना संयंत्र नहीं जोड़ा है तो पहले सेटिंग्स → संगठन → आपके संयंत्र में जोड़ें।",
       ),

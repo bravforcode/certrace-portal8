@@ -49,7 +49,7 @@ import {
   ImportFilePanel,
   ImportFileSection,
 } from "@/components/workspace/import-file-panel";
-import { parseSheetParam } from "@/lib/workbook/url-state";
+import { parseSheetParam, parseViewParam } from "@/lib/workbook/url-state";
 import type { SyncResult } from "@/lib/workbook/sync-queue";
 import { LivePanel } from "@/components/workspace/live-panel";
 import type { Installation } from "@/lib/installations";
@@ -68,6 +68,7 @@ import { CELL_MAX } from "@/lib/workbook/save-queue";
 import { toast } from "@/components/toast";
 import { rowWindow } from "@/lib/row-window";
 import { cellOptions } from "@/lib/workbook/cell-options";
+import { CnCellPicker } from "@/components/workspace/cn-cell-picker";
 import {
   INSTALLATION_SHEET_ID,
   NO_FILE,
@@ -165,9 +166,8 @@ export function Spreadsheet({
     [...sheets.map((s) => s.id), ...extraTabs.map((x) => x.id)],
     DEFAULT_SHEET,
   );
-  // "Table" or "Flow". An old ?view=factory link opens the table.
-  const view: "table" | "flow" =
-    params.get("view") === "flow" ? "flow" : "table";
+  // Flow or Table: the workspace opens on Flow; a link to a sheet opens its table (lib/workbook/url-state.ts).
+  const view = parseViewParam(params.get("view"), params.has("sheet"));
   const updateParams = (changes: Record<string, string | null>) => {
     const next = new URLSearchParams(params.toString());
     for (const [key, value] of Object.entries(changes)) {
@@ -178,7 +178,7 @@ export function Spreadsheet({
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
   const setView = (v: "table" | "flow") =>
-    updateParams({ view: v === "table" ? null : v });
+    updateParams({ view: v === "flow" && !params.has("sheet") ? null : v });
   const [sel, setSel] = React.useState<{ r: number; c: number }>({
     r: 0,
     c: 2,
@@ -196,11 +196,14 @@ export function Spreadsheet({
   const [full, setFull] = React.useState(false);
   // The Import file section: a full-width upload card above the sheet.
   const [importOpen, setImportOpen] = React.useState(false);
-  // Opening a sheet always leaves the Flow view, as the sheet tabs did before.
+  // Opening a sheet always leaves the Flow view for that sheet's table.
   const openTab = (id: string) => {
     setSel({ r: 0, c: 0 });
     setEditing(null);
-    updateParams({ sheet: id === DEFAULT_SHEET ? null : id, view: null });
+    updateParams({
+      sheet: id === DEFAULT_SHEET ? null : id,
+      view: "table",
+    });
   };
   const gridRef = React.useRef<HTMLDivElement>(null);
   const scrollRef = React.useRef<HTMLDivElement>(null); // the scroller in full-page mode
@@ -363,6 +366,17 @@ export function Spreadsheet({
   // The pick list of a column; only an editable cell drops one.
   const optionsOf = (c: number) =>
     sheet && cols[c] && editable(c) ? cellOptions(sheet, cols[c]!, sheets) : [];
+
+  // A CN code cell opens the whole CBAM catalogue (search, filters, rates), not a short list.
+  const picksCn = (c: number) => editable(c) && cols[c]?.key === "cn";
+  // Picking a good also names the row when its Product/Item cell is still empty.
+  const pickCn = (r: number, c: number, cnCode: string, name: string) => {
+    const row = sheet?.rows[r];
+    const itemCol = cols.findIndex((x) => x.key === "item");
+    if (row && onEdit && itemCol >= 0 && !valueOf(row, r, itemCol).trim())
+      onEdit(keyOf(r, itemCol), name);
+    commit(r, c, cnCode);
+  };
 
   const commit = (r: number, c: number, value: string) => {
     setEditing(null);
@@ -671,7 +685,7 @@ export function Spreadsheet({
               aria-label={t("View")}
               className="mx-2 my-1 flex flex-none items-center self-center rounded-md bg-[#f0efea] p-0.5 text-[12px]"
             >
-              {(["table", "flow"] as const).map((v) => (
+              {(["flow", "table"] as const).map((v) => (
                 <button
                   key={v}
                   type="button"
@@ -814,7 +828,10 @@ export function Spreadsheet({
                             setSel({ r, c });
                             focusGrid();
                             // A column with a pick list opens it on the click, so nothing has to be typed.
-                            if (e.button === 0 && optionsOf(c).length > 0)
+                            if (
+                              e.button === 0 &&
+                              (picksCn(c) || optionsOf(c).length > 0)
+                            )
                               setEditing(k);
                           }}
                           onDoubleClick={() => editable(c) && setEditing(k)}
@@ -837,7 +854,7 @@ export function Spreadsheet({
                           <span
                             className={cn(
                               "flex min-w-0 items-center",
-                              isEditing && "invisible",
+                              isEditing && !picksCn(c) && "invisible",
                             )}
                           >
                             <CellView
@@ -849,7 +866,26 @@ export function Spreadsheet({
                               text={shown(col, v)}
                             />
                           </span>
-                          {isEditing && (
+                          {isEditing && picksCn(c) && (
+                            <CnCellPicker
+                              value={v}
+                              seed={editing.seed}
+                              quick={optionsOf(c)}
+                              country={installation?.country}
+                              year={year}
+                              title={t("Row {n} · {col}", {
+                                n: r + 2,
+                                col: t(col.label),
+                              })}
+                              onPick={(p) => pickCn(r, c, p.cnCode, p.name)}
+                              onKeep={(val) => commit(r, c, val)}
+                              onCancel={() => {
+                                setEditing(null);
+                                focusGrid();
+                              }}
+                            />
+                          )}
+                          {isEditing && !picksCn(c) && (
                             <CellEditor
                               initial={editing.seed ?? v}
                               seeded={editing.seed !== undefined}
@@ -912,7 +948,8 @@ export function Spreadsheet({
         {/* ── Sheet tabs ──────────────────────────────── */}
         <div className="flex items-stretch overflow-x-auto border-t border-black/[0.08] bg-[#f0efea] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {tabOrder(sheets).map((s) => {
-            const on = tab === s.id;
+            // On Flow no sheet is open, so no tab reads as the one shown.
+            const on = tab === s.id && !isFlow;
             const fullSheet = sheets.find((x) => x.id === s.id);
             const n =
               !fullSheet || empty

@@ -13,7 +13,7 @@ import { useT } from "@/lib/i18n";
 import { useScopedInstallation } from "@/lib/scoped-installation";
 
 const ADD = "__add_installation__";
-const ADD_HREF = "/settings?tab=organisation&add=installation";
+const ADD_HREF = "/settings?tab=installation&add=installation";
 
 export function ScopedInstallationSwitcher({
   className,

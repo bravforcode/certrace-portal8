@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseSheetParam, parseYearParam, withQueryParams } from "../url-state";
+import {
+  parseSheetParam,
+  parseViewParam,
+  parseYearParam,
+  withQueryParams,
+} from "../url-state";
 
 test("parseSheetParam returns a known sheet id", () => {
   assert.equal(
@@ -44,4 +49,16 @@ test("withQueryParams deletes a key when its value is null", () => {
     withQueryParams("view=flow&year=2026", { view: null }),
     "year=2026",
   );
+});
+
+test("the workspace opens on Flow when the link names no view and no sheet", () => {
+  assert.equal(parseViewParam(null, false), "flow");
+});
+test("a link to a sheet opens that sheet's table, so 'fix this' links land on the rows", () => {
+  assert.equal(parseViewParam(null, true), "table");
+  assert.equal(parseViewParam("flow", true), "flow");
+});
+test("?view=table and the old ?view=factory open the table", () => {
+  assert.equal(parseViewParam("table", false), "table");
+  assert.equal(parseViewParam("factory", false), "table");
 });

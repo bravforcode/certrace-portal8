@@ -571,4 +571,11 @@ export const TH_WORKSPACE: Record<string, string> = {
   "Setting up your workspace": "กำลังตั้งค่าพื้นที่ทำงาน",
   "We're adding your files. Certrace reviews each one and marks it Completed.":
     "กำลังเพิ่มไฟล์ของคุณ Certrace จะตรวจทานทีละไฟล์และทำเครื่องหมายว่าเสร็จสิ้น",
+  // CN code cell picker (components/workspace/cn-cell-picker.tsx)
+  "not in the CBAM catalogue": "ไม่อยู่ในแค็ตตาล็อก CBAM",
+  "Pick the good's CN code": "เลือกรหัส CN ของสินค้า",
+  "Used this year": "ใช้แล้วในปีนี้",
+  "↑ ↓ to move · Enter to pick · Enter with no match keeps what you typed · Esc to close":
+    "↑ ↓ เลื่อน · Enter เลือก · ถ้าไม่มีรายการตรง Enter จะเก็บค่าที่พิมพ์ไว้ · Esc ปิด",
+  "Clear cell": "ล้างเซลล์",
 };
