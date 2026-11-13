@@ -3,10 +3,16 @@ import { db } from "../src/lib/db";
 import { account, admin, call, cleanup } from "./helpers";
 
 // No AI provider: the review falls back to its "unavailable" warning, so clean cells go to the team.
+// bun runs every test file in one process, so the old value is put back for the Cera tests that follow.
+const provider = process.env.CERTRACE_CERA_PROVIDER;
 beforeAll(() => {
   process.env.CERTRACE_CERA_PROVIDER = "none";
 });
-afterAll(cleanup);
+afterAll(async () => {
+  if (provider === undefined) delete process.env.CERTRACE_CERA_PROVIDER;
+  else process.env.CERTRACE_CERA_PROVIDER = provider;
+  await cleanup();
+});
 
 const clean = {
   "cbam:0:a-i9": "2026-01-01",
