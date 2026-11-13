@@ -83,7 +83,7 @@ export function ImportFilePanel({
       </div>
 
       {files.length > 0 && (
-        <ul className="mt-4 grid max-h-80 gap-x-8 gap-y-2.5 overflow-y-auto border-t border-black/[0.06] pt-3 pr-1 sm:grid-cols-2 xl:grid-cols-3">
+        <ul className="mt-4 max-h-80 space-y-2.5 overflow-y-auto border-t border-black/[0.06] pt-3 pr-1">
           {files.map((f) => (
             <li key={f.id} className="min-w-0">
               <div className="flex items-center gap-2">

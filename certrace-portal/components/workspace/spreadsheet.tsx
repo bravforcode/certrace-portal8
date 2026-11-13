@@ -539,16 +539,7 @@ export function Spreadsheet({
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
-      {/* Files and the Import file button sit above the sheet, full width; the upload section opens right below them. */}
-      {!empty && files && onAddFiles && (
-        <div className="xl:col-span-2">
-          <ImportFilePanel
-            files={files}
-            open={importOpen}
-            onToggle={() => setImportOpen((v) => !v)}
-          />
-        </div>
-      )}
+      {/* The upload section opens full width above the sheet; its Import file button stays in the small Files card at the top of the side panel. */}
       {importOpen && files && onAddFiles && (
         <div className="xl:col-span-2">
           <ImportFileSection
@@ -1014,6 +1005,15 @@ export function Spreadsheet({
           sheets={sheets}
           installation={installation}
           onOpenSheet={showLive}
+          top={
+            files && onAddFiles ? (
+              <ImportFilePanel
+                files={files}
+                open={importOpen}
+                onToggle={() => setImportOpen((v) => !v)}
+              />
+            ) : null
+          }
         />
       )}
       {importing && sheet && canImport && savePatch && (
