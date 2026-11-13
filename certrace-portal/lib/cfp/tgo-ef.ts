@@ -17,7 +17,13 @@ export const TGO_EF_OPTIONS: string[] = LISTS.flatMap(([v, rows]) =>
   rows.map((r) => label(v, r)),
 );
 
-export type TgoEf = { version: string; no: number; name: string; unit: string; ef: number };
+export type TgoEf = {
+  version: string;
+  no: number;
+  name: string;
+  unit: string;
+  ef: number;
+};
 
 /** The list row a reference names, or null when it is not a TGO EF reference. */
 export function tgoEf(ref: string): TgoEf | null {
@@ -25,7 +31,8 @@ export function tgoEf(ref: string): TgoEf | null {
   if (!m) return null;
   const rows = LISTS.find(([v]) => v === m[1])?.[1];
   const row = rows?.[Number(m[2]) - 1];
-  if (!row || row[0] !== Number(m[2]) || label(m[1]!, row) !== ref.trim()) return null;
+  if (!row || row[0] !== Number(m[2]) || label(m[1]!, row) !== ref.trim())
+    return null;
   const [no, name, unit, ef] = row;
   return { version: m[1]!, no, name, unit, ef };
 }

@@ -117,7 +117,14 @@ test("an EF reference offers the whole TGO EF list past the 50 cap, values alrea
 test("every C sheet names its product by a CN code of 01, so rows of two products never mix", () => {
   let sheets = buildSheets([]);
   sheets = withRows(sheets, "products", [{ cn: "4011 10" }]);
-  for (const id of ["cfp", "cfp-transport", "cfp-support", "cfp-luc", "cfp-baseyear", "cfp-reduction"]) {
+  for (const id of [
+    "cfp",
+    "cfp-transport",
+    "cfp-support",
+    "cfp-luc",
+    "cfp-baseyear",
+    "cfp-reduction",
+  ]) {
     const { sheet, col } = colOf(sheets, id, "product");
     assert.deepEqual(cellOptions(sheet, col, sheets), ["4011 10"], id);
   }
@@ -139,7 +146,10 @@ test("a CBAM verification report offers the 2025/2546 site visit kinds and the A
   };
   assert.deepEqual(pick("site_visit"), ["Physical", "Virtual", "Waived"]);
   assert.deepEqual(pick("materiality"), ["5%"]);
-  assert.deepEqual(pick("statement"), ["Reasonable assurance", "Not reasonable assurance"]);
+  assert.deepEqual(pick("statement"), [
+    "Reasonable assurance",
+    "Not reasonable assurance",
+  ]);
 });
 
 test("numbers and the status column drop no list", () => {

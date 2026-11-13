@@ -388,7 +388,12 @@ export function Spreadsheet({
     onEdit(keyOf(r, c), value);
     // A TGO EF reference also fills the factor (and EF source) when those cells are still empty.
     if (cols[c]?.key === "ef_ref")
-      for (const [key, v] of Object.entries(efFill(cols.map((x) => x.key), value))) {
+      for (const [key, v] of Object.entries(
+        efFill(
+          cols.map((x) => x.key),
+          value,
+        ),
+      )) {
         const i = cols.findIndex((x) => x.key === key);
         if (i >= 0 && !valueOf(row, r, i).trim()) onEdit(keyOf(r, i), v);
       }

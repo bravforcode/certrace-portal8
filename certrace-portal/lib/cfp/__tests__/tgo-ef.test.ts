@@ -16,7 +16,12 @@ test("both TGO EF lists are complete and numbered without gaps", () => {
 
 test("factors read as printed in the PDFs, including the x10 notation", () => {
   // 2569 p.1 row 1, and row 477 printed as "5.59x10-10".
-  assert.deepEqual(TGO_EF_2569[0], [1, "Acrylonitrile Butadiene Styrene (ABS)", "kg", 4.5845]);
+  assert.deepEqual(TGO_EF_2569[0], [
+    1,
+    "Acrylonitrile Butadiene Styrene (ABS)",
+    "kg",
+    4.5845,
+  ]);
   assert.equal(TGO_EF_2569[476]![3], 5.59e-10);
   assert.equal(TGO_EF_2565[0]![3], 4.1597);
 });
@@ -45,6 +50,9 @@ test("a tkm factor fills the outbound EF on the transport sheet, a kg factor fil
   const transportCols = ["item", "ef_tkm", "ef_km", "ef_ref"];
   assert.deepEqual(Object.keys(efFill(transportCols, tkm)), ["ef_tkm"]);
   const kg = TGO_EF_OPTIONS[0]!;
-  assert.deepEqual(efFill(["ef", "ef_source", "ef_ref"], kg), { ef: "4.5845", ef_source: "TGO EF" });
+  assert.deepEqual(efFill(["ef", "ef_source", "ef_ref"], kg), {
+    ef: "4.5845",
+    ef_source: "TGO EF",
+  });
   assert.deepEqual(efFill(["ef"], "my own factor"), {});
 });

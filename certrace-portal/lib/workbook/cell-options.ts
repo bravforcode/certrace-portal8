@@ -73,10 +73,7 @@ const CFP_LISTS: Record<string, string[]> = {
 /* EU CBAM 2025/2546: site visit (Art 2 physical; Arts 3-4 virtual or waived), the Art 5(1) materiality
    level, and the Annex 2.6(a) conclusion. */
 export const SITE_VISITS = ["Physical", "Virtual", "Waived"];
-export const STATEMENTS = [
-  "Reasonable assurance",
-  "Not reasonable assurance",
-];
+export const STATEMENTS = ["Reasonable assurance", "Not reasonable assurance"];
 const VERIFICATION_LISTS: Record<string, string[]> = {
   site_visit: SITE_VISITS,
   materiality: ["5%"],
@@ -124,7 +121,10 @@ export function cellOptions(
   if (col.key === "ef_ref") {
     const own = unique(typed);
     const seen = new Set(own.map((v) => v.toLowerCase()));
-    return [...own, ...TGO_EF_OPTIONS.filter((o) => !seen.has(o.toLowerCase()))];
+    return [
+      ...own,
+      ...TGO_EF_OPTIONS.filter((o) => !seen.has(o.toLowerCase())),
+    ];
   }
   const steps = columnValues(byId("steps"), "step");
   let fixed: string[] = [];
@@ -139,9 +139,7 @@ export function cellOptions(
   else if (sheet.id === "cbam-verification" && VERIFICATION_LISTS[col.key])
     fixed = VERIFICATION_LISTS[col.key];
   else if (sheet.id.startsWith("cfp") && col.key === "item")
-    fixed = CFP_ITEM_SHEETS.flatMap(([id, key]) =>
-      columnValues(byId(id), key),
-    );
+    fixed = CFP_ITEM_SHEETS.flatMap(([id, key]) => columnValues(byId(id), key));
   else if (sheet.id.startsWith("cfp") && col.key === "product")
     fixed = columnValues(byId("products"), "cn");
   else if (["step", "from", "to"].includes(col.key) && sheet.id !== "steps")

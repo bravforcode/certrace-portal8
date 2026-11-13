@@ -437,7 +437,12 @@ export function buildSheets(files: WorkspaceFile[]): Sheet[] {
         col("visit_dates", "Site visit dates", "text", W.unit), // 2.2(a)
         col("days_on_site", "Days on site", "number", W.qty), // 2.2(a)
         col("last_physical", "Last physical visit", "text", W.unit), // 2.2(b)
-        col("visit_reason", "Reason for virtual visit or waiver", "text", W.item), // 2.2(c), (d)
+        col(
+          "visit_reason",
+          "Reason for virtual visit or waiver",
+          "text",
+          W.item,
+        ), // 2.2(c), (d)
         col("other_visits", "Other visits", "text", W.item), // 2.2(e)
         col("objectives", "Objectives and scope", "text", W.item), // 2.3(a), (b)
         col("mp_version", "Monitoring plan version", "text", W.unit), // 2.3(d)
@@ -448,7 +453,12 @@ export function buildSheets(files: WorkspaceFile[]): Sheet[] {
         col("co2_capture", "CO2 capture", "text", W.unit), // 2.4(a)(6)
         col("statement", "Verification statement", "text", W.item), // 2.6(a)
         col("corrected", "Material misstatements corrected", "text", W.item), // 2.6(b)
-        col("nc_corrected", "Material non-conformities corrected", "text", W.item), // 2.6(c)
+        col(
+          "nc_corrected",
+          "Material non-conformities corrected",
+          "text",
+          W.item,
+        ), // 2.6(c)
         col("remaining", "Remaining misstatements", "text", W.item), // 2.6(d)
         col("nc_remaining", "Remaining non-conformities", "text", W.item), // 2.6(e)
         col("non_compliance", "Remaining non-compliance", "text", W.item), // 2.6(f)

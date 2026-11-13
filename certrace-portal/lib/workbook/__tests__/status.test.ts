@@ -210,7 +210,14 @@ test("a CFP factor without its emission factor is missing, so the CFP tab never 
     cols: [],
     rows: [
       {
-        cells: { product: "4011 10", stage: "Production", item: "Electricity", qty: "1.2", unit: "kWh", ef_source: "TGO EF" },
+        cells: {
+          product: "4011 10",
+          stage: "Production",
+          item: "Electricity",
+          qty: "1.2",
+          unit: "kWh",
+          ef_source: "TGO EF",
+        },
         status: "confirmed",
       },
     ],
@@ -252,7 +259,13 @@ test("a transport row without its outbound EF is missing, so a tkm result is nev
 });
 
 test("C3-C7 also sit after 00-09", () => {
-  for (const id of ["cfp-transport", "cfp-support", "cfp-luc", "cfp-baseyear", "cfp-reduction"])
+  for (const id of [
+    "cfp-transport",
+    "cfp-support",
+    "cfp-luc",
+    "cfp-baseyear",
+    "cfp-reduction",
+  ])
     assert.equal(SHEET_ORDER.includes(id), false, id);
 });
 
