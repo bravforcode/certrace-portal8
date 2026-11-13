@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-11-12T23:11:19.507Z
-> Files: 84 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-11-13T00:50:26.096Z
+> Files: 86 tracked | Anatomy hits: 0 | Misses: 0
 
 ## ../
 
@@ -13,6 +13,8 @@
 ## ../../../Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/00828282-ea26-4a08-9dc4-4c94036a81c7/scratchpad/
 
 - `convert_edit.py` — The workspace for this installation and year; null until an installation is chosen. (~3448 tok)
+- `docs_fix.py` — rep (~917 tok)
+- `sheet_fix.py` — rep (~1304 tok)
 
 ## ../../../Users/menum/AppData/Local/Temp/claude/6da0b079e6e8af05/879cb07d-9f63-49e7-809e-764e92cc9918/scratchpad/
 

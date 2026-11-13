@@ -1,6 +1,6 @@
 import { db } from "../../lib/db";
 import { fail } from "../../lib/errors";
-import { CELL_KEY, MAX_BYTES } from "./model";
+import { CELL_KEY, MAX_BYTES, MAX_FILES } from "./model";
 
 type Cells = Record<string, string>;
 type Editors = Record<string, { by: string; at: string }>;
@@ -129,13 +129,80 @@ export function patchCells(
   });
 }
 
+type MetaFile = { id: string; reviewedAt?: string } & Record<string, unknown>;
+const filesOf = (meta: unknown): MetaFile[] =>
+  ((meta as { files?: MetaFile[] } | null)?.files ?? []) as MetaFile[];
+
+/** Only Certrace marks a file reviewed. The customer's copy of reviewedAt is replaced by the stored one. */
+const withStoredReview = (files: MetaFile[], stored: MetaFile[]) => {
+  const reviewed = new Map(stored.map((f) => [f.id, f.reviewedAt]));
+  return files.map(({ reviewedAt: _ignored, ...f }) => {
+    const at = reviewed.get(f.id);
+    return at ? { ...f, reviewedAt: at } : f;
+  });
+};
+
 export const putMeta = (
   companyId: string,
   installationId: string,
   year: number,
   actorId: string,
   meta: Record<string, unknown>,
-) => mutate(companyId, installationId, year, actorId, () => ({ meta }));
+) =>
+  mutate(companyId, installationId, year, actorId, (row) => ({
+    meta: meta.files
+      ? {
+          ...meta,
+          files: withStoredReview(filesOf(meta), filesOf(row.meta)),
+        }
+      : meta,
+  }));
+
+/** Appends files under the row lock, so two people adding files at once both keep theirs. */
+export const addFiles = (
+  companyId: string,
+  installationId: string,
+  year: number,
+  actorId: string,
+  files: MetaFile[],
+) =>
+  mutate(companyId, installationId, year, actorId, (row) => {
+    const stored = filesOf(row.meta);
+    const known = new Set(stored.map((f) => f.id));
+    const next = [
+      ...stored,
+      ...withStoredReview(files, []).filter((f) => !known.has(f.id)),
+    ];
+    if (next.length > MAX_FILES)
+      fail(422, "TOO_MANY_FILES", `A year holds at most ${MAX_FILES} files.`);
+    return { meta: { ...(row.meta as object), files: next } };
+  });
+
+/** Certrace's review of one uploaded file: sets or clears reviewedAt. */
+export const reviewFile = (
+  companyId: string,
+  installationId: string,
+  year: number,
+  actorId: string,
+  fileId: string,
+  reviewed: boolean,
+) =>
+  mutate(companyId, installationId, year, actorId, (row) => {
+    const stored = filesOf(row.meta);
+    if (!stored.some((f) => f.id === fileId))
+      fail(404, "FILE_NOT_FOUND", "That file is not in this workbook year.");
+    const at = new Date().toISOString();
+    return {
+      meta: {
+        ...(row.meta as object),
+        files: stored.map((f) => {
+          if (f.id !== fileId) return f;
+          const { reviewedAt: _old, ...rest } = f;
+          return reviewed ? { ...rest, reviewedAt: at } : rest;
+        }),
+      },
+    };
+  });
 
 /** Clears cells left by a failed copy or reset. A year with a status is in use (set up or copied), so its cells stay. */
 export const resetLeftovers = (

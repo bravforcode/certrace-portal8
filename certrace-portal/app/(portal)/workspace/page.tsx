@@ -151,10 +151,11 @@ function WorkspaceInner() {
       content: (
         <CbamTab
           cells={cbamCells}
+          onEdit={scoped ? wb.saveEdit : undefined}
           fillHref={
             scoped
               ? (item) =>
-                  `/convert/fill/${encodeURIComponent(item)}?installation=${encodeURIComponent(scoped.id)}&from=eu-cbam`
+                  `/convert/fill/${encodeURIComponent(item)}?installation=${encodeURIComponent(scoped.id)}&year=${year}&from=eu-cbam`
               : undefined
           }
         />
@@ -191,7 +192,7 @@ function WorkspaceInner() {
             year={year}
             onYear={setYear}
             copyFrom={withData.filter((y) => y < year).reverse()}
-            onConfirm={(files) => ws.confirm(year, files)}
+            onConfirm={(files, blobs) => ws.confirm(year, files, blobs)}
             onBlank={() => ws.startBlank(year)}
             onCopy={(from) => ws.copy(year, from)}
           />
@@ -260,7 +261,7 @@ function WorkspaceInner() {
             sheets={wb.sheets}
             cells={wb.cells}
             files={rec.files}
-            onAddFiles={(f) => ws.addFiles(year, f)}
+            onAddFiles={(f, b) => ws.addFiles(year, f, b)}
             savePatch={wb.savePatch}
             editors={wb.editors}
             saving={wb.pending > 0}

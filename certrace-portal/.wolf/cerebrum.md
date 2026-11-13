@@ -14,7 +14,7 @@
 - [2026-11-12] Workspace with no installation stores its year under workbook id `_unassigned` (lib/workbook/unassigned.ts). Lower case + underscore, so normaliseReference (upper case A-Z0-9-) can never produce it.
 - [2026-11-13] Annex I 2026–2028 columns already include the markup (total × 1.10/1.20/1.30; fertilisers × 1.01). Use them as published.
 
-- [2026-11-13] Pre-verification quota is 3 per installation and year (PREVERIFY_QUOTA in certrace-backend preverify/checks.ts); submit returns 402 QUOTA_EXCEEDED before the AI review runs.
+- [2026-11-13] Pre-verification quota is company-wide for CBAM: 3 (PREVERIFY_QUOTA in certrace-backend preverify/checks.ts) plus credits an admin grants via POST /api/admin/preverifications/credits. Submit returns 402 QUOTA_EXCEEDED before the AI review and re-checks under a row lock so two racing submits charge once.
 - [2026-11-13] /workspaces/new is switched off (next.config redirects it to /workspace). Installations are added under /settings?tab=organisation (OwnInstallationCard).
 - [2026-11-13] Readiness % counts only finished requirements. For "started" state use each requirement's `state` (complete / in-progress / missing), not the %.
 - [2026-11-13] Backend tests: `~/.bun/bin/bun.exe test <files>` (bun is not on PATH).

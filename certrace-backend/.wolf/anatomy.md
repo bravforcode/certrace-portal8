@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-11-11T23:01:35.565Z
-> Files: 12 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-11-13T00:08:26.253Z
+> Files: 13 tracked | Anatomy hits: 0 | Misses: 0
 
 ## ../../../Users/menum/AppData/Local/Temp/claude/6da0b079e6e8af05/879cb07d-9f63-49e7-809e-764e92cc9918/scratchpad/scripts/
 
@@ -35,3 +35,4 @@
 - `cera-actions.test.ts` — Declares realKey (~1834 tok)
 - `cera-provider.test.ts` — API routes: GET (1 endpoints) (~1293 tok)
 - `item-links.test.ts` — ItemField: mint (~2381 tok)
+- `preverify-submit.test.ts` — Uses already spent: rows that reached the team, on other installations of the same company. (~1795 tok)

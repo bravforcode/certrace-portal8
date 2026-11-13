@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-11-12T23:11:19.380Z
-> Files: 133 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-11-13T01:02:09.486Z
+> Files: 140 tracked | Anatomy hits: 0 | Misses: 0
 
 ## ../../Users/menum/.claude/projects/C--Certrace-certrace-portal8/memory/
 
@@ -13,7 +13,13 @@
 
 ## ../../Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/00828282-ea26-4a08-9dc4-4c94036a81c7/scratchpad/
 
+- `buglog_add.py` (~502 tok)
+- `cbam_edit.py` — The fill-in form for an item; without it the tab offers no link. (~1899 tok)
 - `convert_edit.py` — The workspace for this installation and year; null until an installation is chosen. (~3448 tok)
+- `docs_fix.py` — rep (~917 tok)
+- `lockplan_fix.py` — rep (~926 tok)
+- `sheet_fix.py` — rep (~1304 tok)
+- `th_test.ts` — Inspect (default) or delete (--delete) the local dev installation TH-TEST-01 and its rows. (~473 tok)
 
 ## ../../Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/879cb07d-9f63-49e7-809e-764e92cc9918/scratchpad/
 
@@ -114,6 +120,7 @@
 - `installation-store.test.ts` — The site wizard saves the operator address in the parts the CBAM template asks for (A_InstData I38–I (~599 tok)
 - `item-links.test.ts` — ItemField: mint (~2381 tok)
 - `preverify-checks.test.ts` — Declares Finding (~1376 tok)
+- `preverify-submit.test.ts` — Uses already spent: rows that reached the team, on other installations of the same company. (~1795 tok)
 
 ## certrace-portal/
 

@@ -24,7 +24,7 @@ import { calculations } from "./modules/calculations";
 import { evidence, publicEvidence } from "./modules/evidence";
 import { reportAutofill } from "./modules/evidence/autofill";
 import { cera } from "./modules/cera";
-import { workbooks } from "./modules/workbooks";
+import { workbooks, workbooksAdmin } from "./modules/workbooks";
 import { consent } from "./modules/consent";
 import { preverifications, preverifyAdmin } from "./modules/preverify";
 export const app = new Elysia({
@@ -143,5 +143,6 @@ export const app = new Elysia({
   .use(reportAutofill)
   .use(cera)
   .use(preverifications)
-  .use(preverifyAdmin);
+  .use(preverifyAdmin)
+  .use(workbooksAdmin);
 export type App = typeof app;

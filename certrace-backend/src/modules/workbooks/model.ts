@@ -2,6 +2,7 @@ import { t } from "elysia";
 
 export const CELL_KEY = /^[a-z0-9-]{1,32}:\d{1,5}:[a-z0-9_-]{1,40}$/;
 export const MAX_BYTES = 5_000_000;
+export const MAX_FILES = 200;
 
 const installationId = t.String({ pattern: "^[A-Za-z0-9_-]{1,64}$" });
 export const listParams = t.Object({ installationId });
@@ -11,23 +12,20 @@ export const params = t.Object({
 });
 // Shape copied from certrace-portal/lib/workspace-store.ts (WorkspaceYear, WorkspaceFile).
 // Elysia silently strips keys not listed here (e.g. the store's `edits`) instead of rejecting them.
+export const file = t.Object({
+  id: t.String({ maxLength: 64 }),
+  name: t.String({ maxLength: 255 }),
+  size: t.Integer({ minimum: 0 }),
+  type: t.String({ maxLength: 120 }),
+  description: t.String({ maxLength: 1000 }),
+  // When Certrace finished reviewing the file. Absent means the review is still pending.
+  // Only the admin review route sets it; a customer's value is replaced by the stored one.
+  reviewedAt: t.Optional(t.String({ format: "date-time" })),
+});
 export const meta = t.Object(
   {
     status: t.Optional(t.Union([t.Literal("syncing"), t.Literal("ready")])),
-    files: t.Optional(
-      t.Array(
-        t.Object({
-          id: t.String({ maxLength: 64 }),
-          name: t.String({ maxLength: 255 }),
-          size: t.Integer({ minimum: 0 }),
-          type: t.String({ maxLength: 120 }),
-          description: t.String({ maxLength: 1000 }),
-          // When Certrace finished reviewing the file. Absent means the review is still pending.
-          reviewedAt: t.Optional(t.String({ format: "date-time" })),
-        }),
-        { maxItems: 200 },
-      ),
-    ),
+    files: t.Optional(t.Array(file, { maxItems: MAX_FILES })),
     confirmedAt: t.Optional(t.String({ format: "date-time" })),
     copiedFrom: t.Optional(t.Integer({ minimum: 2000, maximum: 2100 })),
     blank: t.Optional(t.Boolean()),
@@ -44,4 +42,7 @@ export const cellsBody = t.Object({
       maxProperties: 2000,
     },
   ),
+});
+export const filesBody = t.Object({
+  files: t.Array(file, { minItems: 1, maxItems: MAX_FILES }),
 });

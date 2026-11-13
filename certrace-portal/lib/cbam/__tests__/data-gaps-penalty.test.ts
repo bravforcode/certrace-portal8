@@ -59,8 +59,11 @@ test("indirect emissions are chargeable only for the sectors that make them so",
 });
 
 test("the penalty's CN is the exporter's own good: its self-supplied request, one code", () => {
-  const cnOf = (id: string) =>
-    ({ "p-rebar": "7214 10 00", "p-ore": "2601 11 00" })[id];
+  const cnOfProduct: Record<string, string | undefined> = {
+    "p-rebar": "7214 10 00",
+    "p-ore": "2601 11 00",
+  };
+  const cnOf = (id: string) => cnOfProduct[id];
   const requests = [
     { supplierId: SELF_SUPPLIER_ID, products: [{ productId: "p-rebar" }] },
     { supplierId: "sup-1", products: [{ productId: "p-ore" }] },

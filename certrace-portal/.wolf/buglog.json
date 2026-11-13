@@ -1247,6 +1247,52 @@
       "related_bugs": [],
       "occurrences": 1,
       "last_seen": "2026-11-13T00:00:00.000Z"
+    },
+    {
+      "id": "bug-079",
+      "timestamp": "2026-11-13T00:00:00.000Z",
+      "error_message": "Pasting more rows than the sheet shows dropped the extra rows silently",
+      "file": "components/workspace/spreadsheet.tsx",
+      "root_cause": "onPaste only wrote into visible rows; rows past the end had no target and were skipped without notice.",
+      "fix": "Unfiltered paste writes new rows below (sheetsFromCells grows the sheet); with a search filter or past PASTE_MAX a warn toast says what was not added. Browser check: 25-line paste kept all 25, sheet grew to 30 rows.",
+      "tags": [
+        "manual",
+        "workspace",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T00:00:00.000Z"
+    },
+    {
+      "id": "bug-080",
+      "timestamp": "2026-11-13T00:00:00.000Z",
+      "error_message": "Documents and Installation sheets both labelled 00; Energy listed after Material flow",
+      "file": "lib/workspace-sheets.ts",
+      "root_cause": "Sheet codes were set by hand; Documents reused 00 and flow/energy codes were swapped.",
+      "fix": "Documents 09, Energy 04, Material flow 05.",
+      "tags": [
+        "manual",
+        "workspace"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T00:00:00.000Z"
+    },
+    {
+      "id": "bug-081",
+      "timestamp": "2026-11-13T00:00:00.000Z",
+      "error_message": "Dev server 500 ENOENT _buildManifest after running next build",
+      "file": ".next",
+      "root_cause": "next build writes the same .next folder the running dev server uses.",
+      "fix": "Stop the dev server, rm -rf .next, start it again after a build.",
+      "tags": [
+        "manual",
+        "tooling"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T00:00:00.000Z"
     }
   ]
 }

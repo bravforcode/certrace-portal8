@@ -19,7 +19,7 @@
 - Re-downloading a locked version never counts against the quota. Drafts (DRAFT watermark) never count.
 - Locked versions are immutable. Editing after lock creates version N+1.
 - Code answers deterministic questions (completeness, units, mass balance, year-on-year). The model only reads evidence and explains.
-- Migrations: raw SQL in `BEGIN; ... COMMIT;` under `certrace-backend/prisma/migrations/<yyyymmddNNNN>_<name>/migration.sql` (latest is `202611110005_item_links`; use `202611120001_report_versions`). New audit events extend `account_audit_events_event_check` (see `202610170001_registration_consent` for the drop/add pattern).
+- Migrations: raw SQL in `BEGIN; ... COMMIT;` under `certrace-backend/prisma/migrations/<yyyymmddNNNN>_<name>/migration.sql` (latest is `202611130001_preverify_credits`; use `202611140001_report_versions` and re-check with `ls prisma/migrations` before creating it: Prisma applies folders in name order, and any later migration that rebuilds `account_audit_events_event_check` must keep `REPORT_LOCKED`). New audit events extend `account_audit_events_event_check` (see `202610170001_registration_consent` for the drop/add pattern).
 - After changing a portal stored type: `bun scripts/generate-report-storage.ts` in `certrace-backend`, then restart backend (see `.wolf/cerebrum.md`).
 - Backend tests: `bun test test/<file>.test.ts` in `certrace-backend`, using `account, call, cleanup, editorOf` from `test/helpers.ts`; call `afterAll(cleanup)`.
 - Commits: short `feat:`/`fix:`/`docs:` style, no co-author line (AGENTS.md rule 13). Commit only when the owner asks.
@@ -71,7 +71,7 @@ Still open (owner or counsel): Thai Accounting Act retention for supporting docu
 
 | Path | Responsibility |
 | --- | --- |
-| `certrace-backend/prisma/migrations/202611120001_report_versions/migration.sql` | tables `report_versions`, later `precheck_runs`, `verifier_handoffs`, immutability trigger, audit event additions |
+| `certrace-backend/prisma/migrations/202611140001_report_versions/migration.sql` | tables `report_versions`, later `precheck_runs`, `verifier_handoffs`, immutability trigger, audit event additions |
 | `certrace-backend/prisma/schema.prisma` | Prisma models for the same tables |
 | `certrace-backend/src/modules/report-versions/{index,model,service,hash}.ts` (new) | lock, list, fetch, quota check, canonical hash |
 | `certrace-backend/src/modules/precheck/` (new) | rules runner, AI explain step, run history |
@@ -92,7 +92,7 @@ Still open (owner or counsel): Thai Accounting Act retention for supporting docu
 ### Task 1: Report version table and lock endpoint
 
 **Files:**
-- Create: `certrace-backend/prisma/migrations/202611120001_report_versions/migration.sql`
+- Create: `certrace-backend/prisma/migrations/202611140001_report_versions/migration.sql`
 - Modify: `certrace-backend/prisma/schema.prisma` (add model `report_versions`)
 - Create: `certrace-backend/src/modules/report-versions/hash.ts`, `model.ts`, `service.ts`, `index.ts`
 - Modify: `certrace-backend/src/app.ts` (import and `.use(reportVersions)` next to `.use(workbooks)`, line ~127)
@@ -107,7 +107,7 @@ Still open (owner or counsel): Thai Accounting Act retention for supporting docu
 - [x] **Step 0: Two unknowns, settled by reading the code (12 Nov 2026).**
   - **Required fields: yes, the backend can check them.** `src/modules/links/cbam-item-fields.json` has 457 fields, each with the full cell key (`"cell": "cbam:0:a-i9"`), and `optional?: boolean` (`item-fields.ts:14`). 373 are `optional: true`, so the rest are required. Rule: a field without `optional` must have a non-empty value at `cells[field.cell]`. The `lock` readiness gate uses this list (CBAM standard only; other standards fall back to "at least one non-empty cell" until they have a field list). No portal logic is duplicated.
   - **Evidence files are NOT in workbook cells.** They live in the company's stored account record `workspace_evidence` (tables `reporting.workspace_evidence_rows` -> `reporting.evidence_items`, migration `202610160005`). Each item carries `f_id`, `f_month`, `f_sourceType`, `f_fileName`, `f_fileHash`, `f_serverFileId`, `f_boundTo`. File bytes are in private R2 / `uploaded_files` (sha256 + storage_key). So a lock must copy evidence **references** (`id, month, sourceType, fileName, fileHash, serverFileId`), never bytes, into `snapshot.evidence`. The file hash already exists, which is what makes the lock tamper-evident.
-  - **Still to verify when coding (not yet read):** which backend function loads a company's `workspace_evidence` record (`grep -rn "workspace_evidence\|loadRecord" src/modules/{records,reporting}`), and whether evidence items can be scoped to one installation/year. `f_boundTo` is free text (a supplier, shipment or year), not a key. Until scoping is proven, snapshot **all** evidence items of the company that match the locked year's months, and add a test fixture. Record the answer in one comment at the top of `service.ts`.
+  - **Still to verify when coding (not yet read):** which backend function loads a company's `workspace_evidence` record (`grep -rn "workspace_evidence\|loadRecord" src/modules/{records,reporting}`), and whether evidence items can be scoped to one installation/year. `f_boundTo` is free text (a supplier, shipment or year), not a key. Never fall back to company-wide evidence: a verifier package for one installation must not carry another installation's files. Snapshot only items bound to the locked installation; if that binding cannot be established, the lock records no evidence refs and the verifier handoff (Phase 5) stays off until it can. Add a test fixture with two installations. Record the answer in one comment at the top of `service.ts`.
 - [ ] **Step 1: Write the failing tests** (`test/report-versions.test.ts`):
 
 ```ts
@@ -177,13 +177,13 @@ describe("report versions", () => {
 
   If `await expect(...).rejects` hangs in bun 1.3.14 (see cerebrum), use try/catch and assert the thrown error instead.
 - [ ] **Step 2: Run, expect FAIL** (404 on route). `cd certrace-backend && bun test test/report-versions.test.ts`
-- [ ] **Step 3: Migration** `202611120001_report_versions/migration.sql`:
+- [ ] **Step 3: Migration** `202611140001_report_versions/migration.sql`:
 
 ```sql
 BEGIN;
 CREATE TABLE public.report_versions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  company_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  company_id uuid NOT NULL REFERENCES public.users(id) ON DELETE RESTRICT,
   installation_id text NOT NULL CHECK (installation_id ~ '^[A-Za-z0-9_-]{1,64}$'),
   year integer NOT NULL CHECK (year BETWEEN 2000 AND 2100),
   standard text NOT NULL CHECK (standard IN ('cbam','iso14067','tgo-cfp','cfo','iso14064-1','energy')),
@@ -192,7 +192,7 @@ CREATE TABLE public.report_versions (
   version integer NOT NULL CHECK (version >= 1),
   content_hash text NOT NULL CHECK (content_hash ~ '^[0-9a-f]{64}$'),
   snapshot jsonb NOT NULL,
-  locked_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
+  locked_by uuid, -- no FK: deleting the user must not update this immutable row
   locked_at timestamptz NOT NULL DEFAULT now(),
   CHECK ((kind = 'quarter') = (quarter IS NOT NULL))
 );
@@ -208,7 +208,7 @@ CREATE TRIGGER report_versions_no_update BEFORE UPDATE ON public.report_versions
 COMMIT;
 ```
 
-  `ON DELETE CASCADE` on `company_id` is intentional (account anonymise/delete cascades); the trigger blocks UPDATE only, so account deletion still works. DELETE of a single version by app code is simply never offered.
+  `ON DELETE RESTRICT` on `company_id` keeps locked versions and their evidence refs for the retention period (Phase 2, Task 5): closing an account anonymises the user row instead of deleting it while any version is inside retention, and a cleanup job deletes versions only after the deadline. `locked_by` has no foreign key, so deleting the person who locked never runs an `ON DELETE` action against the row; the attribution stays as the stored id (and in `snapshot.lockedBy`). The trigger blocks UPDATE only. DELETE of a single version by app code is never offered.
 - [ ] **Step 4: Prisma model** in `schema.prisma` mirroring the table (name `report_versions`, `snapshot Json`, `@@unique` omitted because the unique index uses `COALESCE`; query by raw SQL for `max(version)`). Run `bunx prisma generate` in `certrace-backend`.
 - [ ] **Step 5: `hash.ts`**:
 
@@ -337,7 +337,7 @@ Caps are decided for now (see Decisions): Starter 1 / Standard 4 / Enterprise `n
 **Files:** New `certrace-portal/app/(portal)/archive/page.tsx`; backend list endpoint over `report_versions` and `workbooks` grouped by year.
 - [ ] Per year: locked versions, evidence files, who locked, when. Download everything for a year as one package (reuse `lib/cbam/download-package.ts`).
 - [x] **Step 1 (research gate, done 12 Nov 2026):** CBAM clause confirmed (R6): declarant keeps records and the verifier report until the end of the fourth year after the declaration year. Product rule: for a locked CBAM version, never delete the version or its evidence references/files before **31 Dec of (declaration year + 4)**; the declaration year for reporting year Y is Y+1, so reporting year 2026 means keep to 31 Dec 2031. UI may state this number with the note "EU importers must keep these records for this long; ask them what they need." Other standards and the period after account closure remain an owner/counsel decision (Thai Accounting Act not checked); proposal: 7 years after closure.
-- [ ] Data-subject rights (PDPA): account deletion/anonymise must handle `report_versions` (already `ON DELETE CASCADE`; contact names inside snapshots are the only personal data, keep them out of the snapshot by storing user ids, not names).
+- [ ] Data-subject rights (PDPA): account deletion/anonymise must handle `report_versions` (`company_id` is `ON DELETE RESTRICT`, so account closure anonymises the user row until retention ends; contact names inside snapshots are the only personal data, keep them out of the snapshot by storing user ids, not names).
 - [ ] Backup: R2 bytes need their own backup and lifecycle (see `docs/R2-STORAGE.md`); locked versions point at file ids, so evidence files referenced by a locked version must be exempt from any cleanup job.
 
 ### Task 6: Baseline hook
@@ -351,7 +351,7 @@ Caps are decided for now (see Decisions): Starter 1 / Standard 4 / Enterprise `n
 
 ### Task 7: Deterministic rules runner
 
-**Files:** Create `certrace-backend/src/modules/precheck/rules/{completeness,units,massbalance,yoy,defaults,evidence}.ts`, `runner.ts`, `model.ts`, `index.ts`; table `precheck_runs(id, company_id, report_version_id null, scope jsonb, score, findings jsonb, ruleset_version, created_at)` in migration `202611120002_precheck_runs`.
+**Files:** Create `certrace-backend/src/modules/precheck/rules/{completeness,units,massbalance,yoy,defaults,evidence}.ts`, `runner.ts`, `model.ts`, `index.ts`; table `precheck_runs(id, company_id, report_version_id null, scope jsonb, score, findings jsonb, ruleset_version, created_at)` in migration `202611140002_precheck_runs`.
 **Interfaces:** `runPrecheck(scope: { cells; meta; prior: Record<string, number> | null }): { score: number; findings: { ruleId: string; severity: "blocker"|"warn"|"info"; cell?: string; message: string }[] }`. Pure function, no I/O, so it is unit-testable without a database.
 - [ ] **Step 0:** read Implementing Reg. 2025/2546 and 2025/2547 (R3) and write the list of rules with the article each comes from into `rules/README.md`. A rule without a source is `info` only.
 - [ ] One failing test per rule using `test/fixtures` (calculation fixture) as the good case and a single-field mutation as the bad case. Example: completeness: blank required cell yields `blocker`; units: kWh value 1000x the prior year yields `warn`; yoy: deviation over 30% yields `warn` (threshold in one constant, owner tunable).
@@ -395,7 +395,7 @@ Caps are decided for now (see Decisions): Starter 1 / Standard 4 / Enterprise `n
 ## Phase 5: Verifier handoff (needs a signed partner first, except the manual path)
 
 ### Task 12: Token link and read-only verifier view
-**Files:** `certrace-backend/src/modules/verifier-handoff/`, `certrace-portal/app/v/[token]/page.tsx`; table `verifier_handoffs(id, report_version_id, partner, token_hash, expires_at, revoked_at, consent jsonb, created_by, created_at)` in migration `202611120003_verifier_handoffs`. Follow `src/modules/links` (`item_links`, migration `202611110005`) for token hashing and public-route patterns.
+**Files:** `certrace-backend/src/modules/verifier-handoff/`, `certrace-portal/app/v/[token]/page.tsx`; table `verifier_handoffs(id, report_version_id, partner, token_hash, expires_at, revoked_at, consent jsonb, created_by, created_at)` in migration `202611140003_verifier_handoffs`. Follow `src/modules/links` (`item_links`, migration `202611110005`) for token hashing and public-route patterns.
 - [ ] Store only `token_hash` (SHA-256), show the raw token once. Failing tests: expired token 410; revoked token 410; wrong token 404; link to a version of another company impossible.
 - [ ] The link opens a **locked version** only, never live data. Read-only view + download of the package (`verification-export`) for that version.
 - [ ] Consent screen before creation lists exactly what is shared (version id, hash, evidence file count, AI pre-check summary yes/no) and records the acceptor and time in `consent`.

@@ -22,6 +22,7 @@ import {
   getWorkbook,
   listWorkbooks,
   patchWorkbookCells,
+  addWorkbookFiles,
   putWorkbookMeta,
   resetWorkbookLeftovers,
   type Workbook,
@@ -33,7 +34,12 @@ import { clearBatches, pendingFor, type Target } from "./save-queue";
 import { SaveRunner } from "./save-runner";
 import { createSyncQueue, type SyncResult } from "./sync-queue";
 import type { CellPatch } from "./flow-edit";
-import type { Sheet, WorkspaceFile } from "../workspace-sheets";
+import {
+  workspaceFileId,
+  type Sheet,
+  type WorkspaceFile,
+} from "../workspace-sheets";
+import { storeDocumentFile } from "../document-files";
 
 /** A copy marks itself ready when done; the workspace timer only rescues one abandoned for this long. */
 export const COPY_MS = 10 * 60_000;
@@ -133,10 +139,28 @@ export function useWorkbookYears(installationId: string | null) {
     return { ...meta, status: meta.status, files: meta.files ?? [] };
   };
 
-  const write = async (year: number, meta: WorkbookMeta) => {
-    if (!installationId) return;
+  // The bytes go first, so a file listed in the year always has its content behind it.
+  const storeBlobs = async (
+    files: WorkspaceFile[],
+    blobs: Map<string, Blob>,
+  ) => {
+    for (const f of files) {
+      const blob = blobs.get(f.id);
+      if (blob) await storeDocumentFile(workspaceFileId(f.id), blob);
+    }
+  };
+
+  /** Resolves true once the server has the change; on failure it shows the toast and resolves false. */
+  const write = (year: number, meta: WorkbookMeta) =>
+    save(year, (iid) => putWorkbookMeta(iid, year, meta));
+
+  const save = async (
+    year: number,
+    send: (iid: string) => Promise<unknown>,
+  ): Promise<boolean> => {
+    if (!installationId) return false;
     try {
-      await putWorkbookMeta(installationId, year, meta);
+      await send(installationId);
       await qc.invalidateQueries({
         queryKey: ["workbook-years", installationId],
       });
@@ -146,12 +170,14 @@ export function useWorkbookYears(installationId: string | null) {
       await qc.invalidateQueries({
         queryKey: ["preverification", installationId, year],
       });
+      return true;
     } catch (e) {
       toast({
         message: "Your change was not saved",
         tone: "err",
         detail: (e as Error).message,
       });
+      return false;
     }
   };
 
@@ -164,10 +190,15 @@ export function useWorkbookYears(installationId: string | null) {
 
   /** Confirm the upload: the year opens at once with these files attached. Nothing sorts them in the
       background, so the year never pretends to be "setting up". */
-  const confirm = async (year: number, files: WorkspaceFile[]) => {
+  const confirm = async (
+    year: number,
+    files: WorkspaceFile[],
+    blobs: Map<string, Blob> = new Map(),
+  ) => {
     if (!installationId) return;
     try {
       await clearLeftovers(installationId, year);
+      await storeBlobs(files, blobs);
     } catch (e) {
       return notSaved(e);
     }
@@ -279,10 +310,16 @@ export function useWorkbookYears(installationId: string | null) {
 
   /** Attach more files to a year that is already open. Cells stay as they are; the new files wait for
       Certrace's review. The backend caps a year at 200 files. */
-  const addFiles = (year: number, files: WorkspaceFile[]) => {
-    const rec = get(year);
-    if (!rec || files.length === 0) return;
-    return write(year, { ...rec, files: [...rec.files, ...files] });
+  const addFiles = async (
+    year: number,
+    files: WorkspaceFile[],
+    blobs: Map<string, Blob> = new Map(),
+  ): Promise<boolean> => {
+    if (!get(year) || files.length === 0) return false;
+    return save(year, async (iid) => {
+      await storeBlobs(files, blobs);
+      await addWorkbookFiles(iid, year, files);
+    });
   };
 
   /** This browser has seen the walk-in for this year; the team's meta is untouched. */

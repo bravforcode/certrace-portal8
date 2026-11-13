@@ -1260,7 +1260,9 @@ function DerivedTotals({
   /* The Annex I row needs one CN code. Several codes would need the production
      split per good, which the dataset does not hold, so no figure is shown. */
   const ownCn = ownCnCodes.length === 1 ? ownCnCodes[0] : null;
-  const sector = ownCn ? rowForAnyCn(ownCn)?.sector : undefined;
+  /* Chargeability needs only the sector, so it holds for several CN codes as long as they share one. */
+  const sectors = new Set(ownCnCodes.map((cn) => rowForAnyCn(cn)?.sector));
+  const sector = sectors.size === 1 ? [...sectors][0] : undefined;
   const chargeable = sector
     ? chargeablePerTonne(sector, directPerTonne, indirectPerTonne)
     : directPerTonne;
@@ -1268,7 +1270,7 @@ function DerivedTotals({
     ? publishedDefaultFor(ownCn, country, reportingYear)
     : null;
   const penalty =
-    sector && published !== null
+    ownCn && sector && published !== null
       ? dataGapPenalty({
           defaultValue: published,
           chargeableSEE: chargeable,

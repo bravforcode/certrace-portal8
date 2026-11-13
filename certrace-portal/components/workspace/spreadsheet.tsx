@@ -59,6 +59,7 @@ import {
 } from "@/lib/workbook/status";
 import { useTeam } from "@/lib/team-query";
 import { CELL_MAX } from "@/lib/workbook/save-queue";
+import { toast } from "@/components/toast";
 import {
   INSTALLATION_SHEET_ID,
   NO_FILE,
@@ -116,7 +117,10 @@ export function Spreadsheet({
   /** The year's uploaded files, listed with their review state above the live check. */
   files?: WorkspaceFile[];
   /** Adds uploaded files to the year; without it the side panel has no Import file. */
-  onAddFiles?: (files: WorkspaceFile[]) => Promise<unknown> | void;
+  onAddFiles?: (
+    files: WorkspaceFile[],
+    blobs: Map<string, Blob>,
+  ) => Promise<boolean>;
   /** The year's cells with unsaved edits on top (the Flow view is drawn from them). */
   cells?: Record<string, string>;
   /** Sends a diagram patch through the save runner; resolves how it went. */
@@ -203,6 +207,7 @@ export function Spreadsheet({
   const extra = extraTabs.find((x) => x.id === tab);
   const showExtra = !!extra && !isFlow;
   const [importing, setImporting] = React.useState(false);
+  const fullRef = React.useRef<HTMLDivElement>(null); // the full-page dialog, for its focus trap
   const importOpener = React.useRef<HTMLElement | null>(null); // whatever opened the CSV mapper, focused again on close
   // Import writes rows into a sheet of cells; the Installation and Documents tabs are not row sheets.
   const canImport =
@@ -286,8 +291,9 @@ export function Spreadsheet({
     return true;
   };
 
+  // Documents rows come from the file list, not from cells, so a typed value there would not stick.
   const editable = (c: number) =>
-    !empty && !!onEdit && cols[c]?.kind !== "status";
+    !empty && !!onEdit && tab !== "documents" && cols[c]?.kind !== "status";
 
   const commit = (r: number, c: number, value: string) => {
     setEditing(null);
@@ -366,32 +372,73 @@ export function Spreadsheet({
       visible.findIndex((v) => v.r === sel.r),
     );
     let written = 0;
+    let skipped = 0;
     lines.forEach((line, i) => {
-      const target = visible[start + i];
-      if (!target) return;
+      // Unfiltered, a paste longer than the sheet writes new rows below; the sheet grows to hold them.
+      const target =
+        visible[start + i] ??
+        (q ? undefined : { row: { cells: {} } as SheetRow, r: start + i });
+      if (!target) {
+        skipped++;
+        return;
+      }
       line.split("\t").forEach((value, j) => {
         const c = sel.c + j;
-        if (c >= cols.length || !editable(c) || written >= PASTE_MAX) return;
+        if (c >= cols.length || !editable(c)) return;
+        if (written >= PASTE_MAX) {
+          skipped++;
+          return;
+        }
         const v = value.slice(0, CELL_MAX);
         if (v === valueOf(target.row, target.r, c)) return;
         onEdit(keyOf(target.r, c), v);
         written++;
       });
     });
+    if (skipped > 0)
+      toast({
+        message: t("Part of the paste was not added"),
+        detail: q
+          ? t("Clear the search to paste below the matching rows.")
+          : t("Paste at most {n} cells at a time.", { n: PASTE_MAX }),
+        tone: "warn",
+      });
   };
 
   // Full page: the page behind does not scroll, and Escape closes it when the grid does not take the key.
+  // Tab stays inside it while open, and focus returns to what opened it on close.
   React.useEffect(() => {
     if (!full) return;
+    const opener = document.activeElement as HTMLElement | null;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    gridRef.current?.focus({ preventScroll: true });
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !e.defaultPrevented) setFull(false);
+      const box = fullRef.current;
+      if (e.key !== "Tab" || e.defaultPrevented || !box) return;
+      const items = [
+        ...box.querySelectorAll<HTMLElement>(
+          'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])',
+        ),
+      ].filter((el) => el.offsetParent !== null);
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (!first || !last) return;
+      const at = document.activeElement;
+      if (e.shiftKey && (at === first || !box.contains(at))) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (at === last || !box.contains(at))) {
+        e.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => {
       document.body.style.overflow = prev;
       window.removeEventListener("keydown", onKey);
+      opener?.focus({ preventScroll: true });
     };
   }, [full]);
 
@@ -404,8 +451,9 @@ export function Spreadsheet({
     : undefined;
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
       <div
+        ref={fullRef}
         role={full ? "dialog" : undefined}
         aria-modal={full || undefined}
         aria-label={full ? t("Sheet, full page") : undefined}
@@ -463,7 +511,7 @@ export function Spreadsheet({
             </div>
           )}
           {!empty && !isFlow && !showExtra && (
-            <div className="flex flex-none items-center gap-3 border-l border-black/[0.08] px-2.5">
+            <div className="flex min-w-0 items-center gap-3 border-l border-black/[0.08] px-2.5">
               {/* A fixed width, so switching between the two messages never moves the search box. */}
               <span
                 aria-live="polite"
@@ -488,7 +536,7 @@ export function Spreadsheet({
                   </>
                 )}
               </span>
-              <label className="relative flex items-center">
+              <label className="relative flex min-w-0 items-center">
                 <Search
                   size={12}
                   strokeWidth={1.5}
@@ -512,7 +560,7 @@ export function Spreadsheet({
                   placeholder={t("Search this year…")}
                   aria-label={t("Search sheets")}
                   data-lock="allow"
-                  className="no-focus-ring h-7 w-40 rounded-md border border-black/10 bg-[#f7f6f2] pl-7 pr-14 text-[12px] text-black/75 placeholder:text-black/35 focus:border-black/25 focus:bg-white focus:outline-none sm:w-52 [&::-webkit-search-cancel-button]:hidden"
+                  className="no-focus-ring h-7 w-40 rounded-md border border-black/10 bg-[#f7f6f2] pl-7 pr-14 text-[12px] text-black/75 placeholder:text-black/35 focus:border-black/25 focus:bg-white focus:outline-none min-w-[96px] xl:w-52 [&::-webkit-search-cancel-button]:hidden"
                 />
                 {query && (
                   <span className="absolute right-1 flex items-center gap-0.5">
@@ -661,6 +709,11 @@ export function Spreadsheet({
                               "z-[1] outline outline-2 -outline-offset-1 outline-[#111]",
                             selected && !isEditing && "bg-[#f7f6f2]",
                             isEditing && "bg-white",
+                            // Columns have fixed minimums, so the browser can skip painting off-screen cells
+                            // on long sheets without the layout moving; the live cell is always painted.
+                            !selected &&
+                              !isEditing &&
+                              "[contain-intrinsic-size:auto_32px] [content-visibility:auto]",
                           )}
                         >
                           {/* The text stays under the editor (hidden), so the column keeps its width while editing. */}

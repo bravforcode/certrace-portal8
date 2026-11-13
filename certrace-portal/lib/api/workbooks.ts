@@ -47,6 +47,13 @@ export const putWorkbookMeta = (
   meta: WorkbookMeta,
 ) => result(wb(iid)({ year }).meta.put({ meta })) as Promise<Workbook>;
 
+/** Appends files under the server's row lock, so concurrent uploads never drop each other's files. */
+export const addWorkbookFiles = (
+  iid: string,
+  year: number,
+  files: NonNullable<WorkbookMeta["files"]>,
+) => result(wb(iid)({ year }).files.post({ files })) as Promise<Workbook>;
+
 /** Clears the cells of a year with no meta status, under the server's row lock. */
 export const resetWorkbookLeftovers = (iid: string, year: number) =>
   result(wb(iid)({ year })["reset-leftovers"].post()) as Promise<Workbook>;

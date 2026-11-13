@@ -17,7 +17,7 @@ import { FileText, Table2, UploadCloud, X } from "lucide-react";
 import { Button, Modal, cn, inputClass } from "@/components/ui";
 import { SettingUpStage } from "@/components/workspace/setting-up";
 import { useT } from "@/lib/i18n";
-import type { WorkspaceFile } from "@/lib/workspace-sheets";
+import { uploadable, type WorkspaceFile } from "@/lib/workspace-sheets";
 import {
   UPLOAD_LIMITS,
   uploadProblem,
@@ -40,7 +40,8 @@ export function ImportFilePanel({
   onMapCsv,
 }: {
   files: WorkspaceFile[];
-  onAdd: (files: WorkspaceFile[]) => Promise<unknown> | void;
+  /** Resolves true once the server has the files; on false the drafts stay so nothing typed is lost. */
+  onAdd: (files: WorkspaceFile[], blobs: Map<string, Blob>) => Promise<boolean>;
   /** Opens the CSV column mapper for the current sheet, when the sheet takes one. */
   onMapCsv?: () => void;
 }) {
@@ -53,6 +54,8 @@ export function ImportFilePanel({
   const [problem, setProblem] = React.useState<UploadProblem | null>(null);
   const [settingUp, setSettingUp] = React.useState<string[] | null>(null);
   const input = React.useRef<HTMLInputElement>(null);
+  const blobs = React.useRef(new Map<string, Blob>());
+  const [refused, setRefused] = React.useState<string[]>([]);
 
   React.useEffect(() => {
     if (!settingUp) return;
@@ -61,13 +64,17 @@ export function ImportFilePanel({
   }, [settingUp]);
 
   const add = (list: FileList | File[]) => {
-    const next = [...list].map((f) => ({
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      name: f.name,
-      size: f.size,
-      type: f.type,
-      description: "",
-    }));
+    const all = [...list];
+    const ok = all.flatMap((f) => {
+      const file = uploadable(f);
+      return file ? [file] : [];
+    });
+    setRefused(all.filter((f) => !uploadable(f)).map((f) => f.name));
+    const next = ok.map((f) => {
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      blobs.current.set(id, f);
+      return { id, name: f.name, size: f.size, type: f.type, description: "" };
+    });
     if (next.length) setDrafts((d) => [...d, ...next]);
   };
 
@@ -81,9 +88,12 @@ export function ImportFilePanel({
     if (p || undescribed > 0 || drafts.length === 0) return;
     setBusy(true);
     try {
-      await onAdd(
+      const saved = await onAdd(
         drafts.map((d) => ({ ...d, description: d.description.trim() })),
+        blobs.current,
       );
+      if (!saved) return;
+      blobs.current.clear();
       setSettingUp(drafts.map((d) => d.name));
       setDrafts([]);
       setTried(false);
@@ -237,6 +247,13 @@ export function ImportFilePanel({
             </ul>
           )}
 
+          {refused.length > 0 && (
+            <p role="alert" className="text-[11.5px] text-[#dc2626]">
+              {t("Not added, this file type is not accepted: {files}", {
+                files: refused.join(", "),
+              })}
+            </p>
+          )}
           {problem && (
             <p role="alert" className="text-[11.5px] text-[#dc2626]">
               {problem.field === "files"
@@ -273,7 +290,7 @@ export function ImportFilePanel({
       )}
 
       {files.length > 0 && (
-        <ul className="mt-4 space-y-2.5 border-t border-black/[0.06] pt-3">
+        <ul className="mt-4 max-h-80 space-y-2.5 overflow-y-auto border-t border-black/[0.06] pt-3 pr-1">
           {files.map((f) => (
             <li key={f.id} className="min-w-0">
               <div className="flex items-center gap-2">

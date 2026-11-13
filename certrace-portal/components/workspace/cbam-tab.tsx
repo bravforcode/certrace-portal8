@@ -3,11 +3,12 @@
 /* ════════════════════════════════════════════════════════════
    THE CBAM TAB — the workbook's checklist of every CBAM template field
 
-   Read-only. A summary (required fields filled, per item) and then the fields
-   grouped by section, each with its template reference (sheet!cell), its value
-   or "Missing", and its unit. Rows are tinted by state: red while a required
-   field is missing, green once filled. The answers are written from the fill-in
-   form (each unfinished item links to it) and Smart Links. The counting is
+   A summary (required fields filled, per item) and then the fields grouped by
+   section, each with its template reference (sheet!cell), its value or
+   "Missing", and its unit. Rows are tinted by state: red while a required field
+   is missing, green once filled. A value is edited in place (click it, Enter or
+   leaving the field saves, Escape cancels); the fill-in form (each unfinished
+   item links to it) and Smart Links write the same cells. The counting is
    lib/cbam/cbam-tab.ts.
    ════════════════════════════════════════════════════════════ */
 
@@ -18,7 +19,9 @@ import { Card, Chip, Progress, cn } from "@/components/ui";
 import { useT } from "@/lib/i18n";
 import {
   CBAM_FIELDS,
+  cbamCellKey,
   cbamOptionLabel,
+  type CbamField,
   type CbamItemId,
 } from "@/lib/cbam/template-fields";
 import { summariseCbam, type CbamRowState } from "@/lib/cbam/cbam-tab";
@@ -53,10 +56,13 @@ const ROW_TINT: Record<CbamRowState, string> = {
 export function CbamTab({
   cells,
   fillHref,
+  onEdit,
 }: {
   cells: Record<string, string>;
   /** The fill-in form for an item; without it the tab offers no link. */
   fillHref?: (item: CbamItemId) => string;
+  /** Saves one cell ("cbam:0:<field id>"); an empty value clears it. Without it values are read-only. */
+  onEdit?: (cellKey: string, value: string) => void;
 }) {
   const t = useT();
   const summary = React.useMemo(() => summariseCbam(cells), [cells]);
@@ -151,27 +157,14 @@ export function CbamTab({
                   <div className="text-[#111]">{t(field.label)}</div>
                   <div className="font-mono text-[11px] text-black/40">{`${field.sheet}!${field.cell}`}</div>
                 </div>
-                <div
-                  className={cn(
-                    "min-w-0 break-words",
-                    state === "filled"
-                      ? "text-black/80"
-                      : state === "missing"
-                        ? "text-[#b91c1c]"
-                        : "text-black/40",
-                  )}
-                >
-                  {state === "filled"
-                    ? field.kind === "select"
-                      ? cbamOptionLabel(field, value)
-                      : value
-                    : state === "optional"
-                      ? t("Not required")
-                      : t("Missing")}
-                  {state === "filled" && field.unit && (
-                    <span className="ml-1 text-black/40">{field.unit}</span>
-                  )}
-                </div>
+                <CbamValue
+                  field={field}
+                  value={value}
+                  state={state}
+                  onSave={
+                    onEdit ? (v) => onEdit(cbamCellKey(field), v) : undefined
+                  }
+                />
                 <div>
                   <Chip
                     tone={STATE_CHIP[state].tone}
@@ -185,6 +178,140 @@ export function CbamTab({
           </ul>
         </Card>
       ))}
+    </div>
+  );
+}
+
+/** One field's value: text until clicked, then an input of the field's kind. */
+function CbamValue({
+  field,
+  value,
+  state,
+  onSave,
+}: {
+  field: CbamField;
+  value: string;
+  state: CbamRowState;
+  onSave?: (value: string) => void;
+}) {
+  const t = useT();
+  const [draft, setDraft] = React.useState<string | null>(null);
+  const [error, setError] = React.useState(false);
+  const label = t(field.label);
+
+  const shownText =
+    state === "filled"
+      ? field.kind === "select"
+        ? cbamOptionLabel(field, value)
+        : value
+      : state === "optional"
+        ? t("Not required")
+        : t("Missing");
+  const text = (
+    <>
+      {shownText}
+      {state === "filled" && field.unit && (
+        <span className="ml-1 text-black/40">{field.unit}</span>
+      )}
+    </>
+  );
+  const tone =
+    state === "filled"
+      ? "text-black/80"
+      : state === "missing"
+        ? "text-[#b91c1c]"
+        : "text-black/40";
+
+  if (!onSave)
+    return <div className={cn("min-w-0 break-words", tone)}>{text}</div>;
+
+  const save = (v: string) => {
+    const next = v.trim();
+    // A number field keeps its draft open on a value that is not a number, rather than storing it.
+    if (
+      field.kind === "number" &&
+      next !== "" &&
+      !Number.isFinite(Number(next))
+    ) {
+      setError(true);
+      return;
+    }
+    setDraft(null);
+    setError(false);
+    if (next !== value.trim()) onSave(next);
+  };
+
+  if (draft === null)
+    return (
+      <button
+        type="button"
+        onClick={() => setDraft(value)}
+        aria-label={t("Edit {field}", { field: label })}
+        className={cn(
+          "-mx-1.5 min-w-0 cursor-text break-words rounded px-1.5 py-0.5 text-left hover:bg-black/[0.04] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#111]",
+          tone,
+        )}
+      >
+        {text}
+      </button>
+    );
+
+  const common = {
+    autoFocus: true,
+    "aria-label": label,
+    "aria-invalid": error || undefined,
+    className: cn(
+      "h-8 w-full min-w-0 rounded-md border bg-white px-2 text-[13px] text-[#111] outline-none focus:border-black/40",
+      error ? "border-[#dc2626]" : "border-black/15",
+    ),
+    onKeyDown: (
+      e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>,
+    ) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setDraft(null);
+        setError(false);
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        save(e.currentTarget.value);
+      }
+    },
+  };
+
+  return (
+    <div className="min-w-0">
+      {field.kind === "select" ? (
+        <select
+          {...common}
+          value={draft}
+          onChange={(e) => save(e.target.value)}
+          onBlur={() => setDraft(null)}
+        >
+          <option value="">—</option>
+          {(field.options ?? []).map((o) => (
+            <option key={o} value={o}>
+              {cbamOptionLabel(field, o)}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <input
+          {...common}
+          type={field.kind === "date" ? "date" : "text"}
+          inputMode={field.kind === "number" ? "decimal" : undefined}
+          value={draft}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            setError(false);
+          }}
+          onBlur={(e) => save(e.target.value)}
+        />
+      )}
+      {error && (
+        <p className="mt-1 text-[11.5px] text-[#b91c1c]">
+          {t("Enter a number.")}
+        </p>
+      )}
     </div>
   );
 }
