@@ -55,8 +55,13 @@ export async function read(
     where: where(companyId, installationId, year),
   })) as Row | null;
   const revision = r?.revision ?? 0;
+  // updatedAt still moves on a file review, which keeps the revision; the poll reads meta again when it does.
   if (since !== undefined && since === revision)
-    return { changed: false as const, revision };
+    return {
+      changed: false as const,
+      revision,
+      updatedAt: (r?.updated_at ?? new Date(0)).toISOString(),
+    };
   return view(r);
 }
 

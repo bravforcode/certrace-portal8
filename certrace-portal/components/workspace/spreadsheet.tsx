@@ -16,7 +16,9 @@
    Excel lands cell for cell. Every kept edit shows "Saving…" and then
    "All changes saved". Status cells are not typed into — they come from the
    checks. Selection and editing never change a column's width: the editor
-   lies over the cell's text instead of replacing it.
+   lies over the cell's text instead of replacing it. A click on a cell whose
+   column has a pick list (lib/workbook/cell-options.ts) opens the editor with
+   the list dropped down, so a value can be chosen instead of typed.
 
    The expand button opens the sheet over the whole window; Escape closes it.
 
@@ -25,6 +27,7 @@
    ════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Check,
@@ -42,7 +45,10 @@ import { TH_WORKSPACE } from "@/lib/i18n-th-workspace";
 import { InstallationSheet } from "@/components/workspace/installation-sheet";
 import { FlowDiagram } from "@/components/workspace/flow-diagram";
 import { ImportWizard } from "@/components/workspace/import-wizard";
-import { ImportFilePanel } from "@/components/workspace/import-file-panel";
+import {
+  ImportFilePanel,
+  ImportFileSection,
+} from "@/components/workspace/import-file-panel";
 import { parseSheetParam } from "@/lib/workbook/url-state";
 import type { SyncResult } from "@/lib/workbook/sync-queue";
 import { LivePanel } from "@/components/workspace/live-panel";
@@ -61,6 +67,7 @@ import { useTeam } from "@/lib/team-query";
 import { CELL_MAX } from "@/lib/workbook/save-queue";
 import { toast } from "@/components/toast";
 import { rowWindow } from "@/lib/row-window";
+import { cellOptions } from "@/lib/workbook/cell-options";
 import {
   INSTALLATION_SHEET_ID,
   NO_FILE,
@@ -118,7 +125,10 @@ export function Spreadsheet({
   extraTabs = [],
   files,
   onAddFiles,
+  year,
 }: {
+  /** The open year, named on the Import file section. */
+  year?: number;
   /** The year's uploaded files, listed with their review state above the live check. */
   files?: WorkspaceFile[];
   /** Adds uploaded files to the year; without it the side panel has no Import file. */
@@ -184,6 +194,8 @@ export function Spreadsheet({
     setEditingState(key === null ? null : { key, seed });
   const [query, setQuery] = React.useState("");
   const [full, setFull] = React.useState(false);
+  // The Import file section: a full-width upload card above the sheet.
+  const [importOpen, setImportOpen] = React.useState(false);
   // Opening a sheet always leaves the Flow view, as the sheet tabs did before.
   const openTab = (id: string) => {
     setSel({ r: 0, c: 0 });
@@ -347,6 +359,10 @@ export function Spreadsheet({
   // Documents rows come from the file list, not from cells, so a typed value there would not stick.
   const editable = (c: number) =>
     !empty && !!onEdit && tab !== "documents" && cols[c]?.kind !== "status";
+
+  // The pick list of a column; only an editable cell drops one.
+  const optionsOf = (c: number) =>
+    sheet && cols[c] && editable(c) ? cellOptions(sheet, cols[c]!, sheets) : [];
 
   const commit = (r: number, c: number, value: string) => {
     setEditing(null);
@@ -523,6 +539,18 @@ export function Spreadsheet({
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px] xl:items-start">
+      {/* The upload section opens full width above the sheet; its Import file button stays in the small Files card at the top of the side panel. */}
+      {importOpen && files && onAddFiles && (
+        <div className="xl:col-span-2">
+          <ImportFileSection
+            year={year}
+            files={files}
+            onAdd={onAddFiles}
+            onMapCsv={openMapper}
+            onClose={() => setImportOpen(false)}
+          />
+        </div>
+      )}
       <div
         ref={fullRef}
         role={full ? "dialog" : undefined}
@@ -557,30 +585,6 @@ export function Spreadsheet({
               )
             )}
           </div>
-          {!empty && (
-            <div
-              role="group"
-              aria-label={t("View")}
-              className="my-1 ml-2 flex flex-none items-center self-center rounded-md bg-[#f0efea] p-0.5 text-[12px]"
-            >
-              {(["table", "flow"] as const).map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  aria-pressed={view === v}
-                  onClick={() => setView(v)}
-                  className={cn(
-                    "rounded px-2.5 py-1 transition-colors",
-                    view === v
-                      ? "bg-white font-medium text-[#111] shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
-                      : "text-black/55 hover:text-black",
-                  )}
-                >
-                  {v === "table" ? t("Table") : t("Flow")}
-                </button>
-              ))}
-            </div>
-          )}
           {!empty && !isFlow && !showExtra && (
             <div className="flex min-w-0 items-center gap-3 border-l border-black/[0.08] px-2.5">
               {/* A fixed width, so switching between the two messages never moves the search box. */}
@@ -658,6 +662,31 @@ export function Spreadsheet({
                   </span>
                 )}
               </label>
+            </div>
+          )}
+          {/* Last before full page, so switching views never moves it: the search box beside it comes and goes. */}
+          {!empty && (
+            <div
+              role="group"
+              aria-label={t("View")}
+              className="mx-2 my-1 flex flex-none items-center self-center rounded-md bg-[#f0efea] p-0.5 text-[12px]"
+            >
+              {(["table", "flow"] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  aria-pressed={view === v}
+                  onClick={() => setView(v)}
+                  className={cn(
+                    "rounded px-2.5 py-1 transition-colors",
+                    view === v
+                      ? "bg-white font-medium text-[#111] shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
+                      : "text-black/55 hover:text-black",
+                  )}
+                >
+                  {v === "table" ? t("Table") : t("Flow")}
+                </button>
+              ))}
             </div>
           )}
           {!empty && (
@@ -784,6 +813,9 @@ export function Spreadsheet({
                             e.preventDefault();
                             setSel({ r, c });
                             focusGrid();
+                            // A column with a pick list opens it on the click, so nothing has to be typed.
+                            if (e.button === 0 && optionsOf(c).length > 0)
+                              setEditing(k);
                           }}
                           onDoubleClick={() => editable(c) && setEditing(k)}
                           className={cn(
@@ -821,6 +853,8 @@ export function Spreadsheet({
                             <CellEditor
                               initial={editing.seed ?? v}
                               seeded={editing.seed !== undefined}
+                              options={optionsOf(c)}
+                              label={(o) => shown(col, o)}
                               align={col.kind === "number" ? "right" : "left"}
                               onCommit={(val, dr, dc) => {
                                 commit(r, c, val);
@@ -975,8 +1009,8 @@ export function Spreadsheet({
             files && onAddFiles ? (
               <ImportFilePanel
                 files={files}
-                onAdd={onAddFiles}
-                onMapCsv={openMapper}
+                open={importOpen}
+                onToggle={() => setImportOpen((v) => !v)}
               />
             ) : null
           }
@@ -1014,65 +1048,159 @@ function RowNo({ n, on }: { n: number; on?: boolean }) {
 }
 
 /* Lies over the cell (absolute) instead of taking its place, so the grid never re-measures.
-   `seeded`: typing started the edit, so the arrows keep it and move on, as in Excel. */
+   `seeded`: typing started the edit, so the arrows keep it and move on, as in Excel.
+   With `options` a list drops under the cell (in a portal, so the grid's scroller never clips it):
+   everything until something is typed, then what matches. Up and Down walk it, Enter or a click picks. */
 function CellEditor({
   initial,
   seeded,
   align,
+  options = [],
+  label = (o) => o,
   onCommit,
   onCancel,
 }: {
   initial: string;
   seeded: boolean;
   align: "left" | "right";
+  options?: string[];
+  /** What a stored option reads as (translated where the column is). */
+  label?: (o: string) => string;
   /** Keeps the value, then moves the selection by (rows, columns). */
   onCommit: (v: string, dr: number, dc: number) => void;
   onCancel: () => void;
 }) {
   const [v, setV] = React.useState(initial);
+  const [typed, setTyped] = React.useState(seeded);
+  const [hi, setHi] = React.useState(-1);
+  const input = React.useRef<HTMLInputElement>(null);
+  const [box, setBox] = React.useState<DOMRect | null>(null);
+  const needle = v.trim().toLowerCase();
+  const list =
+    typed && needle
+      ? options.filter(
+          (o) =>
+            o.toLowerCase().includes(needle) ||
+            label(o).toLowerCase().includes(needle),
+        )
+      : options;
+  const open = list.length > 0;
   // Set once the edit is decided, so the blur that follows does not decide it again.
   const done = React.useRef(false);
-  const finish = (keep: boolean, dr = 0, dc = 0) => {
+  const finish = (keep: boolean, dr = 0, dc = 0, value = v) => {
     if (done.current) return;
     done.current = true;
-    if (keep) onCommit(v, dr, dc);
+    if (keep) onCommit(value, dr, dc);
     else onCancel();
   };
+  // The list follows the cell while the page or the grid scrolls.
+  React.useLayoutEffect(() => {
+    if (!options.length) return;
+    const place = () => setBox(input.current?.getBoundingClientRect() ?? null);
+    place();
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => {
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [options.length]);
   return (
-    <input
-      autoFocus
-      size={1}
-      value={v}
-      onChange={(e) => setV(e.target.value)}
-      onFocus={(e) => {
-        // The caret goes to the end, as after F2 in Excel.
-        const end = e.currentTarget.value.length;
-        e.currentTarget.setSelectionRange(end, end);
-      }}
-      onBlur={() => finish(true)}
-      maxLength={CELL_MAX}
-      onKeyDown={(e) => {
-        e.stopPropagation();
-        const k = e.key;
-        if (k === "Enter") {
-          e.preventDefault();
-          finish(true, e.shiftKey ? -1 : 1, 0);
-        } else if (k === "Tab") {
-          e.preventDefault();
-          finish(true, 0, e.shiftKey ? -1 : 1);
-        } else if (k === "Escape") {
-          e.preventDefault();
-          finish(false);
-        } else if (seeded && k === "ArrowDown") finish(true, 1, 0);
-        else if (seeded && k === "ArrowUp") finish(true, -1, 0);
-        else if (seeded && k === "ArrowRight") finish(true, 0, 1);
-        else if (seeded && k === "ArrowLeft") finish(true, 0, -1);
-      }}
-      className={cn(
-        "no-focus-ring absolute inset-0 h-full w-full min-w-0 bg-white px-2.5 text-[12.5px] text-[#111] focus:outline-none",
-        align === "right" && "text-right tabular-nums",
-      )}
-    />
+    <>
+      <input
+        ref={input}
+        autoFocus
+        size={1}
+        value={v}
+        role={options.length ? "combobox" : undefined}
+        aria-expanded={options.length ? open : undefined}
+        aria-autocomplete={options.length ? "list" : undefined}
+        onChange={(e) => {
+          setV(e.target.value);
+          setTyped(true);
+          setHi(-1);
+        }}
+        onFocus={(e) => {
+          // The caret goes to the end, as after F2 in Excel.
+          const end = e.currentTarget.value.length;
+          e.currentTarget.setSelectionRange(end, end);
+        }}
+        onBlur={() => finish(true)}
+        maxLength={CELL_MAX}
+        onKeyDown={(e) => {
+          e.stopPropagation();
+          const k = e.key;
+          if (open && (k === "ArrowDown" || k === "ArrowUp")) {
+            e.preventDefault();
+            setHi((i) =>
+              k === "ArrowDown"
+                ? Math.min(list.length - 1, i + 1)
+                : Math.max(-1, i - 1),
+            );
+          } else if (k === "Enter") {
+            e.preventDefault();
+            const dr = e.shiftKey ? -1 : 1;
+            if (open && hi >= 0) finish(true, dr, 0, list[hi]!);
+            else finish(true, dr, 0);
+          } else if (k === "Tab") {
+            e.preventDefault();
+            finish(true, 0, e.shiftKey ? -1 : 1);
+          } else if (k === "Escape") {
+            e.preventDefault();
+            finish(false);
+          } else if (seeded && k === "ArrowDown") finish(true, 1, 0);
+          else if (seeded && k === "ArrowUp") finish(true, -1, 0);
+          else if (seeded && k === "ArrowRight") finish(true, 0, 1);
+          else if (seeded && k === "ArrowLeft") finish(true, 0, -1);
+        }}
+        className={cn(
+          "no-focus-ring absolute inset-0 h-full w-full min-w-0 bg-white px-2.5 text-[12.5px] text-[#111] focus:outline-none",
+          align === "right" && "text-right tabular-nums",
+        )}
+      />
+      {open &&
+        box &&
+        createPortal(
+          <ul
+            role="listbox"
+            style={{
+              position: "fixed",
+              left: box.left - 1,
+              top: box.bottom + 2,
+              minWidth: Math.max(box.width + 2, 160),
+            }}
+            className="z-[60] max-h-60 overflow-y-auto rounded-lg border border-black/[0.1] bg-white py-1 text-[12.5px] shadow-[0_12px_32px_rgba(0,0,0,0.1)]"
+          >
+            {list.map((o, i) => (
+              <li
+                key={o}
+                role="option"
+                aria-selected={i === hi}
+                // Down, not click: the input keeps its focus, so its blur does not commit the typed text first.
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  finish(true, 0, 0, o);
+                }}
+                onMouseEnter={() => setHi(i)}
+                className={cn(
+                  "flex cursor-pointer items-center justify-between gap-3 px-3 py-1.5 text-black/80",
+                  i === hi && "bg-black/[0.05] text-[#111]",
+                )}
+              >
+                <span className="truncate">{label(o)}</span>
+                {o === initial && (
+                  <Check
+                    size={12}
+                    strokeWidth={2}
+                    className="flex-none text-black/45"
+                  />
+                )}
+              </li>
+            ))}
+          </ul>,
+          document.body,
+        )}
+    </>
   );
 }
 

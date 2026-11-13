@@ -441,6 +441,18 @@ export function useWorkbook(installationId: string | null, year: number) {
       const cached = qc.getQueryData<Workbook>(key);
       const next = await getWorkbook(installationId!, year, cached?.revision);
       // An answer older than what is already cached (a poll that raced a save) must not undo it.
+      // A file review keeps the revision but moves updatedAt; reread the year list, which carries the files.
+      if (
+        !next.changed &&
+        cached &&
+        next.updatedAt &&
+        next.updatedAt !== cached.updatedAt
+      ) {
+        void qc.invalidateQueries({
+          queryKey: ["workbook-years", installationId],
+        });
+        return { ...cached, updatedAt: next.updatedAt };
+      }
       if (!next.changed || (cached && next.revision < cached.revision))
         return qc.getQueryData<Workbook>(key) ?? cached!;
       return next;

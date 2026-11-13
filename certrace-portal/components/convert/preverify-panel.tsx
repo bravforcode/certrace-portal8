@@ -2,8 +2,9 @@
 
 /* CBAM pre-verification on Convert, in two parts that read one query:
 
-   PreverifyMenu    the "Pre-verified" button under Export: how many of the plan's
-                    pre-verifications are left, Submit, and Top up once they run out
+   PreverifyMenu    the one "Export for verification" button on CBAM: download the
+                    verification file, how many of the plan's pre-verifications are
+                    left, Submit, and Top up once they run out
    PreverifyPanel   the section where the workbook stands with the AI check and the
                     Certrace team, with the findings or the team's note
 
@@ -12,7 +13,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BadgeCheck, ChevronDown, CreditCard, Send } from "lucide-react";
+import { ChevronDown, CreditCard, Download, Send } from "lucide-react";
 import { Button, Card, Chip, cn, type Tone } from "@/components/ui";
 import { toast } from "@/components/toast";
 import { isApiError } from "@/lib/api";
@@ -90,9 +91,12 @@ export function usePreverification(
 export function PreverifyMenu({
   pv,
   canConvert,
+  onExport,
 }: {
   pv: ReturnType<typeof usePreverification>;
   canConvert: boolean;
+  /** Downloads the verification file; offered once every requirement is complete. */
+  onExport: () => void;
 }) {
   const t = useT();
   const [open, setOpen] = React.useState(false);
@@ -136,54 +140,82 @@ export function PreverifyMenu({
   return (
     <div ref={root} className="relative">
       <Button
-        variant={approved ? "secondary" : "primary"}
         aria-haspopup="menu"
         aria-expanded={open}
+        aria-describedby={canConvert ? undefined : "convert-incomplete"}
         onClick={() => setOpen((v) => !v)}
-        disabled={!data}
       >
-        <BadgeCheck size={15} strokeWidth={1.5} />
-        {approved ? t("Pre-verified") : t("Pre-verify")}
+        <Download size={15} strokeWidth={1.5} />
+        {t("Export for verification")}
         <ChevronDown
           size={14}
           strokeWidth={1.5}
           className={cn("transition-transform", open && "rotate-180")}
         />
       </Button>
-      {open && data && (
+      {open && (
         <div
           role="menu"
           className="absolute right-0 z-30 mt-2 w-72 rounded-xl border border-black/[0.08] bg-white p-2 shadow-[0_12px_32px_rgba(0,0,0,0.08)]"
         >
-          <div className="px-2.5 pb-2 pt-1.5">
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="text-[13px] font-medium text-[#111]">
-                {t("Pre-verifications")}
+          <button
+            type="button"
+            role="menuitem"
+            disabled={!canConvert}
+            onClick={() => {
+              setOpen(false);
+              onExport();
+            }}
+            className="flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left hover:bg-black/[0.04] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+          >
+            <Download
+              size={14}
+              strokeWidth={1.5}
+              className="mt-0.5 flex-none"
+            />
+            <span className="min-w-0">
+              <span className="block text-[13px] text-[#111]">
+                {t("Download verification file")}
               </span>
-              <span
-                className={cn(
-                  "font-mono text-[12px] tabular-nums",
-                  left === 0 ? "text-[#b91c1c]" : "text-black/55",
-                )}
-              >
-                {t("{left} of {quota} left", {
-                  left: left ?? 0,
-                  quota: data.quota,
-                })}
-              </span>
-            </div>
-            <div aria-hidden className="mt-2 flex gap-1">
-              {Array.from({ length: data.quota }, (_, i) => (
+              {!canConvert && (
+                <span className="block text-[11.5px] text-black/45">
+                  {t("Complete every requirement first")}
+                </span>
+              )}
+            </span>
+          </button>
+          <div className="my-1.5 h-px bg-black/[0.06]" />
+          {data && (
+            <div className="px-2.5 pb-2 pt-1.5">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-[13px] font-medium text-[#111]">
+                  {t("Pre-verifications")}
+                </span>
                 <span
-                  key={i}
                   className={cn(
-                    "h-1.5 flex-1 rounded-full",
-                    i < data.used ? "bg-black/15" : "bg-[#16a34a]",
+                    "font-mono text-[12px] tabular-nums",
+                    left === 0 ? "text-[#b91c1c]" : "text-black/55",
                   )}
-                />
-              ))}
+                >
+                  {t("{left} of {quota} left", {
+                    left: left ?? 0,
+                    quota: data.quota,
+                  })}
+                </span>
+              </div>
+              <div aria-hidden className="mt-2 flex gap-1">
+                {Array.from({ length: data.quota }, (_, i) => (
+                  <span
+                    key={i}
+                    className={cn(
+                      "h-1.5 flex-1 rounded-full",
+                      i < data.used ? "bg-black/15" : "bg-[#16a34a]",
+                    )}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
+          )}
           <button
             type="button"
             role="menuitem"
@@ -199,9 +231,13 @@ export function PreverifyMenu({
               <span className="block text-[13px] text-[#111]">
                 {submit.isPending
                   ? t("Submitting…")
-                  : state === "ready" || state === "incomplete"
-                    ? t("Submit for pre-verification")
-                    : t("Resubmit for pre-verification")}
+                  : approved
+                    ? t("Pre-verified")
+                    : state === "ready" ||
+                        state === "incomplete" ||
+                        state === null
+                      ? t("Submit for pre-verification")
+                      : t("Resubmit for pre-verification")}
               </span>
               {why && (
                 <span className="block text-[11.5px] text-black/45">{why}</span>
@@ -280,13 +316,17 @@ function StateNote({ pv }: { pv: ReturnType<typeof usePreverification> }) {
     case "incomplete":
       return (
         <p className="text-[13px] text-black/55">
-          {t("Complete every requirement, then submit from Pre-verify above.")}
+          {t(
+            "Complete every requirement, then submit from Export for verification above.",
+          )}
         </p>
       );
     case "ready":
       return (
         <p className="text-[13px] text-black/55">
-          {t("The workbook is complete. Submit it from Pre-verify above.")}
+          {t(
+            "The workbook is complete. Submit it from Export for verification above.",
+          )}
         </p>
       );
     case "flagged":

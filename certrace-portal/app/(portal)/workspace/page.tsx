@@ -258,6 +258,7 @@ function WorkspaceInner() {
         <>
           <Spreadsheet
             key={year}
+            year={year}
             sheets={wb.sheets}
             cells={wb.cells}
             files={rec.files}
@@ -285,18 +286,20 @@ function ConvertBar({ href }: { href: string }) {
   const t = useT();
   return (
     <Card className="flex flex-col gap-4 px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <div className="text-[15px] font-medium text-[#111]">
-          {t("The data you've chosen works for every standard")}
+      <div className="flex min-w-0 items-start gap-3">
+        <ProductMark product="convert" className="mt-0.5 h-5 w-5 flex-none" />
+        <div className="min-w-0">
+          <div className="text-[15px] font-medium text-[#111]">
+            {t("The data you've chosen works for every standard")}
+          </div>
+          <p className="mt-1 text-[13px] text-black/45">
+            {t(
+              "Pick CBAM, ISO 14064-1, ISO 14067 or TGO on the Convert page — no need to upload again.",
+            )}
+          </p>
         </div>
-        <p className="mt-1 text-[13px] text-black/45">
-          {t(
-            "Pick CBAM, ISO 14064-1, ISO 14067 or TGO on the Convert page — no need to upload again.",
-          )}
-        </p>
       </div>
       <ButtonLink href={href} className="flex-none self-start sm:self-auto">
-        <ProductMark product="convert" className="h-4 w-4" />{" "}
         {t("Go to Convert")} <ArrowRight size={14} strokeWidth={1.5} />
       </ButtonLink>
     </Card>

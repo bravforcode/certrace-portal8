@@ -67,7 +67,13 @@ describe("workbooks", () => {
     const r = await (
       await call(base + "?since=1", "GET", undefined, a.cookie)
     ).json();
-    expect(r).toEqual({ changed: false, revision: 1 });
+    // updatedAt rides along so a reviewer's mark on a file (which does not move the revision) still reaches the client.
+    expect(r).toEqual({
+      changed: false,
+      revision: 1,
+      updatedAt: expect.any(String),
+    });
+    expect(r.cells).toBeUndefined();
   });
 
   // A stale client (since=0) must receive the full row when the revision has moved on.

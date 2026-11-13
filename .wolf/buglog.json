@@ -2614,6 +2614,54 @@
       "related_bugs": [],
       "occurrences": 1,
       "last_seen": "2026-11-13T13:00:00.000Z"
+    },
+    {
+      "id": "bug-164",
+      "timestamp": "2026-11-13T07:04:19.423Z",
+      "error_message": "Null/undefined access in ",
+      "file": "certrace-backend/src/modules/workbooks/service.ts",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T07:04:19.423Z"
+    },
+    {
+      "id": "bug-165",
+      "timestamp": "2026-11-13T07:05:12.359Z",
+      "error_message": "Wrong condition in logic",
+      "file": "certrace-portal/lib/workbook/use-workbook.ts",
+      "root_cause": "Condition was: if (!next.changed || (cached && next.revision < cached)",
+      "fix": "Changed to: if (\n        !next.changed &&\n        cached &&\n      )",
+      "tags": [
+        "auto-detected",
+        "logic-fix",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T07:05:12.359Z"
+    },
+    {
+      "id": "bug-166",
+      "timestamp": "2026-11-13T08:06:09.924Z",
+      "error_message": "Wrong reference: Sea should be Air",
+      "file": "certrace-portal/lib/i18n-th-workspace.ts",
+      "root_cause": "Used \"Sea\" instead of \"Air\"",
+      "fix": "Changed Sea → Air",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T08:06:09.924Z"
     }
   ]
 }

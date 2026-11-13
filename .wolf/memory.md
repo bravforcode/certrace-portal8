@@ -860,3 +860,62 @@
 | Time | Action | File(s) | Outcome | ~Tokens |
 |------|--------|---------|---------|--------|
 | 13:00 | Caddy compose profile, admin evidence review card, admin top-up grant, spreadsheet row windowing, switcher add-installation | docker-compose-prod.yml, preverify/workbooks service, admin pages, spreadsheet.tsx, lib/row-window.ts, switcher, settings | backend 4 preverify tests pass, portal unit tests pass, browser checks pass | ~ |
+
+## Session: 2026-11-13 12:53
+
+| Time | Action | File(s) | Outcome | ~Tokens |
+|------|--------|---------|---------|--------|
+
+## Session: 2026-11-13 13:41
+
+| Time | Action | File(s) | Outcome | ~Tokens |
+|------|--------|---------|---------|--------|
+
+## Session: 2026-11-13 13:55
+
+| Time | Action | File(s) | Outcome | ~Tokens |
+|------|--------|---------|---------|--------|
+
+## Session: 2026-11-13 13:55
+
+| Time | Action | File(s) | Outcome | ~Tokens |
+|------|--------|---------|---------|--------|
+
+## Session: 2026-11-13 13:56
+
+| Time | Action | File(s) | Outcome | ~Tokens |
+|------|--------|---------|---------|--------|
+| 13:59 | Edited README.md | 2→5 lines | ~75 |
+| 14:03 | Edited certrace-backend/test/preverify-submit.test.ts | expanded (+14 lines) | ~204 |
+| 14:04 | Edited certrace-backend/src/modules/workbooks/service.ts | added optional chaining | ~83 |
+| 14:05 | Edited certrace-portal/lib/api/workbooks.ts | 1→6 lines | ~49 |
+| 14:05 | Edited certrace-portal/lib/workbook/use-workbook.ts | added 1 condition(s) | ~155 |
+
+## Session: 2026-11-13 14:22
+
+| Time | Action | File(s) | Outcome | ~Tokens |
+|------|--------|---------|---------|--------|
+| 14:43 | Created certrace-portal/lib/workbook/cell-options.ts | — | ~728 |
+| 14:44 | Created certrace-portal/lib/workbook/__tests__/cell-options.test.ts | — | ~734 |
+| 14:45 | Created ../../Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/00828282-ea26-4a08-9dc4-4c94036a81c7/scratchpad/patch_editor.py | — | ~766 |
+| 14:46 | Created ../../Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/00828282-ea26-4a08-9dc4-4c94036a81c7/scratchpad/editor.tsx | — | ~1614 |
+
+## Session: 2026-11-13 14:50
+
+| Time | Action | File(s) | Outcome | ~Tokens |
+|------|--------|---------|---------|--------|
+| 15:00 | Created certrace-portal/components/workspace/import-file-panel.tsx | — | ~4340 |
+| 15:03 | Edited certrace-portal/lib/i18n-th-workspace.ts | expanded (+13 lines) | ~205 |
+| 15:06 | Edited certrace-portal/lib/i18n-th-workspace.ts | 3→2 lines | ~6 |
+| 15:15 | Created ../../Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/00828282-ea26-4a08-9dc4-4c94036a81c7/scratchpad/mint.ts | — | ~111 |
+| 15:22 | Created ../../Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/00828282-ea26-4a08-9dc4-4c94036a81c7/scratchpad/shots.cjs | — | ~2243 |
+
+## Session: 2026-11-13 15:28
+
+| Time | Action | File(s) | Outcome | ~Tokens |
+|------|--------|---------|---------|--------|
+
+## Session: 2026-11-13 15:54
+
+| Time | Action | File(s) | Outcome | ~Tokens |
+|------|--------|---------|---------|--------|
