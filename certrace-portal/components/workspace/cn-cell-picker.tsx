@@ -99,33 +99,39 @@ export function CnCellPicker({
     };
   }, []);
 
-  // Keys from the picker's own dropdowns (drawn in their own portals) bubble here through React; only keys
-  // inside this panel are this panel's.
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    const box = panel.current;
-    if (!box || !box.contains(e.target as Node)) return;
-    if (e.key === "Escape") {
-      e.preventDefault();
-      onCancel();
-    } else if (e.key === "Tab") {
-      // Tab stays in the panel while it is open.
-      const items = [
-        ...box.querySelectorAll<HTMLElement>(
-          'button:not([disabled]),input:not([disabled]),[tabindex]:not([tabindex="-1"])',
-        ),
-      ].filter((el) => el.offsetParent !== null);
-      const first = items[0];
-      const last = items[items.length - 1];
-      if (!first || !last) return;
-      if (e.shiftKey && document.activeElement === first) {
+  /* Escape closes, Tab stays inside. Listened on the document (it runs before the full-page overlay's window
+     listener, which leaves Escape alone once it is handled); only keys inside this panel are this panel's, so
+     the filter dropdowns, drawn in their own portals, keep their own keys. */
+  const cancel = React.useRef(onCancel);
+  cancel.current = onCancel;
+  React.useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const box = panel.current;
+      if (!box || !box.contains(e.target as Node)) return;
+      if (e.key === "Escape") {
         e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
+        cancel.current();
+      } else if (e.key === "Tab") {
+        const items = [
+          ...box.querySelectorAll<HTMLElement>(
+            'button:not([disabled]),input:not([disabled]),[tabindex]:not([tabindex="-1"])',
+          ),
+        ].filter((el) => el.offsetParent !== null);
+        const first = items[0];
+        const last = items[items.length - 1];
+        if (!first || !last) return;
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
       }
-    }
-  };
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   return (
     <>
@@ -145,7 +151,6 @@ export function CnCellPicker({
             ref={panel}
             role="dialog"
             aria-label={title}
-            onKeyDown={onKeyDown}
             style={pos ?? { position: "fixed", visibility: "hidden" }}
             className="z-[390] flex flex-col overflow-hidden rounded-2xl border border-black/[0.1] bg-white shadow-[0_24px_60px_rgba(0,0,0,0.16)]"
           >
