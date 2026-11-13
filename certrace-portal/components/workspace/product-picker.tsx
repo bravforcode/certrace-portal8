@@ -88,6 +88,15 @@ export function RowTag({
   );
 }
 
+/** The organisation's sector (Settings → Organisation) and the part of the catalogue it lives in. */
+export const SECTOR_CATEGORY: Record<string, ProductCategory | undefined> = {
+  steel: "Iron & Steel",
+  aluminium: "Aluminium",
+  cement: "Cement",
+  fertiliser: "Fertilisers",
+  hydrogen: "Hydrogen",
+};
+
 type Described = CatalogProduct & {
   description?: string;
   headingTitle?: string;
@@ -99,10 +108,13 @@ export function ProductRow({
   onSelect,
   country,
   year,
+  active = false,
 }: {
   product: CatalogProduct;
   selected: boolean;
   onSelect: () => void;
+  /** the row the arrow keys are on */
+  active?: boolean;
   /** the country whose default value is shown on the row; none → no figure */
   country?: string;
   year?: number;
@@ -125,9 +137,13 @@ export function ProductRow({
     <button
       type="button"
       onClick={onSelect}
+      role="option"
+      aria-selected={selected}
+      data-active={active || undefined}
       className={cn(
         "flex w-full items-start gap-3 border-b border-black/[0.04] px-3 py-2.5 text-left transition-colors last:border-0",
         selected ? "bg-[#f0eee8]" : "hover:bg-[#fafaf8]",
+        active && "bg-[#f4f2ec] shadow-[inset_2px_0_0_#111]",
       )}
     >
       <span
@@ -185,9 +201,23 @@ export function ProductPicker({
   year = 2026,
   showRates = true,
   defaultCategory,
+  initialQuery = "",
+  autoFocus = false,
+  onEnterQuery,
+  onEscape,
+  listClassName,
 }: {
   value: string;
   onChange: (id: string) => void;
+  /** what the search box starts with (the key that opened a spreadsheet cell, say) */
+  initialQuery?: string;
+  autoFocus?: boolean;
+  /** Enter with no row picked: hands over what was typed (a spreadsheet cell keeps it as typed). */
+  onEnterQuery?: (query: string) => void;
+  /** Escape in the search box */
+  onEscape?: () => void;
+  /** height of the result list; the default suits a page, a popover wants less */
+  listClassName?: string;
   /** the sector the list opens on — a steel exporter's catalogue starts at steel, not at kaolin and cement. Their own choice of sector wins from then on. */
   defaultCategory?: ProductCategory;
   /** the country the goods are made in — the rates on each row are read for it */
@@ -198,7 +228,10 @@ export function ProductPicker({
   showRates?: boolean;
 }) {
   const t = useT();
-  const [query, setQuery] = React.useState("");
+  const [query, setQuery] = React.useState(initialQuery);
+  // The row the arrow keys are on (-1: none); Enter picks it.
+  const [active, setActive] = React.useState(-1);
+  const listRef = React.useRef<HTMLDivElement>(null);
   const [category, setCategory] = React.useState<ProductCategory | "">(
     defaultCategory ?? "",
   );
@@ -250,10 +283,17 @@ export function ProductPicker({
         t(p.group).includes(q),
     );
   }, [query, thaiQuery, category, type, group, heading, t]);
-  React.useEffect(
-    () => setShown(PAGE),
-    [query, category, type, group, heading],
-  );
+  React.useEffect(() => {
+    setShown(PAGE);
+    setActive(-1);
+  }, [query, category, type, group, heading]);
+  // The active row stays in sight while the arrows walk the list.
+  React.useEffect(() => {
+    if (active < 0) return;
+    listRef.current
+      ?.querySelector<HTMLElement>("[data-active]")
+      ?.scrollIntoView({ block: "nearest" });
+  }, [active]);
 
   // The selection must stay visible: it is the one row the reader came to
   // confirm, and a filter must not hide it from them.
@@ -274,7 +314,40 @@ export function ProductPicker({
         <input
           className={cn(inputClass, "pl-10")}
           value={query}
+          autoFocus={autoFocus}
+          role="combobox"
+          aria-expanded
+          aria-autocomplete="list"
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            const k = e.key;
+            if (k === "ArrowDown" || k === "ArrowUp") {
+              if (!visible.length) return;
+              e.preventDefault();
+              const last = visible.length - 1;
+              setActive((i) =>
+                k === "ArrowDown" ? Math.min(last, i + 1) : Math.max(-1, i - 1),
+              );
+            } else if (k === "Enter") {
+              // The row the arrows are on, else the only match, else whatever the caller does with the text.
+              const pick =
+                active >= 0
+                  ? visible[active]
+                  : results.length === 1
+                    ? results[0]
+                    : undefined;
+              if (pick) {
+                e.preventDefault();
+                onChange(pick.id);
+              } else if (onEnterQuery) {
+                e.preventDefault();
+                onEnterQuery(query.trim());
+              }
+            } else if (k === "Escape" && onEscape) {
+              e.preventDefault();
+              onEscape();
+            }
+          }}
           placeholder={t(
             "Search by CN code or name — 7208 38, hot-rolled, stainless, urea…",
           )}
@@ -343,7 +416,15 @@ export function ProductPicker({
         .
       </p>
 
-      <div className="mt-2 max-h-[380px] overflow-y-auto rounded-xl border border-black/[0.07]">
+      <div
+        ref={listRef}
+        role="listbox"
+        aria-label={t("Search the CBAM catalogue")}
+        className={cn(
+          "mt-2 overflow-y-auto rounded-xl border border-black/[0.07]",
+          listClassName ?? "max-h-[380px]",
+        )}
+      >
         {results.length === 0 ? (
           <p className="px-4 py-8 text-center text-[13px] text-black/40">
             {t(
@@ -352,10 +433,11 @@ export function ProductPicker({
           </p>
         ) : (
           <>
-            {visible.map((p) => (
+            {visible.map((p, i) => (
               <ProductRow
                 key={p.id}
                 product={p}
+                active={i === active}
                 selected={value === p.id}
                 onSelect={() => onChange(p.id)}
                 country={showRates ? country : undefined}

@@ -59,7 +59,7 @@ It shows what you are likely to be charged on default values, so you can see wha
     ],
     `The order that works:
 
-1. Settings → Organisation → Your installations → Add a site. Enter the plant's name, address, UN/LOCODE and coordinates.
+1. Settings → Installation → Your installations → Add a site. Enter the plant's name, address, UN/LOCODE and coordinates.
 2. Verification → New product report. Pick who produces the good, the country and CN code, the route and the year. When you create it, Certrace opens that installation's Overview.
 3. On the Overview, answer the 17 required boxes once: the operator, the installation, the monitoring plan summary and seven yes/no questions. It saves as you type. Until all 17 are in, the site's product reports read Blocked — but you can enter months and precursors meanwhile.
 4. On the product report, send the plant its monthly link (Monthly data tab) — or fill the month in yourself.
@@ -137,7 +137,7 @@ The ⋯ menu on an installation opens it, jumps to its product reports or its re
       "add my factory",
     ],
     `Two ways in:
-• Settings → Organisation → Your installations → Add a site (or Register your installation the first time).
+• Settings → Installation → Your installations → Add a site (or Register your installation the first time).
 • When you create a product report and choose "We produce it ourselves", you can add a site there.
 
 The form asks for: the name in English; a reference of your own for the site (country code first — like TH-RAYONG-01 — then letters and numbers; it must be unique); the street, post code, city and country; the UN/LOCODE; and the latitude and longitude of the main emission source (the stack of the furnace or kiln that dominates, not the front gate). Every box carries the report item it feeds, and a black box means required.

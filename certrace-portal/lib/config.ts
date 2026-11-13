@@ -1615,3 +1615,11 @@ export function searchCatalog(
 }
 
 export const CATALOG_SIZE = PRODUCT_CATALOG.length;
+
+/** The catalogue entry a typed CN code names: "7208 38 00", "72083800" and "7208.38.00" are one code.
+    Fewer than eight digits name a heading, not a good, so they match nothing. */
+export function catalogByCn(code: string): CatalogProduct | undefined {
+  const d = digitsOf(code);
+  if (d.length !== 8) return undefined;
+  return PRODUCT_CATALOG.find((p) => digitsOf(p.cnCode) === d);
+}

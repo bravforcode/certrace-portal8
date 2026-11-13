@@ -10,6 +10,17 @@ export function parseSheetParam(
   return raw !== null && sheetIds.includes(raw) ? raw : fallback;
 }
 
+/** Which view the link opens. The workspace opens on Flow; a link that names a sheet came to show that
+    sheet's rows, so it opens the table, as do ?view=table and an old ?view=factory link. */
+export function parseViewParam(
+  view: string | null,
+  hasSheet: boolean,
+): "table" | "flow" {
+  if (view === "flow") return "flow";
+  if (view === "table" || view === "factory" || hasSheet) return "table";
+  return "flow";
+}
+
 /** The year in the link when it is a four-digit year the year bar offers; otherwise null. */
 export function parseYearParam(
   raw: string | null,

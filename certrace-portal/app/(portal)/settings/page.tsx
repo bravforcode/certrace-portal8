@@ -22,7 +22,6 @@ import {
   Plus,
   Factory,
 } from "lucide-react";
-import { InstallationSwitcher } from "@/components/installation-switcher";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Card,
@@ -163,19 +162,8 @@ function SettingsPageInner() {
 
       <div key={tab} className="ct-enter">
         {tab === "organisation" && <OrganisationTab />}
-        {tab === "installation" && (
-          <Card className="p-6">
-            <Eyebrow>{t("Current installation")}</Eyebrow>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-black/45">
-              {t(
-                "Verification shows one installation at a time, and a new product report is filed there. Switch to another site here or from your profile menu.",
-              )}
-            </p>
-            <div className="mt-6 border-t border-black/[0.06] pt-6">
-              <InstallationSwitcher />
-            </div>
-          </Card>
-        )}
+        {/* The sites you run: listed, added and edited here (they used to sit under Organisation). */}
+        {tab === "installation" && <OwnInstallationCard />}
         {tab === "profile" && <ProfileTab />}
         {tab === "notifications" && <NotificationsTab />}
         {tab === "privacy" && <PrivacyTab />}
@@ -292,11 +280,6 @@ function OrganisationTab() {
           />
         </div>
       </Card>
-
-      {/* Between the company card and the plan card, because it is the same
-          kind of fact as the ones above it — who you are — and not a
-          commercial setting. */}
-      <OwnInstallationCard />
 
       {/* THE PLAN CARD NAMED A TIER THAT DOES NOT EXIST. It said "Growth —
           verifier portal seats", which was wrong twice: there is no Growth
@@ -435,7 +418,7 @@ function OwnInstallationCard() {
     if (!wantsAdd || !own || !cap) return;
     if (!cap.atCap) setEditing("new");
     cardRef.current?.scrollIntoView({ block: "start" });
-    router.replace("/settings?tab=organisation", { scroll: false });
+    router.replace("/settings?tab=installation", { scroll: false });
   }, [wantsAdd, own, cap, router]);
 
   if (!own || !cap) return null;
