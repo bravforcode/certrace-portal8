@@ -265,6 +265,45 @@ export function buildSheets(files: WorkspaceFile[]): Sheet[] {
       ],
       rows: [],
     },
+    /* Regulation maps: what one standard asks for that 00-09 do not hold. The EU CBAM map is the
+       CBAM tab (lib/cbam/template-fields.ts). The two below are the TGO CFP forms (TGO/CFP-V02-2014):
+       Fr-01 per product, and the Fr-04.1-04.3 factor columns per life-cycle item. Quantities,
+       materials, energy and transport stay in 01-07; a CFP row names the item and adds its factor. */
+    {
+      id: "cfp-product",
+      code: "C1",
+      name: "TGO CFP product",
+      cols: [
+        col("cn", "CN code", "text", W.step),
+        col("fu", "Functional unit", "text", W.item),
+        col("scope", "Scope", "text", W.unit),
+        col("pcr", "PCR", "text", W.item),
+        col("sales", "Sales volume", "number", W.qty),
+        unit,
+        source,
+        status,
+      ],
+      rows: [],
+    },
+    {
+      id: "cfp",
+      code: "C2",
+      name: "TGO CFP factors",
+      cols: [
+        col("stage", "Life-cycle stage", "text", W.step),
+        col("item", "Item", "text", W.item),
+        col("qty", "Quantity per FU", "number", W.qty),
+        unit,
+        col("ef", "EF (kgCO2e/unit)", "number", W.qty),
+        col("efSource", "EF source", "text", W.method),
+        col("efRef", "EF reference", "text", W.file),
+        col("allocation", "Allocation %", "number", W.qty),
+        col("cutoff", "Cut-off", "text", W.unit),
+        source,
+        status,
+      ],
+      rows: [],
+    },
   ];
 }
 

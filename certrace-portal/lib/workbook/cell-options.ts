@@ -25,6 +25,40 @@ export const TRANSPORT_MODES = [
   "Pipeline",
 ];
 
+/* TGO CFP form vocabularies (TGO/CFP-V02-2014): Fr-01 scope, the Fr-04.1 life-cycle stages and
+   EF source categories (row 9: 1st Self collect/Supplier, 2nd PCR Gen./TGO EF/Int. DB, Others). */
+export const CFP_SCOPES = ["B2C", "B2B"];
+export const CFP_STAGES = [
+  "Raw material acquisition",
+  "Production",
+  "Distribution",
+  "Use",
+  "End-of-life",
+  "Land use change",
+];
+export const CFP_EF_SOURCES = [
+  "Self collect",
+  "Supplier",
+  "PCR Gen.",
+  "TGO EF",
+  "Int. DB",
+  "Others",
+];
+const YES_NO = ["Yes", "No"];
+const CFP_LISTS: Record<string, string[]> = {
+  scope: CFP_SCOPES,
+  stage: CFP_STAGES,
+  efSource: CFP_EF_SOURCES,
+  cutoff: YES_NO,
+};
+// The items a CFP factor row can be about: the ones 03, 04, 06 and 07 already name.
+const CFP_ITEM_SHEETS: [string, string][] = [
+  ["materials", "item"],
+  ["energy", "item"],
+  ["output", "item"],
+  ["transport", "route"],
+];
+
 /** At most this many, so a long sheet never drops a list longer than anyone reads. */
 const MAX = 50;
 
@@ -61,6 +95,12 @@ export function cellOptions(
     fixed = [...columnValues(byId("documents"), "file"), NO_FILE];
   else if (sheet.id === "transport" && col.key === "mode")
     fixed = TRANSPORT_MODES;
+  else if (sheet.id.startsWith("cfp") && CFP_LISTS[col.key])
+    fixed = CFP_LISTS[col.key];
+  else if (sheet.id === "cfp" && col.key === "item")
+    fixed = CFP_ITEM_SHEETS.flatMap(([id, key]) =>
+      columnValues(byId(id), key),
+    );
   else if (["step", "from", "to"].includes(col.key) && sheet.id !== "steps")
     fixed = steps;
   else if (col.key === "cn" && sheet.id !== "products")

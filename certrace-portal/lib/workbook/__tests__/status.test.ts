@@ -201,3 +201,26 @@ test("installation tab tone follows the status colour", () => {
     STATUS_TONE.missing,
   );
 });
+
+test("a CFP factor without its emission factor is missing, so the CFP tab never shows green with no result", () => {
+  const cfp: Sheet = {
+    id: "cfp",
+    code: "C2",
+    name: "TGO CFP factors",
+    cols: [],
+    rows: [
+      {
+        cells: { stage: "Production", item: "Electricity", qty: "1.2", unit: "kWh", efSource: "TGO EF" },
+        status: "confirmed",
+      },
+    ],
+  };
+  assert.equal(sheetStatus(cfp), "missing");
+  cfp.rows[0].cells.ef = "0.5986";
+  assert.equal(sheetStatus(cfp), "complete");
+});
+
+test("regulation maps sit after 00-09, so the shared sheets keep their order", () => {
+  assert.equal(SHEET_ORDER.includes("cfp"), false);
+  assert.equal(SHEET_ORDER.includes("cfp-product"), false);
+});

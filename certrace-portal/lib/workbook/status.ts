@@ -17,6 +17,9 @@ export const REQUIRED: Record<string, string[]> = {
   output: ["step", "item", "qty", "unit"],
   transport: ["route", "mode", "qty"],
   evidence: ["item", "covers"],
+  // TGO CFP: Fr-01 product context and the Fr-04.1 factor columns a result needs.
+  "cfp-product": ["cn", "fu", "scope"],
+  cfp: ["stage", "item", "qty", "unit", "ef", "efSource"],
 };
 
 // Columns that describe a row rather than hold data; filling only these does not start a row.

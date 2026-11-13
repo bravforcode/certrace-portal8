@@ -71,6 +71,40 @@ test("source cells offer the year's uploaded files and No file", () => {
   assert.deepEqual(cellOptions(sheet, col, sheets), ["gas.pdf", NO_FILE]);
 });
 
+test("a CFP factor row offers the TGO EF source categories, not free words", () => {
+  // TGO/CFP-V02-2014 Fr-04.1 row 9 fixes these categories; a typo would make the data-quality split wrong.
+  const sheets = buildSheets([]);
+  const { sheet, col } = colOf(sheets, "cfp", "efSource");
+  assert.deepEqual(cellOptions(sheet, col, sheets), [
+    "Self collect",
+    "Supplier",
+    "PCR Gen.",
+    "TGO EF",
+    "Int. DB",
+    "Others",
+  ]);
+});
+
+test("a CFP factor names an item 03, 04, 06 or 07 already holds, so quantities are not typed twice", () => {
+  let sheets = buildSheets([]);
+  sheets = withRows(sheets, "materials", [{ item: "Polyamide" }]);
+  sheets = withRows(sheets, "energy", [{ item: "Electricity (PEA)" }]);
+  sheets = withRows(sheets, "transport", [{ route: "Plant to port" }]);
+  const { sheet, col } = colOf(sheets, "cfp", "item");
+  assert.deepEqual(cellOptions(sheet, col, sheets), [
+    "Polyamide",
+    "Electricity (PEA)",
+    "Plant to port",
+  ]);
+});
+
+test("a CFP product row offers the CN codes of 01 Products", () => {
+  let sheets = buildSheets([]);
+  sheets = withRows(sheets, "products", [{ cn: "3920 92" }]);
+  const { sheet, col } = colOf(sheets, "cfp-product", "cn");
+  assert.deepEqual(cellOptions(sheet, col, sheets), ["3920 92"]);
+});
+
 test("numbers and the status column drop no list", () => {
   const sheets = buildSheets([]);
   for (const key of ["qty", "status"]) {
