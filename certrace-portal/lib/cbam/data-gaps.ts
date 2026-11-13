@@ -28,7 +28,15 @@ import { accountStorage } from "../account-storage";
 import { monthsInPeriod, type ReportingPeriod } from "./boundary";
 import type { Provenance } from "./activity";
 import { DATA_GAP_ESCALATION_SHARE } from "./reference";
-import { defaultExposure, type ExposureResult } from "./engine";
+import {
+  defaultExposure,
+  indirectIsChargeable,
+  type ExposureResult,
+  type GoodsCategory,
+} from "./engine";
+import { lookupDefault, rateForYear, rowForAnyCn } from "./eu-rates";
+import type { CnRow } from "./data/cn-catalogue";
+import { SELF_SUPPLIER_ID } from "../data";
 
 /* ── Estimation methods ─────────────────────────────────────────
    A closed list, because "estimated" on its own is not a method. These are
@@ -220,30 +228,82 @@ export function gapShare(gaps: GapEntry[], totalTCO2e: number): GapShare {
 /* ── Data Gap Risk / Penalty ────────────────────────────────────
    Formerly framed as "savings vs default values". Same arithmetic, honest
    name: this is what the missing data costs, at the year's markup. */
+/** The published default for one CN code in one country, for the reporting
+    year, tCO₂e/t. Annex I's 2026–2028 columns already include the markup, so
+    the caller must not apply it again. null when Annex I has no row for the
+    code at all. */
+export function publishedDefaultFor(
+  cn: string,
+  country: string,
+  year: number,
+): number | null {
+  const hit = lookupDefault(cn, country);
+  return hit ? rateForYear(hit.rates, year) : null;
+}
+
+/** The CN codes of the exporter's own goods: the products requested from its
+    self-supplied row. Other suppliers' goods are inputs, not the good priced. */
+export function ownGoodsCnCodes(
+  requests:
+    | { supplierId: string; products: { productId: string }[] }[]
+    | undefined,
+  cnOf: (productId: string) => string | undefined,
+): string[] {
+  const codes = new Set<string>();
+  for (const r of requests ?? []) {
+    if (r.supplierId !== SELF_SUPPLIER_ID) continue;
+    for (const p of r.products) {
+      const cn = cnOf(p.productId);
+      if (cn) codes.add(cn);
+    }
+  }
+  return [...codes];
+}
+
+/** The one sector all of these CN codes belong to; undefined when the set is
+    empty, any code has no row, or the codes span sectors. Chargeability is then
+    unknown, because indirect counts for some sectors and not others. */
+export function sharedSector(cnCodes: string[]): CnRow["sector"] | undefined {
+  const sectors = new Set(cnCodes.map((cn) => rowForAnyCn(cn)?.sector));
+  if (sectors.size !== 1) return undefined;
+  return [...sectors][0];
+}
+
+/** Direct, plus indirect where the sector makes indirect chargeable
+    (engine.ts INDIRECT_CHARGEABLE). */
+export function chargeablePerTonne(
+  sector: GoodsCategory,
+  direct: number,
+  indirect: number,
+): number {
+  return indirectIsChargeable(sector) ? direct + indirect : direct;
+}
+
 export type PenaltyInput = {
-  /** published default for the CN code — see reference.ts D_DEFAULT_PLACEHOLDER */
+  /** the published default for this CN code, country and year — markup already included */
   defaultValue: number;
   /** the installation's own chargeable SEE, tCO₂e/t */
   chargeableSEE: number;
   quantityTonnes: number;
   /** injected — lib/carbon-economics.ts owns where the price comes from */
   certificatePrice: number;
+  /** the year's markup, for display only: it is already inside defaultValue */
   markup: number;
 };
 
 export type PenaltyResult = ExposureResult & {
   /** what the exporter is actually being told, in one sentence */
   headline: string;
-  /** the markup applied, so the year's schedule is visible not implied */
+  /** the markup the published value contains, so the year's schedule is visible not implied */
   markup: number;
 };
 
 export function dataGapPenalty(p: PenaltyInput): PenaltyResult {
-  const x = defaultExposure(p);
+  const x = defaultExposure({ ...p, markup: 0 });
   const money = `€${Math.round(Math.abs(x.currency)).toLocaleString("en-US")}`;
   const headline = x.worseThanDefault
     ? `Reporting actual data costs ${money} more than falling back to the default value — this installation is above the published benchmark. That is a real cost, not a reason to stop measuring: a default-value filing also carries the ${Math.round(p.markup * 100)}% markup and invites scrutiny you would rather not attract.`
-    : `Not having this data would cost ${money}. Falling back to the published default means declaring ${x.delta.toFixed(4)} tCO₂e/t more than you actually emit, across ${p.quantityTonnes.toLocaleString("en-US")} t, with a ${Math.round(p.markup * 100)}% markup on top.`;
+    : `Not having this data would cost ${money}. Falling back to the published default means declaring ${x.delta.toFixed(4)} tCO₂e/t more than you actually emit, across ${p.quantityTonnes.toLocaleString("en-US")} t, with the ${Math.round(p.markup * 100)}% markup already inside that default.`;
   return { ...x, headline, markup: p.markup };
 }
 

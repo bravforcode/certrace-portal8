@@ -1,4 +1,389 @@
 {
   "version": 1,
-  "bugs": []
+  "bugs": [
+    {
+      "id": "bug-001",
+      "timestamp": "2026-11-11T15:34:24.017Z",
+      "error_message": "Missing error handling in unknown",
+      "file": "test/item-links.test.ts",
+      "root_cause": "Code path had no error handling — exceptions would propagate uncaught",
+      "fix": "Added try/catch block",
+      "tags": [
+        "auto-detected",
+        "error-handling",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T15:34:24.017Z"
+    },
+    {
+      "id": "bug-002",
+      "timestamp": "2026-11-11T20:07:47.486Z",
+      "error_message": "Incorrect value in code",
+      "file": "src/modules/cera/service.ts",
+      "root_cause": "Had \"@ai-sdk/deepseek\"",
+      "fix": "Changed to \"ai\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T20:07:47.486Z"
+    },
+    {
+      "id": "bug-003",
+      "timestamp": "2026-11-11T20:07:51.505Z",
+      "error_message": "Null/undefined access in ",
+      "file": "src/modules/cera/service.ts",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T20:07:51.505Z"
+    },
+    {
+      "id": "bug-004",
+      "timestamp": "2026-11-11T20:07:55.602Z",
+      "error_message": "Significant refactor of ",
+      "file": "src/modules/cera/service.ts",
+      "root_cause": "7 lines replaced/restructured",
+      "fix": "Rewrote 8→3 lines (7 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T20:07:55.602Z"
+    },
+    {
+      "id": "bug-005",
+      "timestamp": "2026-11-11T20:15:00.117Z",
+      "error_message": "Wrong reference: doGenerate should be unknown",
+      "file": "test/cera-provider.test.ts",
+      "root_cause": "Used \"doGenerate\" instead of \"unknown\"",
+      "fix": "Changed doGenerate → unknown",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T20:15:00.117Z"
+    },
+    {
+      "id": "bug-006",
+      "timestamp": "2026-11-11T20:23:34.486Z",
+      "error_message": "Missing guard clause",
+      "file": "src/modules/cera/context.ts",
+      "root_cause": "No early return/throw for edge case: total <= maxChars",
+      "fix": "Added guard clause: if (total <= maxChars)",
+      "tags": [
+        "auto-detected",
+        "guard-clause",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T20:23:34.486Z"
+    },
+    {
+      "id": "bug-007",
+      "timestamp": "2026-11-11T20:23:59.938Z",
+      "error_message": "Wrong reference: ceraKnowledge should be company",
+      "file": "src/modules/cera/service.ts",
+      "root_cause": "Used \"ceraKnowledge\" instead of \"company\"",
+      "fix": "Changed ceraKnowledge → company",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T20:23:59.938Z"
+    },
+    {
+      "id": "bug-008",
+      "timestamp": "2026-11-11T20:26:12.232Z",
+      "error_message": "Null/undefined access in ",
+      "file": "src/modules/cera/actions.ts",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T20:26:12.232Z"
+    },
+    {
+      "id": "bug-009",
+      "timestamp": "2026-11-11T20:26:19.371Z",
+      "error_message": "Incorrect value in code",
+      "file": "src/modules/cera/actions.ts",
+      "root_cause": "Had \"values\"",
+      "fix": "Changed to \"fields\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T20:26:19.371Z"
+    },
+    {
+      "id": "bug-010",
+      "timestamp": "2026-11-11T20:27:06.303Z",
+      "error_message": "Type error",
+      "file": "src/modules/cera/actions.ts",
+      "root_cause": "Missing or incorrect type annotation",
+      "fix": "Added type assertion/annotation",
+      "tags": [
+        "auto-detected",
+        "type-fix",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T20:27:06.303Z"
+    },
+    {
+      "id": "bug-011",
+      "timestamp": "2026-11-11T20:27:09.857Z",
+      "error_message": "Significant refactor of ",
+      "file": "src/modules/cera/actions.ts",
+      "root_cause": "6 lines replaced/restructured",
+      "fix": "Rewrote 15→22 lines (6 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T20:27:09.857Z"
+    },
+    {
+      "id": "bug-012",
+      "timestamp": "2026-11-11T20:28:25.048Z",
+      "error_message": "Wrong reference: budget should be fallbackModels",
+      "file": "src/modules/cera/provider.ts",
+      "root_cause": "Used \"budget\" instead of \"fallbackModels\"",
+      "fix": "Changed budget → fallbackModels",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T20:28:25.048Z"
+    },
+    {
+      "id": "bug-013",
+      "timestamp": "2026-11-11T20:28:28.973Z",
+      "error_message": "Null/undefined access in ",
+      "file": "src/modules/cera/provider.ts",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T20:28:28.973Z"
+    },
+    {
+      "id": "bug-014",
+      "timestamp": "2026-11-11T20:28:38.321Z",
+      "error_message": "Missing error handling in function",
+      "file": "src/modules/cera/service.ts",
+      "root_cause": "Code path had no error handling — exceptions would propagate uncaught",
+      "fix": "Added try/catch block",
+      "tags": [
+        "auto-detected",
+        "error-handling",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T20:28:38.321Z"
+    },
+    {
+      "id": "bug-015",
+      "timestamp": "2026-11-11T20:29:33.056Z",
+      "error_message": "Type error",
+      "file": "test/cera-actions.test.ts",
+      "root_cause": "Missing or incorrect type annotation",
+      "fix": "Added type assertion/annotation",
+      "tags": [
+        "auto-detected",
+        "type-fix",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T20:29:33.056Z"
+    },
+    {
+      "id": "bug-016",
+      "timestamp": "2026-11-11T20:29:36.603Z",
+      "error_message": "Missing guard clause",
+      "file": "test/cera-provider.test.ts",
+      "root_cause": "No early return/throw for edge case: model === \"openai/gpt-oss-120b\"",
+      "fix": "Added guard clause: if (model === \"openai/gpt-oss-120b\")",
+      "tags": [
+        "auto-detected",
+        "guard-clause",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T20:29:36.603Z"
+    },
+    {
+      "id": "bug-017",
+      "timestamp": "2026-11-11T20:29:40.067Z",
+      "error_message": "Incorrect value in code",
+      "file": "test/cera-provider.test.ts",
+      "root_cause": "Had \"../src/modules/cera/provider\"",
+      "fix": "Changed to \"../src/modules/cera/context\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T20:29:40.067Z"
+    },
+    {
+      "id": "bug-018",
+      "timestamp": "2026-11-11T21:55:58.811Z",
+      "error_message": "Wrong reference: CBAM_FIELDS should be PROMPT_FIELDS",
+      "file": "src/modules/cera/actions.ts",
+      "root_cause": "Used \"CBAM_FIELDS\" instead of \"PROMPT_FIELDS\"",
+      "fix": "Changed CBAM_FIELDS → PROMPT_FIELDS",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T21:55:58.811Z"
+    },
+    {
+      "id": "bug-019",
+      "timestamp": "2026-11-11T21:58:33.933Z",
+      "error_message": "Incorrect value in code",
+      "file": "test/cera-actions.test.ts",
+      "root_cause": "Had \"d-l81\"",
+      "fix": "Changed to \"d-l146\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T21:58:33.933Z"
+    },
+    {
+      "id": "bug-020",
+      "timestamp": "2026-11-11T22:26:06.259Z",
+      "error_message": "Incorrect value in code",
+      "file": "../docs/superpowers/plans/2026-11-12-report-lock-precheck-archive.md",
+      "root_cause": "Had `UNCONFIRMED`",
+      "fix": "Changed to 's report**, until the end of the **fourth year af",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "md"
+      ],
+      "related_bugs": [],
+      "occurrences": 2,
+      "last_seen": "2026-11-11T22:26:37.015Z"
+    },
+    {
+      "id": "bug-021",
+      "timestamp": "2026-11-11T22:27:06.812Z",
+      "error_message": "Null/undefined access in ",
+      "file": "../docs/superpowers/plans/2026-11-12-report-lock-precheck-archive.md",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "md"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T22:27:06.812Z"
+    },
+    {
+      "id": "bug-022",
+      "timestamp": "2026-11-11T22:30:19.501Z",
+      "error_message": "Type error",
+      "file": "test/item-links.test.ts",
+      "root_cause": "Missing or incorrect type annotation",
+      "fix": "Added type assertion/annotation",
+      "tags": [
+        "auto-detected",
+        "type-fix",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T22:30:19.501Z"
+    },
+    {
+      "id": "bug-023",
+      "timestamp": "2026-11-11T23:01:32.097Z",
+      "error_message": "Null/undefined access in ",
+      "file": "src/modules/cera/actions.ts",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T23:01:32.097Z"
+    },
+    {
+      "id": "bug-024",
+      "timestamp": "2026-11-11T23:01:35.606Z",
+      "error_message": "Incorrect value in code",
+      "file": "src/modules/cera/actions.ts",
+      "root_cause": "Had `${f.key} = ${f.label}`",
+      "fix": "Changed to `${f.key} = ${promptLabel(f)}`",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T23:01:35.606Z"
+    }
+  ]
 }

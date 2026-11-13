@@ -33,7 +33,7 @@ import { useWorkbook } from "@/lib/workbook/use-workbook";
 import { cellKey } from "@/lib/workbook/cells";
 import { CELL_MAX } from "@/lib/workbook/save-queue";
 import type { CellPatch } from "@/lib/workbook/flow-edit";
-import { currentYear } from "@/lib/year-range";
+import { currentYear, yearRange } from "@/lib/year-range";
 
 /** CBAM answers always live on row 0 of the CBAM tab. */
 const ROW = 0;
@@ -63,7 +63,10 @@ function FillInner() {
 
 function FillForm({ id, def }: { id: string; def: FillItem }) {
   const { installation } = useConvertContext();
-  const year = currentYear();
+  const params = useSearchParams();
+  // The workspace passes the year it has open; anything outside the year bar falls back to this year.
+  const asked = Number(params.get("year"));
+  const year = yearRange().includes(asked) ? asked : currentYear();
   const { cells, loaded, error, savePatch } = useWorkbook(
     installation?.id ?? null,
     year,
@@ -75,7 +78,7 @@ function FillForm({ id, def }: { id: string; def: FillItem }) {
     text: string;
   } | null>(null);
   // Fill in was opened from a regulation page; going back returns there, not to the Convert list.
-  const from = useSearchParams().get("from");
+  const from = params.get("from");
   const standard = from ? getStandard(from) : undefined;
 
   // The site wizard's answers prefill the form; a first Save writes them into the workbook.
@@ -239,6 +242,7 @@ function FillForm({ id, def }: { id: string; def: FillItem }) {
     <Shell
       title={def.title}
       back={back}
+      year={year}
       actions={<ScopedInstallationSwitcher />}
     >
       {progress.total > 0 && (
@@ -296,9 +300,12 @@ function Shell({
   title,
   back,
   actions,
+  year,
   children,
 }: {
   title: string;
+  /** The workbook year the answers go into; absent where no form is shown. */
+  year?: number;
   back?: React.ReactNode;
   actions?: React.ReactNode;
   children: React.ReactNode;
@@ -318,7 +325,7 @@ function Shell({
       </div>
       <PageHeader
         title={title}
-        lead="Answers are saved into the installation workbook for this year."
+        lead={`Answers are saved into the installation workbook for ${year ?? "this year"}.`}
       />
       {children}
     </div>

@@ -111,3 +111,18 @@ export function decideStatus(findings: Finding[]): Status {
     ? "ai_flagged"
     : "team_review";
 }
+
+/** Pre-verifications a company gets before it has to top up on the billing page. */
+export const PREVERIFY_QUOTA = 3;
+
+/** Uses spent: every submission that reached the Certrace team. One the AI sent back costs nothing.
+    A superseded row no longer says where it went, so its stored findings decide it as submit() did. */
+export function quotaUsed(
+  rows: { status: string; ai_findings: unknown }[],
+): number {
+  return rows.filter((r) =>
+    r.status === "superseded"
+      ? decideStatus((r.ai_findings ?? []) as Finding[]) === "team_review"
+      : r.status !== "ai_flagged",
+  ).length;
+}

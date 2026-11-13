@@ -56,6 +56,20 @@ export const preverifyAdmin = new Elysia({
     { params: t.Object({ id: t.String({ format: "uuid" }) }) },
   )
   .post(
+    "/credits",
+    ({ account, body }) => {
+      requireAdmin(account);
+      return S.grantCredits(body.companyId, account.id, body.add, body.note);
+    },
+    {
+      body: t.Object({
+        companyId: t.String({ format: "uuid" }),
+        add: t.Integer({ minimum: 1, maximum: 100 }),
+        note: t.String({ maxLength: 2000 }),
+      }),
+    },
+  )
+  .post(
     "/:id/decision",
     ({ account, params, body }) => {
       requireAdmin(account);

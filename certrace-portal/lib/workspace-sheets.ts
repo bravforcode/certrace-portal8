@@ -20,7 +20,37 @@ export type WorkspaceFile = {
   size: number;
   type: string;
   description: string;
+  /** When Certrace finished reviewing the file. Absent while the review is pending. */
+  reviewedAt?: string;
 };
+
+/** The account-file id that holds a workspace file's bytes (PUT /api/v1/account/files/:id). */
+export const workspaceFileId = (id: string) => `workspace-${id}`;
+
+/* The server accepts a file by its content type. Browsers send an empty or vendor type for some
+   files (a CSV from Excel arrives as application/vnd.ms-excel), so the extension decides then. */
+const BY_EXTENSION: Record<string, string> = {
+  pdf: "application/pdf",
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  csv: "text/csv",
+  txt: "text/plain",
+  tsv: "text/tab-separated-values",
+  md: "text/markdown",
+  json: "application/json",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+};
+const ACCEPTED = new Set(Object.values(BY_EXTENSION));
+
+/** The file with a content type the server accepts, or null when neither its type nor its extension is one. */
+export function uploadable(file: File): File | null {
+  if (ACCEPTED.has(file.type)) return file;
+  const type = BY_EXTENSION[(file.name.split(".").pop() ?? "").toLowerCase()];
+  return type ? new File([file], file.name, { type }) : null;
+}
 
 /** "empty" is a row of a workspace started from the beginning: nothing in it yet, nothing to check. */
 export type RowStatus = "review" | "confirmed" | "missing" | "empty";
@@ -90,14 +120,14 @@ export function buildSheets(files: WorkspaceFile[]): Sheet[] {
     // The first tab: the site the sheets are about, before its products and steps (MEASUR order).
     {
       id: INSTALLATION_SHEET_ID,
-      code: "00A",
+      code: "00",
       name: "Installation",
       cols: [],
       rows: [],
     },
     {
       id: "documents",
-      code: "00",
+      code: "09",
       name: "Documents",
       cols: [
         col("file", "File", "file", "minmax(160px,1.8fr)"),
@@ -163,7 +193,7 @@ export function buildSheets(files: WorkspaceFile[]): Sheet[] {
     },
     {
       id: "flow",
-      code: "04",
+      code: "05",
       name: "Material flow",
       cols: [
         col("from", "From", "text", W.step),
@@ -178,7 +208,7 @@ export function buildSheets(files: WorkspaceFile[]): Sheet[] {
     },
     {
       id: "energy",
-      code: "05",
+      code: "04",
       name: "Energy",
       cols: [
         col("step", "Step", "text", W.step),

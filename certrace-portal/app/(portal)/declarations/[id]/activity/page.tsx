@@ -101,14 +101,23 @@ import {
   updateProcess,
   removeProcess,
 } from "@/lib/cbam/activity-store";
-import { fuelTCO2, processTCO2, electricityTCO2 } from "@/lib/cbam/engine";
 import {
+  fuelTCO2,
+  processTCO2,
+  electricityTCO2,
+  indirectIsChargeable,
+} from "@/lib/cbam/engine";
+import {
+  chargeablePerTonne,
   dataGapPenalty,
+  ownGoodsCnCodes,
   PENALTY_TITLE,
   PENALTY_SUBTITLE,
+  publishedDefaultFor,
+  sharedSector,
 } from "@/lib/cbam/data-gaps";
-import { D_DEFAULT_PLACEHOLDER } from "@/lib/cbam/reference";
-import { DEFAULT_VALUE_MARKUP } from "@/lib/compliance-engine";
+import { defaultMarkup } from "@/lib/cbam/eu-rates";
+import { getCatalogProduct } from "@/lib/config";
 import { certificatePriceSource } from "@/lib/carbon-economics";
 import { compareShippedToProduced } from "@/lib/annual-production";
 import { unlinkedShipmentsFor, shipmentsFor } from "@/lib/shipments";
@@ -1145,7 +1154,16 @@ export default function ActivityDataPage({
       />
 
       {/* What the whole dataset comes to — the point of entering any of it */}
-      <DerivedTotals totals={computedTotals} production={production} />
+      <DerivedTotals
+        totals={computedTotals}
+        production={production}
+        reportingYear={Number(periodFor(decl).start.slice(0, 4))}
+        country={decl.origin}
+        ownCnCodes={ownGoodsCnCodes(
+          decl.requests,
+          (id) => getCatalogProduct(id)?.cnCode,
+        )}
+      />
 
       {/* Assumptions roll-up — every ASSUMPTION on one screen, because that is
           the list a verifier asks for by name */}
@@ -1214,6 +1232,9 @@ function SectionHead({
 function DerivedTotals({
   totals,
   production,
+  reportingYear,
+  country,
+  ownCnCodes,
 }: {
   totals: {
     fuelTCO2: number;
@@ -1223,28 +1244,48 @@ function DerivedTotals({
     blocked: number;
   };
   production: number;
+  reportingYear: number;
+  /** installation country: the declaration's origin, which picks the Annex I table */
+  country: string;
+  /** CN codes of the exporter's own goods; the penalty prices exactly one */
+  ownCnCodes: string[];
 }) {
   const t = useT();
   const pricing = certificatePriceSource();
-  const year = new Date().getFullYear();
-  const markup =
-    DEFAULT_VALUE_MARKUP[Math.min(year, 2028)] ?? DEFAULT_VALUE_MARKUP[2028];
 
   if (!(production > 0) || totals.totalTCO2 <= 0) return null;
 
   const directPerTonne = (totals.fuelTCO2 + totals.processTCO2) / production;
   const indirectPerTonne = totals.indirectTCO2 / production;
-  /* Iron & steel: indirect is reported but not chargeable (Annex II) — the
-     sector rule lives in lib/cbam/engine.ts, this screen just reflects it. */
-  const chargeable = directPerTonne;
 
-  const penalty = dataGapPenalty({
-    defaultValue: D_DEFAULT_PLACEHOLDER.value,
-    chargeableSEE: chargeable,
-    quantityTonnes: production,
-    certificatePrice: pricing.pricePerTonneEUR,
-    markup,
-  });
+  /* The Annex I row needs one CN code. Several codes would need the production
+     split per good, which the dataset does not hold, so no figure is shown. */
+  const ownCn = ownCnCodes.length === 1 ? ownCnCodes[0] : null;
+  /* Chargeability needs only the sector, so it holds for several CN codes as long as they share one.
+     Without one shared sector it is unknown: no chargeable figure is shown rather than a direct-only guess. */
+  const sector = sharedSector(ownCnCodes);
+  const chargeable = sector
+    ? chargeablePerTonne(sector, directPerTonne, indirectPerTonne)
+    : null;
+  const published = ownCn
+    ? publishedDefaultFor(ownCn, country, reportingYear)
+    : null;
+  const penalty =
+    ownCn && sector && chargeable !== null && published !== null
+      ? dataGapPenalty({
+          defaultValue: published,
+          chargeableSEE: chargeable,
+          quantityTonnes: production,
+          certificatePrice: pricing.pricePerTonneEUR,
+          markup: defaultMarkup(sector, reportingYear),
+        })
+      : null;
+  const noPenaltyReason =
+    ownCnCodes.length === 0
+      ? "No CN code on this declaration's own goods, so there is no published default to price the gap against."
+      : ownCnCodes.length > 1
+        ? `This declaration covers ${ownCnCodes.length} CN codes. The penalty needs one good, because production is not split per CN.`
+        : `Annex I publishes no default for CN ${ownCn} in ${country}.`;
 
   return (
     <Card highlight className="p-6">
@@ -1258,12 +1299,16 @@ function DerivedTotals({
         <Derived
           label={t("Indirect")}
           value={`${indirectPerTonne.toFixed(7)} tCO₂e/t`}
-          sub={`${totals.indirectTCO2.toFixed(2)} tCO₂ · reported, not chargeable for steel`}
+          sub={`${totals.indirectTCO2.toFixed(2)} tCO₂ · ${!sector ? "chargeability unknown" : indirectIsChargeable(sector) ? "chargeable for this good" : "reported, not chargeable for this good"}`}
         />
         <Derived
           label={t("Chargeable (own process)")}
-          value={`${chargeable.toFixed(7)} tCO₂e/t`}
-          sub={t("before precursors")}
+          value={chargeable === null ? "—" : `${chargeable.toFixed(7)} tCO₂e/t`}
+          sub={
+            chargeable === null
+              ? t("Unknown: the CN codes do not share one CBAM sector")
+              : t("before precursors")
+          }
         />
       </div>
       {totals.blocked > 0 && (
@@ -1291,22 +1336,36 @@ function DerivedTotals({
             · {PENALTY_SUBTITLE}
           </span>
         </div>
-        <p className="mt-2 text-[13px] leading-relaxed text-black/65">
-          {penalty.headline}
-        </p>
-        <p className="mt-2 font-mono text-[12px] text-black/55">
-          Δ {penalty.delta.toFixed(4)} tCO₂e/t ×{" "}
-          {production.toLocaleString("en-US")} t × €{pricing.pricePerTonneEUR} ×
-          (1 + {markup}) ={" "}
-          <span className="text-black/80">
-            €
-            {Math.abs(penalty.currency).toLocaleString("en-US", {
-              maximumFractionDigits: 2,
-            })}
-          </span>
-        </p>
+        {penalty && published !== null ? (
+          <>
+            <p className="mt-2 text-[13px] leading-relaxed text-black/65">
+              {penalty.headline}
+            </p>
+            <p className="mt-2 font-mono text-[12px] text-black/55">
+              Δ {penalty.delta.toFixed(4)} tCO₂e/t ×{" "}
+              {production.toLocaleString("en-US")} t × €
+              {pricing.pricePerTonneEUR} ={" "}
+              <span className="text-black/80">
+                €
+                {Math.abs(penalty.currency).toLocaleString("en-US", {
+                  maximumFractionDigits: 2,
+                })}
+              </span>
+            </p>
+          </>
+        ) : (
+          <p className="mt-2 text-[13px] leading-relaxed text-black/65">
+            {noPenaltyReason}
+          </p>
+        )}
         <ul className="mt-3 space-y-1.5 text-[11.5px] leading-relaxed text-black/45">
-          <li>· {D_DEFAULT_PLACEHOLDER.warning}</li>
+          {penalty && published !== null && (
+            <li>
+              · Published default {published.toFixed(3)} tCO₂e/t for CN {ownCn}{" "}
+              in {country}, {reportingYear} (Annex I, Reg. (EU) 2025/2621). The{" "}
+              {Math.round(penalty.markup * 100)}% markup is already inside it.
+            </li>
+          )}
           <li>· {pricing.warning}</li>
         </ul>
       </div>

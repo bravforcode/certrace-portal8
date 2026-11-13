@@ -21,7 +21,7 @@ import { Button, Card, Eyebrow, Modal, cn, inputClass } from "@/components/ui";
 import { Select } from "@/components/controls";
 import { useT } from "@/lib/i18n";
 import { yearRange } from "@/lib/year-range";
-import type { WorkspaceFile } from "@/lib/workspace-sheets";
+import { uploadable, type WorkspaceFile } from "@/lib/workspace-sheets";
 import {
   UPLOAD_LIMITS,
   uploadProblem,
@@ -54,7 +54,7 @@ export function UploadPanel({
   onYear: (y: number) => void;
   /** earlier years that have data, newest first */
   copyFrom: number[];
-  onConfirm: (files: WorkspaceFile[]) => void;
+  onConfirm: (files: WorkspaceFile[], blobs: Map<string, Blob>) => void;
   onBlank: () => void;
   onCopy: (from: number) => void;
 }) {
@@ -67,6 +67,8 @@ export function UploadPanel({
   const [source, setSource] = React.useState("");
   const [limitNote, setLimitNote] = React.useState<UploadProblem | null>(null);
   const input = React.useRef<HTMLInputElement>(null);
+  const blobs = React.useRef(new Map<string, Blob>());
+  const [refused, setRefused] = React.useState<string[]>([]);
 
   // A different year starts with nothing chosen.
   React.useEffect(() => {
@@ -79,13 +81,17 @@ export function UploadPanel({
   }, [year]);
 
   const add = (list: FileList | File[]) => {
-    const next = [...list].map((f) => ({
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      name: f.name,
-      size: f.size,
-      type: f.type,
-      description: "",
-    }));
+    const all = [...list];
+    setRefused(all.filter((f) => !uploadable(f)).map((f) => f.name));
+    const next = all.flatMap((raw) => {
+      const f = uploadable(raw);
+      if (!f) return [];
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      blobs.current.set(id, f);
+      return [
+        { id, name: f.name, size: f.size, type: f.type, description: "" },
+      ];
+    });
     if (next.length === 0) return;
     setDrafts((d) => [...d, ...next]);
     setMode("upload");
@@ -165,6 +171,7 @@ export function UploadPanel({
           type,
           description: description.trim(),
         })),
+        blobs.current,
       );
     else if (mode === "blank") onBlank();
     else if (mode === "copy" && source) onCopy(Number(source));
@@ -371,9 +378,18 @@ export function UploadPanel({
 
       {/* one Confirm for all three */}
       <div className="mt-6 flex flex-col gap-3 border-t border-black/[0.06] pt-5 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-[12.5px] text-black/45">
-          {limitNote ? limitText(limitNote) : status}
-        </p>
+        <div>
+          <p className="text-[12.5px] text-black/45">
+            {limitNote ? limitText(limitNote) : status}
+          </p>
+          {refused.length > 0 && (
+            <p role="alert" className="mt-1 text-[12px] text-[#dc2626]">
+              {t("Not added, this file type is not accepted: {files}", {
+                files: refused.join(", "),
+              })}
+            </p>
+          )}
+        </div>
         <Button
           onClick={onConfirmClick}
           disabled={mode === null}

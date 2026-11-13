@@ -128,6 +128,1171 @@
       "related_bugs": [],
       "occurrences": 1,
       "last_seen": "2026-11-11T13:53:51.579Z"
+    },
+    {
+      "id": "bug-009",
+      "timestamp": "2026-11-11T14:22:10.576Z",
+      "error_message": "Function not marked async",
+      "file": "../certrace-backend/src/modules/links/index.ts",
+      "root_cause": "Function uses await but wasn't declared async",
+      "fix": "Added async modifier",
+      "tags": [
+        "auto-detected",
+        "async-fix",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T14:22:10.576Z"
+    },
+    {
+      "id": "bug-010",
+      "timestamp": "2026-11-11T14:42:45.816Z",
+      "error_message": "Wrong reference: DEFAULT_SHEET should be extraTabs",
+      "file": "components/workspace/spreadsheet.tsx",
+      "root_cause": "Used \"DEFAULT_SHEET\" instead of \"extraTabs\"",
+      "fix": "Changed DEFAULT_SHEET → extraTabs",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 2,
+      "last_seen": "2026-11-11T14:42:55.222Z"
+    },
+    {
+      "id": "bug-011",
+      "timestamp": "2026-11-11T14:43:32.249Z",
+      "error_message": "Null/undefined access in ",
+      "file": "app/(portal)/workspace/page.tsx",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T14:43:32.249Z"
+    },
+    {
+      "id": "bug-012",
+      "timestamp": "2026-11-11T14:48:24.724Z",
+      "error_message": "Type error",
+      "file": "lib/cbam/template-fields.ts",
+      "root_cause": "Missing or incorrect type annotation",
+      "fix": "Added type assertion/annotation",
+      "tags": [
+        "auto-detected",
+        "type-fix",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T14:48:24.724Z"
+    },
+    {
+      "id": "bug-013",
+      "timestamp": "2026-11-11T14:52:29.150Z",
+      "error_message": "Null/undefined access in ",
+      "file": "app/(portal)/convert/[id]/page.tsx",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T14:52:29.150Z"
+    },
+    {
+      "id": "bug-014",
+      "timestamp": "2026-11-11T14:52:34.088Z",
+      "error_message": "Missing error handling in RequirementRow",
+      "file": "app/(portal)/convert/[id]/page.tsx",
+      "root_cause": "Code path had no error handling — exceptions would propagate uncaught",
+      "fix": "Added try/catch block",
+      "tags": [
+        "auto-detected",
+        "error-handling",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T14:52:34.088Z"
+    },
+    {
+      "id": "bug-015",
+      "timestamp": "2026-11-11T14:52:38.831Z",
+      "error_message": "Significant refactor of ",
+      "file": "app/(portal)/convert/[id]/page.tsx",
+      "root_cause": "4 lines replaced/restructured",
+      "fix": "Rewrote 12→25 lines (4 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T14:52:38.831Z"
+    },
+    {
+      "id": "bug-016",
+      "timestamp": "2026-11-11T15:02:05.609Z",
+      "error_message": "Significant refactor of ",
+      "file": "../certrace-backend/src/modules/links/item-service.ts",
+      "root_cause": "6 lines replaced/restructured",
+      "fix": "Rewrote 7→4 lines (6 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T15:02:05.609Z"
+    },
+    {
+      "id": "bug-017",
+      "timestamp": "2026-11-11T17:54:22.459Z",
+      "error_message": "Null/undefined access in ",
+      "file": "lib/convert/__tests__/requirements.test.ts",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T17:54:22.459Z"
+    },
+    {
+      "id": "bug-018",
+      "timestamp": "2026-11-11T17:59:46.602Z",
+      "error_message": "Incorrect value in code",
+      "file": "components/ui.tsx",
+      "root_cause": "Had \"rounded-2xl border bg-white\"",
+      "fix": "Changed to \"rounded-2xl border bg-white transition-[border-co",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 2,
+      "last_seen": "2026-11-11T18:00:03.502Z"
+    },
+    {
+      "id": "bug-019",
+      "timestamp": "2026-11-11T18:06:04.370Z",
+      "error_message": "Missing guard clause",
+      "file": "lib/convert/requirements.ts",
+      "root_cause": "No early return/throw for edge case: !total",
+      "fix": "Added guard clause: if (!total)",
+      "tags": [
+        "auto-detected",
+        "guard-clause",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T18:06:04.370Z"
+    },
+    {
+      "id": "bug-020",
+      "timestamp": "2026-11-11T18:06:32.373Z",
+      "error_message": "Wrong return value",
+      "file": "lib/convert/requirements.ts",
+      "root_cause": "Was returning: { ...req, ...stateOf(statuses), fix, href };",
+      "fix": "Now returns: { ...req, ...(ctx.cells ? withCbam(legacy, req.id,",
+      "tags": [
+        "auto-detected",
+        "return-value",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T18:06:32.373Z"
+    },
+    {
+      "id": "bug-021",
+      "timestamp": "2026-11-11T18:14:27.488Z",
+      "error_message": "Type error",
+      "file": "components/require-session.tsx",
+      "root_cause": "Missing or incorrect type annotation",
+      "fix": "Added type assertion/annotation",
+      "tags": [
+        "auto-detected",
+        "type-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T18:14:27.488Z"
+    },
+    {
+      "id": "bug-022",
+      "timestamp": "2026-11-11T18:22:17.968Z",
+      "error_message": "Type error",
+      "file": "lib/cbam/__tests__/installation-defaults.test.ts",
+      "root_cause": "Missing or incorrect type annotation",
+      "fix": "Added type assertion/annotation",
+      "tags": [
+        "auto-detected",
+        "type-fix",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T18:22:17.968Z"
+    },
+    {
+      "id": "bug-023",
+      "timestamp": "2026-11-11T18:27:56.169Z",
+      "error_message": "Null/undefined access in ",
+      "file": "lib/convert/use-convert-context.ts",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T18:27:56.169Z"
+    },
+    {
+      "id": "bug-024",
+      "timestamp": "2026-11-11T18:29:10.818Z",
+      "error_message": "CSS fix: sheets",
+      "file": "app/(portal)/convert/[id]/page.tsx",
+      "root_cause": "sheets: yearSheets → yearSheets, cells: yearCells",
+      "fix": "Changed sheets: yearSheets → yearSheets, cells: yearCells",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 4,
+      "last_seen": "2026-11-11T18:37:26.247Z"
+    },
+    {
+      "id": "bug-025",
+      "timestamp": "2026-11-11T18:34:02.470Z",
+      "error_message": "Type error",
+      "file": "app/(portal)/convert/fill/[item]/page.tsx",
+      "root_cause": "Missing or incorrect type annotation",
+      "fix": "Added type assertion/annotation",
+      "tags": [
+        "auto-detected",
+        "type-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T18:34:02.470Z"
+    },
+    {
+      "id": "bug-026",
+      "timestamp": "2026-11-11T18:34:35.217Z",
+      "error_message": "Significant refactor of ",
+      "file": "app/(portal)/convert/fill/[item]/page.tsx",
+      "root_cause": "2 lines replaced/restructured",
+      "fix": "Rewrote 8→12 lines (2 removed) | Also: import { useParams } from \"next/navigation\";; import { cbamProgress } from \"@/lib/cbam/template-",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 2,
+      "last_seen": "2026-11-11T18:35:06.254Z"
+    },
+    {
+      "id": "bug-027",
+      "timestamp": "2026-11-11T18:34:42.834Z",
+      "error_message": "Null/undefined access in ",
+      "file": "app/(portal)/convert/fill/[item]/page.tsx",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T18:34:42.834Z"
+    },
+    {
+      "id": "bug-028",
+      "timestamp": "2026-11-11T18:37:41.048Z",
+      "error_message": "Incorrect value in code",
+      "file": "components/workspace/cbam-tab.tsx",
+      "root_cause": "Had \"optional\"",
+      "fix": "Changed to \"select\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T18:37:41.048Z"
+    },
+    {
+      "id": "bug-029",
+      "timestamp": "2026-11-11T18:41:17.606Z",
+      "error_message": "Null/undefined access in ",
+      "file": "app/s/item/[token]/page.tsx",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T18:41:17.606Z"
+    },
+    {
+      "id": "bug-030",
+      "timestamp": "2026-11-11T18:45:03.522Z",
+      "error_message": "Type error",
+      "file": "next.config.ts",
+      "root_cause": "Missing or incorrect type annotation",
+      "fix": "Added type assertion/annotation",
+      "tags": [
+        "auto-detected",
+        "type-fix",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T18:45:03.522Z"
+    },
+    {
+      "id": "bug-031",
+      "timestamp": "2026-11-11T18:45:09.926Z",
+      "error_message": "Null/undefined access in ",
+      "file": "lib/cera/ai-reply.ts",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T18:45:09.927Z"
+    },
+    {
+      "id": "bug-032",
+      "timestamp": "2026-11-11T18:45:14.022Z",
+      "error_message": "Incorrect value in code",
+      "file": "lib/cera/ai-reply.ts",
+      "root_cause": "Had \"./guard\"",
+      "fix": "Changed to \"./actions\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T18:45:14.022Z"
+    },
+    {
+      "id": "bug-033",
+      "timestamp": "2026-11-11T18:45:52.678Z",
+      "error_message": "Missing error handling in unknown",
+      "file": "components/cera/cera-provider.tsx",
+      "root_cause": "Code path had no error handling — exceptions would propagate uncaught",
+      "fix": "Added try/catch block",
+      "tags": [
+        "auto-detected",
+        "error-handling",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T18:45:52.678Z"
+    },
+    {
+      "id": "bug-034",
+      "timestamp": "2026-11-11T18:46:34.533Z",
+      "error_message": "Wrong return value",
+      "file": "components/cera/cera-cards.tsx",
+      "root_cause": "Was returning: <UpdatesCard card={card} />;",
+      "fix": "Now returns: <ActionCard messageId={messageId} card={card} />;",
+      "tags": [
+        "auto-detected",
+        "return-value",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T18:46:34.533Z"
+    },
+    {
+      "id": "bug-035",
+      "timestamp": "2026-11-11T18:46:42.231Z",
+      "error_message": "Missing error handling in useActionContext",
+      "file": "components/cera/cera-cards.tsx",
+      "root_cause": "Code path had no error handling — exceptions would propagate uncaught",
+      "fix": "Added try/catch block",
+      "tags": [
+        "auto-detected",
+        "error-handling",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T18:46:42.231Z"
+    },
+    {
+      "id": "bug-036",
+      "timestamp": "2026-11-11T20:38:42.683Z",
+      "error_message": "Type error",
+      "file": "lib/installations.ts",
+      "root_cause": "Missing or incorrect type annotation",
+      "fix": "Added type assertion/annotation",
+      "tags": [
+        "auto-detected",
+        "type-fix",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T20:38:42.683Z"
+    },
+    {
+      "id": "bug-037",
+      "timestamp": "2026-11-11T20:39:41.770Z",
+      "error_message": "Type error",
+      "file": "lib/cbam/__tests__/installation-defaults.test.ts",
+      "root_cause": "Missing or incorrect type annotation",
+      "fix": "Added type assertion/annotation",
+      "tags": [
+        "auto-detected",
+        "type-fix",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T20:39:41.770Z"
+    },
+    {
+      "id": "bug-038",
+      "timestamp": "2026-11-11T20:55:47.717Z",
+      "error_message": "Significant refactor of ",
+      "file": "lib/i18n.ts",
+      "root_cause": "16 lines replaced/restructured",
+      "fix": "Rewrote 18→31 lines (16 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T20:55:47.717Z"
+    },
+    {
+      "id": "bug-039",
+      "timestamp": "2026-11-11T20:55:57.552Z",
+      "error_message": "Type error",
+      "file": "lib/i18n.ts",
+      "root_cause": "Missing or incorrect type annotation",
+      "fix": "Added type assertion/annotation",
+      "tags": [
+        "auto-detected",
+        "type-fix",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T20:55:57.552Z"
+    },
+    {
+      "id": "bug-040",
+      "timestamp": "2026-11-11T21:00:26.767Z",
+      "error_message": "Missing error handling in unknown",
+      "file": "components/cera/cera-provider.tsx",
+      "root_cause": "Code path had no error handling — exceptions would propagate uncaught",
+      "fix": "Added try/catch block",
+      "tags": [
+        "auto-detected",
+        "error-handling",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T21:00:26.767Z"
+    },
+    {
+      "id": "bug-041",
+      "timestamp": "2026-11-11T21:02:20.656Z",
+      "error_message": "Missing await",
+      "file": "scripts/test-resolver.mjs",
+      "root_cause": "Async call without await — returned Promise instead of value",
+      "fix": "Added await to async call",
+      "tags": [
+        "auto-detected",
+        "async-fix",
+        "mjs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T21:02:20.656Z"
+    },
+    {
+      "id": "bug-042",
+      "timestamp": "2026-11-11T22:36:19.577Z",
+      "error_message": "CSS fix: id",
+      "file": "app/(portal)/trace/page.tsx",
+      "root_cause": "id: \"SAMPLE-02\", name: \"Rayong plant\", city: \"Rayong\", country: \"TH\", sample: true → string",
+      "fix": "Changed id: \"SAMPLE-02\", name: \"Rayong plant\", city: \"Rayong\", country: \"TH\", sample: true → string",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 4,
+      "last_seen": "2026-11-11T22:36:47.442Z"
+    },
+    {
+      "id": "bug-043",
+      "timestamp": "2026-11-11T22:36:28.147Z",
+      "error_message": "Wrong reference: const should be options",
+      "file": "app/(portal)/trace/page.tsx",
+      "root_cause": "Used \"const\" instead of \"options\"",
+      "fix": "Changed const → options",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 4,
+      "last_seen": "2026-11-11T22:40:30.942Z"
+    },
+    {
+      "id": "bug-044",
+      "timestamp": "2026-11-11T22:36:32.056Z",
+      "error_message": "Significant refactor of ",
+      "file": "app/(portal)/trace/page.tsx",
+      "root_cause": "3 lines replaced/restructured",
+      "fix": "Rewrote 5→5 lines (3 removed) | Also: <span className=\"mb-2 block text-[11px] uppercase ; <div className=\"space-y-2.5\">",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 2,
+      "last_seen": "2026-11-11T22:36:43.782Z"
+    },
+    {
+      "id": "bug-045",
+      "timestamp": "2026-11-11T22:36:55.361Z",
+      "error_message": "Type error",
+      "file": "app/(portal)/trace/page.tsx",
+      "root_cause": "Missing or incorrect type annotation",
+      "fix": "Added type assertion/annotation | Also: /* Only a copy from an earlier year runs as \"syncing\". A yea; revealed: its card plays the walk-in the next time it is ope",
+      "tags": [
+        "auto-detected",
+        "type-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 2,
+      "last_seen": "2026-11-11T22:40:12.027Z"
+    },
+    {
+      "id": "bug-046",
+      "timestamp": "2026-11-11T22:40:21.951Z",
+      "error_message": "Wrong return value",
+      "file": "app/(portal)/workspace/page.tsx",
+      "root_cause": "Was returning: { y, at: Date.parse(m.confirmedAt ?? \"\") + (m.copi",
+      "fix": "Now returns: { y, at: Date.parse(m.confirmedAt ?? \"\") + (m.copi",
+      "tags": [
+        "auto-detected",
+        "return-value",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T22:40:21.951Z"
+    },
+    {
+      "id": "bug-047",
+      "timestamp": "2026-11-11T22:41:17.845Z",
+      "error_message": "Type error",
+      "file": "lib/ai-check.ts",
+      "root_cause": "Missing or incorrect type annotation",
+      "fix": "Added type assertion/annotation",
+      "tags": [
+        "auto-detected",
+        "type-fix",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T22:41:17.845Z"
+    },
+    {
+      "id": "bug-048",
+      "timestamp": "2026-11-11T22:46:23.364Z",
+      "error_message": "Incorrect value in code",
+      "file": "components/intake/supplier-intake.tsx",
+      "root_cause": "Had \"Prototype — detection is simulated. Nothing leave",
+      "fix": "Changed to \"Text PDFs are read in this browser. Images and sc",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T22:46:23.364Z"
+    },
+    {
+      "id": "bug-049",
+      "timestamp": "2026-11-11T22:48:54.293Z",
+      "error_message": "Type error",
+      "file": "lib/__tests__/smart-link-payload.test.ts",
+      "root_cause": "Missing or incorrect type annotation",
+      "fix": "Added type assertion/annotation",
+      "tags": [
+        "auto-detected",
+        "type-fix",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T22:48:54.293Z"
+    },
+    {
+      "id": "bug-050",
+      "timestamp": "2026-11-11T22:48:58.067Z",
+      "error_message": "Significant refactor of ",
+      "file": "lib/supplier.ts",
+      "root_cause": "25 lines replaced/restructured",
+      "fix": "Rewrote 32→7 lines (25 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T22:48:58.067Z"
+    },
+    {
+      "id": "bug-051",
+      "timestamp": "2026-11-11T22:49:01.846Z",
+      "error_message": "Null/undefined access in ",
+      "file": "lib/supplier.ts",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T22:49:01.846Z"
+    },
+    {
+      "id": "bug-052",
+      "timestamp": "2026-11-11T22:53:37.855Z",
+      "error_message": "Wrong reference: Checkbox should be Eyebrow",
+      "file": "app/(portal)/trace/page.tsx",
+      "root_cause": "Used \"Checkbox\" instead of \"Eyebrow\"",
+      "fix": "Changed Checkbox → Eyebrow",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T22:53:37.855Z"
+    },
+    {
+      "id": "bug-053",
+      "timestamp": "2026-11-11T23:04:44.432Z",
+      "error_message": "Type error",
+      "file": "lib/cera/__tests__/actions.test.ts",
+      "root_cause": "Missing or incorrect type annotation",
+      "fix": "Added type assertion/annotation",
+      "tags": [
+        "auto-detected",
+        "type-fix",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T23:04:44.432Z"
+    },
+    {
+      "id": "bug-054",
+      "timestamp": "2026-11-11T23:04:48.195Z",
+      "error_message": "Wrong reference: label should be section",
+      "file": "lib/cera/actions.ts",
+      "root_cause": "Used \"label\" instead of \"section\"",
+      "fix": "Changed label → section",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-11T23:04:48.195Z"
+    },
+    {
+      "id": "bug-055",
+      "timestamp": "2026-11-12T13:11:09.035Z",
+      "error_message": "Significant refactor of ",
+      "file": "app/(portal)/workspace/page.tsx",
+      "root_cause": "3 lines replaced/restructured",
+      "fix": "Rewrote 4→5 lines (3 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-12T13:11:09.035Z"
+    },
+    {
+      "id": "bug-056",
+      "timestamp": "2026-11-12T13:11:31.108Z",
+      "error_message": "Wrong reference: installationId should be storeId",
+      "file": "app/(portal)/workspace/page.tsx",
+      "root_cause": "Used \"installationId\" instead of \"storeId\"",
+      "fix": "Changed installationId → storeId",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-12T13:11:31.108Z"
+    },
+    {
+      "id": "bug-057",
+      "timestamp": "2026-11-12T14:52:52.087Z",
+      "error_message": "Significant refactor of ",
+      "file": "middleware.ts",
+      "root_cause": "6 lines replaced/restructured",
+      "fix": "Rewrote 12→5 lines (6 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-12T14:52:52.087Z"
+    },
+    {
+      "id": "bug-058",
+      "timestamp": "2026-11-12T15:05:22.177Z",
+      "error_message": "Significant refactor of ",
+      "file": "middleware.ts",
+      "root_cause": "2 lines replaced/restructured",
+      "fix": "Rewrote 3→6 lines (2 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-12T15:05:22.177Z"
+    },
+    {
+      "id": "bug-059",
+      "timestamp": "2026-11-12T18:27:48.031Z",
+      "error_message": "Wrong condition in logic",
+      "file": "next.config.ts",
+      "root_cause": "Condition was: if (isServer && !process.env.CERTRACE_KEEP_SERVER_MAPS)",
+      "fix": "Changed to: if (isServer)",
+      "tags": [
+        "auto-detected",
+        "logic-fix",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-12T18:27:48.031Z"
+    },
+    {
+      "id": "bug-060",
+      "timestamp": "2026-11-12T21:20:15.783Z",
+      "error_message": "Vercel: The Edge Function \"middleware\" is referencing unsupported modules: __vc__ns__/7/index.js: /pdf.min.mjs",
+      "file": "certrace-portal/lib/document-reading.ts, components/intake/pdf-source-preview.tsx",
+      "root_cause": "Dynamic import of /pdf.min.mjs (webpackIgnore) lands in shared edge namespace chunks that middleware references",
+      "fix": "lib/pdf-loader.ts (browser loader) + lib/pdf-loader-server-stub.ts swapped in on server builds via next.config.ts NormalModuleReplacementPlugin",
+      "tags": [
+        "vercel",
+        "edge",
+        "pdf",
+        "next-config"
+      ]
+    },
+    {
+      "id": "bug-061",
+      "timestamp": "2026-11-12T21:20:15.786Z",
+      "error_message": "Vercel: The Edge Function \"declarations/[id]/mmd\" size is 1.2 MB and your plan size limit is 1 MB.",
+      "file": "certrace-portal/app/(portal)/declarations/[id]/page.tsx, .../declarations/[id]/mmd/page.tsx, .../workspaces/installation/[iid]/readiness/page.tsx",
+      "root_cause": "Edge bundles at ~0.85-1.2 MiB gzip each (jspdf, xlsx, html2canvas, recharts inlined)",
+      "fix": "Removed export const runtime = \"edge\" from the 3 over-limit pages (Node runtime); preview 2pwqdvapf ready",
+      "tags": [
+        "vercel",
+        "edge",
+        "bundle-size"
+      ]
+    },
+    {
+      "id": "bug-062",
+      "timestamp": "2026-11-12T21:49:41.184Z",
+      "error_message": "Missing guard clause",
+      "file": "lib/workbook/use-workbook.ts",
+      "root_cause": "No early return/throw for edge case: !rec || files.length === 0",
+      "fix": "Added guard clause: if (!rec || files.length === 0)",
+      "tags": [
+        "auto-detected",
+        "guard-clause",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-12T21:49:41.184Z"
+    },
+    {
+      "id": "bug-063",
+      "timestamp": "2026-11-12T21:59:29.199Z",
+      "error_message": "Significant refactor of ",
+      "file": "app/(portal)/workspace/page.tsx",
+      "root_cause": "19 lines replaced/restructured",
+      "fix": "Rewrote 23→6 lines (19 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-12T21:59:29.199Z"
+    },
+    {
+      "id": "bug-064",
+      "timestamp": "2026-11-12T21:59:51.017Z",
+      "error_message": "Incorrect value in code",
+      "file": "app/(portal)/workspace/page.tsx",
+      "root_cause": "Had \"Go to Convert\"",
+      "fix": "Changed to \"convert\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-12T21:59:51.017Z"
+    },
+    {
+      "id": "bug-065",
+      "timestamp": "2026-11-12T22:07:36.900Z",
+      "error_message": "Incorrect value in code",
+      "file": "lib/workspace-sheets.ts",
+      "root_cause": "Had \"00A\"",
+      "fix": "Changed to \"00\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-12T22:07:36.900Z"
+    },
+    {
+      "id": "bug-066",
+      "timestamp": "2026-11-12T22:07:51.326Z",
+      "error_message": "Type error",
+      "file": "components/workspace/spreadsheet.tsx",
+      "root_cause": "Missing or incorrect type annotation",
+      "fix": "Added type assertion/annotation | Also: // An empty cell names itself in the formula bar, muted, so ; const selPlace = | Also: /* Lies over the cell (absolute) instead of taking its place; `seeded`: typing started the edit, so the arrows keep it and",
+      "tags": [
+        "auto-detected",
+        "type-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 3,
+      "last_seen": "2026-11-12T22:14:08.346Z"
+    },
+    {
+      "id": "bug-067",
+      "timestamp": "2026-11-12T22:09:28.514Z",
+      "error_message": "CSS fix: view",
+      "file": "components/workspace/spreadsheet.tsx",
+      "root_cause": "view: \"table\" | \"flow\" | \"factory\" = → \"table\" | \"flow\" =",
+      "fix": "Changed view: \"table\" | \"flow\" | \"factory\" = → \"table\" | \"flow\" =",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 2,
+      "last_seen": "2026-11-12T22:09:57.562Z"
+    },
+    {
+      "id": "bug-068",
+      "timestamp": "2026-11-12T22:11:37.436Z",
+      "error_message": "Significant refactor of ",
+      "file": "components/workspace/spreadsheet.tsx",
+      "root_cause": "6 lines replaced/restructured",
+      "fix": "Rewrote 25→41 lines (6 removed) | Also: {v === \"table\"; ? t(\"Table\")",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 2,
+      "last_seen": "2026-11-12T22:11:49.538Z"
+    },
+    {
+      "id": "bug-069",
+      "timestamp": "2026-11-12T22:12:06.291Z",
+      "error_message": "Wrong operator: ?? should be ===",
+      "file": "components/workspace/spreadsheet.tsx",
+      "root_cause": "Used \"??\" instead of \"===\"",
+      "fix": "Changed operator ?? → ===",
+      "tags": [
+        "auto-detected",
+        "operator-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 2,
+      "last_seen": "2026-11-12T22:15:17.563Z"
+    },
+    {
+      "id": "bug-070",
+      "timestamp": "2026-11-12T22:12:54.518Z",
+      "error_message": "Null/undefined access in ",
+      "file": "components/workspace/spreadsheet.tsx",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check) | Also: onMouseDown={(e) => {; // A click on the cell being edited places the caret; anywhe",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 2,
+      "last_seen": "2026-11-12T22:13:11.887Z"
+    },
+    {
+      "id": "bug-071",
+      "timestamp": "2026-11-12T22:15:53.300Z",
+      "error_message": "CSS fix: backgroundColor",
+      "file": "components/workspace/spreadsheet.tsx",
+      "root_cause": "backgroundColor: installationTabTone(installation), → isInstall && !empty",
+      "fix": "Changed backgroundColor: installationTabTone(installation), → isInstall && !empty",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-12T22:15:53.300Z"
+    },
+    {
+      "id": "bug-072",
+      "timestamp": "2026-11-13T00:00:00.000Z",
+      "error_message": "Data Gap Risk markup used the wall-clock year, not the declaration's reporting year",
+      "file": "certrace-portal/app/(portal)/declarations/[id]/activity/page.tsx",
+      "root_cause": "DerivedTotals read new Date().getFullYear() for DEFAULT_VALUE_MARKUP, so a declaration for another year got the current year's markup",
+      "fix": "DerivedTotals takes reportingYear from periodFor(decl), the same source as the period chip; wall clock removed from that path",
+      "tags": [
+        "cbam",
+        "markup",
+        "reporting-year",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T00:00:00.000Z"
+    },
+    {
+      "id": "bug-073",
+      "timestamp": "2026-11-12T22:40:32.227Z",
+      "error_message": "Null/undefined access in ",
+      "file": "lib/cbam/data-gaps.ts",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-12T22:40:32.227Z"
+    },
+    {
+      "id": "bug-074",
+      "timestamp": "2026-11-12T22:43:31.773Z",
+      "error_message": "Null/undefined access in ",
+      "file": "app/(portal)/declarations/[id]/activity/page.tsx",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check) | Also: country,; ownCnCodes, | Also: {penalty && published !== null ? (; <>",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 3,
+      "last_seen": "2026-11-12T22:44:05.308Z"
+    },
+    {
+      "id": "bug-075",
+      "timestamp": "2026-11-12T22:43:59.907Z",
+      "error_message": "Incorrect value in code",
+      "file": "app/(portal)/declarations/[id]/activity/page.tsx",
+      "root_cause": "Had `${totals.indirectTCO2.toFixed(2)} tCO₂ · reported",
+      "fix": "Changed to `${totals.indirectTCO2.toFixed(2)} tCO₂ · ${sector",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-12T22:43:59.907Z"
+    },
+    {
+      "id": "bug-076",
+      "timestamp": "2026-11-13T12:00:00.000Z",
+      "error_message": "Data-gap penalty used an unsourced placeholder default (1.370) for every CN and country",
+      "file": "app/(portal)/declarations/[id]/activity/page.tsx",
+      "root_cause": "D_DEFAULT_PLACEHOLDER (reference.ts, resolved:false) priced all goods. The penalty also multiplied the markup onto Annex I 2026-2028 values that already include it (double count), and counted indirect emissions for every sector.",
+      "fix": "Penalty uses the Annex I row for the exporter's own CN (self-supplied requests) and decl.origin for the reporting year. Markup passed as 0 to defaultExposure. Indirect counted only for Cement and Fertilisers. Placeholder removed. No EUR figure when 0 or more than 1 own CN, or no Annex I row.",
+      "tags": [
+        "manual",
+        "cbam",
+        "data-gap",
+        "tsx"
+      ],
+      "related_bugs": [
+        "bug-072"
+      ],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T12:00:00.000Z"
+    },
+    {
+      "id": "bug-077",
+      "timestamp": "2026-11-12T23:11:19.536Z",
+      "error_message": "Add installation led to a dead end",
+      "file": "components/scoped-installation-switcher.tsx",
+      "root_cause": "/workspaces/new is redirected to /workspace by next.config (wizard switched off), so the switcher option and 3 links in installation-switcher.tsx went nowhere.",
+      "fix": "Point them to /settings?tab=organisation, where OwnInstallationCard adds a site. Verified in browser: the option navigates there.",
+      "tags": [
+        "manual",
+        "navigation",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-12T23:11:19.536Z"
+    },
+    {
+      "id": "bug-078",
+      "timestamp": "2026-11-13T00:00:00.000Z",
+      "error_message": "Convert Complete dot read Ready while a requirement was half filled",
+      "file": "lib/api/preverifications.ts",
+      "root_cause": "stageDots took readiness %, which counts only finished requirements, so 53% progress on one requirement still gave 0%.",
+      "fix": "stageDots takes the requirement list: all complete = done, any not missing = progress, else ready. Tests in lib/convert/__tests__/stage-dots.test.ts (failed before, pass after).",
+      "tags": [
+        "manual",
+        "convert",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T00:00:00.000Z"
+    },
+    {
+      "id": "bug-079",
+      "timestamp": "2026-11-13T00:00:00.000Z",
+      "error_message": "Pasting more rows than the sheet shows dropped the extra rows silently",
+      "file": "components/workspace/spreadsheet.tsx",
+      "root_cause": "onPaste only wrote into visible rows; rows past the end had no target and were skipped without notice.",
+      "fix": "Unfiltered paste writes new rows below (sheetsFromCells grows the sheet); with a search filter or past PASTE_MAX a warn toast says what was not added. Browser check: 25-line paste kept all 25, sheet grew to 30 rows.",
+      "tags": [
+        "manual",
+        "workspace",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T00:00:00.000Z"
+    },
+    {
+      "id": "bug-080",
+      "timestamp": "2026-11-13T00:00:00.000Z",
+      "error_message": "Documents and Installation sheets both labelled 00; Energy listed after Material flow",
+      "file": "lib/workspace-sheets.ts",
+      "root_cause": "Sheet codes were set by hand; Documents reused 00 and flow/energy codes were swapped.",
+      "fix": "Documents 09, Energy 04, Material flow 05.",
+      "tags": [
+        "manual",
+        "workspace"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T00:00:00.000Z"
+    },
+    {
+      "id": "bug-081",
+      "timestamp": "2026-11-13T00:00:00.000Z",
+      "error_message": "Dev server 500 ENOENT _buildManifest after running next build",
+      "file": ".next",
+      "root_cause": "next build writes the same .next folder the running dev server uses.",
+      "fix": "Stop the dev server, rm -rf .next, start it again after a build.",
+      "tags": [
+        "manual",
+        "tooling"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T00:00:00.000Z"
     }
   ]
 }

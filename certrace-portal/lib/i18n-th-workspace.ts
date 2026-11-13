@@ -546,4 +546,12 @@ export const TH_WORKSPACE: Record<string, string> = {
   "extraction failed": "การดึงข้อมูลล้มเหลว",
   "invalid value": "ค่าไม่ถูกต้อง",
   "not recorded": "ไม่ได้บันทึก",
+  "Not added, this file type is not accepted: {files}":
+    "ไม่ได้เพิ่ม ไม่รับไฟล์ประเภทนี้: {files}",
+  "Part of the paste was not added": "วางข้อมูลได้ไม่ครบ",
+  "Clear the search to paste below the matching rows.":
+    "ล้างคำค้นหาก่อน จึงจะวางต่อใต้แถวที่ค้นพบได้",
+  "Paste at most {n} cells at a time.": "วางได้ครั้งละไม่เกิน {n} ช่อง",
+  "Edit {field}": "แก้ไข {field}",
+  "Enter a number.": "กรอกเป็นตัวเลข",
 };

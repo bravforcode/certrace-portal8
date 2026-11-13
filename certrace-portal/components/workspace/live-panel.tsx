@@ -1,23 +1,17 @@
 "use client";
 
 /* ════════════════════════════════════════════════════════════
-   LIVE CHECK — what the workspace still needs, whether it balances, and
-   roughly how much embedded emission the data adds up to.
+   LIVE CHECK — what the workspace still needs and whether it balances.
 
-   Sits beside the sheet while the user types (MEASUR §4). Three cards:
-   completeness per sheet, mass balance per process step, and an emissions
-   estimate from the portal's own CBAM EU default tables. The estimate is
-   labelled as an estimate and is not a declaration figure.
-
-   The header button collapses the panel; the state is remembered in
-   localStorage. Both reads and writes are guarded, since storage can be
-   blocked (private windows, cleared site data).
+   Sits beside the sheet while the user types (MEASUR §4), always open. Under
+   whatever the caller puts on top (the year's files): completeness per sheet
+   and mass balance per process step. The tolerance choice is remembered in
+   localStorage; reads and writes are guarded, since storage can be blocked
+   (private windows, cleared site data).
    ════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
-import { ChevronDown, ChevronUp } from "lucide-react";
 import { Card, Progress, cn } from "@/components/ui";
-import { TONE_HEX } from "@/components/insight/kit";
 import { useLanguage } from "@/lib/i18n";
 import {
   SHEET_ORDER,
@@ -29,11 +23,9 @@ import {
   type SheetStatus,
 } from "@/lib/workbook/status";
 import { massBalance } from "@/lib/workbook/balance";
-import { estimateEmissions, type Note } from "@/lib/workbook/estimate";
 import type { Installation } from "@/lib/installations";
 import type { Sheet } from "@/lib/workspace-sheets";
 
-const PANEL_KEY = "certrace:live-panel";
 const TOLERANCE_KEY = "certrace:balance-tolerance";
 const TOLERANCES = [0.02, 0.05, 0.1];
 
@@ -69,32 +61,23 @@ const fmt = (n: number, digits = 1) =>
 export function LivePanel({
   sheets,
   installation,
-  country,
-  year,
   onOpenSheet,
+  top,
 }: {
   sheets: Sheet[];
   installation: Installation | null;
-  country: string;
-  year: number;
   onOpenSheet: (id: string) => void;
+  /** Rendered first, above Completeness. */
+  top?: React.ReactNode;
 }) {
   const { t } = useLanguage();
-  const [open, setOpen] = React.useState(true);
   const [tolerance, setTolerance] = React.useState(0.05);
 
   // Stored choices are read after mount, so the server render and the first client render agree.
   React.useEffect(() => {
-    setOpen(readStored(PANEL_KEY) !== "closed");
     const saved = Number(readStored(TOLERANCE_KEY));
     if (TOLERANCES.includes(saved)) setTolerance(saved);
   }, []);
-
-  const toggle = () => {
-    const next = !open;
-    setOpen(next);
-    writeStored(PANEL_KEY, next ? "open" : "closed");
-  };
 
   const completeness = React.useMemo(() => {
     const rows = [
@@ -126,44 +109,10 @@ export function LivePanel({
   );
   const ignored = balance.reduce((n, b) => n + b.ignored, 0);
 
-  const est = React.useMemo(
-    () => estimateEmissions(sheets, { country, year }),
-    [sheets, country, year],
-  );
-  const shares =
-    est.totalT > 0
-      ? {
-          direct: est.directT / est.totalT,
-          indirect: est.indirectT / est.totalT,
-          precursor: est.precursorT / est.totalT,
-        }
-      : null;
-  const translate = (n: Note) => t(n.key, n.params);
-
   return (
     <aside aria-label={t("Live check")} className="flex min-w-0 flex-col gap-3">
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls="live-panel-body"
-        onClick={toggle}
-        className="flex items-center justify-between rounded-xl border border-black/[0.08] bg-white px-4 py-2.5 text-left text-[13px] font-medium text-black/85"
-      >
-        {t("Live check")}
-        <span className="inline-flex items-center gap-1 text-[12px] font-normal text-black/50">
-          {open ? t("Hide panel") : t("Show panel")}
-          {open ? (
-            <ChevronUp size={14} strokeWidth={1.75} />
-          ) : (
-            <ChevronDown size={14} strokeWidth={1.75} />
-          )}
-        </span>
-      </button>
-
-      <div
-        id="live-panel-body"
-        className={cn("flex-col gap-3", open ? "flex" : "hidden")}
-      >
+      {top}
+      <div className="flex flex-col gap-3">
         {/* ── Completeness ─────────────────────────── */}
         <Card className="p-4">
           <h3 className="text-[13px] font-medium text-black/85">
@@ -304,124 +253,6 @@ export function LivePanel({
               {t("{n} rows not counted (unit or number)", { n: ignored })}
             </p>
           )}
-        </Card>
-
-        {/* ── Embedded emissions (estimate) ────────── */}
-        <Card className="p-4">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="text-[13px] font-medium text-black/85">
-              {t("Embedded emissions (estimate)")}
-            </h3>
-            <span className="rounded-full border border-black/15 px-2 py-px text-[11px] text-black/60">
-              {t("Estimate")}
-            </span>
-          </div>
-          <p className="mt-2 text-[20px] font-light tabular-nums text-black/85">
-            {fmt(est.totalT)}{" "}
-            <span className="text-[12px] text-black/50">tCO₂e</span>
-          </p>
-          <p className="text-[12px] text-black/50">
-            {est.perTonne !== null
-              ? t("{value} tCO₂e per tonne of product", {
-                  value: fmt(est.perTonne, 3),
-                })
-              : t("Add product quantities to see per tonne")}
-          </p>
-
-          <div
-            aria-hidden
-            className="mt-3 flex h-2 w-full overflow-hidden rounded-full bg-black/[0.07]"
-          >
-            {shares && (
-              <>
-                <span
-                  className="h-full"
-                  style={{
-                    width: `${shares.direct * 100}%`,
-                    background: TONE_HEX.ok,
-                  }}
-                />
-                <span
-                  className="h-full"
-                  style={{
-                    width: `${shares.indirect * 100}%`,
-                    background: TONE_HEX.info,
-                  }}
-                />
-                <span
-                  className="h-full"
-                  style={{
-                    width: `${shares.precursor * 100}%`,
-                    background: TONE_HEX.warn,
-                  }}
-                />
-              </>
-            )}
-          </div>
-          <dl className="mt-2 grid grid-cols-3 gap-2 text-[11.5px] text-black/60">
-            <div>
-              <dt className="flex items-center gap-1">
-                <span
-                  aria-hidden
-                  className="inline-block h-2 w-2 rounded-full"
-                  style={{ background: TONE_HEX.ok }}
-                />
-                {t("Direct")}
-              </dt>
-              <dd className="tabular-nums text-black/85">{fmt(est.directT)}</dd>
-            </div>
-            <div>
-              <dt className="flex items-center gap-1">
-                <span
-                  aria-hidden
-                  className="inline-block h-2 w-2 rounded-full"
-                  style={{ background: TONE_HEX.info }}
-                />
-                {t("Indirect")}
-              </dt>
-              <dd className="tabular-nums text-black/85">
-                {fmt(est.indirectT)}
-              </dd>
-            </div>
-            <div>
-              <dt className="flex items-center gap-1">
-                <span
-                  aria-hidden
-                  className="inline-block h-2 w-2 rounded-full"
-                  style={{ background: TONE_HEX.warn }}
-                />
-                {t("Precursors")}
-              </dt>
-              <dd className="tabular-nums text-black/85">
-                {fmt(est.precursorT)}
-              </dd>
-            </div>
-          </dl>
-
-          {est.precursors.length > 0 && (
-            <p className="mt-3 text-[11.5px] text-black/55">
-              {t("Precursors use the EU default for unknown origin")}
-            </p>
-          )}
-          {est.notes.map((n) => (
-            <p
-              key={n.key + JSON.stringify(n.params)}
-              className="mt-2 text-[11.5px] text-black/55"
-            >
-              {translate(n)}
-            </p>
-          ))}
-          {est.unmatched.length > 0 && (
-            <p className="mt-2 text-[11.5px] text-warn-text">
-              {t("Not counted: {items}", {
-                items: est.unmatched.map(translate).join(", "),
-              })}
-            </p>
-          )}
-          <p className="mt-3 border-t border-black/[0.06] pt-2 text-[11px] text-black/45">
-            {t("EU default factors. Not a declaration figure.")}{" "}
-            {t("Process emissions not included.")}
-          </p>
         </Card>
       </div>
     </aside>

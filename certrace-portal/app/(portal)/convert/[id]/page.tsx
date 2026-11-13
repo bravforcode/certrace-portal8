@@ -3,14 +3,14 @@
 /* ════════════════════════════════════════════════════════════
    ONE STANDARD — what converting into it needs, and the button that does it
 
-   Logo, name and description on top, with the one primary action: convert
-   the workspace data into the standard's report. Under it, the reporting
-   year (only the current one is open; later years are locked), then each
-   requirement with its readiness and the one way to work on it — fill it in,
-   or request it through a Smart Link, depending on whose data it is. The
-   report stays locked until every requirement is complete (D21). Last, the
-   reports already generated for that year. Readiness is live
-   (lib/convert/requirements.ts).
+   Logo, name and description on top, with Export for verification and, for
+   CBAM, the Pre-verify menu (quota, submit, top up). Under them three status
+   dots (complete, under review, reporting: red ready, yellow in progress,
+   green completed), the reporting year, and each requirement with its
+   readiness: Fill in opens the workspace, and a Smart Link is offered only
+   where the data comes from someone outside. Export and submit stay locked
+   until every requirement is complete (D21). Last, the pre-verification
+   status. Readiness is live (lib/convert/requirements.ts).
    ════════════════════════════════════════════════════════════ */
 
 import * as React from "react";
@@ -19,6 +19,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   ChevronDown,
+  Download,
   Link2,
   PencilLine,
   Search,
@@ -28,16 +29,16 @@ import {
   ButtonLink,
   Card,
   Chip,
-  EmptyState,
   Progress,
+  StatusDot,
   cn,
   inputClass,
+  type Tone,
 } from "@/components/ui";
 import { toast } from "@/components/toast";
 import { YearBar } from "@/components/year-bar";
 import { currentYear } from "@/lib/year-range";
 import { StandardLogo } from "@/components/convert/standard-logo";
-import { DeclarationRows } from "@/components/convert/declaration-rows";
 import { ScopedInstallationSwitcher } from "@/components/scoped-installation-switcher";
 import { useDeclarations } from "@/lib/declarations-query";
 import { useT } from "@/lib/i18n";
@@ -59,7 +60,12 @@ import { getCarbonPrice } from "@/lib/carbon-price";
 import { buildVerificationExport } from "@/lib/export/verification-export";
 import { buildXlsx } from "@/lib/xlsx-write";
 import { createItemLink } from "@/lib/api/item-links";
-import { PreverifyPanel } from "@/components/convert/preverify-panel";
+import {
+  PreverifyMenu,
+  PreverifyPanel,
+  usePreverification,
+} from "@/components/convert/preverify-panel";
+import { stageDots, type StageDot } from "@/lib/api/preverifications";
 
 const STATE: Record<
   RequirementState,
@@ -70,11 +76,17 @@ const STATE: Record<
   missing: { label: "Missing", tone: "err" },
 };
 
+// An own plant is the default, so only the other roles get a label.
 const ROLE_LABEL = {
-  own: "Own plant",
   oem: "OEM plant",
   supplier: "Supplier plant",
 } as const;
+
+const DOT: Record<StageDot, { tone: Tone; label: string }> = {
+  ready: { tone: "err", label: "Ready" },
+  progress: { tone: "warn", label: "In progress" },
+  done: { tone: "ok", label: "Completed" },
+};
 
 export default function ConvertStandardPage() {
   return (
@@ -104,6 +116,30 @@ function ConvertStandardInner() {
     [yearCells, installation, year],
   );
 
+  const valid = s != null && s.status !== "soon";
+  // Only the current year has data so far: any other year shows every requirement missing.
+  const locked = year !== thisYear;
+  // Readiness and the export read the same year, so the gate cannot pass on one year and export another.
+  const live =
+    s && valid
+      ? liveRequirements(s, { installation, sheets: yearSheets, cells })
+      : [];
+  const requirements: LiveRequirement[] = locked
+    ? live.map((r) => ({ ...r, state: "missing", progress: 0 }))
+    : live;
+  const pct = readiness(requirements);
+  const incomplete = requirements.filter((r) => r.state !== "complete");
+  // Export stays locked until every requirement is complete, but Convert itself stays open to browse (D21).
+  const canConvert = valid && incomplete.length === 0;
+  const isCbam = valid && s?.id === "eu-cbam";
+  // Called before the early return below, so the hook order never changes between renders.
+  const pv = usePreverification(
+    installation?.id ?? null,
+    year,
+    canConvert,
+    isCbam,
+  );
+
   if (!s || s.status === "soon")
     return (
       <div className="space-y-6">
@@ -114,17 +150,6 @@ function ConvertStandardInner() {
       </div>
     );
 
-  // Only the current year has data so far: any other year shows every requirement missing.
-  const locked = year !== thisYear;
-  // Readiness and the export read the same year, so the gate cannot pass on one year and export another.
-  const live = liveRequirements(s, { installation, sheets: yearSheets, cells });
-  const requirements: LiveRequirement[] = locked
-    ? live.map((r) => ({ ...r, state: "missing", progress: 0 }))
-    : live;
-  const pct = readiness(requirements);
-  const incomplete = requirements.filter((r) => r.state !== "complete");
-  // Export stays locked until every requirement is complete, but Convert itself stays open to browse (D21).
-  const canConvert = incomplete.length === 0;
   const role = installation ? installationRole(installation) : null;
   const q = query.trim().toLowerCase();
   const rows = requirements.filter(
@@ -132,6 +157,24 @@ function ConvertStandardInner() {
   );
   // A declaration names its period; without one, the year it was created (or last changed) stands in.
   const yearHistory = declarations.filter((d) => declarationYear(d) === year);
+  const dots = stageDots(
+    requirements,
+    pv.state ?? "incomplete",
+    yearHistory.length > 0,
+  );
+  const stages: { label: string; dot: StageDot }[] = [
+    { label: "Complete", dot: dots.complete },
+    ...(isCbam
+      ? [
+          { label: "Under review", dot: dots.review },
+          { label: "Reporting", dot: dots.reporting },
+        ]
+      : []),
+  ];
+  // Fill in opens the workbook: CBAM answers on the CBAM tab, everything else on the sheets.
+  const fillHref = installation
+    ? `/workspace?installation=${encodeURIComponent(installation.id)}&year=${year}${isCbam ? "&sheet=cbam" : ""}`
+    : null;
 
   /* The verification file: only the allowlisted scope, built from the year's workbook and the
      installation's verification workspaces (lib/export/verifier-scope.ts). */
@@ -189,7 +232,7 @@ function ConvertStandardInner() {
             <h1 className="font-[family-name:var(--font-plex)] text-3xl font-light tracking-tight text-[#111]">
               {s.name}
             </h1>
-            {role && (
+            {role && role !== "own" && (
               <div className="mt-2">
                 <Chip tone="muted">{t(ROLE_LABEL[role])}</Chip>
               </div>
@@ -213,52 +256,45 @@ function ConvertStandardInner() {
         </div>
 
         <div className="flex flex-none flex-col items-start gap-2 md:items-end">
-          <Button
-            onClick={exportVerification}
-            disabled={!canConvert || !installation}
-            title={
-              canConvert
-                ? undefined
-                : `${t("Complete first")}: ${incomplete.map((r) => r.title).join(", ")}`
-            }
-            aria-describedby={canConvert ? undefined : "convert-incomplete"}
-            className="self-start"
-          >
-            {t("Export for verification")}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2 md:justify-end">
+            <Button
+              variant={isCbam ? "secondary" : "primary"}
+              onClick={exportVerification}
+              disabled={!canConvert || !installation}
+              aria-describedby={canConvert ? undefined : "convert-incomplete"}
+            >
+              <Download size={15} strokeWidth={1.5} />
+              {t("Export for verification")}
+            </Button>
+            {isCbam && installation && (
+              <PreverifyMenu pv={pv} canConvert={canConvert} />
+            )}
+          </div>
           {!canConvert && (
             <p
               id="convert-incomplete"
               className="max-w-xs text-[12px] leading-relaxed text-black/50 md:text-right"
             >
-              {t("Complete first")}:{" "}
-              {incomplete.map((r, i) => (
-                <React.Fragment key={r.id}>
-                  {i > 0 && ", "}
-                  {r.href ? (
-                    <Link
-                      href={r.href}
-                      className="underline underline-offset-2 hover:text-black"
-                    >
-                      {r.title}
-                    </Link>
-                  ) : (
-                    r.title
-                  )}
-                </React.Fragment>
-              ))}
+              {t("{n} requirements left before you can export or submit.", {
+                n: incomplete.length,
+              })}
             </p>
           )}
         </div>
       </div>
 
-      {s.id === "eu-cbam" && installation && (
-        <PreverifyPanel
-          installationId={installation.id}
-          year={year}
-          canConvert={canConvert}
-        />
-      )}
+      <ol aria-label={t("Progress")} className="flex flex-wrap gap-2">
+        {stages.map((st) => (
+          <li
+            key={st.label}
+            className="flex items-center gap-2 rounded-full border border-black/[0.07] bg-white px-3 py-1.5 text-[12.5px]"
+          >
+            <StatusDot tone={DOT[st.dot].tone} className="h-2 w-2" />
+            <span className="text-black/80">{t(st.label)}</span>
+            <span className="text-black/45">{t(DOT[st.dot].label)}</span>
+          </li>
+        ))}
+      </ol>
 
       {/* Reporting year: the shared bar (2020 → five years ahead, opening on
           the current year). Years ahead carry a lock but still open: they
@@ -318,6 +354,7 @@ function ConvertStandardInner() {
                 key={r.id}
                 r={r}
                 installationId={installation?.id ?? null}
+                fillHref={fillHref}
                 year={year}
                 first={i === 0}
                 open={open === r.id}
@@ -328,23 +365,7 @@ function ConvertStandardInner() {
         </Card>
       </section>
 
-      <section className="space-y-4">
-        <div>
-          <h2 className="font-[family-name:var(--font-plex)] text-xl font-light tracking-tight text-[#111]">
-            Report history
-          </h2>
-          <p className="mt-1 text-[12px] text-black/40">
-            {t("History covers all installations.")}
-          </p>
-        </div>
-        {yearHistory.length === 0 ? (
-          <EmptyState
-            title={t("No reports generated for {year} yet.", { year })}
-          />
-        ) : (
-          <DeclarationRows items={yearHistory} />
-        )}
-      </section>
+      {isCbam && installation && <PreverifyPanel pv={pv} />}
     </div>
   );
 }
@@ -377,6 +398,7 @@ function BackLinkInner() {
 function RequirementRow({
   r,
   installationId,
+  fillHref,
   year,
   first,
   open,
@@ -384,6 +406,8 @@ function RequirementRow({
 }: {
   r: LiveRequirement;
   installationId: string | null;
+  /** The workspace for this installation and year; null until an installation is chosen. */
+  fillHref: string | null;
   year: number;
   first: boolean;
   open: boolean;
@@ -392,7 +416,7 @@ function RequirementRow({
   const t = useT();
   const st = STATE[r.state];
   const [linking, setLinking] = React.useState(false);
-  // Both open the same form: Fill in here, or a Smart Link copied for someone outside to fill.
+  // Fill in opens the workspace. A Smart Link hands the form to someone outside, so it shows only where the data is theirs.
   const fillIn = (
     <>
       <PencilLine size={13} strokeWidth={1.5} /> {t("Fill in")}
@@ -422,7 +446,7 @@ function RequirementRow({
       setLinking(false);
     }
   };
-  const primary = r.fix === "fill-in" ? "fill" : "link";
+  const linkable = r.fix === "smart-link";
   return (
     <div
       className={cn(
@@ -462,32 +486,31 @@ function RequirementRow({
             {r.detail}
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            {r.href && installationId ? (
+            {fillHref && installationId ? (
               <>
                 <ButtonLink
-                  href={r.href}
-                  variant={primary === "fill" ? "primary" : "secondary"}
+                  href={fillHref}
+                  variant={linkable ? "secondary" : "primary"}
                   size="sm"
                 >
                   {fillIn}
                 </ButtonLink>
-                <Button
-                  variant={primary === "link" ? "primary" : "secondary"}
-                  size="sm"
-                  disabled={linking}
-                  onClick={copySmartLink}
-                >
-                  {smartLink}
-                </Button>
+                {linkable && (
+                  <Button size="sm" disabled={linking} onClick={copySmartLink}>
+                    {smartLink}
+                  </Button>
+                )}
               </>
             ) : (
               <>
                 <Button variant="secondary" size="sm" disabled>
                   {fillIn}
                 </Button>
-                <Button variant="secondary" size="sm" disabled>
-                  {smartLink}
-                </Button>
+                {linkable && (
+                  <Button variant="secondary" size="sm" disabled>
+                    {smartLink}
+                  </Button>
+                )}
                 <span className="text-[12px] text-black/40">
                   {t("Choose an installation")}
                 </span>

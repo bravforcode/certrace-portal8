@@ -2,8 +2,10 @@ import { db } from "../../lib/db";
 import { fail, missing } from "../../lib/errors";
 import type { preverifications } from "../../generated/prisma/client";
 import {
+  PREVERIFY_QUOTA,
   catalogueCells,
   decideStatus,
+  quotaUsed,
   runChecks,
   type Finding,
   type Status,
@@ -68,7 +70,37 @@ const companyInclude = {
 // Prisma's default 5s transaction window is too tight under load; a pool wait longer than 2s fails the request.
 const TX_OPTIONS = { timeout: 10_000, maxWait: 5_000 } as const;
 
+type Client = Pick<typeof db, "preverifications" | "users">;
+
+/** The quota is the company's, not one installation's or year's: the plan's three plus any credits bought. */
+async function quotaOf(companyId: string, client: Client = db) {
+  const [rows, company] = await Promise.all([
+    client.preverifications.findMany({
+      where: { company_id: companyId },
+      select: { status: true, ai_findings: true },
+    }),
+    client.users.findUnique({
+      where: { id: companyId },
+      select: { preverify_credits: true },
+    }),
+  ]);
+  return {
+    used: quotaUsed(rows),
+    quota: PREVERIFY_QUOTA + (company?.preverify_credits ?? 0),
+  };
+}
+
+const quotaExceeded = () =>
+  fail(
+    402,
+    "QUOTA_EXCEEDED",
+    "All pre-verifications in your plan are used. Top up on the billing page to submit again.",
+  );
+
 export async function submit(companyId: string, actorId: string, key: Key) {
+  // Checked before the AI review runs, so a refused submission costs no AI call.
+  const before = await quotaOf(companyId);
+  if (before.used >= before.quota) quotaExceeded();
   const wb = await db.workbooks.findUnique({
     where: workbookKey(companyId, key),
   });
@@ -99,6 +131,11 @@ export async function submit(companyId: string, actorId: string, key: Key) {
   try {
     // The checks and the AI review run above. Only these two fast writes sit inside the transaction.
     const row = await db.$transaction(async (tx) => {
+      // One submit per company at a time from here, so two requests cannot both spend the last use.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`preverify:${companyId}`}))`;
+      const now = await quotaOf(companyId, tx);
+      if (decideStatus(findings) === "team_review" && now.used >= now.quota)
+        quotaExceeded();
       // Earlier open submissions for this key can no longer be decided, so they are closed here.
       await tx.preverifications.updateMany({
         where: {
@@ -133,7 +170,7 @@ export async function submit(companyId: string, actorId: string, key: Key) {
 }
 
 export async function latest(companyId: string, key: Key) {
-  const [row, wb] = await Promise.all([
+  const [row, wb, quota] = await Promise.all([
     db.preverifications.findFirst({
       where: submissionScope(companyId, key),
       orderBy: { submitted_at: "desc" },
@@ -142,8 +179,13 @@ export async function latest(companyId: string, key: Key) {
       where: workbookKey(companyId, key),
       select: { revision: true },
     }),
+    quotaOf(companyId),
   ]);
-  return { latest: row ? view(row) : null, currentRevision: wb?.revision ?? 0 };
+  return {
+    latest: row ? view(row) : null,
+    currentRevision: wb?.revision ?? 0,
+    ...quota,
+  };
 }
 
 export async function adminList(status: Stored) {
@@ -283,5 +325,35 @@ export async function decide(
       include: companyInclude,
     });
     return adminView(updated);
+  }, TX_OPTIONS);
+}
+
+/** Adds pre-verifications bought on top of the plan (a sales-managed top-up). */
+export async function grantCredits(
+  companyId: string,
+  adminId: string,
+  add: number,
+  note: string,
+) {
+  return db.$transaction(async (tx) => {
+    const company = await tx.users
+      .update({
+        where: { id: companyId },
+        data: { preverify_credits: { increment: add } },
+        select: { preverify_credits: true },
+      })
+      .catch((e: { code?: string }) => {
+        if (e.code === "P2025") missing("COMPANY_NOT_FOUND");
+        throw e;
+      });
+    await tx.account_audit_events.create({
+      data: {
+        user_id: companyId,
+        event: "preverification.credits_granted",
+        actor: "ADMIN",
+        details: { adminUserId: adminId, added: add, note },
+      },
+    });
+    return { credits: company.preverify_credits };
   }, TX_OPTIONS);
 }

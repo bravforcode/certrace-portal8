@@ -19,6 +19,7 @@ import {
   PlayCircle,
   ExternalLink,
   PanelLeft,
+  Factory,
 } from "lucide-react";
 import { cn } from "./ui";
 import { Dropdown } from "./controls";
@@ -437,6 +438,14 @@ function AccountMenu() {
             >
               <Bell size={15} strokeWidth={1.5} className="text-black/40" />{" "}
               {t("Notification settings")}
+            </Link>
+            <Link
+              href="/settings?tab=installation"
+              onClick={close}
+              className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] text-black/70 hover:bg-[#fafaf8]"
+            >
+              <Factory size={15} strokeWidth={1.5} className="text-black/40" />{" "}
+              {t("Installation")}
             </Link>
             <Link
               href="/billing"
