@@ -63,6 +63,9 @@ update both `Caddyfile` and `APP_BASE_URL`; point its DNS at the VPS and allow p
 The service sits behind the `caddy` Compose profile, which the example `.env`
 turns on with `COMPOSE_PROFILES=caddy`. Remove that line when the host already
 runs its own proxy on 80/443; `docker compose up -d` then skips Caddy.
+On a host that already runs another stack named `certrace`, set
+`COMPOSE_PROJECT_NAME` in `.env` to this stack's own name. It overrides `name:` in
+the Compose file, so the repository copy can be used as is.
 
 To start the proxy or reload an edited Caddyfile:
 

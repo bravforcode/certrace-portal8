@@ -2,12 +2,12 @@
   "version": 1,
   "created_at": "2026-11-10T19:53:23.277Z",
   "lifetime": {
-    "total_tokens_estimated": 719170,
-    "total_reads": 110,
+    "total_tokens_estimated": 840265,
+    "total_reads": 115,
     "total_writes": 216,
-    "total_sessions": 31,
+    "total_sessions": 32,
     "anatomy_hits": 40,
-    "anatomy_misses": 65,
+    "anatomy_misses": 70,
     "repeated_reads_warned": 29,
     "repeated_reads_blocked": 0,
     "estimated_savings_vs_bare_cli": 0
@@ -2857,6 +2857,73 @@
         "output_tokens_estimated": 1269,
         "reads_count": 1,
         "writes_count": 1,
+        "repeated_reads_warned": 0,
+        "repeated_reads_blocked": 0,
+        "anatomy_lookups": 0
+      },
+      "provider_usage": {
+        "status": "unknown",
+        "measurement_kind": "unknown",
+        "provider": null,
+        "model": null,
+        "source": "stop_hook",
+        "usage": {
+          "input_tokens": null,
+          "cached_input_tokens": null,
+          "output_tokens": null,
+          "reasoning_output_tokens": null,
+          "total_tokens": null
+        },
+        "reason": "The stop hook has no provider-native usage receipt. Codex JSONL token_count semantics remain unverified."
+      }
+    },
+    {
+      "id": "session-2026-11-13T08-28-31-886Z",
+      "started": "2026-11-13T08:28:31.888Z",
+      "ended": "2026-11-13T08:35:42.359Z",
+      "reads": [
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-portal/.ui-shots/03a-dropdown-unit.png",
+          "tokens_estimated": 11495,
+          "was_repeated": false,
+          "repeat_count": 1,
+          "anatomy_had_description": false
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-portal/.ui-shots/01-convert-banner.png",
+          "tokens_estimated": 8344,
+          "was_repeated": false,
+          "repeat_count": 1,
+          "anatomy_had_description": false
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-portal/.ui-shots/04d-import-section-draft.png",
+          "tokens_estimated": 28081,
+          "was_repeated": false,
+          "repeat_count": 1,
+          "anatomy_had_description": false
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-portal/.ui-shots/02b-toggle-flow.png",
+          "tokens_estimated": 1492,
+          "was_repeated": false,
+          "repeat_count": 1,
+          "anatomy_had_description": false
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-portal/.ui-shots/04b-import-section-viewport.png",
+          "tokens_estimated": 71683,
+          "was_repeated": false,
+          "repeat_count": 1,
+          "anatomy_had_description": false
+        }
+      ],
+      "writes": [],
+      "totals": {
+        "input_tokens_estimated": 121095,
+        "output_tokens_estimated": 0,
+        "reads_count": 5,
+        "writes_count": 0,
         "repeated_reads_warned": 0,
         "repeated_reads_blocked": 0,
         "anatomy_lookups": 0

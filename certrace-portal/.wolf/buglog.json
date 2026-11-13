@@ -1293,6 +1293,55 @@
       "related_bugs": [],
       "occurrences": 1,
       "last_seen": "2026-11-13T00:00:00.000Z"
+    },
+    {
+      "id": "bug-082",
+      "timestamp": "2026-11-13T08:06:10.141Z",
+      "error_message": "Wrong reference: Sea should be Air",
+      "file": "lib/i18n-th-workspace.ts",
+      "root_cause": "Used \"Sea\" instead of \"Air\"",
+      "fix": "Changed Sea → Air",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T08:06:10.141Z"
+    },
+    {
+      "id": "bug-083",
+      "timestamp": "2026-11-13T09:00:00.000Z",
+      "error_message": "Import file section heading hidden under sticky shell header after open",
+      "file": "components/workspace/import-file-panel.tsx",
+      "root_cause": "scrollIntoView targeted the h2 (no scroll margin) while the shell header is sticky top-0 h-16",
+      "fix": "Scroll the #import-file-section wrapper instead, with scroll-mt-24",
+      "tags": [
+        "ui",
+        "scroll",
+        "sticky-header"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T09:00:00.000Z"
+    },
+    {
+      "id": "bug-084",
+      "timestamp": "2026-11-13T09:00:00.000Z",
+      "error_message": "TS1117 duplicate key Sea in i18n-th-workspace",
+      "file": "lib/i18n-th-workspace.ts",
+      "root_cause": "New transport-mode strings re-added Sea, which already existed earlier in the map",
+      "fix": "Removed the new duplicate; kept the original Sea entry (bug-082 auto entry describing Sea->Air is inaccurate)",
+      "tags": [
+        "i18n",
+        "duplicate-key"
+      ],
+      "related_bugs": [
+        "bug-082"
+      ],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T09:00:00.000Z"
     }
   ]
 }

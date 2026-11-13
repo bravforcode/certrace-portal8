@@ -24,7 +24,12 @@ export type Workbook = {
 };
 
 /** A poll that already holds the current revision gets this instead of the whole workbook. */
-export type WorkbookUnchanged = { changed: false; revision: number };
+export type WorkbookUnchanged = {
+  changed: false;
+  revision: number;
+  /** Moves without the revision when Certrace marks a file reviewed. */
+  updatedAt?: string;
+};
 
 const wb = (iid: string) => api().api.v1.workbooks({ installationId: iid });
 

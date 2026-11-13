@@ -400,6 +400,38 @@
       "related_bugs": [],
       "occurrences": 1,
       "last_seen": "2026-11-13T01:10:13.636Z"
+    },
+    {
+      "id": "bug-026",
+      "timestamp": "2026-11-13T07:04:19.710Z",
+      "error_message": "Null/undefined access in ",
+      "file": "src/modules/workbooks/service.ts",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T07:04:19.710Z"
+    },
+    {
+      "id": "bug-027",
+      "timestamp": "2026-11-13T07:05:12.749Z",
+      "error_message": "Wrong condition in logic",
+      "file": "../certrace-portal/lib/workbook/use-workbook.ts",
+      "root_cause": "Condition was: if (!next.changed || (cached && next.revision < cached)",
+      "fix": "Changed to: if (\n        !next.changed &&\n        cached &&\n      )",
+      "tags": [
+        "auto-detected",
+        "logic-fix",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T07:05:12.749Z"
     }
   ]
 }

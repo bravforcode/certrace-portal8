@@ -3,8 +3,9 @@
 /* ════════════════════════════════════════════════════════════
    ONE STANDARD — what converting into it needs, and the button that does it
 
-   Logo, name and description on top, with Export for verification and, for
-   CBAM, the Pre-verify menu (quota, submit, top up). Under them three status
+   Logo, name and description on top, with Export for verification: a plain
+   download, or on CBAM one menu that also holds pre-verification (quota,
+   submit, top up). Under them three status
    dots (complete, under review, reporting: red ready, yellow in progress,
    green completed), the reporting year, and each requirement with its
    readiness: Fill in opens the workspace, and a Smart Link is offered only
@@ -257,17 +258,21 @@ function ConvertStandardInner() {
 
         <div className="flex flex-none flex-col items-start gap-2 md:items-end">
           <div className="flex flex-wrap items-center gap-2 md:justify-end">
-            <Button
-              variant={isCbam ? "secondary" : "primary"}
-              onClick={exportVerification}
-              disabled={!canConvert || !installation}
-              aria-describedby={canConvert ? undefined : "convert-incomplete"}
-            >
-              <Download size={15} strokeWidth={1.5} />
-              {t("Export for verification")}
-            </Button>
-            {isCbam && installation && (
-              <PreverifyMenu pv={pv} canConvert={canConvert} />
+            {isCbam && installation ? (
+              <PreverifyMenu
+                pv={pv}
+                canConvert={canConvert}
+                onExport={exportVerification}
+              />
+            ) : (
+              <Button
+                onClick={exportVerification}
+                disabled={!canConvert || !installation}
+                aria-describedby={canConvert ? undefined : "convert-incomplete"}
+              >
+                <Download size={15} strokeWidth={1.5} />
+                {t("Export for verification")}
+              </Button>
             )}
           </div>
           {!canConvert && (

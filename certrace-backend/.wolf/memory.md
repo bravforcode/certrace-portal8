@@ -92,3 +92,13 @@
 |------|--------|---------|---------|--------|
 | 07:08 | Created test/preverify-submit.test.ts | — | ~1795 |
 | 08:10 | Edited ../scripts/test-migrations.ts | expanded (+7 lines) | ~67 |
+| 14:04 | Edited src/modules/workbooks/service.ts | added optional chaining | ~83 |
+| 14:05 | Edited ../certrace-portal/lib/api/workbooks.ts | 1→6 lines | ~49 |
+| 14:05 | Edited ../certrace-portal/lib/workbook/use-workbook.ts | added 1 condition(s) | ~155 |
+
+## Session: 2026-11-13 14:22
+
+| Time | Action | File(s) | Outcome | ~Tokens |
+|------|--------|---------|---------|--------|
+| 15:15 | Created ../../../Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/00828282-ea26-4a08-9dc4-4c94036a81c7/scratchpad/mint.ts | — | ~111 |
+| 15:22 | Created ../../../Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/00828282-ea26-4a08-9dc4-4c94036a81c7/scratchpad/shots.cjs | — | ~2243 |

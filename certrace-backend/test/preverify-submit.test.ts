@@ -227,6 +227,20 @@ describe("workbook files (PostgreSQL)", () => {
     wb = await (await call(base, "GET", undefined, a.cookie)).json();
     expect(typeof wb.meta.files[0].reviewedAt).toBe("string");
 
+    // A review keeps the revision, so the open workspace's cheap poll must still see that something moved.
+    const before = wb.updatedAt;
+    expect(
+      (await call(path, "PUT", { reviewed: false }, boss.cookie)).status,
+    ).toBe(200);
+    const poll = await (
+      await call(`${base}?since=${wb.revision}`, "GET", undefined, a.cookie)
+    ).json();
+    expect(poll.changed).toBe(false);
+    expect(poll.updatedAt > before).toBe(true);
+    expect((await call(path, "PUT", { reviewed: true }, boss.cookie)).status).toBe(
+      200,
+    );
+
     // A later customer save keeps the stored review instead of dropping it.
     await call(
       base + "/meta",

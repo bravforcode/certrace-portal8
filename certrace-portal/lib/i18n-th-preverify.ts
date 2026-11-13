@@ -9,6 +9,11 @@ export const TH_PREVERIFY: Record<string, string> = {
   "AI check": "การตรวจด้วย AI",
   "Certrace team review": "ทีมงาน Certrace ตรวจทาน",
   "Pre-verified": "ผ่านการตรวจสอบล่วงหน้า",
+  "Download verification file": "ดาวน์โหลดไฟล์สำหรับการตรวจสอบ",
+  "Complete every requirement, then submit from Export for verification above.":
+    "กรอกข้อกำหนดให้ครบ แล้วส่งจากปุ่ม Export for verification ด้านบน",
+  "The workbook is complete. Submit it from Export for verification above.":
+    "เวิร์กบุ๊กครบแล้ว ส่งได้จากปุ่ม Export for verification ด้านบน",
   "Action needed": "ต้องดำเนินการ",
   Outdated: "ล้าสมัย",
   Error: "ข้อผิดพลาด",
