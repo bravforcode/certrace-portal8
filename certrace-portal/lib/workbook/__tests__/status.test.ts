@@ -210,7 +210,7 @@ test("a CFP factor without its emission factor is missing, so the CFP tab never 
     cols: [],
     rows: [
       {
-        cells: { stage: "Production", item: "Electricity", qty: "1.2", unit: "kWh", efSource: "TGO EF" },
+        cells: { product: "4011 10", stage: "Production", item: "Electricity", qty: "1.2", unit: "kWh", ef_source: "TGO EF" },
         status: "confirmed",
       },
     ],
@@ -223,4 +223,60 @@ test("a CFP factor without its emission factor is missing, so the CFP tab never 
 test("regulation maps sit after 00-09, so the shared sheets keep their order", () => {
   assert.equal(SHEET_ORDER.includes("cfp"), false);
   assert.equal(SHEET_ORDER.includes("cfp-product"), false);
+});
+
+test("a transport row without its outbound EF is missing, so a tkm result is never assumed", () => {
+  const t: Sheet = {
+    id: "cfp-transport",
+    code: "C3",
+    name: "TGO CFP transport",
+    cols: [],
+    rows: [
+      {
+        cells: {
+          product: "4011 10",
+          stage: "Raw material acquisition",
+          item: "Natural rubber",
+          qty: "0.5",
+          unit: "kg",
+          distance: "70.7",
+          vehicle: "6-wheel truck 11 t",
+        },
+        status: "confirmed",
+      },
+    ],
+  };
+  assert.equal(sheetStatus(t), "missing");
+  t.rows[0].cells.ef_tkm = "0.0613";
+  assert.equal(sheetStatus(t), "complete");
+});
+
+test("C3-C7 also sit after 00-09", () => {
+  for (const id of ["cfp-transport", "cfp-support", "cfp-luc", "cfp-baseyear", "cfp-reduction"])
+    assert.equal(SHEET_ORDER.includes(id), false, id);
+});
+
+test("a verification report without its conclusion is missing, so a report is never complete unsigned", () => {
+  const v: Sheet = {
+    id: "cbam-verification",
+    code: "V1",
+    name: "EU CBAM verification report",
+    cols: [],
+    rows: [
+      {
+        cells: {
+          report_id: "VR-2026-001",
+          period: "2026",
+          site_visit: "Physical",
+          materiality: "5%",
+          signed_by: "A. Verifier",
+          signed_date: "2027-03-01",
+        },
+        status: "confirmed",
+      },
+    ],
+  };
+  assert.equal(sheetStatus(v), "missing");
+  v.rows[0].cells.statement = "Reasonable assurance";
+  assert.equal(sheetStatus(v), "complete");
 });

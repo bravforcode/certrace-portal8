@@ -9,8 +9,9 @@ Sources read for this map (November 2026):
   2025/2547 (embedded emissions), 2025/2620 (benchmarks), 2025/2621 (default values), and the CBAM
   Communication template for installations (sheets A_InstData, B_EmInst, C_Emissions&Energy,
   D_Processes, E_PurchPrec).
-- TGO CFP: forms TGO/CFP-V02-2014 Fr-01 to Fr-06.2 in ten customer CFP workbooks, the HWA Fong tire
-  and tube CFP workbooks with their SP document, and the A.J. Plast BOPA verification sheet and deck.
+- TGO CFP: forms TGO/CFP-V02-2014 Fr-01 to Fr-06.2 in the HWA Fong tire and tube CFP workbooks with
+  their SP document, and the A.J. Plast BOPA verification sheet and deck. The ten numbered consumer
+  (B2C) CFP workbooks are out of scope and were not used.
 - TGO emission factor lists (Thai National LCI database), published July 2565 (in force 1 Jan 2566)
   and 2 Oct 2569 (in force 1 Oct 2569).
 
@@ -46,33 +47,55 @@ in `lib/cbam/template-fields.ts` (`CBAM_FIELDS`). These include:
 
 This work did not add a second CBAM map.
 
-## TGO CFP map (tabs C1 and C2)
+## TGO CFP map (tabs C1-C7)
 
-| Tab | Column | Form reference |
+Every CFP tab names its product by CN code (picked from 01) so rows from several products can share a
+tab. Column keys are snake_case: the backend refuses any other cell key.
+
+| Tab | Columns | Form reference |
 |---|---|---|
-| C1 TGO CFP product | CN code (from 01) | links the CFP to a product |
-| C1 | Functional unit | Fr-01 |
-| C1 | Scope (B2C or B2B) | Fr-01 |
-| C1 | PCR | Fr-01; SP section 2 |
-| C1 | Sales volume, unit | Fr-01 |
-| C2 TGO CFP factors | Life-cycle stage | Fr-04.1 column A; Fr-05 rows |
-| C2 | Item (from 03, 04, 06, 07) | Fr-04.1 column B |
-| C2 | Quantity per FU, unit | Fr-04.1 LCI quantity per FU |
-| C2 | EF (kgCO2e/unit) | Fr-04.1 EF column |
-| C2 | EF source (Self collect, Supplier, PCR Gen., TGO EF, Int. DB, Others) | Fr-04.1 row 9 |
-| C2 | EF reference | Fr-04.1 EF reference (e.g. a TGO EF list version) |
-| C2 | Allocation % | Fr-04.1 allocation |
-| C2 | Cut-off | Fr-04.1 cut-off |
+| C1 TGO CFP product | CN code, functional unit, scope (B2C or B2B), PCR, sales volume, unit | Fr-01; SP section 2 |
+| C1 | Benchmark (kgCO2e), benchmark source | Fr-06.2 |
+| C2 TGO CFP factors | Product, life-cycle stage, item (from 03, 04, 06, 07), quantity per FU, unit, EF, EF source (Self collect, Supplier, PCR Gen., TGO EF, Int. DB, Others), EF reference, allocation %, cut-off | Fr-04.1; Fr-05 rows |
+| C3 TGO CFP transport | Product, stage, item carried, quantity per FU, unit, distance, vehicle, % loaded out, % loaded back, EF out (kgCO2e/tkm), EF back (kgCO2e/km), EF reference | Fr-04.2 distance method |
+| C4 TGO CFP support units | Product, support unit, input or output, item, quantity, unit, quantity per FU, EF, EF source, EF reference | Fr-04.3 |
+| C5 TGO CFP land use change | Product, raw material, unit, quantity per unit, yield per rai per year, tenure, district, province, latitude, longitude, year and use before, year and use after, EF (kgCO2e/rai/year), EF reference | Fr-04.4 |
+| C6 TGO CFP base year | Product, stage, base year and its kgCO2e, current year and its kgCO2e | Fr-06.1 table 1 |
+| C7 TGO CFP reduction measures | Product, measure type (the 13 Fr-06.1 types), detail, result | Fr-06.1 table 2 |
+
+### EF reference
+
+The EF reference cell offers every row of both TGO emission factor lists: 539 rows of the 2569 list
+first, then 593 rows of the 2565 list (`lib/cfp/tgo-ef-data.ts`). Each choice reads
+`TGO EF <version> #<row> <name> [<unit>]`. Picking one fills the factor if that cell is still empty:
+a tkm row fills EF out and a km row fills EF back on C3, and any other row fills EF. It also fills
+EF source with "TGO EF" where the tab has that column. Typing narrows the list.
+
+## EU CBAM verification report (tab V1)
+
+One row per verification report, the items of the Implementing Regulation 2025/2546 Annex not held
+elsewhere: report identifier, reporting period, verifier address, outsourced offices, accreditation
+expiry and scope, team leader, team, site visit team, site visit (Physical, Virtual, Waived), visit
+dates, days on site, last physical visit, reason for a virtual visit or waiver, other visits,
+objectives and scope, monitoring plan version and date, verification criteria, materiality level
+(5%), zero-rated fuels, CO2 capture, verification statement (Reasonable assurance or Not reasonable
+assurance), misstatements and non-conformities corrected and remaining, remaining non-compliance,
+recommendations, signed by, signed on.
+
+Annex items held elsewhere: installation details (00 and the CBAM tab), verifier name, contact and
+accreditation (CBAM tab I45-I53), heat and waste gases (CBAM tab), precursor verifier and statement
+(`lib/cbam/precursor-fields.ts`).
 
 ## Not yet mapped
 
-These fields are not in any tab yet:
+- CFP Fr-04.2 fuel method (litres of fuel per trip). None of the source workbooks uses it.
+- CBAM 2025/2546 Annex items 3 and 4: the summary report annex and the electricity addendum.
 
-- CFP:
-  - Fr-04.2 tkm parameters (load %, return %, vehicle class, EF per tkm or per km)
-  - Fr-04.3 support units
-  - Fr-04.4 land use change (yield, tenure, location, before and after use)
-  - Fr-06.1 base-year comparison and reduction measures
-  - Fr-06.2 benchmark
-- CBAM 2025/2546: verification report items (site visit type, materiality threshold, verification
-  statement). The template covers verifier identity only.
+## Data-quality findings in the sources
+
+- HWA Fong TIRE and Tube: the transport total 110158.7754 is the same in Fr-04.2 (R33, R82) and
+  Fr-05 R14, and is 99.9989% of the raw-material share. It looks like it was not divided by the
+  functional unit, and the Tube workbook appears to copy the TIRE value.
+- HWA Fong TIRE and Tube: Fr-06.2 holds placeholder benchmark values (18.5 and 18.2), not a sourced
+  benchmark.
+- A.J. Plast BOPA: cell A10 of the verification sheet shows `#VALUE!`.

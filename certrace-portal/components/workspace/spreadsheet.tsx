@@ -68,6 +68,7 @@ import { CELL_MAX } from "@/lib/workbook/save-queue";
 import { toast } from "@/components/toast";
 import { rowWindow } from "@/lib/row-window";
 import { cellOptions } from "@/lib/workbook/cell-options";
+import { efFill } from "@/lib/cfp/tgo-ef";
 import { CnCellPicker } from "@/components/workspace/cn-cell-picker";
 import {
   INSTALLATION_SHEET_ID,
@@ -385,6 +386,12 @@ export function Spreadsheet({
     if (!row || !onEdit) return;
     if (value === valueOf(row, r, c)) return;
     onEdit(keyOf(r, c), value);
+    // A TGO EF reference also fills the factor (and EF source) when those cells are still empty.
+    if (cols[c]?.key === "ef_ref")
+      for (const [key, v] of Object.entries(efFill(cols.map((x) => x.key), value))) {
+        const i = cols.findIndex((x) => x.key === key);
+        if (i >= 0 && !valueOf(row, r, i).trim()) onEdit(keyOf(r, i), v);
+      }
   };
 
   // Keeps the selected cell in view after keyboard moves, without scrolling the page by more than it needs.
