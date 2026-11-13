@@ -2910,6 +2910,8 @@ export const TH: Record<string, string> = {
   "Derived from what you entered": "คำนวณจากข้อมูลที่คุณกรอก",
   "Chargeable (own process)": "ส่วนที่ต้องชำระ (กระบวนการของตนเอง)",
   "before precursors": "ก่อนรวมวัตถุดิบตั้งต้น",
+  "Unknown: the CN codes do not share one CBAM sector":
+    "ไม่ทราบ: รหัส CN ไม่ได้อยู่ในภาค CBAM เดียวกัน",
   "Evidence pack": "ชุดหลักฐาน",
   "One number, one document": "หนึ่งตัวเลข หนึ่งเอกสาร",
   "A verifier does not read a folder — they pick a figure and ask to see what proves it. Attach each document to the input it supports, and the answer takes seconds instead of an afternoon.":

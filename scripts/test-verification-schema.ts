@@ -91,7 +91,7 @@ async function untouched() {
       (
         await sql(
           // Compare every pre-existing file field; the added location starts null.
-          `SELECT coalesce(jsonb_agg(j ORDER BY j::text),'[]') FROM (SELECT to_jsonb(t)${["public.account_files", "public.uploaded_files"].includes(name) ? " - 'object_key'" : name === "public.users" ? " - 'ready' - 'is_admin' - 'approved_at' - 'locale'" : ""} j FROM ${name} t) x`,
+          `SELECT coalesce(jsonb_agg(j ORDER BY j::text),'[]') FROM (SELECT to_jsonb(t)${["public.account_files", "public.uploaded_files"].includes(name) ? " - 'object_key'" : name === "public.users" ? " - 'ready' - 'is_admin' - 'approved_at' - 'locale' - 'preverify_credits'" : ""} j FROM ${name} t) x`,
         )
       ).out,
     ]),

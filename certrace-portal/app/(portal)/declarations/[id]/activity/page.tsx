@@ -114,8 +114,9 @@ import {
   PENALTY_TITLE,
   PENALTY_SUBTITLE,
   publishedDefaultFor,
+  sharedSector,
 } from "@/lib/cbam/data-gaps";
-import { defaultMarkup, rowForAnyCn } from "@/lib/cbam/eu-rates";
+import { defaultMarkup } from "@/lib/cbam/eu-rates";
 import { getCatalogProduct } from "@/lib/config";
 import { certificatePriceSource } from "@/lib/carbon-economics";
 import { compareShippedToProduced } from "@/lib/annual-production";
@@ -1260,17 +1261,17 @@ function DerivedTotals({
   /* The Annex I row needs one CN code. Several codes would need the production
      split per good, which the dataset does not hold, so no figure is shown. */
   const ownCn = ownCnCodes.length === 1 ? ownCnCodes[0] : null;
-  /* Chargeability needs only the sector, so it holds for several CN codes as long as they share one. */
-  const sectors = new Set(ownCnCodes.map((cn) => rowForAnyCn(cn)?.sector));
-  const sector = sectors.size === 1 ? [...sectors][0] : undefined;
+  /* Chargeability needs only the sector, so it holds for several CN codes as long as they share one.
+     Without one shared sector it is unknown: no chargeable figure is shown rather than a direct-only guess. */
+  const sector = sharedSector(ownCnCodes);
   const chargeable = sector
     ? chargeablePerTonne(sector, directPerTonne, indirectPerTonne)
-    : directPerTonne;
+    : null;
   const published = ownCn
     ? publishedDefaultFor(ownCn, country, reportingYear)
     : null;
   const penalty =
-    ownCn && sector && published !== null
+    ownCn && sector && chargeable !== null && published !== null
       ? dataGapPenalty({
           defaultValue: published,
           chargeableSEE: chargeable,
@@ -1298,12 +1299,16 @@ function DerivedTotals({
         <Derived
           label={t("Indirect")}
           value={`${indirectPerTonne.toFixed(7)} tCO₂e/t`}
-          sub={`${totals.indirectTCO2.toFixed(2)} tCO₂ · ${sector && indirectIsChargeable(sector) ? "chargeable for this good" : "reported, not chargeable for this good"}`}
+          sub={`${totals.indirectTCO2.toFixed(2)} tCO₂ · ${!sector ? "chargeability unknown" : indirectIsChargeable(sector) ? "chargeable for this good" : "reported, not chargeable for this good"}`}
         />
         <Derived
           label={t("Chargeable (own process)")}
-          value={`${chargeable.toFixed(7)} tCO₂e/t`}
-          sub={t("before precursors")}
+          value={chargeable === null ? "—" : `${chargeable.toFixed(7)} tCO₂e/t`}
+          sub={
+            chargeable === null
+              ? t("Unknown: the CN codes do not share one CBAM sector")
+              : t("before precursors")
+          }
         />
       </div>
       {totals.blocked > 0 && (

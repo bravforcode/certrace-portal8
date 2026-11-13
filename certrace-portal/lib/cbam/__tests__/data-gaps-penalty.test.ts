@@ -14,6 +14,7 @@ import {
   dataGapPenalty,
   ownGoodsCnCodes,
   publishedDefaultFor,
+  sharedSector,
 } from "../data-gaps";
 
 test("the penalty default is the Thai Annex I row for the CN code, in the reporting year", () => {
@@ -77,4 +78,14 @@ test("the penalty's CN is the exporter's own good: its self-supplied request, on
     ),
     [],
   );
+});
+
+test("chargeability is known only when every own CN code maps to one shared sector", () => {
+  /* Indirect counts for cement but not steel, so a mixed or unmapped set has no
+     single answer: the screen must show it as unknown, not quietly drop indirect. */
+  assert.equal(sharedSector(["2523 29 00", "2523 10 00"]), "Cement");
+  assert.equal(sharedSector(["2523 29 00", "7208 10 00"]), undefined);
+  assert.equal(sharedSector(["2523 29 00", "9999 99 99"]), undefined);
+  assert.equal(sharedSector(["9999 99 99"]), undefined);
+  assert.equal(sharedSector([]), undefined);
 });

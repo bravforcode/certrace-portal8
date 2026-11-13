@@ -6917,6 +6917,8 @@ export const ZH: Record<string, string> = {
     "允许使用假设 — 但不允许未声明的假设。下面每一条都会出现在监测方法文件的假设登记册中，核查员会问每一条是如何得出的，是否偏向对您有利。",
   "Awaiting the published default": "等待公布的默认值",
   "before precursors": "前体之前",
+  "Unknown: the CN codes do not share one CBAM sector":
+    "未知：这些 CN 编码不属于同一 CBAM 行业",
   "Carbon content (0–1)": "含碳量 (0–1)",
   "Carbon that leaves as CO₂ without being burned as fuel — graphite electrodes, limestone flux. Mass × carbon content × 44/12.":
     "不作为燃料燃烧、却以 CO₂ 形式离开的碳 — 石墨电极、石灰石熔剂。质量 × 含碳量 × 44/12。",

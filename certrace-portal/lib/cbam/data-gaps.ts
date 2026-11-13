@@ -34,7 +34,8 @@ import {
   type ExposureResult,
   type GoodsCategory,
 } from "./engine";
-import { lookupDefault, rateForYear } from "./eu-rates";
+import { lookupDefault, rateForYear, rowForAnyCn } from "./eu-rates";
+import type { CnRow } from "./data/cn-catalogue";
 import { SELF_SUPPLIER_ID } from "../data";
 
 /* ── Estimation methods ─────────────────────────────────────────
@@ -257,6 +258,15 @@ export function ownGoodsCnCodes(
     }
   }
   return [...codes];
+}
+
+/** The one sector all of these CN codes belong to; undefined when the set is
+    empty, any code has no row, or the codes span sectors. Chargeability is then
+    unknown, because indirect counts for some sectors and not others. */
+export function sharedSector(cnCodes: string[]): CnRow["sector"] | undefined {
+  const sectors = new Set(cnCodes.map((cn) => rowForAnyCn(cn)?.sector));
+  if (sectors.size !== 1) return undefined;
+  return [...sectors][0];
 }
 
 /** Direct, plus indirect where the sector makes indirect chargeable

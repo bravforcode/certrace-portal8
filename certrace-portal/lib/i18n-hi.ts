@@ -5085,6 +5085,7 @@ export const HI: Record<string, string> = {
   "Assumptions are allowed — undeclared ones are not. Every entry below appears in the Monitoring Methodology Documentation's assumptions register, and a verifier will ask how each was derived and whether it was biased in your favour.": "धारणाएँ मान्य हैं — अघोषित धारणाएँ नहीं। नीचे की हर प्रविष्टि निगरानी पद्धति दस्तावेज़ीकरण के धारणा-रजिस्टर में दिखती है, और सत्यापनकर्ता पूछेगा कि हर एक कैसे निकाली गई और क्या वह आपके पक्ष में झुकी थी।",
   "Awaiting the published default": "प्रकाशित डिफ़ॉल्ट की प्रतीक्षा",
   "before precursors": "पूर्ववर्ती सामग्री से पहले",
+  "Unknown: the CN codes do not share one CBAM sector": "अज्ञात: CN कोड एक ही CBAM क्षेत्र में नहीं हैं",
   "Carbon content (0–1)": "कार्बन अंश (0–1)",
   "Carbon that leaves as CO₂ without being burned as fuel — graphite electrodes, limestone flux. Mass × carbon content × 44/12.": "वह कार्बन जो ईंधन की तरह जले बिना CO₂ बनकर निकलता है — ग्रेफ़ाइट इलेक्ट्रोड, चूना पत्थर फ़्लक्स। द्रव्यमान × कार्बन अंश × 44/12।",
   "Chargeable (own process)": "प्रभार्य (अपनी प्रक्रिया)",
