@@ -51,9 +51,18 @@ export type AdminPreverification = PreverificationView & {
   stale: boolean;
 };
 
+export type AdminPreverificationFile = {
+  id: string;
+  name: string;
+  description: string;
+  reviewedAt: string | null;
+};
+
 export type AdminPreverificationDetail = AdminPreverification & {
   /** Reviewed CBAM cells, keyed `cbam:0:<fieldId>`. */
   cells: Record<string, string>;
+  /** Evidence files uploaded for this installation and year. */
+  files: AdminPreverificationFile[];
 };
 
 export type PreverifyState =
@@ -168,4 +177,20 @@ export function stageDots(
   const reporting: StageDot =
     state !== "approved" ? "ready" : hasDeclaration ? "done" : "progress";
   return { complete, review, reporting };
+}
+
+/** Marks one evidence file reviewed by Certrace (or clears it). The customer sees a green dot. */
+export async function reviewWorkbookFile(
+  row: Pick<AdminPreverification, "companyId" | "installationId" | "year">,
+  fileId: string,
+  reviewed: boolean,
+): Promise<void> {
+  await result(
+    api()
+      .api.admin.workbooks({ companyId: row.companyId })({
+        installationId: row.installationId,
+      })({ year: row.year })
+      .files({ fileId })
+      .review.put({ reviewed }),
+  );
 }

@@ -10,6 +10,7 @@ import { isApiError } from "@/lib/api";
 import {
   decidePreverification,
   getPreverificationDetail,
+  reviewWorkbookFile,
   type AdminPreverificationDetail,
 } from "@/lib/api/preverifications";
 import {
@@ -31,6 +32,7 @@ export default function PreverificationDetailPage() {
   const [error, setError] = React.useState("");
   const [note, setNote] = React.useState("");
   const [saving, setSaving] = React.useState(false);
+  const [reviewing, setReviewing] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     let live = true;
@@ -72,6 +74,27 @@ export default function PreverificationDetailPage() {
         ? "The customer changed the data after the AI check. It cannot be decided; they must submit again."
         : null
     : null;
+
+  async function toggleReview(fileId: string, reviewed: boolean) {
+    if (!detail) return;
+    setReviewing(fileId);
+    try {
+      await reviewWorkbookFile(detail, fileId, reviewed);
+      const at = reviewed ? new Date().toISOString() : null;
+      setDetail({
+        ...detail,
+        files: detail.files.map((f) =>
+          f.id === fileId ? { ...f, reviewedAt: at } : f,
+        ),
+      });
+    } catch (cause) {
+      toast(
+        isApiError(cause) ? cause.message : "Could not save the file review.",
+      );
+    } finally {
+      setReviewing(null);
+    }
+  }
 
   async function decide(decision: "approved" | "changes_requested") {
     if (!detail) return;
@@ -229,6 +252,55 @@ export default function PreverificationDetailPage() {
                 )}
               </Card>
             </div>
+
+            <Card className="mt-6 overflow-hidden p-0">
+              <div className="px-5 py-4">
+                <h2 className="text-sm font-medium text-black/75">
+                  Evidence files
+                </h2>
+                <p className="mt-1 text-[12px] text-black/45">
+                  Marking a file reviewed shows the customer a green dot. It
+                  does not change their data.
+                </p>
+              </div>
+              {detail.files.length === 0 ? (
+                <p className="px-5 pb-5 text-[13px] text-black/40">
+                  No files uploaded for this year.
+                </p>
+              ) : (
+                <ul>
+                  {detail.files.map((f) => (
+                    <li
+                      key={f.id}
+                      className="flex flex-wrap items-center gap-3 border-t border-black/[0.06] px-5 py-3"
+                    >
+                      <span className="min-w-0 flex-1 text-[13px]">
+                        <span className="block truncate text-black/85">
+                          {f.name}
+                        </span>
+                        {f.description && (
+                          <span className="block text-[12px] text-black/45">
+                            {f.description}
+                          </span>
+                        )}
+                      </span>
+                      {f.reviewedAt && (
+                        <Chip tone="ok" filled>
+                          Reviewed {new Date(f.reviewedAt).toLocaleDateString()}
+                        </Chip>
+                      )}
+                      <Button
+                        variant="secondary"
+                        onClick={() => toggleReview(f.id, !f.reviewedAt)}
+                        disabled={reviewing !== null}
+                      >
+                        {f.reviewedAt ? "Clear review" : "Mark reviewed"}
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
 
             <Card className="mt-6 overflow-hidden p-0">
               <div className="px-5 py-4">

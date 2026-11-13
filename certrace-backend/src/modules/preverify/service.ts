@@ -11,6 +11,7 @@ import {
   type Status,
 } from "./checks";
 import { aiReview } from "./review";
+import { filesOf } from "../workbooks/service";
 
 export type Key = { installationId: string; year: number; standardId: "cbam" };
 export type Decision = "approved" | "changes_requested";
@@ -243,12 +244,19 @@ export async function adminGet(id: string) {
       installationId: row.installation_id,
       year: row.year,
     }),
-    select: { cells: true, revision: true },
+    select: { cells: true, revision: true, meta: true },
   });
   const currentRevision = wb?.revision ?? 0;
   return {
     ...adminView(row),
     cells: catalogueCells(wb?.cells),
+    // The evidence files, so the team can mark each one reviewed beside the answers.
+    files: filesOf(wb?.meta).map((f) => ({
+      id: f.id,
+      name: String(f.name ?? f.id),
+      description: String(f.description ?? ""),
+      reviewedAt: f.reviewedAt ?? null,
+    })),
     currentRevision,
     stale: currentRevision !== row.workbook_revision,
   };

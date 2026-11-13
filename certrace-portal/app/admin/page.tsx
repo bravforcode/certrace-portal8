@@ -6,8 +6,10 @@ import { useRouter } from "next/navigation";
 import { CertraceLogo } from "@/components/logo";
 import { Button, Card, Field, Modal, inputClass } from "@/components/ui";
 import { isApiError } from "@/lib/api";
+import { toast } from "@/components/toast";
 import {
   extendAdminTrial,
+  grantPreverifyCredits,
   listAdminUsers,
   rejectAdminUser,
   setAdminUserReady,
@@ -28,6 +30,10 @@ export default function AdminPage() {
   const [rejectReason, setRejectReason] = React.useState("");
   const [rejectError, setRejectError] = React.useState("");
   const rejectTrigger = React.useRef<HTMLButtonElement | null>(null);
+  const [granting, setGranting] = React.useState<AdminUser | null>(null);
+  const [grantCount, setGrantCount] = React.useState("1");
+  const [grantNote, setGrantNote] = React.useState("");
+  const [grantError, setGrantError] = React.useState("");
 
   const load = React.useCallback(
     async (query: string, after?: string) => {
@@ -91,6 +97,42 @@ export default function AdminPage() {
     } catch (cause) {
       setError(
         cause instanceof Error ? cause.message : "Could not extend the trial.",
+      );
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  function openGrant(user: AdminUser) {
+    setGrantCount("1");
+    setGrantNote("");
+    setGrantError("");
+    setGranting(user);
+  }
+
+  async function submitGrant() {
+    if (!granting) return;
+    const add = Number(grantCount);
+    if (!Number.isInteger(add) || add < 1 || add > 100) {
+      setGrantError("Enter a whole number from 1 to 100.");
+      return;
+    }
+    const note = grantNote.trim();
+    if (!note) {
+      setGrantError("Add the invoice or order reference for the audit log.");
+      return;
+    }
+    setSavingId(granting.id);
+    setGrantError("");
+    try {
+      const result = await grantPreverifyCredits(granting.id, add, note);
+      toast(
+        `Added ${add}. ${granting.email} now has ${result.credits} extra pre-verifications.`,
+      );
+      setGranting(null);
+    } catch (cause) {
+      setGrantError(
+        cause instanceof Error ? cause.message : "Could not add the credits.",
       );
     } finally {
       setSavingId(null);
@@ -262,6 +304,17 @@ export default function AdminPage() {
                             size="sm"
                             variant="secondary"
                             className="ml-2"
+                            disabled={savingId === user.id}
+                            aria-label={`Add pre-verifications for ${user.email}`}
+                            onClick={() => openGrant(user)}
+                          >
+                            Top up
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            className="ml-2"
                             disabled={
                               savingId === user.id ||
                               user.status === "SUSPENDED"
@@ -342,6 +395,57 @@ export default function AdminPage() {
         {rejectError && (
           <p className="mt-3 text-sm text-[#dc2626]" role="alert">
             {rejectError}
+          </p>
+        )}
+      </Modal>
+      <Modal
+        open={granting !== null}
+        onClose={() => setGranting(null)}
+        title="Add pre-verifications"
+        lead={granting?.email}
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={savingId !== null}
+              onClick={() => setGranting(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={savingId !== null}
+              onClick={() => void submitGrant()}
+            >
+              Add
+            </Button>
+          </>
+        }
+      >
+        <Field label="How many">
+          <input
+            className={inputClass}
+            type="number"
+            min={1}
+            max={100}
+            step={1}
+            autoFocus
+            value={grantCount}
+            onChange={(event) => setGrantCount(event.target.value)}
+          />
+        </Field>
+        <Field label="Invoice or order reference">
+          <input
+            className={inputClass}
+            maxLength={2000}
+            value={grantNote}
+            onChange={(event) => setGrantNote(event.target.value)}
+          />
+        </Field>
+        {grantError && (
+          <p className="mt-3 text-sm text-[#dc2626]" role="alert">
+            {grantError}
           </p>
         )}
       </Modal>

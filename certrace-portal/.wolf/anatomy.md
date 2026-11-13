@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-11-13T00:50:26.096Z
-> Files: 86 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-11-13T04:51:21.047Z
+> Files: 87 tracked | Anatomy hits: 0 | Misses: 0
 
 ## ../
 
@@ -61,6 +61,7 @@
 
 ## ./
 
+- `handoff.md` — Handoff: CBAM Data Gap penalty ใช้ Annex I default (~1110 tok)
 - `middleware.ts` — The public site, whose /trace/preview the Trace page frames. (~1267 tok)
 - `next.config.ts` — securityHeadersFromFile: output (~1300 tok)
 
@@ -166,6 +167,7 @@
 - `installations.ts` — 2(b) non-CBAM production processes carried out at the installation (~8914 tok)
 - `pdf-loader-server-stub.ts` — Stand-in for lib/pdf-loader.ts on the server and edge builds only (next.config.ts). (~125 tok)
 - `pdf-loader.ts` — Loads the packaged PDF.js module from /pdf.min.mjs at runtime. (~182 tok)
+- `row-window.ts` — Which spreadsheet rows to render around the viewport; all rows under the threshold, the edited row always kept. (~400 tok)
 - `supplier-intake.ts` — Which requested document a detected subject answers. (~3226 tok)
 - `supplier.ts` — the exporter produces these goods themselves — no Smart Link is ever sent, (~5842 tok)
 - `trace-profile.ts` — CN codes of the verified products to list on the profile (~872 tok)

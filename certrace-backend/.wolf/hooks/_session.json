@@ -8,10 +8,17 @@
       "action": "create",
       "tokens": 1795,
       "at": "2026-11-13T00:08:26.277Z"
+    },
+    {
+      "file": "C:/Certrace/certrace-portal8/scripts/test-migrations.ts",
+      "action": "edit",
+      "tokens": 67,
+      "at": "2026-11-13T01:10:13.629Z"
     }
   ],
   "edit_counts": {
-    "test/preverify-submit.test.ts": 1
+    "test/preverify-submit.test.ts": 1,
+    "../scripts/test-migrations.ts": 1
   },
   "anatomy_hits": 0,
   "anatomy_misses": 0,

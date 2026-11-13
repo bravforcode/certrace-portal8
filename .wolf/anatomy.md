@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-11-13T01:02:09.486Z
-> Files: 140 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-11-13T04:51:21.014Z
+> Files: 142 tracked | Anatomy hits: 0 | Misses: 0
 
 ## ../../Users/menum/.claude/projects/C--Certrace-certrace-portal8/memory/
 
@@ -20,6 +20,7 @@
 - `lockplan_fix.py` — rep (~926 tok)
 - `sheet_fix.py` — rep (~1304 tok)
 - `th_test.ts` — Inspect (default) or delete (--delete) the local dev installation TH-TEST-01 and its rows. (~473 tok)
+- `threads.tsv` (~680 tok)
 
 ## ../../Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/879cb07d-9f63-49e7-809e-764e92cc9918/scratchpad/
 
@@ -120,10 +121,11 @@
 - `installation-store.test.ts` — The site wizard saves the operator address in the parts the CBAM template asks for (A_InstData I38–I (~599 tok)
 - `item-links.test.ts` — ItemField: mint (~2381 tok)
 - `preverify-checks.test.ts` — Declares Finding (~1376 tok)
-- `preverify-submit.test.ts` — Uses already spent: rows that reached the team, on other installations of the same company. (~1795 tok)
+- `preverify-submit.test.ts` — Uses already spent: rows that reached the team, on other installations of the same company. (~1886 tok)
 
 ## certrace-portal/
 
+- `handoff.md` — Handoff: CBAM Data Gap penalty ใช้ Annex I default (~1110 tok)
 - `middleware.ts` — The public site, whose /trace/preview the Trace page frames. (~1267 tok)
 - `next.config.ts` — securityHeadersFromFile: output (~1300 tok)
 - `package.json` — Node.js package manifest (~734 tok)
@@ -267,6 +269,7 @@
 - `installations.ts` — 2(b) non-CBAM production processes carried out at the installation (~8914 tok)
 - `pdf-loader-server-stub.ts` — Stand-in for lib/pdf-loader.ts on the server and edge builds only (next.config.ts). (~125 tok)
 - `pdf-loader.ts` — Loads the packaged PDF.js module from /pdf.min.mjs at runtime. (~182 tok)
+- `row-window.ts` — Which spreadsheet rows to render around the viewport; all rows under the threshold, the edited row always kept. (~400 tok)
 - `supplier-intake.ts` — Which requested document a detected subject answers. (~3226 tok)
 - `supplier.ts` — the exporter produces these goods themselves — no Smart Link is ever sent, (~5842 tok)
 - `trace-profile.ts` — CN codes of the verified products to list on the profile (~872 tok)
@@ -278,6 +281,7 @@
 - `i18n-four-languages.test.ts` — Declares TH_ALL (~1089 tok)
 - `i18n-lazy.test.ts` — The test loader preloads every dictionary; this proves loading is what makes translate() answer, and (~300 tok)
 - `preverify-state.test.ts` — Declares PreverificationView (~1047 tok)
+- `row-window.test.ts` — rowWindow: threshold, overscan, below-the-fold and kept edit row (~500 tok)
 - `smart-link-payload.test.ts` — TOKEN: resolution (~1364 tok)
 
 ## certrace-portal/lib/api/
@@ -353,5 +357,5 @@
 
 ## scripts/
 
-- `test-migrations.ts` — Integration checks use only a uniquely named disposable Compose project. (~2708 tok)
+- `test-migrations.ts` — Integration checks use only a uniquely named disposable Compose project. (~2776 tok)
 - `test-verification-schema.ts` — All database work is confined to a new disposable container. No app DATABASE_URL is read. (~4949 tok)

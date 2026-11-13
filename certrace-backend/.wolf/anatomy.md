@@ -1,7 +1,7 @@
 # anatomy.md
 
-> Auto-maintained by OpenWolf. Last scanned: 2026-11-13T00:08:26.253Z
-> Files: 13 tracked | Anatomy hits: 0 | Misses: 0
+> Auto-maintained by OpenWolf. Last scanned: 2026-11-13T01:10:13.597Z
+> Files: 14 tracked | Anatomy hits: 0 | Misses: 0
 
 ## ../../../Users/menum/AppData/Local/Temp/claude/6da0b079e6e8af05/879cb07d-9f63-49e7-809e-764e92cc9918/scratchpad/scripts/
 
@@ -14,6 +14,10 @@
 ## ../docs/superpowers/plans/
 
 - `2026-11-12-report-lock-precheck-archive.md` — Report Lock, Pre-check, Verifier Handoff and Archive Plan (~11612 tok)
+
+## ../scripts/
+
+- `test-migrations.ts` — Integration checks use only a uniquely named disposable Compose project. (~2776 tok)
 
 ## scripts/
 

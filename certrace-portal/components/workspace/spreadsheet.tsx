@@ -60,6 +60,7 @@ import {
 import { useTeam } from "@/lib/team-query";
 import { CELL_MAX } from "@/lib/workbook/save-queue";
 import { toast } from "@/components/toast";
+import { rowWindow } from "@/lib/row-window";
 import {
   INSTALLATION_SHEET_ID,
   NO_FILE,
@@ -72,6 +73,10 @@ import {
 } from "@/lib/workspace-sheets";
 
 const MIN_ROWS = 20;
+// Long sheets render only the rows near the viewport. Every data row is h-8 (32px).
+const ROW_H = 32;
+const WINDOW_FROM = 200;
+const OVERSCAN = 20;
 /** Cells one paste may write; the server takes at most 2000 cells per patch (workbooks/model.ts). */
 const PASTE_MAX = 2000;
 const DEFAULT_SHEET = "materials";
@@ -186,6 +191,8 @@ export function Spreadsheet({
     updateParams({ sheet: id === DEFAULT_SHEET ? null : id, view: null });
   };
   const gridRef = React.useRef<HTMLDivElement>(null);
+  const scrollRef = React.useRef<HTMLDivElement>(null); // the scroller in full-page mode
+  const rowsRef = React.useRef<HTMLDivElement>(null); // marks where the first data row starts
 
   const editorName = (by: string) =>
     team?.find((m) => m.id === by)?.name ?? t("a teammate");
@@ -249,11 +256,57 @@ export function Spreadsheet({
   const matchCount = (s: Sheet) =>
     s.rows.filter((row) => rowMatches(s, row)).length;
   const firstVisible = visible[0]?.r;
+
+  // Where the first data row sits relative to the scroller (the window, or the full-page box).
+  const [scrollPos, setScrollPos] = React.useState({ top: 0, height: 800 });
+  const windowed = visible.length > WINDOW_FROM;
+  const viewBox = React.useCallback(() => {
+    const box = full ? scrollRef.current?.getBoundingClientRect() : null;
+    return box
+      ? { top: box.top, bottom: box.bottom }
+      : { top: 0, bottom: window.innerHeight };
+  }, [full]);
+  React.useLayoutEffect(() => {
+    if (!windowed) return;
+    const measure = () => {
+      const mark = rowsRef.current?.getBoundingClientRect();
+      if (!mark) return;
+      const box = viewBox();
+      // Rounded to whole rows, so scrolling within a row does not re-render the grid.
+      const top = Math.floor((mark.top - box.top) / ROW_H) * ROW_H;
+      const height = Math.ceil((box.bottom - box.top) / ROW_H) * ROW_H;
+      setScrollPos((p) =>
+        p.top === top && p.height === height ? p : { top, height },
+      );
+    };
+    measure();
+    // Capture catches the full-page box scrolling as well as the window.
+    window.addEventListener("scroll", measure, {
+      capture: true,
+      passive: true,
+    });
+    window.addEventListener("resize", measure);
+    return () => {
+      window.removeEventListener("scroll", measure, { capture: true });
+      window.removeEventListener("resize", measure);
+    };
+  }, [windowed, viewBox, tab, q]);
   const selHidden = !!q && !visible.some((v) => v.r === sel.r);
   React.useEffect(() => {
     if (selHidden && firstVisible !== undefined)
       setSel((s) => ({ ...s, r: firstVisible }));
   }, [selHidden, firstVisible]);
+
+  // The row being edited stays rendered, so scrolling away does not drop what was typed.
+  const win = rowWindow({
+    total: visible.length,
+    top: scrollPos.top,
+    viewport: scrollPos.height,
+    rowHeight: ROW_H,
+    overscan: OVERSCAN,
+    threshold: WINDOW_FROM,
+    keep: editing ? visible.findIndex((v) => v.r === sel.r) : undefined,
+  });
 
   const template = [
     ROW_NO,
@@ -306,9 +359,27 @@ export function Spreadsheet({
 
   // Keeps the selected cell in view after keyboard moves, without scrolling the page by more than it needs.
   React.useEffect(() => {
-    gridRef.current
-      ?.querySelector<HTMLElement>('[role="gridcell"][aria-selected="true"]')
-      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    const cell = gridRef.current?.querySelector<HTMLElement>(
+      '[role="gridcell"][aria-selected="true"]',
+    );
+    if (cell) {
+      cell.scrollIntoView({ block: "nearest", inline: "nearest" });
+      return;
+    }
+    // A long sheet has not rendered a row far from view: scroll to where it sits, and it renders.
+    const i = visible.findIndex((v) => v.r === sel.r);
+    const mark = rowsRef.current?.getBoundingClientRect();
+    if (!windowed || i < 0 || !mark) return;
+    const box = viewBox();
+    const rowTop = mark.top + i * ROW_H;
+    const by =
+      rowTop < box.top
+        ? rowTop - box.top
+        : rowTop + ROW_H > box.bottom
+          ? rowTop + ROW_H - box.bottom
+          : 0;
+    if (by) (full ? scrollRef.current : window)?.scrollBy({ top: by });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs on selection moves only
   }, [sel.r, sel.c]);
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -608,7 +679,10 @@ export function Spreadsheet({
         </div>
 
         {/* ── Grid ────────────────────────────────────── */}
-        <div className={cn(full && "min-h-0 flex-1 overflow-auto")}>
+        <div
+          ref={scrollRef}
+          className={cn(full && "min-h-0 flex-1 overflow-auto")}
+        >
           {isFlow ? (
             <FlowDiagram
               sheets={sheets}
@@ -631,6 +705,7 @@ export function Spreadsheet({
               ref={gridRef}
               role="grid"
               aria-label={sheet ? `${sheet.code} ${t(sheet.name)}` : t("Sheet")}
+              aria-rowcount={windowed ? visible.length + 1 : undefined}
               tabIndex={0}
               onKeyDown={onKeyDown}
               onCopy={onCopy}
@@ -668,9 +743,19 @@ export function Spreadsheet({
                   </div>
                 ))}
 
-                {/* data rows */}
-                {visible.map(({ row, r }) => (
-                  <div key={r} role="row" className="contents">
+                {/* data rows; a long sheet renders the ones near the viewport between two spacers */}
+                <div
+                  ref={rowsRef}
+                  aria-hidden
+                  style={{ gridColumn: "1 / -1", height: win.start * ROW_H }}
+                />
+                {visible.slice(win.start, win.end).map(({ row, r }, i) => (
+                  <div
+                    key={r}
+                    role="row"
+                    aria-rowindex={windowed ? win.start + i + 2 : undefined}
+                    className="contents"
+                  >
                     <RowNo n={r + 2} on={sel.r === r} />
                     {cols.map((col, c) => {
                       const k = keyOf(r, c);
@@ -752,6 +837,15 @@ export function Spreadsheet({
                     })}
                   </div>
                 ))}
+                {windowed && (
+                  <div
+                    aria-hidden
+                    style={{
+                      gridColumn: "1 / -1",
+                      height: (visible.length - win.end) * ROW_H,
+                    }}
+                  />
+                )}
 
                 {/* empty rows to the fold, like a fresh sheet */}
                 {Array.from(
