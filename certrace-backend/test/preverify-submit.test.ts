@@ -237,9 +237,9 @@ describe("workbook files (PostgreSQL)", () => {
     ).json();
     expect(poll.changed).toBe(false);
     expect(poll.updatedAt > before).toBe(true);
-    expect((await call(path, "PUT", { reviewed: true }, boss.cookie)).status).toBe(
-      200,
-    );
+    expect(
+      (await call(path, "PUT", { reviewed: true }, boss.cookie)).status,
+    ).toBe(200);
 
     // A later customer save keeps the stored review instead of dropping it.
     await call(

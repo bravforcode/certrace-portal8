@@ -565,8 +565,7 @@ export const TH_WORKSPACE: Record<string, string> = {
   "{n} waiting for review": "รอตรวจทาน {n} ไฟล์",
   "Map a CSV into this sheet": "จับคู่คอลัมน์ CSV เข้าชีตนี้",
   "A year holds at most {n} files.": "หนึ่งปีเก็บไฟล์ได้ไม่เกิน {n} ไฟล์",
-  "{file} is over the {n}-character limit.":
-    "{file} ยาวเกินขีดจำกัด {n} ตัวอักษร",
+  "{file} is over the {n}-character limit.": "{file} ยาวเกินขีดจำกัด {n} ตัวอักษร",
   "Review completed": "ตรวจทานเสร็จแล้ว",
   "Review pending": "รอตรวจทาน",
   "Setting up your workspace": "กำลังตั้งค่าพื้นที่ทำงาน",

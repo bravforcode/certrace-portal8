@@ -168,7 +168,11 @@ export function PreverifyMenu({
             }}
             className="flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left hover:bg-black/[0.04] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
           >
-            <Download size={14} strokeWidth={1.5} className="mt-0.5 flex-none" />
+            <Download
+              size={14}
+              strokeWidth={1.5}
+              className="mt-0.5 flex-none"
+            />
             <span className="min-w-0">
               <span className="block text-[13px] text-[#111]">
                 {t("Download verification file")}
@@ -182,35 +186,35 @@ export function PreverifyMenu({
           </button>
           <div className="my-1.5 h-px bg-black/[0.06]" />
           {data && (
-          <div className="px-2.5 pb-2 pt-1.5">
-            <div className="flex items-baseline justify-between gap-2">
-              <span className="text-[13px] font-medium text-[#111]">
-                {t("Pre-verifications")}
-              </span>
-              <span
-                className={cn(
-                  "font-mono text-[12px] tabular-nums",
-                  left === 0 ? "text-[#b91c1c]" : "text-black/55",
-                )}
-              >
-                {t("{left} of {quota} left", {
-                  left: left ?? 0,
-                  quota: data.quota,
-                })}
-              </span>
-            </div>
-            <div aria-hidden className="mt-2 flex gap-1">
-              {Array.from({ length: data.quota }, (_, i) => (
+            <div className="px-2.5 pb-2 pt-1.5">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-[13px] font-medium text-[#111]">
+                  {t("Pre-verifications")}
+                </span>
                 <span
-                  key={i}
                   className={cn(
-                    "h-1.5 flex-1 rounded-full",
-                    i < data.used ? "bg-black/15" : "bg-[#16a34a]",
+                    "font-mono text-[12px] tabular-nums",
+                    left === 0 ? "text-[#b91c1c]" : "text-black/55",
                   )}
-                />
-              ))}
+                >
+                  {t("{left} of {quota} left", {
+                    left: left ?? 0,
+                    quota: data.quota,
+                  })}
+                </span>
+              </div>
+              <div aria-hidden className="mt-2 flex gap-1">
+                {Array.from({ length: data.quota }, (_, i) => (
+                  <span
+                    key={i}
+                    className={cn(
+                      "h-1.5 flex-1 rounded-full",
+                      i < data.used ? "bg-black/15" : "bg-[#16a34a]",
+                    )}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
           )}
           <button
             type="button"
@@ -229,9 +233,11 @@ export function PreverifyMenu({
                   ? t("Submitting…")
                   : approved
                     ? t("Pre-verified")
-                    : state === "ready" || state === "incomplete" || state === null
-                    ? t("Submit for pre-verification")
-                    : t("Resubmit for pre-verification")}
+                    : state === "ready" ||
+                        state === "incomplete" ||
+                        state === null
+                      ? t("Submit for pre-verification")
+                      : t("Resubmit for pre-verification")}
               </span>
               {why && (
                 <span className="block text-[11.5px] text-black/45">{why}</span>

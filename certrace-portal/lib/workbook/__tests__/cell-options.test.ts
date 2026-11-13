@@ -11,7 +11,10 @@ const withRows = (
 ): Sheet[] =>
   sheets.map((s) =>
     s.id === id
-      ? { ...s, rows: rows.map((cells) => ({ cells, status: "review" as const })) }
+      ? {
+          ...s,
+          rows: rows.map((cells) => ({ cells, status: "review" as const })),
+        }
       : s,
   );
 
@@ -32,14 +35,22 @@ test("a unit picked from the list is one the mass balance can read", () => {
 
 test("step cells offer the steps named on the Process steps sheet", () => {
   let sheets = buildSheets([]);
-  sheets = withRows(sheets, "steps", [{ step: "Melting" }, { step: "Casting" }, { step: "" }]);
+  sheets = withRows(sheets, "steps", [
+    { step: "Melting" },
+    { step: "Casting" },
+    { step: "" },
+  ]);
   const { sheet, col } = colOf(sheets, "materials", "step");
   assert.deepEqual(cellOptions(sheet, col, sheets), ["Melting", "Casting"]);
 });
 
 test("a value already typed in the column comes back once, whatever its case", () => {
   let sheets = buildSheets([]);
-  sheets = withRows(sheets, "materials", [{ unit: "bags" }, { unit: "Bags" }, { unit: "t" }]);
+  sheets = withRows(sheets, "materials", [
+    { unit: "bags" },
+    { unit: "Bags" },
+    { unit: "t" },
+  ]);
   const { sheet, col } = colOf(sheets, "materials", "unit");
   const units = cellOptions(sheet, col, sheets);
   assert.equal(units.filter((u) => u.toLowerCase() === "bags").length, 1);
@@ -48,7 +59,13 @@ test("a value already typed in the column comes back once, whatever its case", (
 
 test("source cells offer the year's uploaded files and No file", () => {
   const sheets = buildSheets([
-    { id: "a", name: "gas.pdf", size: 10, type: "application/pdf", description: "" },
+    {
+      id: "a",
+      name: "gas.pdf",
+      size: 10,
+      type: "application/pdf",
+      description: "",
+    },
   ]);
   const { sheet, col } = colOf(sheets, "energy", "source");
   assert.deepEqual(cellOptions(sheet, col, sheets), ["gas.pdf", NO_FILE]);
