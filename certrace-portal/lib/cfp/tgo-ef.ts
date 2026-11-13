@@ -37,19 +37,22 @@ export function tgoEf(ref: string): TgoEf | null {
   return { version: m[1]!, no, name, unit, ef };
 }
 
-/** The cells a picked reference fills on a CFP row: the factor (per tkm or km on the transport sheet),
-    and the EF source where the sheet has one. Only cells still empty are filled by the caller. */
-export function efFill(colKeys: string[], ref: string): Record<string, string> {
+/** The cells a picked reference fills on a CFP row: the factor, into the factor column whose unit it is
+    per (a generic "/unit" column takes any), and the EF source where the sheet has one. Nothing is
+    filled when no factor column matches, so a factor never lands under another dimension.
+    Only cells still empty are filled by the caller. */
+export function efFill(
+  cols: { key: string; label: string }[],
+  ref: string,
+): Record<string, string> {
   const e = tgoEf(ref);
   if (!e) return {};
-  const key =
-    e.unit === "tkm" && colKeys.includes("ef_tkm")
-      ? "ef_tkm"
-      : e.unit === "km" && colKeys.includes("ef_km")
-        ? "ef_km"
-        : "ef";
-  const out: Record<string, string> = {};
-  if (colKeys.includes(key)) out[key] = String(e.ef);
-  if (colKeys.includes("ef_source")) out.ef_source = "TGO EF";
+  const per = (label: string) => /kgCO2e\/([^)]*)\)/.exec(label)?.[1];
+  const target = ["ef_tkm", "ef_km", "ef"]
+    .map((k) => cols.find((c) => c.key === k))
+    .find((c) => c && (per(c.label) === e.unit || per(c.label) === "unit"));
+  if (!target) return {};
+  const out: Record<string, string> = { [target.key]: String(e.ef) };
+  if (cols.some((c) => c.key === "ef_source")) out.ef_source = "TGO EF";
   return out;
 }

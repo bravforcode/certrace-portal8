@@ -47,12 +47,34 @@ test("a reference resolves back to its row; a typed or altered one does not", ()
 
 test("a tkm factor fills the outbound EF on the transport sheet, a kg factor fills EF", () => {
   const tkm = TGO_EF_OPTIONS.find((o) => o.endsWith("[tkm]"))!;
-  const transportCols = ["item", "ef_tkm", "ef_km", "ef_ref"];
+  const transportCols = [
+    { key: "item", label: "Item" },
+    { key: "ef_tkm", label: "EF out (kgCO2e/tkm)" },
+    { key: "ef_km", label: "EF back (kgCO2e/km)" },
+    { key: "ef_ref", label: "EF reference" },
+  ];
   assert.deepEqual(Object.keys(efFill(transportCols, tkm)), ["ef_tkm"]);
   const kg = TGO_EF_OPTIONS[0]!;
-  assert.deepEqual(efFill(["ef", "ef_source", "ef_ref"], kg), {
+  const ef = { key: "ef", label: "EF (kgCO2e/unit)" };
+  assert.deepEqual(efFill([ef, { key: "ef_source", label: "EF source" }], kg), {
     ef: "4.5845",
     ef_source: "TGO EF",
   });
-  assert.deepEqual(efFill(["ef"], "my own factor"), {});
+  assert.deepEqual(efFill([ef], "my own factor"), {});
+});
+
+/* A factor per kg typed into a per rai per year column would make a land-use-change row look complete
+   with a value of the wrong dimension, so a factor fills only a column whose unit it is per. */
+test("a factor is not filled into a column with a different unit", () => {
+  const kg = TGO_EF_OPTIONS[0]!;
+  const luc = [
+    { key: "ef", label: "EF (kgCO2e/rai/year)" },
+    { key: "ef_source", label: "EF source" },
+  ];
+  assert.deepEqual(efFill(luc, kg), {});
+  const tkm = TGO_EF_OPTIONS.find((o) => o.endsWith("[tkm]"))!;
+  assert.deepEqual(
+    efFill([{ key: "ef_km", label: "EF back (kgCO2e/km)" }], tkm),
+    {},
+  );
 });
