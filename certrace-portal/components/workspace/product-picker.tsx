@@ -1,7 +1,7 @@
 "use client";
 
 /* ════════════════════════════════════════════════════════════
-   THE CBAM CATALOGUE PICKER — all 570 goods in CBAM scope
+   THE CBAM CATALOGUE PICKER — benchmark goods and electricity
 
    Shared by the new-workspace flow, the product report's Overview and the
    declaration hierarchy, so a good is chosen the same way everywhere and a
@@ -171,6 +171,7 @@ export function ProductRow({
           )}
         <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <RowTag>CN {product.cnCode}</RowTag>
+          {product.unit && <RowTag>{product.unit}</RowTag>}
           <RowTag className={TYPE_TONE[type]}>{t(type)}</RowTag>
           <span className="text-[10.5px] text-black/35">
             {t(product.group)} · {t(aggregatedGoodsCategory(product))}

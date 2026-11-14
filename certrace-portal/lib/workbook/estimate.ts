@@ -132,7 +132,11 @@ export function estimateEmissions(
     unknownCn = false;
   for (const { cells: c } of rows("products")) {
     if (!c.qty?.trim()) continue;
-    const t = toTonnes(c.qty, c.unit ?? "");
+    // Electricity exports are reported in MWh and cannot enter a per-tonne estimate.
+    const t =
+      (c.cn ?? "").replace(/\D/g, "") === "27160000"
+        ? null
+        : toTonnes(c.qty, c.unit ?? "");
     if (t === null) {
       pushUnmatched({
         key: "{item} ({qty})",

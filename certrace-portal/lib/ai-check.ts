@@ -75,9 +75,11 @@ const num = (v: string | undefined) => {
    against "a realistic steel route" (the pre-fix behaviour) is noise for the
    supplier and cover for real errors. Downstream steps (rolling, extrusion)
    legitimately sit near the low end, so `low` is a soft nudge only. */
-const DIRECT_BANDS: Record<
-  ProductCategory,
-  { low: number; high: number; hardMax: number; word: string }
+const DIRECT_BANDS: Partial<
+  Record<
+    ProductCategory,
+    { low: number; high: number; hardMax: number; word: string }
+  >
 > = {
   "Iron & Steel": { low: 0.1, high: 2.8, hardMax: 6, word: "steel" },
   Aluminium: { low: 0.02, high: 2.2, hardMax: 5, word: "aluminium" },
@@ -177,7 +179,18 @@ export function runQualityCheck(
   let nonTonneUnits = false;
   let defaultMethodUsed = false;
   for (const { product, lots } of req.products) {
-    const band = DIRECT_BANDS[product.category] ?? DIRECT_BANDS["Iron & Steel"];
+    if (product.unit === "MWh") {
+      push({
+        category: "Validation",
+        severity: "critical",
+        title: "Electricity export reporting is not supported in this form",
+        detail:
+          "Electricity exports are reported in MWh; this form calculates emissions per tonne.",
+        productId: product.id,
+      });
+      continue;
+    }
+    const band = DIRECT_BANDS[product.category];
     const direct = num(values[valueKey("direct-emissions", product.id)]);
     const indirect = num(values[valueKey("indirect-emissions", product.id)]);
     /* Electricity is stored as ABSOLUTE MWh for the period; the per-tonne
@@ -208,7 +221,7 @@ export function runQualityCheck(
         productId: product.id,
         fieldId: "direct-emissions",
       });
-    } else if (direct > band.hardMax) {
+    } else if (band && direct > band.hardMax) {
       push({
         category: "Validation",
         severity: "critical",
@@ -412,7 +425,7 @@ export function runQualityCheck(
     }
 
     // Anomaly — plausible but unusual
-    if (!Number.isNaN(direct) && direct > 0 && direct <= band.hardMax) {
+    if (band && !Number.isNaN(direct) && direct > 0 && direct <= band.hardMax) {
       if (direct > band.high) {
         push({
           category: "Anomaly",

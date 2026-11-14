@@ -1,7 +1,7 @@
 /* ════════════════════════════════════════════════════════════
    THE CN CATALOGUE — every good in CBAM scope, at 8-digit CN level
 
-   THE BIG SET IS 570 CODES, NOT 67. The catalogue used to hold one hand-picked
+   THE BENCHMARK TABLE HAS 570 CODES. The catalogue used to hold one hand-picked
    code per heading. That was never the list an exporter's customs declaration
    is written against, and nine of its 67 codes (7216 33 00, 7219 34 00,
    7318 15 90, 7606 11 00 and others) are not 8-digit CN codes at all — the CN
@@ -13,13 +13,14 @@
    Annex I of Regulation (EU) 2023/956 (as amended by 2025/2083) apart from
    electricity (CN 2716 00 00 — it earns no free allocation, is measured in
    MWh rather than tonnes, and Thailand is not among the countries Annex III
-   lists). It is generated into ./data/cn-catalogue.ts by
+   lists). The catalogue also offers electricity, which is measured in MWh.
+   The benchmark data is generated into ./data/cn-catalogue.ts by
    cbam-regulatory-kb/scripts/gen_portal_data.py, never typed by hand:
 
        Iron & steel   478        Fertilisers   27        Hydrogen   1
        Aluminium       58        Cement         6        ———————  570
 
-   What each row carries beyond the code is what the CN code LEADS TO: the
+   For benchmark goods, each row carries what the CN code leads to: the
    default emission value for the country (Implementing Regulation 2025/2621),
    the production routes the EU recognises for it, and the benchmark the free
    allocation is computed from (2025/2620). See ./eu-rates.ts and ./routes.ts.
@@ -53,6 +54,7 @@ const HEADINGS: Record<string, HeadingInfo> = {
   "2523": { title: "Cement", group: "Cement" },
   // ── Hydrogen ──
   "2804": { title: "Hydrogen", group: "Hydrogen" },
+  "2716": { title: "Electricity", group: "Electricity" },
   // ── Fertilisers ──
   "2808": {
     title: "Nitric acid; sulphonitric acids",
@@ -231,6 +233,7 @@ export const GROUPS_BY_SECTOR: Record<ProductCategory, string[]> = {
     "Mixed fertilisers",
   ],
   Hydrogen: ["Hydrogen"],
+  Electricity: ["Electricity"],
 };
 
 /** Groups whose goods have no CBAM precursor of their own in scope — the
@@ -864,8 +867,23 @@ function build(row: CnRow): CnProduct {
   };
 }
 
-/** All 570, in CN order. */
-export const FULL_CATALOGUE: CnProduct[] = CN_ROWS.map(build);
+/** The benchmark table excludes electricity, which is reported in MWh. */
+export const FULL_CATALOGUE: CnProduct[] = [
+  ...CN_ROWS.map(build),
+  {
+    id: "cn27160000",
+    name: "Electricity",
+    category: "Electricity",
+    group: "Electricity",
+    cnCode: "2716 00 00",
+    hsCode: "2716",
+    keywords: ["electricity", "electrical", "energy", "power"],
+    heading: "2716",
+    headingTitle: "Electricity",
+    description: "Electrical energy",
+    unit: "MWh",
+  } satisfies CnProduct,
+].sort((a, b) => a.cnCode.localeCompare(b.cnCode));
 
 /** Old entries whose code is not an 8-digit CN code. Resolvable by id, never
     offered — see the header. */

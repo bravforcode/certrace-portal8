@@ -28,19 +28,24 @@ const { CN_TO_GOOD } = await import("../template-reference");
 
 const digits = (cn: string) => cn.replace(/\D/g, "");
 
-test("the catalogue is the full set in CBAM scope: 570 goods, each code once", () => {
-  assert.equal(FULL_CATALOGUE.length, 570);
-  assert.equal(PRODUCT_CATALOG.length, 570);
-  assert.equal(new Set(FULL_CATALOGUE.map((p) => p.cnCode)).size, 570);
+test("the catalogue includes the benchmark goods and electricity once each", () => {
+  assert.equal(FULL_CATALOGUE.length, 571);
+  assert.equal(PRODUCT_CATALOG.length, 571);
+  assert.equal(new Set(FULL_CATALOGUE.map((p) => p.cnCode)).size, 571);
   assert.equal(
     new Set(FULL_CATALOGUE.map((p) => p.id)).size,
-    570,
+    571,
     "ids are unique",
   );
   const bySector = Object.fromEntries(
-    ["Iron & Steel", "Aluminium", "Fertilisers", "Cement", "Hydrogen"].map(
-      (s) => [s, FULL_CATALOGUE.filter((p) => p.category === s).length],
-    ),
+    [
+      "Iron & Steel",
+      "Aluminium",
+      "Fertilisers",
+      "Cement",
+      "Hydrogen",
+      "Electricity",
+    ].map((s) => [s, FULL_CATALOGUE.filter((p) => p.category === s).length]),
   );
   assert.deepEqual(bySector, {
     "Iron & Steel": 478,
@@ -48,17 +53,17 @@ test("the catalogue is the full set in CBAM scope: 570 goods, each code once", (
     Fertilisers: 27,
     Cement: 6,
     Hydrogen: 1,
+    Electricity: 1,
   });
 });
 
-test("it agrees with the Commission's communication template — the only differences are electricity and the 2025 urea split", () => {
+test("the communication template differs only at the 2025 urea split", () => {
   const ours = new Set(FULL_CATALOGUE.map((p) => digits(p.cnCode)));
   const theirs = new Set(Object.keys(CN_TO_GOOD));
   const missing = [...theirs].filter((c) => !ours.has(c)).sort();
   const extra = [...ours].filter((c) => !theirs.has(c)).sort();
-  // 2716 00 00 electricity is measured in MWh and earns no free allocation, so it is not in the benchmark table.
   // 3102 10 10 was split into 3102 10 12 / 15 / 19 when the CN was revised for 2025.
-  assert.deepEqual(missing, ["27160000", "31021010"]);
+  assert.deepEqual(missing, ["31021010"]);
   assert.deepEqual(extra, ["31021012", "31021015", "31021019"]);
 });
 
@@ -88,6 +93,7 @@ test("every saved workspace's product id still resolves — including the nine o
 
 test("every CN code resolves to a default value — Thailand's own row, or the 'Other countries' row Annex I sends it to", () => {
   for (const p of FULL_CATALOGUE) {
+    if (p.unit === "MWh") continue; // Electricity has a separate default methodology.
     const variant =
       p.cnCode === "2523 10 00" || p.cnCode === "2523 90 00" ? "A" : undefined;
     const hit = lookupDefault(p.cnCode, "TH", variant);
@@ -179,6 +185,7 @@ test("benchmarks: stainless screws carry a period flag, route-bound goods a lett
 
 test("every CN code offers at least one route, and the options follow the code", () => {
   for (const p of FULL_CATALOGUE) {
+    if (p.unit === "MWh") continue; // The tonne-based benchmark routes do not cover electricity.
     const opts = routeOptionsFor(p);
     assert.ok(opts.length > 0, `${p.cnCode} offers no route`);
     assert.equal(

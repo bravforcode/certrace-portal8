@@ -7,6 +7,18 @@
 
 import { TGO_EF_OPTIONS } from "../cfp/tgo-ef";
 import { NO_FILE, type Sheet, type SheetCol } from "../workspace-sheets";
+import type { CatalogProduct } from "../config";
+
+/** A new electricity product uses MWh. Clear that unit when switching away. */
+export function unitAfterProductPick(
+  oldCn: string,
+  oldUnit: string,
+  product: Pick<CatalogProduct, "unit">,
+): string | undefined {
+  if (product.unit === "MWh") return oldUnit === "MWh" ? undefined : "MWh";
+  if (oldCn.replace(/\D/g, "") === "27160000" && oldUnit === "MWh") return "";
+  return undefined;
+}
 
 /** Units the balance and estimate parsers read (lib/workbook/balance.ts, estimate.ts). */
 const UNITS: Record<string, string[]> = {

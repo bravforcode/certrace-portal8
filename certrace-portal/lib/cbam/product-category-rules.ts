@@ -59,6 +59,7 @@ const DIRECT_ONLY: Record<AggregatedGoodsCategory, boolean> = {
   "Unwrought aluminium": true,
   "Aluminium products": true,
   Hydrogen: true,
+  Electricity: true,
   "Calcined clay": false,
   "Cement clinker": false,
   Cement: false,

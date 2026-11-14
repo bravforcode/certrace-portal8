@@ -1,7 +1,7 @@
 "use client";
 
 /* THE CN CODE CELL. A CN cell in the workspace sheets opens the CBAM catalogue picker (the same one the new
-   product report uses: search, sector/group/heading/type filters, every one of the 570 goods with its EU rate)
+   product report uses: search, sector/group/heading/type filters and available EU rates)
    in a popover under the cell, instead of a short list of codes already typed.
 
    - Typing on the cell starts the search with that key; a click, F2 or a double-click opens it empty.

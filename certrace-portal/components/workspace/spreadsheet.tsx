@@ -67,7 +67,8 @@ import { useTeam } from "@/lib/team-query";
 import { CELL_MAX } from "@/lib/workbook/save-queue";
 import { toast } from "@/components/toast";
 import { rowWindow } from "@/lib/row-window";
-import { cellOptions } from "@/lib/workbook/cell-options";
+import { cellOptions, unitAfterProductPick } from "@/lib/workbook/cell-options";
+import type { CatalogProduct } from "@/lib/config";
 import { efFill } from "@/lib/cfp/tgo-ef";
 import { CnCellPicker } from "@/components/workspace/cn-cell-picker";
 import {
@@ -371,12 +372,21 @@ export function Spreadsheet({
   // A CN code cell opens the whole CBAM catalogue (search, filters, rates), not a short list.
   const picksCn = (c: number) => editable(c) && cols[c]?.key === "cn";
   // Picking a good also names the row when its Product/Item cell is still empty.
-  const pickCn = (r: number, c: number, cnCode: string, name: string) => {
+  const pickCn = (r: number, c: number, product: CatalogProduct) => {
     const row = sheet?.rows[r];
     const itemCol = cols.findIndex((x) => x.key === "item");
     if (row && onEdit && itemCol >= 0 && !valueOf(row, r, itemCol).trim())
-      onEdit(keyOf(r, itemCol), name);
-    commit(r, c, cnCode);
+      onEdit(keyOf(r, itemCol), product.name);
+    const unitCol = cols.findIndex((x) => x.key === "unit");
+    if (row && onEdit && sheet?.id === "products" && unitCol >= 0) {
+      const unit = unitAfterProductPick(
+        valueOf(row, r, c),
+        valueOf(row, r, unitCol),
+        product,
+      );
+      if (unit !== undefined) onEdit(keyOf(r, unitCol), unit);
+    }
+    commit(r, c, product.cnCode);
   };
 
   const commit = (r: number, c: number, value: string) => {
@@ -884,7 +894,7 @@ export function Spreadsheet({
                                 n: r + 2,
                                 col: t(col.label),
                               })}
-                              onPick={(p) => pickCn(r, c, p.cnCode, p.name)}
+                              onPick={(p) => pickCn(r, c, p)}
                               onKeep={(val) => commit(r, c, val)}
                               onCancel={() => {
                                 setEditing(null);

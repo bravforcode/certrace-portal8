@@ -6,6 +6,7 @@ export const TH_CN: Record<string, string> = {
   Cement: "ซีเมนต์",
   "Iron ore, agglomerated (sinter, pellets)": "สินแร่เหล็กอัดก้อน (ซินเตอร์ เม็ด)",
   Hydrogen: "ไฮโดรเจน",
+  Electricity: "ไฟฟ้า",
   "Nitric acid; sulphonitric acids": "กรดไนตริก กรดซัลโฟไนตริก",
   Ammonia: "แอมโมเนีย",
   "Potassium nitrate": "โพแทสเซียมไนเตรต",

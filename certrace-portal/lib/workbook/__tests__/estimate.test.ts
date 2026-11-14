@@ -267,3 +267,19 @@ test("byStep merges step names that differ in case and whitespace", () => {
     e.byStep["annealing"]!.directT > 0 && e.byStep["annealing"]!.precursorT > 0,
   );
 });
+
+test("electricity output cannot be treated as tonnes, even when entered with a mass unit", () => {
+  for (const unit of ["MWh", "t"]) {
+    const result = estimateEmissions(
+      [
+        s("products", [
+          { cn: "2716 00 00", item: "Electricity", qty: "10", unit },
+        ]),
+      ],
+      TH,
+    );
+    assert.equal(result.productionT, 0);
+    assert.equal(result.perTonne, null);
+    assert.equal(result.unmatched.length, 1);
+  }
+});

@@ -5,8 +5,8 @@ shared sheet (00-09). A field only one standard asks for lives in that standard'
 
 Sources read for this map (November 2026):
 
-- EU CBAM: Regulation (EU) 2023/956, Implementing Regulations 2025/2083, 2025/2546 (verification),
-  2025/2547 (embedded emissions), 2025/2620 (benchmarks), 2025/2621 (default values), and the CBAM
+- EU CBAM: Regulations (EU) 2023/956 and 2025/2083, Implementing Regulations 2025/2546 (verification),
+  2025/2547 (embedded emissions), 2025/2620 (benchmarks), 2025/2621 (default values, corrected by 2026/1740), and the CBAM
   Communication template for installations (sheets A_InstData, B_EmInst, C_Emissions&Energy,
   D_Processes, E_PurchPrec).
 - TGO CFP: forms TGO/CFP-V02-2014 Fr-01 to Fr-06.2 in the HWA Fong tire and tube CFP workbooks with
@@ -33,7 +33,7 @@ Sources read for this map (November 2026):
 
 ## EU CBAM map (CBAM tab)
 
-The CBAM tab already holds every CBAM-only field, one cell per field of the Communication template,
+The CBAM tab holds CBAM-only fields, one cell per mapped field of the Communication template,
 in `lib/cbam/template-fields.ts` (`CBAM_FIELDS`). These include:
 
 - Reporting period and verifier details
@@ -46,6 +46,14 @@ in `lib/cbam/template-fields.ts` (`CBAM_FIELDS`). These include:
 - Purchased precursor SEE, and the justification for default values
 
 This work did not add a second CBAM map.
+
+The product catalogue includes electrical energy (CN 2716 00 00) in MWh; the product-sheet
+picker fills MWh for that code. The tonne-based benchmark table and country defaults do not apply
+to electricity. The electricity addendum and electricity-specific reporting remain to be mapped;
+the mass-based emissions estimate does not calculate electricity exports. The
+supplier form blocks electricity exports until its per-MWh calculation is supported. The
+country and precursor defaults still need reconciliation with 2026/1740 before they can be
+treated as the corrected schedule; see `docs/EU-CBAM-SOURCES.md`.
 
 ## TGO CFP map (tabs C1-C7)
 
