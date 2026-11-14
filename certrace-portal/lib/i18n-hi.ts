@@ -6888,6 +6888,7 @@ export const HI: Record<string, string> = {
   "Checked. Click to confirm this row": "जाँच हो गई। इस पंक्ति की पुष्टि के लिए क्लिक करें",
   "Not a number": "संख्या नहीं है",
   "Must not be negative": "ऋणात्मक नहीं होना चाहिए",
+  "Outside the valid range": "मान्य सीमा से बाहर",
   "Quantity is 0": "मात्रा 0 है",
   "Unit not recognised for this sheet": "इस शीट के लिए इकाई मान्य नहीं",
   "Choose a value from the list": "सूची से एक मान चुनें",

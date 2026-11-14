@@ -10952,6 +10952,7 @@ export const VI: Record<string, string> = {
     "Đã kiểm tra. Nhấp để xác nhận hàng này",
   "Not a number": "Không phải số",
   "Must not be negative": "Không được âm",
+  "Outside the valid range": "Nằm ngoài phạm vi hợp lệ",
   "Quantity is 0": "Số lượng bằng 0",
   "Unit not recognised for this sheet": "Đơn vị không hợp lệ cho trang này",
   "Choose a value from the list": "Chọn một giá trị trong danh sách",

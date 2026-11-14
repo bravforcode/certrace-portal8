@@ -10708,6 +10708,7 @@ export const KO: Record<string, string> = {
   "Checked. Click to confirm this row": "검사 완료. 클릭하여 이 행을 확인",
   "Not a number": "숫자가 아님",
   "Must not be negative": "음수일 수 없음",
+  "Outside the valid range": "유효 범위를 벗어났습니다",
   "Quantity is 0": "수량이 0임",
   "Unit not recognised for this sheet": "이 시트에서 인식되지 않는 단위",
   "Choose a value from the list": "목록에서 값을 선택하세요",

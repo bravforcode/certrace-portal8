@@ -10814,6 +10814,7 @@ export const JA: Record<string, string> = {
     "チェック済み。クリックしてこの行を確認",
   "Not a number": "数値ではありません",
   "Must not be negative": "負の値は使えません",
+  "Outside the valid range": "有効な範囲外です",
   "Quantity is 0": "数量が 0 です",
   "Unit not recognised for this sheet": "このシートでは認識されない単位です",
   "Choose a value from the list": "リストから値を選んでください",

@@ -9251,6 +9251,7 @@ export const ZH: Record<string, string> = {
   "Checked. Click to confirm this row": "已检查。点击确认此行",
   "Not a number": "不是数字",
   "Must not be negative": "不能为负数",
+  "Outside the valid range": "超出有效范围",
   "Quantity is 0": "数量为 0",
   "Unit not recognised for this sheet": "此工作表不识别该单位",
   "Choose a value from the list": "请从列表中选择",

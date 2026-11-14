@@ -11035,6 +11035,7 @@ export const MS: Record<string, string> = {
     "Telah disemak. Klik untuk mengesahkan baris ini",
   "Not a number": "Bukan nombor",
   "Must not be negative": "Tidak boleh negatif",
+  "Outside the valid range": "Di luar julat yang sah",
   "Quantity is 0": "Kuantiti ialah 0",
   "Unit not recognised for this sheet": "Unit tidak dikenali untuk helaian ini",
   "Choose a value from the list": "Pilih nilai daripada senarai",

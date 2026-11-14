@@ -10404,6 +10404,7 @@ export const ZH_TW: Record<string, string> = {
   "Checked. Click to confirm this row": "已檢查。點擊確認此列",
   "Not a number": "不是數字",
   "Must not be negative": "不可為負數",
+  "Outside the valid range": "超出有效範圍",
   "Quantity is 0": "數量為 0",
   "Unit not recognised for this sheet": "此工作表不識別該單位",
   "Choose a value from the list": "請從清單中選擇",

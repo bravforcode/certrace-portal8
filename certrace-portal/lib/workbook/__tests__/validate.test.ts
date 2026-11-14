@@ -134,3 +134,35 @@ test("the signature changes with the data and ignores the status cell", () => {
   assert.equal(rowSignature({ qty: "5", item: "LPG", status: "x" }), a);
   assert.notEqual(rowSignature({ item: "LPG", qty: "6" }), a);
 });
+
+// C5 land use change records where the land is; south and west of 0 are negative.
+test("coordinates may be negative but stay in range", () => {
+  const luc = (cells: Record<string, string>) =>
+    checkRow("cfp-luc", cells, ctx({ numberCols: new Set(["lat", "lng"]) }))
+      .flags;
+  assert.equal(luc({ lat: "-6.2", lng: "-75.5" }).lat, undefined);
+  assert.equal(luc({ lat: "-6.2", lng: "-75.5" }).lng, undefined);
+  assert.equal(luc({ lat: "95" }).lat, "warn");
+  assert.equal(luc({ lng: "-181" }).lng, "warn");
+});
+
+// The TGO EF autofill writes small factors like 5.59e-10; the portal must accept its own value.
+test("a factor in scientific notation is a number", () => {
+  const f = checkRow(
+    "cfp-luc",
+    { ef: "5.59e-10" },
+    ctx({ numberCols: new Set(["ef"]) }),
+  ).flags;
+  assert.equal(f.ef, undefined);
+});
+
+test("an evidence date must exist on the calendar", () => {
+  const check = (issued: string) =>
+    checkRow("evidence", { item: "Cert", issued }, ctx()).flags.issued;
+  assert.equal(check("2025-02-31"), "warn");
+  assert.equal(check("2025-04-31"), "warn");
+  assert.equal(check("2025-02-29"), "warn");
+  assert.equal(check("2024-02-29"), undefined);
+  assert.equal(check("2025"), undefined);
+  assert.equal(check("2025-13"), "warn");
+});

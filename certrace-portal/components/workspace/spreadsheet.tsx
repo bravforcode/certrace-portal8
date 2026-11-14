@@ -843,16 +843,22 @@ export function Spreadsheet({
                           key={col.key}
                           role="gridcell"
                           title={
-                            editor
-                              ? t("Edited by {name} · {time}", {
-                                  name: editorName(editor.by),
-                                  time: timeAgo(editor.at, t),
-                                })
-                              : col.kind === "status"
+                            // The reason a row cannot be confirmed comes first; who edited it follows.
+                            [
+                              col.kind === "status"
                                 ? statusHint(row, t)
                                 : row.notes?.[col.key]
                                   ? t(row.notes[col.key]!)
-                                  : undefined
+                                  : undefined,
+                              editor
+                                ? t("Edited by {name} · {time}", {
+                                    name: editorName(editor.by),
+                                    time: timeAgo(editor.at, t),
+                                  })
+                                : undefined,
+                            ]
+                              .filter(Boolean)
+                              .join("\n") || undefined
                           }
                           tabIndex={-1}
                           aria-selected={selected}

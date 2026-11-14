@@ -135,6 +135,7 @@ export const TH_WORKSPACE: Record<string, string> = {
   // row check notes (lib/workbook/validate.ts)
   "Not a number": "ไม่ใช่ตัวเลข",
   "Must not be negative": "ต้องไม่ติดลบ",
+  "Outside the valid range": "อยู่นอกช่วงที่ถูกต้อง",
   "Quantity is 0": "ปริมาณเป็น 0",
   "Unit not recognised for this sheet": "หน่วยนี้ใช้ไม่ได้ในชีตนี้",
   "Choose a value from the list": "เลือกค่าจากรายการ",

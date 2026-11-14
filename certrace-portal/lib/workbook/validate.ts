@@ -32,7 +32,21 @@ export type RowCheck = {
 };
 
 const ELECTRICITY_CN = "27160000";
-const DATE = /^\d{4}(-(0[1-9]|1[0-2])(-(0[1-9]|[12]\d|3[01]))?)?$/;
+const DATE = /^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$/;
+/** A year, a year-month or a real calendar day (no 31 April, no 29 February in a common year). */
+const isDate = (v: string) => {
+  const m = DATE.exec(v);
+  if (!m) return false;
+  const [y, mo = 1, d = 1] = m
+    .slice(1)
+    .map((x) => (x ? Number(x) : undefined)) as number[];
+  const t = new Date(Date.UTC(y, mo - 1, d));
+  return t.getUTCMonth() === mo - 1 && t.getUTCDate() === d;
+};
+/** Factors such as 5.59e-10 come from the TGO EF list in scientific notation. */
+const SCI = /^-?\d+(\.\d+)?e[-+]?\d+$/i;
+/** Columns that hold a signed value and its range: coordinates (C5 land use change). */
+const SIGNED: Record<string, number> = { lat: 90, lng: 180 };
 const lower = (v: string | undefined) => (v ?? "").trim().toLowerCase();
 const filled = (v: string | undefined) => (v ?? "").trim() !== "";
 const inList = (v: string, list: string[]) =>
@@ -63,9 +77,12 @@ export function checkRow(
     if (!filled(raw) || flags[k]) continue;
     const v = raw.trim();
     if (ctx.numberCols.has(k)) {
-      const n = parseQuantity(v);
+      const n = parseQuantity(v) ?? (SCI.test(v) ? Number(v) : null);
+      const limit = SIGNED[k];
       if (n === null) warn(k, "Not a number");
-      else if (n < 0) warn(k, "Must not be negative");
+      else if (limit !== undefined) {
+        if (Math.abs(n) > limit) warn(k, "Outside the valid range");
+      } else if (n < 0) warn(k, "Must not be negative");
       else if (n === 0 && k === "qty") warn(k, "Quantity is 0");
     } else if (ctx.unitCols.has(k)) {
       const units = UNITS[sheetId] ?? DEFAULT_UNITS;
@@ -127,7 +144,7 @@ export function checkRow(
 
   if (sheetId === "evidence") {
     for (const k of ["issued", "valid"])
-      if (filled(cells[k]) && !DATE.test(cells[k].trim()))
+      if (filled(cells[k]) && !isDate(cells[k].trim()))
         warn(k, "Enter a date as YYYY-MM-DD or a year");
     if (
       !flags.issued &&

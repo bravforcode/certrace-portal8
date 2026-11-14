@@ -10936,6 +10936,7 @@ export const TR: Record<string, string> = {
     "Kontrol edildi. Bu satırı onaylamak için tıklayın",
   "Not a number": "Sayı değil",
   "Must not be negative": "Negatif olamaz",
+  "Outside the valid range": "Geçerli aralığın dışında",
   "Quantity is 0": "Miktar 0",
   "Unit not recognised for this sheet": "Bu sayfa için birim tanınmıyor",
   "Choose a value from the list": "Listeden bir değer seçin",
