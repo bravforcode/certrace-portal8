@@ -52,6 +52,7 @@ import { CERA_SUGGESTIONS, partOfDay } from "@/lib/cera/chat";
 import type { CeraAttachment, CeraMessage } from "@/lib/cera/types";
 import { LanguageOverride, dateLocaleNow, useLanguage, useT } from "@/lib/i18n";
 import { localQuestion } from "@/lib/cera/knowledge-local";
+import { ceraLang } from "@/lib/cera/lang";
 
 const GREETING = {
   morning: "Good morning",
@@ -163,7 +164,7 @@ function Welcome({
   onAsk: (q: string) => void;
 }) {
   const t = useT();
-  const { lang } = useLanguage();
+  const lang = ceraLang(useLanguage().lang);
   const { supplier, precursor } = useCera();
   const accountName = useFirstName();
   // What a chip says is what it sends: in Thai the question goes out in Thai, and so comes back in Thai — and so for Chinese and Hindi.

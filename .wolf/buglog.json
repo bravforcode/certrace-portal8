@@ -2662,6 +2662,486 @@
       "related_bugs": [],
       "occurrences": 1,
       "last_seen": "2026-11-13T08:06:09.924Z"
+    },
+    {
+      "id": "bug-167",
+      "timestamp": "2026-11-13T17:42:50.851Z",
+      "error_message": "Type error",
+      "file": "certrace-portal/components/workspace/spreadsheet.tsx",
+      "root_cause": "Missing or incorrect type annotation",
+      "fix": "Added type assertion/annotation | Also: // On Flow no sheet is open, so no tab reads as the one show; const on = tab === s.id && !isFlow;",
+      "tags": [
+        "auto-detected",
+        "type-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 2,
+      "last_seen": "2026-11-13T17:43:21.445Z"
+    },
+    {
+      "id": "bug-168",
+      "timestamp": "2026-11-13T17:42:55.923Z",
+      "error_message": "Incorrect value in code",
+      "file": "certrace-portal/components/workspace/spreadsheet.tsx",
+      "root_cause": "Had \"table\"",
+      "fix": "Changed to \"flow\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 2,
+      "last_seen": "2026-11-13T17:43:14.780Z"
+    },
+    {
+      "id": "bug-169",
+      "timestamp": "2026-11-13T17:43:07.968Z",
+      "error_message": "CSS fix: sheet",
+      "file": "certrace-portal/components/workspace/spreadsheet.tsx",
+      "root_cause": "sheet: id === DEFAULT_SHEET ? null : id, view: null → id === DEFAULT_SHEET ? null : id,",
+      "fix": "Changed sheet: id === DEFAULT_SHEET ? null : id, view: null → id === DEFAULT_SHEET ? null : id,",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T17:43:07.968Z"
+    },
+    {
+      "id": "bug-170",
+      "timestamp": "2026-11-13T18:24:39.878Z",
+      "error_message": "Type error",
+      "file": "certrace-portal/lib/workbook/cell-options.ts",
+      "root_cause": "Missing or incorrect type annotation",
+      "fix": "Added type assertion/annotation",
+      "tags": [
+        "auto-detected",
+        "type-fix",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T18:24:39.878Z"
+    },
+    {
+      "id": "bug-171",
+      "timestamp": "2026-11-13T18:25:08.747Z",
+      "error_message": "Type error",
+      "file": "certrace-portal/lib/i18n-th-workspace.ts",
+      "root_cause": "Missing or incorrect type annotation",
+      "fix": "Added type assertion/annotation",
+      "tags": [
+        "auto-detected",
+        "type-fix",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T18:25:08.747Z"
+    },
+    {
+      "id": "bug-172",
+      "timestamp": "2026-11-13T18:27:23.373Z",
+      "error_message": "Significant refactor of ",
+      "file": "certrace-portal/lib/i18n-th-workspace.ts",
+      "root_cause": "3 lines replaced/restructured",
+      "fix": "Rewrote 8→5 lines (3 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T18:27:23.373Z"
+    },
+    {
+      "id": "bug-173",
+      "timestamp": "2026-11-13T18:28:15.710Z",
+      "error_message": "Type error",
+      "file": "certrace-portal/lib/workbook/__tests__/cell-options.test.ts",
+      "root_cause": "Missing or incorrect type annotation",
+      "fix": "Added type assertion/annotation",
+      "tags": [
+        "auto-detected",
+        "type-fix",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T18:28:15.710Z"
+    },
+    {
+      "id": "bug-174",
+      "timestamp": "2026-11-13T18:55:21.837Z",
+      "error_message": "Incorrect value in code",
+      "file": "../../Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/626a7c4c-a07f-499a-aad5-924c52c3ecf4/scratchpad/scripts/index.py",
+      "root_cause": "Had 'size'",
+      "fix": "Changed to ')\n        exp = kb(e.get('",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "py"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T18:55:21.837Z"
+    },
+    {
+      "id": "bug-175",
+      "timestamp": "2026-11-13T19:34:53.915Z",
+      "error_message": "Incorrect value in code",
+      "file": "docs/EU-CBAM-SOURCES.md",
+      "root_cause": "Had `C:\\Users\\menum\\AppData\\Local\\Temp\\claude\\64d537ba",
+      "fix": "Changed to `C:\\Certrace\\EU_CBAM_files_2026-11-14\\`",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "md"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T19:34:53.915Z"
+    },
+    {
+      "id": "bug-176",
+      "timestamp": "2026-11-13T19:46:55.925Z",
+      "error_message": "Incorrect value in code",
+      "file": "../../Users/menum/.claude/projects/C--Certrace-certrace-portal8/memory/eu-cbam-sources.md",
+      "root_cause": "Had `C:CertraceU_CBAM_files_2026-11-14`",
+      "fix": "Changed to `C:\\Certrace\\EU_CBAM_files_2026-11-14\\`",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "md"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T19:46:55.926Z"
+    },
+    {
+      "id": "bug-177",
+      "timestamp": "2026-11-14T10:44:49.498Z",
+      "error_message": "Missing guard clause",
+      "file": "certrace-portal/lib/workbook/import.ts",
+      "root_cause": "No early return/throw for edge case: quoted",
+      "fix": "Added guard clause: if (quoted)",
+      "tags": [
+        "auto-detected",
+        "guard-clause",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T10:44:49.498Z"
+    },
+    {
+      "id": "bug-178",
+      "timestamp": "2026-11-14T13:59:53.203Z",
+      "error_message": "Significant refactor of ",
+      "file": "certrace-portal/lib/i18n.ts",
+      "root_cause": "4 lines replaced/restructured",
+      "fix": "Rewrote 7→24 lines (4 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T13:59:53.203Z"
+    },
+    {
+      "id": "bug-179",
+      "timestamp": "2026-11-14T14:03:28.238Z",
+      "error_message": "Missing import: ./i18n-vi, ./i18n-tr, ./i18n-ko, ./i18n-zh-tw, ./i18n-id, ./i18n-ja, ./i18n-ms",
+      "file": "certrace-portal/lib/i18n.ts",
+      "root_cause": "Module(s) not imported: ./i18n-vi, ./i18n-tr, ./i18n-ko, ./i18n-zh-tw, ./i18n-id, ./i18n-ja, ./i18n-ms",
+      "fix": "Added import(s) for ./i18n-vi, ./i18n-tr, ./i18n-ko, ./i18n-zh-tw, ./i18n-id, ./i18n-ja, ./i18n-ms",
+      "tags": [
+        "auto-detected",
+        "missing-import",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T14:03:28.238Z"
+    },
+    {
+      "id": "bug-180",
+      "timestamp": "2026-11-14T14:04:22.035Z",
+      "error_message": "Incorrect value in code",
+      "file": "certrace-portal/lib/i18n.ts",
+      "root_cause": "Had \"zh\"",
+      "fix": "Changed to \" : \"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T14:04:22.035Z"
+    },
+    {
+      "id": "bug-181",
+      "timestamp": "2026-11-14T14:07:40.200Z",
+      "error_message": "Null/undefined access in ",
+      "file": "certrace-portal/lib/i18n.ts",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T14:07:40.200Z"
+    },
+    {
+      "id": "bug-182",
+      "timestamp": "2026-11-14T14:08:47.956Z",
+      "error_message": "Wrong reference: report should be data",
+      "file": "../../Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/f75bd070-f01a-4ad2-b5ef-8daa9d32e351/scratchpad/i18n/out/ja/all-01.json",
+      "root_cause": "Used \"report\" instead of \"data\"",
+      "fix": "Changed report → data",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "json"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T14:08:47.956Z"
+    },
+    {
+      "id": "bug-183",
+      "timestamp": "2026-11-14T14:18:03.068Z",
+      "error_message": "Incorrect value in code",
+      "file": "../../Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/f75bd070-f01a-4ad2-b5ef-8daa9d32e351/scratchpad/i18n/out/ja/all-02.json",
+      "root_cause": "Had \"Add the step 「{name}」 first.\"",
+      "fix": "Changed to \"Add the step \\\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "json"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T14:18:03.068Z"
+    },
+    {
+      "id": "bug-184",
+      "timestamp": "2026-11-14T14:19:52.885Z",
+      "error_message": "Incorrect value in code",
+      "file": "certrace-portal/components/auth-panel.tsx",
+      "root_cause": "Had \"flex justify-center overflow-y-auto px-6 py-8 [al",
+      "fix": "Changed to \"relative flex justify-center overflow-y-auto px-6",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T14:19:52.885Z"
+    },
+    {
+      "id": "bug-185",
+      "timestamp": "2026-11-14T14:20:34.827Z",
+      "error_message": "Wrong reference: MARKETING should be LanguageSelect",
+      "file": "certrace-portal/components/auth-panel.tsx",
+      "root_cause": "Used \"MARKETING\" instead of \"LanguageSelect\"",
+      "fix": "Changed MARKETING → LanguageSelect",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T14:20:34.827Z"
+    },
+    {
+      "id": "bug-186",
+      "timestamp": "2026-11-14T15:26:19.085Z",
+      "error_message": "Incorrect value in code",
+      "file": "../../Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/f75bd070-f01a-4ad2-b5ef-8daa9d32e351/scratchpad/i18n/out/zhTW/all-03.json",
+      "root_cause": "Had \"Say whether electricity is generated inside the i",
+      "fix": "Changed to \"Say whether electricity is generated inside the i",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "json"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T15:26:19.085Z"
+    },
+    {
+      "id": "bug-187",
+      "timestamp": "2026-11-14T15:37:43.404Z",
+      "error_message": "Wrong reference: map should be vi",
+      "file": "certrace-portal/scripts/test-resolver.mjs",
+      "root_cause": "Used \"map\" instead of \"vi\"",
+      "fix": "Changed map → vi",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "mjs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T15:37:43.404Z"
+    },
+    {
+      "id": "bug-188",
+      "timestamp": "2026-11-14T15:46:52.663Z",
+      "error_message": "Incorrect value in code",
+      "file": "../../Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/f75bd070-f01a-4ad2-b5ef-8daa9d32e351/scratchpad/i18n/out/ko/all-02.json",
+      "root_cause": "Had \"신선(線) 가공\"",
+      "fix": "Changed to \"선재 인발 가공\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "json"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T15:46:52.663Z"
+    },
+    {
+      "id": "bug-189",
+      "timestamp": "2026-11-14T15:52:14.809Z",
+      "error_message": "Significant refactor of ",
+      "file": "certrace-portal/app/login/page.tsx",
+      "root_cause": "7 lines replaced/restructured",
+      "fix": "Rewrote 8→4 lines (7 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T15:52:14.809Z"
+    },
+    {
+      "id": "bug-190",
+      "timestamp": "2026-11-14T15:52:28.053Z",
+      "error_message": "Wrong return value",
+      "file": "certrace-portal/app/register/page.tsx",
+      "root_cause": "Was returning: (",
+      "fix": "Now returns: <RegisterScreen />;",
+      "tags": [
+        "auto-detected",
+        "return-value",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 3,
+      "last_seen": "2026-11-14T15:53:02.875Z"
+    },
+    {
+      "id": "bug-191",
+      "timestamp": "2026-11-14T15:57:15.454Z",
+      "error_message": "Missing await",
+      "file": "certrace-portal/lib/__tests__/i18n-lazy.test.ts",
+      "root_cause": "Async call without await — returned Promise instead of value",
+      "fix": "Added await to async call",
+      "tags": [
+        "auto-detected",
+        "async-fix",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T15:57:15.454Z"
+    },
+    {
+      "id": "bug-192",
+      "timestamp": "2026-11-14T16:00:34.500Z",
+      "error_message": "Type error",
+      "file": "certrace-portal/lib/cera/lang.ts",
+      "root_cause": "Missing or incorrect type annotation",
+      "fix": "Added type assertion/annotation",
+      "tags": [
+        "auto-detected",
+        "type-fix",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T16:00:34.500Z"
+    },
+    {
+      "id": "bug-193",
+      "timestamp": "2026-11-14T16:01:43.073Z",
+      "error_message": "Wrong reference: useLanguage should be ceraLang",
+      "file": "certrace-portal/components/cera/cera-cards.tsx",
+      "root_cause": "Used \"useLanguage\" instead of \"ceraLang\"",
+      "fix": "Changed useLanguage → ceraLang",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T16:01:43.073Z"
+    },
+    {
+      "id": "bug-194",
+      "timestamp": "2026-11-14T16:02:07.422Z",
+      "error_message": "CSS fix: uiLang",
+      "file": "certrace-portal/components/cera/cera-provider.tsx",
+      "root_cause": "uiLang: CeraLang = screenLang → CeraLang = ceraLang(screenLang)",
+      "fix": "Changed uiLang: CeraLang = screenLang → CeraLang = ceraLang(screenLang)",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T16:02:07.422Z"
+    },
+    {
+      "id": "bug-195",
+      "timestamp": "2026-11-14T16:02:32.951Z",
+      "error_message": "Wrong reference: useLanguage should be ceraLang",
+      "file": "certrace-portal/components/cera/cera-missing.tsx",
+      "root_cause": "Used \"useLanguage\" instead of \"ceraLang\"",
+      "fix": "Changed useLanguage → ceraLang",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T16:02:32.951Z"
+    },
+    {
+      "id": "bug-196",
+      "timestamp": "2026-11-14T16:06:57.867Z",
+      "error_message": "Incorrect value in code",
+      "file": "certrace-portal/lib/__tests__/i18n-four-languages.test.ts",
+      "root_cause": "Had \"../i18n-hi\"",
+      "fix": "Changed to \"../i18n-zh-extra\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 2,
+      "last_seen": "2026-11-14T16:07:03.419Z"
     }
   ]
 }

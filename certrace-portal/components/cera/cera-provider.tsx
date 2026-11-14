@@ -40,7 +40,7 @@ import { conversationalReply } from "@/lib/cera/ai-reply";
 import { loadSession, onSessionChange } from "@/lib/api/session";
 import { isApiError } from "@/lib/api/errors";
 import { request } from "@/lib/api";
-import { chunks, langOf, pick, type CeraLang } from "@/lib/cera/lang";
+import { ceraLang, chunks, langOf, pick, type CeraLang } from "@/lib/cera/lang";
 import { focusHash, requestFocus } from "@/lib/cera/focus";
 import { localQuestion } from "@/lib/cera/knowledge-local";
 import { loadLocale, useLanguage } from "@/lib/i18n";
@@ -204,8 +204,8 @@ export function CeraProvider({
   /* The screen's language only decides what a message with no words of its own is answered in (a file dropped, a button with a
      number on it). Anything typed or tapped is answered in the language it was written in. */
   const { lang: screenLang } = useLanguage();
-  /* Cera speaks all four languages the portal does. */
-  const uiLang: CeraLang = screenLang;
+  /* Cera has written replies in four languages; ceraLang maps the rest. */
+  const uiLang: CeraLang = ceraLang(screenLang);
   const uiLangRef = React.useRef<CeraLang>(uiLang);
   uiLangRef.current = uiLang;
   const scopeRef = React.useRef(scope);

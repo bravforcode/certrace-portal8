@@ -22,7 +22,18 @@
 import * as React from "react";
 import { usePathname } from "next/navigation";
 
-export type LangCode = "en" | "th" | "zh" | "hi";
+export type LangCode =
+  | "en"
+  | "th"
+  | "zh"
+  | "hi"
+  | "vi"
+  | "tr"
+  | "ko"
+  | "zh-TW"
+  | "id"
+  | "ja"
+  | "ms";
 type LanguageInfo = {
   code: LangCode;
   label: string;
@@ -38,12 +49,29 @@ export const LANGUAGES: LanguageInfo[] = [
   { code: "th", label: "Thai", nativeLabel: "ไทย", glyph: "TH" },
   { code: "zh", label: "Chinese", nativeLabel: "中文", glyph: "ZH" },
   { code: "hi", label: "Hindi", nativeLabel: "हिन्दी", glyph: "HI" },
+  { code: "vi", label: "Vietnamese", nativeLabel: "Tiếng Việt", glyph: "VI" },
+  { code: "tr", label: "Turkish", nativeLabel: "Türkçe", glyph: "TR" },
+  { code: "ko", label: "Korean", nativeLabel: "한국어", glyph: "KO" },
+  {
+    code: "zh-TW",
+    label: "Traditional Chinese",
+    nativeLabel: "繁體中文",
+    glyph: "TW",
+  },
+  {
+    code: "id",
+    label: "Indonesian",
+    nativeLabel: "Bahasa Indonesia",
+    glyph: "ID",
+  },
+  { code: "ja", label: "Japanese", nativeLabel: "日本語", glyph: "JA" },
+  { code: "ms", label: "Malay", nativeLabel: "Bahasa Melayu", glyph: "MS" },
 ];
 
-/* ── The language MENU: more choices than translations ───────────
-   The menu offers twelve languages; four of them (English, Thai, Chinese, Hindi) have a dictionary. A choice without one keeps its own tick
-   in the menu but renders the English interface (`ui: "en"`) until its dictionary exists — adding one is: add the LangCode and DICTS entry,
-   then point that choice's `ui` at it. `lang` everywhere in the product stays the RENDERED language; `choice` is only what the menu shows. */
+/* ── The language MENU ──────────────────────────────────────────
+   Every menu choice has a dictionary of its own; English (US) renders the English interface. A new language: add the LangCode, its
+   LOADERS entry and its dictionary file, then point the menu choice's `ui` at it. `lang` everywhere in the product stays the RENDERED
+   language; `choice` is only what the menu shows. */
 export type MenuCode =
   | "en"
   | "en-US"
@@ -73,25 +101,25 @@ export const MENU_LANGUAGES: MenuLanguage[] = [
     nativeLabel: "English (US)",
   },
   { code: "th", ui: "th", label: "Thai", nativeLabel: "ไทย" },
-  { code: "vi", ui: "en", label: "Vietnamese", nativeLabel: "Tiếng Việt" },
-  { code: "tr", ui: "en", label: "Turkish", nativeLabel: "Türkçe" },
+  { code: "vi", ui: "vi", label: "Vietnamese", nativeLabel: "Tiếng Việt" },
+  { code: "tr", ui: "tr", label: "Turkish", nativeLabel: "Türkçe" },
   { code: "hi", ui: "hi", label: "Hindi", nativeLabel: "हिन्दी" },
   { code: "zh", ui: "zh", label: "Chinese", nativeLabel: "中文" },
-  { code: "ko", ui: "en", label: "Korean", nativeLabel: "한국어" },
+  { code: "ko", ui: "ko", label: "Korean", nativeLabel: "한국어" },
   {
     code: "zh-TW",
-    ui: "en",
+    ui: "zh-TW",
     label: "Traditional Chinese",
     nativeLabel: "繁體中文",
   },
   {
     code: "id",
-    ui: "en",
+    ui: "id",
     label: "Indonesian",
     nativeLabel: "Bahasa Indonesia",
   },
-  { code: "ja", ui: "en", label: "Japanese", nativeLabel: "日本語" },
-  { code: "ms", ui: "en", label: "Malay", nativeLabel: "Bahasa Melayu" },
+  { code: "ja", ui: "ja", label: "Japanese", nativeLabel: "日本語" },
+  { code: "ms", ui: "ms", label: "Malay", nativeLabel: "Bahasa Melayu" },
 ];
 const isMenuCode = (v: unknown): v is MenuCode =>
   MENU_LANGUAGES.some((l) => l.code === v);
@@ -140,6 +168,13 @@ const DICTS: Record<LangCode, Record<string, string>> = {
   th: {},
   zh: {},
   hi: {},
+  vi: {},
+  tr: {},
+  ko: {},
+  "zh-TW": {},
+  id: {},
+  ja: {},
+  ms: {},
 };
 const LOADED = new Set<LangCode>(["en"]);
 const PENDING: Partial<Record<LangCode, Promise<void>>> = {};
@@ -149,8 +184,21 @@ const LOADERS: Record<
   () => Promise<Record<string, string>>
 > = {
   th: () => import("./i18n-th-all").then((m) => m.TH_ALL),
-  zh: () => import("./i18n-zh").then((m) => m.ZH),
-  hi: () => import("./i18n-hi").then((m) => m.HI),
+  zh: () =>
+    Promise.all([import("./i18n-zh"), import("./i18n-zh-extra")]).then(
+      ([m, x]) => ({ ...m.ZH, ...x.ZH_EXTRA }),
+    ),
+  hi: () =>
+    Promise.all([import("./i18n-hi"), import("./i18n-hi-extra")]).then(
+      ([m, x]) => ({ ...m.HI, ...x.HI_EXTRA }),
+    ),
+  vi: () => import("./i18n-vi").then((m) => m.VI),
+  tr: () => import("./i18n-tr").then((m) => m.TR),
+  ko: () => import("./i18n-ko").then((m) => m.KO),
+  "zh-TW": () => import("./i18n-zh-tw").then((m) => m.ZH_TW),
+  id: () => import("./i18n-id").then((m) => m.ID),
+  ja: () => import("./i18n-ja").then((m) => m.JA),
+  ms: () => import("./i18n-ms").then((m) => m.MS),
 };
 
 export const isLocaleLoaded = (lang: LangCode): boolean => LOADED.has(lang);
@@ -247,6 +295,7 @@ function viaTemplate(lang: LangCode, en: string): string | null {
    combination, it is taken a sentence at a time: each is found exactly or by template, and the translated sentences are put back in the
    order they came. Chinese runs its sentences together; Thai and English separate them with a space. */
 const SENTENCE_BREAK = /(?<=[.!?])\s+(?=[A-Z“"‘(0-9{])/;
+const NO_SPACE_BETWEEN_SENTENCES = new Set<LangCode>(["zh", "zh-TW", "ja"]);
 
 function viaSentences(lang: LangCode, en: string): string | null {
   const parts = en.split(SENTENCE_BREAK);
@@ -260,7 +309,7 @@ function viaSentences(lang: LangCode, en: string): string | null {
     }
     return part;
   });
-  return found === 0 ? null : out.join(lang === "zh" ? "" : " ");
+  return found === 0 ? null : out.join(NO_SPACE_BETWEEN_SENTENCES.has(lang) ? "" : " ");
 }
 
 /** A name with a word of ours in brackets after it — "CaCO3 (carbonate)", "MgO (oxide, output-based)". The name is a material somebody
@@ -353,7 +402,15 @@ export function preferredLang(
 ): LangCode {
   if (offered.includes(saved as LangCode)) return saved as LangCode;
   for (const tag of tags) {
-    const subtag = tag?.toLowerCase().split("-")[0] as LangCode | undefined;
+    const lower = tag?.toLowerCase();
+    // Taiwan, Hong Kong and Macau Chinese, and any tag naming the Traditional script, read Traditional characters.
+    if (
+      lower &&
+      offered.includes("zh-TW") &&
+      /^zh-(tw|hk|mo|hant)\b/.test(lower)
+    )
+      return "zh-TW";
+    const subtag = lower?.split("-")[0] as LangCode | undefined;
     if (subtag && offered.includes(subtag)) return subtag;
   }
   return "en";
@@ -639,18 +696,24 @@ export function useCountryName() {
 let activeLang: LangCode = "en";
 export const currentLang = (): LangCode => activeLang;
 
-export const localeFor = (lang: LangCode) =>
-  lang === "th"
-    ? "th-TH"
-    : lang === "zh"
-      ? "zh-CN"
-      : lang === "hi"
-        ? "hi-IN"
-        : "en-GB";
+const LOCALES: Record<LangCode, string> = {
+  en: "en-GB",
+  th: "th-TH",
+  zh: "zh-CN",
+  hi: "hi-IN",
+  vi: "vi-VN",
+  tr: "tr-TR",
+  ko: "ko-KR",
+  "zh-TW": "zh-TW",
+  id: "id-ID",
+  ja: "ja-JP",
+  ms: "ms-MY",
+};
+export const localeFor = (lang: LangCode) => LOCALES[lang] ?? "en-GB";
 
-/** "2nd" in English; a plain day number in Thai, where "วันที่ 2" needs no suffix. */
+/** "2nd" in English; a plain day number in every other language, where "วันที่ 2" needs no suffix. */
 export const ordinalDay = (lang: LangCode, n: number): string => {
-  if (lang === "th" || lang === "zh" || lang === "hi") return String(n);
+  if (lang !== "en") return String(n);
   const suffix = ["th", "st", "nd", "rd"];
   const v = n % 100;
   return `${n}${suffix[(v - 20) % 10] ?? suffix[v] ?? suffix[0]}`;

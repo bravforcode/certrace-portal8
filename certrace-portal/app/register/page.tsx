@@ -14,7 +14,7 @@ import {
   GOOGLE_AUTH_ENABLED,
   AuthUnavailable,
 } from "@/components/auth-panel";
-import { EnglishOnly, useT } from "@/lib/i18n";
+import { useT } from "@/lib/i18n";
 import { useLegalDocuments, legalVersionIds } from "@/lib/api/legal";
 import { authUnavailable, beginGoogleSignIn, register } from "@/lib/api";
 import { EMAIL_RE, signUpError, type SignUpFailure } from "@/lib/auth-flow";
@@ -33,13 +33,8 @@ const NO_ERROR: SignUpFailure = { message: "", field: null };
    by the button — the identical Google button on /login signs an existing
    account in instead. */
 export default function RegisterPage() {
-  // Auth screens are English-only — see EnglishOnly in lib/i18n.tsx. The
-  // language switcher appears one step later, on /onboarding.
-  return (
-    <EnglishOnly>
-      <RegisterScreen />
-    </EnglishOnly>
-  );
+  // Follows the chosen language; the switcher is in AuthLayout.
+  return <RegisterScreen />;
 }
 
 function RegisterScreen() {

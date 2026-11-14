@@ -75,7 +75,7 @@ const nextConfig: NextConfig = {
       // Dictionaries load in the browser only (lib/i18n.ts loadLocale). Edge route bundles inlined them anyway.
       config.plugins.push(
         new webpack.NormalModuleReplacementPlugin(
-          /^\.\/i18n-(th-all|zh|hi)$/,
+          /^\.\/i18n-(th-all|zh|hi|zh-extra|hi-extra|vi|tr|ko|zh-tw|id|ja|ms)$/,
           join(import.meta.dirname, "lib", "i18n-server-stub.ts"),
         ),
       );

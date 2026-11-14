@@ -4,6 +4,7 @@ import * as React from "react";
 import { StatusDot, cn } from "./ui";
 import { CertraceLogo } from "./logo";
 import { useT } from "@/lib/i18n";
+import { LanguageSelect } from "./language-select";
 import { MARKETING_SITE_URL } from "@/lib/links";
 import { googleSignInEnabled, warmBackend } from "@/lib/api";
 
@@ -110,7 +111,8 @@ export function AuthLayout({
         </div>
       </div>
 
-      <div className="flex justify-center overflow-y-auto px-6 py-8 [align-items:safe_center] lg:py-16">
+      <div className="relative flex justify-center overflow-y-auto px-6 py-8 [align-items:safe_center] lg:py-16">
+        <LanguageSelect size="sm" className="absolute right-4 top-4 z-10" />
         <div className="w-full max-w-sm">
           <div className="lg:hidden">
             <HomeLogo className="h-5 w-auto" />

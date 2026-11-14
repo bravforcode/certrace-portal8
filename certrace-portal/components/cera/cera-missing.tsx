@@ -22,6 +22,7 @@ import { getStandard } from "@/lib/convert-standards";
 import { fillRequest, missingData, type MissingData } from "@/lib/cera/monitor";
 import type { Installation } from "@/lib/installations";
 import { useLanguage, useT } from "@/lib/i18n";
+import { ceraLang } from "@/lib/cera/lang";
 import { cn } from "@/components/ui";
 
 /** How many missing items the panel lists before it says how many more there are. */
@@ -70,7 +71,7 @@ function MonitorReader({ children }: { children: React.ReactNode }) {
   const { installation, sheets, cells, year, loaded, blank } =
     useConvertContext();
   const { send } = useCera();
-  const { lang } = useLanguage();
+  const lang = ceraLang(useLanguage().lang);
   const std = getStandard("eu-cbam");
   // Nothing to watch until an installation is selected and its workbook has loaded; an unloaded
   // workbook has no answers yet, which would look like everything being missing.

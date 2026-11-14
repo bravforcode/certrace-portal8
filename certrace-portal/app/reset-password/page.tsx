@@ -15,7 +15,7 @@ import {
   PasswordStrength,
   AuthUnavailable,
 } from "@/components/auth-panel";
-import { EnglishOnly, storedLang, useT } from "@/lib/i18n";
+import { storedLang, useT } from "@/lib/i18n";
 import { authUnavailable, hasCode, isApiError, resetPassword } from "@/lib/api";
 import {
   CODE_RE,
@@ -24,13 +24,9 @@ import {
   recallResetEmail,
 } from "@/lib/password-reset";
 
-// English-only, like the rest of the auth screens — see lib/i18n.tsx.
+// Follows the chosen language, like the rest of the auth screens.
 export default function ResetPasswordPage() {
-  return (
-    <EnglishOnly>
-      <ResetPasswordScreen />
-    </EnglishOnly>
-  );
+  return <ResetPasswordScreen />;
 }
 
 /* ── The second half of /forgot-password ────────────────────────

@@ -1342,6 +1342,435 @@
       ],
       "occurrences": 1,
       "last_seen": "2026-11-13T09:00:00.000Z"
+    },
+    {
+      "id": "bug-085",
+      "timestamp": "2026-11-13T17:42:51.005Z",
+      "error_message": "Type error",
+      "file": "components/workspace/spreadsheet.tsx",
+      "root_cause": "Missing or incorrect type annotation",
+      "fix": "Added type assertion/annotation | Also: // On Flow no sheet is open, so no tab reads as the one show; const on = tab === s.id && !isFlow;",
+      "tags": [
+        "auto-detected",
+        "type-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 2,
+      "last_seen": "2026-11-13T17:43:21.588Z"
+    },
+    {
+      "id": "bug-086",
+      "timestamp": "2026-11-13T17:42:56.022Z",
+      "error_message": "Incorrect value in code",
+      "file": "components/workspace/spreadsheet.tsx",
+      "root_cause": "Had \"table\"",
+      "fix": "Changed to \"flow\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 2,
+      "last_seen": "2026-11-13T17:43:14.953Z"
+    },
+    {
+      "id": "bug-087",
+      "timestamp": "2026-11-13T17:43:08.286Z",
+      "error_message": "CSS fix: sheet",
+      "file": "components/workspace/spreadsheet.tsx",
+      "root_cause": "sheet: id === DEFAULT_SHEET ? null : id, view: null → id === DEFAULT_SHEET ? null : id,",
+      "fix": "Changed sheet: id === DEFAULT_SHEET ? null : id, view: null → id === DEFAULT_SHEET ? null : id,",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T17:43:08.286Z"
+    },
+    {
+      "id": "bug-088",
+      "timestamp": "2026-11-13T18:24:40.187Z",
+      "error_message": "Type error",
+      "file": "lib/workbook/cell-options.ts",
+      "root_cause": "Missing or incorrect type annotation",
+      "fix": "Added type assertion/annotation",
+      "tags": [
+        "auto-detected",
+        "type-fix",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T18:24:40.187Z"
+    },
+    {
+      "id": "bug-089",
+      "timestamp": "2026-11-13T18:25:09.391Z",
+      "error_message": "Type error",
+      "file": "lib/i18n-th-workspace.ts",
+      "root_cause": "Missing or incorrect type annotation",
+      "fix": "Added type assertion/annotation",
+      "tags": [
+        "auto-detected",
+        "type-fix",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T18:25:09.391Z"
+    },
+    {
+      "id": "bug-090",
+      "timestamp": "2026-11-13T18:27:23.595Z",
+      "error_message": "Significant refactor of ",
+      "file": "lib/i18n-th-workspace.ts",
+      "root_cause": "3 lines replaced/restructured",
+      "fix": "Rewrote 8→5 lines (3 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T18:27:23.595Z"
+    },
+    {
+      "id": "bug-091",
+      "timestamp": "2026-11-13T18:28:15.966Z",
+      "error_message": "Type error",
+      "file": "lib/workbook/__tests__/cell-options.test.ts",
+      "root_cause": "Missing or incorrect type annotation",
+      "fix": "Added type assertion/annotation",
+      "tags": [
+        "auto-detected",
+        "type-fix",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-13T18:28:15.966Z"
+    },
+    {
+      "id": "cell-key-camelcase-2026-11-14",
+      "date": "2026-11-14",
+      "error": "Invalid cell cfp-transport:0:efRef (422 INVALID_CELL_KEY)",
+      "file": "lib/workspace-sheets.ts",
+      "root_cause": "camelCase column keys; backend CELL_KEY allows only [a-z0-9_-]",
+      "fix": "renamed CFP/V1 column keys to snake_case; added workspace-sheet-keys guard test",
+      "tags": [
+        "workbook",
+        "backend",
+        "cell-key"
+      ]
+    },
+    {
+      "id": "bug-093",
+      "timestamp": "2026-11-14T10:44:49.968Z",
+      "error_message": "Missing guard clause",
+      "file": "lib/workbook/import.ts",
+      "root_cause": "No early return/throw for edge case: quoted",
+      "fix": "Added guard clause: if (quoted)",
+      "tags": [
+        "auto-detected",
+        "guard-clause",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T10:44:49.968Z"
+    },
+    {
+      "id": "bug-094",
+      "timestamp": "2026-11-14T13:59:57.512Z",
+      "error_message": "Significant refactor of ",
+      "file": "lib/i18n.ts",
+      "root_cause": "4 lines replaced/restructured",
+      "fix": "Rewrote 7→24 lines (4 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T13:59:57.512Z"
+    },
+    {
+      "id": "bug-095",
+      "timestamp": "2026-11-14T14:03:30.790Z",
+      "error_message": "Missing import: ./i18n-vi, ./i18n-tr, ./i18n-ko, ./i18n-zh-tw, ./i18n-id, ./i18n-ja, ./i18n-ms",
+      "file": "lib/i18n.ts",
+      "root_cause": "Module(s) not imported: ./i18n-vi, ./i18n-tr, ./i18n-ko, ./i18n-zh-tw, ./i18n-id, ./i18n-ja, ./i18n-ms",
+      "fix": "Added import(s) for ./i18n-vi, ./i18n-tr, ./i18n-ko, ./i18n-zh-tw, ./i18n-id, ./i18n-ja, ./i18n-ms",
+      "tags": [
+        "auto-detected",
+        "missing-import",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T14:03:30.790Z"
+    },
+    {
+      "id": "bug-096",
+      "timestamp": "2026-11-14T14:04:24.065Z",
+      "error_message": "Incorrect value in code",
+      "file": "lib/i18n.ts",
+      "root_cause": "Had \"zh\"",
+      "fix": "Changed to \" : \"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T14:04:24.065Z"
+    },
+    {
+      "id": "bug-097",
+      "timestamp": "2026-11-14T14:08:47.457Z",
+      "error_message": "Wrong reference: report should be data",
+      "file": "../../../Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/f75bd070-f01a-4ad2-b5ef-8daa9d32e351/scratchpad/i18n/out/ja/all-01.json",
+      "root_cause": "Used \"report\" instead of \"data\"",
+      "fix": "Changed report → data",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "json"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T14:08:47.457Z"
+    },
+    {
+      "id": "bug-098",
+      "timestamp": "2026-11-14T14:18:04.062Z",
+      "error_message": "Incorrect value in code",
+      "file": "../../../Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/f75bd070-f01a-4ad2-b5ef-8daa9d32e351/scratchpad/i18n/out/ja/all-02.json",
+      "root_cause": "Had \"Add the step 「{name}」 first.\"",
+      "fix": "Changed to \"Add the step \\\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "json"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T14:18:04.062Z"
+    },
+    {
+      "id": "bug-099",
+      "timestamp": "2026-11-14T14:19:55.414Z",
+      "error_message": "Incorrect value in code",
+      "file": "components/auth-panel.tsx",
+      "root_cause": "Had \"flex justify-center overflow-y-auto px-6 py-8 [al",
+      "fix": "Changed to \"relative flex justify-center overflow-y-auto px-6",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T14:19:55.414Z"
+    },
+    {
+      "id": "bug-100",
+      "timestamp": "2026-11-14T14:20:35.347Z",
+      "error_message": "Wrong reference: MARKETING should be LanguageSelect",
+      "file": "components/auth-panel.tsx",
+      "root_cause": "Used \"MARKETING\" instead of \"LanguageSelect\"",
+      "fix": "Changed MARKETING → LanguageSelect",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T14:20:35.347Z"
+    },
+    {
+      "id": "bug-101",
+      "timestamp": "2026-11-14T15:26:20.160Z",
+      "error_message": "Incorrect value in code",
+      "file": "../../../Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/f75bd070-f01a-4ad2-b5ef-8daa9d32e351/scratchpad/i18n/out/zhTW/all-03.json",
+      "root_cause": "Had \"Say whether electricity is generated inside the i",
+      "fix": "Changed to \"Say whether electricity is generated inside the i",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "json"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T15:26:20.160Z"
+    },
+    {
+      "id": "bug-102",
+      "timestamp": "2026-11-14T15:37:44.816Z",
+      "error_message": "Wrong reference: map should be vi",
+      "file": "scripts/test-resolver.mjs",
+      "root_cause": "Used \"map\" instead of \"vi\"",
+      "fix": "Changed map → vi",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "mjs"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T15:37:44.816Z"
+    },
+    {
+      "id": "bug-103",
+      "timestamp": "2026-11-14T15:46:55.329Z",
+      "error_message": "Incorrect value in code",
+      "file": "../../../Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/f75bd070-f01a-4ad2-b5ef-8daa9d32e351/scratchpad/i18n/out/ko/all-02.json",
+      "root_cause": "Had \"신선(線) 가공\"",
+      "fix": "Changed to \"선재 인발 가공\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "json"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T15:46:55.329Z"
+    },
+    {
+      "id": "bug-104",
+      "timestamp": "2026-11-14T15:52:15.437Z",
+      "error_message": "Significant refactor of ",
+      "file": "app/login/page.tsx",
+      "root_cause": "7 lines replaced/restructured",
+      "fix": "Rewrote 8→4 lines (7 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T15:52:15.437Z"
+    },
+    {
+      "id": "bug-105",
+      "timestamp": "2026-11-14T15:52:28.307Z",
+      "error_message": "Wrong return value",
+      "file": "app/register/page.tsx",
+      "root_cause": "Was returning: (",
+      "fix": "Now returns: <RegisterScreen />;",
+      "tags": [
+        "auto-detected",
+        "return-value",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 3,
+      "last_seen": "2026-11-14T15:53:03.213Z"
+    },
+    {
+      "id": "bug-106",
+      "timestamp": "2026-11-14T15:57:15.736Z",
+      "error_message": "Missing await",
+      "file": "lib/__tests__/i18n-lazy.test.ts",
+      "root_cause": "Async call without await — returned Promise instead of value",
+      "fix": "Added await to async call",
+      "tags": [
+        "auto-detected",
+        "async-fix",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T15:57:15.736Z"
+    },
+    {
+      "id": "bug-107",
+      "timestamp": "2026-11-14T16:00:34.800Z",
+      "error_message": "Type error",
+      "file": "lib/cera/lang.ts",
+      "root_cause": "Missing or incorrect type annotation",
+      "fix": "Added type assertion/annotation",
+      "tags": [
+        "auto-detected",
+        "type-fix",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T16:00:34.800Z"
+    },
+    {
+      "id": "bug-108",
+      "timestamp": "2026-11-14T16:01:43.216Z",
+      "error_message": "Wrong reference: useLanguage should be ceraLang",
+      "file": "components/cera/cera-cards.tsx",
+      "root_cause": "Used \"useLanguage\" instead of \"ceraLang\"",
+      "fix": "Changed useLanguage → ceraLang",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T16:01:43.216Z"
+    },
+    {
+      "id": "bug-109",
+      "timestamp": "2026-11-14T16:02:07.939Z",
+      "error_message": "CSS fix: uiLang",
+      "file": "components/cera/cera-provider.tsx",
+      "root_cause": "uiLang: CeraLang = screenLang → CeraLang = ceraLang(screenLang)",
+      "fix": "Changed uiLang: CeraLang = screenLang → CeraLang = ceraLang(screenLang)",
+      "tags": [
+        "auto-detected",
+        "style-fix",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T16:02:07.939Z"
+    },
+    {
+      "id": "bug-110",
+      "timestamp": "2026-11-14T16:02:33.534Z",
+      "error_message": "Wrong reference: useLanguage should be ceraLang",
+      "file": "components/cera/cera-missing.tsx",
+      "root_cause": "Used \"useLanguage\" instead of \"ceraLang\"",
+      "fix": "Changed useLanguage → ceraLang",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "tsx"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-11-14T16:02:33.534Z"
+    },
+    {
+      "id": "bug-111",
+      "timestamp": "2026-11-14T16:06:58.030Z",
+      "error_message": "Incorrect value in code",
+      "file": "lib/__tests__/i18n-four-languages.test.ts",
+      "root_cause": "Had \"../i18n-hi\"",
+      "fix": "Changed to \"../i18n-zh-extra\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "ts"
+      ],
+      "related_bugs": [],
+      "occurrences": 2,
+      "last_seen": "2026-11-14T16:07:03.921Z"
     }
   ]
 }
