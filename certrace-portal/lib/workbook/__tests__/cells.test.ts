@@ -64,7 +64,10 @@ test("confirming signs the row; editing any cell afterwards undoes it", () => {
 });
 test("a row with a wrong value cannot be confirmed", () => {
   const bad = { "energy:0:unit": "km" };
-  const row = energy({ ...bad, "energy:0:status": confirmValue(energy(bad).cells) });
+  const row = energy({
+    ...bad,
+    "energy:0:status": confirmValue(energy(bad).cells),
+  });
   assert.equal(row.status, "review");
   assert.equal(row.flags?.unit, "warn");
 });

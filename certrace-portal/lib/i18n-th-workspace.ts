@@ -142,7 +142,8 @@ export const TH_WORKSPACE: Record<string, string> = {
   "Step is not listed in 02 Process steps": "ไม่มีขั้นตอนนี้ใน 02 ขั้นตอนการผลิต",
   "From and To are the same step": "ต้นทางและปลายทางเป็นขั้นตอนเดียวกัน",
   "Not a CBAM CN code": "ไม่ใช่รหัส CN ของ CBAM",
-  "Electricity (CN 2716 00 00) is reported in MWh": "ไฟฟ้า (CN 2716 00 00) ต้องรายงานเป็น MWh",
+  "Electricity (CN 2716 00 00) is reported in MWh":
+    "ไฟฟ้า (CN 2716 00 00) ต้องรายงานเป็น MWh",
   "CBAM goods are reported in tonnes": "สินค้า CBAM ต้องรายงานเป็นตัน",
   "Exported to EU is more than Quantity": "ปริมาณส่งออก EU มากกว่าปริมาณผลิต",
   "Electricity is measured in kWh, MWh or GJ": "ไฟฟ้าต้องวัดเป็น kWh, MWh หรือ GJ",

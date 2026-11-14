@@ -1347,7 +1347,10 @@ function CellView({
 }
 
 /** What the status cell says on hover: why a row is not confirmed, or how to confirm it. */
-function statusHint(row: SheetRow, t: (s: string) => string): string | undefined {
+function statusHint(
+  row: SheetRow,
+  t: (s: string) => string,
+): string | undefined {
   if (row.status === "empty") return undefined;
   if (row.status === "missing") return t("Fill the required cells first");
   if (row.status === "confirmed") return t("Confirmed. Click to undo");

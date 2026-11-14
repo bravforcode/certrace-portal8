@@ -119,8 +119,14 @@ test("evidence dates must be dates, and valid after issued", () => {
   const check = (cells: Record<string, string>) =>
     checkRow("evidence", { ...row, ...cells }, ctx()).flags;
   assert.equal(check({ valid: "next year" }).valid, "warn");
-  assert.equal(check({ issued: "2025-01-10", valid: "2027-01-09" }).valid, undefined);
-  assert.equal(check({ issued: "2025-01-10", valid: "2024-12-31" }).valid, "warn");
+  assert.equal(
+    check({ issued: "2025-01-10", valid: "2027-01-09" }).valid,
+    undefined,
+  );
+  assert.equal(
+    check({ issued: "2025-01-10", valid: "2024-12-31" }).valid,
+    "warn",
+  );
 });
 
 test("the signature changes with the data and ignores the status cell", () => {

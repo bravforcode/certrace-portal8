@@ -6926,3 +6926,4 @@ export const HI: Record<string, string> = {
   "Incineration": "भस्मीकरण",
   "Wastewater treatment": "अपशिष्ट जल उपचार",
 };
+The content was not fixed because the path `C:\Certrace\certrace-portal8\certrace-portal/lib/i18n-hi.ts` is ignored.
