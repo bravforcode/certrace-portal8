@@ -5,7 +5,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AuthLayout } from "@/components/auth-panel";
-import { EnglishOnly, useT } from "@/lib/i18n";
+import { useT } from "@/lib/i18n";
 import { useProfile } from "@/lib/profile";
 import {
   completeGoogleCallback,
@@ -32,11 +32,7 @@ import { accountStorage } from "@/lib/account-storage";
 
    Only a failure stays on screen, with a way back to where it started. */
 export default function GoogleCallbackPage() {
-  return (
-    <EnglishOnly>
-      <GoogleCallback />
-    </EnglishOnly>
-  );
+  return <GoogleCallback />;
 }
 
 const SETTINGS_SECURITY = "/settings?tab=privacy";

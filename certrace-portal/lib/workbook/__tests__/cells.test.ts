@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { cellKey, rowsUsed, sheetsFromCells } from "../cells";
+import { confirmValue } from "../validate";
 import { BLANK_ROWS } from "../../workspace-sheets";
 
 test("cellKey matches the server pattern", () => {
@@ -15,7 +16,8 @@ test("sheets come only from cells, padded to BLANK_ROWS", () => {
   const m = sheets.find((s) => s.id === "materials")!;
   assert.equal(m.rows.length, BLANK_ROWS);
   assert.deepEqual(m.rows[2]!.cells, { item: "Wire rod", qty: "10" });
-  assert.equal(m.rows[2]!.status, "confirmed");
+  // Filled is not confirmed: step and unit are required, so this row is missing data.
+  assert.equal(m.rows[2]!.status, "missing");
   assert.equal(m.rows[0]!.status, "empty");
   for (const s of sheets)
     if (s.id !== "documents" && s.id !== "materials")
@@ -31,10 +33,46 @@ test("rows grow past BLANK_ROWS when data needs it", () => {
   )!;
   assert.equal(s.rows.length, 51);
 });
-test("a status cell sets the row status", () => {
-  const s = sheetsFromCells(
-    { "energy:0:item": "LPG", "energy:0:status": "review" },
+const energy = (extra: Record<string, string> = {}) =>
+  sheetsFromCells(
+    {
+      "steps:0:step": "Melting",
+      "steps:0:what": "Melt scrap",
+      "energy:0:step": "Melting",
+      "energy:0:item": "Electricity",
+      "energy:0:qty": "1,200",
+      "energy:0:unit": "MWh",
+      ...extra,
+    },
     [],
-  ).find((x) => x.id === "energy")!;
-  assert.equal(s.rows[0]!.status, "review");
+  ).find((x) => x.id === "energy")!.rows[0]!;
+
+// The bug this guards: every filled row showed Confirmed without anyone checking it.
+test("a complete, valid row waits for a person to confirm it", () => {
+  assert.equal(energy().status, "review");
+  assert.deepEqual(energy().flags, {});
+});
+test("confirming signs the row; editing any cell afterwards undoes it", () => {
+  const signed = confirmValue(energy().cells);
+  assert.equal(energy({ "energy:0:status": signed }).status, "confirmed");
+  assert.equal(
+    energy({ "energy:0:status": signed, "energy:0:qty": "1,300" }).status,
+    "review",
+  );
+  // A bare "confirmed" from before the check proves nothing about the data.
+  assert.equal(energy({ "energy:0:status": "confirmed" }).status, "review");
+});
+test("a row with a wrong value cannot be confirmed", () => {
+  const bad = { "energy:0:unit": "km" };
+  const row = energy({
+    ...bad,
+    "energy:0:status": confirmValue(energy(bad).cells),
+  });
+  assert.equal(row.status, "review");
+  assert.equal(row.flags?.unit, "warn");
+});
+test("a row missing a required cell is missing, even if marked confirmed", () => {
+  const row = energy({ "energy:0:qty": "" });
+  assert.equal(row.status, "missing");
+  assert.equal(row.flags?.qty, "missing");
 });

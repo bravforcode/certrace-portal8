@@ -35,7 +35,7 @@ import type {
   UpdateItem,
 } from "@/lib/cera/types";
 import { useLanguage, useT, type TFunction } from "@/lib/i18n";
-import { pick, type CeraLang } from "@/lib/cera/lang";
+import { ceraLang, pick, type CeraLang } from "@/lib/cera/lang";
 import { requestFocus } from "@/lib/cera/focus";
 import { listWorkspaces } from "@/lib/workspace";
 import { ReportAutofill } from "@/components/intake/report-autofill";
@@ -1034,7 +1034,7 @@ function inText(iso: string, lang: CeraLang, today = new Date()): string {
 }
 
 function UpdateRow({ u, upcoming }: { u: UpdateItem; upcoming?: boolean }) {
-  const { lang } = useLanguage();
+  const lang = ceraLang(useLanguage().lang);
   // The date sits above the title, not beside it — the chat is a narrow column
   // and a side column would leave the text a few words wide.
   return (

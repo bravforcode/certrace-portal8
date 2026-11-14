@@ -9,8 +9,8 @@ import {
 } from "../i18n";
 import { TH } from "../i18n-th";
 
-test("supported languages list has en, th, zh and hi with correct labels and glyphs", () => {
-  assert.equal(LANGUAGES.length, 4);
+test("supported languages list has all eleven, with correct labels and glyphs for en and th", () => {
+  assert.equal(LANGUAGES.length, 11);
   const en = LANGUAGES.find((l) => l.code === "en");
   const th = LANGUAGES.find((l) => l.code === "th");
 
@@ -90,8 +90,8 @@ test("the list is ordered, so the first language we speak wins", () => {
 });
 
 test("a language we do not speak is skipped, not answered in", () => {
-  assert.equal(preferredLang(null, ["ja-JP", "th-TH", "en"]), "th");
-  assert.equal(preferredLang(null, ["ja-JP", "ko"]), "en");
+  assert.equal(preferredLang(null, ["de-DE", "th-TH", "en"]), "th");
+  assert.equal(preferredLang(null, ["de-DE", "fr"]), "en");
 });
 
 test("nothing to go on opens in English, the language the product is written in", () => {
@@ -186,41 +186,54 @@ test("no Thai label carries its English twin in brackets after it", () => {
 
 /* ── Chinese and Hindi are offered on every screen ───────────── */
 import { LINK_LANGUAGES, languagesFor } from "../i18n";
+const ALL = [
+  "en",
+  "th",
+  "zh",
+  "hi",
+  "vi",
+  "tr",
+  "ko",
+  "zh-TW",
+  "id",
+  "ja",
+  "ms",
+];
 
-test("every screen offers English, Thai, Chinese and Hindi", () => {
+test("every screen offers all eleven languages", () => {
   assert.deepEqual(
     languagesFor("/w/abc").map((l) => l.code),
-    ["en", "th", "zh", "hi"],
+    ALL,
   );
   assert.deepEqual(
     languagesFor("/p/abc").map((l) => l.code),
-    ["en", "th", "zh", "hi"],
+    ALL,
   );
   assert.deepEqual(
     languagesFor("/onboarding").map((l) => l.code),
-    ["en", "th", "zh", "hi"],
+    ALL,
   );
   assert.deepEqual(
     languagesFor("/onboarding/done").map((l) => l.code),
-    ["en", "th", "zh", "hi"],
+    ALL,
   );
   assert.deepEqual(
     languagesFor("/dashboard").map((l) => l.code),
-    ["en", "th", "zh", "hi"],
+    ALL,
   );
   assert.deepEqual(
     languagesFor("/workspaces/ws-1/monthly").map((l) => l.code),
-    ["en", "th", "zh", "hi"],
+    ALL,
   );
   assert.deepEqual(
     languagesFor(null).map((l) => l.code),
-    ["en", "th", "zh", "hi"],
+    ALL,
   );
   assert.equal(
     LINK_LANGUAGES.find((l) => l.code === "zh")?.nativeLabel,
     "中文",
   );
-  assert.equal(LANGUAGES.length, 4);
+  assert.equal(LANGUAGES.length, 11);
 });
 
 test("a Chinese choice is honoured where Chinese is offered, and ignored where it is not", () => {
@@ -281,7 +294,7 @@ test("Hindi is offered on the links and the sign-up, and nowhere in the portal",
   );
   assert.deepEqual(
     languagesFor("/dashboard").map((l) => l.code),
-    ["en", "th", "zh", "hi"],
+    ALL,
   );
   assert.equal(preferredLang("hi", [], ["en", "th", "zh", "hi"]), "hi");
   assert.equal(

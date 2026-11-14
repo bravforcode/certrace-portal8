@@ -2,10 +2,10 @@
   "version": 1,
   "created_at": "2026-11-10T17:17:03.632Z",
   "lifetime": {
-    "total_tokens_estimated": 46844,
+    "total_tokens_estimated": 54347,
     "total_reads": 0,
-    "total_writes": 62,
-    "total_sessions": 8,
+    "total_writes": 84,
+    "total_sessions": 10,
     "anatomy_hits": 0,
     "anatomy_misses": 0,
     "repeated_reads_warned": 0,
@@ -559,6 +559,180 @@
         "output_tokens_estimated": 1269,
         "reads_count": 0,
         "writes_count": 1,
+        "repeated_reads_warned": 0,
+        "repeated_reads_blocked": 0,
+        "anatomy_lookups": 0
+      },
+      "provider_usage": {
+        "status": "unknown",
+        "measurement_kind": "unknown",
+        "provider": null,
+        "model": null,
+        "source": "stop_hook",
+        "usage": {
+          "input_tokens": null,
+          "cached_input_tokens": null,
+          "output_tokens": null,
+          "reasoning_output_tokens": null,
+          "total_tokens": null
+        },
+        "reason": "The stop hook has no provider-native usage receipt. Codex JSONL token_count semantics remain unverified."
+      }
+    },
+    {
+      "id": "session-2026-11-13T08-54-06-553Z",
+      "started": "2026-11-13T08:54:06.555Z",
+      "ended": "2026-11-13T18:38:00.566Z",
+      "reads": [],
+      "writes": [
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-portal/components/workspace/spreadsheet.tsx",
+          "tokens_estimated": 124,
+          "action": "edit"
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-portal/components/workspace/spreadsheet.tsx",
+          "tokens_estimated": 34,
+          "action": "edit"
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-portal/components/workspace/spreadsheet.tsx",
+          "tokens_estimated": 74,
+          "action": "edit"
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-portal/components/workspace/spreadsheet.tsx",
+          "tokens_estimated": 16,
+          "action": "edit"
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-portal/components/workspace/spreadsheet.tsx",
+          "tokens_estimated": 43,
+          "action": "edit"
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-portal/components/workspace/cn-cell-picker.tsx",
+          "tokens_estimated": 2804,
+          "action": "create"
+        },
+        {
+          "file": "C:/Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/00828282-ea26-4a08-9dc4-4c94036a81c7/scratchpad/shots2.cjs",
+          "tokens_estimated": 1304,
+          "action": "create"
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-portal/lib/workspace-sheets.ts",
+          "tokens_estimated": 440,
+          "action": "edit"
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-portal/lib/workbook/status.ts",
+          "tokens_estimated": 62,
+          "action": "edit"
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-portal/lib/workbook/cell-options.ts",
+          "tokens_estimated": 262,
+          "action": "edit"
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-portal/lib/workbook/cell-options.ts",
+          "tokens_estimated": 94,
+          "action": "edit"
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-portal/lib/i18n-th-workspace.ts",
+          "tokens_estimated": 272,
+          "action": "edit"
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-portal/lib/i18n-th-workspace.ts",
+          "tokens_estimated": 16,
+          "action": "edit"
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-portal/lib/i18n-th-workspace.ts",
+          "tokens_estimated": 32,
+          "action": "edit"
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-portal/lib/i18n-th-workspace.ts",
+          "tokens_estimated": 0,
+          "action": "edit"
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-portal/lib/workbook/__tests__/cell-options.test.ts",
+          "tokens_estimated": 382,
+          "action": "edit"
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-portal/docs/standard-data-map.md",
+          "tokens_estimated": 1288,
+          "action": "create"
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-portal/docs/standard-data-map.md",
+          "tokens_estimated": 17,
+          "action": "edit"
+        }
+      ],
+      "totals": {
+        "input_tokens_estimated": 0,
+        "output_tokens_estimated": 7264,
+        "reads_count": 0,
+        "writes_count": 18,
+        "repeated_reads_warned": 0,
+        "repeated_reads_blocked": 0,
+        "anatomy_lookups": 0
+      },
+      "provider_usage": {
+        "status": "unknown",
+        "measurement_kind": "unknown",
+        "provider": null,
+        "model": null,
+        "source": "stop_hook",
+        "usage": {
+          "input_tokens": null,
+          "cached_input_tokens": null,
+          "output_tokens": null,
+          "reasoning_output_tokens": null,
+          "total_tokens": null
+        },
+        "reason": "The stop hook has no provider-native usage receipt. Codex JSONL token_count semantics remain unverified."
+      }
+    },
+    {
+      "id": "session-2026-11-14T16-10-56-156Z",
+      "started": "2026-11-14T16:10:56.159Z",
+      "ended": "2026-11-14T16:18:16.291Z",
+      "reads": [],
+      "writes": [
+        {
+          "file": "C:/Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/f75bd070-f01a-4ad2-b5ef-8daa9d32e351/scratchpad/i18n/demo.test.ts",
+          "tokens_estimated": 99,
+          "action": "create"
+        },
+        {
+          "file": "C:/Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/f75bd070-f01a-4ad2-b5ef-8daa9d32e351/scratchpad/i18n/demo.sh",
+          "tokens_estimated": 63,
+          "action": "create"
+        },
+        {
+          "file": "C:/Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/f75bd070-f01a-4ad2-b5ef-8daa9d32e351/scratchpad/i18n/demo.test.ts",
+          "tokens_estimated": 6,
+          "action": "edit"
+        },
+        {
+          "file": "C:/Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/f75bd070-f01a-4ad2-b5ef-8daa9d32e351/scratchpad/i18n/demo.sh",
+          "tokens_estimated": 71,
+          "action": "create"
+        }
+      ],
+      "totals": {
+        "input_tokens_estimated": 0,
+        "output_tokens_estimated": 239,
+        "reads_count": 0,
+        "writes_count": 4,
         "repeated_reads_warned": 0,
         "repeated_reads_blocked": 0,
         "anatomy_lookups": 0

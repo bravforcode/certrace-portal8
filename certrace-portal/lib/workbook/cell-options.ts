@@ -21,11 +21,11 @@ export function unitAfterProductPick(
 }
 
 /** Units the balance and estimate parsers read (lib/workbook/balance.ts, estimate.ts). */
-const UNITS: Record<string, string[]> = {
+export const UNITS: Record<string, string[]> = {
   energy: ["kWh", "MWh", "GJ", "m3", "l", "kg", "t"],
   transport: ["km", "tkm", "t"],
 };
-const DEFAULT_UNITS = ["t", "kg", "m3", "l", "GJ", "kWh", "MWh", "pcs"];
+export const DEFAULT_UNITS = ["t", "kg", "m3", "l", "GJ", "kWh", "MWh", "pcs"];
 
 // The words the sheets already use (and translate) for how a value was got.
 export const METHODS = ["Measured", "Calculated", "Estimated", "Not stated"];
@@ -74,6 +74,36 @@ export const CFP_MEASURES = [
   "Change end-of-life management",
 ];
 const YES_NO = ["Yes", "No"];
+/* 01-09 vocabularies: ISO 14064-1 categories 1-2, ISO 14067 6.3.5 primary/secondary data,
+   CBAM D_Processes output kinds and TGO Fr-04.1 end-of-life routes. validate.ts holds rows to them. */
+export const GHG_SCOPES = ["Scope 1", "Scope 2"];
+export const DATA_TYPES = ["Primary", "Secondary"];
+export const OUTPUT_TYPES = [
+  "Product",
+  "Co-product",
+  "By-product",
+  "Waste",
+  "Wastewater",
+  "Emission",
+];
+export const DESTINATIONS = [
+  "Sold",
+  "Recycled",
+  "Reused on site",
+  "Landfill",
+  "Incineration",
+  "Wastewater treatment",
+];
+
+/** Lists a column must pick from, per sheet. */
+export const SHEET_LISTS: Record<string, Record<string, string[]>> = {
+  steps: { boundary: YES_NO },
+  materials: { data_type: DATA_TYPES },
+  energy: { scope: GHG_SCOPES, data_type: DATA_TYPES },
+  output: { category: OUTPUT_TYPES, treatment: DESTINATIONS },
+  transport: { mode: TRANSPORT_MODES },
+};
+
 const CFP_LISTS: Record<string, string[]> = {
   scope: CFP_SCOPES,
   stage: CFP_STAGES,
@@ -146,6 +176,8 @@ export function cellOptions(
     fixed = [...columnValues(byId("documents"), "file"), NO_FILE];
   else if (sheet.id === "transport" && col.key === "mode")
     fixed = TRANSPORT_MODES;
+  else if (SHEET_LISTS[sheet.id]?.[col.key])
+    fixed = SHEET_LISTS[sheet.id][col.key];
   else if (sheet.id.startsWith("cfp") && CFP_LISTS[col.key])
     fixed = CFP_LISTS[col.key];
   else if (sheet.id === "cbam-verification" && VERIFICATION_LISTS[col.key])

@@ -66,9 +66,10 @@ export type SheetCol = {
 export type SheetRow = {
   cells: Record<string, string>;
   status: RowStatus;
-  /* Reserved: nothing sets flags yet (sheetsFromCells never produces them), so the
-     warn/missing highlight in the spreadsheet is inert until a checker fills this in. */
+  /** Cells the row check (lib/workbook/validate.ts) found empty or wrong. */
   flags?: Record<string, CellFlag>;
+  /** Why each flagged cell was flagged, in English (translated at render). */
+  notes?: Record<string, string>;
 };
 export type Sheet = {
   id: string;
@@ -159,6 +160,10 @@ export function buildSheets(files: WorkspaceFile[]): Sheet[] {
         col("item", "Product", "text", W.item),
         qty,
         unit,
+        // CBAM D_Processes production route; ISO 14067 and TGO Fr-03 process description.
+        col("route", "Production route", "text", W.item),
+        // CBAM quantity imported into the EU; TGO Fr-01 sales volume; same unit as Quantity.
+        col("exported", "Exported to EU", "number", W.qty),
         method,
         source,
         status,
@@ -174,6 +179,10 @@ export function buildSheets(files: WorkspaceFile[]): Sheet[] {
         col("what", "What happens", "text", W.item),
         col("input", "Main input", "text", "minmax(104px,1.2fr)"),
         col("output", "Output", "text", "minmax(104px,1.2fr)"),
+        // CBAM A_InstData 4(b) and TGO Fr-03: the main equipment of the step.
+        col("equipment", "Main equipment", "text", W.item),
+        // ISO 14067 6.3.4 and TGO cut-off: whether the step is inside the system boundary.
+        col("boundary", "In boundary", "text", W.unit),
         source,
         status,
       ],
@@ -189,6 +198,11 @@ export function buildSheets(files: WorkspaceFile[]): Sheet[] {
         col("cn", "CN code (precursor)", "text", W.step),
         qty,
         unit,
+        // CBAM E_PurchPrec (installation and country of origin); TGO Fr-04.1 data source.
+        col("supplier", "Supplier", "text", W.item),
+        col("origin", "Country of origin", "text", W.unit),
+        // ISO 14067 6.3.5 and TGO Fr-04.1: primary (site) or secondary (database) data.
+        col("data_type", "Data type", "text", W.unit),
         method,
         source,
         status,
@@ -219,6 +233,11 @@ export function buildSheets(files: WorkspaceFile[]): Sheet[] {
         col("item", "Energy source", "text", W.item),
         qty,
         unit,
+        // ISO 14064-1 category 1 or 2; CBAM direct or indirect emissions.
+        col("scope", "GHG scope", "text", W.unit),
+        // CBAM electricity source (grid, PPA, own plant); ISO 14064-1 market-based supplier.
+        col("supplier", "Supplier", "text", W.item),
+        col("data_type", "Data type", "text", W.unit),
         method,
         source,
         status,
@@ -232,8 +251,12 @@ export function buildSheets(files: WorkspaceFile[]): Sheet[] {
       cols: [
         col("step", "Step", "text", W.step),
         col("item", "Item", "text", W.item),
+        // CBAM D_Processes (a)-(d) and TGO Fr-03 outputs: product, co-product, waste or emission.
+        col("category", "Type", "text", W.unit),
         qty,
         unit,
+        // TGO Fr-04.1 end-of-life and ISO 14067: where the output goes.
+        col("treatment", "Destination", "text", W.unit),
         method,
         source,
         status,
@@ -247,6 +270,10 @@ export function buildSheets(files: WorkspaceFile[]): Sheet[] {
       cols: [
         col("route", "Route", "text", "minmax(160px,2fr)"),
         col("mode", "Mode", "text", W.unit),
+        // TGO Fr-04.2 and ISO 14064-1 category 3: what is carried, its weight and the vehicle.
+        col("item", "Item carried", "text", W.item),
+        col("load", "Load (t)", "number", W.qty),
+        col("vehicle", "Vehicle", "text", W.unit),
         col("qty", "Distance", "number", W.qty),
         unit,
         method,
@@ -263,7 +290,10 @@ export function buildSheets(files: WorkspaceFile[]): Sheet[] {
         col("item", "Evidence", "text", "minmax(176px,2.2fr)"),
         col("covers", "Covers", "text", "minmax(130px,1.1fr)"),
         col("issuer", "Issued by", "text", "minmax(112px,1.2fr)"),
-        col("valid", "Valid until", "number", W.qty),
+        // 2025/2546 verification evidence and the TGO verification sheet: certificate number and date.
+        col("ref", "Reference no.", "text", W.step),
+        col("issued", "Issued on", "text", W.qty),
+        col("valid", "Valid until", "text", W.qty),
         source,
         status,
       ],

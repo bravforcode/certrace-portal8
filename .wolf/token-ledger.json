@@ -2,13 +2,13 @@
   "version": 1,
   "created_at": "2026-11-10T19:53:23.277Z",
   "lifetime": {
-    "total_tokens_estimated": 840265,
-    "total_reads": 115,
-    "total_writes": 216,
-    "total_sessions": 32,
-    "anatomy_hits": 40,
-    "anatomy_misses": 70,
-    "repeated_reads_warned": 29,
+    "total_tokens_estimated": 1204250,
+    "total_reads": 129,
+    "total_writes": 238,
+    "total_sessions": 40,
+    "anatomy_hits": 42,
+    "anatomy_misses": 82,
+    "repeated_reads_warned": 32,
     "repeated_reads_blocked": 0,
     "estimated_savings_vs_bare_cli": 0
   },
@@ -2925,6 +2925,474 @@
         "reads_count": 5,
         "writes_count": 0,
         "repeated_reads_warned": 0,
+        "repeated_reads_blocked": 0,
+        "anatomy_lookups": 0
+      },
+      "provider_usage": {
+        "status": "unknown",
+        "measurement_kind": "unknown",
+        "provider": null,
+        "model": null,
+        "source": "stop_hook",
+        "usage": {
+          "input_tokens": null,
+          "cached_input_tokens": null,
+          "output_tokens": null,
+          "reasoning_output_tokens": null,
+          "total_tokens": null
+        },
+        "reason": "The stop hook has no provider-native usage receipt. Codex JSONL token_count semantics remain unverified."
+      }
+    },
+    {
+      "id": "session-2026-11-13T08-54-06-015Z",
+      "started": "2026-11-13T08:54:06.018Z",
+      "ended": "2026-11-13T10:04:28.213Z",
+      "reads": [
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-portal/.ui-shots/04-top-before.png",
+          "tokens_estimated": 77123,
+          "was_repeated": true,
+          "repeat_count": 2,
+          "anatomy_had_description": false
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-portal/.ui-shots/04b-import-section-viewport.png",
+          "tokens_estimated": 66399,
+          "was_repeated": false,
+          "repeat_count": 1,
+          "anatomy_had_description": false
+        }
+      ],
+      "writes": [],
+      "totals": {
+        "input_tokens_estimated": 143522,
+        "output_tokens_estimated": 0,
+        "reads_count": 2,
+        "writes_count": 0,
+        "repeated_reads_warned": 1,
+        "repeated_reads_blocked": 0,
+        "anatomy_lookups": 0
+      },
+      "provider_usage": {
+        "status": "unknown",
+        "measurement_kind": "unknown",
+        "provider": null,
+        "model": null,
+        "source": "stop_hook",
+        "usage": {
+          "input_tokens": null,
+          "cached_input_tokens": null,
+          "output_tokens": null,
+          "reasoning_output_tokens": null,
+          "total_tokens": null
+        },
+        "reason": "The stop hook has no provider-native usage receipt. Codex JSONL token_count semantics remain unverified."
+      }
+    },
+    {
+      "id": "session-2026-11-13T18-00-44-113Z",
+      "started": "2026-11-13T18:00:44.115Z",
+      "ended": "2026-11-13T18:08:36.822Z",
+      "reads": [
+        {
+          "file": "C:/Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/00828282-ea26-4a08-9dc4-4c94036a81c7/tasks/bn01d7een.output",
+          "tokens_estimated": 9,
+          "was_repeated": false,
+          "repeat_count": 1,
+          "anatomy_had_description": false
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-portal/components/workspace/spreadsheet.tsx",
+          "tokens_estimated": 14812,
+          "was_repeated": false,
+          "repeat_count": 1,
+          "anatomy_had_description": true
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-portal/.ui-shots/11-cn-picker-open.png",
+          "tokens_estimated": 93291,
+          "was_repeated": false,
+          "repeat_count": 1,
+          "anatomy_had_description": false
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-portal/.ui-shots/10-flow-default.png",
+          "tokens_estimated": 74813,
+          "was_repeated": false,
+          "repeat_count": 1,
+          "anatomy_had_description": false
+        }
+      ],
+      "writes": [
+        {
+          "file": "C:/Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/00828282-ea26-4a08-9dc4-4c94036a81c7/scratchpad/shots2.cjs",
+          "tokens_estimated": 1304,
+          "action": "create"
+        }
+      ],
+      "totals": {
+        "input_tokens_estimated": 182925,
+        "output_tokens_estimated": 1304,
+        "reads_count": 4,
+        "writes_count": 1,
+        "repeated_reads_warned": 0,
+        "repeated_reads_blocked": 0,
+        "anatomy_lookups": 1
+      },
+      "provider_usage": {
+        "status": "unknown",
+        "measurement_kind": "unknown",
+        "provider": null,
+        "model": null,
+        "source": "stop_hook",
+        "usage": {
+          "input_tokens": null,
+          "cached_input_tokens": null,
+          "output_tokens": null,
+          "reasoning_output_tokens": null,
+          "total_tokens": null
+        },
+        "reason": "The stop hook has no provider-native usage receipt. Codex JSONL token_count semantics remain unverified."
+      }
+    },
+    {
+      "id": "session-2026-11-13T18-19-24-288Z",
+      "started": "2026-11-13T18:19:24.290Z",
+      "ended": "2026-11-13T18:21:16.164Z",
+      "reads": [],
+      "writes": [
+        {
+          "file": "C:/Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/63ef740c-a513-4e1d-a2b8-1d2c73ef613d/scratchpad/out/cfp_fields.md",
+          "tokens_estimated": 6930,
+          "action": "create"
+        },
+        {
+          "file": "C:/Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/63ef740c-a513-4e1d-a2b8-1d2c73ef613d/scratchpad/out/cfp_fields.md",
+          "tokens_estimated": 13,
+          "action": "edit"
+        },
+        {
+          "file": "C:/Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/63ef740c-a513-4e1d-a2b8-1d2c73ef613d/scratchpad/out/cfp_fields.md",
+          "tokens_estimated": 23,
+          "action": "edit"
+        }
+      ],
+      "totals": {
+        "input_tokens_estimated": 0,
+        "output_tokens_estimated": 6966,
+        "reads_count": 0,
+        "writes_count": 3,
+        "repeated_reads_warned": 0,
+        "repeated_reads_blocked": 0,
+        "anatomy_lookups": 0
+      },
+      "provider_usage": {
+        "status": "unknown",
+        "measurement_kind": "unknown",
+        "provider": null,
+        "model": null,
+        "source": "stop_hook",
+        "usage": {
+          "input_tokens": null,
+          "cached_input_tokens": null,
+          "output_tokens": null,
+          "reasoning_output_tokens": null,
+          "total_tokens": null
+        },
+        "reason": "The stop hook has no provider-native usage receipt. Codex JSONL token_count semantics remain unverified."
+      }
+    },
+    {
+      "id": "session-2026-11-13T18-47-36-259Z",
+      "started": "2026-11-13T18:47:36.261Z",
+      "ended": "2026-11-13T18:56:42.805Z",
+      "reads": [],
+      "writes": [
+        {
+          "file": "C:/Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/626a7c4c-a07f-499a-aad5-924c52c3ecf4/scratchpad/scripts/index.py",
+          "tokens_estimated": 1072,
+          "action": "create"
+        },
+        {
+          "file": "C:/Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/626a7c4c-a07f-499a-aad5-924c52c3ecf4/scratchpad/scripts/index.py",
+          "tokens_estimated": 26,
+          "action": "edit"
+        },
+        {
+          "file": "C:/Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/626a7c4c-a07f-499a-aad5-924c52c3ecf4/scratchpad/scripts/index.py",
+          "tokens_estimated": 88,
+          "action": "edit"
+        },
+        {
+          "file": "C:/Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/626a7c4c-a07f-499a-aad5-924c52c3ecf4/scratchpad/out/EU_CBAM_files_2026-11-14/INDEX.md",
+          "tokens_estimated": 1050,
+          "action": "create"
+        }
+      ],
+      "totals": {
+        "input_tokens_estimated": 0,
+        "output_tokens_estimated": 2236,
+        "reads_count": 0,
+        "writes_count": 4,
+        "repeated_reads_warned": 0,
+        "repeated_reads_blocked": 0,
+        "anatomy_lookups": 0
+      },
+      "provider_usage": {
+        "status": "unknown",
+        "measurement_kind": "unknown",
+        "provider": null,
+        "model": null,
+        "source": "stop_hook",
+        "usage": {
+          "input_tokens": null,
+          "cached_input_tokens": null,
+          "output_tokens": null,
+          "reasoning_output_tokens": null,
+          "total_tokens": null
+        },
+        "reason": "The stop hook has no provider-native usage receipt. Codex JSONL token_count semantics remain unverified."
+      }
+    },
+    {
+      "id": "session-2026-11-13T19-08-57-845Z",
+      "started": "2026-11-13T19:08:57.846Z",
+      "ended": "2026-11-13T19:47:27.419Z",
+      "reads": [
+        {
+          "file": "C:/Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/63ef740c-a513-4e1d-a2b8-1d2c73ef613d/tasks/b62wcnm8u.output",
+          "tokens_estimated": 0,
+          "was_repeated": false,
+          "repeat_count": 1,
+          "anatomy_had_description": false
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-portal/lib/workspace-sheets.ts",
+          "tokens_estimated": 2850,
+          "was_repeated": true,
+          "repeat_count": 2,
+          "anatomy_had_description": true
+        },
+        {
+          "file": "C:/Users/menum/.claude/projects/C--Certrace-certrace-portal8/memory/eu-cbam-sources.md",
+          "tokens_estimated": 224,
+          "was_repeated": false,
+          "repeat_count": 1,
+          "anatomy_had_description": false
+        }
+      ],
+      "writes": [
+        {
+          "file": "C:/Certrace/certrace-portal8/docs/EU-CBAM-SOURCES.md",
+          "tokens_estimated": 1647,
+          "action": "create"
+        },
+        {
+          "file": "C:/Users/menum/.claude/projects/C--Certrace-certrace-portal8/memory/eu-cbam-sources.md",
+          "tokens_estimated": 195,
+          "action": "create"
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/docs/EU-CBAM-SOURCES.md",
+          "tokens_estimated": 35,
+          "action": "edit"
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-portal/lib/workspace-sheets.ts",
+          "tokens_estimated": 1010,
+          "action": "edit"
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-portal/lib/cfp/tgo-ef.ts",
+          "tokens_estimated": 565,
+          "action": "create"
+        },
+        {
+          "file": "C:/Users/menum/.claude/projects/C--Certrace-certrace-portal8/memory/eu-cbam-sources.md",
+          "tokens_estimated": 14,
+          "action": "edit"
+        }
+      ],
+      "totals": {
+        "input_tokens_estimated": 3074,
+        "output_tokens_estimated": 3466,
+        "reads_count": 3,
+        "writes_count": 6,
+        "repeated_reads_warned": 1,
+        "repeated_reads_blocked": 0,
+        "anatomy_lookups": 1
+      },
+      "provider_usage": {
+        "status": "unknown",
+        "measurement_kind": "unknown",
+        "provider": null,
+        "model": null,
+        "source": "stop_hook",
+        "usage": {
+          "input_tokens": null,
+          "cached_input_tokens": null,
+          "output_tokens": null,
+          "reasoning_output_tokens": null,
+          "total_tokens": null
+        },
+        "reason": "The stop hook has no provider-native usage receipt. Codex JSONL token_count semantics remain unverified."
+      }
+    },
+    {
+      "id": "session-2026-11-13T20-24-14-505Z",
+      "started": "2026-11-13T20:24:14.546Z",
+      "ended": "2026-11-13T20:30:31.422Z",
+      "reads": [],
+      "writes": [
+        {
+          "file": "C:/Certrace/certrace-portal8/docs/AUDIT-PROMPT.md",
+          "tokens_estimated": 2371,
+          "action": "create"
+        }
+      ],
+      "totals": {
+        "input_tokens_estimated": 0,
+        "output_tokens_estimated": 2371,
+        "reads_count": 0,
+        "writes_count": 1,
+        "repeated_reads_warned": 0,
+        "repeated_reads_blocked": 0,
+        "anatomy_lookups": 0
+      },
+      "provider_usage": {
+        "status": "unknown",
+        "measurement_kind": "unknown",
+        "provider": null,
+        "model": null,
+        "source": "stop_hook",
+        "usage": {
+          "input_tokens": null,
+          "cached_input_tokens": null,
+          "output_tokens": null,
+          "reasoning_output_tokens": null,
+          "total_tokens": null
+        },
+        "reason": "The stop hook has no provider-native usage receipt. Codex JSONL token_count semantics remain unverified."
+      }
+    },
+    {
+      "id": "session-2026-11-13T20-53-27-656Z",
+      "started": "2026-11-13T20:53:27.658Z",
+      "ended": "2026-11-14T10:30:16.649Z",
+      "reads": [
+        {
+          "file": "C:/Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/63ef740c-a513-4e1d-a2b8-1d2c73ef613d/tasks/aa0843da57f9d0ee5.output",
+          "tokens_estimated": 0,
+          "was_repeated": false,
+          "repeat_count": 1,
+          "anatomy_had_description": false
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-backend/src/lib/db.ts",
+          "tokens_estimated": 86,
+          "was_repeated": false,
+          "repeat_count": 1,
+          "anatomy_had_description": false
+        }
+      ],
+      "writes": [
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-backend/src/lib/db.ts",
+          "tokens_estimated": 89,
+          "action": "edit"
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-backend/src/index.ts",
+          "tokens_estimated": 42,
+          "action": "edit"
+        }
+      ],
+      "totals": {
+        "input_tokens_estimated": 86,
+        "output_tokens_estimated": 131,
+        "reads_count": 2,
+        "writes_count": 2,
+        "repeated_reads_warned": 0,
+        "repeated_reads_blocked": 0,
+        "anatomy_lookups": 0
+      },
+      "provider_usage": {
+        "status": "unknown",
+        "measurement_kind": "unknown",
+        "provider": null,
+        "model": null,
+        "source": "stop_hook",
+        "usage": {
+          "input_tokens": null,
+          "cached_input_tokens": null,
+          "output_tokens": null,
+          "reasoning_output_tokens": null,
+          "total_tokens": null
+        },
+        "reason": "The stop hook has no provider-native usage receipt. Codex JSONL token_count semantics remain unverified."
+      }
+    },
+    {
+      "id": "session-2026-11-14T16-10-55-163Z",
+      "started": "2026-11-14T16:10:55.166Z",
+      "ended": "2026-11-14T16:18:15.894Z",
+      "reads": [
+        {
+          "file": "C:/Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/f75bd070-f01a-4ad2-b5ef-8daa9d32e351/tasks/by5l79746.output",
+          "tokens_estimated": 176,
+          "was_repeated": true,
+          "repeat_count": 2,
+          "anatomy_had_description": false
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-portal/components/workspace/spreadsheet.tsx",
+          "tokens_estimated": 15838,
+          "was_repeated": false,
+          "repeat_count": 1,
+          "anatomy_had_description": false
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-portal/.wolf/cerebrum.md",
+          "tokens_estimated": 1535,
+          "was_repeated": false,
+          "repeat_count": 1,
+          "anatomy_had_description": false
+        }
+      ],
+      "writes": [
+        {
+          "file": "C:/Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/f75bd070-f01a-4ad2-b5ef-8daa9d32e351/scratchpad/i18n/demo.test.ts",
+          "tokens_estimated": 99,
+          "action": "create"
+        },
+        {
+          "file": "C:/Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/f75bd070-f01a-4ad2-b5ef-8daa9d32e351/scratchpad/i18n/demo.sh",
+          "tokens_estimated": 63,
+          "action": "create"
+        },
+        {
+          "file": "C:/Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/f75bd070-f01a-4ad2-b5ef-8daa9d32e351/scratchpad/i18n/demo.test.ts",
+          "tokens_estimated": 6,
+          "action": "edit"
+        },
+        {
+          "file": "C:/Users/menum/AppData/Local/Temp/claude/64d537baf603f96c/f75bd070-f01a-4ad2-b5ef-8daa9d32e351/scratchpad/i18n/demo.sh",
+          "tokens_estimated": 71,
+          "action": "create"
+        },
+        {
+          "file": "C:/Certrace/certrace-portal8/certrace-portal/.wolf/cerebrum.md",
+          "tokens_estimated": 116,
+          "action": "edit"
+        }
+      ],
+      "totals": {
+        "input_tokens_estimated": 17549,
+        "output_tokens_estimated": 355,
+        "reads_count": 3,
+        "writes_count": 5,
+        "repeated_reads_warned": 1,
         "repeated_reads_blocked": 0,
         "anatomy_lookups": 0
       },

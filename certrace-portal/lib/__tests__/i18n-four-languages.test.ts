@@ -17,8 +17,15 @@ const { TH_SECTOR } = await import("../i18n-th-sector");
 const { TH_INTAKE } = await import("../i18n-th-intake");
 const { TH_POLISH } = await import("../i18n-th-polish");
 const { TH_CERA_MONITOR } = await import("../i18n-th-cera-monitor");
-const { ZH } = await import("../i18n-zh");
-const { HI } = await import("../i18n-hi");
+// The main files plus the rows added later in their -extra companions, merged the way lib/i18n loads them.
+const ZH = {
+  ...(await import("../i18n-zh")).ZH,
+  ...(await import("../i18n-zh-extra")).ZH_EXTRA,
+};
+const HI = {
+  ...(await import("../i18n-hi")).HI,
+  ...(await import("../i18n-hi-extra")).HI_EXTRA,
+};
 const { LANGUAGES, translate } = await import("../i18n");
 
 const TH_ALL: Record<string, string> = {
@@ -34,11 +41,13 @@ const TH_ALL: Record<string, string> = {
 const holes = (s: string) =>
   [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
 
-test("the interface offers English, Thai, Chinese and Hindi", () => {
-  assert.deepEqual(
-    LANGUAGES.map((l) => l.code),
-    ["en", "th", "zh", "hi"],
-  );
+test("the interface offers English, Thai, Chinese and Hindi first", () => {
+  assert.deepEqual(LANGUAGES.map((l) => l.code).slice(0, 4), [
+    "en",
+    "th",
+    "zh",
+    "hi",
+  ]);
 });
 
 test("every key the Thai dictionary carries has a Chinese and a Hindi row", () => {

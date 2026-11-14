@@ -12,20 +12,14 @@ import {
   GOOGLE_AUTH_ENABLED,
   AuthUnavailable,
 } from "@/components/auth-panel";
-import { EnglishOnly, useT } from "@/lib/i18n";
+import { useT } from "@/lib/i18n";
 import { authUnavailable, beginGoogleSignIn, login } from "@/lib/api";
 import { EMAIL_RE, signInDestination, signInError } from "@/lib/auth-flow";
 
-/* Sign-in is English-only, like the rest of the auth screens — see
-   EnglishOnly in lib/i18n.tsx. The EN/ไทย switcher starts on /onboarding,
-   where the person filling the form is known, and inside the product it lives
-   in the account menu. */
+/* Sign-in follows the chosen language — the switcher sits top-right in
+   AuthLayout, so a returning exporter can read this screen in their own. */
 export default function LoginPage() {
-  return (
-    <EnglishOnly>
-      <LoginScreen />
-    </EnglishOnly>
-  );
+  return <LoginScreen />;
 }
 
 function LoginScreen() {

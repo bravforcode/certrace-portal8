@@ -6,17 +6,13 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, ArrowLeft, MailCheck, X } from "lucide-react";
 import { Button, Field, inputClass, Card, Eyebrow } from "@/components/ui";
 import { AuthLayout, AuthUnavailable } from "@/components/auth-panel";
-import { EnglishOnly, storedLang, useT } from "@/lib/i18n";
+import { storedLang, useT } from "@/lib/i18n";
 import { authUnavailable, isApiError, requestPasswordReset } from "@/lib/api";
 import { EMAIL_RE, rememberResetEmail } from "@/lib/password-reset";
 
-// English-only, like /login and /register — see EnglishOnly in lib/i18n.tsx.
+// Follows the chosen language, like /login and /register.
 export default function ForgotPasswordPage() {
-  return (
-    <EnglishOnly>
-      <ForgotPasswordScreen />
-    </EnglishOnly>
-  );
+  return <ForgotPasswordScreen />;
 }
 /* ── What the person is being sent ──────────────────────────────
    A six-digit code, not a link. The backend generates one in
@@ -51,9 +47,8 @@ function ForgotPasswordScreen() {
     setError("");
 
     try {
-      /* The page is pinned to English; the EMAIL is not. Whoever reads it
-         picked a language before they signed out, and that is the one they
-         will be reading in — see storedLang(). */
+      /* The email goes out in the stored language (storedLang() covers EN and
+         TH only), whatever language this page is showing. */
       await requestPasswordReset({ email: address, locale: storedLang() });
       return true;
     } catch (cause) {

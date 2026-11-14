@@ -78,4 +78,8 @@ registerHooks({
 const { loadLocale } = await import(
   pathToFileURL(path.join(ROOT, "lib/i18n.ts")).href
 );
-await Promise.all(["th", "zh", "hi"].map((lang) => loadLocale(lang)));
+await Promise.all(
+  ["th", "zh", "hi", "vi", "tr", "ko", "zh-TW", "id", "ja", "ms"].map((lang) =>
+    loadLocale(lang),
+  ),
+);

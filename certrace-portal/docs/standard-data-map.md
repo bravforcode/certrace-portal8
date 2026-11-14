@@ -22,14 +22,31 @@ Sources read for this map (November 2026):
 | 00 Installation | Name, address, country, UN/LOCODE, coordinates, contact | A_InstData section 2 (i)-(xiv); 2025/2546 Annex (coordinates to 6 decimals) | Fr-01 company; Fr-03 header |
 | 00 Installation | Operator name, registration number, address | 2025/2547 Annex IV 1(a)-(c) | Fr-01 company |
 | 01 Products | CN code, product name, quantity, unit | A_InstData 4(a); D_Processes (a) total production | Fr-01 product name, sales volume |
-| 02 Process steps | Step, what happens, main input, output | A_InstData 4(b) production processes P1-P10 | Fr-03 process diagram |
-| 03 Raw materials | Step, item, precursor CN, quantity, unit | A_InstData 5 purchased precursors; E_PurchPrec (a)-(c) | Fr-03 inputs; Fr-04.1 item and LCI quantity |
-| 04 Energy | Step, fuel or electricity, quantity, unit | B_EmInst activity data; D_Processes (j) electricity consumption | Fr-03 utilities; Fr-04.1 energy rows |
+| 01 Products | Production route, quantity exported to the EU | D_Processes production route; Reg. 2023/956 Art 35 quantity imported | Fr-03 process description; Fr-01 sales volume |
+| 02 Process steps | Step, what happens, main input, output, main equipment, in boundary (Yes/No) | A_InstData 4(b) production processes P1-P10 | Fr-03 process diagram; ISO 14067 6.3.4 system boundary |
+| 03 Raw materials | Step, item, precursor CN, quantity, unit, supplier, country of origin, data type (Primary/Secondary) | A_InstData 5 purchased precursors; E_PurchPrec (a)-(c), installation and country of origin | Fr-03 inputs; Fr-04.1 item, LCI quantity and data source; ISO 14067 6.3.5 |
+| 04 Energy | Step, fuel or electricity, quantity, unit, GHG scope (Scope 1/Scope 2), supplier, data type | B_EmInst activity data (direct); D_Processes (j) electricity consumption (indirect) | Fr-03 utilities; Fr-04.1 energy rows; ISO 14064-1 categories 1-2 |
 | 05 Material flow | From, to, material, quantity | D_Processes (c) consumed in other processes | Fr-03 intermediates; mass balance |
-| 06 Output & waste | Step, product, co-product, waste, quantity | D_Processes (a)-(d) | Fr-03 outputs; Fr-04.1 end-of-life |
-| 07 Transport | Route, mode, distance | Not required by CBAM | Fr-04.2 distance |
-| 08 Evidence | Certificate, coverage, issuer, validity | 2025/2546 verification evidence | Verification sheet evidence |
+| 06 Output & waste | Step, item, type (Product, Co-product, By-product, Waste, Wastewater, Emission), quantity, unit, destination (Sold, Recycled, Reused on site, Landfill, Incineration, Wastewater treatment) | D_Processes (a)-(d) | Fr-03 outputs; Fr-04.1 end-of-life |
+| 07 Transport | Route, mode, item carried, load (t), vehicle, distance | Not required by CBAM | Fr-04.2 distance method (load, vehicle, distance); ISO 14064-1 category 3 |
+| 08 Evidence | Certificate, coverage, issuer, reference number, issued on, valid until | 2025/2546 verification evidence | Verification sheet evidence |
 | 09 Documents | Uploaded files | Any | Any |
+
+### Row check before a row can be confirmed
+
+A filled row is "To review" until a person clicks its status and the row check
+(`lib/workbook/validate.ts`) finds nothing wrong. The confirmation signs the row's
+data, so editing any cell afterwards puts the row back to review. The check flags:
+
+- a required cell left empty (Missing data);
+- a number that does not parse, is negative, or a quantity of 0;
+- a unit the sheet's parsers do not read;
+- a CN code that is not a CBAM code (Reg. 2023/956 Annex I), goods not in tonnes, or electricity (CN 2716 00 00) not in MWh;
+- exported quantity above production;
+- a step in 03-06 that 02 does not list, or a flow from a step to itself;
+- a pick-list column (method, mode, scope, data type, in boundary, type, destination) holding a value outside its list;
+- a source file that is not in 09 Documents (2025/2546 Art 7 evidence);
+- an evidence date that is not a date, or valid until before issued on.
 
 ## EU CBAM map (CBAM tab)
 
