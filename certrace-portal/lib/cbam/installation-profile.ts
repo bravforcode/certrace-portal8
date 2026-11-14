@@ -211,7 +211,7 @@ export const ADDENDUM_QUESTION = {
   key: "electricityToEu" as const,
   label: "Is electricity from this installation imported into the EU?",
   tag: "1.1.1",
-  hint: "Only then does the fourth report — the declarant-specific addendum — apply. Electricity is outside this portal's CN catalogue, so for most installations the answer is No.",
+  hint: "Only then does the fourth report — the declarant-specific addendum — apply.",
 };
 
 const get = (i: Installation, key: string): string => {

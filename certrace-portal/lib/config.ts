@@ -1026,7 +1026,8 @@ export type ProductCategory =
   | "Aluminium"
   | "Cement"
   | "Fertilisers"
-  | "Hydrogen";
+  | "Hydrogen"
+  | "Electricity";
 export type CatalogProduct = {
   id: string;
   name: string;
@@ -1035,10 +1036,11 @@ export type CatalogProduct = {
   cnCode: string; // real CN code (CBAM Annex I scope)
   hsCode: string; // 4-digit HS heading
   keywords: string[];
+  unit?: "MWh";
 };
 
-/* The catalogue is no longer typed here. It is the full CN-8 set in CBAM scope —
-   570 codes, generated from the regulation's own benchmark table — and the
+/* The catalogue is no longer typed here. It holds the 570 benchmark CN codes
+   and electricity, which has no free-allocation benchmark, and the
    whole story of where it comes from is in lib/cbam/cn-catalogue.ts. */
 export const PRODUCT_CATALOG: CatalogProduct[] = FULL_CATALOGUE;
 
@@ -1407,6 +1409,7 @@ export const SCOPE2_IN_LIABILITY: Record<ProductCategory, boolean> = {
   "Iron & Steel": false,
   Aluminium: false, // Annex II good — direct-only in the definitive period
   Hydrogen: false, // Annex II good
+  Electricity: false,
   /* Cement and fertilisers are NOT in Annex II, so their indirect emissions
      (electricity) count toward the obligation. */
   Cement: true,
@@ -1436,7 +1439,7 @@ export type ProductUnit = (typeof PRODUCT_UNITS)[number];
    in, so a quantity is never silently mis-typed as tonnes. */
 export const DEFAULT_UNIT = "";
 
-/** By id — the 570 current codes first, then the old entries whose code was
+/** By id — the current codes first, then the old entries whose code was
     not an 8-digit CN code, so a workspace saved before the catalogue was
     replaced still resolves its product. */
 export const getCatalogProduct = (id: string): CatalogProduct | undefined =>
@@ -1450,6 +1453,7 @@ export const PRODUCT_CATEGORIES: ProductCategory[] = [
   "Fertilisers",
   "Cement",
   "Hydrogen",
+  "Electricity",
 ];
 
 /* ── Aggregated goods categories ───────────────────────────────
@@ -1477,6 +1481,7 @@ export type AggregatedGoodsCategory =
   | "Cement"
   | "Aluminous cement"
   | "Hydrogen"
+  | "Electricity"
   | "Ammonia"
   | "Nitric acid"
   | "Urea"
@@ -1492,6 +1497,7 @@ const AGGREGATED_BY_CN: [prefix: string, category: AggregatedGoodsCategory][] =
     ["252310", "Cement clinker"],
     ["252330", "Aluminous cement"],
     ["2804", "Hydrogen"],
+    ["2716", "Electricity"],
     ["2808", "Nitric acid"],
     ["2814", "Ammonia"],
     ["2834", "Mixed fertilisers"],

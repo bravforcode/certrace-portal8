@@ -191,7 +191,10 @@ export function lookupDefault(
      unlisted country falls straight through to that table. (It used to return
      null here, which left every country outside Annex I's 120 without a value.) */
   const own = tableFor(country);
-  const hit = own ? findIn(own, cn, variant) : null;
+  // 2026/1740 replaces the erroneous Angola iron-ore row with a dash.
+  const correctedMissing =
+    country.toUpperCase() === "AO" && digits(cn) === "26011200";
+  const hit = own && !correctedMissing ? findIn(own, cn, variant) : null;
   if (hit)
     return {
       rates: toRates(hit.row),

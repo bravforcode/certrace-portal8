@@ -1,9 +1,10 @@
-/* Thai explanations of the 570 CN codes in CBAM scope, keyed by CN code.
+/* Thai explanations of the catalogue CN codes, keyed by CN code.
    Customs wording is formulaic, so each line was built phrase by phrase from a glossary of tariff terms and the irregular ones were
    written by hand. The trailing "excl. …" list is left out, exactly as the English one-liner leaves it out (see shortDescription).
    The CN code and the English text are the legal wording of the filing; this is the explanation beside them. */
 
 export const CN_DESC_TH: Record<string, string> = {
+  "2716 00 00": "พลังงานไฟฟ้า",
   "2507 00 80": "ดินเหนียวเคโอลินิก (ยกเว้นเคโอลิน)",
   "2523 10 00": "ปูนเม็ด (ซีเมนต์คลิงเกอร์)",
   "2523 21 00": "ปอร์ตแลนด์ซีเมนต์สีขาว ไม่ว่าจะย้อมสีหรือไม่",

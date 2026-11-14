@@ -17,6 +17,51 @@ export const REQUIRED: Record<string, string[]> = {
   output: ["step", "item", "qty", "unit"],
   transport: ["route", "mode", "qty"],
   evidence: ["item", "covers"],
+  // TGO CFP: Fr-01 product context and, per form, the columns its result needs.
+  "cfp-product": ["cn", "fu", "scope"],
+  cfp: ["product", "stage", "item", "qty", "unit", "ef", "ef_source"],
+  // Fr-04.2 method b: without distance, vehicle and the outbound EF there is no tkm result.
+  "cfp-transport": [
+    "product",
+    "stage",
+    "item",
+    "qty",
+    "unit",
+    "distance",
+    "vehicle",
+    "ef_tkm",
+  ],
+  // Fr-04.3: a support unit's product output carries no EF, so EF is not required on every row.
+  "cfp-support": ["product", "unit_name", "io", "item", "qty", "unit"],
+  "cfp-luc": [
+    "product",
+    "item",
+    "unit",
+    "qty",
+    "yield",
+    "before_use",
+    "after_use",
+    "ef",
+  ],
+  "cfp-baseyear": [
+    "product",
+    "stage",
+    "base_year",
+    "base",
+    "current_year",
+    "current",
+  ],
+  "cfp-reduction": ["product", "measure", "detail"],
+  // 2025/2546 Annex: what makes a report a report (who, when, how visited, at what materiality, the conclusion).
+  "cbam-verification": [
+    "report_id",
+    "period",
+    "site_visit",
+    "materiality",
+    "statement",
+    "signed_by",
+    "signed_date",
+  ],
 };
 
 // Columns that describe a row rather than hold data; filling only these does not start a row.

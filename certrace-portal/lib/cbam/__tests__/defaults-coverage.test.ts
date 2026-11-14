@@ -23,6 +23,7 @@ test("every CN code resolves to a default value for every country on the picker 
   const missing: string[] = [];
   for (const c of COUNTRIES) {
     for (const p of FULL_CATALOGUE) {
+      if (p.unit === "MWh") continue;
       const hit = lookupDefault(p.cnCode, c.code, needsVariant(p.cnCode));
       /* >= 0, not > 0: Annex I itself prints 0 for a few goods (Mali's hydrogen) and the
          table is the law — it is shown as published, not "corrected". */
@@ -71,6 +72,7 @@ test("Annex IV: every CN code has a value for a precursor of unidentified origin
   const notHighest: string[] = [];
   const none: string[] = [];
   for (const p of FULL_CATALOGUE) {
+    if (p.unit === "MWh") continue;
     const u = lookupUnknownOrigin(p.cnCode);
     if (!u) {
       none.push(p.cnCode);
@@ -106,4 +108,14 @@ test("an unknown origin gives the Annex IV figure, never a named country's", () 
   const named = defaultFor("7207 11 16", "TH", 2026)!;
   assert.equal(unknown.source, "unknown_origin");
   assert.ok(unknown.total >= named.total);
+});
+
+test("the 2026 correction updates Angola, the Other table and unknown-origin aluminium", () => {
+  const angola = lookupDefault("2601 12 00", "AO")!;
+  assert.equal(angola.usedOther, true);
+  assert.equal(angola.rates.total, 0.686);
+  assert.equal(angola.rates.indirect, 0.07);
+  assert.equal(lookupDefault("7226 20 00", "ZZ")!.rates.total, 5.5);
+  assert.equal(lookupUnknownOrigin("7616 99 10")!.highest, 4.542);
+  assert.equal(lookupUnknownOrigin("7616 99 90")!.highest, 5.559);
 });
