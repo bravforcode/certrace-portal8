@@ -309,7 +309,9 @@ function viaSentences(lang: LangCode, en: string): string | null {
     }
     return part;
   });
-  return found === 0 ? null : out.join(NO_SPACE_BETWEEN_SENTENCES.has(lang) ? "" : " ");
+  return found === 0
+    ? null
+    : out.join(NO_SPACE_BETWEEN_SENTENCES.has(lang) ? "" : " ");
 }
 
 /** A name with a word of ours in brackets after it — "CaCO3 (carbonate)", "MgO (oxide, output-based)". The name is a material somebody

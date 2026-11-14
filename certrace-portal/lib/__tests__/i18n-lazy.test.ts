@@ -23,7 +23,17 @@ test("Thai verification copy is available through the loaded locale", () => {
 // Every menu language must cover every string Thai covers. A missing row renders English, and with
 // most rows missing a language looks like the menu did nothing (the original bug).
 test("every non-English language translates every string Thai does", () => {
-  const langs = ["zh", "hi", "vi", "tr", "ko", "zh-TW", "id", "ja", "ms"] as const;
+  const langs = [
+    "zh",
+    "hi",
+    "vi",
+    "tr",
+    "ko",
+    "zh-TW",
+    "id",
+    "ja",
+    "ms",
+  ] as const;
   for (const lang of langs) {
     const missing = Object.keys(TH_ALL).filter(
       (k) => !translate(lang, k).trim(),
@@ -54,7 +64,11 @@ test("each language dictionary has a row for every Thai key", async () => {
   };
   for (const [lang, d] of Object.entries(dicts)) {
     const missing = Object.keys(TH_ALL).filter((k) => !(k in d));
-    assert.deepEqual(missing.slice(0, 5), [], `${lang} missing ${missing.length} rows`);
+    assert.deepEqual(
+      missing.slice(0, 5),
+      [],
+      `${lang} missing ${missing.length} rows`,
+    );
   }
 });
 

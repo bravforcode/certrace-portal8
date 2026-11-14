@@ -186,7 +186,19 @@ test("no Thai label carries its English twin in brackets after it", () => {
 
 /* ── Chinese and Hindi are offered on every screen ───────────── */
 import { LINK_LANGUAGES, languagesFor } from "../i18n";
-const ALL = ["en", "th", "zh", "hi", "vi", "tr", "ko", "zh-TW", "id", "ja", "ms"];
+const ALL = [
+  "en",
+  "th",
+  "zh",
+  "hi",
+  "vi",
+  "tr",
+  "ko",
+  "zh-TW",
+  "id",
+  "ja",
+  "ms",
+];
 
 test("every screen offers all eleven languages", () => {
   assert.deepEqual(

@@ -32,9 +32,7 @@ import { accountStorage } from "@/lib/account-storage";
 
    Only a failure stays on screen, with a way back to where it started. */
 export default function GoogleCallbackPage() {
-  return (
-      <GoogleCallback />
-  );
+  return <GoogleCallback />;
 }
 
 const SETTINGS_SECURITY = "/settings?tab=privacy";

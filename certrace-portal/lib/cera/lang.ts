@@ -18,7 +18,11 @@ export type CeraLang = "th" | "en" | "zh" | "hi";
 /** The interface offers more languages than Cera has written replies for: Traditional Chinese reads the
     Simplified replies, every other one gets English. */
 export const ceraLang = (lang: LangCode): CeraLang =>
-  lang === "zh-TW" ? "zh" : lang === "th" || lang === "zh" || lang === "hi" ? lang : "en";
+  lang === "zh-TW"
+    ? "zh"
+    : lang === "th" || lang === "zh" || lang === "hi"
+      ? lang
+      : "en";
 
 /** The three languages Cera has written knowledge for besides English. */
 export type LocalLang = Exclude<CeraLang, "en">;
