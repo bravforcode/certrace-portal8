@@ -53,12 +53,12 @@ export const TH_WORKSPACE: Record<string, string> = {
   // upload
   Upload: "อัปโหลด",
   "Upload your files for {year}": "อัปโหลดไฟล์ของปี {year}",
-  "Add every file you have — invoices, bills, stock cards, process maps. There is no limit. Say in one line what each file is.":
-    "ใส่ไฟล์ทั้งหมดที่มี ทั้งใบแจ้งหนี้ บิล สต็อกการ์ด แผนผังกระบวนการ ไม่จำกัดจำนวน และเขียนสั้นๆ ว่าแต่ละไฟล์คืออะไร",
+  "Add every file you have — invoices, bills, stock cards, process maps. Up to 200 files per upload. Say in one line what each file is.":
+    "ใส่ไฟล์ทั้งหมดที่มี ทั้งใบแจ้งหนี้ บิล สต็อกการ์ด แผนผังกระบวนการ ได้สูงสุด 200 ไฟล์ต่อครั้ง และเขียนสั้นๆ ว่าแต่ละไฟล์คืออะไร",
   Year: "ปี",
   "Drop files here": "วางไฟล์ที่นี่",
-  "PDF, Excel, Word, images — any number of files":
-    "PDF, Excel, Word, รูปภาพ ได้ไม่จำกัด",
+  "PDF, Excel, Word, images — up to 200 files":
+    "PDF, Excel, Word, รูปภาพ สูงสุด 200 ไฟล์",
   "Choose files": "เลือกไฟล์",
   "What is this file? e.g. Zinc purchase orders, Jan–Jun":
     "ไฟล์นี้คืออะไร เช่น ใบสั่งซื้อสังกะสี ม.ค.–มิ.ย.",
@@ -581,6 +581,8 @@ export const TH_WORKSPACE: Record<string, string> = {
     "เลือกไฟล์ .csv หรือ .xlsx ไม่เกิน 5 MB",
   "Choose a .csv or .xlsx file.": "เลือกไฟล์ .csv หรือ .xlsx",
   "Save the file as .xlsx or .csv first.": "บันทึกไฟล์เป็น .xlsx หรือ .csv ก่อน",
+  "The CSV has a quoted field that is never closed. Check the quotes and try again.":
+    "ไฟล์ CSV มีเครื่องหมายคำพูดที่เปิดแล้วไม่ได้ปิด ตรวจเครื่องหมายคำพูดแล้วลองอีกครั้ง",
   "The file is larger than 5 MB.": "ไฟล์มีขนาดใหญ่กว่า 5 MB",
   "This file is not a valid .xlsx workbook.": "ไฟล์นี้ไม่ใช่เวิร์กบุ๊ก .xlsx ที่ถูกต้อง",
   "This workbook uses a compression the portal cannot read.":

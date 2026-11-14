@@ -1,6 +1,6 @@
 import { cellKey, rowsUsed } from "./cells";
 import type { CellPatch } from "./flow-edit";
-import { PARSE_LIMITS } from "./import-limits";
+import { ImportError, PARSE_LIMITS } from "./import-limits";
 
 export const IMPORT_LIMITS = {
   bytes: 5_000_000,
@@ -67,6 +67,11 @@ export function parseCsv(text: string): string[][] {
       endRow();
     } else cell += ch;
   }
+  // An unclosed quote would have swallowed every later line into one cell.
+  if (quoted)
+    throw new ImportError(
+      "The CSV has a quoted field that is never closed. Check the quotes and try again.",
+    );
   if (cell !== "" || row.length) endRow();
   return rows;
 }

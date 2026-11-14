@@ -3,7 +3,7 @@
 /* ════════════════════════════════════════════════════════════
    STARTING A YEAR — three ways, one Confirm
 
-     1. Upload files (the main way): no limit, and each file needs one line
+     1. Upload files (the main way): up to 200 files, and each file needs one line
         saying what it is — a name like "scan_0042.pdf" does not say which
         month or which material it covers.
      2. Start from the beginning: empty sheets, filled in by hand.
@@ -187,7 +187,7 @@ export function UploadPanel({
           </h2>
           <p className="mt-2 max-w-xl text-sm leading-relaxed text-black/45">
             {t(
-              "Add every file you have — invoices, bills, stock cards, process maps. There is no limit. Say in one line what each file is.",
+              "Add every file you have — invoices, bills, stock cards, process maps. Up to 200 files per upload. Say in one line what each file is.",
             )}
           </p>
         </div>
@@ -235,7 +235,7 @@ export function UploadPanel({
         />
         <p className="mt-3 text-[14px] text-black/70">{t("Drop files here")}</p>
         <p className="mt-1 text-[12px] text-black/35">
-          {t("PDF, Excel, Word, images — any number of files")}
+          {t("PDF, Excel, Word, images — up to 200 files")}
         </p>
         <Button
           variant="secondary"

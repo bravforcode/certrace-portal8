@@ -6,6 +6,7 @@ import {
   parseCsv,
   suggestMapping,
 } from "../import";
+import { ImportError } from "../import-limits";
 
 test("parseCsv handles quotes, CRLF, BOM and semicolons", () => {
   assert.deepEqual(parseCsv('﻿a;"b;c"\r\n1;"say ""hi"""\r\n'), [
@@ -75,5 +76,16 @@ test("buildImport splits patches on row boundaries", () => {
   assert.equal(
     patches.reduce((n, p) => n + Object.keys(p).length, 0),
     3000,
+  );
+});
+
+/* An unclosed quote swallows every later line into one cell, so the preview would show one huge cell
+   and the import would write the rest of the file into it. Reject the file instead. */
+test("parseCsv rejects a quoted field that is never closed", () => {
+  assert.throws(
+    () => parseCsv('item,qty\n"steel,5\nsand,3\n'),
+    (e: unknown) =>
+      e instanceof ImportError &&
+      /quoted field that is never closed/.test(e.message),
   );
 });

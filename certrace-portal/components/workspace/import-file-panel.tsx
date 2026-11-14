@@ -240,7 +240,7 @@ export function ImportFileSection({
             </h2>
             <p className="mt-2 max-w-xl text-sm leading-relaxed text-black/45">
               {t(
-                "Add every file you have — invoices, bills, stock cards, process maps. There is no limit. Say in one line what each file is.",
+                "Add every file you have — invoices, bills, stock cards, process maps. Up to 200 files per upload. Say in one line what each file is.",
               )}
             </p>
           </div>
@@ -283,7 +283,7 @@ export function ImportFileSection({
             {t("Drop files here")}
           </p>
           <p className="mt-1 text-[12px] text-black/35">
-            {t("PDF, Excel, Word, images — any number of files")}
+            {t("PDF, Excel, Word, images — up to 200 files")}
           </p>
           <Button
             variant="secondary"
