@@ -68,6 +68,7 @@ import { CELL_MAX } from "@/lib/workbook/save-queue";
 import { toast } from "@/components/toast";
 import { rowWindow } from "@/lib/row-window";
 import { cellOptions, unitAfterProductPick } from "@/lib/workbook/cell-options";
+import { confirmValue } from "@/lib/workbook/validate";
 import type { CatalogProduct } from "@/lib/config";
 import { efFill } from "@/lib/cfp/tgo-ef";
 import { CnCellPicker } from "@/components/workspace/cn-cell-picker";
@@ -389,6 +390,16 @@ export function Spreadsheet({
     commit(r, c, product.cnCode);
   };
 
+  /* The status cell is the confirm button: a checked row with nothing flagged can be confirmed,
+     and a confirmed row can be taken back. The stored value signs the row's data (validate.ts). */
+  const toggleConfirm = (r: number, c: number) => {
+    const row = sheet?.rows[r];
+    if (!row || !onEdit) return;
+    if (row.status === "confirmed") onEdit(keyOf(r, c), "");
+    else if (row.status === "review" && !Object.keys(row.flags ?? {}).length)
+      onEdit(keyOf(r, c), confirmValue(row.cells));
+  };
+
   const commit = (r: number, c: number, value: string) => {
     setEditing(null);
     focusGrid();
@@ -447,7 +458,10 @@ export function Spreadsheet({
       if (moveSel(0, e.shiftKey ? -1 : 1)) e.preventDefault();
     } else if (k === "Home") go(0, -cols.length);
     else if (k === "End") go(0, cols.length);
-    else if (k === "F2" && editable(sel.c)) {
+    else if (k === " " && cols[sel.c]?.kind === "status") {
+      e.preventDefault();
+      toggleConfirm(sel.r, sel.c);
+    } else if (k === "F2" && editable(sel.c)) {
       e.preventDefault();
       setEditing(keyOf(sel.r, sel.c));
     } else if ((k === "Delete" || k === "Backspace") && editable(sel.c)) {
@@ -834,7 +848,11 @@ export function Spreadsheet({
                                   name: editorName(editor.by),
                                   time: timeAgo(editor.at, t),
                                 })
-                              : undefined
+                              : col.kind === "status"
+                                ? statusHint(row, t)
+                                : row.notes?.[col.key]
+                                  ? t(row.notes[col.key]!)
+                                  : undefined
                           }
                           tabIndex={-1}
                           aria-selected={selected}
@@ -844,6 +862,8 @@ export function Spreadsheet({
                             e.preventDefault();
                             setSel({ r, c });
                             focusGrid();
+                            if (e.button === 0 && col.kind === "status")
+                              toggleConfirm(r, c);
                             // A column with a pick list opens it on the click, so nothing has to be typed.
                             if (
                               e.button === 0 &&
@@ -1324,6 +1344,16 @@ function CellView({
       <Highlight text={text} query={query} />
     </span>
   );
+}
+
+/** What the status cell says on hover: why a row is not confirmed, or how to confirm it. */
+function statusHint(row: SheetRow, t: (s: string) => string): string | undefined {
+  if (row.status === "empty") return undefined;
+  if (row.status === "missing") return t("Fill the required cells first");
+  if (row.status === "confirmed") return t("Confirmed. Click to undo");
+  return Object.keys(row.flags ?? {}).length
+    ? t("Fix the flagged cells before confirming")
+    : t("Checked. Click to confirm this row");
 }
 
 function StatusPill({ status }: { status: SheetRow["status"] }) {
